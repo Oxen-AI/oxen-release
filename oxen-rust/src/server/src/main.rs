@@ -1,4 +1,5 @@
 use liboxen::config::UserConfig;
+
 use liboxen::model::User;
 
 pub mod app_data;
@@ -7,7 +8,9 @@ pub mod controllers;
 pub mod errors;
 pub mod helpers;
 pub mod params;
+pub mod queues;
 pub mod routes;
+pub mod tasks;
 pub mod test;
 pub mod view;
 
@@ -16,9 +19,16 @@ extern crate log;
 use actix_web::middleware::{Condition, Logger};
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
+
 use clap::{Arg, Command};
 use env_logger::Env;
+
 use std::path::Path;
+use std::time::Duration;
+use tokio::time::sleep;
+
+use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
+use crate::tasks::Runnable;
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -37,6 +47,36 @@ async fn main() -> std::io::Result<()> {
         Ok(dir) => dir,
         Err(_) => String::from("data"),
     };
+
+    // Polling worker setup
+    async fn poll_queue(mut queue: TaskQueue) {
+        loop {
+            match queue.pop() {
+                Some(task) => {
+                    log::debug!("Got queue item: {:?}", task);
+                    task.run();
+                }
+                None => {
+                    // log::debug!("No queue items found, sleeping");
+                    sleep(Duration::from_millis(1000)).await;
+                }
+            }
+        }
+    }
+
+    // If redis connection is available, use redis queue, else in-memory
+    pub fn init_queue() -> TaskQueue {
+        match helpers::get_redis_connection() {
+            Ok(pool) => {
+                println!("connecting to redis established, initializing queue");
+                TaskQueue::Redis(RedisTaskQueue { pool })
+            }
+            Err(_) => {
+                println!("Failed to connect to Redis. Falling back to in-memory queue.");
+                TaskQueue::InMemory(InMemoryTaskQueue::new())
+            }
+        }
+    }
 
     let command = Command::new("oxen-server")
         .version(VERSION)
@@ -117,7 +157,12 @@ async fn main() -> std::io::Result<()> {
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
 
-                    let data = app_data::OxenAppData::from(&sync_dir);
+                    let queue = init_queue();
+
+                    let data = app_data::OxenAppData::new(&sync_dir, queue.clone());
+                    // Poll for post-commit tasks in background
+                    tokio::spawn(async { poll_queue(queue).await });
+
                     HttpServer::new(move || {
                         App::new()
                             .app_data(data.clone())

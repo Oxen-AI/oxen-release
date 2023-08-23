@@ -885,7 +885,7 @@ who won the game?,The packers beat up on the bears,packers
             command::commit(&repo, "Adding initial dog images")?;
 
             // Set the proper remote
-            let remote = test::repo_remote_url_from(&repo.dirname());
+            // let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
@@ -909,6 +909,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
             let summary = entry.diff_summary.as_ref().unwrap();
+
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {
                     assert_eq!(summary.dir.file_counts.modified, 0);

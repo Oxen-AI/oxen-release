@@ -3,10 +3,15 @@
 //! Interact with local commits.
 //!
 
-use crate::core::index::{CommitEntryReader, CommitReader, CommitWriter, RefReader, Stager};
+use crate::constants::HISTORY_DIR;
+use crate::core::cache::cachers::content_validator;
+use crate::core::index::{
+    CommitEntryReader, CommitReader, CommitWriter, RefReader, RefWriter, Stager,
+};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
 use crate::opts::LogOpts;
+use crate::util::fs::commit_content_is_valid_path;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{api, util};
 
@@ -107,6 +112,60 @@ pub fn commit_from_branch_or_commit_id<S: AsRef<str>>(
     Ok(None)
 }
 
+pub fn list_with_missing_dbs(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Vec<Commit>, OxenError> {
+    let mut missing_db_commits: Vec<Commit> = vec![];
+
+    // Get full commit history for this repo to report any missing commits
+    let commits = api::local::commits::list_from(repo, commit_id)?;
+    for commit in commits {
+        if !commit_history_db_exists(repo, &commit)? {
+            missing_db_commits.push(commit);
+        }
+    }
+    // BASE-->HEAD order
+    missing_db_commits.reverse();
+
+    Ok(missing_db_commits)
+}
+
+pub fn list_with_missing_entries(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Vec<Commit>, OxenError> {
+    log::debug!("In here working on finding some commit entries");
+    let mut missing_entry_commits: Vec<Commit> = vec![];
+
+    // Get full commit history for this repo to report any missing commits
+    let commits = api::local::commits::list_from(repo, commit_id)?;
+
+    for commit in commits {
+        if commit_content_is_valid_path(repo, &commit).exists()
+            && content_validator::is_valid(repo, &commit)?
+        {
+            continue;
+        }
+        missing_entry_commits.push(commit);
+    }
+
+    // BASE-->HEAD order - essential for ensuring sync order
+    missing_entry_commits.reverse();
+
+    Ok(missing_entry_commits)
+}
+
+pub fn commit_history_db_exists(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<bool, OxenError> {
+    let commit_history_dir = util::fs::oxen_hidden_dir(&repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id);
+    Ok(commit_history_dir.exists())
+}
+
 pub fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     let mut status = StagedData::empty();
     let commit = commit(repo, &mut status, message)?;
@@ -126,6 +185,37 @@ pub fn commit(
     Ok(commit)
 }
 
+pub fn create_commit_object_with_committers(
+    _repo_dir: &Path,
+    branch_name: impl AsRef<str>,
+    commit: &Commit,
+    commit_reader: &CommitReader,
+    commit_writer: &CommitWriter,
+    ref_writer: &RefWriter,
+) -> Result<(), OxenError> {
+    log::debug!("Create commit obj: {} -> '{}'", commit.id, commit.message);
+
+    // If we have a root, and we are trying to push a new one, don't allow it
+    if let Ok(root) = commit_reader.root_commit() {
+        if commit.parent_ids.is_empty() && root.id != commit.id {
+            log::error!("Root commit does not match {} != {}", root.id, commit.id);
+            return Err(OxenError::root_commit_does_not_match(commit.to_owned()));
+        }
+    }
+
+    // Todo - add back error creating commit writer on other side
+    match commit_writer.add_commit_to_db(commit) {
+        Ok(_) => {
+            log::debug!("Successfully added commit [{}] to db", commit.id);
+            ref_writer.set_branch_commit_id(branch_name.as_ref(), &commit.id)?;
+        }
+        Err(err) => {
+            log::error!("Error adding commit to db: {:?}", err);
+        }
+    }
+    Ok(())
+}
+
 pub fn create_commit_object(
     repo_dir: &Path,
     branch_name: impl AsRef<str>,
@@ -136,30 +226,19 @@ pub fn create_commit_object(
     // Instantiate repo from dir
     let repo = LocalRepository::from_dir(repo_dir)?;
 
-    // If we have a root, and we are trying to push a new one, don't allow it
-    if let Ok(root) = root_commit(&repo) {
-        if commit.parent_ids.is_empty() && root.id != commit.id {
-            log::error!("Root commit does not match {} != {}", root.id, commit.id);
-            return Err(OxenError::root_commit_does_not_match(commit.to_owned()));
-        }
-    }
+    // Create readers and writers
+    let commit_reader = CommitReader::new(&repo)?;
+    let commit_writer = CommitWriter::new(&repo)?;
+    let ref_writer = RefWriter::new(&repo)?;
 
-    let result = CommitWriter::new(&repo);
-    match result {
-        Ok(commit_writer) => match commit_writer.add_commit_to_db(commit) {
-            Ok(_) => {
-                log::debug!("Successfully added commit [{}] to db", commit.id);
-                api::local::branches::update(&repo, branch_name.as_ref(), &commit.id)?;
-            }
-            Err(err) => {
-                log::error!("Error adding commit to db: {:?}", err);
-            }
-        },
-        Err(err) => {
-            log::error!("Error creating commit writer: {:?}", err);
-        }
-    };
-    Ok(())
+    create_commit_object_with_committers(
+        repo_dir,
+        branch_name,
+        commit,
+        &commit_reader,
+        &commit_writer,
+        &ref_writer,
+    )
 }
 
 /// List commits on the current branch from HEAD

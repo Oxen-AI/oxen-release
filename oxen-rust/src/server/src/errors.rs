@@ -18,6 +18,7 @@ pub enum OxenHttpError {
     // External
     ActixError(actix_web::Error),
     SerdeError(serde_json::Error),
+    RedisError(redis::RedisError),
 }
 
 impl From<OxenError> for OxenHttpError {
@@ -29,6 +30,12 @@ impl From<OxenError> for OxenHttpError {
 impl From<io::Error> for OxenHttpError {
     fn from(error: io::Error) -> Self {
         OxenHttpError::InternalOxenError(OxenError::IO(error))
+    }
+}
+
+impl From<redis::RedisError> for OxenHttpError {
+    fn from(error: redis::RedisError) -> Self {
+        OxenHttpError::RedisError(error)
     }
 }
 
@@ -71,6 +78,9 @@ impl error::ResponseError for OxenHttpError {
             }
             OxenHttpError::SerdeError(_) => {
                 HttpResponse::BadRequest().json(StatusMessage::bad_request())
+            }
+            OxenHttpError::RedisError(_) => {
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
             OxenHttpError::InternalOxenError(error) => {
                 // Catch specific OxenError's and return the appropriate response
@@ -160,6 +170,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
+            OxenHttpError::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,
