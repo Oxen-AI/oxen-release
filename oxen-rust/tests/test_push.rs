@@ -1,6 +1,7 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::test;
 use liboxen::util;
@@ -433,6 +434,95 @@ async fn test_cannot_push_two_separate_repos() -> Result<(), OxenError> {
         .await?;
 
         Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
+    test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
+        // Current local head
+        let local_head = api::local::commits::head_commit(&local_repo)?;
+
+        // Nothing should be synced on remote and no commit objects created except root
+        let history =
+            api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(history.len(), 1);
+
+        // Push all to remote
+        command::push(&local_repo).await?;
+
+        // Should now have 25 commits on remote
+        let history =
+            api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(history.len(), 25);
+
+        // Latest commit synced should be == local head, with no unsynced commits
+        let sync_response =
+            api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
+        assert_eq!(sync_response.latest_synced.unwrap().id, local_head.id);
+        assert_eq!(sync_response.num_unsynced, 0);
+
+        // Latest synced should now be head
+        // let latest_synced = api::remote::commits::latest_commit_synced(&remote_repo, local_head).await?;
+
+        Ok(remote_repo)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
+    test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
+        // Current local head
+        let local_head = api::local::commits::head_commit(&local_repo)?;
+
+        // Nothing should be synced on remote and no commit objects created except root
+        let history =
+            api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(history.len(), 1);
+
+        // Create new local branch
+        let new_branch_name = "my-branch";
+        api::local::branches::create_checkout(&local_repo, new_branch_name)?;
+
+        // New commit
+        let new_file = "new_file.txt";
+        let new_file_path = local_repo.path.join(new_file);
+        let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+        command::add(&local_repo, &new_file_path)?;
+        command::commit(&local_repo, "Adding first file path.")?;
+
+        // Push new branch to remote without first syncing main
+        command::push_remote_branch(&local_repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)
+            .await?;
+
+        // Should now have 26 commits on remote on new branch, 1 on main
+        let history_new =
+            api::remote::commits::list_commit_history(&remote_repo, new_branch_name).await?;
+        let history_main =
+            api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+
+        assert_eq!(history_new.len(), 26);
+        assert_eq!(history_main.len(), 1);
+
+        // Back to main
+        command::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
+
+        // Push to remote
+        command::push(&local_repo).await?;
+
+        // 25 on main
+        let history_main =
+            api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(history_main.len(), 25);
+
+        // 0 unsynced on main
+        let sync_response =
+            api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
+        assert_eq!(sync_response.num_unsynced, 0);
+
+        Ok(remote_repo)
     })
     .await
 }

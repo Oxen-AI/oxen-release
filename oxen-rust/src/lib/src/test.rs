@@ -5,6 +5,7 @@ use crate::api;
 use crate::command;
 use crate::constants;
 
+use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::index::{RefWriter, Stager};
 use crate::error::OxenError;
 use crate::model::schema::Field;
@@ -15,6 +16,7 @@ use crate::opts::RmOpts;
 use crate::util;
 
 use env_logger::Env;
+use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::fs::File;
 use std::fs::OpenOptions;
@@ -33,6 +35,14 @@ pub fn test_host() -> String {
         Ok(host) => host,
         Err(_err) => String::from(DEFAULT_TEST_HOST),
     }
+}
+
+fn generate_random_string(len: usize) -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(len)
+        .map(char::from)
+        .collect()
 }
 
 pub fn repo_remote_url_from(name: &str) -> String {
@@ -231,6 +241,56 @@ where
     util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
+/// Test syncing between local and remote where local has high n commits and remote is empty
+pub async fn run_many_local_commits_empty_sync_remote_test<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository, RemoteRepository) -> Fut,
+    Fut: Future<Output = Result<RemoteRepository, OxenError>>,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+
+    let mut local_repo = command::init(&repo_dir)?;
+
+    let namespace = constants::DEFAULT_NAMESPACE;
+    let name = local_repo.dirname();
+    let remote_repo =
+        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+
+    // Set remote
+    command::config::set_remote(
+        &mut local_repo,
+        DEFAULT_REMOTE_NAME,
+        &remote_repo.remote.url,
+    )?;
+
+    let local_repo_dir = local_repo.path.clone();
+
+    for i in 1..25 {
+        // Get random string
+        let txt = generate_random_string(20);
+        let file_path = add_txt_file_to_dir(&local_repo_dir, &txt)?;
+        command::add(&local_repo, &file_path)?;
+        command::commit(&local_repo, &format!("Adding file_{}", i))?;
+    }
+
+    // Run test to see if it panic'd
+    let result = match test(local_repo, remote_repo).await {
+        Ok(remote_repo) => {
+            // Cleanup remote repo
+            api::remote::repositories::delete(&remote_repo).await?;
+            true
+        }
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
     assert!(result);
     Ok(())
 }

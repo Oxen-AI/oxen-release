@@ -471,8 +471,8 @@ pub fn list_diff_entries(
     log::debug!("Got {} head entries", head_entries.len());
     log::debug!(
         "Reading entries from base commit {} -> {}",
-        head_commit.id,
-        head_commit.message
+        base_commit.id,
+        base_commit.message
     );
     let base_entries = read_entries_from_commit(repo, base_commit)?;
     log::debug!("Got {} base entries", base_entries.len());
@@ -540,7 +540,6 @@ pub fn list_diff_entries(
         removed: removed_commit_entries.len(),
         modified: modified_commit_entries.len(),
     };
-
     let mut combined: Vec<_> = added_commit_entries
         .into_iter()
         .chain(removed_commit_entries)
