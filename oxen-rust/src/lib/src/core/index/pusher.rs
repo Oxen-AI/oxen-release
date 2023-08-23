@@ -243,7 +243,7 @@ async fn poll_until_synced(
                 bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
                 if sync_status.num_unsynced == 0 {
                     bar.finish();
-                    println!("✅ push successful\n");
+                    println!("\n✅ push successful\n");
                     return Ok(());
                 }
             }

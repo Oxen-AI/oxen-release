@@ -840,12 +840,12 @@ mod tests {
             //       annotations.txt
             //     test/
             //       annotations.txt
-            let train_dir = local_repo.path.join("annotations/train");
+            let train_dir = local_repo.path.join("annotations").join("train");
             command::add(&local_repo, &train_dir)?;
             // Commit the directory
             let commit1 = command::commit(&local_repo, "Adding 1")?;
 
-            let test_dir = local_repo.path.join("annotations/test");
+            let test_dir = local_repo.path.join("annotations").join("test");
             command::add(&local_repo, &test_dir)?;
             // Commit the directory
             let commit2 = command::commit(&local_repo, "Adding 2")?;
