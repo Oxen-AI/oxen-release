@@ -66,6 +66,7 @@ impl DiffEntry {
         // Get the metadata entries
         let mut base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
         let mut head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
+
         // Need to check whether we have the head or base entry to check data about the file
         let (current_dir, current_entry) = if let Some(dir) = head_dir {
             (dir, head_entry.to_owned().unwrap())
@@ -278,6 +279,10 @@ impl DiffEntry {
 
         // Uniq them
         let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs.into_iter());
+
+        // What base_commit_id and head_commit_id are happening here?
+        log::debug!("base_commit_id 284 is {:?}", base_commit_id);
+        log::debug!("head_commit_id 285 is {:?}", head_commit_id);
 
         for dir in dirs {
             let base_dir_reader = CommitDirEntryReader::new(repo, base_commit_id, &dir)?;

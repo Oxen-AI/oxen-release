@@ -129,10 +129,6 @@ pub async fn file(
     //   main..feature/add-data/path/to/file.txt
     let (base_commit, head_commit, resource) = parse_base_head_resource(&repository, &base_head)?;
 
-    log::debug!("Got base commit: {}", base_commit);
-    log::debug!("Got head commit: {}", head_commit);
-    log::debug!("Got resource: {}", resource.display());
-
     let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
     let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
 
@@ -176,14 +172,9 @@ fn parse_base_head_resource(
         .next()
         .ok_or(OxenError::resource_not_found(base_head))?;
 
-    log::debug!("Checking base: {}", base);
-
     let base_commit = api::local::revisions::get(repo, base)?
         .ok_or(OxenError::revision_not_found(base.into()))?;
 
-    log::debug!("Got base_commit: {}", base_commit);
-
-    log::debug!("Checking head: {}", head);
     // Split on / and find longest branch name
     let split_head = head.split('/');
     let mut longest_str = String::from("");

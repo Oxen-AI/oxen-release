@@ -18,6 +18,7 @@ dependencies = [
  "async-recursion",
  "async-std",
  "async-tar",
+ "bincode",
  "bytecount",
  "bytes",
  "bytesize",
@@ -59,8 +60,10 @@ dependencies = [
  "polars",
  "polars-sql",
  "qsv-sniffer",
+ "r2d2",
  "rand",
  "rayon",
+ "redis",
  "reqwest",
  "rocksdb",
  "sanitize-filename",
@@ -996,6 +999,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "604178f6c5c21f02dc555784810edfb88d34ac2c73b2eae109655649ee73ce3d"
 
 [[package]]
+name = "bincode"
+version = "1.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "bindgen"
 version = "0.65.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1361,6 +1373,16 @@ dependencies = [
  "atty",
  "lazy_static",
  "winapi",
+]
+
+[[package]]
+name = "combine"
+version = "4.6.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "35ed6e9d84f0b51a7f52daf1c7d71dd136fd7a3f41a8462b8cdb8c78d920fad4"
+dependencies = [
+ "bytes",
+ "memchr",
 ]
 
 [[package]]
@@ -2780,8 +2802,10 @@ dependencies = [
  "polars",
  "polars-sql",
  "qsv-sniffer",
+ "r2d2",
  "rand",
  "rayon",
+ "redis",
  "reqwest",
  "rocksdb",
  "serde",
@@ -3315,6 +3339,7 @@ dependencies = [
  "actix-service",
  "actix-web",
  "actix-web-httpauth",
+ "bincode",
  "bytesize",
  "chrono",
  "clap",
@@ -3330,13 +3355,17 @@ dependencies = [
  "jsonwebtoken",
  "liboxen",
  "log",
+ "r2d2",
  "rand",
+ "redis",
  "rocksdb",
  "sanitize-filename",
  "serde",
  "serde_json",
  "tar",
  "time 0.3.22",
+ "tokio",
+ "tokio-util",
  "uuid",
 ]
 
@@ -3926,6 +3955,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "r2d2"
+version = "0.8.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "51de85fb3fb6524929c8a2eb85e6b6d363de4e8c48f9e2c2eac4944abc181c93"
+dependencies = [
+ "log",
+ "parking_lot 0.12.1",
+ "scheduled-thread-pool",
+]
+
+[[package]]
 name = "radium"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3991,6 +4031,22 @@ dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
  "num_cpus",
+]
+
+[[package]]
+name = "redis"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ffd6543a7bc6428396845f6854ccf3d1ae8823816592e2cbe74f20f50f209d02"
+dependencies = [
+ "combine",
+ "itoa",
+ "percent-encoding",
+ "r2d2",
+ "ryu",
+ "sha1_smol",
+ "socket2",
+ "url",
 ]
 
 [[package]]
@@ -4260,6 +4316,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scheduled-thread-pool"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3cbc66816425a074528352f5789333ecff06ca41b36b0b0efdfbb29edc391a19"
+dependencies = [
+ "parking_lot 0.12.1",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4397,6 +4462,12 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
+
+[[package]]
+name = "sha1_smol"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae1a47186c03a32177042e55dbc5fd5aee900b8e0069a8d70fba96a9375cd012"
 
 [[package]]
 name = "shlex"

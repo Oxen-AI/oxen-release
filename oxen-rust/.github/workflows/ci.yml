@@ -129,6 +129,11 @@ jobs:
       - name: Install dependencies
         run: brew install pkg-config ffmpeg imagemagick
 
+      - name: Install and start Redis
+        run: |
+          brew install redis
+          brew services start redis
+
       - name: Cache Rust dependencies
         uses: actions/cache@v3
         with:
@@ -147,7 +152,7 @@ jobs:
           default: true
           profile: minimal
           toolchain: stable
-          override: true
+          override: true 
 
       - name: Run Tests
         run: |

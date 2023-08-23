@@ -54,12 +54,10 @@ pub fn meta_entry_from_dir(
     // We cache the latest commit and size for each file in the directory after commit
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
+
     let latest_commit = match util::fs::read_from_path(latest_commit_path) {
         Ok(id) => commit_reader.get_commit_by_id(id)?,
-        Err(_) => {
-            // cache failed, go compute it
-            compute_latest_commit(repo, commit, path, commit_reader)?
-        }
+        Err(_) => compute_latest_commit(repo, commit, path, commit_reader)?,
     };
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
@@ -118,7 +116,7 @@ fn compute_latest_commit(
                     latest_commit = commit.clone();
                 }
 
-                if latest_commit.as_ref().unwrap().timestamp > commit.as_ref().unwrap().timestamp {
+                if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
                     latest_commit = commit.clone();
                 }
             }

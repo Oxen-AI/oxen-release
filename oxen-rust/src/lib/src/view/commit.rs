@@ -24,6 +24,14 @@ pub struct ListCommitResponse {
     pub commits: Vec<Commit>,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct CommitSyncStatusResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub latest_synced: Option<Commit>,
+    pub num_unsynced: usize,
+}
+
 impl ListCommitResponse {
     pub fn success(commits: Vec<Commit>) -> ListCommitResponse {
         ListCommitResponse {
