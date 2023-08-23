@@ -175,7 +175,7 @@ pub fn delete_file(branch_repo: &LocalRepository, filepath: &Path) -> Result<(),
     }
 }
 
-pub fn commit_staged(
+pub fn commit(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
     branch: &Branch,
@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn test_remote_commit_staged() -> Result<(), OxenError> {
+    fn test_remote_commit() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             // Stage file contents
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
@@ -364,13 +364,7 @@ mod tests {
                 email: String::from("test@oxen.ai"),
                 message: String::from("I am committing this remote staged data"),
             };
-            index::remote_dir_stager::commit_staged(
-                &repo,
-                &branch_repo,
-                &branch,
-                &new_commit,
-                &user_id,
-            )?;
+            index::remote_dir_stager::commit(&repo, &branch_repo, &branch, &new_commit, &user_id)?;
 
             for commit in og_commits.iter() {
                 println!("OG commit: {commit:#?}");

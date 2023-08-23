@@ -65,6 +65,9 @@ pub enum OxenError {
     // Metadata
     ImageMetadataParseError(StringError),
 
+    // SQL
+    SQLParseError(StringError),
+
     // External Library Errors
     IO(io::Error),
     Authentication(StringError),
@@ -128,6 +131,10 @@ impl OxenError {
 
     pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
         OxenError::ImageMetadataParseError(StringError::from(s.as_ref()))
+    }
+
+    pub fn sql_parse_error<T: AsRef<str>>(s: T) -> Self {
+        OxenError::SQLParseError(StringError::from(s.as_ref()))
     }
 
     pub fn parsed_resource_not_found(resource: ParsedResource) -> Self {

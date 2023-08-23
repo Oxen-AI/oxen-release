@@ -426,14 +426,17 @@ pub fn schemas() -> Command {
     Command::new(SCHEMAS)
         .about("Manage schemas that are created from committing tabular data")
         .subcommand(
-            Command::new("list").arg(
-                Arg::new("staged")
-                    .long("staged")
-                    .help("List the staged schemas"),
-            ),
+            Command::new("list")
+                .about("List the committed schemas.")
+                .arg(
+                    Arg::new("staged")
+                        .long("staged")
+                        .help("List the staged schemas"),
+                ),
         )
         .subcommand(
             Command::new("show")
+                .about("View a schema by name or hash.")
                 .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view."))
                 .arg(
                     Arg::new("staged")
@@ -443,6 +446,7 @@ pub fn schemas() -> Command {
         )
         .subcommand(
             Command::new("name")
+                .about("Name a schema by hash.")
                 .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
                 .arg(Arg::new("NAME").help("Name of the schema.")),
         )
