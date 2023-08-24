@@ -16,7 +16,7 @@ async fn test_fetch_branches() -> Result<(), OxenError> {
         let remote_repo = test::create_remote_repo(&repo).await?;
 
         // Create a few local branches and push them
-        let branches = vec!["test_moo", "test_moo_2"];
+        let branches = ["test_moo", "test_moo_2"];
         for branch in branches.iter() {
             command::create_checkout(&repo, branch)?;
             let filepath = repo.path.join(format!("file_{}.txt", branch));

@@ -19,11 +19,7 @@ pub async fn convert(query: &str, schema: &str, host: Option<String>) -> Result<
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
         Ok(res) => {
-            let type_override = "unauthenticated";
-            let err_msg = "You must create an account on https://oxen.ai to enable this feature.\n\nOnce your account is created, set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
-            let body =
-                client::parse_json_body_with_err_msg(&url, res, Some(type_override), Some(err_msg))
-                    .await?;
+            let body = client::parse_json_body(&url, res).await?;
             log::debug!("text2sql got body: {}", body);
             let response: Result<SqlResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {

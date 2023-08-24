@@ -278,7 +278,7 @@ impl DiffEntry {
         dirs.push(path.clone());
 
         // Uniq them
-        let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs.into_iter());
+        let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs);
 
         // What base_commit_id and head_commit_id are happening here?
         log::debug!("base_commit_id 284 is {:?}", base_commit_id);

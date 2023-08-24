@@ -702,9 +702,9 @@ fn check_if_upload_complete_and_unpack(
     }
 
     log::debug!(
-        "upload_raw checking if complete... {} == {}",
-        total_size,
-        uploaded_size
+        "upload_raw checking if complete... {} / {}",
+        bytesize::ByteSize::b(uploaded_size),
+        bytesize::ByteSize::b(total_size as u64)
     );
 
     if total_size == (uploaded_size as usize) {

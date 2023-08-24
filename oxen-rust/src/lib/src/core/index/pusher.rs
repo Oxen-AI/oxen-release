@@ -101,6 +101,7 @@ pub async fn push_remote_repo(
     push_missing_commit_entries(
         local_repo,
         &remote_repo,
+        &branch,
         &unsynced_entries_commits,
         unsynced_entries,
     )
@@ -407,6 +408,7 @@ async fn push_missing_commit_dbs(
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
+    branch: &Branch,
     commits: &Vec<Commit>,
     mut unsynced_entries: Vec<UnsyncedCommitEntries>,
 ) -> Result<(), OxenError> {
@@ -436,16 +438,22 @@ async fn push_missing_commit_entries(
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
     if !unsynced_entries.is_empty() {
+        let commit = commit_reader
+            .get_commit_by_id(&unsynced_entries[0].commit_id)?
+            .unwrap();
         let all_entries = UnsyncedCommitEntries {
-            commit: commits[0].to_owned(),
+            commit: commit.clone(),
             entries: unsynced_entries,
         };
 
         let bar = Arc::new(ProgressBar::new(total_size));
         bar.set_style(
             ProgressStyle::default_bar()
-                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
-                .progress_chars("#>-"),
+                .template(
+                    "{spinner:.green} [{elapsed_precise}] [{bar:60}] {bytes}/{total_bytes} ({eta})",
+                )
+                .unwrap()
+                .progress_chars("🌾🐂➖"),
         );
 
         push_entries(
@@ -456,13 +464,14 @@ async fn push_missing_commit_entries(
             &bar,
         )
         .await?;
+
+        // Now send all commit objects in a batch for validation from oldest to newest
+        let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
+        api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
+        api::remote::commits::post_push_complete(remote_repo, branch, &commit.id).await?;
     } else {
         println!("🐂 No entries to push")
     }
-
-    // Now send all commit objects in a batch for validation from oldest to newest
-    let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
-    api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
 
     Ok(())
 }
