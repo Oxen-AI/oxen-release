@@ -13,6 +13,7 @@ use crate::model::{CommitEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
+
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
     entries: &Vec<CommitEntry>,

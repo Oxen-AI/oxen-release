@@ -474,6 +474,7 @@ pub async fn post_commits_to_server(
             .join(HISTORY_DIR)
             .join(&commit_with_entries.commit.id);
         let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
+        log::debug!("Trying to open this file: {:?}", commit_history_dir);
         let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + entries_size;
 
         let commit_with_size = CommitWithBranchName::from_commit(
