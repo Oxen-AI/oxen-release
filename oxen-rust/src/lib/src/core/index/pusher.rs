@@ -6,11 +6,11 @@ use crate::api::remote::commits::ChunkParams;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::{ProgressBar, ProgressStyle};
+use pluralizer::pluralize;
 use rayon::prelude::*;
 use std::io::{BufReader, Read};
 use std::sync::Arc;
 use tokio::time::Duration;
-use pluralizer::pluralize;
 
 use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
@@ -104,7 +104,8 @@ pub async fn push_remote_repo(
         &unsynced_entries_commits,
         unsynced_entries,
         total_size,
-    ).await?;
+    )
+    .await?;
 
     api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
     println!(
@@ -247,7 +248,10 @@ async fn poll_until_synced(
 ) -> Result<(), OxenError> {
     let commits_to_sync = bar.length().unwrap();
 
-    println!("🐂 Remote verifying {}...", pluralize("commit", commits_to_sync as isize, false));
+    println!(
+        "🐂 Remote verifying {}...",
+        pluralize("commit", commits_to_sync as isize, false)
+    );
 
     let head_commit_id = &commit.id;
 
@@ -391,19 +395,15 @@ async fn push_missing_commit_entries(
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
     unsynced_entries: Vec<UnsyncedCommitEntries>,
-    total_size: u64
+    total_size: u64,
 ) -> Result<(), OxenError> {
     log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
 
-    println!(
-        "🐂 Collecting files for {} unsynced commits",
-        commits.len()
-    );
+    println!("🐂 Collecting files for {} unsynced commits", commits.len());
 
     let unsynced_entries: Vec<CommitEntry> = unsynced_entries
         .iter()
-        .map(|u: &UnsyncedCommitEntries| u.entries.clone())
-        .flatten()
+        .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
 
     println!("🐂 Pushing {} files to server", unsynced_entries.len());
@@ -670,7 +670,7 @@ async fn chunk_and_send_large_entries(
                     .await
                     {
                         Ok(_) => {
-                            bar.inc(chunk_size as u64);
+                            bar.inc(chunk_size);
                             log::debug!("Successfully uploaded chunk {}/{}", i, num_chunks)
                         }
                         Err(err) => {
