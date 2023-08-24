@@ -139,23 +139,19 @@ impl EntryIndexer {
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
-                // for c in api::local::commits::list_all(&self.repository)? {
-                //     self.pull_all_entries_for_commit(remote_repo, &c).await?;
-                // }
-
                 // TODONOW: Consider changing back 
                 let commits = api::local::commits::list_from(&self.repository, &commit.id)?;
 
                 // Reverse commits 
                 let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
-                // let commits = api::local::commits::list_from(&self.repository, &commit.id)?;
+
+                // TODONOW needed? 
+                // for commit in &commits {
+                //     self.pull_commit_entries_db(remote_repo, commit).await?;
+                // }
+
                 self.pull_entries_for_commits( remote_repo, commits.clone()).await?;
 
-                // // Afterwards, let's hit all the entries with another backup - looking for green here 
-                // for commit in &commits {
-                //     let entries = self.read_pulled_commit_entries(&commit, 0)?;
-                //     self.backup_to_versions_dir(commit, &entries)?
-                // }
 
                 Ok(commit)
             }
@@ -172,36 +168,7 @@ impl EntryIndexer {
         }
     }
 
-    // async fn pull_all_new(&self, 
-    //     remote_repo: &RemoteRepository, 
-    //     rb: &RemoteBranch, 
-    //     should_update_head: bool
-    // ) -> Result<Commit, OxenError> { 
-    //     let mut new_head_commit = self.pull_all_commit_objects(remote_repo, rb).await;
 
-    //     match &new_head_commit {
-    //         Ok(Some(commit)) => {
-    //             log::debug!("pull_result: {} -> {}", commit.id, commit.message);
-    //             // Make sure this branch points to this commit
-    //             self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
-
-    //             let commits = api::local::commits::list_from(&self.repository, &commit.id)?;
-    //             self.pull_entries_for_commits(remote_repo, commits).await?;
-    //         }
-    //         Ok(None) => api::local::commits::head_commit(&self.repository),
-    //         Err(err) => {
-    //             // if no commit objects, means repo is empty, so instantiate the local repo
-    //             log::error!("pull_all error: {}", err);
-    //             eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-    //             api::local::commits::commit_with_no_files(
-    //                 &self.repository,
-    //                 constants::INITIAL_COMMIT_MSG,
-    //             )
-    //         }
-    //     }
-    
-        
-    // }
 
     async fn pull_one(
         &self,
@@ -318,24 +285,23 @@ impl EntryIndexer {
             api::remote::commits::list_commit_history(remote_repo, &remote_branch.commit_id)
                 .await?;
 
-        // We may not have any commits yet, in the case of a fresh clone
-        let local_commits: Vec<Commit> = match CommitReader::new(&self.repository) {
-            // empty vector if we can't read the commits db
-            Ok(reader) => reader.history_from_head().unwrap_or(Vec::new()),
-            _ => Vec::new(),
-        };
-        let local_commits: HashSet<&Commit> = HashSet::from_iter(local_commits.iter());
 
-        // Figure out how many we are missing
-        let mut missing_commits = Vec::new();
+        let mut missing_commits = Vec::new(); 
         for remote_commit in remote_commits {
-            if !local_commits.contains(&remote_commit) {
+            log::debug!("Checking remote commit {}", remote_commit.id);
+            if api::local::commits::commit_history_db_exists(&self.repository, &remote_commit)? == false {
+                log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);
+            } else {
+                log::debug!("Already have commit {}", remote_commit.id);
             }
         }
 
+
         let total_missing = missing_commits.len();
+        log::debug!("Total missing commits: {}", total_missing);
         if total_missing == 0 {
+            log::debug!("Whoa, no commit objects here...");
             // Nothing to do
             return Ok(None);
         }
