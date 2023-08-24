@@ -75,7 +75,7 @@ pub async fn push_remote_repo(
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, &remote_repo, &head_commit, &branch).await?;
 
-    let (unsynced_entries, total_size) =
+    let unsynced_entries =
         push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
 
     log::debug!("🐂 Identifying unsynced commits dbs...");
@@ -103,7 +103,6 @@ pub async fn push_remote_repo(
         &remote_repo,
         &unsynced_entries_commits,
         unsynced_entries,
-        total_size,
     )
     .await?;
 
@@ -156,12 +155,45 @@ async fn get_commit_objects_to_sync(
     Ok(commits_to_sync)
 }
 
+fn get_unsynced_entries_for_commit(
+    local_repo: &LocalRepository,
+    commit: &Commit,
+    commit_reader: &CommitReader,
+) -> Result<(Vec<UnsyncedCommitEntries>, u64), OxenError> {
+    let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
+    let mut total_size: u64 = 0;
+
+    if commit.parent_ids.is_empty() {
+        unsynced_commits.push(UnsyncedCommitEntries {
+            commit: commit.to_owned(),
+            entries: vec![],
+        });
+    }
+    for parent_id in commit.parent_ids.iter() {
+        let local_parent = commit_reader
+            .get_commit_by_id(parent_id)?
+            .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
+        let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
+
+        // Get size of these entries
+        let entries_size = api::local::entries::compute_entries_size(&entries)?;
+        total_size += entries_size;
+
+        unsynced_commits.push(UnsyncedCommitEntries {
+            commit: commit.to_owned(),
+            entries,
+        })
+    }
+
+    Ok((unsynced_commits, total_size))
+}
+
 async fn push_missing_commit_objects(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
     branch: &Branch,
-) -> Result<(Vec<UnsyncedCommitEntries>, u64), OxenError> {
+) -> Result<Vec<UnsyncedCommitEntries>, OxenError> {
     let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
     println!("🐂 Calculating size for {} unsynced commits", commits.len());
     let bar = ProgressBar::new(commits.len() as u64);
@@ -169,28 +201,10 @@ async fn push_missing_commit_objects(
     let mut total_size: u64 = 0;
 
     for commit in commits {
-        // Root commit
-        if commit.parent_ids.is_empty() {
-            unsynced_commits.push(UnsyncedCommitEntries {
-                commit: commit.to_owned(),
-                entries: vec![],
-            });
-        }
-        for parent_id in commit.parent_ids.iter() {
-            let local_parent = commit_reader
-                .get_commit_by_id(parent_id)?
-                .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-            let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
-
-            // Get size of these entries
-            let entries_size = api::local::entries::compute_entries_size(&entries)?;
-            total_size += entries_size;
-
-            unsynced_commits.push(UnsyncedCommitEntries {
-                commit: commit.to_owned(),
-                entries,
-            })
-        }
+        let (commit_unsynced_commits, commit_size) =
+            get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+        total_size += commit_size;
+        unsynced_commits.extend(commit_unsynced_commits);
         bar.inc(1);
     }
     bar.finish();
@@ -221,7 +235,7 @@ async fn push_missing_commit_objects(
     .await?;
 
     spinner.finish();
-    Ok((unsynced_commits, total_size))
+    Ok(unsynced_commits)
 }
 
 async fn remote_is_ahead_of_local(
@@ -394,12 +408,23 @@ async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
-    unsynced_entries: Vec<UnsyncedCommitEntries>,
-    total_size: u64,
+    mut unsynced_entries: Vec<UnsyncedCommitEntries>,
 ) -> Result<(), OxenError> {
     log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
 
     println!("🐂 Collecting files for {} unsynced commits", commits.len());
+
+    // Find the commits that still have unsynced entries (some might already be synced)
+    // Collect them and calculate the new size to send
+    let mut total_size: u64 = 0;
+    let commit_reader = CommitReader::new(local_repo)?;
+
+    for commit in commits {
+        let (commit_unsynced_commits, commit_size) =
+            get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+        total_size += commit_size;
+        unsynced_entries.extend(commit_unsynced_commits);
+    }
 
     let unsynced_entries: Vec<CommitEntry> = unsynced_entries
         .iter()
