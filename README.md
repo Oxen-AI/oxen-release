@@ -77,7 +77,7 @@ Oxen was optimized to be fast on structured and unstructured data types. Unlike 
 
 # Overview
 
-No need to learn a new paradigm. 
+No need to learn a new paradigm.
 
 The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straightforward to version your datasets with Oxen.
 
@@ -99,7 +99,7 @@ brew tap Oxen-AI/oxen
 brew install oxen
 ```
 
-For other platforms follow the [installation instructions](https://github.com/Oxen-AI/oxen-release/blob/main/oxen/docs/source/getting_started/installation.md).
+For other platforms follow the [installation instructions](https://docs.oxen.ai/getting-started/install).
 
 # 🐍 Python Installation
 
@@ -190,7 +190,7 @@ oxen add images/
 
 ## View Status
 
-To see what data is tracked, staged, or not yet added to the repository you can use the `status` command. 
+To see what data is tracked, staged, or not yet added to the repository you can use the `status` command.
 
 Note: since we are dealing with large datasets with many files, `status` rolls up the changes and summarizes them for you.
 
@@ -306,7 +306,7 @@ Feel free to skip down to the more [advanced features](https://github.com/Oxen-A
 
 # Sharing Data and Collaboration
 
-There are two ways you can collaborate on your data with Oxen. 
+There are two ways you can collaborate on your data with Oxen.
 
 1) [Register](https://www.oxen.ai/register) on Oxen
 2) Self-hosting using the [oxen-server](https://github.com/Oxen-AI/oxen-release/blob/main/SelfHosting.md) binary
@@ -377,7 +377,7 @@ oxen pull origin my-branch
 
 There are times when you do not want to clone the entire repository to make a change. For example, if you have a large dataset and you want to add one annotation, it is very inefficient to clone all the files locally.
 
-You can think of Oxen's remote workspace as mirroring your local workspace, but without all the files downloaded. It should feel like you are interacting locally when really all the action is on the server. Simply add the `oxen remote` subcommand to the commands you already know how to use locally. 
+You can think of Oxen's remote workspace as mirroring your local workspace, but without all the files downloaded. It should feel like you are interacting locally when really all the action is on the server. Simply add the `oxen remote` subcommand to the commands you already know how to use locally.
 
 Let's walk through an example. Start by shallow cloning a repo and a checkout a specific branch.
 
@@ -476,7 +476,7 @@ To learn more about what you can do with tabular data in Oxen you can reference 
 
 ## Integrating Labeling Tools
 
-For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open-source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow. 
+For most supervised learning projects you will have some sort of annotation or labeling workflow. There are some popular open-source tools such as [Label Studio](https://labelstud.io/) for labeling data that can integrate with an Oxen workflow.
 
 For an example of integrating Oxen into your Label Studio workflow, check out our [Oxen Annotation Documentation](https://github.com/Oxen-AI/oxen-release/blob/main/annotation/LabelStudio.md).
 
@@ -491,10 +491,10 @@ If the file is tabular data `oxen diff` will show you the rows that were added o
 ```bash
 oxen df annotations/data.csv --add-row 'images/my_cat.jpg,cat,0,0,0,0' -o annotations/data.csv
 ```
-  
+
 ```bash
-oxen diff annotations/data.csv 
-``` 
+oxen diff annotations/data.csv
+```
 
 ```
 Added Rows
@@ -644,7 +644,7 @@ oxen commit -m "fixing conflict"
 
 ## Dealing With Merge Conflicts
 
-Oxen currently has three ways to deal with merge conflicts. 
+Oxen currently has three ways to deal with merge conflicts.
 
 1) Take the other person's changes `oxen checkout file/with/conflict.jpg --theirs`, then add and commit.
 2) Take the changes in your current working directory (simply have to add and commit again)
