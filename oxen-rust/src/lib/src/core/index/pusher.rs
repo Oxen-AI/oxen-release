@@ -10,6 +10,7 @@ use rayon::prelude::*;
 use std::io::{BufReader, Read};
 use std::sync::Arc;
 use tokio::time::Duration;
+use pluralizer::pluralize;
 
 use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
@@ -74,7 +75,8 @@ pub async fn push_remote_repo(
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, &remote_repo, &head_commit, &branch).await?;
 
-    push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
+    let (unsynced_entries, total_size) =
+        push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
 
     log::debug!("🐂 Identifying unsynced commits dbs...");
     let unsynced_db_commits =
@@ -96,7 +98,13 @@ pub async fn push_remote_repo(
     let unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch).await?;
 
-    push_missing_commit_entries(local_repo, &remote_repo, &unsynced_entries_commits).await?;
+    push_missing_commit_entries(
+        local_repo,
+        &remote_repo,
+        &unsynced_entries_commits,
+        unsynced_entries,
+        total_size,
+    ).await?;
 
     api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
     println!(
@@ -152,11 +160,12 @@ async fn push_missing_commit_objects(
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
     branch: &Branch,
-) -> Result<(), OxenError> {
+) -> Result<(Vec<UnsyncedCommitEntries>, u64), OxenError> {
     let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
     println!("🐂 Calculating size for {} unsynced commits", commits.len());
     let bar = ProgressBar::new(commits.len() as u64);
     let commit_reader = CommitReader::new(local_repo)?;
+    let mut total_size: u64 = 0;
 
     for commit in commits {
         // Root commit
@@ -172,6 +181,10 @@ async fn push_missing_commit_objects(
                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
             let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
 
+            // Get size of these entries
+            let entries_size = api::local::entries::compute_entries_size(&entries)?;
+            total_size += entries_size;
+
             unsynced_commits.push(UnsyncedCommitEntries {
                 commit: commit.to_owned(),
                 entries,
@@ -180,6 +193,12 @@ async fn push_missing_commit_objects(
         bar.inc(1);
     }
     bar.finish();
+
+    // Let user know how much they are about to push
+    println!(
+        "🐂 Preparing to push {} of unsynced data",
+        bytesize::ByteSize::b(total_size)
+    );
 
     // Bulk create on server
     println!(
@@ -201,7 +220,7 @@ async fn push_missing_commit_objects(
     .await?;
 
     spinner.finish();
-    Ok(())
+    Ok((unsynced_commits, total_size))
 }
 
 async fn remote_is_ahead_of_local(
@@ -226,9 +245,9 @@ async fn poll_until_synced(
     commit: &Commit,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
-    println!("🐂 Remote verifying commit(s)...");
-
     let commits_to_sync = bar.length().unwrap();
+
+    println!("🐂 Remote verifying {}...", pluralize("commit", commits_to_sync as isize, false));
 
     let head_commit_id = &commit.id;
 
@@ -243,7 +262,8 @@ async fn poll_until_synced(
                 bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
                 if sync_status.num_unsynced == 0 {
                     bar.finish();
-                    println!("\n✅ push successful\n");
+                    println!("\n");
+                    println!("✅ push successful\n");
                     return Ok(());
                 }
             }
@@ -370,38 +390,23 @@ async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
+    unsynced_entries: Vec<UnsyncedCommitEntries>,
+    total_size: u64
 ) -> Result<(), OxenError> {
     log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
-    println!("🐂 Computing diffs for {} commits", commits.len());
 
-    let commit_reader = CommitReader::new(local_repo)?;
-    let mut total_size = 0;
-
-    let mut unsynced_entries = Vec::new();
     println!(
-        "🐂 Collecting entries for {} unsynced commits",
+        "🐂 Collecting files for {} unsynced commits",
         commits.len()
     );
-    let bar = Arc::new(ProgressBar::new(commits.len() as u64));
-    // Gather the unsynced commits into one giant vec of unsynced
 
-    for commit in commits {
-        for parent_id in &commit.parent_ids {
-            let local_parent = commit_reader
-                .get_commit_by_id(parent_id)?
-                .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-            let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
-            // Get size of these entries
-            let entries_size = api::local::entries::compute_entries_size(&entries)?;
-            total_size += entries_size;
-            unsynced_entries.extend(entries);
-        }
-        bar.inc(1);
-    }
+    let unsynced_entries: Vec<CommitEntry> = unsynced_entries
+        .iter()
+        .map(|u: &UnsyncedCommitEntries| u.entries.clone())
+        .flatten()
+        .collect();
 
-    bar.finish();
-
-    println!("🐂 Pushing entries to server");
+    println!("🐂 Pushing {} files to server", unsynced_entries.len());
 
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
@@ -412,6 +417,11 @@ async fn push_missing_commit_entries(
         };
 
         let bar = Arc::new(ProgressBar::new(total_size));
+        bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} [{elapsed_precise}] [{bar:40.cyan/blue}] {bytes}/{total_bytes} ({eta})").unwrap()
+                .progress_chars("#>-"),
+        );
 
         push_entries(
             local_repo,
@@ -660,7 +670,7 @@ async fn chunk_and_send_large_entries(
                     .await
                     {
                         Ok(_) => {
-                            bar.inc(params.total_size as u64);
+                            bar.inc(chunk_size as u64);
                             log::debug!("Successfully uploaded chunk {}/{}", i, num_chunks)
                         }
                         Err(err) => {
