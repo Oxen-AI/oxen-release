@@ -233,8 +233,6 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
             }
             Ok(None) => {
                 // log::debug!("latest_synced commit not yet processing: {}", commit.id);
-                // Panic to fail the test
-                // panic!("NONE WORLD IS IN HERE");
                 commits_to_sync.push(commit);
             }
 
