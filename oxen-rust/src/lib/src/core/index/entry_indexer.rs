@@ -17,6 +17,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::PullOpts;
 use crate::util;
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, current_function};
 
 use super::{pusher, CommitReader};
@@ -270,7 +271,7 @@ impl EntryIndexer {
         api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
 
         // Download the missing commit objects
-        let progress_bar = Arc::new(ProgressBar::new(total_missing as u64));
+        let progress_bar = oxen_progress_bar(total_missing as u64, ProgressBarType::Counter);
         match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id).await {
             Ok(Some(commit)) => {
                 log::debug!(
@@ -514,7 +515,7 @@ impl EntryIndexer {
             return Ok(());
         }
         println!("Unpacking...");
-        let bar = Arc::new(ProgressBar::new(entries.len() as u64));
+        let bar = oxen_progress_bar(entries.len() as u64, ProgressBarType::Counter);
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
 
         dir_entries.par_iter().for_each(|(dir, entries)| {

@@ -9,9 +9,9 @@ use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
 use crate::util;
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use filetime::FileTime;
-use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashMap;
@@ -282,7 +282,7 @@ impl CommitEntryWriter {
         origin_path: &Path,
     ) -> Result<(), OxenError> {
         let size: u64 = unsafe { std::mem::transmute(staged_data.staged_files.len()) };
-        let bar = ProgressBar::new(size);
+        let bar = oxen_progress_bar(size, ProgressBarType::Counter);
         let grouped = self.group_staged_files_to_dirs(&staged_data.staged_files);
         log::debug!(
             "commit_staged_entries_with_prog got groups {}",
