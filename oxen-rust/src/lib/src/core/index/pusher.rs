@@ -3,6 +3,7 @@
 
 use crate::api::local::entries::compute_entries_size;
 use crate::api::remote::commits::ChunkParams;
+use crate::util::progress_bar::ProgressBarType;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -20,6 +21,7 @@ use crate::core::index::{
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 
+use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
 
 pub struct UnsyncedCommitEntries {
@@ -117,9 +119,10 @@ pub async fn push_remote_repo(
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
     // If they did push again before this is finished they would get a still syncing error
-    // poll_until_synced(&remote_repo, &head_commit).await?;
-
-    let bar = Arc::new(ProgressBar::new(unsynced_entries_commits.len() as u64));
+    let bar = oxen_progress_bar(
+        unsynced_entries_commits.len() as u64,
+        ProgressBarType::Counter,
+    );
     poll_until_synced(&remote_repo, &head_commit, bar).await?;
     log::debug!("Just finished push.");
     Ok(remote_repo)
@@ -198,7 +201,7 @@ async fn push_missing_commit_objects(
 ) -> Result<(Vec<UnsyncedCommitEntries>, u64), OxenError> {
     let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
     println!("🐂 Calculating size for {} unsynced commits", commits.len());
-    let bar = ProgressBar::new(commits.len() as u64);
+    let bar = oxen_progress_bar(commits.len() as u64, ProgressBarType::Counter);
     let commit_reader = CommitReader::new(local_repo)?;
     let mut total_size: u64 = 0;
 
@@ -211,17 +214,8 @@ async fn push_missing_commit_objects(
     }
     bar.finish();
 
-    // Let user know how much they are about to push
-    println!(
-        "🐂 Preparing to push {} of unsynced data",
-        bytesize::ByteSize::b(total_size)
-    );
-
     // Bulk create on server
-    println!(
-        "🐂 Creating {} commit objects on server",
-        unsynced_commits.len()
-    );
+    println!("\n🐂 Syncing {} commits", unsynced_commits.len());
 
     // Spin during async bulk create
     let spinner = ProgressBar::new_spinner();
@@ -283,7 +277,7 @@ async fn poll_until_synced(
                 if sync_status.num_unsynced == 0 {
                     bar.finish();
                     println!("\n");
-                    println!("✅ push successful\n");
+                    println!("🎉 push successful\n");
                     return Ok(());
                 }
             }
@@ -319,7 +313,7 @@ async fn push_missing_commit_dbs(
         return Ok(());
     }
 
-    let pb = Arc::new(ProgressBar::new(pieces_of_work as u64));
+    let pb = oxen_progress_bar(pieces_of_work as u64, ProgressBarType::Counter);
 
     // Compute size for this subset of entries
     let num_chunks = num_cpus::get();
@@ -422,7 +416,10 @@ async fn push_missing_commit_entries(
 
     log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
 
-    println!("🐂 Collecting files for {} unsynced commits", commits.len());
+    println!(
+        "\n🐂 Collecting files for {} unsynced commits",
+        commits.len()
+    );
 
     // Find the commits that still have unsynced entries (some might already be synced)
     // Collect them and calculate the new size to send
@@ -443,7 +440,11 @@ async fn push_missing_commit_entries(
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
 
-    println!("🐂 Pushing {} files to server", unsynced_entries.len());
+    println!(
+        "🐂 Pushing {} files of size {}",
+        unsynced_entries.len(),
+        bytesize::ByteSize::b(total_size)
+    );
 
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
@@ -453,16 +454,7 @@ async fn push_missing_commit_entries(
             entries: unsynced_entries,
         };
 
-        let bar = Arc::new(ProgressBar::new(total_size));
-        bar.set_style(
-            ProgressStyle::default_bar()
-                .template(
-                    "{spinner:.green} [{elapsed_precise}] [{bar:60}] {bytes}/{total_bytes} ({eta})",
-                )
-                .unwrap()
-                .progress_chars("🌾🐂➖"),
-        );
-
+        let bar = oxen_progress_bar(total_size, ProgressBarType::Bytes);
         push_entries(
             local_repo,
             remote_repo,

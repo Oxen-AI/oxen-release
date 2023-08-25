@@ -11,6 +11,7 @@ use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, RemoteRepository};
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
 pub async fn pull_entries(
@@ -56,7 +57,7 @@ pub async fn pull_entries(
         .collect();
 
     // Progress bar to be shared between small and large entries
-    let bar = Arc::new(ProgressBar::new(total_size));
+    let bar = oxen_progress_bar(total_size, ProgressBarType::Bytes);
 
     let large_entries_sync = pull_large_entries(remote_repo, larger_entries, &dst, &bar);
     let small_entries_sync = pull_small_entries(remote_repo, smaller_entries, &dst, &bar);

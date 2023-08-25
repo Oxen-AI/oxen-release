@@ -22,10 +22,10 @@ use crate::model::{
     StagedEntryStatus,
 };
 use crate::util;
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use filetime::FileTime;
 use ignore::gitignore::Gitignore;
-use indicatif::ProgressBar;
 use itertools::Itertools;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
@@ -36,7 +36,6 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
-use std::sync::Arc;
 
 use super::StagedDirEntryReader;
 
@@ -546,7 +545,7 @@ impl Stager {
                 let staged_dir: StagedDirEntryDB<MultiThreaded> =
                     StagedDirEntryDB::new(&self.repository, path)?;
 
-                let bar = Arc::new(ProgressBar::new(entries.len() as u64));
+                let bar = oxen_progress_bar(entries.len() as u64, ProgressBarType::Counter);
                 println!("Removing {} files", entries.len());
 
                 entries.par_iter().for_each(|entry| {
@@ -713,7 +712,7 @@ impl Stager {
 
         // println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
-        let bar = ProgressBar::new(size);
+        let bar = oxen_progress_bar(size, ProgressBarType::Counter);
         dir_paths.iter().for_each(|(parent, paths)| {
             // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
 

@@ -9,9 +9,9 @@ use crate::core::{db, df};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, NewCommit, Schema, StagedData, StagedEntry};
 use crate::opts::DFOpts;
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{command, util};
 
-use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -504,7 +504,7 @@ impl CommitWriter {
     ) -> Result<(), OxenError> {
         println!("Setting working directory to {commit_id}");
         let size: u64 = unsafe { std::mem::transmute(entries.len()) };
-        let bar = ProgressBar::new(size);
+        let bar = oxen_progress_bar(size, ProgressBarType::Counter);
 
         let dir_entries = self.group_entries_to_dirs(entries);
 
@@ -610,7 +610,7 @@ impl CommitWriter {
     ) -> Result<HashSet<PathBuf>, OxenError> {
         println!("Checking index...");
         let size: u64 = unsafe { std::mem::transmute(paths.len()) };
-        let bar = ProgressBar::new(size);
+        let bar = oxen_progress_bar(size, ProgressBarType::Counter);
 
         let mut candidate_dirs_to_rm: HashSet<PathBuf> = HashSet::new();
 
