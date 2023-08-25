@@ -75,7 +75,7 @@ pub async fn push_remote_repo(
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, &remote_repo, &head_commit, &branch).await?;
 
-    let unsynced_entries =
+    let (unsynced_entries, total_size) =
         push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
 
     log::debug!("🐂 Identifying unsynced commits dbs...");
@@ -104,6 +104,7 @@ pub async fn push_remote_repo(
         &branch,
         &unsynced_entries_commits,
         unsynced_entries,
+        total_size,
     )
     .await?;
 
@@ -194,7 +195,7 @@ async fn push_missing_commit_objects(
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
     branch: &Branch,
-) -> Result<Vec<UnsyncedCommitEntries>, OxenError> {
+) -> Result<(Vec<UnsyncedCommitEntries>, u64), OxenError> {
     let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
     println!("🐂 Calculating size for {} unsynced commits", commits.len());
     let bar = ProgressBar::new(commits.len() as u64);
@@ -236,7 +237,7 @@ async fn push_missing_commit_objects(
     .await?;
 
     spinner.finish();
-    Ok(unsynced_commits)
+    Ok((unsynced_commits, total_size))
 }
 
 async fn remote_is_ahead_of_local(
@@ -411,21 +412,30 @@ async fn push_missing_commit_entries(
     branch: &Branch,
     commits: &Vec<Commit>,
     mut unsynced_entries: Vec<UnsyncedCommitEntries>,
+    mut total_size: u64,
 ) -> Result<(), OxenError> {
+    // If no commits, nothing to do here. If no entries, but still commits to sync, need to do this step
+    // TODO: maybe factor validation into a separate fourth step so that this can be skipped if no entries
+    if commits.is_empty() {
+        return Ok(());
+    }
+
     log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
 
     println!("🐂 Collecting files for {} unsynced commits", commits.len());
 
     // Find the commits that still have unsynced entries (some might already be synced)
     // Collect them and calculate the new size to send
-    let mut total_size: u64 = 0;
     let commit_reader = CommitReader::new(local_repo)?;
 
     for commit in commits {
-        let (commit_unsynced_commits, commit_size) =
-            get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
-        total_size += commit_size;
-        unsynced_entries.extend(commit_unsynced_commits);
+        // Only if the commit is not already accounted for in unsynced entries - avoid double counting
+        if !unsynced_entries.iter().any(|u| u.commit.id == commit.id) {
+            let (commit_unsynced_commits, commit_size) =
+                get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+            total_size += commit_size;
+            unsynced_entries.extend(commit_unsynced_commits);
+        }
     }
 
     let unsynced_entries: Vec<CommitEntry> = unsynced_entries
@@ -438,11 +448,8 @@ async fn push_missing_commit_entries(
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
     if !unsynced_entries.is_empty() {
-        let commit = commit_reader
-            .get_commit_by_id(&unsynced_entries[0].commit_id)?
-            .unwrap();
         let all_entries = UnsyncedCommitEntries {
-            commit: commit.clone(),
+            commit: commits[0].clone(), // New head commit. Guaranteed to be here by earlier guard
             entries: unsynced_entries,
         };
 
@@ -464,14 +471,20 @@ async fn push_missing_commit_entries(
             &bar,
         )
         .await?;
-
-        // Now send all commit objects in a batch for validation from oldest to newest
-        let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
-        api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
-        api::remote::commits::post_push_complete(remote_repo, branch, &commit.id).await?;
     } else {
-        println!("🐂 No entries to push")
+        println!("🐂 No entries to push");
     }
+
+    // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
+    let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
+    api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
+    // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
+    api::remote::commits::post_push_complete(
+        remote_repo,
+        branch,
+        &old_to_new_commits.last().unwrap().id,
+    )
+    .await?;
 
     Ok(())
 }
