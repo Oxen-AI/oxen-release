@@ -39,6 +39,8 @@ impl EntryIndexer {
     }
 
     pub async fn pull(&self, rb: &RemoteBranch, opts: PullOpts) -> Result<(), OxenError> {
+        println!("When we pull, here's where it goes,");
+        println!("And here's where our pull_opts are {:?}", opts);
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
 
         let remote = self
