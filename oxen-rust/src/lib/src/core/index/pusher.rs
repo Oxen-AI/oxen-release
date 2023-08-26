@@ -3,11 +3,10 @@
 
 use crate::api::local::entries::compute_entries_size;
 use crate::api::remote::commits::ChunkParams;
-use crate::util::progress_bar::ProgressBarType;
+use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
 use flate2::write::GzEncoder;
 use flate2::Compression;
-use indicatif::{ProgressBar, ProgressStyle};
-use pluralizer::pluralize;
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::io::{BufReader, Read};
 use std::sync::Arc;
@@ -84,8 +83,6 @@ pub async fn push_remote_repo(
     let unsynced_db_commits =
         api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
 
-    println!("🐂 Syncing databases");
-
     push_missing_commit_dbs(local_repo, &remote_repo, unsynced_db_commits).await?;
 
     // update the branch after everything else is synced
@@ -111,17 +108,17 @@ pub async fn push_remote_repo(
     .await?;
 
     api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
-    println!(
-        "Updated remote branch {} -> {}",
-        &branch.name, &head_commit.id
-    );
+    // println!(
+    //     "Updated remote branch {} -> {}",
+    //     &branch.name, &head_commit.id
+    // );
 
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
     // If they did push again before this is finished they would get a still syncing error
-    let bar = oxen_progress_bar(
+    let bar = oxen_progress_bar_with_msg(
         unsynced_entries_commits.len() as u64,
-        ProgressBarType::Counter,
+        "Remote validating commits",
     );
     poll_until_synced(&remote_repo, &head_commit, bar).await?;
     log::debug!("Just finished push.");
@@ -200,8 +197,11 @@ async fn push_missing_commit_objects(
     branch: &Branch,
 ) -> Result<(Vec<UnsyncedCommitEntries>, u64), OxenError> {
     let mut unsynced_commits: Vec<UnsyncedCommitEntries> = Vec::new();
-    println!("🐂 Calculating size for {} unsynced commits", commits.len());
-    let bar = oxen_progress_bar(commits.len() as u64, ProgressBarType::Counter);
+
+    let spinner = spinner_with_msg(format!(
+        "🐂 Finding unsynced data from {} commits",
+        commits.len()
+    ));
     let commit_reader = CommitReader::new(local_repo)?;
     let mut total_size: u64 = 0;
 
@@ -210,17 +210,11 @@ async fn push_missing_commit_objects(
             get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
         total_size += commit_size;
         unsynced_commits.extend(commit_unsynced_commits);
-        bar.inc(1);
     }
-    bar.finish();
-
-    // Bulk create on server
-    println!("\n🐂 Syncing {} commits", unsynced_commits.len());
+    spinner.finish_and_clear();
 
     // Spin during async bulk create
-    let spinner = ProgressBar::new_spinner();
-    spinner.set_style(ProgressStyle::default_spinner());
-    spinner.enable_steady_tick(Duration::from_millis(100));
+    let spinner = spinner_with_msg(format!("🐂 Syncing {} commits", unsynced_commits.len()));
 
     api::remote::commits::post_commits_to_server(
         local_repo,
@@ -230,7 +224,7 @@ async fn push_missing_commit_objects(
     )
     .await?;
 
-    spinner.finish();
+    spinner.finish_and_clear();
     Ok((unsynced_commits, total_size))
 }
 
@@ -258,11 +252,6 @@ async fn poll_until_synced(
 ) -> Result<(), OxenError> {
     let commits_to_sync = bar.length().unwrap();
 
-    println!(
-        "🐂 Remote verifying {}...",
-        pluralize("commit", commits_to_sync as isize, false)
-    );
-
     let head_commit_id = &commit.id;
 
     let mut retries = 0;
@@ -275,9 +264,8 @@ async fn poll_until_synced(
                 log::debug!("Got n unsynced commits {:?}", sync_status.num_unsynced);
                 bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
                 if sync_status.num_unsynced == 0 {
-                    bar.finish();
-                    println!("\n");
-                    println!("🎉 push successful\n");
+                    bar.finish_and_clear();
+                    println!("🎉 Push successful");
                     return Ok(());
                 }
             }
@@ -286,7 +274,7 @@ async fn poll_until_synced(
                 // Back off, but don't want to go all the way to 100s
                 let sleep_time = 2 * retries;
                 if retries >= NUM_HTTP_RETRIES {
-                    bar.finish();
+                    bar.finish_and_clear();
                     return Err(err);
                 }
                 log::warn!(
@@ -313,7 +301,7 @@ async fn push_missing_commit_dbs(
         return Ok(());
     }
 
-    let pb = oxen_progress_bar(pieces_of_work as u64, ProgressBarType::Counter);
+    let pb = oxen_progress_bar_with_msg(pieces_of_work as u64, "Syncing databases");
 
     // Compute size for this subset of entries
     let num_chunks = num_cpus::get();
@@ -396,7 +384,7 @@ async fn push_missing_commit_dbs(
 
     // Sleep again to let things sync...
     sleep(Duration::from_secs(1)).await;
-    pb.finish();
+    pb.finish_and_clear();
     Ok(())
 }
 
@@ -416,10 +404,10 @@ async fn push_missing_commit_entries(
 
     log::debug!("push_missing_commit_entries num unsynced {}", commits.len());
 
-    println!(
-        "\n🐂 Collecting files for {} unsynced commits",
+    let spinner = spinner_with_msg(format!(
+        "\n🐂 Collecting files for {} commits",
         commits.len()
-    );
+    ));
 
     // Find the commits that still have unsynced entries (some might already be synced)
     // Collect them and calculate the new size to send
@@ -440,8 +428,10 @@ async fn push_missing_commit_entries(
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
 
+    spinner.finish_and_clear();
+
     println!(
-        "🐂 Pushing {} files of size {}",
+        "🐂 Pushing {} files ({})",
         unsynced_entries.len(),
         bytesize::ByteSize::b(total_size)
     );

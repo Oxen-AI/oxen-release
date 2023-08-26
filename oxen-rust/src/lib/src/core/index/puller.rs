@@ -32,7 +32,11 @@ pub async fn pull_entries(
     }
 
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
-    println!("Downloading {} files", missing_entries.len());
+    println!(
+        "Downloading {} files ({})",
+        missing_entries.len(),
+        bytesize::ByteSize::b(total_size)
+    );
 
     // Some files may be much larger than others....so we can't just download them within a single body
     // Hence we chunk and send the big ones, and bundle and download the small ones
