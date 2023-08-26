@@ -53,17 +53,20 @@ impl EntryIndexer {
                 Err(err) => return Err(err),
             };
 
-        println!(
-            "{} ({}) contains {} files",
-            remote_data_view.name,
-            bytesize::ByteSize::b(remote_data_view.size),
-            remote_data_view.total_files()
-        );
+        // > 0 is a hack because only hub returns size right now, so just don't print for pure open source
+        if remote_data_view.size > 0 {
+            println!(
+                "{} ({}) contains {} files",
+                remote_data_view.name,
+                bytesize::ByteSize::b(remote_data_view.size),
+                remote_data_view.total_files()
+            );
 
-        println!(
-            "\n  {}\n",
-            RepositoryDataTypesView::data_types_str(&remote_data_view.data_types)
-        );
+            println!(
+                "\n  {}\n",
+                RepositoryDataTypesView::data_types_str(&remote_data_view.data_types)
+            );
+        }
 
         let remote_repo = RemoteRepository::from_data_view(&remote_data_view, &remote);
 

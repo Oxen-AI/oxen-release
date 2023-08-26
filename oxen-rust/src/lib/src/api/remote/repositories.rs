@@ -58,14 +58,6 @@ pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
 }
 
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
-    get_repo_data_by_remote(remote)
-        .await
-        .map(|view| view.map(|view| RemoteRepository::from_data_view(&view, remote)))
-}
-
-pub async fn get_repo_data_by_remote(
-    remote: &Remote,
-) -> Result<Option<RepositoryDataTypesView>, OxenError> {
     log::debug!("api::remote::repositories::get_by_remote({:?})", remote);
     let url = api::endpoint::url_from_remote(remote, "")?;
     log::debug!("api::remote::repositories::get_by_remote url: {}", url);
@@ -80,10 +72,10 @@ pub async fn get_repo_data_by_remote(
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("repositories::get_by_remote {}\n {}", url, body);
 
-            let response: Result<RepositoryDataTypesResponse, serde_json::Error> =
+            let response: Result<RepositoryResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
-                Ok(j_res) => Ok(Some(j_res.repository)),
+                Ok(j_res) => Ok(Some(RemoteRepository::from_view(&j_res.repository, remote))),
                 Err(err) => {
                     log::debug!("Err: {}", err);
                     Err(OxenError::basic_str(format!(
@@ -96,6 +88,50 @@ pub async fn get_repo_data_by_remote(
             log::error!("Failed to get remote url {url}\n{err:?}");
             Err(OxenError::basic_str(format!(
                 "api::repositories::get_by_remote() Request failed at url {url}"
+            )))
+        }
+    }
+}
+
+pub async fn get_repo_data_by_remote(
+    remote: &Remote,
+) -> Result<Option<RepositoryDataTypesView>, OxenError> {
+    log::debug!(
+        "api::remote::repositories::get_repo_data_by_remote({:?})",
+        remote
+    );
+    let url = api::endpoint::url_from_remote(remote, "")?;
+    log::debug!(
+        "api::remote::repositories::get_repo_data_by_remote url: {}",
+        url
+    );
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            if 404 == res.status() {
+                return Ok(None);
+            }
+
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("repositories::get_repo_data_by_remote {}\n {}", url, body);
+
+            let response: Result<RepositoryDataTypesResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(j_res) => Ok(Some(j_res.repository)),
+                Err(err) => {
+                    log::debug!("Err: {}", err);
+                    Err(OxenError::basic_str(format!(
+                        "api::repositories::get_repo_data_by_remote() Could not deserialize repository [{url}]"
+                    )))
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Failed to get remote url {url}\n{err:?}");
+            Err(OxenError::basic_str(format!(
+                "api::repositories::get_repo_data_by_remote() Request failed at url {url}"
             )))
         }
     }
