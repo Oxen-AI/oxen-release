@@ -1,4 +1,5 @@
 use crate::api;
+use crate::view::repository::RepositoryDataTypesView;
 use crate::view::RepositoryView;
 use crate::{error::OxenError, model::Remote};
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,17 @@ pub struct RemoteRepository {
 }
 
 impl RemoteRepository {
+    pub fn from_data_view(
+        repository: &RepositoryDataTypesView,
+        remote: &Remote,
+    ) -> RemoteRepository {
+        RemoteRepository {
+            namespace: repository.namespace.clone(),
+            name: repository.name.clone(),
+            remote: remote.clone(),
+        }
+    }
+
     pub fn from_view(repository: &RepositoryView, remote: &Remote) -> RemoteRepository {
         RemoteRepository {
             namespace: repository.namespace.clone(),
