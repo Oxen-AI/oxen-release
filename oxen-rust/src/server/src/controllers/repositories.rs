@@ -7,6 +7,7 @@ use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
+use liboxen::view::repository::{RepositoryDataTypesResponse, RepositoryDataTypesView};
 use liboxen::view::{
     ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage,
 };
@@ -49,10 +50,17 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let _repository = get_repo(&app_data.path, &namespace, &name)?;
 
     // Return the repository view
-    Ok(HttpResponse::Ok().json(RepositoryResponse {
+    Ok(HttpResponse::Ok().json(RepositoryDataTypesResponse {
         status: STATUS_SUCCESS.to_string(),
         status_message: MSG_RESOURCE_FOUND.to_string(),
-        repository: RepositoryView { namespace, name },
+        repository: RepositoryDataTypesView {
+            namespace,
+            name,
+            // Right now these get enriched in the hub
+            // Hacking around it to not show in CLI unless you go through hub for now
+            size: 0,
+            data_types: vec![],
+        },
     }))
 }
 

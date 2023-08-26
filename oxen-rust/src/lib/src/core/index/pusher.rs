@@ -120,7 +120,8 @@ pub async fn push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(&remote_repo, &head_commit, bar).await?;
+    poll_until_synced(&remote_repo, &head_commit, &bar).await?;
+    bar.finish_and_clear();
     log::debug!("Just finished push.");
     Ok(remote_repo)
 }
@@ -248,7 +249,7 @@ async fn remote_is_ahead_of_local(
 async fn poll_until_synced(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    bar: Arc<ProgressBar>,
+    bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let commits_to_sync = bar.length().unwrap();
 
