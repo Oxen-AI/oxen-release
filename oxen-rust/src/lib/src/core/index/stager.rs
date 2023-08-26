@@ -558,7 +558,7 @@ impl Stager {
                     bar.inc(1);
                 });
 
-                bar.finish();
+                bar.finish_and_clear();
             }
         }
         Ok(())
@@ -747,7 +747,7 @@ impl Stager {
             });
         });
 
-        bar.finish();
+        bar.finish_and_clear();
 
         Ok(())
     }

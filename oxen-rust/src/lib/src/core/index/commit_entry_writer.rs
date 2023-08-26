@@ -282,6 +282,9 @@ impl CommitEntryWriter {
         origin_path: &Path,
     ) -> Result<(), OxenError> {
         let size: u64 = unsafe { std::mem::transmute(staged_data.staged_files.len()) };
+        if size == 0 {
+            return Ok(());
+        }
         let bar = oxen_progress_bar(size, ProgressBarType::Counter);
         let grouped = self.group_staged_files_to_dirs(&staged_data.staged_files);
         log::debug!(
@@ -326,7 +329,7 @@ impl CommitEntryWriter {
             }
         }
 
-        bar.finish();
+        bar.finish_and_clear();
 
         Ok(())
     }

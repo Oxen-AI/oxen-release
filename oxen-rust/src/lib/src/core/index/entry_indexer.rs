@@ -316,7 +316,7 @@ impl EntryIndexer {
                 );
             }
         }
-        progress_bar.finish();
+        progress_bar.finish_and_clear();
         Ok(None)
     }
 
