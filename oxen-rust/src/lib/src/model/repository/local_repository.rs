@@ -259,17 +259,7 @@ impl LocalRepository {
             bar.finish();
         }
 
-        if opts.shallow {
-            println!(
-                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
-                repo.remote.url, repo.name, repo.name, opts.branch
-            )
-        } else {
-            println!(
-                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
-                repo.remote.url, repo.name, repo.name
-            );
-        }
+        println!("\n🎉 cloned {} to {}/\n", repo.remote.url, repo.name);
 
         Ok(local_repo)
     }

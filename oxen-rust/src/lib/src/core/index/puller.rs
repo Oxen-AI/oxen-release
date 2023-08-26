@@ -4,7 +4,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use bytesize::ByteSize;
 use indicatif::ProgressBar;
 
 use crate::api;
@@ -33,11 +32,7 @@ pub async fn pull_entries(
     }
 
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
-    println!(
-        "Downloading {} entries with size {}",
-        missing_entries.len(),
-        ByteSize::b(total_size)
-    );
+    println!("Downloading {} files", missing_entries.len());
 
     // Some files may be much larger than others....so we can't just download them within a single body
     // Hence we chunk and send the big ones, and bundle and download the small ones
@@ -65,6 +60,7 @@ pub async fn pull_entries(
     match tokio::join!(large_entries_sync, small_entries_sync) {
         (Ok(_), Ok(_)) => {
             log::debug!("Successfully synced entries!");
+            bar.finish_and_clear();
             on_complete();
         }
         (Err(err), Ok(_)) => {

@@ -18,6 +18,7 @@ use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRep
 use crate::opts::PullOpts;
 use crate::util;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
+use crate::view::repository::RepositoryDataTypesView;
 use crate::{api, current_function};
 
 use super::{pusher, CommitReader};
@@ -45,11 +46,26 @@ impl EntryIndexer {
             .get_remote(&rb.remote)
             .ok_or(OxenError::remote_not_set(&rb.remote))?;
 
-        let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
-            Ok(Some(repo)) => repo,
-            Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
-            Err(err) => return Err(err),
-        };
+        let remote_data_view =
+            match api::remote::repositories::get_repo_data_by_remote(&remote).await {
+                Ok(Some(repo)) => repo,
+                Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+                Err(err) => return Err(err),
+            };
+
+        println!(
+            "{} ({}) contains {} files",
+            remote_data_view.name,
+            bytesize::ByteSize::b(remote_data_view.size),
+            remote_data_view.total_files()
+        );
+
+        println!(
+            "\n  {}\n",
+            RepositoryDataTypesView::data_types_str(&remote_data_view.data_types)
+        );
+
+        let remote_repo = RemoteRepository::from_data_view(&remote_data_view, &remote);
 
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = api::local::commits::head_commit(&self.repository);
@@ -191,7 +207,7 @@ impl EntryIndexer {
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
 
         // Download the commits db
-        println!("🐂 fetching commits for branch {}", rb.branch);
+        println!("Fetching commits for {}", rb.branch);
         api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
 
         match api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id).await {
@@ -527,7 +543,7 @@ impl EntryIndexer {
             });
         });
 
-        bar.finish();
+        bar.finish_and_clear();
 
         log::debug!("Done Unpacking.");
 
