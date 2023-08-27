@@ -240,6 +240,14 @@ pub fn read_first_line_from_file(file: &File) -> Result<String, OxenError> {
     }
 }
 
+pub fn read_first_byte_from_file(path: impl AsRef<Path>) -> Result<char, OxenError> {
+    let mut file = File::open(path)?;
+    let mut buffer = [0; 1]; // Single byte buffer
+    file.read_exact(&mut buffer)?;
+    let first_char = buffer[0] as char;
+    Ok(first_char)
+}
+
 pub fn read_lines(path: &Path) -> Result<Vec<String>, OxenError> {
     let file = File::open(path)?;
     Ok(read_lines_file(&file))
@@ -531,6 +539,16 @@ pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
 }
 
 pub fn is_tabular(path: &Path) -> bool {
+    if has_ext(path, "json") {
+        // check if the first character in the file is '['
+        // if so it is just a json array we can treat as tabular
+        if let Ok(c) = read_first_byte_from_file(path) {
+            if "[" == c.to_string() {
+                return true;
+            }
+        }
+    }
+
     let exts: HashSet<String> = vec!["csv", "tsv", "parquet", "arrow", "ndjson", "jsonl"]
         .into_iter()
         .map(String::from)
@@ -1065,6 +1083,23 @@ mod tests {
             assert_eq!(
                 EntryDataType::Image,
                 util::fs::file_data_type(&repo.path.join("test").join("1.jpg"))
+            );
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn detect_file_type_json_array() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|_| {
+            assert_eq!(
+                EntryDataType::Tabular,
+                util::fs::file_data_type(
+                    &Path::new("data")
+                        .join("test")
+                        .join("json")
+                        .join("tabular.json")
+                )
             );
 
             Ok(())
