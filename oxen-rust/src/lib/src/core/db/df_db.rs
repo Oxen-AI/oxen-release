@@ -186,7 +186,7 @@ mod tests {
 
         let offset = 0;
         let limit = 7;
-        let fields = vec!["filename", "data_type"];
+        let fields = ["filename", "data_type"];
 
         let stmt = sql::Select::new()
             .select(&fields.join(", "))

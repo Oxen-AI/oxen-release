@@ -3,6 +3,7 @@ use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{MetadataEntry, RemoteRepository};
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -119,7 +120,7 @@ pub async fn download_file(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     if entry.size > AVG_CHUNK_SIZE {
-        let bar = Arc::new(ProgressBar::new(entry.size));
+        let bar = oxen_progress_bar(entry.size, ProgressBarType::Bytes);
         download_large_entry(
             remote_repo,
             &remote_path,

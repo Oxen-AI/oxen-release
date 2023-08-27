@@ -4,13 +4,13 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use bytesize::ByteSize;
 use indicatif::ProgressBar;
 
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, RemoteRepository};
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
 pub async fn pull_entries(
@@ -33,9 +33,9 @@ pub async fn pull_entries(
 
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
     println!(
-        "Downloading {} entries with size {}",
+        "Downloading {} files ({})",
         missing_entries.len(),
-        ByteSize::b(total_size)
+        bytesize::ByteSize::b(total_size)
     );
 
     // Some files may be much larger than others....so we can't just download them within a single body
@@ -56,7 +56,7 @@ pub async fn pull_entries(
         .collect();
 
     // Progress bar to be shared between small and large entries
-    let bar = Arc::new(ProgressBar::new(total_size));
+    let bar = oxen_progress_bar(total_size, ProgressBarType::Bytes);
 
     let large_entries_sync = pull_large_entries(remote_repo, larger_entries, &dst, &bar);
     let small_entries_sync = pull_small_entries(remote_repo, smaller_entries, &dst, &bar);
@@ -64,6 +64,7 @@ pub async fn pull_entries(
     match tokio::join!(large_entries_sync, small_entries_sync) {
         (Ok(_), Ok(_)) => {
             log::debug!("Successfully synced entries!");
+            bar.finish_and_clear();
             on_complete();
         }
         (Err(err), Ok(_)) => {

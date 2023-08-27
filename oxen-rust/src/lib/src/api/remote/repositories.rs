@@ -3,7 +3,8 @@ use crate::api::remote::client;
 use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
-use crate::view::{NamespaceView, RepositoryResolveResponse, RepositoryResponse, StatusMessage};
+use crate::view::repository::{RepositoryDataTypesResponse, RepositoryDataTypesView};
+use crate::view::{NamespaceView, RepositoryResponse, StatusMessage};
 use serde_json::json;
 
 /// Gets remote "origin" that is set on the local repo
@@ -57,9 +58,7 @@ pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
 }
 
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
-    // TODO: run tests on oxen side to see if this is needed
     log::debug!("api::remote::repositories::get_by_remote({:?})", remote);
-
     let url = api::endpoint::url_from_remote(remote, "")?;
     log::debug!("api::remote::repositories::get_by_remote url: {}", url);
 
@@ -89,6 +88,50 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
             log::error!("Failed to get remote url {url}\n{err:?}");
             Err(OxenError::basic_str(format!(
                 "api::repositories::get_by_remote() Request failed at url {url}"
+            )))
+        }
+    }
+}
+
+pub async fn get_repo_data_by_remote(
+    remote: &Remote,
+) -> Result<Option<RepositoryDataTypesView>, OxenError> {
+    log::debug!(
+        "api::remote::repositories::get_repo_data_by_remote({:?})",
+        remote
+    );
+    let url = api::endpoint::url_from_remote(remote, "")?;
+    log::debug!(
+        "api::remote::repositories::get_repo_data_by_remote url: {}",
+        url
+    );
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            if 404 == res.status() {
+                return Ok(None);
+            }
+
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("repositories::get_repo_data_by_remote {}\n {}", url, body);
+
+            let response: Result<RepositoryDataTypesResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(j_res) => Ok(Some(j_res.repository)),
+                Err(err) => {
+                    log::debug!("Err: {}", err);
+                    Err(OxenError::basic_str(format!(
+                        "api::repositories::get_repo_data_by_remote() Could not deserialize repository [{url}]"
+                    )))
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Failed to get remote url {url}\n{err:?}");
+            Err(OxenError::basic_str(format!(
+                "api::repositories::get_repo_data_by_remote() Request failed at url {url}"
             )))
         }
     }
@@ -233,36 +276,6 @@ pub async fn transfer_namespace(
     } else {
         Err(OxenError::basic_str(
             "api::repositories::transfer_namespace() Request failed",
-        ))
-    }
-}
-
-pub async fn resolve_api_url(url: &str) -> Result<Option<String>, OxenError> {
-    log::debug!("api::remote::repositories::resolve_api_url({})", url);
-    let client = client::new_for_url(url)?;
-    if let Ok(res) = client.get(url).send().await {
-        let status = res.status();
-        if 404 == status {
-            return Ok(None);
-        }
-
-        let body = client::parse_json_body(url, res).await?;
-        log::debug!("repositories::resolve_api_url {}\n{}", url, body);
-
-        let response: Result<RepositoryResolveResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(j_res) => Ok(Some(j_res.repository_api_url)),
-            Err(err) => {
-                log::debug!("Err: {}", err);
-                Err(OxenError::basic_str(format!(
-                    "api::repositories::resolve_api_url() Could not deserialize repository [{url}]"
-                )))
-            }
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "api::repositories::resolve_api_url() Request failed",
         ))
     }
 }

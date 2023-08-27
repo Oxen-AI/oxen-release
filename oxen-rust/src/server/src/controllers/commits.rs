@@ -233,8 +233,6 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
             }
             Ok(None) => {
                 // log::debug!("latest_synced commit not yet processing: {}", commit.id);
-                // Panic to fail the test
-                // panic!("NONE WORLD IS IN HERE");
                 commits_to_sync.push(commit);
             }
 
@@ -702,9 +700,9 @@ fn check_if_upload_complete_and_unpack(
     }
 
     log::debug!(
-        "upload_raw checking if complete... {} == {}",
-        total_size,
-        uploaded_size
+        "upload_raw checking if complete... {} / {}",
+        bytesize::ByteSize::b(uploaded_size),
+        bytesize::ByteSize::b(total_size as u64)
     );
 
     if total_size == (uploaded_size as usize) {

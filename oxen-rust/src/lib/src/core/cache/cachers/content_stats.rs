@@ -37,7 +37,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let reader = CommitEntryReader::new(repo, commit)?;
     let dirs = reader.list_dirs()?;
     log::debug!("Computing size of {} dirs", dirs.len());
-    let columns = vec!["data_type", "mime_type"];
+    let columns = ["data_type", "mime_type"];
     for dir in dirs {
         for column in columns.iter() {
             log::debug!("Aggregating {column} for commit {commit:?}");

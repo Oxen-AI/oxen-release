@@ -287,7 +287,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
     test::run_empty_local_repo_test_async(|mut repo| async move {
         // Track a dir
         let train_dir = repo.path.join("train");
-        let train_paths = vec![
+        let train_paths = [
             Path::new("data/test/images/cat_1.jpg"),
             Path::new("data/test/images/cat_2.jpg"),
             Path::new("data/test/images/cat_3.jpg"),
