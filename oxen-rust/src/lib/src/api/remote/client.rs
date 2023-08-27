@@ -64,7 +64,6 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
         headers.insert(header::AUTHORIZATION, auth_value);
         Ok(builder.default_headers(headers))
     } else {
-        eprintln!("Warning: No auth token found for host '{}'\n\nTo set a token run:\n\n  oxen config --auth {} YOUR_AUTH_TOKEN\n", host.as_ref(), host.as_ref());
         Ok(builder)
     }
 }
@@ -75,7 +74,10 @@ fn builder() -> ClientBuilder {
 
 /// Performs an extra parse to validate that the response is success
 pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
-    parse_json_body_with_err_msg(url, res, None, None).await
+    let type_override = "unauthenticated";
+    let err_msg = "You must create an account on https://oxen.ai to enable this feature.\n\nOnce your account is created, set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
+
+    parse_json_body_with_err_msg(url, res, Some(type_override), Some(err_msg)).await
 }
 
 /// Used to override error message when parsing json body

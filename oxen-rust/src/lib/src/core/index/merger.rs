@@ -804,7 +804,7 @@ mod tests {
                 assert_eq!(merge_commit.parent_ids.len(), 2);
 
                 // There should be 5 files: [a.txt, b.txt, c.txt, d.txt e.txt]
-                let file_prefixes = vec!["a", "b", "c", "d", "e"];
+                let file_prefixes = ["a", "b", "c", "d", "e"];
                 for prefix in file_prefixes.iter() {
                     let filename = format!("{prefix}.txt");
                     let filepath = repo.path.join(filename);

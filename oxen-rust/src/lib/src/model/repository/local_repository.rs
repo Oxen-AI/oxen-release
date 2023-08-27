@@ -9,8 +9,9 @@ use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::CloneOpts;
 use crate::opts::PullOpts;
 use crate::util;
+use crate::util::progress_bar::oxen_progress_bar;
+use crate::util::progress_bar::ProgressBarType;
 use crate::view::RepositoryView;
-use indicatif::ProgressBar;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
@@ -241,7 +242,7 @@ impl LocalRepository {
             println!("🐂 fetching additional remote branches");
             let remote_branches = api::remote::branches::list(&repo).await?;
 
-            let bar = ProgressBar::new(remote_branches.len() as u64 - 1);
+            let bar = oxen_progress_bar(remote_branches.len() as u64 - 1, ProgressBarType::Counter);
 
             for branch in remote_branches {
                 // We've already pulled the target branch in full
@@ -258,17 +259,7 @@ impl LocalRepository {
             bar.finish();
         }
 
-        if opts.shallow {
-            println!(
-                "🐂 cloned {} to {}/\n\ncd {}\noxen pull origin {}",
-                repo.remote.url, repo.name, repo.name, opts.branch
-            )
-        } else {
-            println!(
-                "\n🐂 cloned {} to {}/\n\ncd {}\noxen status",
-                repo.remote.url, repo.name, repo.name
-            );
-        }
+        println!("\n🎉 cloned {} to {}/\n", repo.remote.url, repo.name);
 
         Ok(local_repo)
     }
