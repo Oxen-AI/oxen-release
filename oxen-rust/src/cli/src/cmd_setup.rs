@@ -700,12 +700,6 @@ pub fn push() -> Command {
                 .help("Remove the remote branch")
                 .action(clap::ArgAction::SetTrue),
         )
-        .arg(
-            Arg::new("all")
-                .long("all")
-                .help("This pulls the full commit history, all the data files, and all the commit databases. Useful if you want to have the entire history locally or push to a new remote.")
-                .action(clap::ArgAction::SetTrue),
-        )
 }
 
 pub fn pull() -> Command {
@@ -722,6 +716,12 @@ pub fn pull() -> Command {
                 .help("Branch name to pull")
                 .default_value(DEFAULT_BRANCH_NAME)
                 .default_missing_value(DEFAULT_BRANCH_NAME),
+        )
+        .arg(
+            Arg::new("all")
+                .long("all")
+                .help("This pulls the full commit history, all the data files, and all the commit databases. Useful if you want to have the entire history locally or push to a new remote.")
+                .action(clap::ArgAction::SetTrue),
         )
 }
 

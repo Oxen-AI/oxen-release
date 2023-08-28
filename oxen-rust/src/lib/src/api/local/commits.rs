@@ -6,7 +6,7 @@
 use crate::constants::HISTORY_DIR;
 use crate::core::cache::cachers::content_validator;
 use crate::core::index::{
-    CommitEntryReader, CommitReader, CommitWriter, RefReader, RefWriter, Stager,
+    CommitEntryReader, CommitReader, CommitWriter, RefReader, RefWriter, Stager, self,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -352,4 +352,98 @@ pub fn list_from_paginated(
         commits,
         pagination,
     })
+}
+
+pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit ) -> bool {
+    // Get full commit history from this head backwards 
+    let history = api::local::commits::list_from(repo, &commit.id).unwrap();
+
+    // Ensure traces back to base commit
+    let maybe_initial_commit = history.last().unwrap();
+    if !maybe_initial_commit.parent_ids.is_empty() {
+        // If it has parents, it isn't an initial commit
+        return false;
+    }
+
+    // Ensure all commits and their parents are synced 
+    // Initialize commit reader 
+    for c in &history {
+        if index::commit_sync_status::commit_is_synced(repo, &c) == false {
+            return false;
+        }
+    }
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::api;
+    use crate::command;
+    use crate::error::OxenError;
+    use crate::test;
+
+
+    #[tokio::test]
+    async fn test_commit_history_is_complete() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+    
+            // Clone with the --all flag
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let deep_clone =
+                    command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                // Get head commit of deep_clone repo 
+                let head_commit = api::local::commits::head_commit(&deep_clone)?;
+                assert!(api::local::commits::commit_history_is_complete(&deep_clone, &head_commit));
+                Ok(new_repo_dir)
+            })
+            .await?;
+    
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_history_is_not_complete_standard_repo() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+    
+            // Clone with the --all flag
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let clone =
+                    command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                // Get head commit of deep_clone repo 
+                let head_commit = api::local::commits::head_commit(&clone)?;
+                assert!(api::local::commits::commit_history_is_complete(&clone, &head_commit) == false);
+                Ok(new_repo_dir)
+            })
+            .await?;
+    
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_history_is_not_complete_shallow_repo() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+            let cloned_remote = remote_repo.clone();
+    
+            // Clone with the --all flag
+            test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let shallow_clone =
+                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                // Get head commit of deep_clone repo 
+                let head_commit = api::local::commits::head_commit(&shallow_clone)?;
+                assert!(api::local::commits::commit_history_is_complete(&shallow_clone, &head_commit) == false);
+                Ok(new_repo_dir)
+            })
+            .await?;
+    
+            Ok(cloned_remote)
+        })
+        .await
+    }
+
 }
