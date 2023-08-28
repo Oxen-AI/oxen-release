@@ -135,20 +135,35 @@ pub fn list_with_missing_entries(
     repo: &LocalRepository,
     commit_id: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    log::debug!("In here working on finding some commit entries");
+    log::debug!("list_with_missing_entries[{}]", commit_id);
     let mut missing_entry_commits: Vec<Commit> = vec![];
 
     // Get full commit history for this repo to report any missing commits
     let commits = api::local::commits::list_from(repo, commit_id)?;
 
+    log::debug!("considering {} commits", commits.len());
+
     for commit in commits {
-        if commit_content_is_valid_path(repo, &commit).exists()
-            && content_validator::is_valid(repo, &commit)?
-        {
+        log::debug!("considering commit {}", commit);
+        let path = commit_content_is_valid_path(repo, &commit);
+        let path_is_valid = path.exists();
+        let content_is_valid = content_validator::is_valid(repo, &commit)?;
+        log::debug!(
+            "commit {} path_is_valid: {} content_is_valid: {} path: {:?}",
+            commit,
+            path_is_valid,
+            content_is_valid,
+            path,
+        );
+
+        if path_is_valid && content_is_valid {
             continue;
         }
+        log::debug!("UNSYNCED COMMIT {}", commit);
         missing_entry_commits.push(commit);
     }
+
+    log::debug!("found {} unsynced commits", missing_entry_commits.len());
 
     // BASE-->HEAD order - essential for ensuring sync order
     missing_entry_commits.reverse();

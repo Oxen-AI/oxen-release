@@ -280,6 +280,19 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn file_rename_error(
+        src: impl AsRef<Path>,
+        dst: impl AsRef<Path>,
+        err: impl Debug,
+    ) -> OxenError {
+        let err = format!(
+            "File rename error: {err:?}\nCould not move from `{:?}` to `{:?}`",
+            src.as_ref(),
+            dst.as_ref()
+        );
+        OxenError::basic_str(err)
+    }
+
     pub fn remote_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
         let err = format!(
             "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen remote add /path/to/file.png -p my-images/\n",

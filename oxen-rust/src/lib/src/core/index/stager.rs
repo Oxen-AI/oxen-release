@@ -22,7 +22,7 @@ use crate::model::{
     StagedEntryStatus,
 };
 use crate::util;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
+use crate::util::progress_bar::{oxen_progress_bar, oxen_progress_bar_with_msg, ProgressBarType};
 
 use filetime::FileTime;
 use ignore::gitignore::Gitignore;
@@ -703,7 +703,7 @@ impl Stager {
         // add the the directory to list of dirs we are tracking so that when we find untracked files
         // they are added to the list
         let short_path = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Added)?;
+        path_db::put(&self.dir_db, &short_path, &StagedEntryStatus::Added)?;
         // log::debug!("Stager.add_dir added path {short_path:?}");
 
         // Add all untracked files and modified files
@@ -712,7 +712,8 @@ impl Stager {
 
         // println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
-        let bar = oxen_progress_bar(size, ProgressBarType::Counter);
+        let msg = format!("Adding directory {short_path:?}");
+        let bar = oxen_progress_bar_with_msg(size, msg);
         dir_paths.iter().for_each(|(parent, paths)| {
             // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
 
