@@ -43,12 +43,13 @@ pub fn oxen_progress_bar_with_msg(size: u64, msg: impl AsRef<str>) -> Arc<Progre
 fn progress_type_to_template(progress_type: ProgressBarType) -> String {
     match progress_type {
         ProgressBarType::Counter => {
-            "{spinner:.green} {msg} [{elapsed_precise}] [{bar:60}] {pos}/{len} ({eta})".to_string()
-        }
-        ProgressBarType::Bytes => {
-            "{spinner:.green} [{elapsed_precise}] [{bar:60}] {bytes}/{total_bytes} ({eta})"
+            "{spinner:.green} {msg} [{elapsed_precise}] [{wide_bar}] {pos}/{len} ({eta})"
                 .to_string()
         }
-        ProgressBarType::None => "{spinner:.green} [{elapsed_precise}] [{bar:60}]".to_string(),
+        ProgressBarType::Bytes => {
+            "{spinner:.green} [{elapsed_precise}] [{wide_bar}] {bytes}/{total_bytes} ({eta})"
+                .to_string()
+        }
+        ProgressBarType::None => "{spinner:.green} [{elapsed_precise}] [{wide_bar}]".to_string(),
     }
 }
