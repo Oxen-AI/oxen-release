@@ -61,9 +61,19 @@ fn restore_dir(
         if dir.starts_with(path) {
             let reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
             let entries = reader.list_entries()?;
-            for entry in entries.iter() {
-                restore_file(repo, &entry.path, &commit.id, entry)?;
-            }
+            let msg = format!("Restoring Directory: {:?}", dir);
+            let bar = util::progress_bar::oxen_progress_bar_with_msg(entries.len() as u64, &msg);
+            // iterate over entries in parallel
+            entries.iter().for_each(|entry| {
+                match restore_file(repo, &entry.path, &commit.id, entry) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        log::error!("Error restoring file {:?}: {:?}", entry.path, e);
+                    }
+                }
+                bar.inc(1);
+            });
+            bar.finish_and_clear();
         }
     }
 

@@ -38,7 +38,10 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 }
 
 pub fn is_valid(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
-    Ok(read_is_valid(repo, commit)? == "true")
+    match read_is_valid(repo, commit) {
+        Ok(val) => Ok(val == "true"),
+        Err(_) => Ok(false),
+    }
 }
 
 fn write_is_valid(repo: &LocalRepository, commit: &Commit, val: &str) -> Result<(), OxenError> {
