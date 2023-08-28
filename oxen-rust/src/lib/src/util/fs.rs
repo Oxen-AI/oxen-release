@@ -434,6 +434,22 @@ pub fn copy(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenErro
     }
 }
 
+/// Wrapper around the std::fs::rename command to tell us which file failed to copy
+pub fn rename(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+    match std::fs::rename(src, dst) {
+        Ok(_) => Ok(()),
+        Err(err) => {
+            if !src.exists() {
+                Err(OxenError::file_error(src, err))
+            } else {
+                Err(OxenError::file_rename_error(src, dst, err))
+            }
+        }
+    }
+}
+
 /// Wrapper around the std::fs::copy which makes the parent directory of the dst if it doesn't exist
 pub fn copy_mkdir(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();

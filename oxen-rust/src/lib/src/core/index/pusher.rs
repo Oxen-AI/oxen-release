@@ -873,7 +873,10 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::core::index::pusher;
+    use crate::core::index::CommitReader;
     use crate::error::OxenError;
+    use crate::opts::RmOpts;
+    use crate::util;
 
     use crate::test;
 
@@ -1049,6 +1052,110 @@ mod tests {
             assert_eq!(unsynced_entries_commits.len(), 0);
 
             Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_push_only_one_modified_file() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            // Get original branch
+            let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
+
+            // Move the README to a new file name
+            let readme_path = local_repo.path.join("README.md");
+            let new_path = local_repo.path.join("README2.md");
+            util::fs::rename(&readme_path, &new_path)?;
+
+            command::add(&local_repo, new_path)?;
+            let rm_opts = RmOpts::from_path("README.md");
+            command::rm(&local_repo, &rm_opts).await?;
+            let commit = command::commit(&local_repo, "Moved the readme")?;
+
+            // All remote entries should by synced
+            let unsynced_entries_commits =
+                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
+                    .await?;
+            assert_eq!(unsynced_entries_commits.len(), 0);
+
+            let commit_reader = CommitReader::new(&local_repo)?;
+            // We should only have one unsynced commit and one unsynced entry
+            let (commit_unsynced_commits, _) =
+                pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
+
+            assert_eq!(commit_unsynced_commits.len(), 1);
+            assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
+
+            command::push(&local_repo).await?;
+
+            // All remote entries should by synced
+            let unsynced_entries_commits =
+                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
+                    .await?;
+            assert_eq!(unsynced_entries_commits.len(), 0);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_push_move_entire_directory() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            // Get original branch
+            let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
+
+            // Move the README to a new file name
+            let train_images = local_repo.path.join("train");
+            let new_path = local_repo.path.join("images").join("train");
+            util::fs::create_dir_all(local_repo.path.join("images"))?;
+            util::fs::rename(&train_images, &new_path)?;
+
+            command::add(&local_repo, new_path)?;
+            let mut rm_opts = RmOpts::from_path("train");
+            rm_opts.recursive = true;
+            command::rm(&local_repo, &rm_opts).await?;
+            let commit =
+                command::commit(&local_repo, "Moved all the train image files to images/")?;
+
+            // All remote entries should by synced
+            let unsynced_entries_commits =
+                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
+                    .await?;
+            assert_eq!(unsynced_entries_commits.len(), 0);
+
+            let commit_reader = CommitReader::new(&local_repo)?;
+            // We should have 5 unsynced entries
+            let (commit_unsynced_commits, _) =
+                pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
+
+            assert_eq!(commit_unsynced_commits.len(), 1);
+            assert_eq!(commit_unsynced_commits[0].entries.len(), 5);
+
+            command::push(&local_repo).await?;
+
+            // All remote entries should by synced
+            let unsynced_entries_commits =
+                api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch)
+                    .await?;
+            assert_eq!(unsynced_entries_commits.len(), 0);
+
+            // Add a single new file
+            let new_file = local_repo.path.join("new_file.txt");
+            util::fs::write(&new_file, "I am a new file")?;
+            command::add(&local_repo, new_file)?;
+            let commit = command::commit(&local_repo, "Added a new file")?;
+
+            // We should have 1 unsynced entry
+            let (commit_unsynced_commits, _) =
+                pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
+
+            assert_eq!(commit_unsynced_commits.len(), 1);
+            assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
+
+            command::push(&local_repo).await?;
+
+            Ok(remote_repo)
         })
         .await
     }
