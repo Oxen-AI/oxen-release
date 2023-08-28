@@ -12,6 +12,7 @@ use crate::opts::PullOpts;
 /// Defaults defined in
 /// `constants::DEFAULT_REMOTE_NAME` and `constants::DEFAULT_BRANCH_NAME`
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
+    // TODONOW: Change this to `pull_all` and other to just `pull`
     println!("Pulling from the puller");
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
@@ -26,11 +27,29 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
         .await
 }
 
+pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
+    // TODONOW: Change this to just "pull" and other to `pull_all`, see how tests fare
+    println!("Pulling from the puller");
+    let indexer = EntryIndexer::new(repo)?;
+    let rb = RemoteBranch::default();
+    indexer
+        .pull(
+            &rb,
+            PullOpts {
+                should_pull_all: false,
+                should_update_head: true,
+            },
+        )
+        .await
+}
+
+
 /// Pull a specific remote and branch
 pub async fn pull_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch: &str,
+    all: bool,
 ) -> Result<(), OxenError> {
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch {
@@ -41,7 +60,7 @@ pub async fn pull_remote_branch(
         .pull(
             &rb,
             PullOpts {
-                should_pull_all: true,
+                should_pull_all: all,
                 should_update_head: true,
             },
         )
