@@ -327,7 +327,7 @@ async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
                 .await?;
 
                 // Pull on the shallow copy 
-                command::pull(&user_a_shallow).await?;
+                command::pull_shallow(&user_a_shallow).await?;
 
                 // Get all commits on the remote 
                 let commit_reader = CommitReader::new(&user_a_shallow)?;
@@ -392,7 +392,7 @@ async fn test_pull_standard_clone_only_pulls_head() -> Result<(), OxenError> {
             .await?;
 
             // Pull on the shallow copy 
-            command::pull(&user_a_repo).await?;
+            command::pull_shallow(&user_a_repo).await?;
 
             // Get all commits on the remote 
             let commit_reader = CommitReader::new(&user_a_repo)?;

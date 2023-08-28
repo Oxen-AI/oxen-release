@@ -252,7 +252,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
                 .await?;
 
             // Pull it on the OG side
-            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name, true).await?;
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
             // Now there should be 7 train files
             assert_eq!(7, og_num_files);
@@ -266,7 +266,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
             // Pull it on the second side again
-            command::pull_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name)
+            command::pull_remote_branch(&cloned_repo, constants::DEFAULT_REMOTE_NAME, branch_name, false)
                 .await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // Now there should be 7 train/ files and 1 in large_files/
@@ -339,7 +339,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
                 .await?;
 
             // Pull it on the OG side
-            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, &og_branch.name)
+            command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, &og_branch.name, true)
                 .await?;
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
             // Now there should be still be the original train files, not the new file
