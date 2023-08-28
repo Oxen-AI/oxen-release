@@ -155,6 +155,12 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::BadRequest()
                             .json(StatusMessageDescription::bad_request(format!("{}", desc)))
                     }
+                    OxenError::IncompleteLocalHistory(desc) => {
+                        log::error!("Cannot push repo with incomplete local history: {}", desc);
+
+                        HttpResponse::BadRequest()
+                            .json(StatusMessageDescription::bad_request(format!("{}", desc)))
+                    }
                     err => {
                         log::error!("Internal server error: {:?}", err);
                         HttpResponse::InternalServerError()

@@ -50,3 +50,5 @@ fn commit_is_synced_file_path(repo: &LocalRepository, commit: &Commit) -> PathBu
         .join(&commit.id)
         .join(constants::IS_SYNCED)
 }
+
+

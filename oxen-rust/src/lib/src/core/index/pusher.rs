@@ -12,7 +12,7 @@ use std::io::{BufReader, Read};
 use std::sync::Arc;
 use tokio::time::Duration;
 
-use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
+use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES, DEFAULT_BRANCH_NAME};
 
 use crate::core::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
@@ -73,6 +73,14 @@ pub async fn push_remote_repo(
     if remote_is_ahead_of_local(&remote_repo, &commit_reader, &branch).await? {
         return Err(OxenError::remote_ahead_of_local());
     }
+
+    // TODONOW: is this fine, or should be on the target branch?
+    // If a repo is empty, 
+
+    if cannot_push_incomplete_history(&local_repo, &remote_repo, &head_commit).await? {
+        return Err(OxenError::incomplete_local_history());
+    }
+
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, &remote_repo, &head_commit, &branch).await?;
 
@@ -245,6 +253,22 @@ async fn remote_is_ahead_of_local(
     // Meaning we do not have the remote branch commit in our history
     Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
 }
+
+async fn cannot_push_incomplete_history(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    local_head: &Commit,
+) -> Result<bool, OxenError> {
+    // If no default branch, repo is empty - TODO: maybe tighten up this logic with a separate endpoint and list_all - not sure if this covers all cases
+    if let Err(_) = api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await {
+        log::debug!("We're in here pushing an incomplete history");
+        return Ok(!api::local::commits::commit_history_is_complete(local_repo, local_head));
+    }
+    
+    log::debug!("We're not in here pushing an incomplete history");
+    Ok(false)
+}
+
 
 async fn poll_until_synced(
     remote_repo: &RemoteRepository,

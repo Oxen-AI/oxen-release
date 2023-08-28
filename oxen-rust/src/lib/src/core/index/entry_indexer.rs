@@ -38,7 +38,7 @@ impl EntryIndexer {
         pusher::push(&self.repository, rb).await
     }
 
-    pub async fn pull(&self, rb: &RemoteBranch, opts: PullOpts) -> Result<(), OxenError> {
+    pub async fn pull(&self, rb: &RemoteBranch, mut opts: PullOpts) -> Result<(), OxenError> {
         println!("When we pull, here's where it goes,");
         println!("And here's where our pull_opts are {:?}", opts);
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
@@ -75,6 +75,21 @@ impl EntryIndexer {
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = api::local::commits::head_commit(&self.repository);
 
+        let head_commit = if let Ok(commit) = maybe_head_commit {
+            Some(commit)
+        } else {
+            None
+        };
+
+        // If our local branch is currently completely synced (from a clone or pull --all), we should 
+        // override the opts and pull all commits 
+        // First block
+        // if let Some(ref commit) = head_commit {
+        //     if api::local::commits::commit_history_is_complete(&self.repository, commit) {
+        //         opts.should_pull_all = true;
+        //     }
+        // }
+
         let mut commit = if opts.should_pull_all {
             log::debug!("Going in and pulling all, here is opts.should_pull_all {}", opts.should_pull_all);
             self.pull_all(&remote_repo, rb, opts.should_update_head)
@@ -88,9 +103,8 @@ impl EntryIndexer {
 
         // TODO Do we add a flag for if this pull is a merge somehow...?
         // If the branches have diverged, we need to merge the commit into the base
-        if maybe_head_commit.is_ok() {
+        if let Some(ref head_commit) = head_commit {
             log::debug!("Head commit is okay");
-            let head_commit = maybe_head_commit.unwrap();
             if head_commit.id != commit.id {
                 log::debug!("Head commit doesn't match what we were expecting");
                 let merger = Merger::new(&self.repository)?;
@@ -303,7 +317,7 @@ impl EntryIndexer {
         let total_missing = missing_commits.len();
         log::debug!("Total missing commits: {}", total_missing);
         if total_missing == 0 {
-            log::debug!("Whoa, no commit objects here...");
+
             // Nothing to do
             return Ok(None);
         }
@@ -694,8 +708,7 @@ impl EntryIndexer {
         if entries.is_empty() {
             return Ok(());
         }
-        println!("Unpacking...");
-        let bar = oxen_progress_bar(entries.len() as u64, ProgressBarType::Counter);
+        // let bar = oxen_progress_bar(entries.len() as u64, ProgressBarType::Counter);
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
 
         dir_entries.par_iter().for_each(|(dir, entries)| {
@@ -703,11 +716,11 @@ impl EntryIndexer {
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path);
                 versioner::backup_file(&self.repository, &committer, entry, filepath).unwrap();
-                bar.inc(1);
+                // bar.inc(1);
             });
         });
 
-        bar.finish_and_clear();
+        // bar.finish_and_clear();
 
         log::debug!("Done Unpacking.");
 
@@ -825,6 +838,7 @@ impl EntryIndexer {
 
         Ok(())
     }
+
 }
 
 #[cfg(test)]

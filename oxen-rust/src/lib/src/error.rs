@@ -41,6 +41,7 @@ pub enum OxenError {
     // Remotes
     RemoteRepoNotFound(Box<Remote>),
     RemoteAheadOfLocal(StringError),
+    IncompleteLocalHistory(StringError),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -118,6 +119,12 @@ impl OxenError {
     pub fn remote_ahead_of_local() -> Self {
         OxenError::RemoteAheadOfLocal(StringError::from(
             "\nRemote ahead of local, must pull changes. To fix run:\n\n  oxen pull\n",
+        ))
+    }
+
+    pub fn incomplete_local_history() -> Self {
+        OxenError::IncompleteLocalHistory(StringError::from(
+            "\nCannot push to an empty repository with an incomplete local history. To fix, pull the complete history from your remote:\n\n  oxen pull <remote> <branch> --all\n",
         ))
     }
 
