@@ -12,7 +12,9 @@ The documentation for liboxen is automatically generated and uploaded to [docs.r
 
 # 🔨 Build & Run
 
-First, make sure you have latest Rust version installed. You should install the Rust toolchain with rustup: https://www.rust-lang.org/tools/install.
+## Install Dependencies
+
+Oxen is purely written in Rust 🦀. You should install the Rust toolchain with rustup: https://www.rust-lang.org/tools/install.
 
 ```
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -157,8 +159,6 @@ To run with all debug output and run a specific test
 ```
 env RUST_LOG=warn,liboxen=debug,integration_test=debug cargo test -- --nocapture test_command_push_clone_pull_push
 ```
-
-
 
 To set a different test host you can set the `OXEN_TEST_HOST` environment variable
 
