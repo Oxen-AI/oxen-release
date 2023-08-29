@@ -1,3 +1,4 @@
+pub mod action;
 pub mod branches;
 pub mod commits;
 pub mod compare;
