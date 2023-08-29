@@ -207,6 +207,8 @@ impl LocalRepository {
         repo: RemoteRepository,
         opts: &CloneOpts,
     ) -> Result<LocalRepository, OxenError> {
+        api::remote::repositories::pre_clone(&repo).await?;
+
         // if directory already exists -> return Err
         let repo_path = opts.dst.join(&repo.name);
         if repo_path.exists() {
@@ -260,6 +262,7 @@ impl LocalRepository {
         }
 
         println!("\n🎉 cloned {} to {}/\n", repo.remote.url, repo.name);
+        api::remote::repositories::post_clone(&repo).await?;
 
         Ok(local_repo)
     }
