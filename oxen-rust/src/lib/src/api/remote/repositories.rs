@@ -6,6 +6,22 @@ use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::view::repository::{RepositoryDataTypesResponse, RepositoryDataTypesView};
 use crate::view::{NamespaceView, RepositoryResponse, StatusMessage};
 use serde_json::json;
+use std::fmt;
+
+const CLONE: &str = "clone";
+enum ActionEventState {
+    Started,
+    Completed,
+}
+
+impl fmt::Display for ActionEventState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            ActionEventState::Started => write!(f, "started"),
+            ActionEventState::Completed => write!(f, "completed"),
+        }
+    }
+}
 
 /// Gets remote "origin" that is set on the local repo
 pub async fn get_default_remote(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
@@ -280,12 +296,75 @@ pub async fn transfer_namespace(
     }
 }
 
+pub async fn pre_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = CLONE;
+    action_hook(repository, action_name, ActionEventState::Started).await
+}
+
+pub async fn post_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = CLONE;
+    action_hook(repository, action_name, ActionEventState::Completed).await
+}
+
+async fn action_hook(
+    repository: &RemoteRepository,
+    action_name: &str,
+    state: ActionEventState,
+) -> Result<(), OxenError> {
+    let uri = format!("/action/{}/{}", state, action_name);
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    let client = client::new_for_url(&url)?;
+
+    match client.post(&url).send().await {
+        Ok(_) => Ok(()),
+        _ => {
+            let err = "api::repositories::action_hook() Request failed";
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::api;
     use crate::constants;
     use crate::error::OxenError;
     use crate::test;
+    use mockito;
+
+    #[tokio::test]
+    async fn test_repo_pre_and_post_clone() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let mut server = mockito::Server::new_async().await;
+            let server_url = server.url();
+
+            let namespace = constants::DEFAULT_NAMESPACE;
+            let name = local_repo.dirname();
+
+            let mut remote_repo = test::create_remote_repo(&local_repo).await?;
+            let original_remote_url = remote_repo.remote.url;
+            remote_repo.remote.url = format!("{server_url}/{namespace}/{name}");
+
+            let path = format!("/api/repos/{namespace}/{name}/action/started/clone");
+            let mock_pre_clone = server.mock("POST", &path[..]).create_async().await;
+
+            api::remote::repositories::pre_clone(&remote_repo).await?;
+            mock_pre_clone.assert();
+
+            let path = format!("/api/repos/{namespace}/{name}/action/completed/clone");
+            let mock_post_clone = server.mock("POST", &path[..]).create_async().await;
+
+            api::remote::repositories::post_clone(&remote_repo).await?;
+            mock_post_clone.assert();
+
+            // cleanup
+            remote_repo.remote.url = original_remote_url;
+
+            api::remote::repositories::delete(&remote_repo).await?;
+            Ok(())
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_create_remote_repository() -> Result<(), OxenError> {
