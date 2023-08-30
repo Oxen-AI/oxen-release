@@ -229,7 +229,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-            command::pull(&cloned_repo).await?;
+            command::pull_all(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             assert_eq!(6, cloned_num_files);
             let og_commits = api::local::commits::list(&repo)?;
@@ -318,7 +318,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-            command::pull(&cloned_repo).await?;
+            command::pull_all(&cloned_repo).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // the original training files
             assert_eq!(train_paths.len(), cloned_num_files);

@@ -83,12 +83,11 @@ impl EntryIndexer {
 
         // If our local branch is currently completely synced (from a clone or pull --all), we should 
         // override the opts and pull all commits 
-        // First block
-        // if let Some(ref commit) = head_commit {
-        //     if api::local::commits::commit_history_is_complete(&self.repository, commit) {
-        //         opts.should_pull_all = true;
-        //     }
-        // }
+        if let Some(ref commit) = head_commit {
+            if api::local::commits::commit_history_is_complete(&self.repository, commit) {
+                opts.should_pull_all = true;
+            }
+        }
 
         let mut commit = if opts.should_pull_all {
             log::debug!("Going in and pulling all, here is opts.should_pull_all {}", opts.should_pull_all);
@@ -114,6 +113,9 @@ impl EntryIndexer {
                 }
             }
         }
+        
+        // Mark the new commit (merged or pulled) as synced 
+        index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         log::debug!("About to cleanup removed entries");
 
@@ -149,39 +151,64 @@ impl EntryIndexer {
         should_update_head: bool,
     ) -> Result<Commit, OxenError> {
         log::debug!("Beginning of pull all ");
+        //TODONOW refactor
+        let new_head: Commit;
         match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
-                // TODONOW: Consider changing back 
-                let commits = api::local::commits::list_from(&self.repository, &commit.id)?;
+                // // TODONOW: Consider changing back 
+                // let commits = api::local::commits::list_from(&self.repository, &commit.id)?;
 
-                // Reverse commits 
-                let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
+                // // Reverse commits 
+                // let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
 
                 // TODONOW needed? 
                 // for commit in &commits {
                 //     self.pull_commit_entries_db(remote_repo, commit).await?;
                 // }
 
-                self.pull_entries_for_commits( remote_repo, commits.clone()).await?;
-
-
-                Ok(commit)
+                // self.pull_entries_for_commits( remote_repo, commits.clone()).await?;
+                new_head = commit;
             }
-            Ok(None) => api::local::commits::head_commit(&self.repository),
+            Ok(None) => {
+                new_head = api::local::commits::head_commit(&self.repository)?;
+            }
             Err(err) => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::error!("pull_all error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                api::local::commits::commit_with_no_files(
+                new_head = api::local::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
-                )
+                )?;
             }
         }
+        println!("About to handle the entries");
+        log::debug!("About to handle the entries");
+
+        // Get entries between here and new head, get entries for any missing
+        let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
+        // Old to new order (TODONOW important?)
+        let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
+
+        // Collect unsynced commits - TODONOW do we need to do this for every parent?
+        let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
+        for c in commits {
+            if !index::commit_sync_status::commit_is_synced(&self.repository, &c) {
+                unsynced_entry_commits.push(c);
+            }
+        }
+
+        if unsynced_entry_commits.is_empty() {
+            println!("uhhh no unsynced entry commits")
+        }
+
+        self.pull_entries_for_commits(remote_repo, unsynced_entry_commits).await?;
+
+        Ok(new_head)
     }
 
 
@@ -200,6 +227,10 @@ impl EntryIndexer {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 self.pull_all_entries_for_commit(remote_repo, &commit)
                     .await?;
+                // Mark commit complete
+                //TODONOW maybe bring this back?
+                // log::debug!("marking this commit synced, {}", commit.id);
+                index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
                 Ok(commit)
             }
             Ok(None) => api::local::commits::head_commit(&self.repository),
@@ -606,14 +637,19 @@ impl EntryIndexer {
         // TODONOW: this doesn't need to be a closure anymore
         // Pull in bulk and unpack to versions dir
         puller::pull_entries(remote_repo, &unsynced_entries, &self.repository.path, &|| {
-            self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
+            // self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
+            log::debug!("Entries pulled")
         }).await?;
 
+        self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
 
 
-        // for c in commits {
-        //     self.pull_complete(&c)?;
-        // }
+        log::debug!("Puller commits size: {:?}", commits.len() );
+
+        for c in commits {
+            log::debug!("About to complete commit {}", c.id);
+            self.pull_complete(&c)?;
+        }
 
         Ok(())
     }
@@ -655,6 +691,7 @@ impl EntryIndexer {
                 // limit == 0 means we pulled everything, so mark it as complete
                 self.pull_complete(&commit).unwrap();
             }
+
         })
         .await?;
 
@@ -685,11 +722,10 @@ impl EntryIndexer {
             }
         }
 
-        // TODONOW: Parallelize
-        // Backup each commit's entries to the versions dir 
         let mut temp_backed_up_entries = 0;
         let commit_reader = CommitReader::new(&self.repository)?;
         for (commit_id, entries) in commit_entries {
+            log::debug!("backing up to versions dir this commit {}", commit_id);
             let commit = commit_reader.get_commit_by_id(&commit_id)?.unwrap();
             temp_backed_up_entries += entries.len();
             self.backup_to_versions_dir(&commit, &entries)?;
@@ -715,7 +751,12 @@ impl EntryIndexer {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path);
+                //TODONOW remove
+                let fp = filepath.clone();
+                log::debug!("backing up file... {:?}", fp);
                 versioner::backup_file(&self.repository, &committer, entry, filepath).unwrap();
+                log::debug!("backed up file... {:?}", fp);
+
                 // bar.inc(1);
             });
         });
@@ -727,6 +768,7 @@ impl EntryIndexer {
         Ok(())
     }
 
+    // TODONOW: might be using this wrong...
     fn pull_complete(&self, commit: &Commit) -> Result<(), OxenError> {
         // This is so that we know when we switch commits that we don't need to pull versions again
         index::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;

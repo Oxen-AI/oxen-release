@@ -109,6 +109,45 @@ async fn test_clone_all_push_all() -> Result<(), OxenError> {
 }
 
 #[tokio::test]
+async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let mut cloned_repo =
+                command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+
+            let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
+            let remote_url = test::repo_remote_url_from(&repo_name);
+            let remote_name = "different";
+
+            // Create a different repo
+            api::remote::repositories::create(
+                &cloned_repo,
+                constants::DEFAULT_NAMESPACE,
+                &repo_name,
+                test::test_host(),
+            )
+            .await?;
+
+            command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
+
+            // Should fail
+            let push_res = command::push_remote_branch(&cloned_repo, remote_name, "main").await;
+            assert!(push_res.is_err());
+            // TODO: figure out how to repro why the Pets Dataset we could not clone --all and push to staging
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
+
+#[tokio::test]
 async fn test_clone_full() -> Result<(), OxenError> {
     test::run_training_data_repo_test_no_commits_async(|mut repo| async move {
         // Track a file

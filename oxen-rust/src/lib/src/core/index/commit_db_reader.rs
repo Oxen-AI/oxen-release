@@ -175,13 +175,30 @@ impl CommitDBReader {
         commits: &mut HashSet<Commit>,
     ) -> Result<(), OxenError> {
         // End recursion, we found all the commits from base to head
+        log::debug!("history_from_base_to_head searching bewteen {} and {}", base_commit_id, head_commit_id);
         if base_commit_id == head_commit_id {
             return Ok(());
         }
+        
+
+        let base_commit = CommitDBReader::get_commit_by_id(db, base_commit_id)?
+            .ok_or_else(|| OxenError::commit_id_does_not_exist(base_commit_id))?;
+    
 
         match CommitDBReader::get_commit_by_id(db, head_commit_id) {
             Ok(Some(commit)) => {
+                log::debug!("Found commit {}, inserting", commit.id);
                 commits.insert(commit.to_owned());
+
+                // TODONOW: handle this with set logic 
+
+                let base_set: HashSet<_> = base_commit.parent_ids.iter().cloned().collect();
+                let head_set: HashSet<_> = commit.parent_ids.iter().cloned().collect();
+                if base_set == head_set {
+                    log::debug!("base_commit.parent_ids == commit.parent_ids");
+                    // commits.insert(base_commit.to_owned());
+                    return Ok(());
+                }
 
                 for parent_id in commit.parent_ids.iter() {
                     CommitDBReader::history_from_base_to_head(

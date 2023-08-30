@@ -12,10 +12,10 @@ use std::io::{BufReader, Read};
 use std::sync::Arc;
 use tokio::time::Duration;
 
-use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES, DEFAULT_BRANCH_NAME};
+use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, NUM_HTTP_RETRIES};
 
 use crate::core::index::{
-    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
+    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader, self,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
@@ -75,9 +75,9 @@ pub async fn push_remote_repo(
     }
 
     // TODONOW: is this fine, or should be on the target branch?
-    // If a repo is empty, 
+    // If a repo is empty,
 
-    if cannot_push_incomplete_history(&local_repo, &remote_repo, &head_commit).await? {
+    if cannot_push_incomplete_history(&local_repo, &remote_repo, &head_commit, &branch).await? {
         return Err(OxenError::incomplete_local_history());
     }
 
@@ -155,10 +155,24 @@ async fn get_commit_objects_to_sync(
         let merger = Merger::new(local_repo)?;
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
+        log::debug!("get_commit_objects_to_sync calculated {} commits", commits_to_sync.len());
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
         commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
+    }
+
+
+    // log::debug!("Found {} commits to sync", commits_to_sync.len());
+    // let all_remote_commits = api::remote::commits::list_commit_history(remote_repo, &branch.name)
+    //     .await?;
+    // log::debug!("Found {} remote commits", all_remote_commits.len());
+
+    // TODONOW remove 
+    for commit in &commits_to_sync {
+        log::debug!("Commit to sync: {}", commit.id);
+        let is_synced = index::commit_sync_status::commit_is_synced(local_repo, commit);
+        log::debug!("Commit {} is synced: {}", commit.id, is_synced);
     }
 
     // Order from BASE to HEAD
@@ -258,17 +272,47 @@ async fn cannot_push_incomplete_history(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     local_head: &Commit,
+    branch: &Branch,
 ) -> Result<bool, OxenError> {
     // If no default branch, repo is empty - TODO: maybe tighten up this logic with a separate endpoint and list_all - not sure if this covers all cases
-    if let Err(_) = api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await {
-        log::debug!("We're in here pushing an incomplete history");
-        return Ok(!api::local::commits::commit_history_is_complete(local_repo, local_head));
+    // TODONOW clean up this into a mtch
+    // ERRORCAUSE this was at default before
+    log::debug!("Checking if we can push incomplete history.");
+    if let Err(_) =
+        api::remote::commits::list_commit_history(&remote_repo, &branch.name).await
+    {
+        log::debug!("Found no remote history...");
+        return Ok(!api::local::commits::commit_history_is_complete(
+            local_repo, local_head,
+        ));
+    } else {
+        log::debug!("Found a remote history");
+        let remote_history = api::remote::commits::list_commit_history(&remote_repo, &branch.name).await?;
+        // Get remote head - first item 
+        let remote_head = remote_history.first().unwrap();
+        // Get commits between local head and remote head 
+        let commit_reader = CommitReader::new(local_repo)?;
+        let merger = Merger::new(local_repo)?;
+        // This comes after a check for remote ahead of local so won't be an issue
+        let commits_to_push =
+            merger.list_commits_between_commits(&commit_reader, &remote_head, local_head)?;
+
+        log::debug!("Found the following commits_to_push: {:?}", commits_to_push);
+
+        // Ensure all `commits_to_push` are synced 
+        for commit in commits_to_push {
+            log::debug!("Checking commit {}", commit.id);
+            if !index::commit_sync_status::commit_is_synced(local_repo, &commit) {
+                log::debug!("Caught a missing commit in the sync history!");
+                return Ok(true);
+            }
+        }
     }
-    
+
+
     log::debug!("We're not in here pushing an incomplete history");
     Ok(false)
 }
-
 
 async fn poll_until_synced(
     remote_repo: &RemoteRepository,

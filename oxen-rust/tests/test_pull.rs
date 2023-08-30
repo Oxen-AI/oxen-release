@@ -214,7 +214,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-            command::pull(&cloned_repo).await?;
+            command::pull_all(&cloned_repo).await?;
 
             // Get cloned history, which should fall back to API if not found locally
             let cloned_history = api::local::commits::list(&cloned_repo)?;
