@@ -136,19 +136,19 @@ impl PyRemoteRepo {
     fn remove(&self, path: PathBuf) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::staging::rm_staged_file(&self.repo, &self.revision, &user_id, path).await
+            api::remote::staging::rm_file(&self.repo, &self.revision, &user_id, path).await
         })?;
         Ok(())
     }
 
-    fn commit(&self, message: String) -> Result<(), PyOxenError> {
+    fn commit(&self, message: String) -> Result<PyCommit, PyOxenError> {
         let user_id = UserConfig::identifier()?;
         let user = UserConfig::get()?.to_user();
         let commit = NewCommitBody { message, author: user.name, email: user.email };
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::staging::commit_staged(&self.repo, &self.revision, &user_id, &commit).await
-        })?;
-        Ok(())
+            let commit = api::remote::staging::commit(&self.repo, &self.revision, &user_id, &commit).await?;
+            Ok(PyCommit { commit })
+        })
     }
 
     fn log(&self) -> Result<Vec<PyCommit>, PyOxenError> {
@@ -161,7 +161,7 @@ impl PyRemoteRepo {
     fn add_df_row(&self, path: PathBuf, data: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::staging::stage_modification(
+            api::remote::staging::modify_df(
                 &self.repo,
                 &self.revision,
                 &user_id,
