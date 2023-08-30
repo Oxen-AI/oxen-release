@@ -6,8 +6,6 @@ use liboxen::view::RemoteStagedStatus;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-// use crate::error::PyOxenError;
-
 #[pyclass]
 pub struct PyStagedData {
     pub data: OxenStagedData,
@@ -16,7 +14,7 @@ pub struct PyStagedData {
 #[pymethods]
 impl PyStagedData {
     fn __repr__(&self) -> String {
-        format!("PyStagedData(added={}, removed={}, modified={})", self.data.added_files.len(), self.data.removed_files.len(), self.data.modified_files.len())
+        format!("PyStagedData(added={}, removed={}, modified={})", self.data.staged_files.len(), self.data.removed_files.len(), self.data.modified_files.len())
     }
 
     fn __str__(&self) -> String {
@@ -26,7 +24,7 @@ impl PyStagedData {
     pub fn added_files(&self) -> PyResult<Vec<String>> {
         Ok(self
             .data
-            .added_files
+            .staged_files
             .iter()
             .map(|f| String::from(f.0.to_string_lossy()))
             .collect())
@@ -54,7 +52,7 @@ impl PyStagedData {
 impl From<RemoteStagedStatus> for PyStagedData {
     fn from(remote_status: RemoteStagedStatus) -> PyStagedData {
         let mut status = OxenStagedData::empty();
-        status.added_dirs = remote_status.added_dirs;
+        status.staged_dirs = remote_status.added_dirs;
         let added_files: HashMap<PathBuf, StagedEntry> =
             HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
                 (
@@ -69,7 +67,7 @@ impl From<RemoteStagedStatus> for PyStagedData {
                     StagedEntry::empty_status(StagedEntryStatus::Modified),
                 )
             }));
-        status.added_files = added_files.into_iter().chain(added_mods).collect();
+        status.staged_files = added_files.into_iter().chain(added_mods).collect();
         PyStagedData { data: status }
     }
 }
