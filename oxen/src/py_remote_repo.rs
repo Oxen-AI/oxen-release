@@ -42,7 +42,7 @@ impl PyRemoteRepo {
                 namespace: namespace.to_owned(),
                 name: repo_name.to_owned(),
                 remote: Remote {
-                    url: liboxen::api::endpoint::remote_url_from_host(
+                    url: liboxen::api::endpoint::remote_url_from_namespace_name(
                         &host, &namespace, &repo_name,
                     ),
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),

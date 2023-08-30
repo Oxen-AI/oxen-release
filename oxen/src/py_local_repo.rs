@@ -4,6 +4,7 @@
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::CloneOpts;
+use liboxen::opts::RmOpts;
 use pyo3::prelude::*;
 
 use liboxen::api;
@@ -65,6 +66,22 @@ impl PyLocalRepo {
     pub fn add(&self, path: PathBuf) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         command::add(&repo, path).unwrap();
+        Ok(())
+    }
+
+    pub fn rm(&self, path: PathBuf, recursive: bool, staged: bool, remote: bool) -> Result<(), PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let rm_opts = RmOpts {
+            path,
+            recursive,
+            staged,
+            remote,
+        };
+
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            command::rm(&repo, &rm_opts).await
+        }).unwrap();
+
         Ok(())
     }
 

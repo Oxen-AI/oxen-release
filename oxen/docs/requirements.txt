@@ -1,7 +1,0 @@
-m2r2==0.3.3
-sphinx-copybutton==0.5.2
-sphinx_book_theme==1.0.1
-sphinxcontrib-napoleon==0.7
-toml==0.10.2
-oxenai==0.1.23
-maturin==1.0.1
