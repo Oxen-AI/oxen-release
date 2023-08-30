@@ -88,6 +88,22 @@ class LocalRepo:
         """
         self._repo.add(path)
 
+    def rm(self, path: str, recursive=False, staged=False, remote=False):
+        """
+        Remove a file or directory from being tracked. This will not delete the file or directory.
+
+        Args:
+            path: `str`
+                The path to the file or directory to remove.
+            recursive: `bool`
+                Whether to remove the file or directory recursively. Default: False
+            staged: `bool`
+                Whether to remove the file or directory from the staging area. Default: False
+            remote: `bool`
+                Whether to remove the file or directory from a remote workspace. Default: False
+        """
+        self._repo.rm(path, recursive, staged, remote)
+
     def status(self):
         """
         Check the status of the repo. Returns a StagedData object.
@@ -145,7 +161,7 @@ class LocalRepo:
                 The name of the branch to pull from.
         """
         return self._repo.pull(remote_name, branch)
-    
+
     @property
     def path(self):
         """
