@@ -192,7 +192,7 @@ class RemoteRepo:
             message: `str`
                 The commit message.
         """
-        self._repo.commit(message)
+        return self._repo.commit(message)
 
     def log(self):
         """
@@ -241,7 +241,7 @@ class RemoteRepo:
                 The name to assign to the created branch
         """
         return self._repo.create_branch(branch)
-    
+
     def create_checkout_branch(self, branch: str):
         """
         Create a new branch from the currently checked out branch,
