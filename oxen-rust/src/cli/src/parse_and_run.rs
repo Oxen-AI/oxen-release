@@ -574,7 +574,11 @@ pub fn schemas(sub_matches: &ArgMatches) {
                     .get_one::<String>("NAME_OR_HASH")
                     .expect("required");
 
-                match dispatch::schema_show(val, sub_matches.get_flag("staged")) {
+                match dispatch::schema_show(
+                    val,
+                    sub_matches.get_flag("staged"),
+                    sub_matches.get_flag("verbose"),
+                ) {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{err}")
@@ -591,8 +595,44 @@ pub fn schemas(sub_matches: &ArgMatches) {
                     }
                 }
             }
+            ("add", sub_matches) => {
+                let path = sub_matches.get_one::<String>("PATH");
+                let schema_str = sub_matches.get_one::<String>("SCHEMA");
+
+                let err_msg = "Must supply a file path and a schema string\n\n  oxen schemas add file.csv 'col1:str'\n";
+                if path.is_none() || schema_str.is_none() {
+                    eprintln!("{err_msg}");
+                    return;
+                }
+                let path = path.unwrap();
+                let schema_str = schema_str.unwrap();
+
+                match dispatch::schema_add(path, schema_str) {
+                    Ok(_) => {}
+                    Err(err) => match err {
+                        OxenError::PathDoesNotExist(path) => {
+                            eprintln!("File does not exist: {path:?}");
+                        }
+                        _ => {
+                            eprintln!("Err: {err}")
+                        }
+                    },
+                }
+            }
+            ("rm", sub_matches) => {
+                let val = sub_matches
+                    .get_one::<String>("NAME_OR_HASH")
+                    .expect("required");
+
+                match dispatch::schema_rm(val, sub_matches.get_flag("staged")) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
+            }
             (cmd, _) => {
-                eprintln!("Unknown subcommand {cmd}")
+                eprintln!("Unknown schema subcommand {cmd}")
             }
         }
     } else {

@@ -91,8 +91,9 @@ mod tests {
             let schemas = command::schemas::list(&repo, Some(&last_commit.id))?;
             let schema = schemas
                 .iter()
-                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
-                .unwrap();
+                .find(|(_, s)| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap()
+                .1;
 
             let index_reader = SchemaIndexReader::new(&repo, last_commit, schema)?;
             let indices = index_reader.list_field_indices()?;

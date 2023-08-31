@@ -5,8 +5,8 @@
 //!
 
 use crate::constants;
-use crate::core::db;
 use crate::core::db::path_db;
+use crate::core::db::{self, str_json_db};
 use crate::core::df::tabular;
 use crate::core::index::oxenignore;
 use crate::core::index::{
@@ -16,7 +16,7 @@ use crate::core::index::{
 use crate::error::OxenError;
 use crate::opts::DFOpts;
 
-use crate::model::schema;
+use crate::model::schema::{self, Field};
 use crate::model::{
     CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus,
@@ -26,7 +26,6 @@ use crate::util::progress_bar::{oxen_progress_bar, oxen_progress_bar_with_msg, P
 
 use filetime::FileTime;
 use ignore::gitignore::Gitignore;
-use itertools::Itertools;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use rocksdb::SingleThreaded;
@@ -819,20 +818,6 @@ impl Stager {
         Ok(relative)
     }
 
-    /// Update the name of a staged schema, assuming it exists
-    pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
-        for (path, mut schema) in path_db::list_path_entries::<MultiThreaded, schema::Schema>(
-            &self.schemas_db,
-            Path::new(""),
-        )? {
-            if schema.hash == hash {
-                schema.name = Some(String::from(name));
-                path_db::put(&self.schemas_db, path, &schema)?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn get_staged_schema(&self, schema_ref: &str) -> Result<Option<schema::Schema>, OxenError> {
         for schema in path_db::list_entries::<MultiThreaded, schema::Schema>(&self.schemas_db)? {
             if schema.hash == schema_ref || schema.name == Some(schema_ref.to_string()) {
@@ -842,12 +827,12 @@ impl Stager {
         Ok(None)
     }
 
-    pub fn list_staged_schemas(&self) -> Result<Vec<schema::Schema>, OxenError> {
+    pub fn list_staged_schemas(&self) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
         Ok(
-            path_db::list_entries::<MultiThreaded, schema::Schema>(&self.schemas_db)?
+            str_json_db::hash_map::<MultiThreaded, schema::Schema>(&self.schemas_db)?
                 .into_iter()
-                .unique_by(|p| p.hash.to_owned())
-                .collect::<Vec<_>>(),
+                .map(|(p, v)| (PathBuf::from(p), v))
+                .collect::<HashMap<PathBuf, schema::Schema>>(),
         )
     }
 
@@ -970,16 +955,9 @@ impl Stager {
                 );
                 let full_path = self.repository.path.join(path);
 
-                match tabular::read_df(&full_path, DFOpts::empty()) {
+                match tabular::read_df(full_path, DFOpts::empty()) {
                     Ok(df) => {
-                        let schema = schema::Schema::from_polars(&df.schema());
-                        log::debug!(
-                            "add_staged_entry_to_db is tabular! got schema {:?} -> {:?}",
-                            full_path,
-                            schema
-                        );
-
-                        path_db::put(&self.schemas_db, path, &schema)?;
+                        self.add_schema_for_tabular(&df, path)?;
                     }
                     Err(err) => {
                         log::warn!("Could not compute schema for file: {}", err);
@@ -991,6 +969,86 @@ impl Stager {
         } else {
             Err(OxenError::file_has_no_parent(path))
         }
+    }
+
+    fn add_schema_for_tabular(
+        &self,
+        df: &polars::prelude::DataFrame,
+        path: &Path,
+    ) -> Result<(), OxenError> {
+        let mut schema = schema::Schema::from_polars(&df.schema());
+        log::debug!(
+            "add_staged_entry_to_db is tabular! got schema {:?} -> {:?}",
+            path,
+            schema
+        );
+
+        // if we have schema overrides staged or committed, continue to apply them
+        let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        let schema = match maybe_schema {
+            Some(added_schema) => {
+                log::debug!(
+                    "add_staged_entry_to_db is tabular! got schema overrides {:?} -> {:?}",
+                    path,
+                    added_schema
+                );
+                schema.set_field_dtype_overrides_from_schema(&added_schema);
+                schema
+            }
+            None => schema,
+        };
+
+        path_db::put(&self.schemas_db, path, &schema)?;
+        Ok(())
+    }
+
+    /// Update the name of a staged schema, assuming it exists
+    pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
+        for (path, mut schema) in path_db::list_path_entries::<MultiThreaded, schema::Schema>(
+            &self.schemas_db,
+            Path::new(""),
+        )? {
+            if schema.hash == hash {
+                schema.name = Some(String::from(name));
+                path_db::put(&self.schemas_db, path, &schema)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Update all the schema field type overrides on a staged schema
+    pub fn update_schema_field_dtype_overrides(
+        &self,
+        path: impl AsRef<Path>,
+        fields: Vec<Field>,
+    ) -> Result<(), OxenError> {
+        let path = path.as_ref();
+        let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        if let Some(mut schema) = maybe_schema {
+            schema.set_field_dtype_overrides(fields);
+            path_db::put(&self.schemas_db, path, &schema)?;
+        } else {
+            // If it doesn't exist, create the schema just based on the fields
+            log::debug!(
+                "update_schema_field_dtype_overrides could not find schema for path {:?}",
+                path
+            );
+            let schema = schema::Schema::from_fields(fields);
+            log::debug!(
+                "update_schema_field_dtype_overrides creating schema {:?} for path {:?}",
+                schema,
+                path
+            );
+            path_db::put(&self.schemas_db, path, &schema)?;
+        }
+        Ok(())
+    }
+
+    /// Remove a staged schema
+    pub fn rm_schema(&self, path: impl AsRef<Path>) -> Result<(), OxenError> {
+        let path = path.as_ref();
+        path_db::delete(&self.schemas_db, path)?;
+        Ok(())
     }
 
     fn list_staged_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {

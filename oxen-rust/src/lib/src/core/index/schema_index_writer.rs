@@ -58,13 +58,11 @@ mod tests {
             let schemas = command::schemas::list(&repo, Some(&last_commit.id))?;
             let schema = schemas
                 .iter()
-                .find(|s| s.name.as_ref().unwrap() == "bounding_box")
-                .unwrap();
+                .find(|(_, s)| s.name.as_ref().unwrap() == "bounding_box")
+                .unwrap()
+                .1;
 
-            let field = schema::Field {
-                name: String::from("label"),
-                dtype: String::from("str"),
-            };
+            let field = schema::Field::new("label", "str");
             {
                 let writer = SchemaIndexWriter::new(&repo, last_commit, schema)?;
                 writer.create_field_index(&field)?;

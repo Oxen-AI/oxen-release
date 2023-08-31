@@ -26,46 +26,16 @@ pub struct DirMetadataItem {
 impl DirMetadataItem {
     pub fn schema() -> Schema {
         let fields = vec![
-            Field {
-                name: "hash".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "directory".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "filename".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "path".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "num_bytes".to_string(),
-                dtype: DataType::UInt64.to_string(),
-            },
-            Field {
-                name: "commit_id".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "timestamp".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "data_type".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "mime_type".to_string(),
-                dtype: DataType::String.to_string(),
-            },
-            Field {
-                name: "extension".to_string(),
-                dtype: DataType::String.to_string(),
-            },
+            Field::new("hash", DataType::String.to_string().as_str()),
+            Field::new("directory", DataType::String.to_string().as_str()),
+            Field::new("filename", DataType::String.to_string().as_str()),
+            Field::new("path", DataType::String.to_string().as_str()),
+            Field::new("num_bytes", DataType::UInt64.to_string().as_str()),
+            Field::new("commit_id", DataType::String.to_string().as_str()),
+            Field::new("timestamp", DataType::String.to_string().as_str()),
+            Field::new("data_type", DataType::String.to_string().as_str()),
+            Field::new("mime_type", DataType::String.to_string().as_str()),
+            Field::new("extension", DataType::String.to_string().as_str()),
         ];
         Schema::new("metadata", fields)
     }

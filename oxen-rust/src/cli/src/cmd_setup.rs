@@ -431,17 +431,26 @@ pub fn schemas() -> Command {
                 .arg(
                     Arg::new("staged")
                         .long("staged")
-                        .help("List the staged schemas"),
+                        .help("List the staged schemas")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
         .subcommand(
             Command::new("show")
-                .about("View a schema by name or hash.")
-                .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view."))
+                .about("View a schema by name, hash, or file path.")
+                .arg(arg!(<NAME_OR_HASH> ... "Name, hash, or path of the schema you want to view."))
                 .arg(
                     Arg::new("staged")
                         .long("staged")
-                        .help("Show the staged schema"),
+                        .help("Show the staged schema")
+                        .action(clap::ArgAction::SetTrue),
+                )
+                .arg(
+                    Arg::new("verbose")
+                        .short('v')
+                        .long("verbose")
+                        .help("Print full schema information")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
         .subcommand(
@@ -449,6 +458,23 @@ pub fn schemas() -> Command {
                 .about("Name a schema by hash.")
                 .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
                 .arg(Arg::new("NAME").help("Name of the schema.")),
+        )
+        .subcommand(
+            Command::new("add")
+                .about("Apply a schema on read to a data frame")
+                .arg(Arg::new("PATH").help("The path of the data frame file."))
+                .arg(Arg::new("SCHEMA").help("Schema column:dtype pairs in the form of a comma separated list. Ie 'col1:str,col2:int'")),
+        )
+        .subcommand(
+            Command::new("rm")
+                .about("Remove a schema from the list of committed or added schemas.")
+                .arg(arg!(<NAME_OR_HASH> ... "Name, hash, or path of the schema you want to remove."))
+                .arg(
+                    Arg::new("staged")
+                        .long("staged")
+                        .help("Removed a staged schema")
+                        .action(clap::ArgAction::SetTrue),
+                ),
         )
         .subcommand(df())
 }
