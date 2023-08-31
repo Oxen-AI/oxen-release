@@ -27,8 +27,6 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
-    // TODONOW: Change this to just "pull" and other to `pull_all`, see how tests fare
-    println!("Pulling from the puller");
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer
@@ -43,8 +41,6 @@ pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
-    // TODONOW: Change this to just "pull" and other to `pull_all`, see how tests fare
-    println!("Pulling from the puller");
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer
