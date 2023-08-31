@@ -3,7 +3,7 @@ use crate::error::OxenError;
 use serde::{de, Serialize};
 
 use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
-use std::str;
+use std::{collections::HashMap, str};
 
 /// More efficient than get since it does not actual deserialize the entry
 pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
@@ -37,7 +37,7 @@ where
     D: de::DeserializeOwned,
 {
     let key = key.as_ref();
-    // log::debug!("kv_json_db::get({:?}) from db {:?}", key, db.path());
+    // log::debug!("str_json_db::get({:?}) from db {:?}", key, db.path());
 
     let bytes = key.as_bytes();
     match db.get(bytes) {
@@ -77,7 +77,7 @@ where
     let json_val = serde_json::to_string(entry)?;
 
     log::debug!(
-        "kv_json_db::put {:?} -> {:?} -> db: {:?}",
+        "str_json_db::put {:?} -> {:?} -> db: {:?}",
         key,
         json_val,
         db.path()
@@ -137,13 +137,50 @@ where
                     }
                 }
                 (Ok(key), _) => {
-                    log::error!("kv_json_db::list() Could not values for key {}.", key)
+                    log::error!("str_json_db::list() Could not values for key {}.", key)
                 }
                 (_, Ok(val)) => {
-                    log::error!("kv_json_db::list() Could not key for value {}.", val)
+                    log::error!("str_json_db::list() Could not key for value {}.", val)
                 }
                 _ => {
-                    log::error!("kv_json_db::list() Could not decoded keys and values.")
+                    log::error!("str_json_db::list() Could not decoded keys and values.")
+                }
+            },
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
+    }
+    Ok(results)
+}
+
+/// List keys and values in a hash map
+pub fn hash_map<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<HashMap<String, D>, OxenError>
+where
+    D: de::DeserializeOwned,
+{
+    let iter = db.iterator(IteratorMode::Start);
+    let mut results: HashMap<String, D> = HashMap::new();
+    for item in iter {
+        match item {
+            Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
+                (Ok(key), Ok(value)) => {
+                    let key = String::from(key);
+                    let entry: Result<D, serde_json::error::Error> = serde_json::from_str(value);
+                    if let Ok(entry) = entry {
+                        results.insert(key, entry);
+                    }
+                }
+                (Ok(key), _) => {
+                    log::error!("str_json_db::hash_map() Could not values for key {}.", key)
+                }
+                (_, Ok(val)) => {
+                    log::error!("str_json_db::hash_map() Could not key for value {}.", val)
+                }
+                _ => {
+                    log::error!("str_json_db::hash_map() Could not decoded keys and values.")
                 }
             },
             _ => {

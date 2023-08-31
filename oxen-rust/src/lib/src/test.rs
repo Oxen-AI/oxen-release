@@ -1495,26 +1495,11 @@ pub fn modify_txt_file<P: AsRef<Path>>(path: P, contents: &str) -> Result<PathBu
 
 pub fn schema_bounding_box() -> Schema {
     let fields = vec![
-        Field {
-            name: "file".to_string(),
-            dtype: "str".to_string(),
-        },
-        Field {
-            name: "min_x".to_string(),
-            dtype: "f32".to_string(),
-        },
-        Field {
-            name: "min_y".to_string(),
-            dtype: "f32".to_string(),
-        },
-        Field {
-            name: "width".to_string(),
-            dtype: "f32".to_string(),
-        },
-        Field {
-            name: "height".to_string(),
-            dtype: "f32".to_string(),
-        },
+        Field::new("file", "str"),
+        Field::new("min_x", "f32"),
+        Field::new("min_y", "f32"),
+        Field::new("width", "f32"),
+        Field::new("height", "f32"),
     ];
     Schema::new("bounding_box", fields)
 }

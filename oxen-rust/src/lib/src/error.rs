@@ -184,7 +184,7 @@ impl OxenError {
 
     pub fn no_schemas_found() -> OxenError {
         OxenError::basic_str(
-            "No schemas found\n\nAdd and commit a tabular data file with:\n\n  oxen add path/to/file.csv\n  oxen commit -m \"adding data\"\n",
+            "No schemas found\n\nAuto detect schema on file with:\n\n  oxen add path/to/file.csv\n\n\nOr manually add a schema override with:\n\n  oxen schemas add path/to/file.csv 'name:str, age:i32'\n",
         )
     }
 

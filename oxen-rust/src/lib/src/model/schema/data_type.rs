@@ -3,6 +3,7 @@
 
 use std::fmt;
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     Boolean,
     UInt8,

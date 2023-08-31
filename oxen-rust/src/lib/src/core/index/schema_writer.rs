@@ -78,18 +78,9 @@ mod tests {
                 let schema_writer = SchemaWriter::new(&repo, &last_commit.id)?;
 
                 let schema = Schema::from_fields(vec![
-                    schema::Field {
-                        name: String::from("label"),
-                        dtype: String::from("str"),
-                    },
-                    schema::Field {
-                        name: String::from("min_x"),
-                        dtype: String::from("int"),
-                    },
-                    schema::Field {
-                        name: String::from("min_y"),
-                        dtype: String::from("int"),
-                    },
+                    schema::Field::new("label", "str"),
+                    schema::Field::new("min_x", "int"),
+                    schema::Field::new("min_y", "int"),
                 ]);
 
                 schema_writer.put_schema(&schema)?;
