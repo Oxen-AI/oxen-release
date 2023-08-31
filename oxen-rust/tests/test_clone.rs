@@ -76,8 +76,11 @@ async fn test_clone_all_push_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            // let mut cloned_repo =
+            //     command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             let mut cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            // command::pull_all(&cloned_repo).await?;
 
             let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
             let remote_url = test::repo_remote_url_from(&repo_name);

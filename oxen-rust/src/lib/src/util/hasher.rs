@@ -27,9 +27,10 @@ where
 {
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
     log::debug!("Hashing {} entries", entries.len());
-    for (_, entry) in entries.iter().enumerate() {
+    for (i, entry) in entries.iter().enumerate() {
         let hash = entry.content_hash();
-        // log::debug!("Entry [{}] hash {}", i, hash);
+        //TODONOW get rid of this debug 
+        log::debug!("Entry [{}] hash {}", i, hash);
 
         let input = hash.as_bytes();
         commit_hasher.update(input);
@@ -48,7 +49,8 @@ pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
     // So added this method to retry a few times
     let mut timeout = 1;
     let mut retries = 0;
-    let total_retries = 5;
+    //TODONOW change this back to 5
+    let total_retries = 2;
     loop {
         match hash_file_contents(path) {
             Ok(hash) => return Ok(hash),

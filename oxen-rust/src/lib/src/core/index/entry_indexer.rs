@@ -186,8 +186,7 @@ impl EntryIndexer {
                 )?;
             }
         }
-        println!("About to handle the entries");
-        log::debug!("About to handle the entries");
+
 
         // Get entries between here and new head, get entries for any missing
         let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
@@ -327,6 +326,10 @@ impl EntryIndexer {
             .await?
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
 
+
+        // Download full commits db
+        api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
+        
         // list all the remote commits on a branch, so we know how many we have to pull
         let remote_commits =
             api::remote::commits::list_commit_history(remote_repo, &remote_branch.commit_id)
@@ -354,8 +357,7 @@ impl EntryIndexer {
         }
         println!("🐂 fetching {} commit objects", total_missing);
 
-        // Download full commits db
-        api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
+
 
         // Download the missing commit objects
         let progress_bar = oxen_progress_bar(total_missing as u64, ProgressBarType::Counter);
@@ -619,29 +621,57 @@ impl EntryIndexer {
 
         // Iterate over the commits 
 
-        for commit in &commits { 
-            for parent_id in &commit.parent_ids {
-                let local_parent = commit_reader
-                .get_commit_by_id(parent_id)?
-                .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
+        // for commit in &commits { 
+        //     for parent_id in &commit.parent_ids {
+        //         let local_parent = commit_reader
+        //         .get_commit_by_id(parent_id)?
+        //         .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
-                let entries = self.read_unsynced_entries(&local_parent, &commit)?;
-                let entries_size =  api::local::entries::compute_entries_size(&entries)?;
-                total_size += entries_size;
-                unsynced_entries.extend(entries);
-            }
+        //         let entries = self.read_unsynced_entries(&local_parent, &commit)?;
+        //         let entries_size =  api::local::entries::compute_entries_size(&entries)?;
+        //         total_size += entries_size;
+        //         unsynced_entries.extend(entries);
+        //     }
+        // }
+
+        for commit in &commits {
+            let entries = self.read_pulled_commit_entries(commit, 0)?;
+            let entries_size =  api::local::entries::compute_entries_size(&entries)?;
+            total_size += entries_size;
+            unsynced_entries.extend(entries);
         }
+
+        // Dedupe on all properties of commitentry 
+        unsynced_entries.sort();
+        unsynced_entries.dedup();
+        
+
+
+        // Recalculate total size 
+        total_size = api::local::entries::compute_entries_size(&unsynced_entries)?;
 
         log::debug!("Total size of entries to pull: {}", total_size);
 
         // TODONOW: this doesn't need to be a closure anymore
         // Pull in bulk and unpack to versions dir
         puller::pull_entries(remote_repo, &unsynced_entries, &self.repository.path, &|| {
-            // self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
             log::debug!("Entries pulled")
         }).await?;
 
-        self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
+        // self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
+        //TODONOW remove this
+        // progress bar, length of commits 
+        println!("Backing up commits...");
+        let bar = oxen_progress_bar(commits.len() as u64, ProgressBarType::Counter);
+        
+        for c in &commits {
+            // Get entries the old way (for now)
+            let entries = self.read_pulled_commit_entries(c, 0)?;
+            // let entries = self.read_unsynced_entries(&c, &c)?;
+            self.backup_to_versions_dir(c, &entries).unwrap();
+            self.pull_complete(c).unwrap();
+            bar.inc(1);
+        }
 
 
         log::debug!("Puller commits size: {:?}", commits.len() );

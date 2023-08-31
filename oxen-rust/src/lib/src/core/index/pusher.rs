@@ -141,6 +141,7 @@ async fn get_commit_objects_to_sync(
     branch: &Branch,
 ) -> Result<Vec<Commit>, OxenError> {
     let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
+
     let mut commits_to_sync: Vec<Commit>;
     // TODO: If remote branch does not yet, recreates all commits regardless of shared history.
     // Not a huge deal performance-wise right now, but could be for very commit-heavy repos
@@ -155,7 +156,21 @@ async fn get_commit_objects_to_sync(
         let merger = Merger::new(local_repo)?;
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
+        let remote_history = api::remote::commits::list_commit_history(remote_repo, &branch.name)
+            .await
+            .unwrap_or_else(|_| vec![]);
+        // TODONOW clean up
         log::debug!("get_commit_objects_to_sync calculated {} commits", commits_to_sync.len());
+
+            // Filter out any commits_to_sync that are in the remote_history 
+        commits_to_sync = commits_to_sync
+            .into_iter()
+            .filter(|commit| {
+                !remote_history
+                    .iter()
+                    .any(|remote_commit| remote_commit.id == commit.id)
+            })
+            .collect();
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
@@ -163,17 +178,14 @@ async fn get_commit_objects_to_sync(
     }
 
 
+    // TODONOW potentially change naming here to elucidate what's going on with `commits_to_sync`
+
     // log::debug!("Found {} commits to sync", commits_to_sync.len());
     // let all_remote_commits = api::remote::commits::list_commit_history(remote_repo, &branch.name)
     //     .await?;
     // log::debug!("Found {} remote commits", all_remote_commits.len());
 
-    // TODONOW remove 
-    for commit in &commits_to_sync {
-        log::debug!("Commit to sync: {}", commit.id);
-        let is_synced = index::commit_sync_status::commit_is_synced(local_repo, commit);
-        log::debug!("Commit {} is synced: {}", commit.id, is_synced);
-    }
+
 
     // Order from BASE to HEAD
     commits_to_sync.reverse();
@@ -287,15 +299,29 @@ async fn cannot_push_incomplete_history(
         ));
     } else {
         log::debug!("Found a remote history");
+        
         let remote_history = api::remote::commits::list_commit_history(&remote_repo, &branch.name).await?;
-        // Get remote head - first item 
+        log::debug!("full remote history...{:?}", remote_history);
+        // Get remote head on this branch
         let remote_head = remote_history.first().unwrap();
+        log::debug!("Checking between local head {:?} and remote head {:?} on branch {}", local_head, remote_head, branch.name);
         // Get commits between local head and remote head 
         let commit_reader = CommitReader::new(local_repo)?;
         let merger = Merger::new(local_repo)?;
         // This comes after a check for remote ahead of local so won't be an issue
         let commits_to_push =
             merger.list_commits_between_commits(&commit_reader, &remote_head, local_head)?;
+
+
+        // Check only commits in commits_to_push which are not already in remote_history
+        let commits_to_push: Vec<Commit> = commits_to_push
+            .into_iter()
+            .filter(|commit| {
+                !remote_history
+                    .iter()
+                    .any(|remote_commit| remote_commit.id == commit.id)
+            })
+            .collect();
 
         log::debug!("Found the following commits_to_push: {:?}", commits_to_push);
 
