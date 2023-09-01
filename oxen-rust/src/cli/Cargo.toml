@@ -5,6 +5,8 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.2.7", features = ["cargo"] }
+#TODONOW CLEANUP THIS DEP
+csv = "1.1"
 colored = "2.0.0"
 dunce = "1"
 env_logger = "0.10.0"
