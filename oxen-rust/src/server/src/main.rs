@@ -181,6 +181,7 @@ async fn main() -> std::io::Result<()> {
                                 HttpAuthentication::bearer(auth::validator::validate),
                             ))
                             .service(web::scope("/api/repos").configure(routes::config))
+                            .default_service(web::route().to(controllers::not_found::index))
                             .wrap(Logger::default())
                             .wrap(Logger::new("%a %{User-Agent}i"))
                     })
