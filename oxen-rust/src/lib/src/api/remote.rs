@@ -13,5 +13,6 @@ pub mod metadata;
 pub mod repositories;
 pub mod schemas;
 pub mod staging;
+pub mod stats;
 pub mod text2sql;
 pub mod version;

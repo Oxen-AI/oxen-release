@@ -46,6 +46,26 @@ pub struct RepositoryResolveResponse {
     pub repository_api_url: String,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RepositoryStatsResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub repository: RepositoryStatsView,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DataTypeView {
+    pub data_type: EntryDataType,
+    pub data_size: u64,
+    pub file_count: usize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RepositoryStatsView {
+    pub data_size: u64,
+    pub data_types: Vec<DataTypeView>,
+}
+
 impl RepositoryView {
     pub fn from_remote(repository: RemoteRepository) -> RepositoryView {
         RepositoryView {
