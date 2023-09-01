@@ -23,7 +23,10 @@ pub fn list(
 }
 
 /// Get a staged schema
-pub fn get_staged(repo: &LocalRepository, schema_ref: &str) -> Result<Option<Schema>, OxenError> {
+pub fn get_staged(
+    repo: &LocalRepository,
+    schema_ref: &str,
+) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     let stager = Stager::new(repo)?;
     stager.get_staged_schema(schema_ref)
 }
@@ -38,26 +41,11 @@ pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, O
 pub fn get_from_head(
     repo: &LocalRepository,
     schema_ref: &str,
-) -> Result<Option<Schema>, OxenError> {
-    Ok(get(repo, None, schema_ref)?.first().cloned())
-}
-
-/// Get a schema for a commit id
-pub fn get(
-    repo: &LocalRepository,
-    commit_id: Option<&str>,
-    schema_ref: &str,
-) -> Result<Vec<Schema>, OxenError> {
-    // The list of schemas should not be too long, so just filter right now
-    let list: HashMap<PathBuf, Schema> = list(repo, commit_id)?
-        .into_iter()
-        .filter(|(_, s)| s.name == Some(String::from(schema_ref)) || s.hash == *schema_ref)
-        .collect();
-    if !list.is_empty() {
-        Ok(list.into_values().collect())
-    } else {
-        Ok(vec![])
-    }
+) -> Result<HashMap<PathBuf, Schema>, OxenError> {
+    let commit = api::local::commits::head_commit(repo)?;
+    api::local::schemas::list_from_ref(
+        repo, commit.id, schema_ref,
+    )
 }
 
 /// Get a string representation of the schema given a schema ref
@@ -67,20 +55,25 @@ pub fn show(
     staged: bool,
     verbose: bool,
 ) -> Result<String, OxenError> {
-    let schema = if staged {
+    let schemas = if staged {
         get_staged(repo, schema_ref)?
     } else {
-        // get(&repo, None, schema_ref)?
-        panic!("not implemented")
+        let commit = api::local::commits::head_commit(repo)?;
+        api::local::schemas::list_from_ref(repo, &commit.id, schema_ref)?
     };
 
-    if let Some(schema) = schema {
-        if schema.name.is_none() {
-            eprintln!(
-                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n",
-                schema.hash
-            );
-        }
+    if schemas.is_empty() {
+        return Err(OxenError::schema_does_not_exist(schema_ref));
+    }
+
+    let mut results = String::new();
+    for (path, schema) in schemas {
+        // if schema.name.is_none() {
+        //     eprintln!(
+        //         "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n",
+        //         schema.hash
+        //     );
+        // }
 
         if verbose {
             let mut table = comfy_table::Table::new();
@@ -101,14 +94,21 @@ pub fn show(
                 }
                 table.add_row(row);
             }
-            Ok(table.to_string())
+            results.push_str(&format!(
+                "{}\n{}\n",
+                path.to_string_lossy(),
+                table
+            ));
         } else {
-            let result = format!("{schema}");
-            Ok(result)
+            results.push_str(&format!(
+                "{}\t{}\t{}",
+                path.to_string_lossy(),
+                schema.hash,
+                schema
+            ))
         }
-    } else {
-        Err(OxenError::schema_does_not_exist(schema_ref))
     }
+    Ok(results)
 }
 
 /// Set the name of a schema
@@ -127,9 +127,7 @@ pub fn add(
 
     // Can only add schemas to paths that exist
     if !path.exists() {
-        return Err(OxenError::path_does_not_exist(
-            path.to_str().unwrap(),
-        ));
+        return Err(OxenError::path_does_not_exist(path.to_str().unwrap()));
     }
 
     // Make sure the path is tabular

@@ -24,8 +24,11 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
 
             log::debug!("schemas::list_or_get commit {}", commit);
 
-            let schemas =
-                api::local::schemas::get(&repo, &commit.id, resource.file_path.to_string_lossy())?;
+            let schemas = api::local::schemas::list_from_ref(
+                &repo,
+                &commit.id,
+                resource.file_path.to_string_lossy(),
+            )?;
             let schemas = schemas.into_values().collect::<Vec<_>>();
             let response = ListSchemaResponse {
                 status: StatusMessage::resource_found(),
