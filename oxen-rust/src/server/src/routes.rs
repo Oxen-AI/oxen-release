@@ -229,6 +229,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/schemas/{resource:.*}",
             web::get().to(controllers::schemas::list_or_get),
         )
+        // ----- Stats ----- //
+        .route(
+            "/{namespace}/{repo_name}/stats",
+            web::get().to(controllers::repositories::stats),
+        )
         // ----- Action Callbacks ----- //
         .route(
             "/{namespace}/{repo_name}/action/completed/{action}",
