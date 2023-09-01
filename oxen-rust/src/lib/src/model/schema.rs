@@ -316,10 +316,7 @@ mod tests {
             Schema {
                 name: None,
                 hash: "5432".to_string(),
-                fields: vec![
-                    Field::new("file", "str"),
-                    Field::new("x", "i64"),
-                ],
+                fields: vec![Field::new("file", "str"), Field::new("x", "i64")],
                 metadata: None,
             },
         );

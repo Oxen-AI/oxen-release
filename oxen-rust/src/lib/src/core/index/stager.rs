@@ -818,13 +818,22 @@ impl Stager {
         Ok(relative)
     }
 
-    pub fn get_staged_schema(&self, schema_ref: &str) -> Result<Option<schema::Schema>, OxenError> {
-        for schema in path_db::list_entries::<MultiThreaded, schema::Schema>(&self.schemas_db)? {
-            if schema.hash == schema_ref || schema.name == Some(schema_ref.to_string()) {
-                return Ok(Some(schema));
+    pub fn get_staged_schema(
+        &self,
+        schema_ref: &str,
+    ) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
+        let mut results = HashMap::new();
+        for (path, schema) in
+            str_json_db::hash_map::<MultiThreaded, schema::Schema>(&self.schemas_db)?
+        {
+            if schema.hash == schema_ref
+                || schema.name == Some(schema_ref.to_string())
+                || path == schema_ref
+            {
+                results.insert(PathBuf::from(path), schema);
             }
         }
-        Ok(None)
+        Ok(results)
     }
 
     pub fn list_staged_schemas(&self) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {

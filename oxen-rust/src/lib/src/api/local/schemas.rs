@@ -26,7 +26,7 @@ pub fn list(
     }
 }
 
-pub fn get(
+pub fn list_from_ref(
     repo: &LocalRepository,
     revision: impl AsRef<str>,
     schema_ref: impl AsRef<str>,
