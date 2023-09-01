@@ -10,15 +10,16 @@ use crate::{current_function, util};
 use async_compression::futures::bufread::GzipDecoder;
 use async_std::prelude::*;
 use async_tar::Archive;
+use csv::Writer;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
-use std::fs;
+use std::fs::{self, File};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 /// Returns the metadata given a file path
 pub async fn get_entry(
@@ -103,8 +104,14 @@ pub async fn download_dir(
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 
+    let file = File::create("log_file.csv")?;
+
+    let writer = Writer::from_writer(file);
+    let wtr = Arc::new(Mutex::new(writer));
+
+
     // Pull all the entries
-    puller::pull_entries(remote_repo, &entries, local_path, &|| {
+    puller::pull_entries(remote_repo, &entries, local_path, wtr, &|| {
         log::debug!("Pull entries complete.")
     })
     .await?;
@@ -434,9 +441,9 @@ pub async fn try_download_data_from_version_paths(
         // Iterate over archive entries and unpack them to their entry paths
         let mut entries = archive.entries()?;
         while let Some(file) = entries.next().await {
-            // let version = &content_ids[idx];
+            let version = &content_ids[idx];
             let entry_path = &content_ids[idx].1;
-            // log::debug!("Unpacking {:?} -> {:?}", version, entry_path);
+            log::debug!("download_data_from_version_paths Unpacking {:?} -> {:?}", version, entry_path);
 
             let full_path = dst.join(entry_path);
 

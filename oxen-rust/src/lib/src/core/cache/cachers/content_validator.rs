@@ -23,14 +23,17 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let content_hash = commit_validator::compute_commit_content_hash(repo, commit)?;
 
     log::debug!(
-        "computing comparing entries_hash == content_hash {} == {}",
+        "computing comparing entries_hash == content_hash {} == {} for commit {}",
         entries_hash,
-        content_hash
+        content_hash, 
+        commit.id
     );
 
     if content_hash == entries_hash {
+        log::debug!("Writing commit {} commit is valid: true", commit.id);
         write_is_valid(repo, commit, "true")?;
     } else {
+        log::debug!("Writing commit {} commit is valid: false", commit.id);
         write_is_valid(repo, commit, "false")?;
     }
 

@@ -187,7 +187,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                     }
                     Ok(false) => {
                         log::debug!("latest_synced commit is invalid: {:?}", commit.id);
-                        return Ok(HttpResponse::Ok().json(IsValidStatusMessage {
+                        return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
                             status: String::from(STATUS_ERROR),
                             status_message: String::from(MSG_CONTENT_IS_INVALID),
                             status_description: "Content is not valid".to_string(),
