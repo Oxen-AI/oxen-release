@@ -24,8 +24,6 @@ bytes = "1.2.1"
 bytesize = "1.1.0"
 bytevec = "0.2.0"
 chrono = "0.4.22"
-#TODONOW delete csv
-csv = "1.1"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
 comfy-table = "7.0.0"

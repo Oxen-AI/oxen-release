@@ -33,26 +33,25 @@ fn compute_versions_hash(
 ) -> Result<String, OxenError> {
     // log::debug!("Computing commit hash for {} entries", entries.len());
     let mut hashes: Vec<SimpleHash> = vec![];
-    for (i, entry) in entries.iter().enumerate() {
+    for (_, entry) in entries.iter().enumerate() {
         // Sometimes we have pre computed the HASH, so that we don't have to fully hash contents again to
         // check if data is synced (I guess this is already in the file path...should we just grab it from there instead?)
         // I think the extra hash computation on the server is nice so that you know the actual contents was saved to disk
         let version_path = util::fs::version_path(repository, entry);
-        //TODONOW clean up all these logs
         let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
-        log::debug!("Versions hash Entry [{}]: {:?}", i, entry.path);
+        // log::debug!("Versions hash Entry [{}]: {:?}", i, entry.path);
         if maybe_hash_file.exists() {
             let hash = util::fs::read_from_path(&maybe_hash_file)?;
-            log::debug!(
-                "compute_versions_hash cached hash [{i}] {hash} => {:?}",
-                entry.path
-            );
+            // log::debug!(
+            //     "compute_versions_hash cached hash [{i}] {hash} => {:?}",
+            //     entry.path
+            // );
             hashes.push(SimpleHash { hash });
             continue;
         }
 
         let hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
-        log::debug!("Got hash: {:?} -> {}", entry.path, hash);
+        // log::debug!("Got hash: {:?} -> {}", entry.path, hash);
 
         hashes.push(SimpleHash { hash })
     }

@@ -162,7 +162,7 @@ async fn get_commit_objects_to_sync(
         // TODONOW clean up
         log::debug!("get_commit_objects_to_sync calculated {} commits", commits_to_sync.len());
 
-            // Filter out any commits_to_sync that are in the remote_history 
+        // Filter out any commits_to_sync that are in the remote_history 
         commits_to_sync = commits_to_sync
             .into_iter()
             .filter(|commit| {
@@ -176,16 +176,6 @@ async fn get_commit_objects_to_sync(
         log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
         commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
     }
-
-
-    // TODONOW potentially change naming here to elucidate what's going on with `commits_to_sync`
-
-    // log::debug!("Found {} commits to sync", commits_to_sync.len());
-    // let all_remote_commits = api::remote::commits::list_commit_history(remote_repo, &branch.name)
-    //     .await?;
-    // log::debug!("Found {} remote commits", all_remote_commits.len());
-
-
 
     // Order from BASE to HEAD
     commits_to_sync.reverse();
@@ -287,8 +277,7 @@ async fn cannot_push_incomplete_history(
     branch: &Branch,
 ) -> Result<bool, OxenError> {
     // If no default branch, repo is empty - TODO: maybe tighten up this logic with a separate endpoint and list_all - not sure if this covers all cases
-    // TODONOW clean up this into a mtch
-    // ERRORCAUSE this was at default before
+    // TODONOW clean up this into a match
     log::debug!("Checking if we can push incomplete history.");
     if let Err(_) =
         api::remote::commits::list_commit_history(&remote_repo, &branch.name).await

@@ -9,7 +9,6 @@ use std::collections::{HashSet, HashMap};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::fs::File;
-use csv::Writer;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::index::{self, puller, versioner, Merger};
@@ -122,7 +121,6 @@ impl EntryIndexer {
             
         }
         
-        // TODONOW can this be removed?
         // Mark the new commit (merged or pulled) as synced 
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
@@ -160,7 +158,6 @@ impl EntryIndexer {
         should_update_head: bool,
     ) -> Result<Commit, OxenError> {
         log::debug!("Beginning of pull all ");
-        //TODONOW refactor
         let new_head: Commit;
         match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
@@ -168,18 +165,6 @@ impl EntryIndexer {
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
-                // // TODONOW: Consider changing back 
-                // let commits = api::local::commits::list_from(&self.repository, &commit.id)?;
-
-                // // Reverse commits 
-                // let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
-
-                // TODONOW needed? 
-                // for commit in &commits {
-                //     self.pull_commit_entries_db(remote_repo, commit).await?;
-                // }
-
-                // self.pull_entries_for_commits( remote_repo, commits.clone()).await?;
                 new_head = commit;
             }
             Ok(None) => {
@@ -199,10 +184,9 @@ impl EntryIndexer {
 
         // Get entries between here and new head, get entries for any missing
         let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
-        // Old to new order (TODONOW important?)
+        // Old to new order
         let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
 
-        // Collect unsynced commits - TODONOW do we need to do this for every parent?
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
         for c in &commits {
             if !index::commit_sync_status::commit_is_synced(&self.repository, &c) {
@@ -243,8 +227,6 @@ impl EntryIndexer {
                 self.pull_all_entries_for_commit(remote_repo, &commit)
                     .await?;
                 // Mark commit complete
-                //TODONOW maybe bring this back?
-                // log::debug!("marking this commit synced, {}", commit.id);
                 index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
                 Ok(commit)
             }
@@ -633,42 +615,11 @@ impl EntryIndexer {
         let commit_reader = CommitReader::new(&self.repository)?;
         let mut total_size = 0;
 
-
-        // Iterate over the commits 
-
-        // for commit in &commits { 
-        //     for parent_id in &commit.parent_ids {
-        //         let local_parent = commit_reader
-        //         .get_commit_by_id(parent_id)?
-        //         .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-
-        //         let entries = self.read_unsynced_entries(&local_parent, &commit)?;
-        //         let entries_size =  api::local::entries::compute_entries_size(&entries)?;
-        //         total_size += entries_size;
-        //         unsynced_entries.extend(entries);
-        //     }
-        // }
-
         // Progress bar in length of commits
         let bar = oxen_progress_bar(commits.len() as u64, ProgressBarType::Counter);
 
-        // for commit in &commits {
-        //     let entries = self.read_pulled_commit_entries(commit, 0)?;
-        //     puller::pull_entries(remote_repo, &entries, &self.repository.path, &|| {
-        //         self.backup_to_versions_dir(commit, &entries).unwrap();
-        //         self.pull_complete(commit).unwrap();
-        //     }).await?;
-        //     bar.inc(1);
-        // }
-
-
         let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
-
-        let file = File::create("log_file.csv")?;
-        let writer = Writer::from_writer(file);
-        let wtr = Arc::new(Mutex::new(writer));
-
-        // wtr.lock().unwrap().write_record(&["path", "commit_id", "hash", "num_bytes", "last_modified_seconds", "last_modified_nanoseconds"]).unwrap();
+        
 
         for commit in &commits {
             for parent_id in &commit.parent_ids {
@@ -677,20 +628,11 @@ impl EntryIndexer {
                     .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
                 let entries = self.read_unsynced_entries(&local_parent, &commit)?;
-                // TODONOW: where to put
-
-                // puller::pull_entries(remote_repo, &entries, &self.repository.path, wtr.clone(), &|| {
-                //     log::debug!("Pulling all entries...");
-                //     self.backup_to_versions_dir(commit, &entries).unwrap();
-                // }).await?;
-                
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
                     entries: entries,
                 });
-                
-
-                // self.backup_to_versions_dir(commit, &entries).unwrap();
+            
             }
         }
 
@@ -704,7 +646,7 @@ impl EntryIndexer {
         // Dedupe commit_with_entries on commit id and path without using built-in methods 
         
          
-        puller::pull_entries_to_versions_dir(remote_repo, &all_entries, &self.repository.path, wtr.clone(), &|| {
+        puller::pull_entries_to_versions_dir(remote_repo, &all_entries, &self.repository.path, &|| {
             log::debug!("Pulling all entries...")
         }).await?;
 
@@ -715,69 +657,6 @@ impl EntryIndexer {
             self.unpack_version_files_to_working_dir(&commit_with_entries.commit, &commit_with_entries.entries)?;
             self.pull_complete(&commit_with_entries.commit).unwrap();
         }
-
-        // for commit_with_entries in unsynced_entries {
-        //     let _ = self.backup_to_versions_dir(&commit_with_entries.commit, &commit_with_entries.entries).unwrap();
-        // }
-
-        // Now they're split apart in time - recalculate...
-
-        // let mut unsynced_entries: Vec<CommitEntry> = Vec::new();
-        // for commit in &commits {
-        //     for parent_id in &commit.parent_ids {
-        //         let local_parent = commit_reader 
-        //             .get_commit_by_id(parent_id)?
-        //             .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-
-        //         let entries = self.read_unsynced_entries(&local_parent, &commit)?;
-        //         self.backup_to_versions_dir(commit, &entries).unwrap();
-        //         unsynced_entries.extend(entries);
-        //     }
-        // }
-
-
-
-        // Now start pulling things out of the loop? 
-
-        // // Dedupe on all properties of commitentry 
-        // unsynced_entries.sort();
-        // unsynced_entries.dedup();
-        
-
-
-        // // Recalculate total size 
-        // total_size = api::local::entries::compute_entries_size(&unsynced_entries)?;
-
-        // log::debug!("Total size of entries to pull: {}", total_size);
-
-        // // TODONOW: this doesn't need to be a closure anymore
-        // // Pull in bulk and unpack to versions dir
-        // puller::pull_entries(remote_repo, &unsynced_entries, &self.repository.path, &|| {
-        //     log::debug!("Entries pulled")
-        // }).await?;
-
-        // // self.bulk_backup_to_versions_dir(&commits, &unsynced_entries).unwrap();
-        // //TODONOW remove this
-        // // progress bar, length of commits 
-        // println!("Backing up commits...");
-        // let bar = oxen_progress_bar(commits.len() as u64, ProgressBarType::Counter);
-        
-        // for c in &commits {
-        //     // Get entries the old way (for now)
-        //     let entries = self.read_pulled_commit_entries(c, 0)?;
-        //     // let entries = self.read_unsynced_entries(&c, &c)?;
-        //     self.backup_to_versions_dir(c, &entries).unwrap();
-        //     self.pull_complete(c).unwrap();
-        //     bar.inc(1);
-        // }
-
-
-        // log::debug!("Puller commits size: {:?}", commits.len() );
-
-        // for c in commits {
-        //     log::debug!("About to complete commit {}", c.id);
-        //     self.pull_complete(&c)?;
-        // }
 
         Ok(())
     }
@@ -811,12 +690,10 @@ impl EntryIndexer {
             entries.len()
         );
 
-        let file = File::create("log_file.csv")?;
-        let wtr = Arc::new(Mutex::new(Writer::from_writer(file)));
 
 
         // Pull all the entries and unpack them to the versions dir
-        puller::pull_entries(remote_repo, &entries, &self.repository.path, wtr, &|| {
+        puller::pull_entries_to_working_dir(remote_repo, &entries, &self.repository.path, &|| {
             self.backup_to_versions_dir(&commit, &entries).unwrap();
 
             if limit == 0 {
@@ -853,8 +730,6 @@ impl EntryIndexer {
                 commit_entries.insert(commit.id.clone(), Vec::new());
             }
         }
-        let file = File::create("log_file.csv")?;
-        let mut wtr = Writer::from_writer(file);
 
         let mut temp_backed_up_entries = 0;
         let commit_reader = CommitReader::new(&self.repository)?;
@@ -880,40 +755,18 @@ impl EntryIndexer {
             return Ok(());
         }
 
-        let results: Arc<Mutex<Vec<(String, String, String)>>>
-        = Arc::new(Mutex::new(Vec::new()));
-        
-
-        // let bar = oxen_progress_bar(entries.len() as u64, ProgressBarType::Counter);
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
 
 
         dir_entries.par_iter().for_each(|(dir, entries)| {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
-            let local_results = results.clone();
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path);
-                //TODONOW remove
-                let fp = filepath.clone();
-                log::debug!("backing up file... {:?}", fp);
+        
                 versioner::backup_file(&self.repository, &committer, entry, filepath).unwrap();
-                log::debug!("backed up file... {:?}", fp);
 
-                let mut local_results = local_results.lock().unwrap();
-                local_results.push((fp.to_str().unwrap_or_default().to_string(), entry.commit_id.to_string(), entry.hash.to_string()));
-                // bar.inc(1);
             });
         });
-
-        // bar.finish_and_clear();
-
-        // for (fp, commit_id, hash) in results.lock().unwrap().iter() {
-        //     // csv_writer.write_record(&[fp, commit_id, hash]).map_err(|e| OxenError::basic_str(format!("CSV write error: {}", e)))?;
-
-        // }
-    
-        // Flush to ensure all data is written
-        // csv_writer.flush()?;
 
         log::debug!("Done Unpacking.");
 

@@ -53,7 +53,6 @@ pub fn backup_file(
 }
 
 
-// TODONOW made this public, consider factoring out 
 pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
 }

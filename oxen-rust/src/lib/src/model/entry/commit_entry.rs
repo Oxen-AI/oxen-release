@@ -7,8 +7,7 @@ use std::env;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
-// TODONOW - don't need PartialOrd and Ord 
-#[derive(Deserialize, Serialize, Debug, Clone, PartialOrd, Ord)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
     pub commit_id: String, // need commit_id to restore
     pub path: PathBuf,
@@ -24,13 +23,10 @@ impl ContentHashable for CommitEntry {
     }
 }
 
-// TODONOW: undo this - go back just to path 
 // Hash on the path field so we can quickly look up
 impl PartialEq for CommitEntry {
     fn eq(&self, other: &CommitEntry) -> bool {
         self.path == other.path
-        // && self.commit_id == other.commit_id
-        // && self.hash == other.hash
     }
 }
 

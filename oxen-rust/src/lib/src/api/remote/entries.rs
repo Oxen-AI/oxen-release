@@ -10,7 +10,6 @@ use crate::{current_function, util};
 use async_compression::futures::bufread::GzipDecoder;
 use async_std::prelude::*;
 use async_tar::Archive;
-use csv::Writer;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
@@ -104,14 +103,8 @@ pub async fn download_dir(
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 
-    let file = File::create("log_file.csv")?;
-
-    let writer = Writer::from_writer(file);
-    let wtr = Arc::new(Mutex::new(writer));
-
-
     // Pull all the entries
-    puller::pull_entries(remote_repo, &entries, local_path, wtr, &|| {
+    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
         log::debug!("Pull entries complete.")
     })
     .await?;
