@@ -31,9 +31,6 @@ impl PartialEq for CommitEntry {
         self.path == other.path
         // && self.commit_id == other.commit_id
         // && self.hash == other.hash
-        // && self.num_bytes == other.num_bytes
-        // && self.last_modified_seconds == other.last_modified_seconds
-        // && self.last_modified_nanoseconds == other.last_modified_nanoseconds
     }
 }
 

@@ -27,6 +27,7 @@ dependencies = [
  "clap",
  "colored",
  "comfy-table 7.0.1",
+ "csv",
  "deadqueue",
  "derive_more",
  "difference",
@@ -2772,6 +2773,7 @@ dependencies = [
  "clap",
  "colored",
  "comfy-table 7.0.1",
+ "csv",
  "deadqueue",
  "derive_more",
  "difference",
@@ -3320,6 +3322,7 @@ version = "0.8.0"
 dependencies = [
  "clap",
  "colored",
+ "csv",
  "dunce",
  "env_logger",
  "liboxen",
