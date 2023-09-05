@@ -16,7 +16,7 @@ use crate::core::index::{
 use crate::error::OxenError;
 use crate::opts::DFOpts;
 
-use crate::model::schema::{self, Field};
+use crate::model::schema;
 use crate::model::{
     CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus,
@@ -1026,15 +1026,27 @@ impl Stager {
     }
 
     /// Update all the schema field type overrides on a staged schema
-    pub fn update_schema_field_dtype_overrides(
+    pub fn update_schema_for_path(
         &self,
         path: impl AsRef<Path>,
-        fields: Vec<Field>,
+        new_schema: &schema::Schema,
     ) -> Result<(), OxenError> {
         let path = path.as_ref();
         let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
         if let Some(mut schema) = maybe_schema {
-            schema.set_field_dtype_overrides(fields);
+            log::debug!(
+                "update_schema_field_dtype_overrides found schema for path {:?}\n{}",
+                path,
+                schema.verbose_str()
+            );
+            log::debug!(
+                "update_schema_field_dtype_overrides new schema {:?}\n{}",
+                path,
+                new_schema.verbose_str()
+            );
+
+            schema.set_field_dtype_overrides_from_schema(new_schema);
+            log::debug!("after update {:?}\n{}", path, schema.verbose_str());
             path_db::put(&self.schemas_db, path, &schema)?;
         } else {
             // If it doesn't exist, create the schema just based on the fields
@@ -1042,21 +1054,30 @@ impl Stager {
                 "update_schema_field_dtype_overrides could not find schema for path {:?}",
                 path
             );
-            let schema = schema::Schema::from_fields(fields);
             log::debug!(
                 "update_schema_field_dtype_overrides creating schema {:?} for path {:?}",
-                schema,
+                new_schema,
                 path
             );
-            path_db::put(&self.schemas_db, path, &schema)?;
+            path_db::put(&self.schemas_db, path, new_schema)?;
         }
         Ok(())
     }
 
     /// Remove a staged schema
-    pub fn rm_schema(&self, path: impl AsRef<Path>) -> Result<(), OxenError> {
-        let path = path.as_ref();
-        path_db::delete(&self.schemas_db, path)?;
+    pub fn rm_schema(&self, schema_ref: impl AsRef<str>) -> Result<(), OxenError> {
+        let schema_ref = schema_ref.as_ref();
+        for (path, schema) in path_db::list_path_entries::<MultiThreaded, schema::Schema>(
+            &self.schemas_db,
+            Path::new(""),
+        )? {
+            if schema.hash == schema_ref
+                || schema.name == Some(String::from(schema_ref))
+                || path == Path::new(schema_ref)
+            {
+                path_db::delete(&self.schemas_db, path)?;
+            }
+        }
         Ok(())
     }
 
