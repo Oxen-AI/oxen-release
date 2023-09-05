@@ -293,13 +293,8 @@ mod tests {
                     let result = command::push(&user_b_repo).await;
                     assert!(result.is_err());
 
-                    // TODONOW: Desired behavior here?
 
                     command::pull(&user_b_repo).await?;
-
-                    // let res = command::push(&user_b_repo).await;
-                    // assert!(res.is_err());
-
 
                     command::push(&user_b_repo).await?;
 
