@@ -74,7 +74,9 @@ impl Schema {
     /// Sets dtype_override on fields that match the name and dtype of the provided fields
     pub fn set_field_dtype_overrides(&mut self, fields: Vec<Field>) {
         for field in fields {
+            log::debug!("set_field_dtype_overrides looking for field {:?}", field);
             if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
+                log::debug!("set_field_dtype_overrides updating override! {:?}", field);
                 f.dtype_override = Some(field.dtype);
             }
         }
@@ -85,7 +87,9 @@ impl Schema {
     pub fn set_field_dtype_overrides_from_schema(&mut self, schema: &Schema) {
         for field in schema.fields.iter() {
             if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
-                f.dtype_override = field.dtype_override.clone();
+                if field.dtype_override.is_some() {
+                    f.dtype_override = field.dtype_override.clone();
+                }
             }
         }
         self.hash = Schema::hash_fields(&self.fields);
@@ -208,6 +212,28 @@ impl Schema {
             }
         }
         table.to_string()
+    }
+
+    pub fn verbose_str(&self) -> String {
+        let mut table = comfy_table::Table::new();
+        table.set_header(vec!["name", "dtype", "dtype_override", "metadata"]);
+
+        for field in self.fields.iter() {
+            let mut row = vec![field.name.to_string(), field.dtype.to_string()];
+            if let Some(val) = &field.dtype_override {
+                row.push(val.to_owned())
+            } else {
+                row.push(String::from(""))
+            }
+
+            if let Some(val) = &field.metadata {
+                row.push(val.to_owned())
+            } else {
+                row.push(String::from(""))
+            }
+            table.add_row(row);
+        }
+        format!("{}", table)
     }
 }
 

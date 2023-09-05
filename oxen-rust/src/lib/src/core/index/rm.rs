@@ -191,7 +191,7 @@ mod tests {
     use crate::util;
 
     #[tokio::test]
-    async fn test_rm_file() -> Result<(), OxenError> {
+    async fn test_rm_staged_file() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("README", |repo| async move {
             // Stage the README.md file
             let path = Path::new("README.md");

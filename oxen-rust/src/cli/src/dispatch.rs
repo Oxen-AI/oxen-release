@@ -699,16 +699,17 @@ pub fn schema_add(path: impl AsRef<Path>, schema_str: &str) -> Result<(), OxenEr
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::schemas::add(&repository, path, schema_str)?;
+    let schema = command::schemas::add(&repository, path, schema_str)?;
+    println!("{}", schema.verbose_str());
 
     Ok(())
 }
 
-pub fn schema_rm(path: impl AsRef<Path>, staged: bool) -> Result<(), OxenError> {
+pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    command::schemas::rm(&repository, path, staged)?;
+    command::schemas::rm(&repository, schema_ref, staged)?;
 
     Ok(())
 }

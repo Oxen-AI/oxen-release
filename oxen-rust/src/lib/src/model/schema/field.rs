@@ -14,7 +14,10 @@ pub struct Field {
 
 impl PartialEq for Field {
     fn eq(&self, other: &Field) -> bool {
-        self.name == other.name && self.dtype == other.dtype
+        self.name == other.name
+            && self.dtype == other.dtype
+            && self.metadata == other.metadata
+            && self.dtype_override == other.dtype_override
     }
 }
 
