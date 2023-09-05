@@ -1,6 +1,7 @@
 //! EntryIndexer is responsible for pushing, pulling and syncing commit entries
 //!
 
+use filetime::FileTime;
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
@@ -115,9 +116,13 @@ impl EntryIndexer {
                     log::debug!("Just did a merge commit");
                     commit = merge_commit;
                 }
+            } else {
+                log::debug!("No merge commit required");
             }
+            
         }
         
+        // TODONOW can this be removed?
         // Mark the new commit (merged or pulled) as synced 
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
@@ -209,9 +214,11 @@ impl EntryIndexer {
             println!("uhhh no unsynced entry commits")
         }
 
+        // Download files to versions dir in parallel 
         self.pull_entries_for_commits(remote_repo, unsynced_entry_commits).await?;
 
-        // Mark ALL commits synced 
+
+        // Backup files to versions directory, them mark all commits as synced
         for commit in commits {
             index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
         };
@@ -661,7 +668,7 @@ impl EntryIndexer {
         let writer = Writer::from_writer(file);
         let wtr = Arc::new(Mutex::new(writer));
 
-        wtr.lock().unwrap().write_record(&["path", "commit_id", "hash", "num_bytes", "last_modified_seconds", "last_modified_nanoseconds"]).unwrap();
+        // wtr.lock().unwrap().write_record(&["path", "commit_id", "hash", "num_bytes", "last_modified_seconds", "last_modified_nanoseconds"]).unwrap();
 
         for commit in &commits {
             for parent_id in &commit.parent_ids {
@@ -670,10 +677,12 @@ impl EntryIndexer {
                     .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
                 let entries = self.read_unsynced_entries(&local_parent, &commit)?;
-                puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path, wtr.clone(), &|| {
-                    // self.backup_to_versions_dir(commit, &entries).unwrap();
-                    self.pull_complete(commit).unwrap();
-                }).await?;
+                // TODONOW: where to put
+
+                // puller::pull_entries(remote_repo, &entries, &self.repository.path, wtr.clone(), &|| {
+                //     log::debug!("Pulling all entries...");
+                //     self.backup_to_versions_dir(commit, &entries).unwrap();
+                // }).await?;
                 
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
@@ -682,8 +691,29 @@ impl EntryIndexer {
                 
 
                 // self.backup_to_versions_dir(commit, &entries).unwrap();
-                bar.inc(1);
             }
+        }
+
+        // Pull flattened entries 
+        // Flatten unsynced_entries 
+        let mut all_entries: Vec<CommitEntry> = Vec::new();
+        for commit_with_entries in &unsynced_entries {
+            all_entries.extend(commit_with_entries.entries.clone());
+        };
+
+        // Dedupe commit_with_entries on commit id and path without using built-in methods 
+        
+         
+        puller::pull_entries_to_versions_dir(remote_repo, &all_entries, &self.repository.path, wtr.clone(), &|| {
+            log::debug!("Pulling all entries...")
+        }).await?;
+
+
+
+        // TODONOW: maybe better error handling here re: post-commit complete
+        for commit_with_entries in unsynced_entries {
+            self.unpack_version_files_to_working_dir(&commit_with_entries.commit, &commit_with_entries.entries)?;
+            self.pull_complete(&commit_with_entries.commit).unwrap();
         }
 
         // for commit_with_entries in unsynced_entries {
@@ -877,15 +907,64 @@ impl EntryIndexer {
 
         // bar.finish_and_clear();
 
-        for (fp, commit_id, hash) in results.lock().unwrap().iter() {
-            // csv_writer.write_record(&[fp, commit_id, hash]).map_err(|e| OxenError::basic_str(format!("CSV write error: {}", e)))?;
+        // for (fp, commit_id, hash) in results.lock().unwrap().iter() {
+        //     // csv_writer.write_record(&[fp, commit_id, hash]).map_err(|e| OxenError::basic_str(format!("CSV write error: {}", e)))?;
 
-        }
+        // }
     
         // Flush to ensure all data is written
         // csv_writer.flush()?;
 
         log::debug!("Done Unpacking.");
+
+        Ok(())
+    }
+
+    fn unpack_version_files_to_working_dir(
+        &self, 
+        commit: &Commit, 
+        entries: &Vec<CommitEntry>,
+    ) -> Result<(), OxenError> {
+        println!("Unpacking to working dir...");
+
+        //TODOFIX: Is this the same logic as the previous `self.group` in commit
+        let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
+        dir_entries.par_iter().for_each(|(dir, entries)| {
+            let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
+            entries.par_iter().for_each(|entry| {
+                let filepath = self.repository.path.join(&entry.path);
+                if versioner::should_copy_entry(entry, &filepath) {
+                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
+                    let version_path = util::fs::version_path(&self.repository, entry);
+                    match util::fs::copy_mkdir(&version_path, &filepath) {
+                        Ok(_) => {
+                            log::debug!("pull_entries_for_commit unpacked {:?}", entry.path);
+                        }
+                        Err(err) => {
+                            log::error!("pull_entries_for_commit unpack error: {}", err);
+                        }
+                    }
+                } 
+
+                log::debug!(
+                    "{} updating timestamp for {:?}",
+                    current_function!(),
+                    filepath
+                );
+
+                match util::fs::metadata(&filepath) {
+                    Ok(metadata) => {
+                        let mtime = FileTime::from_last_modification_time(&metadata);
+                        committer.set_file_timestamps(entry, &mtime).unwrap();
+                    }
+                    Err(err) => {
+                        log::error!("Could not update timestamp for {:?}: {}", filepath, err);
+                    }
+                }
+            });
+        });
+
+        log::debug!("Done unpacking commit id {}", commit.id);
 
         Ok(())
     }

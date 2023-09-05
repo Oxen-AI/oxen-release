@@ -203,10 +203,17 @@ pub async fn download_large_entry(
     let hash = util::hasher::hash_str(&format!("{:?}_{:?}", remote_path, local_path));
 
     let home_dir = util::fs::oxen_home_dir()?;
-    let tmp_dir = home_dir.join("tmp").join(&hash);
+
+    // Generate a random uuid to add to tmp dir to avoid collisions in case of duplicate commit ids. 
+    // TODONOW: a bit hacky, better way?
+    let uuid = uuid::Uuid::new_v4();
+
+    let tmp_dir = home_dir.join("tmp").join(PathBuf::from(uuid.to_string())).join(&hash);
     if !tmp_dir.exists() {
         util::fs::create_dir_all(&tmp_dir)?;
     }
+
+    log::debug!("Trying to download file {:?} to dir {:?}", remote_path, tmp_dir);
 
     // TODO: We could probably download chunks in parallel too
     for i in 0..num_chunks {
@@ -219,6 +226,8 @@ pub async fn download_large_entry(
         let filename = format!("chunk_{i}");
         let tmp_file = tmp_dir.join(filename);
 
+        log::debug!("Downloading chunk {:?} -> {:?}", remote_path, tmp_file);
+
         try_download_entry_chunk(
             remote_repo,
             &remote_path,
@@ -227,7 +236,9 @@ pub async fn download_large_entry(
             chunk_start,
             chunk_size,
         )
-        .await?;
+        .await?; 
+
+        log::debug!("Downloaded chunk {:?} -> {:?}", remote_path, tmp_file);
 
         bar.inc(chunk_size);
     }
@@ -293,6 +304,9 @@ async fn try_download_entry_chunk(
     chunk_size: u64,
 ) -> Result<(), OxenError> {
     let mut try_num = 0;
+    if try_num > 0 {
+        log::debug!("Retrying download chunk {:?} attempt {:?}", local_path.as_ref(), try_num);
+    }
     while try_num < constants::NUM_HTTP_RETRIES {
         match download_entry_chunk(
             remote_repo,
