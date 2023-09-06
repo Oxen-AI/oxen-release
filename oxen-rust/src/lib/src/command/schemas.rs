@@ -208,22 +208,46 @@ pub fn add_column_metadata(
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
     let committed_schemas = api::local::schemas::list_from_ref(repo, head_commit.id, schema_ref)?;
+
+    let staged_schemas = {
+        // Make stager go out of scope
+        let stager = Stager::new(repo)?;
+        stager.get_staged_schema(schema_ref)?
+    };
+
     log::debug!(
         "add_column_metadata committed_schemas.len(): {:?}",
         committed_schemas.len()
     );
+    // Make sure to pass through the changes to the committed schemas
     for (path, schema) in committed_schemas.iter() {
-        log::debug!("committed_schemas[{:?}] -> {:?}", path, schema);
+        log::debug!("add_column_metadata committed_schemas[{:?}] -> {:?}", path, schema);
         if schema.matches_ref(schema_ref) || path == Path::new(schema_ref) {
+            // If this schema path is already staged, ignore it
+            if staged_schemas.contains_key(path) {
+                continue;
+            }
+
             if let Some(field) = schema.get_field(column) {
-                add_column_overrides(
-                    repo,
-                    &repo.path.join(path),
-                    format!("{}:{}", field.name, field.dtype),
-                )?;
+                log::debug!("add_column_metadata got field[{:?}] -> {:?}", column, field);
+
+                if let Some(dtype_override) = &field.dtype_override {
+                    add_column_overrides(
+                        repo,
+                        &repo.path.join(path),
+                        format!("{}:{}", field.name, dtype_override),
+                    )?;
+                } else {
+                    add_column_overrides(
+                        repo,
+                        &repo.path.join(path),
+                        format!("{}:{}", field.name, field.dtype),
+                    )?;
+                }
             }
         }
     }
+
     let stager = Stager::new(repo)?;
     let staged_schemas = stager.get_staged_schema(schema_ref)?;
 
@@ -375,6 +399,48 @@ mod tests {
             assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
             let schema = schemas.values().next().unwrap();
             assert_eq!(schema.metadata, Some(metadata));
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_cmd_schemas_add_schema_metadata_and_col_metadata() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Find the bbox csv
+            let bbox_path = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
+
+            // Add and commit the schema
+            command::add(&repo, &bbox_path)?;
+            command::commit(&repo, "Adding bounding box file")?;
+
+            // Add the schema metadata
+            let schema_metadata = "{\"task\": \"bounding_box\", \"description\": \"detect some bounding boxes\"}".to_string();
+            let column_name = "file".to_string();
+            let column_metadata = "{\"root\": \"images\"}".to_string();
+            println!("############# ADD COLUMN OVERRIDES");
+            command::schemas::add_column_overrides(&repo, &bbox_path, "file:path")?;
+            println!("############# ADD SCHEMA METADATA");
+            command::schemas::add_schema_metadata(&repo, &schema_ref, &schema_metadata)?;
+            // Make sure to do this last for this test, because then we get str instead of path as the dtype_override
+            println!("############# ADD COLUMN METADATA");
+            command::schemas::add_column_metadata(&repo, &schema_ref, &column_name, &column_metadata)?;
+
+            let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert_eq!(schema.metadata, Some(schema_metadata));
+            assert_eq!(schema.fields[0].dtype_override, Some("path".to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(column_metadata));
+
 
             Ok(())
         })

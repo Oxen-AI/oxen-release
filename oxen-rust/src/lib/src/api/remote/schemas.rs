@@ -8,7 +8,7 @@ use std::path::Path;
 use crate::api;
 use crate::error::OxenError;
 use crate::model::{RemoteRepository, Schema};
-use crate::view::{ListSchemaResponse, SchemaResponse};
+use crate::view::ListSchemaResponse;
 
 use super::client;
 
@@ -49,7 +49,7 @@ pub async fn get(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
-) -> Result<Schema, OxenError> {
+) -> Result<Option<Schema>, OxenError> {
     let revision = revision.as_ref();
     let path = path.as_ref();
 
@@ -61,11 +61,15 @@ pub async fn get(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("got body: {}", body);
-            let response: Result<SchemaResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<ListSchemaResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(val) => {
                     log::debug!("got SchemaResponse: {:?}", val);
-                    Ok(val.schema)
+                    if val.schemas.len() > 0 {
+                        Ok(val.schemas.into_iter().next())
+                    } else {
+                        Ok(None)
+                    }
                 }
                 Err(err) => Err(OxenError::basic_str(format!(
                     "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
@@ -151,8 +155,24 @@ mod tests {
             let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
             util::fs::copy(from_file, &csv_file)?;
 
+            // Add the file
             command::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
+
+            // Add some metadata to the schema
+            /*
+            prompt,response,is_correct,response_time,difficulty
+            who is it?,issa me,true,0.5,1
+            */
+            let schema_ref = "csvs/test.csv";
+            let schema_metadata = "{\"task\": \"chat_bot\", \"description\": \"some generic description\"}".to_string();
+            let column_name = "difficulty".to_string();
+            let column_metadata = "{\"values\": [0, 1, 2]}".to_string();
+            command::schemas::add_schema_metadata(&local_repo, &schema_ref, &schema_metadata)?;
+            command::schemas::add_column_overrides(&local_repo, &csv_file, "response_time:f32")?;
+            command::schemas::add_column_metadata(&local_repo, &schema_ref, &column_name, &column_metadata)?;
+
+            command::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -163,8 +183,8 @@ mod tests {
 
             // Cannot get schema that does not exist
             let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv").await;
-            assert!(result.is_err());
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv").await?;
+            assert!(result.is_none());
 
             // Push the repo
             command::push(&local_repo).await?;
@@ -173,6 +193,9 @@ mod tests {
             let schema =
                 api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv")
                     .await?;
+
+            assert!(schema.is_some());
+            let schema = schema.unwrap();
 
             // prompt,response,is_correct,response_time,difficulty
             assert_eq!(schema.fields.len(), 5);
@@ -186,6 +209,11 @@ mod tests {
             assert_eq!(schema.fields[3].dtype, "f64");
             assert_eq!(schema.fields[4].name, "difficulty");
             assert_eq!(schema.fields[4].dtype, "i64");
+
+            // Check the metadata
+            assert_eq!(schema.metadata, Some(schema_metadata));
+            assert_eq!(schema.fields[3].dtype_override, Some("f32".to_string()));
+            assert_eq!(schema.fields[4].metadata, Some(column_metadata));
 
             Ok(())
         })

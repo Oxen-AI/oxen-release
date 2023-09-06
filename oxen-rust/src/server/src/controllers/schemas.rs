@@ -22,7 +22,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
         if resource.file_path != Path::new("") {
             let commit = resource.commit;
 
-            log::debug!("schemas::list_or_get commit {}", commit);
+            log::debug!("schemas::list_or_get file {:?} commit {}", resource.file_path, commit);
 
             let schemas = api::local::schemas::list_from_ref(
                 &repo,
