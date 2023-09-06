@@ -425,6 +425,19 @@ pub fn df() -> Command {
 pub fn schemas() -> Command {
     Command::new(SCHEMAS)
         .about("Manage schemas that are created from committing tabular data")
+        .arg(arg!([SCHEMA_REF] "Name, hash, or path of the schema you want to view in more detail."))
+        .arg(
+            Arg::new("staged")
+                .long("staged")
+                .help("Show the staged schema")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("flatten")
+                .long("flatten")
+                .help("Print the schema in a flattened format")
+                .action(clap::ArgAction::SetTrue),
+        )
         .subcommand(
             Command::new("list")
                 .about("List the committed schemas.")
@@ -432,24 +445,6 @@ pub fn schemas() -> Command {
                     Arg::new("staged")
                         .long("staged")
                         .help("List the staged schemas")
-                        .action(clap::ArgAction::SetTrue),
-                ),
-        )
-        .subcommand(
-            Command::new("show")
-                .about("View a schema by name, hash, or file path.")
-                .arg(arg!(<NAME_OR_HASH> ... "Name, hash, or path of the schema you want to view."))
-                .arg(
-                    Arg::new("staged")
-                        .long("staged")
-                        .help("Show the staged schema")
-                        .action(clap::ArgAction::SetTrue),
-                )
-                .arg(
-                    Arg::new("verbose")
-                        .short('v')
-                        .long("verbose")
-                        .help("Print full schema information")
                         .action(clap::ArgAction::SetTrue),
                 ),
         )
@@ -474,6 +469,24 @@ pub fn schemas() -> Command {
                         .long("staged")
                         .help("Removed a staged schema")
                         .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
+            Command::new("metadata")
+                .about("Add additional metadata to a schema.")
+                .arg(Arg::new("PATH").help("The path of the data frame file."))
+                .arg(Arg::new("METADATA").help("Any additional metadata you want to add to the schema."))
+                .arg(
+                    Arg::new("column")
+                        .long("column")
+                        .short('c')
+                        .help("Add metadata to a specific column")
+                )
+                .arg(
+                    Arg::new("type")
+                        .long("type")
+                        .short('t')
+                        .help("Set the data type override along with metadata")
                 ),
         )
         .subcommand(df())

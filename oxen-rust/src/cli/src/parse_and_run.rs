@@ -563,28 +563,6 @@ pub fn df(sub_matches: &ArgMatches) {
 pub fn schemas(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
-            ("list", sub_matches) => match dispatch::schema_list(sub_matches.get_flag("staged")) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
-            },
-            ("show", sub_matches) => {
-                let val = sub_matches
-                    .get_one::<String>("NAME_OR_HASH")
-                    .expect("required");
-
-                match dispatch::schema_show(
-                    val,
-                    sub_matches.get_flag("staged"),
-                    sub_matches.get_flag("verbose"),
-                ) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
-            }
             ("name", sub_matches) => {
                 let hash = sub_matches.get_one::<String>("HASH").expect("required");
                 let val = sub_matches.get_one::<String>("NAME").expect("required");
@@ -608,7 +586,9 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 let schema_str = schema_str.unwrap();
 
                 match dispatch::schema_add(path, schema_str) {
-                    Ok(_) => {}
+                    Ok(result) => {
+                        println!("{result}")
+                    }
                     Err(err) => match err {
                         OxenError::PathDoesNotExist(path) => {
                             eprintln!("File does not exist: {path:?}");
@@ -617,6 +597,38 @@ pub fn schemas(sub_matches: &ArgMatches) {
                             eprintln!("Err: {err}")
                         }
                     },
+                }
+            }
+            ("metadata", sub_matches) => {
+                let path = sub_matches.get_one::<String>("PATH");
+                let metadata = sub_matches.get_one::<String>("METADATA");
+
+                let err_msg = "Must supply a file path and metadata\n\n  oxen schemas metadata file.csv -c 'col1' -t 'path' '{\"root\": \"images/\"}'\n";
+                if path.is_none() || metadata.is_none() {
+                    eprintln!("{err_msg}");
+                    return;
+                }
+                let path = path.unwrap();
+                let metadata = metadata.unwrap();
+
+                if let Some(column) = sub_matches.get_one::<String>("column") {
+                    if let Some(data_type) = sub_matches.get_one::<String>("type") {
+                        match dispatch::schema_add(path, &format!("{column}:{data_type}")) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{err}")
+                            }
+                        }
+                    }
+
+                    match dispatch::schema_column_metadata(path, column, metadata) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("{err}")
+                        }
+                    }
+                } else {
+                    panic!("TODO")
                 }
             }
             ("rm", sub_matches) => {
@@ -636,10 +648,23 @@ pub fn schemas(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        match dispatch::schema_list(false) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
+        if let Some(schema_ref) = sub_matches.get_one::<String>("SCHEMA_REF") {
+            match dispatch::schema_show(
+                schema_ref,
+                sub_matches.get_flag("staged"),
+                !sub_matches.get_flag("flatten"), // default to verbose
+            ) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
+                }
+            }
+        } else {
+            match dispatch::schema_list(sub_matches.get_flag("staged")) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
+                }
             }
         }
     }

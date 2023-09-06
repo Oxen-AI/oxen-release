@@ -820,8 +820,9 @@ impl Stager {
 
     pub fn get_staged_schema(
         &self,
-        schema_ref: &str,
+        schema_ref: impl AsRef<str>,
     ) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
+        let schema_ref = schema_ref.as_ref();
         let mut results = HashMap::new();
         for (path, schema) in
             str_json_db::hash_map::<MultiThreaded, schema::Schema>(&self.schemas_db)?
@@ -834,6 +835,15 @@ impl Stager {
             }
         }
         Ok(results)
+    }
+
+    pub fn get_staged_schema_by_path(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<schema::Schema>, OxenError> {
+        let path = path.as_ref();
+        let key = path.to_string_lossy();
+        str_json_db::get(&self.schemas_db, key)
     }
 
     pub fn list_staged_schemas(&self) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
@@ -1030,7 +1040,7 @@ impl Stager {
         &self,
         path: impl AsRef<Path>,
         new_schema: &schema::Schema,
-    ) -> Result<(), OxenError> {
+    ) -> Result<schema::Schema, OxenError> {
         let path = path.as_ref();
         let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
         if let Some(mut schema) = maybe_schema {
@@ -1061,7 +1071,8 @@ impl Stager {
             );
             path_db::put(&self.schemas_db, path, new_schema)?;
         }
-        Ok(())
+        let schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        Ok(schema.unwrap())
     }
 
     /// Remove a staged schema

@@ -1,11 +1,13 @@
+pub mod custom_data_type;
 pub mod data_type;
 pub mod field;
 
+pub use custom_data_type::CustomDataType;
 pub use data_type::DataType;
 pub use field::Field;
-use itertools::Itertools;
 
 use crate::util::hasher;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt, path::PathBuf};
 
@@ -90,7 +92,20 @@ impl Schema {
                 if field.dtype_override.is_some() {
                     f.dtype_override = field.dtype_override.clone();
                 }
+
+                if field.metadata.is_some() {
+                    f.metadata = field.metadata.clone();
+                }
             }
+        }
+        self.hash = Schema::hash_fields(&self.fields);
+    }
+
+    /// Add metadata to a column
+    pub fn add_column_metadata(&mut self, name: &str, metadata: &str) {
+        log::debug!("add_column_metadata {} {}", name, metadata);
+        if let Some(f) = self.fields.iter_mut().find(|f| f.name == name) {
+            f.metadata = Some(metadata.to_owned());
         }
         self.hash = Schema::hash_fields(&self.fields);
     }
@@ -146,6 +161,12 @@ impl Schema {
         let mut hash_buffers: Vec<String> = vec![];
         for f in fields {
             hash_buffers.push(format!("{}{}", f.name, f.dtype));
+            if let Some(dtype_override) = &f.dtype_override {
+                hash_buffers.push(dtype_override.to_string());
+            }
+            if let Some(metadata) = &f.metadata {
+                hash_buffers.push(metadata.to_string());
+            }
         }
 
         let buffer_str = hash_buffers.join("");
