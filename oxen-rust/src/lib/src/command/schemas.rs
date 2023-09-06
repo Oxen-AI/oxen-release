@@ -430,6 +430,58 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_cmd_schemas_add_column_to_committed_schema_after_changing_data(
+    ) -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Find the bbox csv
+            let bbox_path = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            // Add the schema
+            command::add(&repo, &bbox_path)?;
+            let commit = command::commit(&repo, "Adding bounding box file")?;
+
+            let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+            for (path, schema) in schemas.iter() {
+                println!("GOT SCHEMA {path:?} -> {schema:?}");
+            }
+
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
+
+            // Add the schema metadata
+            let metadata = "{\"root\": \"images\"}";
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", metadata)?;
+
+            // Commit the schema
+            command::commit(&repo, "Adding metadata to file column")?;
+
+            // Add a new column to the data frame
+            command::df::add_column(&bbox_path, "new_column:0:i32")?;
+
+            // Stage the file
+            command::add(&repo, &bbox_path)?;
+
+            // Make sure the metadata persisted
+            let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert_eq!(schema.fields.len(), 7);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[0].dtype_override, Some("str".to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_cmd_schemas_persist_schema_types_across_commits() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv

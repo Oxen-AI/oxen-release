@@ -1004,7 +1004,7 @@ impl Stager {
         );
 
         // if we have schema overrides staged or committed, continue to apply them
-        let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        let maybe_schema: Option<schema::Schema> = self.maybe_get_existing_schema(path)?;
         let schema = match maybe_schema {
             Some(added_schema) => {
                 log::debug!(
