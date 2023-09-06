@@ -117,14 +117,14 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
     test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
         let cloned_remote = remote_repo.clone();
 
-        // Create a new text file 
+        // Create a new text file
         let filename = "file_to_modify.txt";
         let filepath = local_repo.path.join(&filename);
         test::write_txt_file_to_path(&filepath, "Content before modification")?;
         command::add(&local_repo, &filepath)?;
         command::commit(&local_repo, "Adding file_to_modify.txt")?;
 
-        // Change the file's contents - different hash 
+        // Change the file's contents - different hash
         test::write_txt_file_to_path(&filepath, "A whole new hash now!")?;
         command::add(&local_repo, &filepath)?;
         command::commit(&local_repo, "Modifying file_to_modify.txt")?;
@@ -133,12 +133,12 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
         command::add(&local_repo, &filepath)?;
         command::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
-        // Delete file 
+        // Delete file
         std::fs::remove_file(&filepath)?;
         command::add(&local_repo, &filepath)?;
         command::commit(&local_repo, "Deleting file_to_modify.txt")?;
 
-        // Add back new 
+        // Add back new
         test::write_txt_file_to_path(&filepath, "Adding back new")?;
         command::add(&local_repo, &filepath)?;
         command::commit(&local_repo, "Adding back file_to_modify.txt")?;
@@ -147,10 +147,8 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            
             let mut cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-            
 
             let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
             let remote_url = test::repo_remote_url_from(&repo_name);

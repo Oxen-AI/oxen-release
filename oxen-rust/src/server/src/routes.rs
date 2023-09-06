@@ -94,6 +94,22 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::branches::create_from_or_get),
         )
         .route(
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/lock",
+            web::post().to(controllers::branches::lock),
+        )
+        .route(
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/latest_synced_commit",
+            web::get().to(controllers::branches::latest_synced_commit),
+        )
+        .route(
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/lock",
+            web::get().to(controllers::branches::is_locked),
+        )
+        .route(
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/unlock",
+            web::post().to(controllers::branches::unlock),
+        )
+        .route(
             "/{namespace}/{repo_name}/branches/{branch_name:.*}",
             web::get().to(controllers::branches::show),
         )

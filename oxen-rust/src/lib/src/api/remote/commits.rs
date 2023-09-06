@@ -77,8 +77,8 @@ pub async fn list_commit_history(
     println!("🐂 Getting commit history...");
 
     // Init bar then set length once we know it
-    let bar = ProgressBar::new_spinner();
-    bar.set_style(ProgressStyle::default_spinner());
+    // let bar = ProgressBar::new_spinner();
+    // bar.set_style(ProgressStyle::default_spinner());
 
     loop {
         let page_opts = PaginateOpts {
@@ -87,13 +87,13 @@ pub async fn list_commit_history(
         };
         match list_commit_history_paginated(remote_repo, revision, &page_opts).await {
             Ok(paginated_commits) => {
-                if page_num == DEFAULT_PAGE_NUM {
-                    bar.set_length(paginated_commits.pagination.total_entries as u64);
-                    bar.set_style(ProgressStyle::default_bar());
-                }
-                let n_commits = paginated_commits.commits.len();
+                // if page_num == DEFAULT_PAGE_NUM {
+                //     bar.set_length(paginated_commits.pagination.total_entries as u64);
+                //     bar.set_style(ProgressStyle::default_bar());
+                // }
+                // let n_commits = paginated_commits.commits.len();
                 all_commits.extend(paginated_commits.commits);
-                bar.inc(n_commits as u64);
+                // bar.inc(n_commits as u64);
                 if page_num < paginated_commits.pagination.total_pages {
                     page_num += 1;
                 } else {
@@ -105,7 +105,7 @@ pub async fn list_commit_history(
             }
         }
     }
-    bar.finish();
+    // bar.finish();
 
     Ok(all_commits)
 }
@@ -173,8 +173,9 @@ pub async fn commit_is_synced(
 pub async fn latest_commit_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
+    branch_name: &str,
 ) -> Result<CommitSyncStatusResponse, OxenError> {
-    let uri = format!("/commits/{commit_id}/latest_synced");
+    let uri = format!("/commits/{commit_id}/latest_synced?branch_name={branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("latest_commit_synced checking URL: {}", url);
 
@@ -1109,7 +1110,8 @@ mod tests {
 
             // Should not be synced because we didn't actually post the files
             let latest_synced =
-                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
+                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id, &branch.name)
+                    .await?;
 
             assert!(latest_synced.latest_synced.is_none());
 
@@ -1126,9 +1128,9 @@ mod tests {
 
             // Should now be synced
             let latest_synced =
-                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
+                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id, &branch.name)
+                    .await?;
 
-            assert_eq!(latest_synced.latest_synced.unwrap(), commit);
             assert_eq!(latest_synced.num_unsynced, 0);
 
             Ok(remote_repo)

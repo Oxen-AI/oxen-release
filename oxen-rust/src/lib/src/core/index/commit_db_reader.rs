@@ -174,21 +174,24 @@ impl CommitDBReader {
         head_commit_id: &str,
         commits: &mut HashSet<Commit>,
     ) -> Result<(), OxenError> {
-        // TODO: This way of calculating has some issues for divergent / merge commits. 
-        // in those cases, the "base=head" base case is insufficient and it will trace 
-        // all the way back to root commit. The parent set logic below covers some of these cases, 
-        // but might need to rethink how this is calculated for ease of use in push 
-        
+        // TODO: This way of calculating has some issues for divergent / merge commits.
+        // in those cases, the "base=head" base case is insufficient and it will trace
+        // all the way back to root commit. The parent set logic below covers some of these cases,
+        // but might need to rethink how this is calculated for ease of use in push
+
         // End recursion, we found all the commits from base to head
-        log::debug!("history_from_base_to_head searching bewteen {} and {}", base_commit_id, head_commit_id);
+        log::debug!(
+            "history_from_base_to_head searching bewteen {} and {}",
+            base_commit_id,
+            head_commit_id
+        );
         if base_commit_id == head_commit_id {
             return Ok(());
         }
-        
 
         let base_commit = CommitDBReader::get_commit_by_id(db, base_commit_id)?
             .ok_or_else(|| OxenError::commit_id_does_not_exist(base_commit_id))?;
-    
+
         match CommitDBReader::get_commit_by_id(db, head_commit_id) {
             Ok(Some(commit)) => {
                 log::debug!("Found commit {}, inserting", commit.id);

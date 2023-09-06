@@ -25,7 +25,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     log::debug!(
         "computing comparing entries_hash == content_hash {} == {} for commit {}",
         entries_hash,
-        content_hash, 
+        content_hash,
         commit.id
     );
 

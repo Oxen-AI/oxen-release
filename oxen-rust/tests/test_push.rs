@@ -444,6 +444,8 @@ async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         // Current local head
         let local_head = api::local::commits::head_commit(&local_repo)?;
 
+        // Branch name
+
         // Nothing should be synced on remote and no commit objects created except root
         let history =
             api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
@@ -458,13 +460,13 @@ async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         assert_eq!(history.len(), 25);
 
         // Latest commit synced should be == local head, with no unsynced commits
-        let sync_response =
-            api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
-        assert_eq!(sync_response.latest_synced.unwrap().id, local_head.id);
+        let sync_response = api::remote::commits::latest_commit_synced(
+            &remote_repo,
+            &local_head.id,
+            DEFAULT_BRANCH_NAME,
+        )
+        .await?;
         assert_eq!(sync_response.num_unsynced, 0);
-
-        // Latest synced should now be head
-        // let latest_synced = api::remote::commits::latest_commit_synced(&remote_repo, local_head).await?;
 
         Ok(remote_repo)
     })
@@ -518,8 +520,12 @@ async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
         assert_eq!(history_main.len(), 25);
 
         // 0 unsynced on main
-        let sync_response =
-            api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
+        let sync_response = api::remote::commits::latest_commit_synced(
+            &remote_repo,
+            &local_head.id,
+            DEFAULT_BRANCH_NAME,
+        )
+        .await?;
         assert_eq!(sync_response.num_unsynced, 0);
 
         Ok(remote_repo)

@@ -30,8 +30,6 @@ bytecount = "0.6.3"
 bytes = "1.2.1"
 bytesize = "1.1.0"
 bytevec = "0.2.0"
-#TODONOW cleanup 
-csv = "1.1"
 chrono = "0.4.22"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"

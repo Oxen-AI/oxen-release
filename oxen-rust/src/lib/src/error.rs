@@ -42,6 +42,7 @@ pub enum OxenError {
     RemoteRepoNotFound(Box<Remote>),
     RemoteAheadOfLocal(StringError),
     IncompleteLocalHistory(StringError),
+    RemoteBranchLocked(StringError),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -68,6 +69,9 @@ pub enum OxenError {
 
     // SQL
     SQLParseError(StringError),
+
+    // CLI Interaction
+    OperationCancelled(StringError),
 
     // External Library Errors
     IO(io::Error),
@@ -126,6 +130,16 @@ impl OxenError {
         OxenError::IncompleteLocalHistory(StringError::from(
             "\nCannot push to an empty repository with an incomplete local history. To fix, pull the complete history from your remote:\n\n  oxen pull <remote> <branch> --all\n",
         ))
+    }
+
+    pub fn remote_branch_locked() -> Self {
+        OxenError::RemoteBranchLocked(StringError::from(
+            "\nRemote branch is locked - another push is in progress. Wait a bit before pushing again, or try pushing to a new branch.\n",
+        ))
+    }
+
+    pub fn operation_cancelled() -> Self {
+        OxenError::OperationCancelled(StringError::from("\nOperation cancelled.\n"))
     }
 
     pub fn resource_not_found(value: impl AsRef<str>) -> Self {

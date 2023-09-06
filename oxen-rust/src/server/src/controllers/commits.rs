@@ -159,18 +159,23 @@ pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse,
     }))
 }
 
-pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+pub async fn latest_synced(
+    req: HttpRequest,
+    branch_info: actix_web::web::Query<BranchName>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, &repo_name)?;
     let commit_id = path_param(&req, "commit_id")?;
+    let branch_name = &branch_info.branch_name;
 
     let commits = api::local::commits::list_from(&repository, &commit_id)?;
     let mut latest_synced: Option<Commit> = None;
     let mut commits_to_sync: Vec<Commit> = Vec::new();
 
-    // Iterate first to last over commits
+    // TODONOW broken
+    // Iterate old to new over commits
     for commit in commits {
         // log::debug!("latest_synced checking commit {:?}", commit.id);
         match commit_cacher::get_status(&repository, &commit) {
@@ -183,17 +188,18 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                         // we can make this more robust (but slower) by checking the full commit history
                         // log::debug!("latest_synced commit is valid: {:?}", commit.id);
                         latest_synced = Some(commit);
-                        break;
+                        // break;
                     }
                     Ok(false) => {
                         log::debug!("latest_synced commit is invalid: {:?}", commit.id);
-                        return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                            status: String::from(STATUS_ERROR),
-                            status_message: String::from(MSG_CONTENT_IS_INVALID),
-                            status_description: "Content is not valid".to_string(),
-                            is_processing: false,
-                            is_valid: false,
-                        }));
+                        // return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
+                        //     status: String::from(STATUS_ERROR),
+                        //     status_message: String::from(MSG_CONTENT_IS_INVALID),
+                        //     status_description: "Content is not valid".to_string(),
+                        //     is_processing: false,
+                        //     is_valid: false,
+                        // }));
+                        // Commit failed to process - for now, do nothing - TODO: report back to user in some way?
                     }
                     err => {
                         log::error!("latest_synced content_validator::is_valid error {err:?}");
@@ -250,6 +256,10 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
             }
         };
     }
+
+    // If we reach no unsynced commits, unlock the branch (in case the user has killed their local push)
+    log::debug!("All commits synced, unlocking branch {}", branch_name);
+    api::local::branches::unlock(&repository, &branch_name)?;
 
     Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
         status: StatusMessage::resource_found(),
@@ -892,6 +902,10 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     let commit_reader = CommitReader::new(&repo)?;
 
     for req_commit in commits {
+        log::debug!(
+            "Queuing up commit {:?} for post-commit processing processing",
+            req_commit.id
+        );
         let commit_id = req_commit.id;
         let commit = commit_reader
             .get_commit_by_id(&commit_id)?
