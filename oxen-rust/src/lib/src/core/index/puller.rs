@@ -10,10 +10,9 @@ use indicatif::ProgressBar;
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, RemoteRepository, LocalRepository};
+use crate::model::{CommitEntry, LocalRepository, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
-
 
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
@@ -31,9 +30,12 @@ pub async fn pull_entries(
 
     let missing_entries = get_missing_commit_entries(entries, &dst);
 
-    log::debug!("Pull entries {} missing_entries.len() {}", current_function!(), missing_entries.len());
+    log::debug!(
+        "Pull entries {} missing_entries.len() {}",
+        current_function!(),
+        missing_entries.len()
+    );
 
-    
     if missing_entries.is_empty() {
         return Ok(());
     }
@@ -68,8 +70,10 @@ pub async fn pull_entries(
     let small_entry_paths = get_small_entry_paths(&smaller_entries, &dst.as_ref());
     let large_entry_paths = get_large_entry_paths(&larger_entries, &dst.as_ref());
 
-    let large_entries_sync = pull_large_entries(remote_repo, larger_entries, &dst, large_entry_paths, &bar);
-    let small_entries_sync = pull_small_entries(remote_repo, smaller_entries, &dst, small_entry_paths, &bar);
+    let large_entries_sync =
+        pull_large_entries(remote_repo, larger_entries, &dst, large_entry_paths, &bar);
+    let small_entries_sync =
+        pull_small_entries(remote_repo, smaller_entries, &dst, small_entry_paths, &bar);
 
     match tokio::join!(large_entries_sync, small_entries_sync) {
         (Ok(_), Ok(_)) => {
@@ -94,7 +98,7 @@ pub async fn pull_entries(
 fn get_missing_commit_entries(entries: &[CommitEntry], dst: impl AsRef<Path>) -> Vec<CommitEntry> {
     let dst = dst.as_ref();
     let mut missing_entries: Vec<CommitEntry> = vec![];
-    
+
     for entry in entries {
         let version_path = util::fs::version_path_from_dst(dst, entry);
         if !version_path.exists() {
@@ -208,10 +212,9 @@ async fn pull_small_entries(
 //     let content_ids = version_paths_from_entries(&entries, dst.as_ref());
 
 //     pull_small_entries(remote_repo, entries, dst, content_ids, bar).await?;
-    
+
 //     Ok(())
 // }
-
 
 // async fn pull_small_entries_to_versions_dir(
 //     remote_repo: &RemoteRepository,
@@ -245,7 +248,7 @@ fn working_dir_paths_from_small_entries(
     content_ids
 }
 
-// This one redundantly is just going to pass in two copies of 
+// This one redundantly is just going to pass in two copies of
 // the version path so we don't have to change download_data_from_version_paths
 fn version_dir_paths_from_small_entries(
     entries: &Vec<CommitEntry>,
@@ -260,11 +263,9 @@ fn version_dir_paths_from_small_entries(
             String::from(version_path.to_str().unwrap()).replace('\\', "/"),
             version_path.to_owned(),
         ))
-
     }
     content_ids
 }
-
 
 async fn pull_large_entries(
     remote_repo: &RemoteRepository,
@@ -278,7 +279,13 @@ async fn pull_large_entries(
     }
     // Pull the large entries in parallel
     use tokio::time::{sleep, Duration};
-    type PieceOfWork = (RemoteRepository, CommitEntry, PathBuf, PathBuf, Arc<ProgressBar>);
+    type PieceOfWork = (
+        RemoteRepository,
+        CommitEntry,
+        PathBuf,
+        PathBuf,
+        Arc<ProgressBar>,
+    );
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -335,7 +342,7 @@ async fn pull_large_entries(
                 match api::remote::entries::download_large_entry(
                     &remote_repo,
                     &remote_path,
-                    &download_path, 
+                    &download_path,
                     &entry.commit_id,
                     entry.num_bytes,
                     bar,
@@ -344,13 +351,11 @@ async fn pull_large_entries(
                 {
                     Ok(_) => {
                         log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
-                
                     }
                     Err(err) => {
                         log::error!("Could not download chunk... {}", err)
                     }
                 }
-                
 
                 finished_queue.pop().await;
             }
@@ -366,11 +371,7 @@ async fn pull_large_entries(
     Ok(())
 }
 
-
-fn version_dir_paths_from_large_entries(
-    entries: &Vec<CommitEntry>,
-    dst: &Path,
-) -> Vec<PathBuf> {
+fn version_dir_paths_from_large_entries(entries: &Vec<CommitEntry>, dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
         let version_path = util::fs::version_path_from_dst(&dst, entry);
@@ -379,10 +380,7 @@ fn version_dir_paths_from_large_entries(
     paths
 }
 
-fn working_dir_paths_from_large_entries(
-    entries: &Vec<CommitEntry>,
-    dst: &Path,
-) -> Vec<PathBuf> {
+fn working_dir_paths_from_large_entries(entries: &Vec<CommitEntry>, dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
         let working_path = dst.join(&entry.path);
@@ -390,7 +388,6 @@ fn working_dir_paths_from_large_entries(
     }
     paths
 }
-
 
 // async fn pull_large_entries_to_working_dir(
 //     remote_repo: &RemoteRepository,
@@ -401,11 +398,11 @@ fn working_dir_paths_from_large_entries(
 //     if entries.is_empty() {
 //         return Ok(());
 //     }
-//     // Pre-calculate paths 
+//     // Pre-calculate paths
 //     let working_paths: Vec<PathBuf> = entries.iter().map(|e| dst.as_ref().join(&e.path)).collect();
-//     // Pull the entries 
+//     // Pull the entries
 //     pull_large_entries(remote_repo, entries, dst, working_paths, bar).await?;
-   
+
 //     Ok(())
 // }
 
@@ -419,12 +416,12 @@ fn working_dir_paths_from_large_entries(
 //         return Ok(());
 //     }
 
-//     // Pre-calculate paths 
+//     // Pre-calculate paths
 //     let version_paths: Vec<PathBuf> = entries.iter().map(|e| util::fs::version_path_from_dst(&dst, e)).collect();
 
-//     // Pull the entries 
+//     // Pull the entries
 //     pull_large_entries(remote_repo, entries, dst, version_paths, bar).await?;
-   
+
 //     Ok(())
 // }
 

@@ -10,6 +10,14 @@ pub struct BranchResponse {
     pub branch: Branch,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BranchLockResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub branch_name: String,
+    pub is_locked: bool,
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct BranchNew {
     pub name: String,

@@ -4,18 +4,21 @@
 use crate::api::local::entries::compute_entries_size;
 use crate::api::remote::commits::ChunkParams;
 use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
+
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
 use rayon::prelude::*;
 use std::io::{BufReader, Read};
-use std::sync::Arc;
+use std::mem;
+use std::sync::{Arc, Mutex};
+use tokio::signal::ctrl_c;
 use tokio::time::Duration;
 
 use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, NUM_HTTP_RETRIES};
 
 use crate::core::index::{
-    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader, self,
+    self, CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
@@ -27,6 +30,38 @@ pub struct UnsyncedCommitEntries {
     pub commit: Commit,
     pub entries: Vec<CommitEntry>,
 }
+
+pub struct LockGuard {
+    remote_repo: RemoteRepository,
+    branch_name: String,
+}
+
+// impl LockGuard {
+//     pub async fn new(remote_repo: RemoteRepository, branch_name: String) -> Result<Self, OxenError> {
+//         api::remote::branches::lock(&remote_repo, &branch_name).await?;
+//         Ok(Self { remote_repo, branch_name })
+//     }
+
+//     pub async fn unlock(self) {
+//         println!("Unlocking the branch...");
+//         let _ = api::remote::branches::unlock(&self.remote_repo, &self.branch_name).await;
+//         println!("Branch unlocked.");
+//     }
+// }
+
+// impl Drop for LockGuard {
+//     fn drop(&mut self) {
+//         let remote_repo = self.remote_repo.clone();
+//         let branch_name = self.branch_name.clone();
+//         println!("LockGuard being dropped now, spawning a task to unlock the branch");
+//         tokio::task::spawn_blocking(move || {
+//             println!("Unlocking the branch...");
+//             let _ = api::remote::branches::unlock(&remote_repo, &branch_name).await;
+//             println!("Branch unlocked.");
+//         });
+//     }
+// }
+
 pub async fn push(
     repo: &LocalRepository,
     rb: &RemoteBranch,
@@ -64,6 +99,7 @@ pub async fn push_remote_repo(
     branch: Branch,
 ) -> Result<RemoteRepository, OxenError> {
     // Get head commit
+
     let commit_reader = CommitReader::new(local_repo)?;
     let head_commit = commit_reader
         .get_commit_by_id(&branch.commit_id)?
@@ -74,15 +110,47 @@ pub async fn push_remote_repo(
         return Err(OxenError::remote_ahead_of_local());
     }
 
-    // TODONOW: is this fine, or should be on the target branch?
-    // If a repo is empty,
-
     if cannot_push_incomplete_history(&local_repo, &remote_repo, &head_commit, &branch).await? {
         return Err(OxenError::incomplete_local_history());
     }
 
+    if api::remote::branches::is_locked(&remote_repo, &branch.name).await? {
+        return Err(OxenError::remote_branch_locked());
+    }
+
+    // Lock up the branch
+    api::remote::branches::lock(&remote_repo, &branch.name).await?;
+
+    let branch_name = branch.name.clone();
+    // Push the commits, listening for ctrl_c and allowing us to release the lock if it hits
+    match try_push_remote_repo(&local_repo, &remote_repo, branch, &head_commit).await {
+        Ok(_) => {
+            // Unlock the branch
+            api::remote::branches::unlock(&remote_repo, &branch_name).await?;
+        }
+        Err(err) => {
+            // Unlock the branch
+            api::remote::branches::unlock(&remote_repo, &branch_name).await?;
+        }
+    }
+
+    Ok(remote_repo)
+}
+
+// TODONOW better naming
+pub async fn try_push_remote_repo(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    branch: Branch,
+    head_commit: &Commit,
+) -> Result<(), OxenError> {
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, &remote_repo, &head_commit, &branch).await?;
+
+    log::debug!(
+        "push_remote_repo commit order after get_commit_objects_to_sync {:?}",
+        commits_to_sync
+    );
 
     let (unsynced_entries, total_size) =
         push_missing_commit_objects(local_repo, &remote_repo, &commits_to_sync, &branch).await?;
@@ -101,9 +169,16 @@ pub async fn push_remote_repo(
     );
     log::debug!("🐂 Identifying commits with unsynced entries...");
 
+    // Raise an OxenError for testing purposes
+
     // Get commits with unsynced entries
     let unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(&remote_repo, &branch).await?;
+
+    log::debug!(
+        "commits with unsynced entries before entries fn {:?}",
+        unsynced_entries_commits
+    );
 
     push_missing_commit_entries(
         local_repo,
@@ -116,10 +191,6 @@ pub async fn push_remote_repo(
     .await?;
 
     api::remote::branches::update(&remote_repo, &branch.name, &head_commit).await?;
-    // println!(
-    //     "Updated remote branch {} -> {}",
-    //     &branch.name, &head_commit.id
-    // );
 
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
@@ -128,10 +199,12 @@ pub async fn push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(&remote_repo, &head_commit, &bar).await?;
+    poll_until_synced(&remote_repo, &head_commit, &branch.name, &bar).await?;
     bar.finish_and_clear();
+
     log::debug!("Just finished push.");
-    Ok(remote_repo)
+
+    Ok(())
 }
 
 async fn get_commit_objects_to_sync(
@@ -156,13 +229,21 @@ async fn get_commit_objects_to_sync(
         let merger = Merger::new(local_repo)?;
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
+
+        log::debug!(
+            "Here's the output of list_commits_between_commits...{:?}",
+            commits_to_sync
+        );
         let remote_history = api::remote::commits::list_commit_history(remote_repo, &branch.name)
             .await
             .unwrap_or_else(|_| vec![]);
         // TODONOW clean up
-        log::debug!("get_commit_objects_to_sync calculated {} commits", commits_to_sync.len());
+        log::debug!(
+            "get_commit_objects_to_sync calculated {} commits",
+            commits_to_sync.len()
+        );
 
-        // Filter out any commits_to_sync that are in the remote_history 
+        // Filter out any commits_to_sync that are in the remote_history
         commits_to_sync = commits_to_sync
             .into_iter()
             .filter(|commit| {
@@ -171,14 +252,28 @@ async fn get_commit_objects_to_sync(
                     .any(|remote_commit| remote_commit.id == commit.id)
             })
             .collect();
+        log::debug!(
+            "Here's the output after filter step...{:?}",
+            commits_to_sync
+        );
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
         commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
+        log::debug!(
+            "Here's the output since the branch didn't exist...{:?}",
+            commits_to_sync
+        );
     }
 
     // Order from BASE to HEAD
     commits_to_sync.reverse();
+
+    log::debug!(
+        "Here's the output after reversing step...{:?}",
+        commits_to_sync
+    );
+
     Ok(commits_to_sync)
 }
 
@@ -279,28 +374,31 @@ async fn cannot_push_incomplete_history(
     // If no default branch, repo is empty - TODO: maybe tighten up this logic with a separate endpoint and list_all - not sure if this covers all cases
     // TODONOW clean up this into a match
     log::debug!("Checking if we can push incomplete history.");
-    if let Err(_) =
-        api::remote::commits::list_commit_history(&remote_repo, &branch.name).await
-    {
+    if let Err(_) = api::remote::commits::list_commit_history(&remote_repo, &branch.name).await {
         log::debug!("Found no remote history...");
         return Ok(!api::local::commits::commit_history_is_complete(
             local_repo, local_head,
         ));
     } else {
         log::debug!("Found a remote history");
-        
-        let remote_history = api::remote::commits::list_commit_history(&remote_repo, &branch.name).await?;
+
+        let remote_history =
+            api::remote::commits::list_commit_history(&remote_repo, &branch.name).await?;
         log::debug!("full remote history...{:?}", remote_history);
         // Get remote head on this branch
         let remote_head = remote_history.first().unwrap();
-        log::debug!("Checking between local head {:?} and remote head {:?} on branch {}", local_head, remote_head, branch.name);
-        // Get commits between local head and remote head 
+        log::debug!(
+            "Checking between local head {:?} and remote head {:?} on branch {}",
+            local_head,
+            remote_head,
+            branch.name
+        );
+        // Get commits between local head and remote head
         let commit_reader = CommitReader::new(local_repo)?;
         let merger = Merger::new(local_repo)?;
         // This comes after a check for remote ahead of local so won't be an issue
         let commits_to_push =
             merger.list_commits_between_commits(&commit_reader, &remote_head, local_head)?;
-
 
         // Check only commits in commits_to_push which are not already in remote_history
         let commits_to_push: Vec<Commit> = commits_to_push
@@ -314,7 +412,7 @@ async fn cannot_push_incomplete_history(
 
         log::debug!("Found the following commits_to_push: {:?}", commits_to_push);
 
-        // Ensure all `commits_to_push` are synced 
+        // Ensure all `commits_to_push` are synced
         for commit in commits_to_push {
             log::debug!("Checking commit {}", commit.id);
             if !index::commit_sync_status::commit_is_synced(local_repo, &commit) {
@@ -324,7 +422,6 @@ async fn cannot_push_incomplete_history(
         }
     }
 
-
     log::debug!("We're not in here pushing an incomplete history");
     Ok(false)
 }
@@ -332,6 +429,7 @@ async fn cannot_push_incomplete_history(
 async fn poll_until_synced(
     remote_repo: &RemoteRepository,
     commit: &Commit,
+    branch_name: &str,
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let commits_to_sync = bar.length().unwrap();
@@ -341,7 +439,9 @@ async fn poll_until_synced(
     let mut retries = 0;
 
     loop {
-        match api::remote::commits::latest_commit_synced(remote_repo, head_commit_id).await {
+        match api::remote::commits::latest_commit_synced(remote_repo, head_commit_id, branch_name)
+            .await
+        {
             Ok(sync_status) => {
                 retries = 0;
                 log::debug!("Got latest synced commit {:?}", sync_status.latest_synced);
@@ -541,16 +641,24 @@ async fn push_missing_commit_entries(
         println!("🐂 No entries to push");
     }
 
+    log::debug!(
+        "Calling bulk post_push_complete on this order..{:?}",
+        &commits
+    );
+
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
-    let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
-    api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
+    // let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
+    api::remote::commits::bulk_post_push_complete(remote_repo, &commits).await?;
     // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
-    api::remote::commits::post_push_complete(
-        remote_repo,
-        branch,
-        &old_to_new_commits.last().unwrap().id,
-    )
-    .await?;
+    //TODONOW remove logs
+    log::debug!(
+        "push_missing_commit_entries validating last commit id {}",
+        &commits.first().unwrap().id
+    );
+    api::remote::commits::post_push_complete(remote_repo, branch, &commits.last().unwrap().id)
+        .await?;
+
+    log::debug!("push_missing_commit_entries done");
 
     Ok(())
 }
@@ -949,6 +1057,14 @@ async fn bundle_and_send_small_entries(
 
     Ok(())
 }
+
+// async fn listen_for_ctrl_c(lock_guard: Arc<Mutex<LockGuard>>) {
+//     tokio::signal::ctrl_c()
+//         .await
+//         .expect("Failed to listen for Ctrl+C");
+//     println!("Ctrl+C detected. Unlocking...");
+//     lock_guard.lock().await;
+// }
 
 #[cfg(test)]
 mod tests {

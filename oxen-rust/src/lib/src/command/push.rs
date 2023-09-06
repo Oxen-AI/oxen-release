@@ -240,7 +240,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cannot_push_when_remote_repo_is_many_commits_ahead_new_file() -> Result<(), OxenError> {
+    async fn test_cannot_push_when_remote_repo_is_many_commits_ahead_new_file(
+    ) -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
@@ -293,7 +294,6 @@ mod tests {
                     let result = command::push(&user_b_repo).await;
                     assert!(result.is_err());
 
-
                     command::pull(&user_b_repo).await?;
 
                     command::push(&user_b_repo).await?;
@@ -316,5 +316,4 @@ mod tests {
         })
         .await
     }
-
 }

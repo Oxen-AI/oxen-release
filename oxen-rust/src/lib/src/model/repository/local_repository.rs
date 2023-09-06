@@ -237,7 +237,7 @@ impl LocalRepository {
         local_repo
             .maybe_pull_entries(&repo, &indexer, &rb, opts)
             .await?;
-        
+
         if opts.all {
             println!("🐂 fetching additional remote branches");
             let remote_branches = api::remote::branches::list(&repo).await?;

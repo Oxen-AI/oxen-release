@@ -289,83 +289,15 @@ async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
     .await
 }
 
-
 #[tokio::test]
-    async fn test_pull_shallow_clone_only_pulls_head() -> Result<(), OxenError> {
-        // Push the Remote Repo
-        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
-            let remote_repo_copy = remote_repo.clone();
-            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_shallow =
-                    command::shallow_clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
-                
-                
-
-                // Deep copy pushes two new commits to advance the remote
-                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
-
-                    let user_b_repo =
-                        command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
-
-                    let new_file = "new_file.txt";
-                    let new_file_path = user_b_repo.path.join(new_file);
-                    test::write_txt_file_to_path(&new_file_path, "hello from a file")?;
-                    command::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding new file")?;
-
-                    let new_file = "new_file_2.txt";
-                    let new_file_path = user_b_repo.path.join(new_file);
-                    test::write_txt_file_to_path(&new_file_path, "hello from a different")?;
-                    command::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding new file 2")?;
-                    command::push(&user_b_repo).await?;
-
-                    Ok(user_b_repo_dir_copy)
-                })
-                .await?;
-
-                // Pull on the shallow copy 
-                command::pull_shallow(&user_a_shallow).await?;
-
-                // Get all commits on the remote 
-                let commit_reader = CommitReader::new(&user_a_shallow)?;
-                let remote_commits = commit_reader.list_all()?;
-
-                let mut synced_commits = 0;
-                log::debug!("total n remote commits {}", remote_commits.len());
-                for commit in remote_commits {
-                    if index::commit_sync_status::commit_is_synced(&user_a_shallow, &commit) {
-                        synced_commits += 1;
-                    }
-                }
-
-                // Only one commit should be fully sycned - the one we just downloaded 
-                assert_eq!(synced_commits, 1);
-
-                Ok(user_a_repo_dir_copy)
-            })
-            .await?;
-
-            Ok(remote_repo_copy)
-        })
-        .await
-    }
-
-
-
-#[tokio::test]
-async fn test_pull_standard_clone_only_pulls_head() -> Result<(), OxenError> {
+async fn test_pull_shallow_clone_only_pulls_head() -> Result<(), OxenError> {
     // Push the Remote Repo
     test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
         let remote_repo_copy = remote_repo.clone();
         test::run_empty_dir_test_async(|user_a_repo_dir| async move {
             let user_a_repo_dir_copy = user_a_repo_dir.clone();
-            let user_a_repo =
-                command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
-            
-            
+            let user_a_shallow =
+                command::shallow_clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
 
             // Deep copy pushes two new commits to advance the remote
             test::run_empty_dir_test_async(|user_b_repo_dir| async move {
@@ -391,10 +323,70 @@ async fn test_pull_standard_clone_only_pulls_head() -> Result<(), OxenError> {
             })
             .await?;
 
-            // Pull on the shallow copy 
+            // Pull on the shallow copy
+            command::pull_shallow(&user_a_shallow).await?;
+
+            // Get all commits on the remote
+            let commit_reader = CommitReader::new(&user_a_shallow)?;
+            let remote_commits = commit_reader.list_all()?;
+
+            let mut synced_commits = 0;
+            log::debug!("total n remote commits {}", remote_commits.len());
+            for commit in remote_commits {
+                if index::commit_sync_status::commit_is_synced(&user_a_shallow, &commit) {
+                    synced_commits += 1;
+                }
+            }
+
+            // Only one commit should be fully sycned - the one we just downloaded
+            assert_eq!(synced_commits, 1);
+
+            Ok(user_a_repo_dir_copy)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_pull_standard_clone_only_pulls_head() -> Result<(), OxenError> {
+    // Push the Remote Repo
+    test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+        test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+            let user_a_repo_dir_copy = user_a_repo_dir.clone();
+            let user_a_repo = command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+
+            // Deep copy pushes two new commits to advance the remote
+            test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                let user_b_repo_dir_copy = user_b_repo_dir.clone();
+
+                let user_b_repo =
+                    command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+
+                let new_file = "new_file.txt";
+                let new_file_path = user_b_repo.path.join(new_file);
+                test::write_txt_file_to_path(&new_file_path, "hello from a file")?;
+                command::add(&user_b_repo, &new_file_path)?;
+                command::commit(&user_b_repo, "Adding new file")?;
+
+                let new_file = "new_file_2.txt";
+                let new_file_path = user_b_repo.path.join(new_file);
+                test::write_txt_file_to_path(&new_file_path, "hello from a different")?;
+                command::add(&user_b_repo, &new_file_path)?;
+                command::commit(&user_b_repo, "Adding new file 2")?;
+                command::push(&user_b_repo).await?;
+
+                Ok(user_b_repo_dir_copy)
+            })
+            .await?;
+
+            // Pull on the shallow copy
             command::pull_shallow(&user_a_repo).await?;
 
-            // Get all commits on the remote 
+            // Get all commits on the remote
             let commit_reader = CommitReader::new(&user_a_repo)?;
             let remote_commits = commit_reader.list_all()?;
 
@@ -417,4 +409,3 @@ async fn test_pull_standard_clone_only_pulls_head() -> Result<(), OxenError> {
     })
     .await
 }
-

@@ -54,7 +54,6 @@ pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
         .await
 }
 
-
 /// Pull a specific remote and branch
 pub async fn pull_remote_branch(
     repo: &LocalRepository,

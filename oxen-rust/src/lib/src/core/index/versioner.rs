@@ -52,7 +52,6 @@ pub fn backup_file(
     Ok(())
 }
 
-
 pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
 }
@@ -63,5 +62,3 @@ fn path_hash_is_different(entry: &CommitEntry, path: &Path) -> bool {
     }
     false
 }
-
-

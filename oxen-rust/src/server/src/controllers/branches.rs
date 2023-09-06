@@ -7,7 +7,8 @@ use actix_web::{HttpRequest, HttpResponse};
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::view::{
-    BranchNewFromExisting, BranchResponse, BranchUpdate, ListBranchesResponse, StatusMessage,
+    BranchLockResponse, BranchNewFromExisting, BranchResponse, BranchUpdate, CommitResponse,
+    ListBranchesResponse, StatusMessage,
 };
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -113,6 +114,71 @@ pub async fn update(
     }))
 }
 
+pub async fn latest_synced_commit(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let commit = api::local::branches::latest_synced_commit(&repository, &branch_name)?;
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_found(),
+        commit: commit,
+    }))
+}
+
+pub async fn lock(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    api::local::branches::lock(&repository, &branch_name)?;
+
+    Ok(HttpResponse::Ok().json(BranchLockResponse {
+        status: StatusMessage::resource_updated(),
+        branch_name,
+        is_locked: true,
+    }))
+}
+
+pub async fn unlock(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    api::local::branches::unlock(&repository, &branch_name)?;
+
+    Ok(HttpResponse::Ok().json(BranchLockResponse {
+        status: StatusMessage::resource_updated(),
+        branch_name,
+        is_locked: false,
+    }))
+}
+
+pub async fn is_locked(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+    let repository = get_repo(&app_data.path, namespace, &name)?;
+
+    let is_locked = api::local::branches::is_locked(&repository, &branch_name)?;
+
+    Ok(HttpResponse::Ok().json(BranchLockResponse {
+        status: StatusMessage::resource_found(),
+        branch_name,
+        is_locked,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -125,7 +191,9 @@ mod tests {
     use liboxen::error::OxenError;
     use liboxen::util;
     use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{BranchNewFromExisting, BranchResponse, ListBranchesResponse};
+    use liboxen::view::{
+        BranchNewFromExisting, BranchResponse, CommitResponse, ListBranchesResponse,
+    };
 
     use crate::controllers;
     use crate::test;
@@ -244,6 +312,46 @@ mod tests {
         let repo_response: BranchResponse = serde_json::from_str(text)?;
         assert_eq!(repo_response.status.status, STATUS_SUCCESS);
         assert_eq!(repo_response.branch.name, "My-Branch-Name");
+
+        // cleanup
+        util::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_controllers_branch_get_latest() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+        let queue = test::init_queue();
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Branches-1";
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let branch_name = "branch-1";
+        api::local::branches::create_from_head(&repo, branch_name)?;
+
+        // Get head commit through local API
+        let created_branch = api::local::branches::get_by_name(&repo, branch_name)?
+            .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
+
+        let uri = format!("/oxen/{namespace}/{repo_name}/branches/");
+        let req = test::repo_request_with_param(
+            &sync_dir,
+            queue,
+            &uri,
+            namespace,
+            repo_name,
+            "branch_name",
+            branch_name,
+        );
+
+        let resp = controllers::branches::latest_synced_commit(req)
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let commit_resp: CommitResponse = serde_json::from_str(text)?;
+        assert_eq!(commit_resp.commit.id, created_branch.commit_id);
 
         // cleanup
         util::fs::remove_dir_all(sync_dir)?;

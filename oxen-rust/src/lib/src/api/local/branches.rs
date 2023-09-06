@@ -3,10 +3,13 @@
 //! Interact with branches on your local machine.
 //!
 
-use crate::api;
+use std::io::Read;
+
+use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::index::{CommitReader, CommitWriter, EntryIndexer, RefReader, RefWriter};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch};
+use crate::{api, util};
 
 /// List all the local branches within a repo
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
@@ -171,6 +174,129 @@ pub async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<()
     commit_writer.set_working_repo_to_commit(&commit).await
 }
 
+pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    // Branches must be locked by name, not by commit id
+
+    // Get the oxen hidden dir
+    let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    let locks_dir = oxen_dir.join(BRANCH_LOCKS_DIR);
+
+    // Create locks dir if not exists
+    if !locks_dir.exists() {
+        util::fs::create_dir_all(&locks_dir)?;
+    }
+
+    // Add a file with the branch name to the locks dir
+    let clean_name = branch_name_no_slashes(name);
+    let branch_lock_file = locks_dir.join(&clean_name);
+    log::debug!(
+        "Locking branch: {} to path {}",
+        name,
+        branch_lock_file.display()
+    );
+
+    // If the branch exists, get the current head commit and lock it as the current "latest commit"
+    // during the lifetime of the push operation.
+    let branch = api::local::branches::get_by_name(repo, name)?;
+
+    let maybe_latest_commit;
+    if let Some(branch) = branch {
+        maybe_latest_commit = branch.commit_id;
+    } else {
+        maybe_latest_commit = "branch being created".to_string();
+    }
+
+    util::fs::write_to_path(&branch_lock_file, &maybe_latest_commit)?;
+    Ok(())
+}
+
+pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
+    // Get the oxen hidden dir
+    let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    let locks_dir = oxen_dir.join(BRANCH_LOCKS_DIR);
+
+    // Create locks dir if not exists
+    if !locks_dir.exists() {
+        util::fs::create_dir_all(&locks_dir)?;
+    }
+
+    // Add a file with the branch name to the locks dir
+    let clean_name = branch_name_no_slashes(name);
+    let branch_lock_file = locks_dir.join(&clean_name);
+    log::debug!(
+        "Checking if branch is locked: {} at path {}",
+        name,
+        branch_lock_file.display()
+    );
+    // Branch is locked if file eixsts
+    Ok(branch_lock_file.exists())
+}
+
+pub fn read_lock_file(repo: &LocalRepository, name: &str) -> Result<String, OxenError> {
+    // Get the oxen hidden dir
+    let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    let locks_dir = oxen_dir.join(BRANCH_LOCKS_DIR);
+
+    // Add a file with the branch name to the locks dir
+    let clean_name = branch_name_no_slashes(name);
+    let branch_lock_file = locks_dir.join(&clean_name);
+    log::debug!(
+        "Reading lock file for branch: {} at path {}",
+        name,
+        branch_lock_file.display()
+    );
+
+    // Check if lock exists
+    if !branch_lock_file.exists() {
+        let err = format!("Err: Branch '{name}' is not locked.");
+        return Err(OxenError::basic_str(err));
+    }
+
+    let contents = std::fs::read_to_string(branch_lock_file)?;
+    Ok(contents)
+}
+
+pub fn latest_synced_commit(repo: &LocalRepository, name: &str) -> Result<Commit, OxenError> {
+    // If branch is locked, we want to get the commit from the lockfile
+    if is_locked(repo, name)? {
+        let commit_id = read_lock_file(repo, name)?;
+        let commit = api::local::commits::get_by_id(repo, &commit_id)?
+            .ok_or(OxenError::commit_id_does_not_exist(&commit_id))?;
+        return Ok(commit);
+    }
+    // If branch is not locked, we want to get the latest commit from the branch
+    let branch = api::local::branches::get_by_name(repo, name)?
+        .ok_or(OxenError::local_branch_not_found(name))?;
+    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?
+        .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
+    Ok(commit)
+}
+
+pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    // Get the oxen hidden dir
+    let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    let locks_dir = oxen_dir.join(BRANCH_LOCKS_DIR);
+
+    // Add a file with the branch name to the locks dir
+    let clean_name = branch_name_no_slashes(name);
+    let branch_lock_file = locks_dir.join(&clean_name);
+    log::debug!(
+        "Unlocking branch: {} at path {}",
+        name,
+        branch_lock_file.display()
+    );
+
+    // Check if lock exists
+    if !branch_lock_file.exists() {
+        log::debug!("Branch is not locked, nothing to do");
+        return Ok(());
+    }
+
+    util::fs::remove_file(&branch_lock_file)?;
+
+    Ok(())
+}
+
 async fn maybe_pull_missing_entries(
     repo: &LocalRepository,
     commit: &Commit,
@@ -255,4 +381,10 @@ pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(
     } else {
         Err(OxenError::must_be_on_valid_branch())
     }
+}
+
+fn branch_name_no_slashes(name: &str) -> String {
+    // Replace all slashes with dashes
+    let name = name.replace("/", "-");
+    name
 }

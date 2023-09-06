@@ -36,7 +36,7 @@ pub use crate::command::fetch::fetch;
 pub use crate::command::info::info;
 pub use crate::command::init::init;
 pub use crate::command::merge::merge;
-pub use crate::command::pull::{pull, pull_remote_branch, pull_shallow, pull_all};
+pub use crate::command::pull::{pull, pull_all, pull_remote_branch, pull_shallow};
 pub use crate::command::push::{push, push_remote_branch, push_remote_repo_branch_name};
 pub use crate::command::restore::restore;
 pub use crate::command::rm::rm;

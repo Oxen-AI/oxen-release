@@ -2,7 +2,9 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
-use crate::view::{BranchNewFromExisting, BranchResponse, ListBranchesResponse, StatusMessage};
+use crate::view::{
+    BranchLockResponse, BranchNewFromExisting, BranchResponse, ListBranchesResponse, StatusMessage,
+};
 use serde_json::json;
 
 pub async fn get_by_name(
@@ -175,6 +177,76 @@ pub async fn delete(
     } else {
         Err(OxenError::basic_str(
             "api::branches::delete() Request failed",
+        ))
+    }
+}
+
+pub async fn lock(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<StatusMessage, OxenError> {
+    let uri = format!("/branches/{branch_name}/lock");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Locking branch: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::basic_str(format!(
+                "could not lock branch \n\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("api::branches::lock() Request failed"))
+    }
+}
+
+pub async fn unlock(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<StatusMessage, OxenError> {
+    let uri = format!("/branches/{branch_name}/unlock");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Locking branch: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::basic_str(format!(
+                "could not lock branch \n\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("api::branches::lock() Request failed"))
+    }
+}
+
+pub async fn is_locked(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<bool, OxenError> {
+    let uri = format!("/branches/{branch_name}/lock");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Checking if branch is locked: {}", url);
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<BranchLockResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val.is_locked),
+            Err(_) => Err(OxenError::basic_str(format!(
+                "could not check if branch is locked \n\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::branches::is_locked() Request failed",
         ))
     }
 }
