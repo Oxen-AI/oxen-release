@@ -73,6 +73,12 @@ impl Schema {
         }
     }
 
+    /// Checks if the provided schema matches this schema given a hash, path, and name
+    pub fn matches_ref(&self, schema_ref: impl AsRef<str>) -> bool {
+        let schema_ref = schema_ref.as_ref();
+        self.hash == schema_ref || self.name.as_ref().unwrap_or(&"".to_string()) == schema_ref
+    }
+
     /// Sets dtype_override on fields that match the name and dtype of the provided fields
     pub fn set_field_dtype_overrides(&mut self, fields: Vec<Field>) {
         for field in fields {

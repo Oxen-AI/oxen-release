@@ -672,8 +672,10 @@ pub fn schema_list(staged: bool) -> Result<(), OxenError> {
         command::schemas::list(&repository, None)?
     };
 
-    if schemas.is_empty() {
-        eprintln!("{}", OxenError::no_schemas_found());
+    if schemas.is_empty() && staged {
+        eprintln!("{}", OxenError::no_schemas_staged());
+    } else if schemas.is_empty() {
+        eprintln!("{}", OxenError::no_schemas_committed());
     } else {
         let result = schema::Schema::schemas_to_string(schemas);
         println!("{result}");
@@ -687,7 +689,7 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let schemas = command::schemas::list(&repository, Some(commit_id))?;
     if schemas.is_empty() {
-        eprintln!("{}", OxenError::no_schemas_found());
+        eprintln!("{}", OxenError::no_schemas_committed());
     } else {
         let result = schema::Schema::schemas_to_string(schemas);
         println!("{result}");
