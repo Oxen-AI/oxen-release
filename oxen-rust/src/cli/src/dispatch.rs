@@ -701,7 +701,7 @@ pub fn schema_add(path: impl AsRef<Path>, schema_str: &str) -> Result<String, Ox
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    let schema = command::schemas::add(&repository, path, schema_str)?;
+    let schema = command::schemas::add_column_overrides(&repository, path, schema_str)?;
     Ok(schema.verbose_str())
 }
 
@@ -714,7 +714,7 @@ pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenEr
     Ok(())
 }
 
-pub fn schema_column_metadata(
+pub fn schema_add_column_metadata(
     schema_ref: impl AsRef<str>,
     column: impl AsRef<str>,
     metadata: impl AsRef<str>,
@@ -724,6 +724,21 @@ pub fn schema_column_metadata(
 
     for (path, schema) in
         command::schemas::add_column_metadata(&repository, schema_ref, column, metadata)?
+    {
+        println!("{:?}\n{}", path, schema.verbose_str());
+    }
+
+    Ok(())
+}
+
+pub fn schema_add_metadata(
+    schema_ref: impl AsRef<str>,
+    metadata: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    for (path, schema) in command::schemas::add_schema_metadata(&repository, schema_ref, metadata)?
     {
         println!("{:?}\n{}", path, schema.verbose_str());
     }

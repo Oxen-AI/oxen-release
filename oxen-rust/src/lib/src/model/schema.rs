@@ -260,7 +260,11 @@ impl Schema {
             }
             table.add_row(row);
         }
-        format!("{}", table)
+        if let Some(metadata) = &self.metadata {
+            format!("\n{}\n\n{}", metadata, table)
+        } else {
+            format!("{}", table)
+        }
     }
 }
 
