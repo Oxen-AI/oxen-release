@@ -647,24 +647,22 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 eprintln!("Unknown schema subcommand {cmd}")
             }
         }
-    } else {
-        if let Some(schema_ref) = sub_matches.get_one::<String>("SCHEMA_REF") {
-            match dispatch::schema_show(
-                schema_ref,
-                sub_matches.get_flag("staged"),
-                !sub_matches.get_flag("flatten"), // default to verbose
-            ) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
+    } else if let Some(schema_ref) = sub_matches.get_one::<String>("SCHEMA_REF") {
+        match dispatch::schema_show(
+            schema_ref,
+            sub_matches.get_flag("staged"),
+            !sub_matches.get_flag("flatten"), // default to verbose
+        ) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
             }
-        } else {
-            match dispatch::schema_list(sub_matches.get_flag("staged")) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
+        }
+    } else {
+        match dispatch::schema_list(sub_matches.get_flag("staged")) {
+            Ok(_) => {}
+            Err(err) => {
+                eprintln!("{err}")
             }
         }
     }

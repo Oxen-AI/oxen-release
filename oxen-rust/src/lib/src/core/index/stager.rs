@@ -4,6 +4,7 @@
 //! Adds files during `oxen add` and computes files for `oxen status`
 //!
 
+use crate::api;
 use crate::constants;
 use crate::core::db::path_db;
 use crate::core::db::{self, str_json_db};
@@ -1042,7 +1043,7 @@ impl Stager {
         new_schema: &schema::Schema,
     ) -> Result<schema::Schema, OxenError> {
         let path = path.as_ref();
-        let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        let maybe_schema = self.maybe_get_existing_schema(path)?;
         if let Some(mut schema) = maybe_schema {
             log::debug!(
                 "update_schema_field_dtype_overrides found schema for path {:?}\n{}",
@@ -1072,7 +1073,19 @@ impl Stager {
             path_db::put(&self.schemas_db, path, new_schema)?;
         }
         let schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        // We just inserted so unwrap is okay
         Ok(schema.unwrap())
+    }
+
+    fn maybe_get_existing_schema(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<schema::Schema>, OxenError> {
+        let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, &path)?;
+        if let Some(schema) = maybe_schema {
+            return Ok(Some(schema));
+        }
+        api::local::schemas::get_by_path(&self.repository, path)
     }
 
     /// Remove a staged schema

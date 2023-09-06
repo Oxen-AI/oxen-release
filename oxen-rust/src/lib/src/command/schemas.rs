@@ -6,13 +6,13 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::api;
 use crate::core::df::tabular;
 use crate::core::index::Stager;
 use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::{EntryDataType, LocalRepository, Schema};
 use crate::util;
+use crate::{api, command};
 
 /// List the saved off schemas for a commit id
 pub fn list(
@@ -131,12 +131,16 @@ pub fn add(
     let fields = Field::fields_from_string(fields_str.as_ref());
     schema.set_field_dtype_overrides(fields);
 
+    // Make sure the file is added
+    command::add(repo, path)?;
+
     // Add the schema to the staging area
     let stager = Stager::new(repo)?;
-    stager.update_schema_for_path(path, &schema)?;
+    let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
+    stager.update_schema_for_path(&relative_path, &schema)?;
 
     // Fetch schema from db
-    let schemas = stager.get_staged_schema(path.to_string_lossy())?;
+    let schemas = stager.get_staged_schema(relative_path.to_string_lossy())?;
     Ok(schemas.values().next().unwrap().clone())
 }
 
@@ -161,10 +165,38 @@ pub fn add_column_metadata(
     column: impl AsRef<str>,
     metadata: impl AsRef<str>,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
+    let schema_ref = schema_ref.as_ref();
+    let column = column.as_ref();
+    let head_commit = api::local::commits::head_commit(repo)?;
+    log::debug!("add_column_metadata head_commit: {}", head_commit);
+
+    let committed_schemas = api::local::schemas::list_from_ref(repo, head_commit.id, schema_ref)?;
+    log::debug!(
+        "add_column_metadata committed_schemas.len(): {:?}",
+        committed_schemas.len()
+    );
+    for (path, schema) in committed_schemas.iter() {
+        log::debug!("committed_schemas[{:?}] -> {:?}", path, schema);
+        if schema.matches_ref(schema_ref) || path == Path::new(schema_ref) {
+            if let Some(field) = schema.get_field(column) {
+                add(
+                    repo,
+                    &repo.path.join(path),
+                    format!("{}:{}", field.name, field.dtype),
+                )?;
+            }
+        }
+    }
     let stager = Stager::new(repo)?;
+    let staged_schemas = stager.get_staged_schema(schema_ref)?;
+
+    if committed_schemas.is_empty() && staged_schemas.is_empty() {
+        return Err(OxenError::schema_does_not_exist(schema_ref));
+    }
+
     let mut results = HashMap::new();
-    for (path, mut schema) in stager.get_staged_schema(schema_ref.as_ref())? {
-        schema.add_column_metadata(column.as_ref(), metadata.as_ref());
+    for (path, mut schema) in staged_schemas {
+        schema.add_column_metadata(column, metadata.as_ref());
         let schema = stager.update_schema_for_path(&path, &schema)?;
         results.insert(path, schema);
     }
@@ -174,12 +206,13 @@ pub fn add_column_metadata(
 // unit tests
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::error::OxenError;
     use crate::test;
+    use crate::util;
+    use crate::{api, command};
 
     #[tokio::test]
-    async fn test_schema_add_staged() -> Result<(), OxenError> {
+    async fn test_cmd_schemas_add_staged() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv
             let bbox_path = repo
@@ -192,7 +225,8 @@ mod tests {
             command::schemas::add(&repo, &bbox_path, "min_x:i32, min_y:i32")?;
 
             // Make sure it is staged
-            let schema_ref = bbox_path.to_string_lossy();
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
             assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
@@ -249,7 +283,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_schema_rm_staged() -> Result<(), OxenError> {
+    async fn test_cmd_schemas_schema_rm_staged() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv
             let bbox_path = repo
@@ -257,7 +291,8 @@ mod tests {
                 .join("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let schema_ref = bbox_path.to_string_lossy();
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
 
             // Add the schema
             command::schemas::add(&repo, &bbox_path, "min_x:i32, min_y:i32")?;
@@ -278,7 +313,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_add_custom_data_type() -> Result<(), OxenError> {
+    async fn test_cmd_schemas_add_custom_data_type() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv
             let bbox_path = repo
@@ -286,7 +321,8 @@ mod tests {
                 .join("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let schema_ref = bbox_path.to_string_lossy();
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
 
             // Add the schema
             command::schemas::add(&repo, &bbox_path, "file:path")?;
@@ -306,7 +342,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_add_column_metadata() -> Result<(), OxenError> {
+    async fn test_cmd_schemas_add_column_metadata() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv
             let bbox_path = repo
@@ -314,11 +350,13 @@ mod tests {
                 .join("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let schema_ref = bbox_path.to_string_lossy();
 
             // Add the schema
             let metadata = "{\"root\": \"images\"}";
             command::schemas::add(&repo, &bbox_path, "file:path")?;
+
+            let bbox_path = util::fs::path_relative_to_dir(bbox_path, &repo.path)?;
+            let schema_ref = bbox_path.to_string_lossy();
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", metadata)?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -330,6 +368,170 @@ mod tests {
             assert_eq!(schema.fields[0].dtype, "str");
             assert_eq!(schema.fields[0].dtype_override, Some("path".to_string()));
             assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_cmd_schemas_add_column_to_committed_schema() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Find the bbox csv
+            let bbox_path = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            // Add the schema
+            command::add(&repo, &bbox_path)?;
+            let commit = command::commit(&repo, "Adding bounding box file")?;
+
+            let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+            for (path, schema) in schemas.iter() {
+                println!("GOT SCHEMA {path:?} -> {schema:?}");
+            }
+
+            let path = util::fs::path_relative_to_dir(bbox_path, &repo.path)?;
+            let schema_ref = path.to_string_lossy();
+
+            // Add the schema
+            let metadata = "{\"root\": \"images\"}";
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", metadata)?;
+
+            let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[0].dtype_override, Some("str".to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+
+            // Commit the schema
+            let commit = command::commit(&repo, "Adding metadata to file column")?;
+
+            // List the committed schemas
+            let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[0].dtype_override, Some("str".to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_cmd_schemas_persist_schema_types_across_commits() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
+            // Find the bbox csv
+            let bbox_path = repo
+                .path
+                .join("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            // Add the schema
+            command::schemas::add(&repo, &bbox_path, "min_x:i32, min_y:i32")?;
+
+            // Make sure it is staged
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
+            let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[1].name, "label");
+            assert_eq!(schema.fields[1].dtype, "str");
+
+            assert_eq!(schema.fields[2].name, "min_x");
+            assert_eq!(schema.fields[2].dtype, "f64");
+            assert_eq!(schema.fields[2].dtype_override, Some("i32".to_string()));
+
+            assert_eq!(schema.fields[3].name, "min_y");
+            assert_eq!(schema.fields[3].dtype, "f64");
+            assert_eq!(schema.fields[3].dtype_override, Some("i32".to_string()));
+
+            assert_eq!(schema.fields[4].name, "width");
+            assert_eq!(schema.fields[4].dtype, "i64");
+            assert_eq!(schema.fields[5].name, "height");
+            assert_eq!(schema.fields[5].dtype, "i64");
+
+            // Commit the schema
+            command::commit(&repo, "Adding bounding box schema")?;
+
+            // Update the schema
+            let updated_schema = command::schemas::add(&repo, &bbox_path, "min_x:f32, height:f64")?;
+            let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert!(updated_schema == *schema);
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[1].name, "label");
+            assert_eq!(schema.fields[1].dtype, "str");
+
+            assert_eq!(schema.fields[2].name, "min_x");
+            assert_eq!(schema.fields[2].dtype, "f64");
+            assert_eq!(schema.fields[2].dtype_override, Some("f32".to_string()));
+
+            // this was added in the previous commit, so it should still be there
+            assert_eq!(schema.fields[3].name, "min_y");
+            assert_eq!(schema.fields[3].dtype, "f64");
+            assert_eq!(schema.fields[3].dtype_override, Some("i32".to_string()));
+
+            assert_eq!(schema.fields[4].name, "width");
+            assert_eq!(schema.fields[4].dtype, "i64");
+            assert_eq!(schema.fields[5].name, "height");
+            assert_eq!(schema.fields[5].dtype, "i64");
+            assert_eq!(schema.fields[5].dtype_override, Some("f64".to_string()));
+
+            // Commit the schema again
+            command::commit(&repo, "Updating the bounding box schema")?;
+
+            // Update the schema
+            let updated_schema = command::schemas::add(&repo, &bbox_path, "width:f64")?;
+            let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
+            assert_eq!(schemas.len(), 1);
+            assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
+            let schema = schemas.values().next().unwrap();
+            assert!(updated_schema == *schema);
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[1].name, "label");
+            assert_eq!(schema.fields[1].dtype, "str");
+
+            assert_eq!(schema.fields[2].name, "min_x");
+            assert_eq!(schema.fields[2].dtype, "f64");
+            assert_eq!(schema.fields[2].dtype_override, Some("f32".to_string()));
+
+            // this was added in the previous commit, so it should still be there
+            assert_eq!(schema.fields[3].name, "min_y");
+            assert_eq!(schema.fields[3].dtype, "f64");
+            assert_eq!(schema.fields[3].dtype_override, Some("i32".to_string()));
+
+            // this was added in the previous commit, so it should still be there
+            assert_eq!(schema.fields[4].name, "width");
+            assert_eq!(schema.fields[4].dtype, "i64");
+            assert_eq!(schema.fields[4].dtype_override, Some("f64".to_string()));
+
+            assert_eq!(schema.fields[5].name, "height");
+            assert_eq!(schema.fields[5].dtype, "i64");
+            assert_eq!(schema.fields[5].dtype_override, Some("f64".to_string()));
 
             Ok(())
         })

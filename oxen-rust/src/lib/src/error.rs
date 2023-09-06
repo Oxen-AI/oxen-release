@@ -182,9 +182,15 @@ impl OxenError {
         OxenError::basic_str("Repository is in a detached HEAD state, checkout a valid branch to continue.\n\n  oxen checkout <branch>\n")
     }
 
-    pub fn no_schemas_found() -> OxenError {
+    pub fn no_schemas_staged() -> OxenError {
         OxenError::basic_str(
-            "No schemas found\n\nAuto detect schema on file with:\n\n  oxen add path/to/file.csv\n\n\nOr manually add a schema override with:\n\n  oxen schemas add path/to/file.csv 'name:str, age:i32'\n",
+            "No schemas staged\n\nAuto detect schema on file with:\n\n  oxen add path/to/file.csv\n\nOr manually add a schema override with:\n\n  oxen schemas add path/to/file.csv 'name:str, age:i32'\n",
+        )
+    }
+
+    pub fn no_schemas_committed() -> OxenError {
+        OxenError::basic_str(
+            "No schemas committed\n\nAuto detect schema on file with:\n\n  oxen add path/to/file.csv\n\nOr manually add a schema override with:\n\n  oxen schemas add path/to/file.csv 'name:str, age:i32'\n\nThen commit the schema with:\n\n  oxen commit -m 'Adding schema for path/to/file.csv'\n",
         )
     }
 

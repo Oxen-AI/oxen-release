@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::api;
 
@@ -39,4 +39,14 @@ pub fn list_from_ref(
     } else {
         Err(OxenError::revision_not_found(revision.into()))
     }
+}
+
+pub fn get_by_path(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+) -> Result<Option<Schema>, OxenError> {
+    let path = path.as_ref();
+    let commit = api::local::commits::head_commit(repo)?;
+    let schema_reader = SchemaReader::new(repo, &commit.id)?;
+    schema_reader.get_schema_for_file(path)
 }
