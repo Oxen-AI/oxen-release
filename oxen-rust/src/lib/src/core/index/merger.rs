@@ -439,10 +439,6 @@ impl Merger {
     ) -> Result<Commit, OxenError> {
         // Traverse the base commit back to start, keeping map of Commit -> Depth(int)
         let commit_depths_from_head = commit_reader.history_with_depth_from_commit(base_commit)?;
-        log::debug!(
-            "lowest_common_ancestor_from_commits commit_depths_from_head {:?}",
-            commit_depths_from_head
-        );
 
         // Traverse the merge commit back
         //   check at each step if ID is in the HEAD commit history
@@ -450,10 +446,6 @@ impl Merger {
         let commit_depths_from_merge =
             commit_reader.history_with_depth_from_commit(merge_commit)?;
 
-        log::debug!(
-            "lowest_common_ancestor_from_commits commit_depths_from_merge {:?}",
-            commit_depths_from_merge
-        );
         let mut min_depth = usize::MAX;
         let mut lca: Commit = commit_depths_from_head.keys().next().unwrap().clone();
         for (commit, _) in commit_depths_from_merge.iter() {

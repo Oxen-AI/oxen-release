@@ -20,7 +20,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::PullOpts;
 use crate::util;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
+use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
 use crate::view::repository::RepositoryDataTypesView;
 use crate::{api, current_function};
 
@@ -42,8 +42,6 @@ impl EntryIndexer {
     }
 
     pub async fn pull(&self, rb: &RemoteBranch, mut opts: PullOpts) -> Result<(), OxenError> {
-        println!("When we pull, here's where it goes,");
-        println!("And here's where our pull_opts are {:?}", opts);
         println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
 
         let remote = self
@@ -100,17 +98,12 @@ impl EntryIndexer {
                 .await?
         };
 
-        log::debug!("End of pull_all");
-
         // TODO Do we add a flag for if this pull is a merge somehow...?
         // If the branches have diverged, we need to merge the commit into the base
         if let Some(ref head_commit) = head_commit {
-            log::debug!("Head commit is okay");
             if head_commit.id != commit.id {
-                log::debug!("Head commit doesn't match what we were expecting");
                 let merger = Merger::new(&self.repository)?;
                 if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
-                    log::debug!("Just did a merge commit");
                     commit = merge_commit;
                 }
             } else {
@@ -120,8 +113,6 @@ impl EntryIndexer {
 
         // Mark the new commit (merged or pulled) as synced
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
-
-        log::debug!("About to cleanup removed entries");
 
         // Cleanup files that shouldn't be there
         self.cleanup_removed_entries(&commit)?;
@@ -184,11 +175,11 @@ impl EntryIndexer {
             }
         }
 
-        // Download files to versions dir in parallel
+        // Download all files to versions dir
         self.pull_entries_for_commits(remote_repo, unsynced_entry_commits)
             .await?;
 
-        // Backup files to versions directory, them mark all commits as synced
+        // Mark commits as synced for future pulls
         for commit in commits {
             index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
         }
@@ -309,8 +300,11 @@ impl EntryIndexer {
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
 
         // Download full commits db
+        let spinner = spinner_with_msg("🐂 Downloading commits db from remote...".to_string());
+
         api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
 
+        spinner.finish_and_clear();
         // list all the remote commits on a branch, so we know how many we have to pull
         let remote_commits =
             api::remote::commits::list_commit_history(remote_repo, &remote_branch.commit_id)
@@ -318,22 +312,20 @@ impl EntryIndexer {
 
         let mut missing_commits = Vec::new();
         for remote_commit in remote_commits {
-            log::debug!("Checking remote commit {}", remote_commit.id);
             if !(api::local::commits::commit_history_db_exists(&self.repository, &remote_commit)?) {
-                log::debug!("Missing commit {}", remote_commit.id);
+                // log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);
             } else {
-                log::debug!("Already have commit {}", remote_commit.id);
+                // log::debug!("Already have commit {}", remote_commit.id);
             }
         }
 
         let total_missing = missing_commits.len();
-        log::debug!("Total missing commits: {}", total_missing);
         if total_missing == 0 {
             // Nothing to do
             return Ok(None);
         }
-        println!("🐂 fetching {} commit objects", total_missing);
+        println!("🐂 Syncing databases for {} commits...", total_missing);
 
         // Download the missing commit objects
         let progress_bar = oxen_progress_bar(total_missing as u64, ProgressBarType::Counter);
@@ -633,11 +625,20 @@ impl EntryIndexer {
         )
         .await?;
 
-        // TODONOW: maybe better error handling here re: post-commit complete
+        // Get full length of all entries arrays in unsynced_entries
+        let mut entries_to_unpack: usize = 0;
+        for commit_with_entries in &unsynced_entries {
+            entries_to_unpack += commit_with_entries.entries.len();
+        }
+
+        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
+
+        println!("🐂 Unpacking files...");
         for commit_with_entries in unsynced_entries {
             self.unpack_version_files_to_working_dir(
                 &commit_with_entries.commit,
                 &commit_with_entries.entries,
+                &bar,
             )?;
             self.pull_complete(&commit_with_entries.commit).unwrap();
         }
@@ -718,6 +719,7 @@ impl EntryIndexer {
         &self,
         commit: &Commit,
         entries: &[CommitEntry],
+        bar: &Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
         //TODOFIX: Is this the same logic as the previous `self.group` in commit
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
@@ -729,21 +731,12 @@ impl EntryIndexer {
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                     let version_path = util::fs::version_path(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
-                        Ok(_) => {
-                            log::debug!("pull_entries_for_commit unpacked {:?}", entry.path);
-                        }
+                        Ok(_) => {}
                         Err(err) => {
                             log::error!("pull_entries_for_commit unpack error: {}", err);
                         }
                     }
                 }
-
-                log::debug!(
-                    "{} updating timestamp for {:?}",
-                    current_function!(),
-                    filepath
-                );
-
                 match util::fs::metadata(&filepath) {
                     Ok(metadata) => {
                         let mtime = FileTime::from_last_modification_time(&metadata);
@@ -753,15 +746,13 @@ impl EntryIndexer {
                         log::error!("Could not update timestamp for {:?}: {}", filepath, err);
                     }
                 }
+                bar.inc(1);
             });
         });
-
-        log::debug!("Done unpacking commit id {}", commit.id);
 
         Ok(())
     }
 
-    // TODONOW: might be using this wrong...
     fn pull_complete(&self, commit: &Commit) -> Result<(), OxenError> {
         // This is so that we know when we switch commits that we don't need to pull versions again
         index::commit_sync_status::mark_commit_as_synced(&self.repository, commit)?;

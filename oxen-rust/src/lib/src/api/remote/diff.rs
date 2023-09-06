@@ -120,7 +120,6 @@ mod tests {
             // Create Remote
             let remote_repo = test::create_remote_repo(&repo).await?;
 
-            log::debug!("About to push...");
             // Push it real good
             command::push(&repo).await?;
 
@@ -140,7 +139,6 @@ mod tests {
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            log::debug!("About to push remote branch...");
             // Push new branch real good
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
