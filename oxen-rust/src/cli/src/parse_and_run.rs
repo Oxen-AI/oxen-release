@@ -621,14 +621,19 @@ pub fn schemas(sub_matches: &ArgMatches) {
                         }
                     }
 
-                    match dispatch::schema_column_metadata(path, column, metadata) {
+                    match dispatch::schema_add_column_metadata(path, column, metadata) {
                         Ok(_) => {}
                         Err(err) => {
                             eprintln!("{err}")
                         }
                     }
                 } else {
-                    panic!("TODO")
+                    match dispatch::schema_add_metadata(path, metadata) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            eprintln!("{err}")
+                        }
+                    }
                 }
             }
             ("rm", sub_matches) => {

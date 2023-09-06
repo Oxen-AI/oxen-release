@@ -1056,6 +1056,10 @@ impl Stager {
                 new_schema.verbose_str()
             );
 
+            if let Some(metadata) = &new_schema.metadata {
+                schema.metadata = Some(metadata.clone());
+            }
+
             schema.set_field_dtype_overrides_from_schema(new_schema);
             log::debug!("after update {:?}\n{}", path, schema.verbose_str());
             path_db::put(&self.schemas_db, path, &schema)?;
