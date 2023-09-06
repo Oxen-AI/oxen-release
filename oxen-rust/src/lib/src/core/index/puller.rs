@@ -24,7 +24,7 @@ pub async fn pull_entries(
     get_large_entry_paths: &LargeEntryPathFn,
     on_complete: &dyn Fn(),
 ) -> Result<(), OxenError> {
-    log::debug!("🐂 {} entries.len() {}", current_function!(), entries.len());
+    log::debug!("{} entries.len() {}", current_function!(), entries.len());
 
     if entries.is_empty() {
         return Ok(());
@@ -32,19 +32,13 @@ pub async fn pull_entries(
 
     let missing_entries = get_missing_commit_entries(entries, &dst);
 
-    log::debug!(
-        "Pull entries {} missing_entries.len() {}",
-        current_function!(),
-        missing_entries.len()
-    );
-
     if missing_entries.is_empty() {
         return Ok(());
     }
 
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
     println!(
-        "Downloading {} files ({})",
+        "🐂 Downloading {} files ({})",
         missing_entries.len(),
         bytesize::ByteSize::b(total_size)
     );
@@ -109,6 +103,110 @@ fn get_missing_commit_entries(entries: &[CommitEntry], dst: impl AsRef<Path>) ->
     }
 
     missing_entries
+}
+
+async fn pull_large_entries(
+    remote_repo: &RemoteRepository,
+    entries: Vec<CommitEntry>,
+    dst: impl AsRef<Path>,
+    download_paths: Vec<PathBuf>,
+    bar: &Arc<ProgressBar>,
+) -> Result<(), OxenError> {
+    if entries.is_empty() {
+        return Ok(());
+    }
+    // Pull the large entries in parallel
+    use tokio::time::{sleep, Duration};
+    type PieceOfWork = (
+        RemoteRepository,
+        CommitEntry,
+        PathBuf,
+        PathBuf,
+        Arc<ProgressBar>,
+    );
+    type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+    type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+
+    log::debug!("Chunking and sending {} larger files", entries.len());
+    let entries: Vec<PieceOfWork> = entries
+        .iter()
+        .zip(download_paths.iter())
+        .map(|(e, path)| {
+            (
+                remote_repo.to_owned(),
+                e.to_owned(),
+                dst.as_ref().to_owned(),
+                path.to_owned(),
+                bar.to_owned(),
+            )
+        })
+        .collect();
+
+    let queue = Arc::new(TaskQueue::new(entries.len()));
+    let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+    for entry in entries.iter() {
+        queue.try_push(entry.to_owned()).unwrap();
+        finished_queue.try_push(false).unwrap();
+    }
+
+    let worker_count: usize = if num_cpus::get() > entries.len() {
+        entries.len()
+    } else {
+        num_cpus::get()
+    };
+
+    log::debug!(
+        "worker_count {} entries len {}",
+        worker_count,
+        entries.len()
+    );
+    let tmp_dir = util::fs::oxen_hidden_dir(dst).join("tmp").join("pulled");
+    log::debug!("Backing up pulls to tmp dir: {:?}", &tmp_dir);
+    for worker in 0..worker_count {
+        let queue = queue.clone();
+        let finished_queue = finished_queue.clone();
+        tokio::spawn(async move {
+            loop {
+                let (remote_repo, entry, _dst, download_path, bar) = queue.pop().await;
+
+                log::debug!("worker[{}] processing task...", worker);
+
+                // Chunk and individual files
+                let remote_path = &entry.path;
+
+                // let download_path = path.join(&entry.path);
+
+                // Download to the tmp path, then copy over to the entries dir
+                match api::remote::entries::download_large_entry(
+                    &remote_repo,
+                    &remote_path,
+                    &download_path,
+                    &entry.commit_id,
+                    entry.num_bytes,
+                    bar,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        // log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
+                    }
+                    Err(err) => {
+                        log::error!("Could not download chunk... {}", err)
+                    }
+                }
+
+                finished_queue.pop().await;
+            }
+        });
+    }
+
+    while finished_queue.len() > 0 {
+        // log::debug!("Before waiting for {} workers to finish...", queue.len());
+        sleep(Duration::from_secs(1)).await;
+    }
+    log::debug!("All large file tasks done. :-)");
+
+    Ok(())
 }
 
 async fn pull_small_entries(
@@ -205,31 +303,6 @@ async fn pull_small_entries(
     Ok(())
 }
 
-// async fn pull_small_entries_to_working_dir(
-//     remote_repo: &RemoteRepository,
-//     entries: Vec<CommitEntry>,
-//     dst: impl AsRef<Path>,
-//     bar: &Arc<ProgressBar>,
-// ) -> Result<(), OxenError> {
-//     let content_ids = version_paths_from_entries(&entries, dst.as_ref());
-
-//     pull_small_entries(remote_repo, entries, dst, content_ids, bar).await?;
-
-//     Ok(())
-// }
-
-// async fn pull_small_entries_to_versions_dir(
-//     remote_repo: &RemoteRepository,
-//     entries: Vec<CommitEntry>,
-//     dst: impl AsRef<Path>,
-//     bar: &Arc<ProgressBar>,
-// ) -> Result<(), OxenError> {
-//     let content_ids = version_dir_paths_from_entries(&entries, dst.as_ref());
-
-//     pull_small_entries(remote_repo, entries, dst, content_ids, bar).await?;
-//     Ok(())
-// }
-
 /// Returns a mapping from content_id -> entry.path
 fn working_dir_paths_from_small_entries(
     entries: &[CommitEntry],
@@ -269,110 +342,6 @@ fn version_dir_paths_from_small_entries(
     content_ids
 }
 
-async fn pull_large_entries(
-    remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
-    dst: impl AsRef<Path>,
-    download_paths: Vec<PathBuf>,
-    bar: &Arc<ProgressBar>,
-) -> Result<(), OxenError> {
-    if entries.is_empty() {
-        return Ok(());
-    }
-    // Pull the large entries in parallel
-    use tokio::time::{sleep, Duration};
-    type PieceOfWork = (
-        RemoteRepository,
-        CommitEntry,
-        PathBuf,
-        PathBuf,
-        Arc<ProgressBar>,
-    );
-    type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
-    type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
-
-    log::debug!("Chunking and sending {} larger files", entries.len());
-    let entries: Vec<PieceOfWork> = entries
-        .iter()
-        .zip(download_paths.iter())
-        .map(|(e, path)| {
-            (
-                remote_repo.to_owned(),
-                e.to_owned(),
-                dst.as_ref().to_owned(),
-                path.to_owned(),
-                bar.to_owned(),
-            )
-        })
-        .collect();
-
-    let queue = Arc::new(TaskQueue::new(entries.len()));
-    let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
-    for entry in entries.iter() {
-        queue.try_push(entry.to_owned()).unwrap();
-        finished_queue.try_push(false).unwrap();
-    }
-
-    let worker_count: usize = if num_cpus::get() > entries.len() {
-        entries.len()
-    } else {
-        num_cpus::get()
-    };
-
-    log::debug!(
-        "worker_count {} entries len {}",
-        worker_count,
-        entries.len()
-    );
-    let tmp_dir = util::fs::oxen_hidden_dir(dst).join("tmp").join("pulled");
-    log::debug!("Backing up pulls to tmp dir: {:?}", &tmp_dir);
-    for worker in 0..worker_count {
-        let queue = queue.clone();
-        let finished_queue = finished_queue.clone();
-        tokio::spawn(async move {
-            loop {
-                let (remote_repo, entry, _dst, download_path, bar) = queue.pop().await;
-
-                log::debug!("worker[{}] processing task...", worker);
-
-                // Chunk and individual files
-                let remote_path = &entry.path;
-
-                // let download_path = path.join(&entry.path);
-
-                // Download to the tmp path, then copy over to the entries dir
-                match api::remote::entries::download_large_entry(
-                    &remote_repo,
-                    &remote_path,
-                    &download_path,
-                    &entry.commit_id,
-                    entry.num_bytes,
-                    bar,
-                )
-                .await
-                {
-                    Ok(_) => {
-                        log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
-                    }
-                    Err(err) => {
-                        log::error!("Could not download chunk... {}", err)
-                    }
-                }
-
-                finished_queue.pop().await;
-            }
-        });
-    }
-
-    while finished_queue.len() > 0 {
-        // log::debug!("Before waiting for {} workers to finish...", queue.len());
-        sleep(Duration::from_secs(1)).await;
-    }
-    log::debug!("All large file tasks done. :-)");
-
-    Ok(())
-}
-
 fn version_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
@@ -390,42 +359,6 @@ fn working_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> 
     }
     paths
 }
-
-// async fn pull_large_entries_to_working_dir(
-//     remote_repo: &RemoteRepository,
-//     entries: Vec<CommitEntry>,
-//     dst: impl AsRef<Path>,
-//     bar: &Arc<ProgressBar>,
-// ) -> Result<(), OxenError> {
-//     if entries.is_empty() {
-//         return Ok(());
-//     }
-//     // Pre-calculate paths
-//     let working_paths: Vec<PathBuf> = entries.iter().map(|e| dst.as_ref().join(&e.path)).collect();
-//     // Pull the entries
-//     pull_large_entries(remote_repo, entries, dst, working_paths, bar).await?;
-
-//     Ok(())
-// }
-
-// async fn pull_large_entries_to_versions_dir(
-//     remote_repo: &RemoteRepository,
-//     entries: Vec<CommitEntry>,
-//     dst: impl AsRef<Path>,
-//     bar: &Arc<ProgressBar>,
-// ) -> Result<(), OxenError> {
-//     if entries.is_empty() {
-//         return Ok(());
-//     }
-
-//     // Pre-calculate paths
-//     let version_paths: Vec<PathBuf> = entries.iter().map(|e| util::fs::version_path_from_dst(&dst, e)).collect();
-
-//     // Pull the entries
-//     pull_large_entries(remote_repo, entries, dst, version_paths, bar).await?;
-
-//     Ok(())
-// }
 
 pub async fn pull_entries_to_versions_dir(
     remote_repo: &RemoteRepository,

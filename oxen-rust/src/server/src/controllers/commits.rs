@@ -174,10 +174,9 @@ pub async fn latest_synced(
     let mut latest_synced: Option<Commit> = None;
     let mut commits_to_sync: Vec<Commit> = Vec::new();
 
-    // TODONOW broken
     // Iterate old to new over commits
     for commit in commits {
-        // log::debug!("latest_synced checking commit {:?}", commit.id);
+        // Include "None" and "Pending" in n_unsynced. Success, Failure, and Errors are "finished" processing
         match commit_cacher::get_status(&repository, &commit) {
             Ok(Some(CacherStatusType::Success)) => {
                 match content_validator::is_valid(&repository, &commit) {
@@ -191,15 +190,8 @@ pub async fn latest_synced(
                         // break;
                     }
                     Ok(false) => {
+                        // Invalid, but processed - don't include in n_unsynced
                         log::debug!("latest_synced commit is invalid: {:?}", commit.id);
-                        // return Ok(HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                        //     status: String::from(STATUS_ERROR),
-                        //     status_message: String::from(MSG_CONTENT_IS_INVALID),
-                        //     status_description: "Content is not valid".to_string(),
-                        //     is_processing: false,
-                        //     is_valid: false,
-                        // }));
-                        // Commit failed to process - for now, do nothing - TODO: report back to user in some way?
                     }
                     err => {
                         log::error!("latest_synced content_validator::is_valid error {err:?}");
@@ -902,10 +894,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     let commit_reader = CommitReader::new(&repo)?;
 
     for req_commit in commits {
-        log::debug!(
-            "Queuing up commit {:?} for post-commit processing processing",
-            req_commit.id
-        );
         let commit_id = req_commit.id;
         let commit = commit_reader
             .get_commit_by_id(&commit_id)?

@@ -10,6 +10,7 @@ use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::hasher::hash_buffer;
+use crate::util::progress_bar::{oxify_bar, ProgressBarType};
 use crate::view::commit::CommitSyncStatusResponse;
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -29,7 +30,7 @@ use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::ProgressBar;
+use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 pub struct ChunkParams {
@@ -76,9 +77,8 @@ pub async fn list_commit_history(
 
     println!("🐂 Getting commit history...");
 
-    // Init bar then set length once we know it
-    // let bar = ProgressBar::new_spinner();
-    // bar.set_style(ProgressStyle::default_spinner());
+    let bar = Arc::new(ProgressBar::new_spinner());
+    bar.set_style(ProgressStyle::default_spinner());
 
     loop {
         let page_opts = PaginateOpts {
@@ -87,13 +87,13 @@ pub async fn list_commit_history(
         };
         match list_commit_history_paginated(remote_repo, revision, &page_opts).await {
             Ok(paginated_commits) => {
-                // if page_num == DEFAULT_PAGE_NUM {
-                //     bar.set_length(paginated_commits.pagination.total_entries as u64);
-                //     bar.set_style(ProgressStyle::default_bar());
-                // }
-                // let n_commits = paginated_commits.commits.len();
+                if page_num == DEFAULT_PAGE_NUM {
+                    let bar = oxify_bar(bar.clone(), ProgressBarType::Counter);
+                    bar.set_length(paginated_commits.pagination.total_entries as u64);
+                }
+                let n_commits = paginated_commits.commits.len();
                 all_commits.extend(paginated_commits.commits);
-                // bar.inc(n_commits as u64);
+                bar.inc(n_commits as u64);
                 if page_num < paginated_commits.pagination.total_pages {
                     page_num += 1;
                 } else {
@@ -475,7 +475,6 @@ pub async fn post_commits_to_server(
             .join(HISTORY_DIR)
             .join(&commit_with_entries.commit.id);
         let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
-        log::debug!("Trying to open this file: {:?}", commit_history_dir);
         let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + entries_size;
 
         let commit_with_size = CommitWithBranchName::from_commit(

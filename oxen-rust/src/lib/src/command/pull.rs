@@ -12,7 +12,6 @@ use crate::opts::PullOpts;
 /// Defaults defined in
 /// `constants::DEFAULT_REMOTE_NAME` and `constants::DEFAULT_BRANCH_NAME`
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    println!("Pulling from the puller");
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch::default();
     indexer

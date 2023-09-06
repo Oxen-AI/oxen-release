@@ -194,14 +194,11 @@ impl CommitDBReader {
 
         match CommitDBReader::get_commit_by_id(db, head_commit_id) {
             Ok(Some(commit)) => {
-                log::debug!("Found commit {}, inserting", commit.id);
                 commits.insert(commit.to_owned());
 
                 let base_set: HashSet<_> = base_commit.parent_ids.iter().cloned().collect();
                 let head_set: HashSet<_> = commit.parent_ids.iter().cloned().collect();
                 if base_set == head_set {
-                    log::debug!("base_commit.parent_ids == commit.parent_ids");
-                    // commits.insert(base_commit.to_owned());
                     return Ok(());
                 }
 

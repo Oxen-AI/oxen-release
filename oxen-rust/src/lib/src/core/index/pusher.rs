@@ -105,7 +105,6 @@ pub async fn push_remote_repo(
     Ok(remote_repo)
 }
 
-// TODONOW better naming
 pub async fn try_push_remote_repo(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -198,14 +197,9 @@ async fn get_commit_objects_to_sync(
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
 
-        log::debug!(
-            "Here's the output of list_commits_between_commits...{:?}",
-            commits_to_sync
-        );
         let remote_history = api::remote::commits::list_commit_history(remote_repo, &branch.name)
             .await
             .unwrap_or_else(|_| vec![]);
-        // TODONOW clean up
         log::debug!(
             "get_commit_objects_to_sync calculated {} commits",
             commits_to_sync.len()
@@ -217,27 +211,14 @@ async fn get_commit_objects_to_sync(
                 .iter()
                 .any(|remote_commit| remote_commit.id == commit.id)
         });
-        log::debug!(
-            "Here's the output after filter step...{:?}",
-            commits_to_sync
-        );
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
         commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
-        log::debug!(
-            "Here's the output since the branch didn't exist...{:?}",
-            commits_to_sync
-        );
     }
 
     // Order from BASE to HEAD
     commits_to_sync.reverse();
-
-    log::debug!(
-        "Here's the output after reversing step...{:?}",
-        commits_to_sync
-    );
 
     Ok(commits_to_sync)
 }
@@ -339,15 +320,11 @@ async fn cannot_push_incomplete_history(
     log::debug!("Checking if we can push incomplete history.");
     match api::remote::commits::list_commit_history(remote_repo, &branch.name).await {
         Err(_) => {
-            log::debug!("Found no remote history...");
             return Ok(!api::local::commits::commit_history_is_complete(
                 local_repo, local_head,
             ));
         }
         Ok(remote_history) => {
-            log::debug!("Found a remote history");
-            log::debug!("full remote history...{:?}", remote_history);
-
             let remote_head = remote_history.first().unwrap();
             log::debug!(
                 "Checking between local head {:?} and remote head {:?} on branch {}",
@@ -374,16 +351,13 @@ async fn cannot_push_incomplete_history(
             log::debug!("Found the following commits_to_push: {:?}", commits_to_push);
             // Ensure all `commits_to_push` are synced
             for commit in commits_to_push {
-                log::debug!("Checking commit {}", commit.id);
                 if !index::commit_sync_status::commit_is_synced(local_repo, &commit) {
-                    log::debug!("Caught a missing commit in the sync history!");
                     return Ok(true);
                 }
             }
         }
     }
 
-    log::debug!("We're not in here pushing an incomplete history");
     Ok(false)
 }
 
@@ -602,20 +576,11 @@ async fn push_missing_commit_entries(
         println!("🐂 No entries to push");
     }
 
-    log::debug!(
-        "Calling bulk post_push_complete on this order..{:?}",
-        &commits
-    );
-
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     // let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
     api::remote::commits::bulk_post_push_complete(remote_repo, commits).await?;
     // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
-    //TODONOW remove logs
-    log::debug!(
-        "push_missing_commit_entries validating last commit id {}",
-        &commits.first().unwrap().id
-    );
+
     api::remote::commits::post_push_complete(remote_repo, branch, &commits.last().unwrap().id)
         .await?;
 
@@ -1018,14 +983,6 @@ async fn bundle_and_send_small_entries(
 
     Ok(())
 }
-
-// async fn listen_for_ctrl_c(lock_guard: Arc<Mutex<LockGuard>>) {
-//     tokio::signal::ctrl_c()
-//         .await
-//         .expect("Failed to listen for Ctrl+C");
-//     println!("Ctrl+C detected. Unlocking...");
-//     lock_guard.lock().await;
-// }
 
 #[cfg(test)]
 mod tests {
