@@ -368,7 +368,7 @@ pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit) -> bo
     // Ensure all commits and their parents are synced
     // Initialize commit reader
     for c in &history {
-        if index::commit_sync_status::commit_is_synced(repo, &c) == false {
+        if !index::commit_sync_status::commit_is_synced(repo, c) {
             return false;
         }
     }
@@ -416,9 +416,10 @@ mod tests {
                 let clone = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 // Get head commit of deep_clone repo
                 let head_commit = api::local::commits::head_commit(&clone)?;
-                assert!(
-                    api::local::commits::commit_history_is_complete(&clone, &head_commit) == false
-                );
+                assert!(!api::local::commits::commit_history_is_complete(
+                    &clone,
+                    &head_commit
+                ));
                 Ok(new_repo_dir)
             })
             .await?;
@@ -439,10 +440,10 @@ mod tests {
                     command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 // Get head commit of deep_clone repo
                 let head_commit = api::local::commits::head_commit(&shallow_clone)?;
-                assert!(
-                    api::local::commits::commit_history_is_complete(&shallow_clone, &head_commit)
-                        == false
-                );
+                assert!(!api::local::commits::commit_history_is_complete(
+                    &shallow_clone,
+                    &head_commit
+                ));
                 Ok(new_repo_dir)
             })
             .await?;
