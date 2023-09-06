@@ -460,12 +460,8 @@ async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         assert_eq!(history.len(), 25);
 
         // Latest commit synced should be == local head, with no unsynced commits
-        let sync_response = api::remote::commits::latest_commit_synced(
-            &remote_repo,
-            &local_head.id,
-            DEFAULT_BRANCH_NAME,
-        )
-        .await?;
+        let sync_response =
+            api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
         assert_eq!(sync_response.num_unsynced, 0);
 
         Ok(remote_repo)
@@ -520,12 +516,8 @@ async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
         assert_eq!(history_main.len(), 25);
 
         // 0 unsynced on main
-        let sync_response = api::remote::commits::latest_commit_synced(
-            &remote_repo,
-            &local_head.id,
-            DEFAULT_BRANCH_NAME,
-        )
-        .await?;
+        let sync_response =
+            api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
         assert_eq!(sync_response.num_unsynced, 0);
 
         Ok(remote_repo)

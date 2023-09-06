@@ -159,16 +159,12 @@ pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse,
     }))
 }
 
-pub async fn latest_synced(
-    req: HttpRequest,
-    branch_info: actix_web::web::Query<BranchName>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
+pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, &repo_name)?;
     let commit_id = path_param(&req, "commit_id")?;
-    let branch_name = &branch_info.branch_name;
 
     let commits = api::local::commits::list_from(&repository, &commit_id)?;
     let mut latest_synced: Option<Commit> = None;
@@ -248,10 +244,6 @@ pub async fn latest_synced(
             }
         };
     }
-
-    // If we reach no unsynced commits, unlock the branch (in case the user has killed their local push)
-    log::debug!("All commits synced, unlocking branch {}", branch_name);
-    api::local::branches::unlock(&repository, branch_name)?;
 
     Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
         status: StatusMessage::resource_found(),

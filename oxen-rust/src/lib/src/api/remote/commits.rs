@@ -173,9 +173,8 @@ pub async fn commit_is_synced(
 pub async fn latest_commit_synced(
     remote_repo: &RemoteRepository,
     commit_id: &str,
-    branch_name: &str,
 ) -> Result<CommitSyncStatusResponse, OxenError> {
-    let uri = format!("/commits/{commit_id}/latest_synced?branch_name={branch_name}");
+    let uri = format!("/commits/{commit_id}/latest_synced");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("latest_commit_synced checking URL: {}", url);
 
@@ -1109,8 +1108,7 @@ mod tests {
 
             // Should not be synced because we didn't actually post the files
             let latest_synced =
-                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id, &branch.name)
-                    .await?;
+                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
 
             assert!(latest_synced.latest_synced.is_none());
 
@@ -1127,8 +1125,7 @@ mod tests {
 
             // Should now be synced
             let latest_synced =
-                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id, &branch.name)
-                    .await?;
+                api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
 
             assert_eq!(latest_synced.num_unsynced, 0);
 

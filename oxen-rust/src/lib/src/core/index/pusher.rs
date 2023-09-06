@@ -90,15 +90,32 @@ pub async fn push_remote_repo(
     api::remote::branches::lock(&remote_repo, &branch.name).await?;
 
     let branch_name = branch.name.clone();
-    // Push the commits, listening for ctrl_c and allowing us to release the lock if it hits
-    match try_push_remote_repo(local_repo, &remote_repo, branch, &head_commit).await {
-        Ok(_) => {
+
+    // Push the commits. If at any point during this process, we have errors or the user ctrl+c's, we release the branch lock.
+    // TODO: Maybe we should only release the lock if we haven't yet started adding commits to the queue.
+    // IF we've added commits to the queue, should we cede control of lock removal to when the queue is finished processing?
+    tokio::select! {
+        result = try_push_remote_repo(local_repo, &remote_repo, branch, &head_commit) => {
+            match result {
+                Ok(_) => {
+                    // Unlock the branch
+                    api::remote::branches::unlock(&remote_repo, &branch_name).await?;
+                }
+                Err(_err) => {
+                    // Unlock the branch and handle error
+                    api::remote::branches::unlock(&remote_repo, &branch_name).await?;
+                    // handle the error
+                }
+            }
+        },
+        _ = tokio::signal::ctrl_c() => {
+            // Ctrl+C was pressed
+            println!("🐂 Received interrupt signal. Gracefully shutting down...");
             // Unlock the branch
             api::remote::branches::unlock(&remote_repo, &branch_name).await?;
-        }
-        Err(_err) => {
-            // Unlock the branch
-            api::remote::branches::unlock(&remote_repo, &branch_name).await?;
+            println!("🐂 Shutdown successful.");
+            // Exit the process
+            std::process::exit(0);
         }
     }
 
@@ -166,7 +183,7 @@ pub async fn try_push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(remote_repo, head_commit, &branch.name, &bar).await?;
+    poll_until_synced(remote_repo, head_commit, &bar).await?;
     bar.finish_and_clear();
 
     log::debug!("Just finished push.");
@@ -364,7 +381,6 @@ async fn cannot_push_incomplete_history(
 async fn poll_until_synced(
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    branch_name: &str,
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let commits_to_sync = bar.length().unwrap();
@@ -374,9 +390,7 @@ async fn poll_until_synced(
     let mut retries = 0;
 
     loop {
-        match api::remote::commits::latest_commit_synced(remote_repo, head_commit_id, branch_name)
-            .await
-        {
+        match api::remote::commits::latest_commit_synced(remote_repo, head_commit_id).await {
             Ok(sync_status) => {
                 retries = 0;
                 log::debug!("Got latest synced commit {:?}", sync_status.latest_synced);
