@@ -173,18 +173,10 @@ pub async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<()
 }
 
 pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    // Branches must be locked by name, not by commit id
-
-    // Get the oxen hidden dir
+    // Errors if lock exists - to avoid double-request ("is_locked" -> if false "lock")
     let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
     let locks_dir = oxen_dir.join(BRANCH_LOCKS_DIR);
 
-    // Create locks dir if not exists
-    if !locks_dir.exists() {
-        util::fs::create_dir_all(&locks_dir)?;
-    }
-
-    // Add a file with the branch name to the locks dir
     let clean_name = branch_name_no_slashes(name);
     let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
@@ -193,15 +185,24 @@ pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
         branch_lock_file.display()
     );
 
+    if branch_lock_file.exists() {
+        return Err(OxenError::remote_branch_locked());
+    }
+
     // If the branch exists, get the current head commit and lock it as the current "latest commit"
     // during the lifetime of the push operation.
-    let branch = api::local::branches::get_by_name(repo, name)?;
+    let maybe_branch = api::local::branches::get_by_name(repo, name)?;
 
     let maybe_latest_commit;
-    if let Some(branch) = branch {
+    if let Some(branch) = maybe_branch {
         maybe_latest_commit = branch.commit_id;
     } else {
         maybe_latest_commit = "branch being created".to_string();
+    }
+
+    // Create locks dir if needed
+    if !locks_dir.exists() {
+        util::fs::create_dir_all(&locks_dir)?;
     }
 
     util::fs::write_to_path(&branch_lock_file, maybe_latest_commit)?;

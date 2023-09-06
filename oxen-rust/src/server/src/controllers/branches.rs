@@ -138,13 +138,23 @@ pub async fn lock(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let branch_name = path_param(&req, "branch_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-    api::local::branches::lock(&repository, &branch_name)?;
+    match api::local::branches::lock(&repository, &branch_name) {
+        Ok(_) => Ok(HttpResponse::Ok().json(BranchLockResponse {
+            status: StatusMessage::resource_updated(),
+            branch_name: branch_name.clone(),
+            is_locked: true,
+        })),
+        Err(e) => {
+            // Log the error for debugging
+            log::error!("Failed to lock branch: {}", e);
 
-    Ok(HttpResponse::Ok().json(BranchLockResponse {
-        status: StatusMessage::resource_updated(),
-        branch_name,
-        is_locked: true,
-    }))
+            Ok(HttpResponse::Conflict().json(BranchLockResponse {
+                status: StatusMessage::error(e.to_string()),
+                branch_name: branch_name.clone(),
+                is_locked: false,
+            }))
+        }
+    }
 }
 
 pub async fn unlock(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
