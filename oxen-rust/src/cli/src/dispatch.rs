@@ -695,14 +695,12 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn schema_add(path: impl AsRef<Path>, schema_str: &str) -> Result<(), OxenError> {
+pub fn schema_add(path: impl AsRef<Path>, schema_str: &str) -> Result<String, OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let schema = command::schemas::add(&repository, path, schema_str)?;
-    println!("{}", schema.verbose_str());
-
-    Ok(())
+    Ok(schema.verbose_str())
 }
 
 pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenError> {
@@ -710,6 +708,23 @@ pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenEr
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     command::schemas::rm(&repository, schema_ref, staged)?;
+
+    Ok(())
+}
+
+pub fn schema_column_metadata(
+    schema_ref: impl AsRef<str>,
+    column: impl AsRef<str>,
+    metadata: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    for (path, schema) in
+        command::schemas::add_column_metadata(&repository, schema_ref, column, metadata)?
+    {
+        println!("{:?}\n{}", path, schema.verbose_str());
+    }
 
     Ok(())
 }

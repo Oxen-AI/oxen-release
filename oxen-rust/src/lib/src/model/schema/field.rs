@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::model::schema::DataType;
 
+use super::CustomDataType;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Field {
     pub name: String,
@@ -54,7 +56,9 @@ impl Field {
             }
             let name = field_parts[0];
             let dtype = field_parts[1];
-            if DataType::from_string(dtype) == DataType::Unknown {
+            if DataType::from_string(dtype) == DataType::Unknown
+                && CustomDataType::from_string(dtype) == CustomDataType::Unknown
+            {
                 panic!("Invalid dtype: {}", dtype);
             }
 
