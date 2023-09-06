@@ -87,10 +87,6 @@ pub async fn push_remote_repo(
 ) -> Result<RemoteRepository, OxenError> {
     // Lock the branch at the top, to avoid collisions from true simultaneous push
 
-    // TODO: to keep potential collisions to an absolute minimum here, consider making an
-    // acquire_lock endpoint that checks if locked, acquires if not, else errors out.
-    // Avoids the duplicate http
-
     // Returns a `remote_branch_locked` error if lock is already held
     api::remote::branches::lock(&remote_repo, &branch.name).await?;
 
