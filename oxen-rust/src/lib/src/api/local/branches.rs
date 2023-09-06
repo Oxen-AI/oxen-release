@@ -3,8 +3,6 @@
 //! Interact with branches on your local machine.
 //!
 
-use std::io::Read;
-
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::index::{CommitReader, CommitWriter, EntryIndexer, RefReader, RefWriter};
 use crate::error::OxenError;
@@ -188,7 +186,7 @@ pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 
     // Add a file with the branch name to the locks dir
     let clean_name = branch_name_no_slashes(name);
-    let branch_lock_file = locks_dir.join(&clean_name);
+    let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
         "Locking branch: {} to path {}",
         name,
@@ -206,7 +204,7 @@ pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
         maybe_latest_commit = "branch being created".to_string();
     }
 
-    util::fs::write_to_path(&branch_lock_file, &maybe_latest_commit)?;
+    util::fs::write_to_path(&branch_lock_file, maybe_latest_commit)?;
     Ok(())
 }
 
@@ -222,7 +220,7 @@ pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> 
 
     // Add a file with the branch name to the locks dir
     let clean_name = branch_name_no_slashes(name);
-    let branch_lock_file = locks_dir.join(&clean_name);
+    let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
         "Checking if branch is locked: {} at path {}",
         name,
@@ -239,7 +237,7 @@ pub fn read_lock_file(repo: &LocalRepository, name: &str) -> Result<String, Oxen
 
     // Add a file with the branch name to the locks dir
     let clean_name = branch_name_no_slashes(name);
-    let branch_lock_file = locks_dir.join(&clean_name);
+    let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
         "Reading lock file for branch: {} at path {}",
         name,
@@ -279,7 +277,7 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 
     // Add a file with the branch name to the locks dir
     let clean_name = branch_name_no_slashes(name);
-    let branch_lock_file = locks_dir.join(&clean_name);
+    let branch_lock_file = locks_dir.join(clean_name);
     log::debug!(
         "Unlocking branch: {} at path {}",
         name,
@@ -385,6 +383,6 @@ pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(
 
 fn branch_name_no_slashes(name: &str) -> String {
     // Replace all slashes with dashes
-    let name = name.replace("/", "-");
-    name
+
+    name.replace('/', "-")
 }

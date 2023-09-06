@@ -14,11 +14,11 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
-use std::fs::{self, File};
+use std::fs::{self};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 /// Returns the metadata given a file path
 pub async fn get_entry(

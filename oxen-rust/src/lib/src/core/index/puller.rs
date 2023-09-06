@@ -1,25 +1,27 @@
 //! Pulls commits and entries from the remote repository
 //!
 
-use std::fs::File;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use indicatif::ProgressBar;
 
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, LocalRepository, RemoteRepository};
+use crate::model::{CommitEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
+
+type SmallEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<(String, PathBuf)>;
+type LargeEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<PathBuf>;
 
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
     entries: &Vec<CommitEntry>,
     dst: impl AsRef<Path>,
-    get_small_entry_paths: &dyn Fn(&Vec<CommitEntry>, &Path) -> Vec<(String, PathBuf)>,
-    get_large_entry_paths: &dyn Fn(&Vec<CommitEntry>, &Path) -> Vec<PathBuf>,
+    get_small_entry_paths: &SmallEntryPathFn,
+    get_large_entry_paths: &LargeEntryPathFn,
     on_complete: &dyn Fn(),
 ) -> Result<(), OxenError> {
     log::debug!("🐂 {} entries.len() {}", current_function!(), entries.len());
@@ -67,8 +69,8 @@ pub async fn pull_entries(
     // Progress bar to be shared between small and large entries
     let bar = oxen_progress_bar(total_size, ProgressBarType::Bytes);
 
-    let small_entry_paths = get_small_entry_paths(&smaller_entries, &dst.as_ref());
-    let large_entry_paths = get_large_entry_paths(&larger_entries, &dst.as_ref());
+    let small_entry_paths = get_small_entry_paths(&smaller_entries, dst.as_ref());
+    let large_entry_paths = get_large_entry_paths(&larger_entries, dst.as_ref());
 
     let large_entries_sync =
         pull_large_entries(remote_repo, larger_entries, &dst, large_entry_paths, &bar);
@@ -230,14 +232,14 @@ async fn pull_small_entries(
 
 /// Returns a mapping from content_id -> entry.path
 fn working_dir_paths_from_small_entries(
-    entries: &Vec<CommitEntry>,
+    entries: &[CommitEntry],
     dst: &Path,
 ) -> Vec<(String, PathBuf)> {
     let mut content_ids: Vec<(String, PathBuf)> = vec![];
 
     for entry in entries.iter() {
-        let version_path = util::fs::version_path_from_dst(&dst, entry);
-        let version_path = util::fs::path_relative_to_dir(&version_path, &dst).unwrap();
+        let version_path = util::fs::version_path_from_dst(dst, entry);
+        let version_path = util::fs::path_relative_to_dir(&version_path, dst).unwrap();
 
         content_ids.push((
             String::from(version_path.to_str().unwrap()).replace('\\', "/"),
@@ -251,13 +253,13 @@ fn working_dir_paths_from_small_entries(
 // This one redundantly is just going to pass in two copies of
 // the version path so we don't have to change download_data_from_version_paths
 fn version_dir_paths_from_small_entries(
-    entries: &Vec<CommitEntry>,
+    entries: &[CommitEntry],
     dst: &Path,
 ) -> Vec<(String, PathBuf)> {
     let mut content_ids: Vec<(String, PathBuf)> = vec![];
     for entry in entries.iter() {
-        let version_path = util::fs::version_path_from_dst(&dst, entry);
-        let version_path = util::fs::path_relative_to_dir(&version_path, &dst).unwrap();
+        let version_path = util::fs::version_path_from_dst(dst, entry);
+        let version_path = util::fs::path_relative_to_dir(&version_path, dst).unwrap();
 
         content_ids.push((
             String::from(version_path.to_str().unwrap()).replace('\\', "/"),
@@ -329,7 +331,7 @@ async fn pull_large_entries(
         let finished_queue = finished_queue.clone();
         tokio::spawn(async move {
             loop {
-                let (remote_repo, entry, dst, download_path, bar) = queue.pop().await;
+                let (remote_repo, entry, _dst, download_path, bar) = queue.pop().await;
 
                 log::debug!("worker[{}] processing task...", worker);
 
@@ -371,16 +373,16 @@ async fn pull_large_entries(
     Ok(())
 }
 
-fn version_dir_paths_from_large_entries(entries: &Vec<CommitEntry>, dst: &Path) -> Vec<PathBuf> {
+fn version_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
-        let version_path = util::fs::version_path_from_dst(&dst, entry);
+        let version_path = util::fs::version_path_from_dst(dst, entry);
         paths.push(version_path);
     }
     paths
 }
 
-fn working_dir_paths_from_large_entries(entries: &Vec<CommitEntry>, dst: &Path) -> Vec<PathBuf> {
+fn working_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
         let working_path = dst.join(&entry.path);

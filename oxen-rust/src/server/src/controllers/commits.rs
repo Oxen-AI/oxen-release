@@ -259,7 +259,7 @@ pub async fn latest_synced(
 
     // If we reach no unsynced commits, unlock the branch (in case the user has killed their local push)
     log::debug!("All commits synced, unlocking branch {}", branch_name);
-    api::local::branches::unlock(&repository, &branch_name)?;
+    api::local::branches::unlock(&repository, branch_name)?;
 
     Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
         status: StatusMessage::resource_found(),

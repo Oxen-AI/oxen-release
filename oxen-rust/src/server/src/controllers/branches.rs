@@ -127,7 +127,7 @@ pub async fn latest_synced_commit(
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_found(),
-        commit: commit,
+        commit,
     }))
 }
 
@@ -168,7 +168,7 @@ pub async fn is_locked(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let branch_name = path_param(&req, "branch_name")?;
-    let repository = get_repo(&app_data.path, namespace, &name)?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
 
     let is_locked = api::local::branches::is_locked(&repository, &branch_name)?;
 
@@ -331,7 +331,7 @@ mod tests {
 
         // Get head commit through local API
         let created_branch = api::local::branches::get_by_name(&repo, branch_name)?
-            .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
+            .ok_or(OxenError::remote_branch_not_found(branch_name))?;
 
         let uri = format!("/oxen/{namespace}/{repo_name}/branches/");
         let req = test::repo_request_with_param(

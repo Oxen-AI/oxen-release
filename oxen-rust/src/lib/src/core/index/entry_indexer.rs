@@ -5,10 +5,10 @@ use filetime::FileTime;
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
-use std::collections::{HashMap, HashSet};
-use std::fs::File;
+use std::collections::HashSet;
+
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::index::pusher::UnsyncedCommitEntries;
@@ -109,7 +109,7 @@ impl EntryIndexer {
             if head_commit.id != commit.id {
                 log::debug!("Head commit doesn't match what we were expecting");
                 let merger = Merger::new(&self.repository)?;
-                if let Some(merge_commit) = merger.merge_commit_into_base(&commit, &head_commit)? {
+                if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
                     log::debug!("Just did a merge commit");
                     commit = merge_commit;
                 }
@@ -154,29 +154,24 @@ impl EntryIndexer {
         rb: &RemoteBranch,
         should_update_head: bool,
     ) -> Result<Commit, OxenError> {
-        let new_head: Commit;
-
-        match self.pull_all_commit_objects(remote_repo, rb).await {
+        let new_head = match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
-
-                new_head = commit;
+                commit
             }
-            Ok(None) => {
-                new_head = api::local::commits::head_commit(&self.repository)?;
-            }
+            Ok(None) => api::local::commits::head_commit(&self.repository)?,
             Err(err) => {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::error!("pull_all error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                new_head = api::local::commits::commit_with_no_files(
+                api::local::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
-                )?;
+                )?
             }
-        }
+        };
 
         // Get entries between here and new head, get entries for any missing
         let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
@@ -184,7 +179,7 @@ impl EntryIndexer {
 
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
         for c in &commits {
-            if !index::commit_sync_status::commit_is_synced(&self.repository, &c) {
+            if !index::commit_sync_status::commit_is_synced(&self.repository, c) {
                 unsynced_entry_commits.push(c.clone());
             }
         }
@@ -324,9 +319,7 @@ impl EntryIndexer {
         let mut missing_commits = Vec::new();
         for remote_commit in remote_commits {
             log::debug!("Checking remote commit {}", remote_commit.id);
-            if api::local::commits::commit_history_db_exists(&self.repository, &remote_commit)?
-                == false
-            {
+            if !(api::local::commits::commit_history_db_exists(&self.repository, &remote_commit)?) {
                 log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);
             } else {
@@ -603,10 +596,10 @@ impl EntryIndexer {
                     .get_commit_by_id(parent_id)?
                     .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
-                let entries = self.read_unsynced_entries(&local_parent, &commit)?;
+                let entries = self.read_unsynced_entries(&local_parent, commit)?;
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
-                    entries: entries,
+                    entries,
                 });
             }
         }
@@ -625,9 +618,9 @@ impl EntryIndexer {
             let key = format!(
                 "{}{}{}{}",
                 entry.commit_id,
-                entry.path.to_string_lossy().to_string(),
+                entry.path.to_string_lossy(),
                 entry.hash,
-                entry.num_bytes.to_string()
+                entry.num_bytes
             );
             seen_entries.insert(key)
         });
@@ -724,7 +717,7 @@ impl EntryIndexer {
     fn unpack_version_files_to_working_dir(
         &self,
         commit: &Commit,
-        entries: &Vec<CommitEntry>,
+        entries: &[CommitEntry],
     ) -> Result<(), OxenError> {
         //TODOFIX: Is this the same logic as the previous `self.group` in commit
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
@@ -735,7 +728,7 @@ impl EntryIndexer {
                 if versioner::should_copy_entry(entry, &filepath) {
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
                     let version_path = util::fs::version_path(&self.repository, entry);
-                    match util::fs::copy_mkdir(&version_path, &filepath) {
+                    match util::fs::copy_mkdir(version_path, &filepath) {
                         Ok(_) => {
                             log::debug!("pull_entries_for_commit unpacked {:?}", entry.path);
                         }

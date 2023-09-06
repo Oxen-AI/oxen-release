@@ -29,7 +29,7 @@ use bytesize::ByteSize;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 pub struct ChunkParams {

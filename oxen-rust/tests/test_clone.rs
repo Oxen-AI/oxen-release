@@ -119,7 +119,7 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
 
         // Create a new text file
         let filename = "file_to_modify.txt";
-        let filepath = local_repo.path.join(&filename);
+        let filepath = local_repo.path.join(filename);
         test::write_txt_file_to_path(&filepath, "Content before modification")?;
         command::add(&local_repo, &filepath)?;
         command::commit(&local_repo, "Adding file_to_modify.txt")?;
