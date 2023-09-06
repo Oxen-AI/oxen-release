@@ -61,33 +61,59 @@ pub async fn push(
     push_remote_repo(repo, remote_repo, branch).await
 }
 
+async fn validate_repo_is_pushable(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    branch: &Branch,
+    commit_reader: &CommitReader,
+    head_commit: &Commit,
+) -> Result<(), OxenError> {
+    // Make sure the remote branch is not ahead of the local branch
+    if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
+        return Err(OxenError::remote_ahead_of_local());
+    }
+
+    if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {
+        return Err(OxenError::incomplete_local_history());
+    }
+
+    Ok(())
+}
+
 pub async fn push_remote_repo(
     local_repo: &LocalRepository,
     remote_repo: RemoteRepository,
     branch: Branch,
 ) -> Result<RemoteRepository, OxenError> {
-    // Get head commit
+    // Lock the branch at the top, to avoid collisions from true simultaneous push
+
+    // TODO: to keep potential collisions to an absolute minimum here, consider making an
+    // acquire_lock endpoint that checks if locked, acquires if not, else errors out.
+    // Avoids the duplicate http
+
+    // Returns a `remote_branch_locked` error if lock is already held
+    api::remote::branches::lock(&remote_repo, &branch.name).await?;
 
     let commit_reader = CommitReader::new(local_repo)?;
     let head_commit = commit_reader
         .get_commit_by_id(&branch.commit_id)?
         .ok_or(OxenError::must_be_on_valid_branch())?;
 
-    // Make sure the remote branch is not ahead of the local branch
-    if remote_is_ahead_of_local(&remote_repo, &commit_reader, &branch).await? {
-        return Err(OxenError::remote_ahead_of_local());
+    match validate_repo_is_pushable(
+        local_repo,
+        &remote_repo,
+        &branch,
+        &commit_reader,
+        &head_commit,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(err) => {
+            api::remote::branches::unlock(&remote_repo, &branch.name).await?;
+            return Err(err);
+        }
     }
-
-    if cannot_push_incomplete_history(local_repo, &remote_repo, &head_commit, &branch).await? {
-        return Err(OxenError::incomplete_local_history());
-    }
-
-    if api::remote::branches::is_locked(&remote_repo, &branch.name).await? {
-        return Err(OxenError::remote_branch_locked());
-    }
-
-    // Lock up the branch
-    api::remote::branches::lock(&remote_repo, &branch.name).await?;
 
     let branch_name = branch.name.clone();
 

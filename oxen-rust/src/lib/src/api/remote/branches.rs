@@ -195,9 +195,7 @@ pub async fn lock(
         let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(val) => Ok(val),
-            Err(_) => Err(OxenError::basic_str(format!(
-                "could not lock branch \n\n{body}"
-            ))),
+            Err(_) => Err(OxenError::remote_branch_locked()),
         }
     } else {
         Err(OxenError::basic_str("api::branches::lock() Request failed"))
@@ -219,7 +217,7 @@ pub async fn unlock(
         match response {
             Ok(val) => Ok(val),
             Err(_) => Err(OxenError::basic_str(format!(
-                "could not lock branch \n\n{body}"
+                "could not unlock branch \n\n{body}"
             ))),
         }
     } else {
