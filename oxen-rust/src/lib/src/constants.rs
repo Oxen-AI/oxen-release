@@ -21,6 +21,8 @@ pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DIR: &str = "commits";
 /// name of the schema db
 pub const SCHEMAS_DIR: &str = "schemas";
+// name of dir for locking branches during push
+pub const BRANCH_LOCKS_DIR: &str = "locks";
 /// prefix for the commit rows
 pub const ROWS_DIR: &str = "rows";
 /// prefix for the commit entry files

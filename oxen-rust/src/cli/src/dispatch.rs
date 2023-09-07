@@ -319,14 +319,14 @@ pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn pull(remote: &str, branch: &str) -> Result<(), OxenError> {
+pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repository)?;
     check_remote_version(host).await?;
 
-    command::pull_remote_branch(&repository, remote, branch).await?;
+    command::pull_remote_branch(&repository, remote, branch, all).await?;
     Ok(())
 }
 

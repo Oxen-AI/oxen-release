@@ -836,7 +836,9 @@ pub async fn pull(sub_matches: &ArgMatches) {
     let branch = sub_matches
         .get_one::<String>("BRANCH")
         .expect("Must supply a branch");
-    match dispatch::pull(remote, branch).await {
+
+    let all = sub_matches.get_flag("all");
+    match dispatch::pull(remote, branch, all).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

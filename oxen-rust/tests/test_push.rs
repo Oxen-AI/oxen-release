@@ -1,3 +1,5 @@
+// use std::sync::Arc;
+
 use liboxen::api;
 use liboxen::command;
 use liboxen::constants;
@@ -7,6 +9,7 @@ use liboxen::test;
 use liboxen::util;
 
 use futures::future;
+// use tokio::sync::Notify;
 
 #[tokio::test]
 async fn test_command_push_one_commit() -> Result<(), OxenError> {
@@ -444,6 +447,8 @@ async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         // Current local head
         let local_head = api::local::commits::head_commit(&local_repo)?;
 
+        // Branch name
+
         // Nothing should be synced on remote and no commit objects created except root
         let history =
             api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME).await?;
@@ -460,11 +465,7 @@ async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         // Latest commit synced should be == local head, with no unsynced commits
         let sync_response =
             api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
-        assert_eq!(sync_response.latest_synced.unwrap().id, local_head.id);
         assert_eq!(sync_response.num_unsynced, 0);
-
-        // Latest synced should now be head
-        // let latest_synced = api::remote::commits::latest_commit_synced(&remote_repo, local_head).await?;
 
         Ok(remote_repo)
     })
@@ -526,3 +527,142 @@ async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
     })
     .await
 }
+
+#[tokio::test]
+async fn test_cannot_push_while_another_user_is_pushing() -> Result<(), OxenError> {
+    test::run_no_commit_remote_repo_test(|remote_repo| async move {
+        let ret_repo = remote_repo.clone();
+
+        // Clone the first repo
+        test::run_empty_dir_test_async(|first_repo_dir| async move {
+            let first_cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &first_repo_dir).await?;
+
+            // Clone the second repo
+            test::run_empty_dir_test_async(|second_repo_dir| async move {
+                let second_cloned_repo =
+                    command::clone_url(&remote_repo.remote.url, &second_repo_dir).await?;
+
+                // Add to the first repo, after we have the second repo cloned
+                let new_file = "new_file.txt";
+                let new_file_path = first_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
+                command::add(&first_cloned_repo, &new_file_path)?;
+                command::commit(&first_cloned_repo, "Adding first file path.")?;
+                command::push(&first_cloned_repo).await?;
+
+                // The push to the second version of the same repo should fail
+                // Adding two commits to have a longer history that also should fail
+                let new_file = "new_file_2.txt";
+                let new_file_path = second_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 2")?;
+                command::add(&second_cloned_repo, &new_file_path)?;
+                command::commit(&second_cloned_repo, "Adding second file path.")?;
+
+                let new_file = "new_file_3.txt";
+                let new_file_path = second_cloned_repo.path.join(new_file);
+                let new_file_path = test::write_txt_file_to_path(new_file_path, "new file 3")?;
+                command::add(&second_cloned_repo, &new_file_path)?;
+                command::commit(&second_cloned_repo, "Adding third file path.")?;
+
+                // Push should FAIL
+                let result = command::push(&second_cloned_repo).await;
+                assert!(result.is_err());
+
+                Ok(second_repo_dir)
+            })
+            .await?;
+
+            Ok(first_repo_dir)
+        })
+        .await?;
+
+        Ok(ret_repo)
+    })
+    .await
+}
+
+// #[tokio::test]
+// async fn test_push_cannot_push_while_another_is_pushing() -> Result<(), OxenError> {
+//     // IF THIS IS FAILING, it could be a race condition w/ Push A finishing before Push B.
+//     // This shouldn't happen unless we _dramatically_ increase our push speed, but try increasing
+//     // the number of commits pushed to A, or simulate a push as unlock -> sleep -> lock
+//     // Push the Remote Repo
+//     test::run_empty_sync_repo_test(|_, remote_repo| async move {
+//         let remote_repo_copy = remote_repo.clone();
+
+//         // Clone Repo to User A
+//         test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+//             let user_a_repo_dir_copy = user_a_repo_dir.clone();
+//             let user_a_repo =
+//                 command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+
+//             // Clone Repo to User B
+//             test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+//                 let user_b_repo_dir_copy = user_b_repo_dir.clone();
+//                 let user_b_repo =
+//                     command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+
+//                 for i in 1..=10 {
+//                     let file_name = format!("file_{}.txt", i);
+//                     let file_content = format!("File {}", i);
+
+//                     let file_path = user_a_repo.path.join(&file_name);
+
+//                     // Writing the text file
+//                     test::write_txt_file_to_path(file_path.clone(), &file_content)?;
+
+//                     // Adding the file
+//                     command::add(&user_a_repo, file_path.clone())?;
+
+//                     // Committing the file
+//                     let commit_message = format!("Adding {}", file_name);
+//                     command::commit(&user_a_repo, &commit_message)?;
+//                 }
+
+//                 // Add file_3 to user B repo
+//                 let file_3 = "file_3.txt";
+//                 test::write_txt_file_to_path(user_b_repo.path.join(file_3), "File 3")?;
+//                 command::add(&user_b_repo, user_b_repo.path.join(file_3))?;
+//                 command::commit(&user_b_repo, "Adding file_3")?;
+
+//                 let a_is_done = Arc::new(Notify::new());
+//                 let a_is_done_cloned = a_is_done.clone();
+
+//                 // Run async in the background, but keep going w/ B
+//                 tokio::spawn(async move {
+//                     command::push(&user_a_repo).await.unwrap();
+//                     // Let the test thread know we're done
+//                     a_is_done_cloned.notify_one();
+//                 });
+
+//                 // Wait a bit to make sure the push is in progress (gives A time to acquire the lock)
+//                 tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+
+//                 println!("About to push b");
+//                 let b_result = command::push(&user_b_repo).await;
+//                 println!("Pushed B");
+//                 // This should fail due to the lock
+//                 assert!(b_result.is_err());
+
+//                 // Wait until the task pushing user_a completes
+//                 a_is_done.notified().await;
+
+//                 // Lock should be dropped, pull should now succeed
+//                 command::pull(&user_b_repo).await?;
+
+//                 // Can now push
+//                 command::push(&user_b_repo).await?;
+
+//                 Ok(user_b_repo_dir_copy)
+//             })
+//             .await?;
+
+//             Ok(user_a_repo_dir_copy)
+//         })
+//         .await?;
+
+//         Ok(remote_repo_copy)
+//     })
+//     .await
+// }

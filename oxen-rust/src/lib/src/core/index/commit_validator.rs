@@ -38,9 +38,8 @@ fn compute_versions_hash(
         // check if data is synced (I guess this is already in the file path...should we just grab it from there instead?)
         // I think the extra hash computation on the server is nice so that you know the actual contents was saved to disk
         let version_path = util::fs::version_path(repository, entry);
-
         let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
-        // log::debug!("Entry [{}]: {:?}", i, entry.path);
+        // log::debug!("Versions hash Entry [{}]: {:?}", i, entry.path);
         if maybe_hash_file.exists() {
             let hash = util::fs::read_from_path(&maybe_hash_file)?;
             // log::debug!(

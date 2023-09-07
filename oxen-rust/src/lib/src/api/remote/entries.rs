@@ -14,7 +14,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::ProgressBar;
-use std::fs;
+use std::fs::{self};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -104,7 +104,7 @@ pub async fn download_dir(
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 
     // Pull all the entries
-    puller::pull_entries(remote_repo, &entries, local_path, &|| {
+    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
         log::debug!("Pull entries complete.")
     })
     .await?;
@@ -196,10 +196,17 @@ pub async fn download_large_entry(
     let hash = util::hasher::hash_str(&format!("{:?}_{:?}", remote_path, local_path));
 
     let home_dir = util::fs::oxen_home_dir()?;
+
     let tmp_dir = home_dir.join("tmp").join(&hash);
     if !tmp_dir.exists() {
         util::fs::create_dir_all(&tmp_dir)?;
     }
+
+    log::debug!(
+        "Trying to download file {:?} to dir {:?}",
+        remote_path,
+        tmp_dir
+    );
 
     // TODO: We could probably download chunks in parallel too
     for i in 0..num_chunks {
@@ -212,6 +219,8 @@ pub async fn download_large_entry(
         let filename = format!("chunk_{i}");
         let tmp_file = tmp_dir.join(filename);
 
+        // log::debug!("Downloading chunk {:?} -> {:?}", remote_path, tmp_file);
+
         try_download_entry_chunk(
             remote_repo,
             &remote_path,
@@ -221,6 +230,8 @@ pub async fn download_large_entry(
             chunk_size,
         )
         .await?;
+
+        // log::debug!("Downloaded chunk {:?} -> {:?}", remote_path, tmp_file);
 
         bar.inc(chunk_size);
     }
@@ -434,9 +445,13 @@ pub async fn try_download_data_from_version_paths(
         // Iterate over archive entries and unpack them to their entry paths
         let mut entries = archive.entries()?;
         while let Some(file) = entries.next().await {
-            // let version = &content_ids[idx];
+            let _version = &content_ids[idx];
             let entry_path = &content_ids[idx].1;
-            // log::debug!("Unpacking {:?} -> {:?}", version, entry_path);
+            // log::debug!(
+            //     "download_data_from_version_paths Unpacking {:?} -> {:?}",
+            //     version,
+            //     entry_path
+            // );
 
             let full_path = dst.join(entry_path);
 
