@@ -586,8 +586,7 @@ async fn push_missing_commit_entries(
     spinner.finish_and_clear();
 
     println!(
-        "🐂 Pushing {} files ({})",
-        unsynced_entries.len(),
+        "🐂 Pushing {}",
         bytesize::ByteSize::b(total_size)
     );
 
