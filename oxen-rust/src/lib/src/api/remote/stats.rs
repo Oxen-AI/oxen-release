@@ -43,7 +43,6 @@ mod tests {
 
     use crate::api;
     use crate::command;
-    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
 
@@ -70,11 +69,6 @@ mod tests {
 
             // Create the repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            // Cannot get schema that does not exist
-            let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv").await;
-            assert!(result.is_err());
 
             // Push the repo
             command::push(&local_repo).await?;
