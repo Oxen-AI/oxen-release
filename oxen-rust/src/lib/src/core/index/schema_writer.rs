@@ -41,7 +41,8 @@ impl SchemaWriter {
     }
 
     pub fn put_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
-        str_val_db::put(&self.files_db, path.to_str().unwrap(), &schema.hash)
+        str_val_db::put(&self.files_db, path.to_string_lossy(), &schema.hash)?;
+        str_json_db::put(&self.db, &schema.hash, schema)
     }
 
     pub fn has_schema(&self, schema: &Schema) -> bool {
@@ -60,6 +61,8 @@ impl SchemaWriter {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use crate::api;
     use crate::core::index::SchemaReader;
     use crate::core::index::SchemaWriter;
@@ -69,7 +72,7 @@ mod tests {
     use crate::test;
 
     #[test]
-    fn test_put_schema() -> Result<(), OxenError> {
+    fn test_put_schema_for_file() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let history = api::local::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
@@ -83,7 +86,7 @@ mod tests {
                     schema::Field::new("min_y", "int"),
                 ]);
 
-                schema_writer.put_schema(&schema)?;
+                schema_writer.put_schema_for_file(Path::new("test.csv"), &schema)?;
             }
 
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
