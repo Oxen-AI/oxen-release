@@ -458,7 +458,30 @@ pub fn schemas() -> Command {
             Command::new("add")
                 .about("Apply a schema on read to a data frame")
                 .arg(Arg::new("PATH").help("The path of the data frame file."))
-                .arg(Arg::new("SCHEMA").help("Schema column:dtype pairs in the form of a comma separated list. Ie 'col1:str,col2:int'")),
+                .arg(
+                    Arg::new("column")
+                        .long("column")
+                        .short('c')
+                        .help("The column that you want to override the data type or metadata for.")
+                )
+                .arg(
+                    Arg::new("type")
+                        .long("type")
+                        .short('t')
+                        .help("Set the data type override for the column. Must pass in the -c flag.")
+                )
+                .arg(
+                    Arg::new("schema")
+                        .long("schema")
+                        .short('s')
+                        .help("Schema column:dtype pairs in the form of a comma separated list. Ie 'col1:str,col2:int'")
+                )
+                .arg(
+                    Arg::new("metadata")
+                        .long("metadata")
+                        .short('m')
+                        .help("Set the metadata for a specific column. Must pass in the -c flag.")
+                ),
         )
         .subcommand(
             Command::new("rm")
@@ -476,18 +499,7 @@ pub fn schemas() -> Command {
                 .about("Add additional metadata to a schema.")
                 .arg(Arg::new("PATH").help("The path of the data frame file."))
                 .arg(Arg::new("METADATA").help("Any additional metadata you want to add to the schema."))
-                .arg(
-                    Arg::new("column")
-                        .long("column")
-                        .short('c')
-                        .help("Add metadata to a specific column")
-                )
-                .arg(
-                    Arg::new("type")
-                        .long("type")
-                        .short('t')
-                        .help("Set the data type override along with metadata")
-                ),
+
         )
         .subcommand(df())
 }

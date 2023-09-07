@@ -574,65 +574,71 @@ pub fn schemas(sub_matches: &ArgMatches) {
                 }
             }
             ("add", sub_matches) => {
+                // Path
                 let path = sub_matches.get_one::<String>("PATH");
-                let schema_str = sub_matches.get_one::<String>("SCHEMA");
 
-                let err_msg = "Must supply a file path and a schema string\n\n  oxen schemas add file.csv 'col1:str'\n";
-                if path.is_none() || schema_str.is_none() {
+                // Flags
+                let column = sub_matches.get_one::<String>("column");
+                let data_type = sub_matches.get_one::<String>("type");
+                let schema_str = sub_matches.get_one::<String>("schema");
+                let metadata = sub_matches.get_one::<String>("metadata");
+
+                let err_msg = "Must supply a file path, column name and either -m for metadata or -t for data type\n\n  oxen schemas add file.csv -c 'col1' -t 'str'\n";
+
+                if path.is_none() {
                     eprintln!("{err_msg}");
                     return;
                 }
+
                 let path = path.unwrap();
-                let schema_str = schema_str.unwrap();
 
-                match dispatch::schema_add(path, schema_str) {
-                    Ok(result) => {
-                        println!("{result}")
-                    }
-                    Err(err) => match err {
-                        OxenError::PathDoesNotExist(path) => {
-                            eprintln!("File does not exist: {path:?}");
-                        }
-                        _ => {
-                            eprintln!("Err: {err}")
-                        }
-                    },
-                }
-            }
-            ("metadata", sub_matches) => {
-                let path = sub_matches.get_one::<String>("PATH");
-                let metadata = sub_matches.get_one::<String>("METADATA");
-
-                let err_msg = "Must supply a file path and metadata\n\n  oxen schemas metadata file.csv -c 'col1' -t 'path' '{\"root\": \"images/\"}'\n";
-                if path.is_none() || metadata.is_none() {
-                    eprintln!("{err_msg}");
-                    return;
-                }
-                let path = path.unwrap();
-                let metadata = metadata.unwrap();
-
-                if let Some(column) = sub_matches.get_one::<String>("column") {
-                    if let Some(data_type) = sub_matches.get_one::<String>("type") {
+                // If a column is supplied, then we need to supply a data type or metadata for that column
+                if let Some(column) = column {
+                    if let Some(data_type) = data_type {
                         match dispatch::schema_add(path, &format!("{column}:{data_type}")) {
-                            Ok(_) => {}
+                            Ok(result) => {
+                                println!("{result}")
+                            }
                             Err(err) => {
                                 eprintln!("{err}")
                             }
                         }
                     }
 
-                    match dispatch::schema_add_column_metadata(path, column, metadata) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            eprintln!("{err}")
+                    if let Some(metadata) = metadata {
+                        match dispatch::schema_add_column_metadata(path, column, metadata) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{err}")
+                            }
                         }
                     }
                 } else {
-                    match dispatch::schema_add_metadata(path, metadata) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            eprintln!("{err}")
+                    // No column, check if we are just adding metadata to the schema
+                    if let Some(metadata) = metadata {
+                        match dispatch::schema_add_metadata(path, metadata) {
+                            Ok(_) => {}
+                            Err(err) => {
+                                eprintln!("{err}")
+                            }
                         }
+                    }
+                }
+
+                // For user convience to add many columns at once
+                if let Some(schema_str) = schema_str {
+                    match dispatch::schema_add(path, schema_str) {
+                        Ok(result) => {
+                            println!("{result}")
+                        }
+                        Err(err) => match err {
+                            OxenError::PathDoesNotExist(path) => {
+                                eprintln!("File does not exist: {path:?}");
+                            }
+                            _ => {
+                                eprintln!("Err: {err}")
+                            }
+                        },
                     }
                 }
             }
