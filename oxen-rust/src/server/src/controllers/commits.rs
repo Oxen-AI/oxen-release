@@ -170,9 +170,9 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let mut latest_synced: Option<Commit> = None;
     let mut commits_to_sync: Vec<Commit> = Vec::new();
 
-    // Iterate first to last over commits
+    // Iterate old to new over commits
     for commit in commits {
-        // log::debug!("latest_synced checking commit {:?}", commit.id);
+        // Include "None" and "Pending" in n_unsynced. Success, Failure, and Errors are "finished" processing
         match commit_cacher::get_status(&repository, &commit) {
             Ok(Some(CacherStatusType::Success)) => {
                 match content_validator::is_valid(&repository, &commit) {
@@ -183,17 +183,11 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                         // we can make this more robust (but slower) by checking the full commit history
                         // log::debug!("latest_synced commit is valid: {:?}", commit.id);
                         latest_synced = Some(commit);
-                        break;
+                        // break;
                     }
                     Ok(false) => {
+                        // Invalid, but processed - don't include in n_unsynced
                         log::debug!("latest_synced commit is invalid: {:?}", commit.id);
-                        return Ok(HttpResponse::Ok().json(IsValidStatusMessage {
-                            status: String::from(STATUS_ERROR),
-                            status_message: String::from(MSG_CONTENT_IS_INVALID),
-                            status_description: "Content is not valid".to_string(),
-                            is_processing: false,
-                            is_valid: false,
-                        }));
                     }
                     err => {
                         log::error!("latest_synced content_validator::is_valid error {err:?}");

@@ -29,6 +29,7 @@ impl PartialEq for CommitEntry {
         self.path == other.path
     }
 }
+
 impl Eq for CommitEntry {}
 impl Hash for CommitEntry {
     fn hash<H: Hasher>(&self, state: &mut H) {

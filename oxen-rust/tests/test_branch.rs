@@ -1,7 +1,10 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::config::UserConfig;
 use liboxen::constants;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
+use liboxen::model::NewCommitBody;
 use liboxen::test;
 
 #[test]
@@ -213,6 +216,122 @@ async fn test_force_delete_branch_that_is_ahead_of_current() -> Result<(), OxenE
         // Should be one less branch
         let leftover_branches = api::local::branches::list(&repo)?;
         assert_eq!(og_branches.len(), leftover_branches.len());
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_branch_latest_synced_commit_no_lock() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+        // Set remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+        let remote_main = api::remote::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
+            .await?
+            .unwrap();
+
+        // Save commit
+        let main_head_before = remote_main.commit_id.clone();
+        // Check latest synced
+        let latest_synced =
+            api::remote::branches::latest_synced_commit(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(latest_synced.id, main_head_before);
+
+        // Now push a new commit
+        let labels_path = repo.path.join("labels.txt");
+        test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
+        command::add(&repo, labels_path)?;
+        command::commit(&repo, "adding labels file")?;
+        command::push(&repo).await?;
+
+        // Get main again, latest should have moved
+        let remote_main = api::remote::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
+            .await?
+            .unwrap();
+        let main_head_after = remote_main.commit_id.clone();
+        let latest_synced =
+            api::remote::branches::latest_synced_commit(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(latest_synced.id, main_head_after);
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_branch_latest_synced_commit_with_lock() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|mut repo| async move {
+        // Set remote
+        let remote = test::repo_remote_url_from(&repo.dirname());
+        command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+        // Create Remote
+        let remote_repo = test::create_remote_repo(&repo).await?;
+
+        // Push it
+        command::push(&repo).await?;
+        let remote_main = api::remote::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
+            .await?
+            .unwrap();
+
+        // Save commit
+        let main_head_before = remote_main.commit_id.clone();
+        // Check latest synced
+        let latest_synced =
+            api::remote::branches::latest_synced_commit(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(latest_synced.id, main_head_before);
+
+        // Lock up the branch
+        api::remote::branches::lock(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+
+        let identifier = UserConfig::identifier()?;
+
+        // Use remote staging to commit without releasing lock (push releases lock)
+        let labels_path = repo.path.join("labels.txt");
+        test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
+        api::remote::staging::add_files(
+            &remote_repo,
+            DEFAULT_BRANCH_NAME,
+            &identifier,
+            "./",
+            vec![labels_path],
+        )
+        .await?;
+        api::remote::staging::commit(
+            &remote_repo,
+            DEFAULT_BRANCH_NAME,
+            &identifier,
+            &NewCommitBody {
+                message: "adding labels file".to_string(),
+                author: "me".to_string(),
+                email: "me&aol.gov".to_string(),
+            },
+        )
+        .await?;
+
+        // Get main again, latest should still be behind
+        let remote_main = api::remote::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
+            .await?
+            .unwrap();
+        let main_head_after = remote_main.commit_id.clone();
+        let latest_synced =
+            api::remote::branches::latest_synced_commit(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert!(latest_synced.id != main_head_after);
+        assert_eq!(latest_synced.id, main_head_before);
+
+        // Release the lock (as if push is complete)
+        api::remote::branches::unlock(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        let latest_synced_updated =
+            api::remote::branches::latest_synced_commit(&remote_repo, DEFAULT_BRANCH_NAME).await?;
+        assert_eq!(latest_synced_updated.id, main_head_after);
 
         Ok(())
     })

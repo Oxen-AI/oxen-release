@@ -2,7 +2,10 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
-use crate::view::{BranchNewFromExisting, BranchResponse, ListBranchesResponse, StatusMessage};
+use crate::view::{
+    BranchLockResponse, BranchNewFromExisting, BranchResponse, CommitResponse,
+    ListBranchesResponse, StatusMessage,
+};
 use serde_json::json;
 
 pub async fn get_by_name(
@@ -179,6 +182,98 @@ pub async fn delete(
     }
 }
 
+pub async fn lock(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<StatusMessage, OxenError> {
+    let uri = format!("/branches/{branch_name}/lock");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Locking branch: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::remote_branch_locked()),
+        }
+    } else {
+        Err(OxenError::basic_str("api::branches::lock() Request failed"))
+    }
+}
+
+pub async fn unlock(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<StatusMessage, OxenError> {
+    let uri = format!("/branches/{branch_name}/unlock");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Locking branch: {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val),
+            Err(_) => Err(OxenError::basic_str(format!(
+                "could not unlock branch \n\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("api::branches::lock() Request failed"))
+    }
+}
+
+pub async fn is_locked(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<bool, OxenError> {
+    let uri = format!("/branches/{branch_name}/lock");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Checking if branch is locked: {}", url);
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<BranchLockResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val.is_locked),
+            Err(_) => Err(OxenError::basic_str(format!(
+                "could not check if branch is locked \n\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::branches::is_locked() Request failed",
+        ))
+    }
+}
+
+pub async fn latest_synced_commit(
+    repository: &RemoteRepository,
+    branch_name: &str,
+) -> Result<Commit, OxenError> {
+    let uri = format!("/branches/{branch_name}/latest_synced_commit");
+    let url = api::endpoint::url_from_repo(repository, &uri)?;
+    log::debug!("Retrieving latest synced commit for branch...");
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(res) => Ok(res.commit),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "get_commit_by_id() Could not deserialize response [{err}]\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(
+            "api::branches::is_locked() Request failed",
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -281,6 +376,28 @@ mod tests {
                 api::remote::branches::get_by_name(&remote_repo, branch_name).await?;
             assert!(deleted_branch.is_none());
 
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_latest_synced_commit_no_lock() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+            let branch_name = "my-branch";
+            api::remote::branches::create_from_or_get(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+
+            let branch = api::remote::branches::get_by_name(&remote_repo, branch_name)
+                .await?
+                .unwrap();
+            let commit =
+                api::remote::branches::latest_synced_commit(&remote_repo, branch_name).await?;
+            assert_eq!(commit.id, branch.commit_id);
             Ok(remote_repo)
         })
         .await

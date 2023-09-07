@@ -252,7 +252,8 @@ mod tests {
                 assert!(!path.exists());
 
                 // Pull the branch with new data
-                command::pull_remote_branch(&cloned_repo, DEFAULT_REMOTE_NAME, "add-data").await?;
+                command::pull_remote_branch(&cloned_repo, DEFAULT_REMOTE_NAME, "add-data", true)
+                    .await?;
 
                 // We should have the commit locally
                 let local_commit = api::local::commits::head_commit(&cloned_repo)?;

@@ -48,7 +48,8 @@ pub use crate::view::commit::{
 };
 
 pub use crate::view::branch::{
-    BranchNew, BranchNewFromExisting, BranchResponse, BranchUpdate, ListBranchesResponse,
+    BranchLockResponse, BranchNew, BranchNewFromExisting, BranchResponse, BranchUpdate,
+    ListBranchesResponse,
 };
 
 pub use crate::view::entry_metadata::MetadataEntryResponse;

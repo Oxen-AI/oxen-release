@@ -10,6 +10,7 @@ use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::hasher::hash_buffer;
+use crate::util::progress_bar::{oxify_bar, ProgressBarType};
 use crate::view::commit::CommitSyncStatusResponse;
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -76,8 +77,7 @@ pub async fn list_commit_history(
 
     println!("🐂 Getting commit history...");
 
-    // Init bar then set length once we know it
-    let bar = ProgressBar::new_spinner();
+    let bar = Arc::new(ProgressBar::new_spinner());
     bar.set_style(ProgressStyle::default_spinner());
 
     loop {
@@ -88,8 +88,8 @@ pub async fn list_commit_history(
         match list_commit_history_paginated(remote_repo, revision, &page_opts).await {
             Ok(paginated_commits) => {
                 if page_num == DEFAULT_PAGE_NUM {
+                    let bar = oxify_bar(bar.clone(), ProgressBarType::Counter);
                     bar.set_length(paginated_commits.pagination.total_entries as u64);
-                    bar.set_style(ProgressStyle::default_bar());
                 }
                 let n_commits = paginated_commits.commits.len();
                 all_commits.extend(paginated_commits.commits);
@@ -105,7 +105,7 @@ pub async fn list_commit_history(
             }
         }
     }
-    bar.finish();
+    // bar.finish();
 
     Ok(all_commits)
 }
@@ -1134,7 +1134,6 @@ mod tests {
             let latest_synced =
                 api::remote::commits::latest_commit_synced(&remote_repo, &commit.id).await?;
 
-            assert_eq!(latest_synced.latest_synced.unwrap(), commit);
             assert_eq!(latest_synced.num_unsynced, 0);
 
             Ok(remote_repo)
