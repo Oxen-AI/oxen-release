@@ -585,10 +585,7 @@ async fn push_missing_commit_entries(
 
     spinner.finish_and_clear();
 
-    println!(
-        "🐂 Pushing {}",
-        bytesize::ByteSize::b(total_size)
-    );
+    println!("🐂 Pushing {}", bytesize::ByteSize::b(total_size));
 
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
