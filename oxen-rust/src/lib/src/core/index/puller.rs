@@ -38,8 +38,7 @@ pub async fn pull_entries(
 
     let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
     println!(
-        "🐂 Downloading {} files ({})",
-        missing_entries.len(),
+        "🐂 Downloading {}",
         bytesize::ByteSize::b(total_size)
     );
 

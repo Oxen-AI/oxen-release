@@ -57,7 +57,7 @@ impl EntryIndexer {
             };
 
         // > 0 is a hack because only hub returns size right now, so just don't print for pure open source
-        if remote_data_view.size > 0 {
+        if remote_data_view.size > 0 && remote_data_view.total_files() > 0 {
             println!(
                 "{} ({}) contains {} files",
                 remote_data_view.name,
