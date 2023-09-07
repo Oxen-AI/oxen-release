@@ -241,8 +241,13 @@ impl LocalRepository {
             .await?;
 
         if opts.all {
-            println!("🐂 fetching additional remote branches");
             let remote_branches = api::remote::branches::list(&repo).await?;
+            if remote_branches.len() > 1 {
+                println!(
+                    "🐂 Pre-fetching {} additional remote branches...",
+                    remote_branches.len() - 1
+                );
+            }
 
             let bar = oxen_progress_bar(remote_branches.len() as u64 - 1, ProgressBarType::Counter);
 
@@ -258,7 +263,7 @@ impl LocalRepository {
                     .await?;
                 bar.inc(1);
             }
-            bar.finish();
+            bar.finish_and_clear();
         }
 
         println!("\n🎉 cloned {} to {}/\n", repo.remote.url, repo.name);

@@ -18,6 +18,34 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
         .pull(
             &rb,
             PullOpts {
+                should_pull_all: false,
+                should_update_head: true,
+            },
+        )
+        .await
+}
+
+pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
+    let indexer = EntryIndexer::new(repo)?;
+    let rb = RemoteBranch::default();
+    indexer
+        .pull(
+            &rb,
+            PullOpts {
+                should_pull_all: false,
+                should_update_head: true,
+            },
+        )
+        .await
+}
+
+pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
+    let indexer = EntryIndexer::new(repo)?;
+    let rb = RemoteBranch::default();
+    indexer
+        .pull(
+            &rb,
+            PullOpts {
                 should_pull_all: true,
                 should_update_head: true,
             },
@@ -30,6 +58,7 @@ pub async fn pull_remote_branch(
     repo: &LocalRepository,
     remote: &str,
     branch: &str,
+    all: bool,
 ) -> Result<(), OxenError> {
     let indexer = EntryIndexer::new(repo)?;
     let rb = RemoteBranch {
@@ -40,7 +69,7 @@ pub async fn pull_remote_branch(
         .pull(
             &rb,
             PullOpts {
-                should_pull_all: true,
+                should_pull_all: all,
                 should_update_head: true,
             },
         )

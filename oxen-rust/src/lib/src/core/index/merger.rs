@@ -135,6 +135,14 @@ impl Merger {
 
         let lca = self.lowest_common_ancestor_from_commits(reader, base_commit, head_commit)?;
 
+        log::debug!(
+            "For commits {:?} -> {:?} found lca {:?}",
+            base_commit,
+            head_commit,
+            lca
+        );
+
+        log::debug!("Reading history from lca to head");
         reader.history_from_base_to_head(&lca.id, &head_commit.id)
     }
 
@@ -437,12 +445,14 @@ impl Merger {
         //   The lowest Depth Commit in HEAD should be the LCA
         let commit_depths_from_merge =
             commit_reader.history_with_depth_from_commit(merge_commit)?;
+
         let mut min_depth = usize::MAX;
         let mut lca: Commit = commit_depths_from_head.keys().next().unwrap().clone();
         for (commit, _) in commit_depths_from_merge.iter() {
             if let Some(depth) = commit_depths_from_head.get(commit) {
                 if depth < &min_depth {
                     min_depth = *depth;
+                    log::debug!("setting new lca, {:?}", commit);
                     lca = commit.clone();
                 }
             }

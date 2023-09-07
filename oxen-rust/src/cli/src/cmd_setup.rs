@@ -756,6 +756,12 @@ pub fn pull() -> Command {
                 .default_value(DEFAULT_BRANCH_NAME)
                 .default_missing_value(DEFAULT_BRANCH_NAME),
         )
+        .arg(
+            Arg::new("all")
+                .long("all")
+                .help("This pulls the full commit history, all the data files, and all the commit databases. Useful if you want to have the entire history locally or push to a new remote.")
+                .action(clap::ArgAction::SetTrue),
+        )
 }
 
 pub fn diff() -> Command {
