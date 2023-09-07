@@ -40,7 +40,18 @@ pub fn oxen_progress_bar_with_msg(size: u64, msg: impl AsRef<str>) -> Arc<Progre
     bar
 }
 
-fn progress_type_to_template(progress_type: ProgressBarType) -> String {
+// Modify styling to oxen bar - necessary for bars which start out as spinners
+pub fn oxify_bar(bar: Arc<ProgressBar>, progress_type: ProgressBarType) -> Arc<ProgressBar> {
+    bar.set_style(
+        ProgressStyle::default_bar()
+            .template(progress_type_to_template(progress_type).as_str())
+            .unwrap()
+            .progress_chars("🌾🐂➖"),
+    );
+    bar
+}
+
+pub fn progress_type_to_template(progress_type: ProgressBarType) -> String {
     match progress_type {
         ProgressBarType::Counter => {
             "{spinner:.green} {msg} [{elapsed_precise}] [{wide_bar}] {pos}/{len} ({eta})"
