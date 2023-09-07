@@ -474,7 +474,14 @@ pub async fn post_commits_to_server(
             .join(HISTORY_DIR)
             .join(&commit_with_entries.commit.id);
         let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
-        let size = fs_extra::dir::get_size(commit_history_dir).unwrap() + entries_size;
+
+        let size = match fs_extra::dir::get_size(&commit_history_dir) {
+            Ok(size) => size + entries_size,
+            Err(err) => {
+                log::warn!("Err {}: {:?}", err, commit_history_dir);
+                entries_size
+            }
+        };
 
         let commit_with_size = CommitWithBranchName::from_commit(
             &commit_with_entries.commit,
