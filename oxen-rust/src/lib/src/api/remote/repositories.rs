@@ -2,13 +2,16 @@ use crate::api;
 use crate::api::remote::client;
 use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Remote, RemoteRepository};
+use crate::model::{Branch, LocalRepository, Remote, RemoteRepository};
 use crate::view::repository::{RepositoryDataTypesResponse, RepositoryDataTypesView};
 use crate::view::{NamespaceView, RepositoryResponse, StatusMessage};
 use serde_json::json;
+use serde_json::value;
 use std::fmt;
 
 const CLONE: &str = "clone";
+const PUSH: &str = "push";
+
 enum ActionEventState {
     Started,
     Completed,
@@ -298,24 +301,74 @@ pub async fn transfer_namespace(
 
 pub async fn pre_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
     let action_name = CLONE;
-    action_hook(repository, action_name, ActionEventState::Started).await
+    action_hook(repository, action_name, ActionEventState::Started, None).await
 }
 
 pub async fn post_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
     let action_name = CLONE;
-    action_hook(repository, action_name, ActionEventState::Completed).await
+    action_hook(repository, action_name, ActionEventState::Completed, None).await
+}
+
+pub async fn pre_push(
+    repository: &RemoteRepository,
+    branch: &Branch,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    let action_name = PUSH;
+    let body = json!({
+        "branch": {
+            "name": branch.name,
+            "commit_id": commit_id
+        }
+    });
+    action_hook(
+        repository,
+        action_name,
+        ActionEventState::Started,
+        Some(body),
+    )
+    .await
+}
+
+pub async fn post_push(
+    repository: &RemoteRepository,
+    branch: &Branch,
+    commit_id: &str,
+) -> Result<(), OxenError> {
+    let action_name = PUSH;
+    let body = json!({
+        "branch": {
+            "name": branch.name,
+            "commit_id": commit_id
+        }
+    });
+    action_hook(
+        repository,
+        action_name,
+        ActionEventState::Completed,
+        Some(body),
+    )
+    .await
 }
 
 async fn action_hook(
     repository: &RemoteRepository,
     action_name: &str,
     state: ActionEventState,
+    body: Option<value::Value>,
 ) -> Result<(), OxenError> {
     let uri = format!("/action/{}/{}", state, action_name);
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     let client = client::new_for_url(&url)?;
 
-    match client.post(&url).send().await {
+    let mut request = client.post(&url);
+
+    // Add body if the action type requires it
+    if let Some(body_data) = body {
+        request = request.json(&body_data);
+    }
+
+    match request.send().await {
         Ok(_) => Ok(()),
         _ => {
             let err = "api::repositories::action_hook() Request failed";
@@ -328,6 +381,7 @@ async fn action_hook(
 mod tests {
     use crate::api;
     use crate::constants;
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::test;
     use mockito;
@@ -356,6 +410,45 @@ mod tests {
 
             api::remote::repositories::post_clone(&remote_repo).await?;
             mock_post_clone.assert();
+
+            // cleanup
+            remote_repo.remote.url = original_remote_url;
+
+            api::remote::repositories::delete(&remote_repo).await?;
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_repo_pre_and_post_push() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let mut server = mockito::Server::new_async().await;
+            let server_url = server.url();
+
+            let namespace = constants::DEFAULT_NAMESPACE;
+            let name = local_repo.dirname();
+
+            let mut remote_repo = test::create_remote_repo(&local_repo).await?;
+            let original_remote_url = remote_repo.remote.url;
+            remote_repo.remote.url = format!("{server_url}/{namespace}/{name}");
+
+            let path = format!("/api/repos/{namespace}/{name}/action/started/push");
+            let mock_pre_push = server.mock("POST", &path[..]).create_async().await;
+
+            // Branch and commit id we're pushing
+            let branch =
+                api::local::branches::get_by_name(&local_repo, DEFAULT_BRANCH_NAME)?.unwrap();
+            let commit_id = branch.commit_id.clone();
+
+            api::remote::repositories::pre_push(&remote_repo, &branch, &commit_id).await?;
+            mock_pre_push.assert();
+
+            let path = format!("/api/repos/{namespace}/{name}/action/completed/push");
+            let mock_post_push = server.mock("POST", &path[..]).create_async().await;
+
+            api::remote::repositories::post_push(&remote_repo, &branch, &commit_id).await?;
+            mock_post_push.assert();
 
             // cleanup
             remote_repo.remote.url = original_remote_url;
