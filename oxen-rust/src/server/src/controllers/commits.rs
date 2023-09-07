@@ -167,11 +167,20 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let commit_id = path_param(&req, "commit_id")?;
 
     let commits = api::local::commits::list_from(&repository, &commit_id)?;
+    // // sort commits by timestamp
+    // let mut commits = commits.into_iter().collect::<Vec<_>>();
+    // commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    for commit in commits.iter() {
+        log::debug!("latest_synced has commit.... {}", commit);
+    }
+
     let mut latest_synced: Option<Commit> = None;
     let mut commits_to_sync: Vec<Commit> = Vec::new();
 
     // Iterate old to new over commits
     for commit in commits {
+        // log::debug!("latest_synced checking commit {}", commit);
         // Include "None" and "Pending" in n_unsynced. Success, Failure, and Errors are "finished" processing
         match commit_cacher::get_status(&repository, &commit) {
             Ok(Some(CacherStatusType::Success)) => {
@@ -181,7 +190,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                         // For this to work, we need to maintain relative order of commits in redis queue push // one worker, for now.
                         // TODO: If we want to move to multiple workers or break this order,
                         // we can make this more robust (but slower) by checking the full commit history
-                        // log::debug!("latest_synced commit is valid: {:?}", commit.id);
+                        log::debug!("latest_synced commit is valid: {}", commit);
                         latest_synced = Some(commit);
                         // break;
                     }
@@ -204,7 +213,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                 }
             }
             Ok(Some(CacherStatusType::Pending)) => {
-                // log::debug!("latest_synced commit is pending {}", commit.id);
+                log::debug!("latest_synced commit is pending {}", commit);
                 commits_to_sync.push(commit);
             }
             Ok(Some(CacherStatusType::Failed)) => {

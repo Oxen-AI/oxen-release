@@ -1,8 +1,9 @@
-//! Core oxen data types to convert between Polars and DuckDB DataFrames and Schemas
+//! Core Oxen data types to convert between Polars and DuckDB DataFrames and Schemas
 //!
 
 use std::fmt;
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum DataType {
     Boolean,
     UInt8,

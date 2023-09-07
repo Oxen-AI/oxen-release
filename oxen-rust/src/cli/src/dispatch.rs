@@ -643,30 +643,13 @@ pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool, opts: DFOpts) -> Resul
     Ok(())
 }
 
-pub fn schema_show(val: &str, staged: bool) -> Result<Option<schema::Schema>, OxenError> {
+pub fn schema_show(val: &str, staged: bool, verbose: bool) -> Result<String, OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
-    let schema = if staged {
-        command::schemas::get_staged(&repo, val)?
-    } else {
-        command::schemas::get(&repo, None, val)?
-    };
-
-    if let Some(schema) = schema {
-        if let Some(name) = &schema.name {
-            println!("{name}\n{schema}");
-            Ok(Some(schema))
-        } else {
-            println!(
-                "Schema has no name, to name run:\n\n  oxen schemas name {} \"my_schema\"\n\n{}\n",
-                schema.hash, schema
-            );
-            Ok(None)
-        }
-    } else {
-        Err(OxenError::schema_does_not_exist(val))
-    }
+    let val = command::schemas::show(&repo, val, staged, verbose)?;
+    println!("{val}");
+    Ok(val)
 }
 
 pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
@@ -674,9 +657,8 @@ pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     command::schemas::set_name(&repository, schema_ref, val)?;
-    if let Some(schema) = schema_show(schema_ref, true)? {
-        println!("{schema}");
-    }
+    let schema = schema_show(schema_ref, true, false)?;
+    println!("{schema}");
 
     Ok(())
 }
@@ -690,10 +672,12 @@ pub fn schema_list(staged: bool) -> Result<(), OxenError> {
         command::schemas::list(&repository, None)?
     };
 
-    if schemas.is_empty() {
-        eprintln!("{}", OxenError::no_schemas_found());
+    if schemas.is_empty() && staged {
+        eprintln!("{}", OxenError::no_schemas_staged());
+    } else if schemas.is_empty() {
+        eprintln!("{}", OxenError::no_schemas_committed());
     } else {
-        let result = schema::Schema::schemas_to_string(&schemas);
+        let result = schema::Schema::schemas_to_string(schemas);
         println!("{result}");
     }
 
@@ -705,11 +689,60 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let schemas = command::schemas::list(&repository, Some(commit_id))?;
     if schemas.is_empty() {
-        eprintln!("{}", OxenError::no_schemas_found());
+        eprintln!("{}", OxenError::no_schemas_committed());
     } else {
-        let result = schema::Schema::schemas_to_string(&schemas);
+        let result = schema::Schema::schemas_to_string(schemas);
         println!("{result}");
     }
+    Ok(())
+}
+
+pub fn schema_add(path: impl AsRef<Path>, schema_str: &str) -> Result<String, OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let schema = command::schemas::add_column_overrides(&repository, path, schema_str)?;
+    Ok(schema.verbose_str())
+}
+
+pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    command::schemas::rm(&repository, schema_ref, staged)?;
+
+    Ok(())
+}
+
+pub fn schema_add_column_metadata(
+    schema_ref: impl AsRef<str>,
+    column: impl AsRef<str>,
+    metadata: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    for (path, schema) in
+        command::schemas::add_column_metadata(&repository, schema_ref, column, metadata)?
+    {
+        println!("{:?}\n{}", path, schema.verbose_str());
+    }
+
+    Ok(())
+}
+
+pub fn schema_add_metadata(
+    schema_ref: impl AsRef<str>,
+    metadata: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    for (path, schema) in command::schemas::add_schema_metadata(&repository, schema_ref, metadata)?
+    {
+        println!("{:?}\n{}", path, schema.verbose_str());
+    }
+
     Ok(())
 }
 

@@ -75,12 +75,10 @@ pub fn get_schema(
 
     for row in rows {
         let (column_name, data_type) = row?;
-        fields.push(Field {
-            name: column_name,
-            dtype: model::schema::DataType::from_sql(data_type)
-                .as_str()
-                .to_string(),
-        });
+        fields.push(Field::new(
+            &column_name,
+            model::schema::DataType::from_sql(data_type).as_str(),
+        ));
     }
 
     Ok(Schema::new(table_name, fields))

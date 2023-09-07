@@ -8,24 +8,24 @@ use std::path::Path;
 fn test_command_schema_list() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
         let schemas = command::schemas::list(&repo, None)?;
-        assert_eq!(schemas.len(), 3);
+        assert_eq!(schemas.len(), 7);
 
-        let schema = command::schemas::get_from_head(&repo, "bounding_box")?.unwrap();
-
-        assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
-        assert_eq!(schema.fields.len(), 6);
-        assert_eq!(schema.fields[0].name, "file");
-        assert_eq!(schema.fields[0].dtype, "str");
-        assert_eq!(schema.fields[1].name, "label");
-        assert_eq!(schema.fields[1].dtype, "str");
-        assert_eq!(schema.fields[2].name, "min_x");
-        assert_eq!(schema.fields[2].dtype, "f64");
-        assert_eq!(schema.fields[3].name, "min_y");
-        assert_eq!(schema.fields[3].dtype, "f64");
-        assert_eq!(schema.fields[4].name, "width");
-        assert_eq!(schema.fields[4].dtype, "i64");
-        assert_eq!(schema.fields[5].name, "height");
-        assert_eq!(schema.fields[5].dtype, "i64");
+        for (_path, schema) in command::schemas::get_from_head(&repo, "bounding_box")? {
+            assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[1].name, "label");
+            assert_eq!(schema.fields[1].dtype, "str");
+            assert_eq!(schema.fields[2].name, "min_x");
+            assert_eq!(schema.fields[2].dtype, "f64");
+            assert_eq!(schema.fields[3].name, "min_y");
+            assert_eq!(schema.fields[3].dtype, "f64");
+            assert_eq!(schema.fields[4].name, "width");
+            assert_eq!(schema.fields[4].dtype, "i64");
+            assert_eq!(schema.fields[5].name, "height");
+            assert_eq!(schema.fields[5].dtype, "i64");
+        }
 
         Ok(())
     })
@@ -69,22 +69,22 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         assert_eq!(status.staged_schemas.len(), 0);
 
         // Fetch schema from HEAD commit
-        let schema = command::schemas::get_from_head(&repo, "bounding_box")?.unwrap();
-
-        assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
-        assert_eq!(schema.fields.len(), 6);
-        assert_eq!(schema.fields[0].name, "file");
-        assert_eq!(schema.fields[0].dtype, "str");
-        assert_eq!(schema.fields[1].name, "label");
-        assert_eq!(schema.fields[1].dtype, "str");
-        assert_eq!(schema.fields[2].name, "min_x");
-        assert_eq!(schema.fields[2].dtype, "f64");
-        assert_eq!(schema.fields[3].name, "min_y");
-        assert_eq!(schema.fields[3].dtype, "f64");
-        assert_eq!(schema.fields[4].name, "width");
-        assert_eq!(schema.fields[4].dtype, "i64");
-        assert_eq!(schema.fields[5].name, "height");
-        assert_eq!(schema.fields[5].dtype, "i64");
+        for (_path, schema) in command::schemas::get_from_head(&repo, "bounding_box")? {
+            assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
+            assert_eq!(schema.fields.len(), 6);
+            assert_eq!(schema.fields[0].name, "file");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[1].name, "label");
+            assert_eq!(schema.fields[1].dtype, "str");
+            assert_eq!(schema.fields[2].name, "min_x");
+            assert_eq!(schema.fields[2].dtype, "f64");
+            assert_eq!(schema.fields[3].name, "min_y");
+            assert_eq!(schema.fields[3].dtype, "f64");
+            assert_eq!(schema.fields[4].name, "width");
+            assert_eq!(schema.fields[4].dtype, "i64");
+            assert_eq!(schema.fields[5].name, "height");
+            assert_eq!(schema.fields[5].dtype, "i64");
+        }
 
         Ok(())
     })
