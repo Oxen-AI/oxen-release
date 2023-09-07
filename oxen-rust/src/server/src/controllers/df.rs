@@ -3,6 +3,7 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
+use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
 use liboxen::{constants, current_function};
@@ -35,9 +36,16 @@ pub async fn get(
         util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
     log::debug!("Reading version file {:?}", version_path);
 
-    // Have to read full df to get the full size
+    // Have to read full df to get the full size, may be able to optimize later
     let df = tabular::read_df(&version_path, DFOpts::empty())?;
-    let og_schema = Schema::from_polars(&df.schema());
+
+    // Try to get the schema from disk
+    let og_schema =
+        if let Some(schema) = api::local::schemas::get_by_path(&repo, resource.file_path)? {
+            schema
+        } else {
+            Schema::from_polars(&df.schema())
+        };
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);

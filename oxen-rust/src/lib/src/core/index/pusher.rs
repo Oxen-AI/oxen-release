@@ -609,10 +609,9 @@ async fn push_missing_commit_entries(
     }
 
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
-    // let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
     api::remote::commits::bulk_post_push_complete(remote_repo, commits).await?;
-    // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
 
+    // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
     api::remote::commits::post_push_complete(remote_repo, branch, &commits.last().unwrap().id)
         .await?;
 

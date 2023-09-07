@@ -33,11 +33,22 @@ pub fn add_row(path: &Path, data: &str) -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         opts.add_row = Some(data.to_string());
         opts.output = Some(path.to_path_buf());
-        df(path, opts)?;
+        df(path, opts)
     } else {
-        // TODO: Seems like we don't need to support this...
-        util::fs::append_to_file(path, data)?;
+        let err = format!("{} is not a tabular file", path.display());
+        Err(OxenError::basic_str(err))
     }
+}
 
-    Ok(())
+/// Add a column to a dataframe
+pub fn add_column(path: &Path, data: &str) -> Result<(), OxenError> {
+    if util::fs::is_tabular(path) {
+        let mut opts = DFOpts::empty();
+        opts.add_col = Some(data.to_string());
+        opts.output = Some(path.to_path_buf());
+        df(path, opts)
+    } else {
+        let err = format!("{} is not a tabular file", path.display());
+        Err(OxenError::basic_str(err))
+    }
 }

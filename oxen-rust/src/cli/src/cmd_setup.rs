@@ -425,23 +425,27 @@ pub fn df() -> Command {
 pub fn schemas() -> Command {
     Command::new(SCHEMAS)
         .about("Manage schemas that are created from committing tabular data")
+        .arg(arg!([SCHEMA_REF] "Name, hash, or path of the schema you want to view in more detail."))
+        .arg(
+            Arg::new("staged")
+                .long("staged")
+                .help("Show the staged schema")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
+            Arg::new("flatten")
+                .long("flatten")
+                .help("Print the schema in a flattened format")
+                .action(clap::ArgAction::SetTrue),
+        )
         .subcommand(
             Command::new("list")
                 .about("List the committed schemas.")
                 .arg(
                     Arg::new("staged")
                         .long("staged")
-                        .help("List the staged schemas"),
-                ),
-        )
-        .subcommand(
-            Command::new("show")
-                .about("View a schema by name or hash.")
-                .arg(arg!(<NAME_OR_HASH> ... "Name or the hash of the schema you want to view."))
-                .arg(
-                    Arg::new("staged")
-                        .long("staged")
-                        .help("Show the staged schema"),
+                        .help("List the staged schemas")
+                        .action(clap::ArgAction::SetTrue),
                 ),
         )
         .subcommand(
@@ -449,6 +453,53 @@ pub fn schemas() -> Command {
                 .about("Name a schema by hash.")
                 .arg(Arg::new("HASH").help("Hash of the schema you want to name."))
                 .arg(Arg::new("NAME").help("Name of the schema.")),
+        )
+        .subcommand(
+            Command::new("add")
+                .about("Apply a schema on read to a data frame")
+                .arg(Arg::new("PATH").help("The path of the data frame file."))
+                .arg(
+                    Arg::new("column")
+                        .long("column")
+                        .short('c')
+                        .help("The column that you want to override the data type or metadata for.")
+                )
+                .arg(
+                    Arg::new("type")
+                        .long("type")
+                        .short('t')
+                        .help("Set the data type override for the column. Must pass in the -c flag.")
+                )
+                .arg(
+                    Arg::new("schema")
+                        .long("schema")
+                        .short('s')
+                        .help("Schema column:dtype pairs in the form of a comma separated list. Ie 'col1:str,col2:int'")
+                )
+                .arg(
+                    Arg::new("metadata")
+                        .long("metadata")
+                        .short('m')
+                        .help("Set the metadata for a specific column. Must pass in the -c flag.")
+                ),
+        )
+        .subcommand(
+            Command::new("rm")
+                .about("Remove a schema from the list of committed or added schemas.")
+                .arg(arg!(<NAME_OR_HASH> ... "Name, hash, or path of the schema you want to remove."))
+                .arg(
+                    Arg::new("staged")
+                        .long("staged")
+                        .help("Removed a staged schema")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
+        .subcommand(
+            Command::new("metadata")
+                .about("Add additional metadata to a schema.")
+                .arg(Arg::new("PATH").help("The path of the data frame file."))
+                .arg(Arg::new("METADATA").help("Any additional metadata you want to add to the schema."))
+
         )
         .subcommand(df())
 }
