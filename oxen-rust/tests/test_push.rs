@@ -1,4 +1,4 @@
-use std::sync::Arc;
+// use std::sync::Arc;
 
 use liboxen::api;
 use liboxen::command;
@@ -9,7 +9,7 @@ use liboxen::test;
 use liboxen::util;
 
 use futures::future;
-use tokio::sync::Notify;
+// use tokio::sync::Notify;
 
 #[tokio::test]
 async fn test_command_push_one_commit() -> Result<(), OxenError> {
