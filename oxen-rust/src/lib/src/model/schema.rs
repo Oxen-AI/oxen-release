@@ -220,6 +220,10 @@ impl Schema {
         let mut table = comfy_table::Table::new();
         table.set_header(vec!["path", "name", "hash", "fields"]);
 
+        // Sort by path
+        let mut schemas: Vec<(PathBuf, Schema)> = schemas.into_iter().collect();
+        schemas.sort_by(|a, b| a.0.cmp(&b.0));
+
         for (path, schema) in schemas.iter() {
             let fields_str = Field::fields_to_string_with_limit(&schema.fields);
             if let Some(name) = &schema.name {

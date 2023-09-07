@@ -100,6 +100,7 @@ pub async fn push_remote_repo(
     push_missing_commit_entries(
         local_repo,
         &remote_repo,
+        &branch,
         &unsynced_entries_commits,
         unsynced_entries,
         total_size,
@@ -121,9 +122,6 @@ pub async fn push_remote_repo(
     );
     poll_until_synced(&remote_repo, &head_commit, &bar).await?;
     bar.finish_and_clear();
-
-    // Re-validate last commit to sent latest commit for Hub.
-    api::remote::commits::post_push_complete(&remote_repo, &branch, &head_commit.id).await?;
 
     log::debug!("Just finished push.");
     Ok(remote_repo)
@@ -395,6 +393,7 @@ async fn push_missing_commit_dbs(
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
+    branch: &Branch,
     commits: &Vec<Commit>,
     mut unsynced_entries: Vec<UnsyncedCommitEntries>,
     mut total_size: u64,
@@ -463,6 +462,14 @@ async fn push_missing_commit_entries(
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     let old_to_new_commits: Vec<Commit> = commits.iter().rev().cloned().collect();
     api::remote::commits::bulk_post_push_complete(remote_repo, &old_to_new_commits).await?;
+
+    // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
+    api::remote::commits::post_push_complete(
+        remote_repo,
+        branch,
+        &old_to_new_commits.last().unwrap().id,
+    )
+    .await?;
 
     Ok(())
 }
