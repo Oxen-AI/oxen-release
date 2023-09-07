@@ -221,7 +221,11 @@ pub fn add_column_metadata(
     );
     // Make sure to pass through the changes to the committed schemas
     for (path, schema) in committed_schemas.iter() {
-        log::debug!("add_column_metadata committed_schemas[{:?}] -> {:?}", path, schema);
+        log::debug!(
+            "add_column_metadata committed_schemas[{:?}] -> {:?}",
+            path,
+            schema
+        );
         if schema.matches_ref(schema_ref) || path == Path::new(schema_ref) {
             // If this schema path is already staged, ignore it
             if staged_schemas.contains_key(path) {
@@ -422,7 +426,9 @@ mod tests {
             command::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema metadata
-            let schema_metadata = "{\"task\": \"bounding_box\", \"description\": \"detect some bounding boxes\"}".to_string();
+            let schema_metadata =
+                "{\"task\": \"bounding_box\", \"description\": \"detect some bounding boxes\"}"
+                    .to_string();
             let column_name = "file".to_string();
             let column_metadata = "{\"root\": \"images\"}".to_string();
             println!("############# ADD COLUMN OVERRIDES");
@@ -431,7 +437,12 @@ mod tests {
             command::schemas::add_schema_metadata(&repo, &schema_ref, &schema_metadata)?;
             // Make sure to do this last for this test, because then we get str instead of path as the dtype_override
             println!("############# ADD COLUMN METADATA");
-            command::schemas::add_column_metadata(&repo, &schema_ref, &column_name, &column_metadata)?;
+            command::schemas::add_column_metadata(
+                &repo,
+                &schema_ref,
+                column_name,
+                &column_metadata,
+            )?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
@@ -440,7 +451,6 @@ mod tests {
             assert_eq!(schema.metadata, Some(schema_metadata));
             assert_eq!(schema.fields[0].dtype_override, Some("path".to_string()));
             assert_eq!(schema.fields[0].metadata, Some(column_metadata));
-
 
             Ok(())
         })

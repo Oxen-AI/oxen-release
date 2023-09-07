@@ -61,11 +61,12 @@ pub async fn get(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("got body: {}", body);
-            let response: Result<ListSchemaResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<ListSchemaResponse, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
                 Ok(val) => {
                     log::debug!("got SchemaResponse: {:?}", val);
-                    if val.schemas.len() > 0 {
+                    if !val.schemas.is_empty() {
                         Ok(val.schemas.into_iter().next())
                     } else {
                         Ok(None)
@@ -165,12 +166,19 @@ mod tests {
             who is it?,issa me,true,0.5,1
             */
             let schema_ref = "csvs/test.csv";
-            let schema_metadata = "{\"task\": \"chat_bot\", \"description\": \"some generic description\"}".to_string();
+            let schema_metadata =
+                "{\"task\": \"chat_bot\", \"description\": \"some generic description\"}"
+                    .to_string();
             let column_name = "difficulty".to_string();
             let column_metadata = "{\"values\": [0, 1, 2]}".to_string();
-            command::schemas::add_schema_metadata(&local_repo, &schema_ref, &schema_metadata)?;
+            command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
             command::schemas::add_column_overrides(&local_repo, &csv_file, "response_time:f32")?;
-            command::schemas::add_column_metadata(&local_repo, &schema_ref, &column_name, &column_metadata)?;
+            command::schemas::add_column_metadata(
+                &local_repo,
+                schema_ref,
+                &column_name,
+                &column_metadata,
+            )?;
 
             command::commit(&local_repo, "add test.csv schema metadata")?;
 
@@ -183,7 +191,8 @@ mod tests {
 
             // Cannot get schema that does not exist
             let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv").await?;
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv")
+                    .await?;
             assert!(result.is_none());
 
             // Push the repo
