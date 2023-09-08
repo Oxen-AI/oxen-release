@@ -86,7 +86,6 @@ pub async fn push_remote_repo(
     branch: Branch,
 ) -> Result<RemoteRepository, OxenError> {
     // Lock the branch at the top, to avoid collisions from true simultaneous push
-
     // Returns a `remote_branch_locked` error if lock is already held
     api::remote::branches::lock(&remote_repo, &branch.name).await?;
 
@@ -94,6 +93,9 @@ pub async fn push_remote_repo(
     let head_commit = commit_reader
         .get_commit_by_id(&branch.commit_id)?
         .ok_or(OxenError::must_be_on_valid_branch())?;
+
+    // Lock successfully acquired
+    api::remote::repositories::pre_push(&remote_repo, &branch, &head_commit.id).await?;
 
     match validate_repo_is_pushable(
         local_repo,
@@ -111,6 +113,7 @@ pub async fn push_remote_repo(
         }
     }
 
+    let branch_clone = branch.clone();
     let branch_name = branch.name.clone();
 
     // Push the commits. If at any point during this process, we have errors or the user ctrl+c's, we release the branch lock.
@@ -140,7 +143,8 @@ pub async fn push_remote_repo(
             std::process::exit(0);
         }
     }
-
+    // TODO: Handle additional push complete / incomplete statuses on ctrl + c
+    api::remote::repositories::post_push(&remote_repo, &branch_clone, &head_commit.id).await?;
     Ok(remote_repo)
 }
 

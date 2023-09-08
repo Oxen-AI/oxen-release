@@ -258,5 +258,13 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/action/started/{action}",
             web::get().to(controllers::action::started),
+        )
+        .route(
+            "/{namespace}/{repo_name}/action/completed/{action}",
+            web::post().to(controllers::action::completed),
+        )
+        .route(
+            "/{namespace}/{repo_name}/action/started/{action}",
+            web::post().to(controllers::action::started),
         );
 }
