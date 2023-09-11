@@ -172,7 +172,6 @@ mod tests {
             let column_name = "difficulty".to_string();
             let column_metadata = "{\"values\": [0, 1, 2]}".to_string();
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
-            command::schemas::add_column_overrides(&local_repo, &csv_file, "response_time:f32")?;
             command::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
@@ -221,7 +220,6 @@ mod tests {
 
             // Check the metadata
             assert_eq!(schema.metadata, Some(schema_metadata));
-            assert_eq!(schema.fields[3].dtype_override, Some("f32".to_string()));
             assert_eq!(schema.fields[4].metadata, Some(column_metadata));
 
             Ok(())

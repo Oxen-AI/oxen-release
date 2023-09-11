@@ -697,14 +697,6 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn schema_add(path: impl AsRef<Path>, schema_str: &str) -> Result<String, OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let schema = command::schemas::add_column_overrides(&repository, path, schema_str)?;
-    Ok(schema.verbose_str())
-}
-
 pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;

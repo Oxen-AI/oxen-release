@@ -101,7 +101,6 @@ mod tests {
                 &column_name,
                 &column_metadata,
             )?;
-            command::schemas::add_column_overrides(&local_repo, &csv_file, "image_id:path")?;
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
             command::commit(&local_repo, "add test.csv schema metadata")?;
 
@@ -137,10 +136,6 @@ mod tests {
 
             // check schema
             assert_eq!(df.df.schema.metadata, Some(schema_metadata));
-            assert_eq!(
-                df.df.schema.fields[0].dtype_override,
-                Some("path".to_string())
-            );
             assert_eq!(df.df.schema.fields[0].metadata, Some(column_metadata));
 
             Ok(())
