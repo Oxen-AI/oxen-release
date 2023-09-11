@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+
 use crate::model::schema::DataType;
 
 use super::CustomDataType;
@@ -8,18 +9,13 @@ use super::CustomDataType;
 pub struct Field {
     pub name: String,
     pub dtype: String,
-    // Users can specify the dtype of the column when reading the data.
-    pub dtype_override: Option<String>,
-    // You can supply metadata to a column for user driven features.
+    // You can supply metadata as json to a column for user driven features.
     pub metadata: Option<String>,
 }
 
 impl PartialEq for Field {
     fn eq(&self, other: &Field) -> bool {
-        self.name == other.name
-            && self.dtype == other.dtype
-            && self.metadata == other.metadata
-            && self.dtype_override == other.dtype_override
+        self.name == other.name && self.dtype == other.dtype && self.metadata == other.metadata
     }
 }
 
@@ -28,7 +24,6 @@ impl Field {
         Field {
             name: name.to_owned(),
             dtype: dtype.to_owned(),
-            dtype_override: None,
             metadata: None,
         }
     }

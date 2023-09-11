@@ -1012,7 +1012,7 @@ impl Stager {
                     path,
                     added_schema
                 );
-                schema.set_field_dtype_overrides_from_schema(&added_schema);
+                schema.update_metadata_from_schema(&added_schema);
                 schema
             }
             None => schema,
@@ -1060,7 +1060,7 @@ impl Stager {
                 schema.metadata = Some(metadata.clone());
             }
 
-            schema.set_field_dtype_overrides_from_schema(new_schema);
+            schema.update_metadata_from_schema(new_schema);
             log::debug!("after update {:?}\n{}", path, schema.verbose_str());
             path_db::put(&self.schemas_db, path, &schema)?;
         } else {
