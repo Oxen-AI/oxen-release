@@ -79,18 +79,22 @@ pub fn resized_path_for_commit_id(
     repo: &LocalRepository,
     commit_id: &str,
     filepath: &Path,
-    width: u32,
-    height: u32,
+    width: Option<u32>,
+    height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
     match api::local::commits::get_by_id(repo, commit_id)? {
         Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
             Some(entry) => {
                 let path = version_path(repo, &entry);
                 let extension = path.extension().unwrap().to_str().unwrap();
-                let resized_path = path
-                    .parent()
-                    .unwrap()
-                    .join(format!("{}x{}.{}", width, height, extension));
+                let width = width.map(|w| w.to_string());
+                let height = height.map(|w| w.to_string());
+                let resized_path = path.parent().unwrap().join(format!(
+                    "{}x{}.{}",
+                    width.unwrap_or("".to_string()),
+                    height.unwrap_or("".to_string()),
+                    extension
+                ));
                 Ok(resized_path)
             }
             None => Err(OxenError::path_does_not_exist(filepath)),

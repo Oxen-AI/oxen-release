@@ -160,10 +160,11 @@ impl JsonDataFrame {
         df: &mut DataFrame,
         og_schema: Schema,
         og_size: DataFrameSize,
+        slice_schema: Schema,
     ) -> JsonDataFrame {
         JsonDataFrame {
             schema: og_schema,
-            slice_schema: Schema::from_polars(&df.schema()),
+            slice_schema,
             slice_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),

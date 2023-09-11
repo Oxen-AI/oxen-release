@@ -465,18 +465,6 @@ pub fn schemas() -> Command {
                         .help("The column that you want to override the data type or metadata for.")
                 )
                 .arg(
-                    Arg::new("type")
-                        .long("type")
-                        .short('t')
-                        .help("Set the data type override for the column. Must pass in the -c flag.")
-                )
-                .arg(
-                    Arg::new("schema")
-                        .long("schema")
-                        .short('s')
-                        .help("Schema column:dtype pairs in the form of a comma separated list. Ie 'col1:str,col2:int'")
-                )
-                .arg(
                     Arg::new("metadata")
                         .long("metadata")
                         .short('m')

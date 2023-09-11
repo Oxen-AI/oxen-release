@@ -35,36 +35,55 @@ pub async fn get(
 
     // TODO: refactor out of here and check for type, but seeing if it works to resize the image and cache it to disk if we have a resize query
     let img_resize = query.into_inner();
-    if let Some(width) = img_resize.width {
-        if let Some(height) = img_resize.height {
-            log::debug!(
-                "get_file_for_commit_id resizing {}x{} for {:?} -> {:?}",
-                width,
-                height,
-                resource.file_path,
-                version_path
-            );
-            let resized_path = util::fs::resized_path_for_commit_id(
-                &repo,
-                &resource.commit.id,
-                &resource.file_path,
-                width,
-                height,
-            )?;
-            log::debug!("resized_path {:?}", resized_path);
+    if img_resize.width.is_some() || img_resize.height.is_some() {
+        log::debug!("img_resize {:?}", img_resize);
 
-            if resized_path.exists() {
-                log::debug!("serving cached {:?}", resized_path);
-                return Ok(NamedFile::open(resized_path)?);
-            }
+        log::debug!(
+            "get_file_for_commit_id resizing {:?}x{:?} for {:?} -> {:?}",
+            img_resize.width,
+            img_resize.height,
+            resource.file_path,
+            version_path
+        );
 
-            let img = image::open(&version_path).unwrap();
-            let resized_img =
-                img.resize_exact(width, height, image::imageops::FilterType::Lanczos3);
-            resized_img.save(&resized_path).unwrap();
-            log::debug!("serving {:?}", resized_path);
+        let resized_path = util::fs::resized_path_for_commit_id(
+            &repo,
+            &resource.commit.id,
+            &resource.file_path,
+            img_resize.width,
+            img_resize.height,
+        )?;
+        log::debug!("resized_path {:?}", resized_path);
+        if resized_path.exists() {
+            log::debug!("serving cached {:?}", resized_path);
             return Ok(NamedFile::open(resized_path)?);
         }
+
+        let img = image::open(&version_path).unwrap();
+        let resized_img = if img_resize.width.is_some() && img_resize.height.is_some() {
+            img.resize_exact(
+                img_resize.width.unwrap(),
+                img_resize.height.unwrap(),
+                image::imageops::FilterType::Lanczos3,
+            )
+        } else if img_resize.width.is_some() {
+            img.resize(
+                img_resize.width.unwrap(),
+                img_resize.width.unwrap(),
+                image::imageops::FilterType::Lanczos3,
+            )
+        } else if img_resize.height.is_some() {
+            img.resize(
+                img_resize.height.unwrap(),
+                img_resize.height.unwrap(),
+                image::imageops::FilterType::Lanczos3,
+            )
+        } else {
+            img
+        };
+        resized_img.save(&resized_path).unwrap();
+        log::debug!("serving {:?}", resized_path);
+        return Ok(NamedFile::open(resized_path)?);
     }
 
     log::debug!(

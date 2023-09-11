@@ -579,8 +579,6 @@ pub fn schemas(sub_matches: &ArgMatches) {
 
                 // Flags
                 let column = sub_matches.get_one::<String>("column");
-                let data_type = sub_matches.get_one::<String>("type");
-                let schema_str = sub_matches.get_one::<String>("schema");
                 let metadata = sub_matches.get_one::<String>("metadata");
 
                 let err_msg = "Must supply a file path, column name and either -m for metadata or -t for data type\n\n  oxen schemas add file.csv -c 'col1' -t 'str'\n";
@@ -594,17 +592,6 @@ pub fn schemas(sub_matches: &ArgMatches) {
 
                 // If a column is supplied, then we need to supply a data type or metadata for that column
                 if let Some(column) = column {
-                    if let Some(data_type) = data_type {
-                        match dispatch::schema_add(path, &format!("{column}:{data_type}")) {
-                            Ok(result) => {
-                                println!("{result}")
-                            }
-                            Err(err) => {
-                                eprintln!("{err}")
-                            }
-                        }
-                    }
-
                     if let Some(metadata) = metadata {
                         match dispatch::schema_add_column_metadata(path, column, metadata) {
                             Ok(_) => {}
@@ -622,23 +609,6 @@ pub fn schemas(sub_matches: &ArgMatches) {
                                 eprintln!("{err}")
                             }
                         }
-                    }
-                }
-
-                // For user convience to add many columns at once
-                if let Some(schema_str) = schema_str {
-                    match dispatch::schema_add(path, schema_str) {
-                        Ok(result) => {
-                            println!("{result}")
-                        }
-                        Err(err) => match err {
-                            OxenError::PathDoesNotExist(path) => {
-                                eprintln!("File does not exist: {path:?}");
-                            }
-                            _ => {
-                                eprintln!("Err: {err}")
-                            }
-                        },
                     }
                 }
             }
