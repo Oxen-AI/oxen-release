@@ -240,6 +240,7 @@ async fn get_commit_objects_to_sync(
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
 
+        println!("🐂 Getting commit history...");
         let remote_history = api::remote::commits::list_commit_history(remote_repo, &branch.name)
             .await
             .unwrap_or_else(|_| vec![]);

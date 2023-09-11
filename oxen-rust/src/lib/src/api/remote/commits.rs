@@ -75,8 +75,6 @@ pub async fn list_commit_history(
     let mut page_num = DEFAULT_PAGE_NUM;
     let page_size = 100;
 
-    println!("🐂 Getting commit history...");
-
     let bar = Arc::new(ProgressBar::new_spinner());
     bar.set_style(ProgressStyle::default_spinner());
 
@@ -105,7 +103,7 @@ pub async fn list_commit_history(
             }
         }
     }
-    // bar.finish();
+    bar.finish_and_clear();
 
     Ok(all_commits)
 }
