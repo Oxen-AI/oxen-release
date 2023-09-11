@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-
+use serde_json::Value;
 
 use crate::model::schema::DataType;
 
@@ -10,7 +10,7 @@ pub struct Field {
     pub name: String,
     pub dtype: String,
     // You can supply metadata as json to a column for user driven features.
-    pub metadata: Option<String>,
+    pub metadata: Option<Value>,
 }
 
 impl PartialEq for Field {

@@ -9,6 +9,7 @@ pub use field::Field;
 use crate::util::hasher;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{collections::HashMap, fmt, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -17,7 +18,7 @@ pub struct Schema {
     pub hash: String,
     pub fields: Vec<Field>,
     // Optional string metadata on the schema, to allow for user driven features.
-    pub metadata: Option<String>,
+    pub metadata: Option<Value>,
 }
 
 impl PartialEq for Schema {
@@ -80,7 +81,7 @@ impl Schema {
     }
 
     /// Add metadata to a column
-    pub fn add_column_metadata(&mut self, name: &str, metadata: &str) {
+    pub fn add_column_metadata(&mut self, name: &str, metadata: &Value) {
         log::debug!("add_column_metadata {} {}", name, metadata);
         if let Some(f) = self.fields.iter_mut().find(|f| f.name == name) {
             f.metadata = Some(metadata.to_owned());
@@ -90,6 +91,9 @@ impl Schema {
 
     /// Write metadata from schema columns to the schema
     pub fn update_metadata_from_schema(&mut self, schema: &Schema) {
+        if let Some(metadata) = &schema.metadata {
+            self.metadata = Some(metadata.to_owned());
+        }
         for field in schema.fields.iter() {
             if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
                 if field.metadata.is_some() {
@@ -234,7 +238,7 @@ impl Schema {
             let mut row = vec![field.name.to_string(), field.dtype.to_string()];
 
             if let Some(val) = &field.metadata {
-                row.push(val.to_owned())
+                row.push(val.to_string())
             } else {
                 row.push(String::from(""))
             }

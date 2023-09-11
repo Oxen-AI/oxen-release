@@ -114,7 +114,7 @@ pub fn rm(
 pub fn add_schema_metadata(
     repo: &LocalRepository,
     schema_ref: impl AsRef<str>,
-    metadata: impl AsRef<str>,
+    metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     let schema_ref = schema_ref.as_ref();
     let head_commit = api::local::commits::head_commit(repo)?;
@@ -126,14 +126,11 @@ pub fn add_schema_metadata(
         "add_schema_metadata committed_schemas.len(): {:?}",
         committed_schemas.len()
     );
-    log::debug!(
-        "add_schema_metadata metadata: {}",
-        metadata.as_ref().to_string()
-    );
+    log::debug!("add_schema_metadata metadata: {}", metadata.to_string());
     let committed_schemas_is_empty = committed_schemas.is_empty();
     for (path, mut schema) in committed_schemas {
         log::debug!("committed_schemas[{:?}] -> {:?}", path, schema);
-        schema.metadata = Some(metadata.as_ref().to_string());
+        schema.metadata = Some(metadata.to_owned());
         stager.update_schema_for_path(&path, &schema)?;
     }
 
@@ -144,7 +141,7 @@ pub fn add_schema_metadata(
 
     let mut results = HashMap::new();
     for (path, mut schema) in staged_schemas {
-        schema.metadata = Some(metadata.as_ref().to_string());
+        schema.metadata = Some(metadata.to_owned());
         let schema = stager.update_schema_for_path(&path, &schema)?;
         results.insert(path, schema);
     }
@@ -156,11 +153,10 @@ pub fn add_column_metadata(
     repo: &LocalRepository,
     schema_ref: impl AsRef<str>,
     column: impl AsRef<str>,
-    metadata: impl AsRef<str>,
+    metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     let schema_ref = schema_ref.as_ref();
     let column = column.as_ref();
-    let metadata = metadata.as_ref();
     let head_commit = api::local::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
@@ -189,7 +185,7 @@ pub fn add_column_metadata(
 
     let mut results = HashMap::new();
     for (path, mut schema) in all_schemas {
-        schema.add_column_metadata(column, metadata.as_ref());
+        schema.add_column_metadata(column, metadata);
         let schema = stager.update_schema_for_path(&path, &schema)?;
         results.insert(path, schema);
     }
@@ -204,6 +200,8 @@ mod tests {
     use crate::util;
     use crate::{api, command};
 
+    use serde_json::json;
+
     #[tokio::test]
     async fn test_cmd_schemas_add_staged() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
@@ -213,6 +211,9 @@ mod tests {
                 .join("annotations")
                 .join("train")
                 .join("bounding_box.csv");
+
+            // Add the file
+            command::add(&repo, &bbox_path)?;
 
             // Make sure it is staged
             let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
@@ -239,11 +240,13 @@ mod tests {
             assert_eq!(schema.fields[5].dtype, "i64");
 
             // Update the schema
-            let min_x_meta = "{\"key\": \"val\"}";
+            let min_x_meta = json!({
+                "key": "val"
+            });
             let updated_schemas =
-                command::schemas::add_column_metadata(&repo, &schema_ref, "min_x", min_x_meta)?;
+                command::schemas::add_column_metadata(&repo, &schema_ref, "min_x", &min_x_meta)?;
             let updated_schema = updated_schemas
-                .get(&bbox_path)
+                .get(&bbox_file)
                 .expect("Expected to find updated schema");
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
@@ -258,7 +261,7 @@ mod tests {
 
             assert_eq!(schema.fields[2].name, "min_x");
             assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[2].metadata, Some(min_x_meta.to_string()));
+            assert_eq!(schema.fields[2].metadata, Some(min_x_meta));
 
             assert_eq!(schema.fields[3].name, "min_y");
             assert_eq!(schema.fields[3].dtype, "f64");
@@ -286,8 +289,11 @@ mod tests {
             let schema_ref = bbox_file.to_string_lossy();
 
             // Add the schema
-            let min_x_meta = "{\"key\": \"val\"}";
-            command::schemas::add_column_metadata(&repo, &schema_ref, "min_x", min_x_meta)?;
+            let min_x_meta = json!({
+                "key": "val"
+            });
+            command::add(&repo, &bbox_path)?;
+            command::schemas::add_column_metadata(&repo, &schema_ref, "min_x", &min_x_meta)?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
@@ -321,7 +327,10 @@ mod tests {
             command::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema
-            let metadata = "{\"task\": \"bounding_box\"}".to_string();
+            let metadata = json!({
+                "task": "bounding_box",
+                "description": "detect some bounding boxes"
+            });
             command::schemas::add_schema_metadata(&repo, &schema_ref, &metadata)?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -352,11 +361,14 @@ mod tests {
             command::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema metadata
-            let schema_metadata =
-                "{\"task\": \"bounding_box\", \"description\": \"detect some bounding boxes\"}"
-                    .to_string();
+            let schema_metadata = json!({
+                "task": "bounding_box",
+                "description": "detect some bounding boxes"
+            });
             let column_name = "file".to_string();
-            let column_metadata = "{\"root\": \"images\"}".to_string();
+            let column_metadata = json!({
+                "root": "images"
+            });
             command::schemas::add_schema_metadata(&repo, &schema_ref, &schema_metadata)?;
             // Make sure to do this last for this test, because then we get str instead of path as the dtype_override
             command::schemas::add_column_metadata(
@@ -389,10 +401,13 @@ mod tests {
                 .join("bounding_box.csv");
 
             // Add the schema
-            let metadata = "{\"root\": \"images\"}";
-            let bbox_path = util::fs::path_relative_to_dir(bbox_path, &repo.path)?;
-            let schema_ref = bbox_path.to_string_lossy();
-            command::schemas::add_column_metadata(&repo, &schema_ref, "file", metadata)?;
+            let metadata = json!({
+                "root": "images"
+            });
+            let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
+            let schema_ref = bbox_file.to_string_lossy();
+            command::add(&repo, &bbox_path)?;
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
@@ -401,7 +416,7 @@ mod tests {
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata));
 
             Ok(())
         })
@@ -427,12 +442,15 @@ mod tests {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }
 
-            let path = util::fs::path_relative_to_dir(bbox_path, &repo.path)?;
+            let path = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
             let schema_ref = path.to_string_lossy();
 
             // Add the schema
-            let metadata = "{\"root\": \"images\"}";
-            command::schemas::add_column_metadata(&repo, &schema_ref, "file", metadata)?;
+            let metadata = json!({
+                "root": "images"
+            });
+            command::add(&repo, &bbox_path)?;
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
@@ -441,7 +459,7 @@ mod tests {
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata.to_owned()));
 
             // Commit the schema
             let commit = command::commit(&repo, "Adding metadata to file column")?;
@@ -454,7 +472,7 @@ mod tests {
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata));
 
             Ok(())
         })
@@ -485,8 +503,10 @@ mod tests {
             let schema_ref = bbox_file.to_string_lossy();
 
             // Add the schema metadata
-            let metadata = "{\"root\": \"images\"}";
-            command::schemas::add_column_metadata(&repo, &schema_ref, "file", metadata)?;
+            let metadata = json!({
+                "root": "images"
+            });
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
             // Commit the schema
             command::commit(&repo, "Adding metadata to file column")?;
@@ -505,7 +525,7 @@ mod tests {
             assert_eq!(schema.fields.len(), 7);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(metadata));
 
             Ok(())
         })
@@ -525,8 +545,11 @@ mod tests {
             // Make sure it is staged
             let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
             let schema_ref = bbox_file.to_string_lossy();
-            let file_metadata = "{\"root\": \"images\"}";
-            command::schemas::add_column_metadata(&repo, &schema_ref, "file", file_metadata)?;
+            let file_metadata = json!({
+                "root": "images"
+            });
+            command::add(&repo, &bbox_path)?;
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &file_metadata)?;
 
             // Fetch staged
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -536,7 +559,7 @@ mod tests {
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
-            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
             assert_eq!(schema.fields[1].name, "label");
             assert_eq!(schema.fields[1].dtype, "str");
             assert_eq!(schema.fields[2].name, "min_x");
@@ -552,11 +575,17 @@ mod tests {
             command::commit(&repo, "Adding bounding box schema")?;
 
             // Update the schema
-            let min_x_metadata = "{\"key\": \"val\"}";
-            let updated_schemas =
-                command::schemas::add_column_metadata(&repo, &schema_ref, "min_x", min_x_metadata)?;
+            let min_x_metadata = json!({
+                "key": "val"
+            });
+            let updated_schemas = command::schemas::add_column_metadata(
+                &repo,
+                &schema_ref,
+                "min_x",
+                &min_x_metadata,
+            )?;
             let updated_schema = updated_schemas
-                .get(&bbox_path)
+                .get(&bbox_file)
                 .expect("Expected to find updated schema");
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -568,13 +597,13 @@ mod tests {
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
             // this was added in the previous commit, so it should still be there
-            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
             assert_eq!(schema.fields[1].name, "label");
             assert_eq!(schema.fields[1].dtype, "str");
 
             assert_eq!(schema.fields[2].name, "min_x");
             assert_eq!(schema.fields[2].dtype, "f64");
-            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata.to_string()));
+            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata.to_owned()));
 
             assert_eq!(schema.fields[3].name, "min_y");
             assert_eq!(schema.fields[3].dtype, "f64");
@@ -589,11 +618,17 @@ mod tests {
             command::commit(&repo, "Updating the bounding box schema")?;
 
             // Update the schema
-            let width_metadata = "{\"metric\": \"meters\"}";
-            let updated_schemas =
-                command::schemas::add_column_metadata(&repo, &schema_ref, "width", min_x_metadata)?;
+            let width_metadata = json!({
+                "metric": "meters"
+            });
+            let updated_schemas = command::schemas::add_column_metadata(
+                &repo,
+                &schema_ref,
+                "width",
+                &width_metadata,
+            )?;
             let updated_schema = updated_schemas
-                .get(&bbox_path)
+                .get(&bbox_file)
                 .expect("Expected to find updated schema");
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
@@ -604,7 +639,7 @@ mod tests {
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
             // this was added in the previous commit, so it should still be there
-            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_string()));
+            assert_eq!(schema.fields[0].metadata, Some(file_metadata.to_owned()));
 
             assert_eq!(schema.fields[1].name, "label");
             assert_eq!(schema.fields[1].dtype, "str");
@@ -612,14 +647,14 @@ mod tests {
             assert_eq!(schema.fields[2].name, "min_x");
             assert_eq!(schema.fields[2].dtype, "f64");
             // this was added in the previous commit, so it should still be there
-            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata.to_string()));
+            assert_eq!(schema.fields[2].metadata, Some(min_x_metadata));
 
             assert_eq!(schema.fields[3].name, "min_y");
             assert_eq!(schema.fields[3].dtype, "f64");
 
             assert_eq!(schema.fields[4].name, "width");
             assert_eq!(schema.fields[4].dtype, "i64");
-            assert_eq!(schema.fields[4].metadata, Some(width_metadata.to_string()));
+            assert_eq!(schema.fields[4].metadata, Some(width_metadata));
 
             assert_eq!(schema.fields[5].name, "height");
             assert_eq!(schema.fields[5].dtype, "i64");
