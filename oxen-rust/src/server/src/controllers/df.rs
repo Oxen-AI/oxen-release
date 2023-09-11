@@ -83,6 +83,14 @@ pub async fn get(
                 height: full_height,
             };
 
+            // Merge the metadata from the original schema
+            let mut slice_schema = Schema::from_polars(&paginated_df.schema());
+            log::debug!("OG schema {:?}", og_schema);
+            log::debug!("Pre-Slice schema {:?}", slice_schema);
+            slice_schema.update_metadata_from_schema(&og_schema);
+
+            log::debug!("Slice schema {:?}", slice_schema);
+
             let response = JsonDataFrameSliceResponse {
                 status: StatusMessage::resource_found(),
                 full_size: full_size.to_owned(),
@@ -90,7 +98,12 @@ pub async fn get(
                     width: sliced_width,
                     height: sliced_height,
                 },
-                df: JsonDataFrame::from_slice(&mut paginated_df, og_schema, full_size),
+                df: JsonDataFrame::from_slice(
+                    &mut paginated_df,
+                    og_schema,
+                    full_size,
+                    slice_schema,
+                ),
                 page_number: page,
                 page_size,
                 total_pages,

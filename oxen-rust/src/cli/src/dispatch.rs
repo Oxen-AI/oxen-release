@@ -714,8 +714,17 @@ pub fn schema_add_column_metadata(
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    // make sure metadata is valid json, return oxen error if not
+    let metadata: serde_json::Value = serde_json::from_str(metadata.as_ref()).map_err(|e| {
+        OxenError::basic_str(format!(
+            "Metadata must be valid JSON: '{}'\n{}",
+            metadata.as_ref(),
+            e
+        ))
+    })?;
+
     for (path, schema) in
-        command::schemas::add_column_metadata(&repository, schema_ref, column, metadata)?
+        command::schemas::add_column_metadata(&repository, schema_ref, column, &metadata)?
     {
         println!("{:?}\n{}", path, schema.verbose_str());
     }
@@ -730,7 +739,15 @@ pub fn schema_add_metadata(
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    for (path, schema) in command::schemas::add_schema_metadata(&repository, schema_ref, metadata)?
+    let metadata: serde_json::Value = serde_json::from_str(metadata.as_ref()).map_err(|e| {
+        OxenError::basic_str(format!(
+            "Metadata must be valid JSON: '{}'\n{}",
+            metadata.as_ref(),
+            e
+        ))
+    })?;
+
+    for (path, schema) in command::schemas::add_schema_metadata(&repository, schema_ref, &metadata)?
     {
         println!("{:?}\n{}", path, schema.verbose_str());
     }

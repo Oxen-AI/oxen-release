@@ -96,6 +96,8 @@ mod tests {
     use crate::test;
     use crate::util;
 
+    use serde_json::json;
+
     #[tokio::test]
     async fn test_remote_list_schemas() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
@@ -166,11 +168,17 @@ mod tests {
             who is it?,issa me,true,0.5,1
             */
             let schema_ref = "csvs/test.csv";
-            let schema_metadata =
-                "{\"task\": \"chat_bot\", \"description\": \"some generic description\"}"
-                    .to_string();
+            let schema_metadata = json!({
+                "task": "chat_bot",
+                "description": "some generic description",
+            });
+
             let column_name = "difficulty".to_string();
-            let column_metadata = "{\"values\": [0, 1, 2]}".to_string();
+            let column_metadata = json!(
+                {
+                    "values": [0, 1, 2]
+                }
+            );
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
             command::schemas::add_column_metadata(
                 &local_repo,
