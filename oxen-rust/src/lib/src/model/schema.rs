@@ -9,6 +9,7 @@ pub use field::Field;
 use crate::util::hasher;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{collections::HashMap, fmt, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -17,7 +18,7 @@ pub struct Schema {
     pub hash: String,
     pub fields: Vec<Field>,
     // Optional string metadata on the schema, to allow for user driven features.
-    pub metadata: Option<String>,
+    pub metadata: Option<Value>,
 }
 
 impl PartialEq for Schema {
@@ -79,39 +80,26 @@ impl Schema {
         self.hash == schema_ref || self.name.as_ref().unwrap_or(&"".to_string()) == schema_ref
     }
 
-    /// Sets dtype_override on fields that match the name and dtype of the provided fields
-    pub fn set_field_dtype_overrides(&mut self, fields: Vec<Field>) {
-        for field in fields {
-            log::debug!("set_field_dtype_overrides looking for field {:?}", field);
-            if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
-                log::debug!("set_field_dtype_overrides updating override! {:?}", field);
-                f.dtype_override = Some(field.dtype);
-            }
+    /// Add metadata to a column
+    pub fn add_column_metadata(&mut self, name: &str, metadata: &Value) {
+        log::debug!("add_column_metadata {} {}", name, metadata);
+        if let Some(f) = self.fields.iter_mut().find(|f| f.name == name) {
+            f.metadata = Some(metadata.to_owned());
         }
         self.hash = Schema::hash_fields(&self.fields);
     }
 
-    /// Sets dtype_override on all fields from the provided schema
-    pub fn set_field_dtype_overrides_from_schema(&mut self, schema: &Schema) {
+    /// Write metadata from schema columns to the schema
+    pub fn update_metadata_from_schema(&mut self, schema: &Schema) {
+        if let Some(metadata) = &schema.metadata {
+            self.metadata = Some(metadata.to_owned());
+        }
         for field in schema.fields.iter() {
             if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
-                if field.dtype_override.is_some() {
-                    f.dtype_override = field.dtype_override.clone();
-                }
-
                 if field.metadata.is_some() {
                     f.metadata = field.metadata.clone();
                 }
             }
-        }
-        self.hash = Schema::hash_fields(&self.fields);
-    }
-
-    /// Add metadata to a column
-    pub fn add_column_metadata(&mut self, name: &str, metadata: &str) {
-        log::debug!("add_column_metadata {} {}", name, metadata);
-        if let Some(f) = self.fields.iter_mut().find(|f| f.name == name) {
-            f.metadata = Some(metadata.to_owned());
         }
         self.hash = Schema::hash_fields(&self.fields);
     }
@@ -167,9 +155,6 @@ impl Schema {
         let mut hash_buffers: Vec<String> = vec![];
         for f in fields {
             hash_buffers.push(format!("{}{}", f.name, f.dtype));
-            if let Some(dtype_override) = &f.dtype_override {
-                hash_buffers.push(dtype_override.to_string());
-            }
             if let Some(metadata) = &f.metadata {
                 hash_buffers.push(metadata.to_string());
             }
@@ -247,18 +232,13 @@ impl Schema {
 
     pub fn verbose_str(&self) -> String {
         let mut table = comfy_table::Table::new();
-        table.set_header(vec!["name", "dtype", "dtype_override", "metadata"]);
+        table.set_header(vec!["name", "dtype", "metadata"]);
 
         for field in self.fields.iter() {
             let mut row = vec![field.name.to_string(), field.dtype.to_string()];
-            if let Some(val) = &field.dtype_override {
-                row.push(val.to_owned())
-            } else {
-                row.push(String::from(""))
-            }
 
             if let Some(val) = &field.metadata {
-                row.push(val.to_owned())
+                row.push(val.to_string())
             } else {
                 row.push(String::from(""))
             }

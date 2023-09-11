@@ -606,7 +606,10 @@ fn df_mods_response(
                     filter = df_opts_query::parse_opts(&query, &mut filter);
                     let mut df = tabular::transform(added, filter).unwrap();
 
-                    let df = JsonDataFrame::from_slice(&mut df, og_schema, og_size);
+                    let mut slice_schema = Schema::from_polars(&df.schema());
+                    slice_schema.update_metadata_from_schema(&og_schema);
+
+                    let df = JsonDataFrame::from_slice(&mut df, og_schema, og_size, slice_schema);
                     Some(df)
                 }
             } else {

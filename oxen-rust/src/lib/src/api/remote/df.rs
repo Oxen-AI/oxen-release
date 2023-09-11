@@ -56,6 +56,8 @@ mod tests {
     use crate::test;
     use crate::util;
 
+    use serde_json::json;
+
     #[tokio::test]
     async fn test_fetch_schema_metadata() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
@@ -91,17 +93,20 @@ mod tests {
 
             // Add some metadata to the schema
             let schema_ref = "large_files/test.csv";
-            let schema_metadata =
-                "{\"task\": \"gen_faces\", \"description\": \"generate some faces\"}".to_string();
+            let schema_metadata = json!({
+                "description": "A dataset of faces",
+                "task": "gen_faces"
+            });
             let column_name = "image_id".to_string();
-            let column_metadata = "{\"root\": \"images\"}".to_string();
+            let column_metadata = json!({
+                "root": "images"
+            });
             command::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
                 &column_name,
                 &column_metadata,
             )?;
-            command::schemas::add_column_overrides(&local_repo, &csv_file, "image_id:path")?;
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
             command::commit(&local_repo, "add test.csv schema metadata")?;
 
@@ -136,12 +141,15 @@ mod tests {
             assert_eq!(df.df.data.as_array().unwrap().len(), 10);
 
             // check schema
-            assert_eq!(df.df.schema.metadata, Some(schema_metadata));
+            assert_eq!(df.df.schema.metadata, Some(schema_metadata.to_owned()));
             assert_eq!(
-                df.df.schema.fields[0].dtype_override,
-                Some("path".to_string())
+                df.df.schema.fields[0].metadata,
+                Some(column_metadata.to_owned())
             );
-            assert_eq!(df.df.schema.fields[0].metadata, Some(column_metadata));
+
+            // check schema slice
+            assert_eq!(df.df.slice_schema.metadata, Some(schema_metadata));
+            assert_eq!(df.df.slice_schema.fields[0].metadata, Some(column_metadata));
 
             Ok(())
         })
