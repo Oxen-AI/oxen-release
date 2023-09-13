@@ -36,6 +36,10 @@ pub async fn get(
 
     // TODO: CLEANUP and refactor so we can use the CderLRUCache in other places that might need it.
 
+    // This logic to use a LRUCache of CommitDirEntryReaders is to avoid opening the database many times for the same commit
+    // When fetching many images, it was taking over 2 seconds to just open the CelebA database
+    // This way, we open it once, and reuse it for the subsequent requests
+
     // Try to get the parent of the file path, if it exists
     let mut entry: Option<CommitEntry> = None;
     let path = &resource.file_path;
