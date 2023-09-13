@@ -244,6 +244,9 @@ impl CommitEntryReader {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
             let dir =
                 CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)?;
+            // log::debug!("CommitEntryReader::get_entry() get_entry: {:?}", path);
+            
+            // log::debug!("CommitEntryReader::get_entry() path: {:?} result: {:?}", path, result);
             dir.get_entry(file_name)
         } else {
             Err(OxenError::file_has_no_parent(path))

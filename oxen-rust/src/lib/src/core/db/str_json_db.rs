@@ -45,6 +45,7 @@ where
             // found it
             let str_val = str::from_utf8(&value)?;
             let entry = serde_json::from_str(str_val)?;
+            // log::debug!("str_json_db::get({:?}) got entry {:?}", key, str_val);
             Ok(Some(entry))
         }
         Ok(None) => {
