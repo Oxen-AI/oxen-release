@@ -1,5 +1,6 @@
 use liboxen::config::UserConfig;
 
+use liboxen::core::index::CommitDirEntryReader;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -15,13 +16,19 @@ pub mod test;
 pub mod view;
 
 extern crate log;
+extern crate lru;
 
 use actix_web::middleware::{Condition, Logger};
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
 
+use lru::LruCache;
+use std::num::NonZeroUsize;
+use std::sync::{Arc, RwLock};
+
 use clap::{Arg, Command};
 use env_logger::Env;
+use std::io::Write;
 
 use std::path::Path;
 use std::time::Duration;
@@ -41,7 +48,20 @@ const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
+    env_logger::Builder::from_env(Env::default().default_filter_or("info,debug"))
+        .format(|buf, record| {
+            writeln!(
+                buf,
+                "{} [{}] - {}: {}",
+                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
+                record.level(),
+                record.target(),
+                record.args()
+            )
+        })
+        .init();
+
+    // env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
 
     let sync_dir = match std::env::var("SYNC_DIR") {
         Ok(dir) => dir,
@@ -158,8 +178,10 @@ async fn main() -> std::io::Result<()> {
                     let enable_auth = sub_matches.get_flag("auth");
 
                     let queue = init_queue();
+                    let cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>> =
+                        Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(2).unwrap())));
 
-                    let data = app_data::OxenAppData::new(&sync_dir, queue.clone());
+                    let data = app_data::OxenAppData::new(&sync_dir, queue.clone(), cder_lru);
                     // Poll for post-commit tasks in background
                     tokio::spawn(async { poll_queue(queue).await });
 

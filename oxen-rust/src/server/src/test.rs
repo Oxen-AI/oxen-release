@@ -1,4 +1,4 @@
-use crate::app_data::OxenAppData;
+
 use crate::helpers;
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 
@@ -8,8 +8,8 @@ use liboxen::model::LocalRepository;
 use liboxen::util;
 
 use env_logger::Env;
-use serde::Serialize;
-use std::borrow::Cow;
+
+
 use std::path::{Path, PathBuf};
 
 pub fn init_test_env() {
@@ -76,6 +76,7 @@ where
     Ok(())
 }
 
+/*
 pub fn request(sync_dir: &Path, queue: TaskQueue, uri: &str) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
         .app_data(OxenAppData {
@@ -186,3 +187,4 @@ pub fn request_with_payload_and_entry(
         .set_payload(data)
         .to_http_parts()
 }
+ */

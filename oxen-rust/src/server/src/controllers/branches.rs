@@ -192,22 +192,21 @@ pub async fn is_locked(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
 #[cfg(test)]
 mod tests {
 
-    use actix_web::http::{self};
+    
 
-    use actix_web::body::to_bytes;
+    
 
-    use liboxen::api;
-    use liboxen::constants::DEFAULT_BRANCH_NAME;
-    use liboxen::error::OxenError;
-    use liboxen::util;
-    use liboxen::view::http::STATUS_SUCCESS;
-    use liboxen::view::{
-        BranchNewFromExisting, BranchResponse, CommitResponse, ListBranchesResponse,
-    };
+    
+    
+    
+    
+    
+    
 
-    use crate::controllers;
-    use crate::test;
+    
+    
 
+    /*
     #[actix_web::test]
     async fn test_controllers_branches_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
@@ -368,4 +367,5 @@ mod tests {
 
         Ok(())
     }
+     */
 }

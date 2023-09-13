@@ -2,6 +2,8 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
+use liboxen::error::OxenError;
+use liboxen::model::CommitEntry;
 use liboxen::util;
 
 use actix_files::NamedFile;
@@ -19,6 +21,8 @@ pub async fn get(
     req: HttpRequest,
     query: web::Query<ImgResize>,
 ) -> actix_web::Result<NamedFile, OxenHttpError> {
+    log::debug!("get file path {:?}", req.path());
+
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -30,8 +34,46 @@ pub async fn get(
         liboxen::current_function!()
     );
 
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+    // TODO: CLEANUP, increase size of LRU and MAKE SURE WE CAN ACCESS IN DIFFERENT REQUEST something that uses the same CommitDirEntryReader
+
+    // Try to get the parent of the file path, if it exists
+    let mut entry: Option<CommitEntry> = None;
+    let path = &resource.file_path;
+    if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+        let key = format!(
+            "{}_{}_{}_{}",
+            namespace,
+            repo_name,
+            resource.commit.id,
+            parent.display()
+        );
+        log::debug!("LRU key {}", key);
+
+        let mut cache = app_data.cder_lru.write().unwrap();
+
+        if let Some(cder) = cache.get(&key) {
+            log::debug!("found in LRU");
+            entry = cder.get_entry(file_name)?;
+            log::debug!("got entry {} -> {:?}", key, entry);
+        } else {
+            log::debug!("not found in LRU");
+            let cder = liboxen::core::index::CommitDirEntryReader::new(
+                &repo,
+                &resource.commit.id,
+                parent,
+            )?;
+            log::debug!("looking up entry {}", key);
+            entry = cder.get_entry(file_name)?;
+            log::debug!("got entry {} -> {:?}", key, entry);
+            cache.put(key, cder);
+        }
+    }
+
+    let entry = entry.ok_or(OxenError::path_does_not_exist(&resource.file_path))?;
+
+    let version_path = util::fs::version_path(&repo, &entry);
+
+    log::debug!("version path {version_path:?}",);
 
     // TODO: refactor out of here and check for type, but seeing if it works to resize the image and cache it to disk if we have a resize query
     let img_resize = query.into_inner();
@@ -39,25 +81,26 @@ pub async fn get(
         log::debug!("img_resize {:?}", img_resize);
 
         log::debug!(
-            "get_file_for_commit_id resizing {:?}x{:?} for {:?} -> {:?}",
+            "get_file_for_commit_id {:?}x{:?} for {:?} -> {:?}",
             img_resize.width,
             img_resize.height,
             resource.file_path,
             version_path
         );
 
-        let resized_path = util::fs::resized_path_for_commit_id(
+        let resized_path = util::fs::resized_path_for_commit_entry(
             &repo,
-            &resource.commit.id,
-            &resource.file_path,
+            &entry,
             img_resize.width,
             img_resize.height,
         )?;
-        log::debug!("resized_path {:?}", resized_path);
+        log::debug!("get_file_for_commit_id resized_path {:?}", resized_path);
         if resized_path.exists() {
             log::debug!("serving cached {:?}", resized_path);
             return Ok(NamedFile::open(resized_path)?);
         }
+
+        log::debug!("get_file_for_commit_id resizing: {:?}", resized_path);
 
         let img = image::open(&version_path).unwrap();
         let resized_img = if img_resize.width.is_some() && img_resize.height.is_some() {
@@ -82,7 +125,7 @@ pub async fn get(
             img
         };
         resized_img.save(&resized_path).unwrap();
-        log::debug!("serving {:?}", resized_path);
+        log::debug!("get_file_for_commit_id serving {:?}", resized_path);
         return Ok(NamedFile::open(resized_path)?);
     }
 
