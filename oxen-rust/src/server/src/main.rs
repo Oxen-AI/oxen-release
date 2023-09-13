@@ -179,7 +179,7 @@ async fn main() -> std::io::Result<()> {
 
                     let queue = init_queue();
                     let cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>> =
-                        Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(2).unwrap())));
+                        Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(32).unwrap())));
 
                     let data = app_data::OxenAppData::new(&sync_dir, queue.clone(), cder_lru);
                     // Poll for post-commit tasks in background
