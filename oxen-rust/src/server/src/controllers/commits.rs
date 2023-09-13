@@ -1157,10 +1157,7 @@ mod tests {
         let uri = format!("/oxen/{}/{}/commits/{}", namespace, repo_name, commit.id);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(OxenAppData {
-                    path: sync_dir.clone(),
-                    queue,
-                })
+                .app_data(OxenAppData::new(sync_dir.clone(), queue))
                 .route(
                     "/oxen/{namespace}/{repo_name}/commits/{commit_id}",
                     web::post().to(controllers::commits::upload),

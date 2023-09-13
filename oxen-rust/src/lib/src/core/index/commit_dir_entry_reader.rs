@@ -93,7 +93,14 @@ impl CommitDirEntryReader {
 
     pub fn get_entry<P: AsRef<Path>>(&self, path: P) -> Result<Option<CommitEntry>, OxenError> {
         let path = path.as_ref();
-        path_db::get_entry(&self.db, path)
+        // log::debug!("CommitDirEntryReader::get_entry({:?})", path);
+        let result = path_db::get_entry(&self.db, path);
+        // log::debug!(
+        //     "CommitDirEntryReader::get_entry({:?}) -> {:?}",
+        //     path,
+        //     result
+        // );
+        result
     }
 
     pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {

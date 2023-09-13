@@ -422,7 +422,9 @@ async fn poll_until_synced(
                 retries = 0;
                 log::debug!("Got latest synced commit {:?}", sync_status.latest_synced);
                 log::debug!("Got n unsynced commits {:?}", sync_status.num_unsynced);
-                bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
+                if commits_to_sync > sync_status.num_unsynced as u64 {
+                    bar.set_position(commits_to_sync - sync_status.num_unsynced as u64);
+                }
                 if sync_status.num_unsynced == 0 {
                     bar.finish_and_clear();
                     println!("🎉 Push successful");
