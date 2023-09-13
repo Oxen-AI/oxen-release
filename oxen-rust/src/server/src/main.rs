@@ -1,6 +1,5 @@
 use liboxen::config::UserConfig;
 
-use liboxen::core::index::CommitDirEntryReader;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -22,15 +21,11 @@ use actix_web::middleware::{Condition, Logger};
 use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
 
-use lru::LruCache;
-use std::num::NonZeroUsize;
-use std::sync::{Arc, RwLock};
-
 use clap::{Arg, Command};
 use env_logger::Env;
 use std::io::Write;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -178,10 +173,8 @@ async fn main() -> std::io::Result<()> {
                     let enable_auth = sub_matches.get_flag("auth");
 
                     let queue = init_queue();
-                    let cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>> =
-                        Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(32).unwrap())));
 
-                    let data = app_data::OxenAppData::new(&sync_dir, queue.clone(), cder_lru);
+                    let data = app_data::OxenAppData::new(PathBuf::from(sync_dir), queue.clone());
                     // Poll for post-commit tasks in background
                     tokio::spawn(async { poll_queue(queue).await });
 

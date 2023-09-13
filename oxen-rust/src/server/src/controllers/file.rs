@@ -34,7 +34,7 @@ pub async fn get(
         liboxen::current_function!()
     );
 
-    // TODO: CLEANUP, increase size of LRU and MAKE SURE WE CAN ACCESS IN DIFFERENT REQUEST something that uses the same CommitDirEntryReader
+    // TODO: CLEANUP and refactor so we can use the CderLRUCache in other places that might need it.
 
     // Try to get the parent of the file path, if it exists
     let mut entry: Option<CommitEntry> = None;

@@ -270,23 +270,22 @@ fn p_get_file_for_commit_id(
 #[cfg(test)]
 mod tests {
 
-    
+    use actix_web::http::{self};
 
-    
+    use actix_web::body::to_bytes;
 
-    
-    
-    
-    
+    use liboxen::constants;
+    use liboxen::error::OxenError;
+    use liboxen::model::{Commit, RepositoryNew};
+    use liboxen::util;
 
-    
-    
-    
+    use liboxen::view::http::STATUS_SUCCESS;
+    use liboxen::view::{ListRepositoryResponse, NamespaceView, RepositoryResponse};
+    use time::OffsetDateTime;
 
-    
-    
+    use crate::controllers;
+    use crate::test;
 
-    /*
     #[actix_web::test]
     async fn test_controllers_repositories_index_empty() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
@@ -434,5 +433,4 @@ mod tests {
 
         Ok(())
     }
-     */
 }
