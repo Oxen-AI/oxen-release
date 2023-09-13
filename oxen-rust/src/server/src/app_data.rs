@@ -9,17 +9,17 @@ use std::sync::{Arc, RwLock};
 pub struct OxenAppData {
     pub path: PathBuf,
     pub queue: TaskQueue,
-    pub cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>>, // CommitEntryReaderLeastRecentlyUsed,
+    // CommitEntryReaderLeastRecentlyUsed
+    pub cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>>,
 }
 
 impl OxenAppData {
-    pub fn new(
-        path: &str,
-        queue: TaskQueue,
-        cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>>,
-    ) -> OxenAppData {
+    pub fn new(path: PathBuf, queue: TaskQueue) -> OxenAppData {
+        let cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>> = Arc::new(RwLock::new(
+            LruCache::new(std::num::NonZeroUsize::new(128).unwrap()),
+        ));
         OxenAppData {
-            path: PathBuf::from(path),
+            path,
             queue,
             cder_lru,
         }

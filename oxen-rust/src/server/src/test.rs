@@ -1,4 +1,4 @@
-
+use crate::app_data::OxenAppData;
 use crate::helpers;
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 
@@ -8,8 +8,8 @@ use liboxen::model::LocalRepository;
 use liboxen::util;
 
 use env_logger::Env;
-
-
+use serde::Serialize;
+use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 pub fn init_test_env() {
@@ -76,13 +76,9 @@ where
     Ok(())
 }
 
-/*
 pub fn request(sync_dir: &Path, queue: TaskQueue, uri: &str) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .to_http_request()
 }
 
@@ -93,10 +89,7 @@ pub fn namespace_request(
     repo_namespace: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .param("namespace", repo_namespace)
         .to_http_request()
 }
@@ -109,10 +102,7 @@ pub fn repo_request(
     repo_name: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .param("namespace", repo_namespace)
         .param("repo_name", repo_name)
         .to_http_request()
@@ -128,10 +118,7 @@ pub fn repo_request_with_param(
     val: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .param("namespace", repo_namespace)
         .param("repo_name", repo_name)
         .param(key, val)
@@ -146,10 +133,7 @@ pub fn request_with_param(
     val: impl Into<Cow<'static, str>>,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .param(key, val)
         .to_http_request()
 }
@@ -161,10 +145,7 @@ pub fn request_with_json(
     data: impl Serialize,
 ) -> actix_web::HttpRequest {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .set_json(data)
         .to_http_request()
 }
@@ -178,13 +159,9 @@ pub fn request_with_payload_and_entry(
     data: impl Into<actix_web::web::Bytes>,
 ) -> (actix_web::HttpRequest, actix_web::dev::Payload) {
     actix_web::test::TestRequest::with_uri(uri)
-        .app_data(OxenAppData {
-            path: sync_dir.to_path_buf(),
-            queue,
-        })
+        .app_data(OxenAppData::new(sync_dir.to_path_buf(), queue))
         .param("filename", filename)
         .param("hash", hash)
         .set_payload(data)
         .to_http_parts()
 }
- */
