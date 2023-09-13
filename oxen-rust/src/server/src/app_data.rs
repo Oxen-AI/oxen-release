@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use crate::queues::TaskQueue;
 use lru::LruCache;
-use std::num::NonZeroUsize;
 use std::sync::{Arc, RwLock};
 
 pub struct OxenAppData {
@@ -29,12 +28,10 @@ impl OxenAppData {
 
 impl Clone for OxenAppData {
     fn clone(&self) -> Self {
-        let cder_lru: Arc<RwLock<LruCache<String, CommitDirEntryReader>>> =
-            Arc::new(RwLock::new(LruCache::new(NonZeroUsize::new(2).unwrap())));
         OxenAppData {
             path: self.path.clone(),
             queue: self.queue.clone(),
-            cder_lru,
+            cder_lru: self.cder_lru.clone(),
         }
     }
 }
