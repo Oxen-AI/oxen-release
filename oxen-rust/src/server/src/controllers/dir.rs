@@ -52,6 +52,7 @@ mod tests {
     use crate::app_data::OxenAppData;
     use crate::controllers;
     use crate::test;
+
     #[actix_web::test]
     async fn test_controllers_dir_list_directory() -> Result<(), OxenError> {
         test::init_test_env();
@@ -77,10 +78,7 @@ mod tests {
         let uri = format!("/oxen/{}/{}/dir/{}/train/", namespace, name, commit.id);
         let app = actix_web::test::init_service(
             App::new()
-                .app_data(OxenAppData {
-                    path: sync_dir.clone(),
-                    queue,
-                })
+                .app_data(OxenAppData::new(sync_dir.clone(), queue))
                 .route(
                     "/oxen/{namespace}/{repo_name}/dir/{resource:.*}",
                     web::get().to(controllers::dir::get),
