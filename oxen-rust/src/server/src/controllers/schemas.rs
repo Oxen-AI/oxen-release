@@ -37,6 +37,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             let response = ListSchemaResponse {
                 status: StatusMessage::resource_found(),
                 schemas,
+                commit: Some(commit),
             };
             return Ok(HttpResponse::Ok().json(response));
         }
@@ -59,6 +60,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     let response = ListSchemaResponse {
         status: StatusMessage::resource_found(),
         schemas,
+        commit: Some(commit),
     };
     Ok(HttpResponse::Ok().json(response))
 }

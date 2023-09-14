@@ -32,7 +32,7 @@ pub use crate::view::status_message::{
 
 pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameSliceResponse};
 pub use crate::view::namespace::{ListNamespacesResponse, NamespaceResponse, NamespaceView};
-pub use crate::view::schema::{ListSchemaResponse, SchemaResponse};
+pub use crate::view::schema::ListSchemaResponse;
 
 pub use crate::view::repository::{
     ListRepositoryResponse, RepositoryResolveResponse, RepositoryResponse, RepositoryView,
