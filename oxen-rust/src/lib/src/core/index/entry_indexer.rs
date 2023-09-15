@@ -115,6 +115,7 @@ impl EntryIndexer {
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
+        //TODONOW uncomment
         self.cleanup_removed_entries(&commit)?;
 
         Ok(())
@@ -582,6 +583,7 @@ impl EntryIndexer {
 
         let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
 
+
         for commit in &commits {
             for parent_id in &commit.parent_ids {
                 let local_parent = commit_reader
@@ -605,17 +607,35 @@ impl EntryIndexer {
 
         // Dedupe all_entries on commit id, path, hash, size - necessary because entries
         // can be repeated via merge commits in loop above, causes races in unpacking
+
+        // TODONOW remove
+        // let mut seen_entries: HashSet<String> = HashSet::new();
+        // all_entries.retain(|entry| {
+        //     let key = format!(
+        //         "{}{}{}{}",
+        //         entry.commit_id,
+        //         entry.path.to_string_lossy(),
+        //         entry.hash,
+        //         entry.num_bytes
+        //     );
+        //     seen_entries.insert(key)
+        // });
+
+        // TODONOW more efficient deduping
         let mut seen_entries: HashSet<String> = HashSet::new();
         all_entries.retain(|entry| {
             let key = format!(
-                "{}{}{}{}",
-                entry.commit_id,
-                entry.path.to_string_lossy(),
+                "{}",
+                // entry.commit_id,
+                // entry.path.to_string_lossy(),
                 entry.hash,
-                entry.num_bytes
+                // entry.num_bytes
             );
             seen_entries.insert(key)
         });
+
+        // TODONOW remove 
+        log::debug!("Puller about to pull {} entries to versions dir...", all_entries.len());
 
         puller::pull_entries_to_versions_dir(
             remote_repo,

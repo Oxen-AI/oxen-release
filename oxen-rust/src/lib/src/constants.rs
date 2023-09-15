@@ -45,12 +45,15 @@ pub const INDICES_DIR: &str = "indices";
 pub const FIELDS_DIR: &str = "fields";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
+/// File name for files stored in versions directory (>0.8.3)
+pub const VERSION_FILE_NAME: &str = "data";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
 /// mods/ is where we can stage appends, modifications, deletions to files to be merged later
 pub const MODS_DIR: &str = "mods";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
+
 
 /// if we have merge conflicts we write to MERGE_HEAD and ORIG_HEAD to keep track of the parents
 pub const MERGE_HEAD_FILE: &str = "MERGE_HEAD";
