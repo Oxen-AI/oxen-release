@@ -900,18 +900,17 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     for commit in all_commits {
         log::debug!("Checking commit {:?}", commit.id);
         if commit_cacher::get_status(&repo, &commit)? == Some(CacherStatusType::Pending) {
-            // Append a task to the queue
-            log::debug!(
-                "complete_bulk found stuck pending commit {:?}, adding to queue",
-                commit.clone()
-            );
-
             // Need to force remove errantly left locks
             commit_cacher::force_remove_lock(&repo, &commit)?;
             let task = PostPushComplete {
                 commit: commit.clone(),
                 repo: repo.clone(),
             };
+            // Append a task to the queue
+            log::debug!(
+                "complete_bulk found stuck pending commit {:?}, adding to queue",
+                commit.clone()
+            );
 
             queue.push(tasks::Task::PostPushComplete(task))
         }
