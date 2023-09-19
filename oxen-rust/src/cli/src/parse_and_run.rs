@@ -506,6 +506,9 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
         tail: sub_matches
             .get_one::<String>("tail")
             .map(|x| x.parse::<usize>().expect("tail must be valid int")),
+        row: sub_matches
+            .get_one::<String>("row")
+            .map(|x| x.parse::<usize>().expect("row must be valid int")),
         take: sub_matches.get_one::<String>("take").map(String::from),
         columns: sub_matches.get_one::<String>("columns").map(String::from),
         filter: sub_matches.get_one::<String>("filter").map(String::from),
