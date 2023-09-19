@@ -67,9 +67,9 @@ impl CommitEntry {
         PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
     }
 
-    pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {
-        PathBuf::from(format!("{}.{}", commit_id, self.extension()))
-    }
+    // pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {
+    //     PathBuf::from(format!("{}.{}", commit_id, self.extension()))
+    // }
 
     pub fn extension(&self) -> String {
         if let Some(ext) = self.path.extension() {

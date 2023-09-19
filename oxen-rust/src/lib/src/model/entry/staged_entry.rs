@@ -6,6 +6,7 @@ pub enum StagedEntryStatus {
     Added,
     Modified,
     Removed,
+    Moved, // Not used in commit logic, just for display
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

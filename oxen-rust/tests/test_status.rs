@@ -2,6 +2,7 @@ use liboxen::api;
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::StagedEntryStatus;
+use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::test;
 use liboxen::util;
@@ -245,6 +246,89 @@ async fn test_status_rm_directory_file() -> Result<(), OxenError> {
             StagedEntryStatus::Removed
         );
 
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_status_move_regular_file() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+        // Move `README.md` to `README2.md`
+        let og_basename = PathBuf::from("README.md");
+        let og_file = repo.path.join(&og_basename);
+        let new_basename = PathBuf::from("README2.md");
+        let new_file = repo.path.join(&new_basename);
+
+        util::fs::rename(&og_file, &new_file)?;
+
+        // Status before
+        let status = command::status(&repo)?;
+
+        assert_eq!(status.moved_files.len(), 0);
+        assert_eq!(status.removed_files.len(), 1);
+        assert_eq!(status.untracked_files.len(), 1);
+
+        // Add one file...
+        command::add(&repo, &og_file)?;
+        let status = command::status(&repo)?;
+        // No notion of movement until the pair are added
+        assert_eq!(status.moved_files.len(), 0);
+        assert_eq!(status.staged_files.len(), 1);
+
+        // Complete the pair
+        command::add(&repo, &new_file)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.moved_files.len(), 1);
+        assert_eq!(status.staged_files.len(), 2); // Staged files still operates on the addition + removal
+
+        // Restore one file and break the pair
+        command::restore(&repo, RestoreOpts::from_staged_path(og_basename))?;
+
+        // Pair is broken; no more "moved"
+        let status = command::status(&repo)?;
+        assert_eq!(status.moved_files.len(), 0);
+        assert_eq!(status.staged_files.len(), 1);
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_status_move_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed_async(|repo| async move {
+        // Move train to to new_train/train2
+        let og_basename = PathBuf::from("train");
+        let og_dir = repo.path.join(&og_basename);
+        let new_basename = PathBuf::from("new_train").join("train2");
+        let new_dir = repo.path.join(&new_basename);
+
+        // Create the dir before move
+        util::fs::create_dir_all(&new_dir)?;
+        util::fs::rename(&og_dir, &new_dir)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.moved_files.len(), 0);
+        assert_eq!(status.untracked_dirs.len(), 1);
+        assert_eq!(status.removed_files.len(), 5);
+
+        // Add the removals
+        command::add(&repo, &og_dir)?;
+        // command::add(&repo, &new_dir)?;
+
+        let status = command::status(&repo)?;
+        // No moved files, 5 staged (the removals)
+        assert_eq!(status.moved_files.len(), 0);
+        assert_eq!(status.staged_files.len(), 5);
+        assert_eq!(status.staged_dirs.len(), 1);
+
+        // Complete the pairs
+        command::add(&repo, &new_dir)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.moved_files.len(), 5);
+        assert_eq!(status.staged_files.len(), 10);
+        assert_eq!(status.staged_dirs.len(), 2);
         Ok(())
     })
     .await

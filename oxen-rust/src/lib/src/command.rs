@@ -16,6 +16,7 @@ pub mod fetch;
 pub mod info;
 pub mod init;
 pub mod merge;
+pub mod migrate;
 pub mod pull;
 pub mod push;
 pub mod remote;

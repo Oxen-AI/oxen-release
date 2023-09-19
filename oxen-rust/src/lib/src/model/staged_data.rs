@@ -63,7 +63,9 @@ pub struct StagedData {
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
+    pub moved_files: Vec<(PathBuf, PathBuf, String)>,
     pub removed_files: Vec<PathBuf>,
+    //TODONOW drop temp_removed_files everywhere
     pub merge_conflicts: Vec<MergeConflict>,
 }
 
@@ -77,6 +79,7 @@ impl StagedData {
             untracked_files: vec![],
             modified_files: vec![],
             removed_files: vec![],
+            moved_files: vec![],
             merge_conflicts: vec![],
         }
     }
@@ -89,6 +92,7 @@ impl StagedData {
             && self.modified_files.is_empty()
             && self.removed_files.is_empty()
             && self.merge_conflicts.is_empty()
+            && self.moved_files.is_empty() // TODONOW consider `moved_entries`
     }
 
     pub fn has_added_entries(&self) -> bool {
@@ -109,6 +113,10 @@ impl StagedData {
 
     pub fn has_merge_conflicts(&self) -> bool {
         !self.merge_conflicts.is_empty()
+    }
+
+    pub fn has_moved_entries(&self) -> bool {
+        !self.moved_files.is_empty()
     }
 
     /// Line by line output that we want to print
@@ -219,6 +227,9 @@ impl StagedData {
                     StagedEntryStatus::Removed => {
                         dir_row.push("  removed: ".green());
                     }
+                    StagedEntryStatus::Moved => {
+                        dir_row.push("  moved: ".green());
+                    }
                 }
 
                 dir_row.push(staged_dir.path.to_str().unwrap().to_string().green().bold());
@@ -261,8 +272,64 @@ impl StagedData {
             outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
         }
 
+        // TODONOW: delete
+
+        let files = &self.staged_files;
+        // // For each added, look for a removed with the same hash. If there is a match, delete both entries and replace them with a moved entry
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
-            self.staged_files.iter().map(|(k, v)| (k, v)).collect();
+            files.iter().map(|(k, v)| (k, v)).collect();
+
+        // let mut added_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+        // let mut removed_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+
+        // let mut moved_entries: Vec<(&PathBuf, &PathBuf, String)> = vec![];
+        // for (path, entry) in files_vec.iter() {
+        //     match entry.status {
+        //         StagedEntryStatus::Added => {
+        //             added_map
+        //                 .entry(entry.hash.clone())
+        //                 .or_insert_with(Vec::new)
+        //                 .push(path);
+        //         }
+        //         StagedEntryStatus::Removed => {
+        //             removed_map
+        //                 .entry(entry.hash.clone())
+        //                 .or_insert_with(Vec::new)
+        //                 .push(path);
+        //         }
+        //         _ => continue,
+        //     }
+        // }
+
+        // for (hash, added_paths) in added_map.iter_mut() {
+        //     if let Some(removed_paths) = removed_map.get_mut(hash) {
+        //         while !added_paths.is_empty() && !removed_paths.is_empty() {
+        //             if let (Some(added_path), Some(removed_path)) = (added_paths.pop(), removed_paths.pop()) {
+        //                 moved_entries.push((added_path, removed_path, hash.to_string()));
+        //             }
+        //         }
+        //     }
+        // }
+        // Remove entries (for display purposes only)
+        // TODONOW fix this logic
+        let mut moved_staged_entries: Vec<StagedEntry> = Vec::new();
+
+        // self.moved_files = moved_entries.clone().into_iter().map(|(from, to, _)| (from.clone(), to.clone())).collect();
+
+        for (path, removed_path, hash) in self.moved_files.iter() {
+            files_vec.retain(|(p, _)| p != &path && p != &removed_path);
+
+            let moved_entry = StagedEntry {
+                hash: hash.to_string(),
+                status: StagedEntryStatus::Moved,
+            };
+            moved_staged_entries.push(moved_entry.clone());
+            // let last_entry_ref = moved_staged_entries.last().unwrap(); // Safe due to the push just above
+            // files_vec.push((path, last_entry_ref));
+        }
+        // Old code
+        // let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
+        //     self.staged_files.iter().map(|(k, v)| (k, v)).collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
@@ -285,10 +352,39 @@ impl StagedData {
                         format!("{}\n", path.to_str().unwrap()).green().bold(),
                     ]
                 }
+                StagedEntryStatus::Moved => {
+                    vec![
+                        "  moved: ".green(),
+                        format!("{}\n", path.to_str().unwrap()).green().bold(),
+                    ]
+                }
             },
             outputs,
             opts,
         );
+
+        // TODONOW get a copy of, and sort, these mvoed_files
+        // Sort moved_entries
+        // self.moved_files.sort_by(|(a, _, _), (b, _, _)| a.partial_cmp(b).unwrap());
+        self.__collapse_outputs(
+            &self.moved_files,
+            |(path, removed_path, _hash)| {
+                vec![
+                    "  moved: ".green(),
+                    format!(
+                        "{} -> {}\n",
+                        removed_path.to_str().unwrap(),
+                        path.to_str().unwrap()
+                    )
+                    .green()
+                    .bold(),
+                ]
+            },
+            outputs,
+            opts,
+        );
+
+        // Add moved entries
 
         // TODO: Can this be more generic?
         let total = self.staged_dirs.num_files_staged;

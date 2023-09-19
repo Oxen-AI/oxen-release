@@ -6,6 +6,7 @@ use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::SCHEMAS_DIR;
+use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
@@ -921,19 +922,70 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     // When we want to check is_synced, it is expensive to rehash everything
                     // But since upload is network bound already, hashing here makes sense, and we will just
                     // load the HASH file later
-                    file.unpack_in(hidden_dir).unwrap();
                     let path = file.path().unwrap();
-                    let full_path = hidden_dir.join(&path);
-                    let hash_dir = full_path.parent().unwrap();
-                    let hash_file = hash_dir.join(HASH_FILE);
+                    let mut version_path = PathBuf::from(hidden_dir);
 
-                    // log::debug!("unpack_entry_tarball unpacking entry {:?} to {:?}", path, full_path);
+                    if path.starts_with("versions/files") {
+                        // Unpack version files to common name (data.extension)
+                        // let extension = path.extension().unwrap_or_default();
+                        // let filename = format!("{}.{}", VERSION_FILE_NAME, extension.to_str().unwrap_or_default());
+                        // for component in path.iter() {
+                        //     version_path.push(component);
+                        // }
+                        // // Replace with new filename
+                        // version_path.set_file_name(filename);
+                        let new_path = util::fs::replace_file_name_keep_extension(
+                            &path,
+                            VERSION_FILE_NAME.to_owned(),
+                        );
+                        version_path.push(new_path);
 
-                    if path.starts_with("versions/files/") {
-                        let hash = util::hasher::hash_file_contents(&full_path).unwrap();
+                        log::debug!(
+                            "unpack_entry_tarball unpacking version file {:?} to {:?}",
+                            path,
+                            version_path
+                        );
+
+                        // TODO: WTF
+                        // Create all parent dirs of version_file
+                        if let Some(parent) = version_path.parent() {
+                            if !parent.exists() {
+                                std::fs::create_dir_all(parent)
+                                    .expect("Could not create parent dir");
+                            }
+                        }
+                        log::debug!("Unpacking to... {:?}", version_path);
+                        file.unpack(&version_path).unwrap();
+                        log::debug!("Successfully wrote...");
+
+                        let hash_dir = version_path.parent().unwrap();
+                        let hash_file = hash_dir.join(HASH_FILE);
+                        log::debug!("Trying to hash file...");
+                        let hash = util::hasher::hash_file_contents(&version_path).unwrap();
+                        log::debug!("Successfully hashed file.");
                         util::fs::write_to_path(&hash_file, &hash)
                             .expect("Could not write hash file");
+                    } else {
+                        log::debug!(
+                            "unpack_entry_tarball unpacking non-version file {:?} to {:?}",
+                            path,
+                            hidden_dir.join(path.clone())
+                        );
+                        file.unpack_in(hidden_dir).unwrap();
                     }
+
+                    // let path = file.path().unwrap();
+                    // let full_path = hidden_dir.join(&path);
+                    // let hash_dir = full_path.parent().unwrap();
+                    // let hash_file = hash_dir.join(HASH_FILE);
+
+                    // // log::debug!("unpack_entry_tarball unpacking entry {:?} to {:?}", path, full_path);
+
+                    // if path.starts_with("versions/files/") {
+                    //     let hash = util::hasher::hash_file_contents(&full_path).unwrap();
+                    //     util::fs::write_to_path(&hash_file, &hash)
+                    //         .expect("Could not write hash file");
+                    // }
                 } else {
                     log::error!("Could not unpack file in archive...");
                 }

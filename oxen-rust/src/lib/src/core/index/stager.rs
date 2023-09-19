@@ -45,6 +45,7 @@ pub enum FileStatus {
     Untracked,
     Modified,
     Removed,
+    Moved,
 }
 
 pub struct Stager {
@@ -253,8 +254,58 @@ impl Stager {
             self.process_dir(dir, &mut staged_data, &ignore)?;
         }
 
+        // TODONOW: Factor this out
+        // Identify moved files - do not modify underlying `stageddata`
+        let files = staged_data.staged_files.clone();
+        let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
+            files.iter().map(|(k, v)| (k, v)).collect();
+
+        // Find pairs of added-removed with same hash and add them to moved.
+        // We won't mutate StagedEntries here, the "moved" property is read-only
+        let mut added_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+        let mut removed_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+
+        let mut moved_entries: Vec<(&PathBuf, &PathBuf, String)> = vec![];
+        for (path, entry) in files_vec.iter() {
+            match entry.status {
+                StagedEntryStatus::Added => {
+                    added_map
+                        .entry(entry.hash.clone())
+                        .or_insert_with(Vec::new)
+                        .push(path);
+                }
+                StagedEntryStatus::Removed => {
+                    removed_map
+                        .entry(entry.hash.clone())
+                        .or_insert_with(Vec::new)
+                        .push(path);
+                }
+                _ => continue,
+            }
+        }
+
+        for (hash, added_paths) in added_map.iter_mut() {
+            if let Some(removed_paths) = removed_map.get_mut(hash) {
+                while !added_paths.is_empty() && !removed_paths.is_empty() {
+                    if let (Some(added_path), Some(removed_path)) =
+                        (added_paths.pop(), removed_paths.pop())
+                    {
+                        // moved_entries.push((added_path, removed_path, hash.to_string()));
+                        staged_data.moved_files.push((
+                            added_path.clone(),
+                            removed_path.clone(),
+                            hash.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+
         // Find merge conflicts
         staged_data.merge_conflicts = self.list_merge_conflicts()?;
+
+        log::debug!("Here are the staged entries {:?}", staged_data.staged_files);
+        log::debug!("Here are the staged dirs {:?}", staged_data.staged_dirs);
 
         // Populate schemas from db
         let mut schemas: HashMap<PathBuf, schema::Schema> = HashMap::new();
@@ -367,6 +418,8 @@ impl Stager {
                         FileStatus::Removed => {
                             staged_data.removed_files.push(relative.to_path_buf());
                         }
+                        // TODONOW not necessary to handle here...
+                        FileStatus::Moved => {}
                     }
                 }
             }
@@ -405,6 +458,119 @@ impl Stager {
 
         None
     }
+
+    // TODONOW cleanup
+    // fn find_moved_files(&self, staged_data: &mut StagedData) -> Result<(), OxenError> {
+    //     // Init a commit entry reader for the repo
+    //     // TODONOW: what commit are we on - does this work with detached_head?
+    //     // TODONOW: how to handle both staged file and untracked files like this
+    //     let current_commit = api::local::commits::head_commit(&self.repository)?;
+    //     let committer = CommitEntryReader::new(&self.repository, &current_commit)?;
+
+    //     // List all the entries
+    //     let entries = committer.list_entries()?;
+    //     log::debug!("find_moved_files found {:?} entries", entries);
+    //     // Here are all the entries in this
+    //     // Create a hashmap mapping each staged_entry hash to its filename
+    //     let mut staged_entry_hash_to_filename: HashMap<String, PathBuf> = HashMap::new();
+    //     // for (path, entry) in staged_data.staged_files.iter() {
+    //     //     log::debug!("staged looking in file {:?}", path);
+    //     //     staged_entry_hash_to_filename.insert(entry.hash.clone(), path.clone());
+    //     // }
+
+    //     for path in staged_data.untracked_files.iter() {
+    //         let entry = committer.get_entry(path)?;
+    //         log::debug!("files looking in file {:?}", path);
+    //         if let Some(entry) = entry {
+    //             staged_entry_hash_to_filename.insert(entry.hash.clone(), path.clone());
+    //         }
+    //     }
+
+    //     for path in staged_data.removed_files.iter() {
+    //         let entry = committer.get_entry(path)?;
+    //         log::debug!("files looking in file {:?}", path);
+    //         if let Some(entry) = entry {
+    //             staged_entry_hash_to_filename.insert(entry.hash.clone(), path.clone());
+    //         }
+    //     }
+
+    //     // How many keys are even in staged_entry_hash_to_filename
+    //     log::debug!("find_moved_files found {} staged files", staged_entry_hash_to_filename.len());
+
+    //     // Also do this for every file in every untracked directory
+    //     // for (dir, _size) in staged_data.untracked_dirs.iter() {
+    //     //     // For each file in the untracked directory...
+    //     //     let full_path = self.repository.path.join(&dir);
+    //     //     let walker = WalkDir::new(full_path)
+    //     //         .into_iter()
+    //     //         .filter_map(|e| e.ok());
+    //     //     for entry in walker.into_iter() {
+    //     //         let path = entry.path();
+    //     //         if path.is_file() {
+    //     //             let entry = committer.get_entry(&path)?;
+    //     //             if let Some(entry) = entry {
+    //     //                 staged_entry_hash_to_filename.insert(entry.hash.clone(), path.to_path_buf());
+    //     //             }
+    //     //         }
+    //     //     }
+    //     // }
+
+    //     //TODONOW grammar
+    //     // For each removed file, if its hash is in staged_entry_hash_to_filename, remove it from removed_files and add it to moved_files
+
+    //     // TODONOW clean this up...
+    //     let mut to_move: Vec<PathBuf> = Vec::new();
+    //     let mut to_remove: Vec<&PathBuf> = Vec::new();
+
+    //     // New files
+    //     for path in staged_data.untracked_files.iter() {
+    //         // Hash the file
+    //         let hash = hasher::hash_file_contents(&path)?;
+    //         // If the hash is in the hashmap, then it is a moved file
+    //         if let Some(moved_file) = staged_entry_hash_to_filename.get(&hash) {
+    //             to_move.push(path.clone());
+    //             let removed_file = staged_entry_hash_to_filename.get(&hash);
+    //             // If we find it
+    //             if let Some(removed_file) = removed_file {
+    //                 // Remove it from the removed files
+    //                 to_remove.push(removed_file);
+    //             }
+    //         }
+    //     }
+
+    //     // TODONOW factor out common behavior
+    //     for (dir, _) in staged_data.untracked_dirs.iter() {
+    //         let files = rlist_files_in_dir(dir);
+    //         for file in files {
+    //             let hash = hasher::hash_file_contents(&file)?;
+    //             // If the hash is in the hashmap, then it is a moved file
+    //             if let Some(moved_file) = staged_entry_hash_to_filename.get(&hash) {
+    //                 to_move.push(file.clone());
+    //                 let removed_file = staged_entry_hash_to_filename.get(&hash);
+    //                 // If we find it
+    //                 if let Some(removed_file) = removed_file {
+    //                     // Remove it from the removed files
+    //                     to_remove.push(removed_file);
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     // for removed_file in staged_data.removed_files.iter() {
+    //     //     // Get version directory path at which to hash...
+    //     //     let removed_entry = committer.get_entry(removed_file)?.unwrap();
+    //     //     if let Some(moved_file) = staged_entry_hash_to_filename.get(&removed_entry.hash) {
+    //     //         to_remove.push(removed_file.clone());
+    //     //         to_move.push(moved_file.clone());
+    //     //     }
+    //     // }
+
+    //     // log::debug!("find_moved_files found {} moved files", to_move.len());
+
+    //     // staged_data.removed_files.retain(|x| !to_remove.contains(&x));
+    //     // staged_data.moved_files.extend(to_move);
+    //     Ok(())
+    // }
 
     fn file_is_removed(repo_path: &Path, commit_entry: &CommitEntry) -> bool {
         let full_path = repo_path.join(&commit_entry.path);
