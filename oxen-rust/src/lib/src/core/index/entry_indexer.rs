@@ -115,7 +115,7 @@ impl EntryIndexer {
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
-        //TODONOW uncomment
+
         self.cleanup_removed_entries(&commit)?;
 
         Ok(())
@@ -583,7 +583,6 @@ impl EntryIndexer {
 
         let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
 
-
         for commit in &commits {
             for parent_id in &commit.parent_ids {
                 let local_parent = commit_reader
@@ -634,8 +633,11 @@ impl EntryIndexer {
             seen_entries.insert(key)
         });
 
-        // TODONOW remove 
-        log::debug!("Puller about to pull {} entries to versions dir...", all_entries.len());
+        // TODONOW remove
+        log::debug!(
+            "Puller about to pull {} entries to versions dir...",
+            all_entries.len()
+        );
 
         puller::pull_entries_to_versions_dir(
             remote_repo,

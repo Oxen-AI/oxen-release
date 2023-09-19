@@ -20,6 +20,8 @@ pub const LOG: &str = "log";
 pub const LS: &str = "ls";
 pub const MERGE: &str = "merge";
 pub const METADATA: &str = "metadata";
+pub const MIGRATE: &str = "migrate";
+pub const MIGRATE_VERSION_FILES: &str = "update-version-files";
 pub const PULL: &str = "pull";
 pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
@@ -790,6 +792,30 @@ pub fn commit_cache() -> Command {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(arg!([REVISION] "The commit or branch id you want to compute the cache for. Defaults to main."))
+}
+
+// TODO: if future migration commands all are expected to follow the <path> --all structure,
+// move that arg parsing up to the top level of the command
+pub fn migrate() -> Command {
+    Command::new(MIGRATE)
+        .about("Run a named migration on a server repository or set of repositories")
+        .subcommand_required(true)
+        .subcommand(
+            Command::new(MIGRATE_VERSION_FILES)
+                .about("Migrates version files from commit id to common prefix")
+                .arg(
+                    Arg::new("PATH")
+                        .help("Directory in which to apply the migration")
+                        .required(true),
+                )
+                .arg(
+                    Arg::new("all")
+                        .long("all")
+                        .short('a')
+                        .help("Run the migration for all oxen repositories in this directory")
+                        .action(clap::ArgAction::SetTrue),
+                ),
+        )
 }
 
 pub fn read_lines() -> Command {

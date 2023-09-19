@@ -586,7 +586,6 @@ async fn test_push_pull_separate_branch_more_files() -> Result<(), OxenError> {
     .await
 }
 
-
 #[tokio::test]
 async fn test_push_pull_moved_files() -> Result<(), OxenError> {
     // Push the Remote Repo
@@ -601,7 +600,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
         println!("First commit");
         command::commit(&local_repo, "Adding file for first time")?;
         println!("Commit successfull");
-        // Write the same file to newfolder/a.txt 
+        // Write the same file to newfolder/a.txt
 
         let new_path = &local_repo.path.join("newfolder").join("a.txt");
 
@@ -611,7 +610,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
 
         // Write the same file to newfolder/b.txt
         let new_path = &local_repo.path.join("newfolder").join("b.txt");
-        
+
         test::write_txt_file_to_path(new_path, contents)?;
         command::add(&local_repo, &new_path)?;
 
@@ -621,11 +620,14 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
         util::fs::remove_file(&new_path)?;
         command::add(&local_repo, &new_path)?;
         println!("Second commit");
-        command::commit(&local_repo, "Moved file to 2 new places and deleted original")?;
+        command::commit(
+            &local_repo,
+            "Moved file to 2 new places and deleted original",
+        )?;
         command::push(&local_repo).await?;
-        
+
         test::run_empty_dir_test_async(|repo_dir| async move {
-            // Pull down this removal 
+            // Pull down this removal
             let cloned_repo = command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
             Ok(repo_dir)
         })
@@ -635,5 +637,3 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
     })
     .await
 }
-
-

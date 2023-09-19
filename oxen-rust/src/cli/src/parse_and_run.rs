@@ -4,7 +4,9 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
+use crate::cmd_setup::{
+    ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, MIGRATE_VERSION_FILES, RESTORE, RM, STATUS,
+};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
@@ -1002,6 +1004,19 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
         }
     }
 }
+// TODONOW handle this much better
+pub async fn migrate(sub_matches: &ArgMatches) {
+    if let Some(subcommand) = sub_matches.subcommand() {
+        match subcommand {
+            (MIGRATE_VERSION_FILES, sub_matches) => {
+                migrate_version_files(sub_matches);
+            }
+            (command, _) => {
+                eprintln!("Invalid subcommand: {command}")
+            }
+        }
+    }
+}
 
 pub fn kvdb_inspect(sub_matches: &ArgMatches) {
     let path_str = sub_matches.get_one::<String>("PATH").expect("required");
@@ -1033,4 +1048,30 @@ pub fn read_lines(sub_matches: &ArgMatches) {
         println!("{line}");
     }
     println!("Total: {size}");
+}
+
+pub fn migrate_version_files(sub_matches: &ArgMatches) {
+    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
+    let path = Path::new(path_str);
+
+    if sub_matches.get_flag("all") {
+        match command::migrate::update_version_files_for_all_repos(path) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("Err: {err}")
+            }
+        }
+    } else {
+        match LocalRepository::new(path) {
+            Ok(repo) => match command::migrate::update_version_files(&repo) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Err: {err}")
+                }
+            },
+            Err(err) => {
+                println!("Err: {err}")
+            }
+        }
+    }
 }

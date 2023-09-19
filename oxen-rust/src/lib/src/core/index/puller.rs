@@ -171,7 +171,11 @@ async fn pull_large_entries(
                 let remote_path = &entry.path;
 
                 // let download_path = path.join(&entry.path);
-                log::debug!("Downloading large entry {:?} to download path {:?}", entry.path, download_path);
+                log::debug!(
+                    "Downloading large entry {:?} to download path {:?}",
+                    entry.path,
+                    download_path
+                );
                 // Download to the tmp path, then copy over to the entries dir
                 match api::remote::entries::download_large_entry(
                     &remote_repo,
@@ -271,7 +275,11 @@ async fn pull_small_entries(
                 let (remote_repo, chunk, path, bar) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
 
-                log::debug!("Downloading small entries {:?} to download path {:?}", chunk, path);
+                log::debug!(
+                    "Downloading small entries {:?} to download path {:?}",
+                    chunk,
+                    path
+                );
 
                 match api::remote::entries::download_data_from_version_paths(
                     &remote_repo,

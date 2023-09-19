@@ -60,15 +60,33 @@ pub async fn download_data_from_version_paths(
             continue;
         }
 
-        let version_path = repo.path.join(content_file);
-        if version_path.exists() {
-            tar.append_path_with_name(version_path, content_file)
+        log::debug!("download_data_from_version_paths pulling {}", content_file);
+
+        // Get the extension
+
+        // We'll read from version file as determined on server side,
+        // ...but still want to write the tar archive with the original filename so that it
+        // unpacks to proper location on out of date clients.
+        let mut path_to_read = repo.path.join(content_file);
+
+        let extension = path_to_read
+            .extension()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_owned();
+        path_to_read.set_file_name(constants::VERSION_FILE_NAME);
+        // TODONOW needed?
+        path_to_read.set_extension(extension);
+
+        if path_to_read.exists() {
+            tar.append_path_with_name(path_to_read, content_file)
                 .unwrap();
         } else {
             log::error!(
                 "Could not find content: {:?} -> {:?}",
                 content_file,
-                version_path
+                path_to_read
             );
         }
     }

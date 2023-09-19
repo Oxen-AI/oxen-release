@@ -579,9 +579,9 @@ async fn push_missing_commit_entries(
     for commit in commits {
         // Only if the commit is not already accounted for in unsynced entries - avoid double counting
         if !unsynced_entries.iter().any(|u| u.commit.id == commit.id) {
-            let (commit_unsynced_commits, commit_size) =
-                get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;            
-                unsynced_entries.extend(commit_unsynced_commits);
+            let (commit_unsynced_commits, _commit_size) =
+                get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+            unsynced_entries.extend(commit_unsynced_commits);
         }
     }
 
@@ -592,23 +592,19 @@ async fn push_missing_commit_entries(
 
     // Now iterate through and collect size - TODONOW this is definitely not correct
 
-
     spinner.finish_and_clear();
 
-    // Dedupe unsynced_entries on hash 
+    // Dedupe unsynced_entries on hash
     let mut seen_entries: HashSet<String> = HashSet::new();
     log::debug!("Before length: {}", unsynced_entries.len());
     unsynced_entries.retain(|e| seen_entries.insert(e.hash.clone()));
     log::debug!("After length: {}", unsynced_entries.len());
 
-    // TODONOW don't pass this through 
+    // TODONOW don't pass this through
 
     total_size = compute_entries_size(&unsynced_entries)?;
 
-
     println!("🐂 Pushing {}", bytesize::ByteSize::b(total_size));
-
-
 
     // TODO - we can probably take commits out of this flow entirely, but it disrupts a bit rn so want to make sure this is stable first
     // For now, will send the HEAD commit through for logging purposes
