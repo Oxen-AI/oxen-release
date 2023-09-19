@@ -37,6 +37,7 @@ pub struct DFOpts {
     pub output: Option<PathBuf>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
+    pub row: Option<usize>,
     pub should_randomize: bool,
     pub should_reverse: bool,
     pub slice: Option<String>,
@@ -66,6 +67,7 @@ impl DFOpts {
             output: None,
             page_size: None,
             page: None,
+            row: None,
             should_randomize: false,
             should_reverse: false,
             slice: None,
@@ -136,6 +138,7 @@ impl DFOpts {
             || self.head.is_some()
             || self.page_size.is_some()
             || self.page.is_some()
+            || self.row.is_some()
             || self.should_randomize
             || self.should_reverse
             || self.slice.is_some()
@@ -162,6 +165,10 @@ impl DFOpts {
             } else {
                 return None;
             }
+        }
+        if let Some(row) = self.row {
+            let next_row = row + 1;
+            return Some((row as i64, next_row as i64));
         }
         None
     }
