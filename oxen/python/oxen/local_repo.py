@@ -150,7 +150,7 @@ class LocalRepo:
         """
         return self._repo.push(remote_name, branch)
 
-    def pull(self, remote_name: str = "origin", branch: str = "main"):
+    def pull(self, remote_name: str = "origin", branch: str = "main", all=False):
         """
         Pull data from a remote repo to a local repo.
 
@@ -159,8 +159,10 @@ class LocalRepo:
                 The name of the remote to pull from.
             branch: `str`
                 The name of the branch to pull from.
+            all: `bool`
+                Whether to pull all data from branch history or not. Default: False
         """
-        return self._repo.pull(remote_name, branch)
+        return self._repo.pull(remote_name, branch, all)
 
     @property
     def path(self):
