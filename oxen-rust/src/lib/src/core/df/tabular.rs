@@ -405,8 +405,30 @@ pub fn transform_lazy(
         df = run_text2sql(df, query, opts.get_host())?;
     }
 
+    // For aggregations, sort by first column, because it is non-deterministic
+    let mut should_sort_by_first_column = false;
     if let Some(query) = &opts.sql {
         df = run_sql(df, query)?;
+
+        if let Some(sql) = &opts.sql {
+            if sql.to_lowercase().contains("group by")
+                || sql.to_lowercase().contains("count(")
+                || sql.to_lowercase().contains("sum(")
+                || sql.to_lowercase().contains("avg(")
+                || sql.to_lowercase().contains("min(")
+                || sql.to_lowercase().contains("max(")
+                || sql.to_lowercase().contains("stddev(")
+                || sql.to_lowercase().contains("variance(")
+                || sql.to_lowercase().contains("group_concat(")
+                || sql.to_lowercase().contains("select distinct")
+            {
+                should_sort_by_first_column = true;
+            }
+
+            if sql.to_lowercase().contains("order by") {
+                should_sort_by_first_column = false;
+            }
+        }
     }
 
     match opts.get_filter() {
@@ -426,6 +448,20 @@ pub fn transform_lazy(
 
     if let Some(agg) = &opts.get_aggregation()? {
         df = aggregate_df(df, agg)?;
+        should_sort_by_first_column = true;
+    }
+
+    // Sort aggregations by first column because they return in a non-deterministic order
+    log::debug!("Should sort by first column? {should_sort_by_first_column}");
+    if should_sort_by_first_column {
+        log::debug!("Sorting by first column");
+        let schema = df.schema().expect("Unable to get schema from data frame");
+        let first_column = schema
+            .get_at_index(0)
+            .expect("Unable to get first column")
+            .0;
+        log::debug!("First column name: {first_column}");
+        df = df.sort(first_column, SortOptions::default());
     }
 
     if opts.should_randomize {

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use super::entry::ResourceVersion;
 use crate::model::{Commit, Schema};
 
 use super::StatusMessage;
@@ -10,4 +11,5 @@ pub struct ListSchemaResponse {
     pub status: StatusMessage,
     pub schemas: Vec<Schema>,
     pub commit: Option<Commit>,
+    pub resource: Option<ResourceVersion>,
 }
