@@ -20,6 +20,11 @@ impl PyCommit {
     }
 
     #[getter]
+    pub fn id(&self) -> String {
+        self.commit.id.to_string()
+    }
+
+    #[getter]
     pub fn commit_id(&self) -> String {
         self.commit.id.to_string()
     }

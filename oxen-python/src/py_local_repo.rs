@@ -144,10 +144,10 @@ impl PyLocalRepo {
         Ok(())
     }
 
-    pub fn pull(&self, remote: &str, branch: &str) -> Result<(), PyOxenError> {
+    pub fn pull(&self, remote: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             let repo = LocalRepository::from_dir(&self.path)?;
-            command::pull_remote_branch(&repo, remote, branch).await
+            command::pull_remote_branch(&repo, remote, branch, all).await
         })?;
         Ok(())
     }
