@@ -147,6 +147,15 @@ fn get_db_connection(
     Err(OxenError::basic_str("Could not open db"))
 }
 
+pub fn force_remove_lock(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
+    let lock_path = cached_status_lock_path(repo, commit);
+    if lock_path.exists() {
+        log::warn!("force_remove_lock Deleting lock file {:?}", lock_path);
+        util::fs::remove_file(lock_path)?;
+    }
+    Ok(())
+}
+
 /// Run all the cachers and update their status's as you go
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
     // Write the LOCK file and delete when we are done processing
