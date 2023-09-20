@@ -58,12 +58,8 @@ impl CommitEntry {
         util::fs::version_path(&repo, self)
     }
 
-    // pub fn filename(&self) -> PathBuf {
-    //     PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
-    // }
-
     pub fn filename(&self) -> PathBuf {
-        PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
+        PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
     }
 
     pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {
