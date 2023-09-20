@@ -1,3 +1,5 @@
+// TODO: We are depreciating this format in favor of the new JSON format
+
 use std::io::BufWriter;
 use std::str;
 
