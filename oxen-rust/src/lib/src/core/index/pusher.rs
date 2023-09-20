@@ -163,7 +163,7 @@ pub async fn try_push_remote_repo(
         commits_to_sync
     );
 
-    let (unsynced_entries, total_size) =
+    let (unsynced_entries, _total_size) =
         push_missing_commit_objects(local_repo, remote_repo, &commits_to_sync, &branch).await?;
 
     log::debug!("🐂 Identifying unsynced commits dbs...");

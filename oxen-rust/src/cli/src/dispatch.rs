@@ -68,37 +68,40 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
 }
 
 fn version_files_out_of_date(repo: &LocalRepository) -> Result<bool, OxenError> {
-    let versions_dir = repo.path.join(constants::OXEN_HIDDEN_DIR)
-                                         .join(constants::VERSIONS_DIR);
+    let versions_dir = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::VERSIONS_DIR);
     if !versions_dir.exists() {
-        return Ok(false)
+        return Ok(false);
     }
-    // Walk until we find a file, then parse on the filename to determine if migration necessary 
     for entry in WalkDir::new(&versions_dir) {
-        let entry = entry?; 
+        let entry = entry?;
         if entry.file_type().is_file() {
-            let path = entry.path(); 
+            let path = entry.path();
             let filename = match path.file_name() {
                 Some(filename) => filename.to_string_lossy().to_string(),
                 None => continue,
             };
 
             if filename.starts_with(constants::VERSION_FILE_NAME) {
-                return Ok(false)
-            } 
-        return Ok(true)
-        }   
+                return Ok(false);
+            }
+            return Ok(true);
+        }
     }
     Ok(false)
 }
 
 pub fn check_versions_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
-    let migration_needed = version_files_out_of_date(&repo)?;
+    let migration_needed = version_files_out_of_date(repo)?;
 
     if migration_needed {
-        let warning = format!("Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate update-version-files .` to migrate.\n").yellow();
+        let warning = "Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate update-version-files .` to migrate.\n".to_string().yellow();
         eprintln!("{warning}");
-        return Err(OxenError::MigrationRequired("Error: Migration required".to_string().into()))
+        return Err(OxenError::MigrationRequired(
+            "Error: Migration required".to_string().into(),
+        ));
     }
     Ok(())
 }

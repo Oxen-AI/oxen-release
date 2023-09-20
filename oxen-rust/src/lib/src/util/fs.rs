@@ -63,9 +63,7 @@ pub fn version_path_for_commit_id(
             Some(entry) => {
                 let path = version_path(repo, &entry);
                 let arrow_path = path.parent().unwrap().join(DATA_ARROW_FILE);
-                log::debug!("version_path_for_commit_id: {:?}", path);
                 if arrow_path.exists() {
-                    log::debug!("version_path_for_commit_id arrow_path: {:?}", arrow_path);
                     Ok(arrow_path)
                 } else {
                     Ok(path)
@@ -135,20 +133,10 @@ pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
-    log::debug!(
-        "Got this entry and this filename, {:?}, {:?}",
-        entry,
-        entry.filename()
-    );
     version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
 }
 
 pub fn version_path_from_dst(dst: impl AsRef<Path>, entry: &CommitEntry) -> PathBuf {
-    log::debug!(
-        "Got this entry and this filename, {:?}, {:?}",
-        entry,
-        entry.filename()
-    );
     version_path_from_hash_and_file(dst, entry.hash.clone(), entry.filename())
 }
 
@@ -162,14 +150,7 @@ pub fn version_path_from_hash_and_file(
     hash: String,
     filename: PathBuf,
 ) -> PathBuf {
-    log::debug!(
-        "dst, hash, filename: {:?}, {:?}, {:?}",
-        dst.as_ref(),
-        hash,
-        filename
-    );
     let version_dir = version_dir_from_hash(dst, hash);
-    log::debug!("Version path from hash and file is: {:?}", version_dir);
     version_dir.join(filename)
 }
 
