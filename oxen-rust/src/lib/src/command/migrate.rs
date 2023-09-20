@@ -9,7 +9,6 @@ use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, util};
 
 pub fn update_version_files_for_all_repos(path: &Path) -> Result<(), OxenError> {
-    // Temporarily don't use path at all 
     let namespaces = api::local::repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     for namespace in namespaces {
@@ -37,7 +36,6 @@ pub fn update_version_files_for_all_repos(path: &Path) -> Result<(), OxenError> 
 }
 
 pub fn update_version_files(repo: &LocalRepository) -> Result<(), OxenError> {
-    // Versions directory
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let versions_dir = hidden_dir.join(VERSIONS_DIR);
 

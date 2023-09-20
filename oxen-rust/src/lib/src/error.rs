@@ -105,7 +105,7 @@ impl OxenError {
     pub fn authentication<T: AsRef<str>>(s: T) -> Self {
         OxenError::Authentication(StringError::from(s.as_ref()))
     }
-    
+
     pub fn migration_required<T: AsRef<str>>(s: T) -> Self {
         OxenError::MigrationRequired(StringError::from(s.as_ref()))
     }

@@ -45,7 +45,7 @@ pub const INDICES_DIR: &str = "indices";
 pub const FIELDS_DIR: &str = "fields";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
-/// File name for files stored in versions directory (>0.8.3)
+/// File name for files stored in versions directory (>0.8.4). (Was commit id <= 0.8.4)
 pub const VERSION_FILE_NAME: &str = "data";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";

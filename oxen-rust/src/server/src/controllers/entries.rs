@@ -64,10 +64,13 @@ pub async fn download_data_from_version_paths(
         log::debug!("download_data_from_version_paths pulling {}", content_file);
 
         // We read from version file as determined by the latest logic (data.extension)
-        // but still want to write the tar archive with the original filename so that it 
-        // unpacks to the location old clients expect. 
+        // but still want to write the tar archive with the original filename so that it
+        // unpacks to the location old clients expect.
         let mut path_to_read = repo.path.join(content_file);
-        path_to_read = replace_file_name_keep_extension(&path_to_read, constants::VERSION_FILE_NAME.to_string());
+        path_to_read = replace_file_name_keep_extension(
+            &path_to_read,
+            constants::VERSION_FILE_NAME.to_string(),
+        );
 
         if path_to_read.exists() {
             tar.append_path_with_name(path_to_read, content_file)

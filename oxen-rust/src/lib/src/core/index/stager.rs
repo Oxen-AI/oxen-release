@@ -253,16 +253,11 @@ impl Stager {
             self.process_dir(dir, &mut staged_data, &ignore)?;
         }
 
-
         // Make pairs from Added + Removed stage entries with same hash, store in staged_data.moved_entries
         self.find_moved_files(&mut staged_data)?;
 
-
         // Find merge conflicts
         staged_data.merge_conflicts = self.list_merge_conflicts()?;
-
-        log::debug!("Here are the staged entries {:?}", staged_data.staged_files);
-        log::debug!("Here are the staged dirs {:?}", staged_data.staged_dirs);
 
         // Populate schemas from db
         let mut schemas: HashMap<PathBuf, schema::Schema> = HashMap::new();
@@ -274,13 +269,9 @@ impl Stager {
         Ok(staged_data)
     }
 
-    fn find_moved_files(
-        &self, 
-        staged_data: &mut StagedData,
-    ) -> Result<(), OxenError> {
+    fn find_moved_files(&self, staged_data: &mut StagedData) -> Result<(), OxenError> {
         let files = staged_data.staged_files.clone();
-        let files_vec: Vec<(&PathBuf, &StagedEntry)> =
-            files.iter().map(|(k, v)| (k, v)).collect();
+        let files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().map(|(k, v)| (k, v)).collect();
 
         // Find pairs of added-removed with same hash and add them to moved.
         // We won't mutate StagedEntries here, the "moved" property is read-only

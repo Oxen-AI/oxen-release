@@ -305,11 +305,9 @@ impl StagedData {
             opts,
         );
 
-        // Sort the moved entries for display by destination path
         let mut moved_entries = self.moved_files.clone();
         moved_entries.sort_by(|(_, old_a, _), (_, old_b, _)| old_a.partial_cmp(old_b).unwrap());
 
-        // self.moved_files.sort_by(|(a, _, _), (b, _, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &self.moved_files,
             |(path, removed_path, _hash)| {
