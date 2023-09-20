@@ -2,7 +2,7 @@ use std::path::Path;
 
 use jwalk::WalkDir;
 
-use crate::constants::{VERSIONS_DIR, VERSION_FILE_NAME};
+use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -43,7 +43,8 @@ pub fn update_version_files(repo: &LocalRepository) -> Result<(), OxenError> {
         match entry {
             Ok(val) => {
                 let path = val.path();
-                if path.is_file() {
+                // Rename all files except for server-computed HASH
+                if path.is_file() && path.file_name().unwrap() != HASH_FILE {
                     let new_path = util::fs::replace_file_name_keep_extension(
                         &path,
                         VERSION_FILE_NAME.to_owned(),
