@@ -197,7 +197,6 @@ pub async fn try_push_remote_repo(
         &branch,
         &unsynced_entries_commits,
         unsynced_entries,
-        total_size,
     )
     .await?;
 
@@ -557,7 +556,6 @@ async fn push_missing_commit_entries(
     branch: &Branch,
     commits: &Vec<Commit>,
     mut unsynced_entries: Vec<UnsyncedCommitEntries>,
-    mut total_size: u64,
 ) -> Result<(), OxenError> {
     // If no commits, nothing to do here. If no entries, but still commits to sync, need to do this step
     // TODO: maybe factor validation into a separate fourth step so that this can be skipped if no entries
@@ -590,19 +588,13 @@ async fn push_missing_commit_entries(
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
 
-    // Now iterate through and collect size - TODONOW this is definitely not correct
-
     spinner.finish_and_clear();
 
     // Dedupe unsynced_entries on hash
     let mut seen_entries: HashSet<String> = HashSet::new();
-    log::debug!("Before length: {}", unsynced_entries.len());
     unsynced_entries.retain(|e| seen_entries.insert(e.hash.clone()));
-    log::debug!("After length: {}", unsynced_entries.len());
 
-    // TODONOW don't pass this through
-
-    total_size = compute_entries_size(&unsynced_entries)?;
+    let total_size = compute_entries_size(&unsynced_entries)?;
 
     println!("🐂 Pushing {}", bytesize::ByteSize::b(total_size));
 
