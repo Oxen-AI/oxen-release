@@ -5,12 +5,13 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
+use super::StatusMessage;
 use crate::core::df::tabular;
+use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::PaginateOpts;
+use crate::view::entry::ResourceVersion;
 use crate::{model::Schema, opts::DFOpts};
-
-use super::StatusMessage;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrame {
@@ -28,6 +29,8 @@ pub struct JsonDataFrameSliceResponse {
     pub df: JsonDataFrame,
     pub full_size: DataFrameSize,
     pub slice_size: DataFrameSize,
+    pub commit: Option<Commit>,
+    pub resource: Option<ResourceVersion>,
     pub page_number: usize,
     pub page_size: usize,
     pub total_pages: usize,

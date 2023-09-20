@@ -6,6 +6,7 @@ use liboxen::core;
 use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::DFOpts;
+use liboxen::view::entry::ResourceVersion;
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
 };
@@ -71,6 +72,11 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         latest_commit.message
     );
 
+    let resource_version = ResourceVersion {
+        path: resource.file_path.to_string_lossy().into(),
+        version: resource.version().to_owned(),
+    };
+
     let directory = resource.file_path;
     let offset = 0;
     let limit = 100;
@@ -89,6 +95,8 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
             height: num_rows,
         },
         df: JsonDataFrame::from_df(&mut sliced_df),
+        commit: Some(resource.commit.clone()),
+        resource: Some(resource_version),
         page_number: 0,
         page_size: limit,
         total_pages: 0,
@@ -129,18 +137,23 @@ pub async fn agg_dir(
         latest_commit.message
     );
 
-    let directory = resource.file_path;
+    let directory = &resource.file_path;
 
     let cached_path = core::cache::cachers::content_stats::dir_column_path(
         &repo,
         &latest_commit,
-        &directory,
+        directory,
         &column,
     );
     log::debug!("Reading aggregation from cached path: {:?}", cached_path);
 
     if cached_path.exists() {
         let mut df = core::df::tabular::read_df(&cached_path, DFOpts::empty())?;
+
+        let resource_version = ResourceVersion {
+            path: resource.file_path.to_string_lossy().into(),
+            version: resource.version().to_owned(),
+        };
 
         let response = JsonDataFrameSliceResponse {
             status: StatusMessage::resource_found(),
@@ -153,6 +166,8 @@ pub async fn agg_dir(
                 height: df.height(),
             },
             df: JsonDataFrame::from_df(&mut df),
+            commit: Some(resource.commit.clone()),
+            resource: Some(resource_version),
             page_number: 1,
             page_size: df.height(),
             total_pages: 1,

@@ -6,6 +6,7 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
+use liboxen::view::entry::ResourceVersion;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -41,7 +42,7 @@ pub async fn get(
 
     // Try to get the schema from disk
     let og_schema =
-        if let Some(schema) = api::local::schemas::get_by_path(&repo, resource.file_path)? {
+        if let Some(schema) = api::local::schemas::get_by_path(&repo, &resource.file_path)? {
             schema
         } else {
             Schema::from_polars(&df.schema())
@@ -91,6 +92,11 @@ pub async fn get(
 
             log::debug!("Slice schema {:?}", slice_schema);
 
+            let resource_version = ResourceVersion {
+                path: resource.file_path.to_string_lossy().into(),
+                version: resource.version().to_owned(),
+            };
+
             let response = JsonDataFrameSliceResponse {
                 status: StatusMessage::resource_found(),
                 full_size: full_size.to_owned(),
@@ -104,6 +110,8 @@ pub async fn get(
                     full_size,
                     slice_schema,
                 ),
+                commit: Some(resource.commit.clone()),
+                resource: Some(resource_version),
                 page_number: page,
                 page_size,
                 total_pages,
