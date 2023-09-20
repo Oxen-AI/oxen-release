@@ -3343,6 +3343,7 @@ dependencies = [
  "colored",
  "dunce",
  "env_logger",
+ "jwalk",
  "liboxen",
  "minus",
  "serde_json",

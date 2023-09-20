@@ -976,7 +976,7 @@ pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::constants;
+    use crate::constants::{self, VERSION_FILE_NAME};
     use crate::error::OxenError;
     use crate::model::{CommitEntry, EntryDataType};
     use crate::test;
@@ -1063,32 +1063,31 @@ mod tests {
         Ok(())
     }
 
-    // TODONOW change
-    // #[test]
-    // fn version_path() -> Result<(), OxenError> {
-    //     test::run_empty_local_repo_test(|repo| {
-    //         let entry = CommitEntry {
-    //             commit_id: String::from("1234"),
-    //             path: PathBuf::from("hello_world.txt"),
-    //             hash: String::from("59E029D4812AEBF0"), // dir structure -> 59/E029D4812AEBF0
-    //             num_bytes: 0,
-    //             last_modified_seconds: 0,
-    //             last_modified_nanoseconds: 0,
-    //         };
-    //         let path = util::fs::version_path(&repo, &entry);
-    //         let versions_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR);
-    //         let relative_path = util::fs::path_relative_to_dir(path, versions_dir)?;
-    //         assert_eq!(
-    //             relative_path,
-    //             Path::new(constants::FILES_DIR)
-    //                 .join("59")
-    //                 .join(Path::new("E029D4812AEBF0"))
-    //                 .join(Path::new("1234.txt"))
-    //         );
+    #[test]
+    fn version_path() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let entry = CommitEntry {
+                commit_id: String::from("1234"),
+                path: PathBuf::from("hello_world.txt"),
+                hash: String::from("59E029D4812AEBF0"), // dir structure -> 59/E029D4812AEBF0
+                num_bytes: 0,
+                last_modified_seconds: 0,
+                last_modified_nanoseconds: 0,
+            };
+            let path = util::fs::version_path(&repo, &entry);
+            let versions_dir = util::fs::oxen_hidden_dir(&repo.path).join(constants::VERSIONS_DIR);
+            let relative_path = util::fs::path_relative_to_dir(path, versions_dir)?;
+            assert_eq!(
+                relative_path,
+                Path::new(constants::FILES_DIR)
+                    .join("59")
+                    .join(Path::new("E029D4812AEBF0"))
+                    .join(Path::new(&format!("{}.txt", VERSION_FILE_NAME)))
+            );
 
-    //         Ok(())
-    //     })
-    // }
+            Ok(())
+        })
+    }
 
     #[test]
     fn detect_file_type() -> Result<(), OxenError> {

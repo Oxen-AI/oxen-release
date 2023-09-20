@@ -9,8 +9,8 @@ use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, util};
 
 pub fn update_version_files_for_all_repos(path: &Path) -> Result<(), OxenError> {
+    // Temporarily don't use path at all 
     let namespaces = api::local::repositories::list_namespaces(path)?;
-    // Add a progress bar on len(namespaces)
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     for namespace in namespaces {
         let namespace_path = path.join(namespace);

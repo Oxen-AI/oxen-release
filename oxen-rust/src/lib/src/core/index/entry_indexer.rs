@@ -604,40 +604,9 @@ impl EntryIndexer {
             all_entries.extend(commit_with_entries.entries.clone());
         }
 
-        // Dedupe all_entries on commit id, path, hash, size - necessary because entries
-        // can be repeated via merge commits in loop above, causes races in unpacking
-
-        // TODONOW remove
-        // let mut seen_entries: HashSet<String> = HashSet::new();
-        // all_entries.retain(|entry| {
-        //     let key = format!(
-        //         "{}{}{}{}",
-        //         entry.commit_id,
-        //         entry.path.to_string_lossy(),
-        //         entry.hash,
-        //         entry.num_bytes
-        //     );
-        //     seen_entries.insert(key)
-        // });
-
-        // TODONOW more efficient deduping
+        // Only pull entries with unique hashes to save on storage and data transfer.
         let mut seen_entries: HashSet<String> = HashSet::new();
-        all_entries.retain(|entry| {
-            let key = format!(
-                "{}",
-                // entry.commit_id,
-                // entry.path.to_string_lossy(),
-                entry.hash,
-                // entry.num_bytes
-            );
-            seen_entries.insert(key)
-        });
-
-        // TODONOW remove
-        log::debug!(
-            "Puller about to pull {} entries to versions dir...",
-            all_entries.len()
-        );
+        all_entries.retain(|entry| seen_entries.insert(entry.hash.to_string()));
 
         puller::pull_entries_to_versions_dir(
             remote_repo,

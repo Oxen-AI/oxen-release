@@ -1004,7 +1004,6 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
         }
     }
 }
-// TODONOW handle this much better
 pub async fn migrate(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {

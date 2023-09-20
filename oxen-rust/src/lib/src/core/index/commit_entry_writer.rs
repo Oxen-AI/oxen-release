@@ -368,9 +368,6 @@ impl CommitEntryWriter {
                     }
                 }
             }
-            StagedEntryStatus::Moved => {
-                //
-            }
         }
     }
 }

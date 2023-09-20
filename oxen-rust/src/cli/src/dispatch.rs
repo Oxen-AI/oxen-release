@@ -1,3 +1,4 @@
+use jwalk::WalkDir;
 use liboxen::api;
 use liboxen::command;
 use liboxen::config::UserConfig;
@@ -63,6 +64,42 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
         }
     }
 
+    Ok(())
+}
+
+fn version_files_out_of_date(repo: &LocalRepository) -> Result<bool, OxenError> {
+    let versions_dir = repo.path.join(constants::OXEN_HIDDEN_DIR)
+                                         .join(constants::VERSIONS_DIR);
+    if !versions_dir.exists() {
+        return Ok(false)
+    }
+    // Walk until we find a file, then parse on the filename to determine if migration necessary 
+    for entry in WalkDir::new(&versions_dir) {
+        let entry = entry?; 
+        if entry.file_type().is_file() {
+            let path = entry.path(); 
+            let filename = match path.file_name() {
+                Some(filename) => filename.to_string_lossy().to_string(),
+                None => continue,
+            };
+
+            if filename.starts_with(constants::VERSION_FILE_NAME) {
+                return Ok(false)
+            } 
+        return Ok(true)
+        }   
+    }
+    Ok(false)
+}
+
+pub fn check_versions_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
+    let migration_needed = version_files_out_of_date(&repo)?;
+
+    if migration_needed {
+        let warning = format!("Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate update-version-files .` to migrate.\n").yellow();
+        eprintln!("{warning}");
+        return Err(OxenError::MigrationRequired("Error: Migration required".to_string().into()))
+    }
     Ok(())
 }
 
@@ -299,6 +336,7 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    check_versions_migration_needed(&repository)?;
     if opts.is_remote {
         command::remote::restore(&repository, opts).await?;
     } else {
@@ -312,6 +350,7 @@ pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    check_versions_migration_needed(&repository)?;
     let host = get_host_from_repo(&repository)?;
     check_remote_version(host).await?;
 
@@ -324,6 +363,7 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repository)?;
+    check_versions_migration_needed(&repository)?;
     check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch, all).await?;
