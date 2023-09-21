@@ -51,9 +51,7 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match update_version_files_up(&repo) {
-                Ok(_) => {
-                    println!("Done.");
-                }
+                Ok(_) => {}
                 Err(err) => {
                     log::error!(
                         "Could not migrate version files for repo {:?}\nErr: {}",
