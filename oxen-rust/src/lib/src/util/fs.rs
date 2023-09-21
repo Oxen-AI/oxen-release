@@ -1141,4 +1141,32 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn replace_file_name_keep_extension_no_extension() -> Result<(), OxenError> {
+        let prior_path = Path::new("adjfkaljeklwjkljdaklfd.txt");
+        let prior_path_no_extension = Path::new("bdsfadfklajfkelj");
+        let prior_path_arbitrary = Path::new("jdakfljdfskl.boom");
+
+        let new_filename = "data".to_string();
+        assert_eq!(
+            util::fs::replace_file_name_keep_extension(prior_path, new_filename.clone()),
+            Path::new("data.txt")
+        );
+
+        assert_eq!(
+            util::fs::replace_file_name_keep_extension(
+                prior_path_no_extension,
+                new_filename.clone()
+            ),
+            Path::new("data")
+        );
+
+        assert_eq!(
+            util::fs::replace_file_name_keep_extension(prior_path_arbitrary, new_filename),
+            Path::new("data.boom")
+        );
+
+        Ok(())
+    }
 }

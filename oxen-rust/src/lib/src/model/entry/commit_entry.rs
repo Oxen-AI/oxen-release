@@ -64,7 +64,11 @@ impl CommitEntry {
     // }
 
     pub fn filename(&self) -> PathBuf {
-        PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
+        if self.extension() == "" {
+            PathBuf::from(VERSION_FILE_NAME)
+        } else {
+            PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
+        }
     }
 
     pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {

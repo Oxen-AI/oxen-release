@@ -604,9 +604,12 @@ impl EntryIndexer {
             all_entries.extend(commit_with_entries.entries.clone());
         }
 
-        // Only pull entries with unique hashes to save on storage and data transfer.
+        // Only pull entries with unique hashes to save storage and data transfe for duplicate and/or moved files.
         let mut seen_entries: HashSet<String> = HashSet::new();
-        all_entries.retain(|entry| seen_entries.insert(entry.hash.to_string()));
+        all_entries.retain(|entry| {
+            let key = format!("{}{}", entry.hash, entry.extension());
+            seen_entries.insert(key)
+        });
 
         puller::pull_entries_to_versions_dir(
             remote_repo,

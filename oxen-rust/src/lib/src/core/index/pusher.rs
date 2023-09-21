@@ -590,9 +590,12 @@ async fn push_missing_commit_entries(
 
     spinner.finish_and_clear();
 
-    // Dedupe unsynced_entries on hash
+    // Dedupe unsynced_entries on hash and file extension to form unique version path names
     let mut seen_entries: HashSet<String> = HashSet::new();
-    unsynced_entries.retain(|e| seen_entries.insert(e.hash.clone()));
+    unsynced_entries.retain(|e| {
+        let key = format!("{}{}", e.hash.clone(), e.extension());
+        seen_entries.insert(key)
+    });
 
     let total_size = compute_entries_size(&unsynced_entries)?;
 
