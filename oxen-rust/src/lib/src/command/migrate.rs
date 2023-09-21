@@ -42,6 +42,7 @@ impl Migrate for UpdateVersionFilesMigration {
 }
 
 pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
+    println!("🐂 Collecting namespaces to migrate...");
     let namespaces = api::local::repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
@@ -77,12 +78,16 @@ pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> 
             Ok(val) => {
                 let path = val.path();
                 // Rename all files except for server-computed HASH
-                if path.is_file() && path.file_name().unwrap() != HASH_FILE {
-                    let new_path = util::fs::replace_file_name_keep_extension(
-                        &path,
-                        VERSION_FILE_NAME.to_owned(),
-                    );
-                    std::fs::rename(path, new_path)?;
+                if let Some(file_name) = path.file_name() {
+                    if path.is_file() && file_name != HASH_FILE {
+                        let new_path = util::fs::replace_file_name_keep_extension(
+                            &path,
+                            VERSION_FILE_NAME.to_owned(),
+                        );
+                        std::fs::rename(path, new_path)?;
+                    }
+                } else {
+                    log::debug!("No filename found for path {:?}", path);
                 }
             }
             Err(err) => {
@@ -132,7 +137,6 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
             version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
         };
 
-        println!("Looking for new version file in {:?}", new_filename);
         if new_filename.exists() {
             for commit_id in commit_ids {
                 let old_filename = version_dir.join(format!("{}.{}", commit_id, extension));
