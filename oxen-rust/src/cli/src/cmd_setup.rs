@@ -801,19 +801,49 @@ pub fn migrate() -> Command {
         .about("Run a named migration on a server repository or set of repositories")
         .subcommand_required(true)
         .subcommand(
-            Command::new(MIGRATE_VERSION_FILES)
-                .about("Migrates version files from commit id to common prefix")
-                .arg(
-                    Arg::new("PATH")
-                        .help("Directory in which to apply the migration")
-                        .required(true),
-                )
-                .arg(
-                    Arg::new("all")
-                        .long("all")
-                        .short('a')
-                        .help("Run the migration for all oxen repositories in this directory")
-                        .action(clap::ArgAction::SetTrue),
+            Command::new("up")
+                .about("Apply a named migration forward.")
+                .subcommand_required(true)
+                .subcommand(
+                    Command::new(MIGRATE_VERSION_FILES)
+                        .about("Migrates version files from commit id to common prefix")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                ),
+        )
+        .subcommand(
+            Command::new("down")
+                .about("Apply a named migration backward.")
+                .subcommand_required(true)
+                .subcommand(
+                    Command::new(MIGRATE_VERSION_FILES)
+                        .about("Migrates version files from commit id to common prefix")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
                 ),
         )
 }

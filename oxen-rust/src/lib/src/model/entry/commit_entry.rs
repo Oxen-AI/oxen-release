@@ -59,9 +59,9 @@ impl CommitEntry {
     }
 
     // <= 0.8.4:
-    // pub fn filename(&self) -> PathBuf {
-    //     PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
-    // }
+    pub fn deprecated_filename(&self) -> PathBuf {
+        PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
+    }
 
     pub fn filename(&self) -> PathBuf {
         if self.extension() == "" {
