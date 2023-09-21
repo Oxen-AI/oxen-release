@@ -9,6 +9,8 @@ use crate::cmd_setup::{
 };
 use crate::dispatch;
 use clap::ArgMatches;
+use liboxen::command::migrate::Migrate;
+use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
@@ -1005,13 +1007,26 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
     }
 }
 pub async fn migrate(sub_matches: &ArgMatches) {
-    if let Some(subcommand) = sub_matches.subcommand() {
-        match subcommand {
-            (MIGRATE_VERSION_FILES, sub_matches) => {
-                migrate_version_files(sub_matches);
+    if let Some((direction, sub_matches)) = sub_matches.subcommand() {
+        match direction {
+            "up" | "down" => {
+                if let Some((migration, sub_matches)) = sub_matches.subcommand() {
+                    match migration {
+                        MIGRATE_VERSION_FILES => {
+                            if let Err(err) =
+                                run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
+                            {
+                                eprintln!("Error running migration: {}", err);
+                            }
+                        }
+                        command => {
+                            eprintln!("Invalid migration: {}", command);
+                        }
+                    }
+                }
             }
-            (command, _) => {
-                eprintln!("Invalid subcommand: {command}")
+            command => {
+                eprintln!("Invalid subcommand: {}", command);
             }
         }
     }
@@ -1049,28 +1064,27 @@ pub fn read_lines(sub_matches: &ArgMatches) {
     println!("Total: {size}");
 }
 
-pub fn migrate_version_files(sub_matches: &ArgMatches) {
+pub fn run_migration(
+    migration: &dyn Migrate,
+    direction: &str,
+    sub_matches: &ArgMatches,
+) -> Result<(), OxenError> {
     let path_str = sub_matches.get_one::<String>("PATH").expect("required");
     let path = Path::new(path_str);
 
-    if sub_matches.get_flag("all") {
-        match command::migrate::update_version_files_for_all_repos(path) {
-            Ok(_) => {}
-            Err(err) => {
-                println!("Err: {err}")
-            }
+    let all = sub_matches.get_flag("all");
+
+    match direction {
+        "up" => {
+            migration.up(path, all)?;
         }
-    } else {
-        match LocalRepository::new(path) {
-            Ok(repo) => match command::migrate::update_version_files(&repo) {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("Err: {err}")
-                }
-            },
-            Err(err) => {
-                println!("Err: {err}")
-            }
+        "down" => {
+            migration.down(path, all)?;
+        }
+        _ => {
+            eprintln!("Invalid migration direction: {}", direction);
         }
     }
+
+    Ok(())
 }
