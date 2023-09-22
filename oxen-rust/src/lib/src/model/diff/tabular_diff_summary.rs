@@ -7,9 +7,15 @@ use crate::model::{CommitEntry, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;
 use crate::util;
 
+// THE DIFFERENCE BETWEEN WRAPPER AND SUMMARY IS JUST THE KEY NAME IN THE JSON RESPONSE
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularDiffWrapper {
+    pub tabular: TabularDiffSummaryImpl,
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularDiffSummary {
-    pub tabular: TabularDiffSummaryImpl,
+    pub summary: TabularDiffSummaryImpl,
 }
 
 // Impl is so that we can wrap the json response in the "tabular" field to make summaries easier to distinguish
@@ -23,15 +29,23 @@ pub struct TabularDiffSummaryImpl {
 }
 
 impl TabularDiffSummary {
+    pub fn to_wrapper(&self) -> TabularDiffWrapper {
+        TabularDiffWrapper {
+            tabular: self.summary.clone(),
+        }
+    }
+}
+
+impl TabularDiffWrapper {
     pub fn from_commit_entries(
         repo: &LocalRepository,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
-    ) -> TabularDiffSummary {
-        let base_df = TabularDiffSummary::maybe_get_df(repo, base_entry);
-        let head_df = TabularDiffSummary::maybe_get_df(repo, head_entry);
+    ) -> TabularDiffWrapper {
+        let base_df = TabularDiffWrapper::maybe_get_df(repo, base_entry);
+        let head_df = TabularDiffWrapper::maybe_get_df(repo, head_entry);
 
-        let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
+        let schema_has_changed = TabularDiffWrapper::schema_has_changed(&base_df, &head_df);
 
         // log::debug!("TabularDiffSummary::from_commit_entries: schema_has_changed: {}", schema_has_changed);
         // log::debug!("TabularDiffSummary::from_commit_entries: base_df: {:?}", base_df);
@@ -39,14 +53,14 @@ impl TabularDiffSummary {
         let mut num_added_rows = 0;
         let mut num_removed_rows = 0;
         if !schema_has_changed {
-            num_added_rows = TabularDiffSummary::maybe_count_added_rows(&base_df, &head_df);
-            num_removed_rows = TabularDiffSummary::maybe_count_removed_rows(&base_df, &head_df);
+            num_added_rows = TabularDiffWrapper::maybe_count_added_rows(&base_df, &head_df);
+            num_removed_rows = TabularDiffWrapper::maybe_count_removed_rows(&base_df, &head_df);
         }
 
-        let num_added_cols = TabularDiffSummary::compute_num_added_cols(&base_df, &head_df);
-        let num_removed_cols = TabularDiffSummary::compute_num_removed_cols(&base_df, &head_df);
+        let num_added_cols = TabularDiffWrapper::compute_num_added_cols(&base_df, &head_df);
+        let num_removed_cols = TabularDiffWrapper::compute_num_removed_cols(&base_df, &head_df);
 
-        TabularDiffSummary {
+        TabularDiffWrapper {
             tabular: TabularDiffSummaryImpl {
                 num_added_rows,
                 num_added_cols,
@@ -122,7 +136,7 @@ impl TabularDiffSummary {
 
         if let Some(base_df) = base_df {
             if let Some(head_df) = head_df {
-                return TabularDiffSummary::schema_has_changed_df(base_df, head_df);
+                return TabularDiffWrapper::schema_has_changed_df(base_df, head_df);
             }
         }
 

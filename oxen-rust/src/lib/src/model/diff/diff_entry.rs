@@ -21,7 +21,7 @@ use super::dir_diff_summary::DirDiffSummary;
 use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
 use super::tabular_diff::TabularDiff;
-use super::tabular_diff_summary::TabularDiffSummary;
+use super::tabular_diff_summary::TabularDiffWrapper;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DiffEntry {
@@ -162,8 +162,8 @@ impl DiffEntry {
                     base_resource,
                     head_entry: head_meta_entry,
                     base_entry: base_meta_entry,
-                    diff_summary: Some(GenericDiffSummary::TabularDiffSummary(
-                        diff.clone().tabular.summary,
+                    diff_summary: Some(GenericDiffSummary::TabularDiffWrapper(
+                        diff.clone().tabular.summary.to_wrapper(),
                     )),
                     diff: Some(GenericDiff::TabularDiff(diff)),
                 };
@@ -407,8 +407,8 @@ impl DiffEntry {
     ) -> Option<GenericDiffSummary> {
         // TODO match on type, and create the appropriate summary
         match data_type {
-            EntryDataType::Tabular => Some(GenericDiffSummary::TabularDiffSummary(
-                TabularDiffSummary::from_commit_entries(repo, base_entry, head_entry),
+            EntryDataType::Tabular => Some(GenericDiffSummary::TabularDiffWrapper(
+                TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry),
             )),
             _ => None,
         }

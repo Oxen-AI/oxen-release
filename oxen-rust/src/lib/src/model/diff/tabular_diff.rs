@@ -8,7 +8,7 @@ use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::{JsonDataFrame, JsonDataFrameView};
 
-use super::tabular_diff_summary::{TabularDiffSummary, TabularDiffSummaryImpl};
+use super::tabular_diff_summary::{TabularDiffSummary, TabularDiffSummaryImpl, TabularDiffWrapper};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularDiff {
@@ -40,10 +40,10 @@ impl TabularDiff {
         head_entry: &Option<CommitEntry>,
         df_opts: DFOpts,
     ) -> TabularDiff {
-        let base_df = TabularDiffSummary::maybe_get_df(repo, base_entry);
-        let head_df = TabularDiffSummary::maybe_get_df(repo, head_entry);
+        let base_df = TabularDiffWrapper::maybe_get_df(repo, base_entry);
+        let head_df = TabularDiffWrapper::maybe_get_df(repo, head_entry);
 
-        let schema_has_changed = TabularDiffSummary::schema_has_changed(&base_df, &head_df);
+        let schema_has_changed = TabularDiffWrapper::schema_has_changed(&base_df, &head_df);
 
         let base_schema = TabularDiff::maybe_get_schema(&base_df);
         let head_schema = TabularDiff::maybe_get_schema(&head_df);
@@ -122,7 +122,7 @@ impl TabularDiff {
                 };
 
                 let summary = TabularDiffSummary {
-                    tabular: TabularDiffSummaryImpl {
+                    summary: TabularDiffSummaryImpl {
                         num_added_rows: added_rows_view
                             .as_ref()
                             .map(|df| df.size.height)
@@ -181,7 +181,7 @@ impl TabularDiff {
                     .map(|df| JsonDataFrameView::from_df_opts(df, base_schema.clone(), &df_opts));
 
                 let summary = TabularDiffSummary {
-                    tabular: TabularDiffSummaryImpl {
+                    summary: TabularDiffSummaryImpl {
                         num_added_rows: added_rows
                             .as_ref()
                             .map(|df| df.full_size.height)
@@ -229,7 +229,7 @@ impl TabularDiff {
             ));
 
             let summary = TabularDiffSummary {
-                tabular: TabularDiffSummaryImpl {
+                summary: TabularDiffSummaryImpl {
                     num_added_rows: added_df.as_ref().map(|df| df.full_size.height).unwrap_or(0),
                     num_added_cols: added_df.as_ref().map(|df| df.full_size.width).unwrap_or(0),
                     num_removed_rows: 0,
@@ -270,7 +270,7 @@ impl TabularDiff {
             ));
 
             let summary = TabularDiffSummary {
-                tabular: TabularDiffSummaryImpl {
+                summary: TabularDiffSummaryImpl {
                     num_added_rows: 0,
                     num_added_cols: 0,
                     num_removed_rows: removed_df
@@ -304,7 +304,7 @@ impl TabularDiff {
 
         // schema has not changed
         let summary = TabularDiffSummary {
-            tabular: TabularDiffSummaryImpl {
+            summary: TabularDiffSummaryImpl {
                 num_added_rows: 0,
                 num_added_cols: 0,
                 num_removed_rows: 0,
