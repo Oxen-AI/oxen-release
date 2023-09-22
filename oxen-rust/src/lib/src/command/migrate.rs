@@ -100,30 +100,48 @@ pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> 
 pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError> {
     // Hash map of entry hash (string) to path to write (commit id + extension)
     // (hash, extension) -> Vec<CommitId>
-    let mut entry_hash_to_commit_ids: HashMap<(String, String), Vec<String>> = HashMap::new();
+
+    // List all commits in the order they were created
+    let reader = CommitReader::new(repo)?;
+    let mut all_commits = reader.list_all()?;
+    // Sort by timestamp from oldest to newest 
+    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    // let mut entry_hash_to_commit_ids: HashMap<(String, String), Vec<String>> = HashMap::new();
+    let mut entry_hash_and_path_to_first_commit_id: HashMap<(String, String), String> =
+        HashMap::new();
     // Get all commits for repo
     let commit_reader = CommitReader::new(repo)?;
-    let all_commits = commit_reader.list_all()?;
+    // let all_commits = commit_reader.list_all()?;
 
-    // Collect every commit in which a given hash + extension combination appears
+    // Collect the FIRST occurrence of a unique hash + full entry path combination. 
     for commit in all_commits {
         let commit_entry_reader = CommitEntryReader::new(repo, &commit)?;
         let entries = commit_entry_reader.list_entries()?;
         for entry in entries {
             let entry_hash = entry.hash.clone().to_owned();
-            let extension = entry.extension().to_owned();
-            let commit_id = commit.id.to_owned();
-            if entry_hash_to_commit_ids.contains_key(&(entry_hash.clone(), extension.clone())) {
-                let commit_ids = entry_hash_to_commit_ids
-                    .get_mut(&(entry_hash, extension))
-                    .unwrap();
-                commit_ids.push(commit_id);
-            } else {
-                let commit_ids = vec![commit_id];
-                entry_hash_to_commit_ids.insert((entry_hash, extension), commit_ids);
-            }
+            let entry_path = entry.path.clone().to_owned();
         }
     }
+
+    // for commit in all_commits {
+    //     let commit_entry_reader = CommitEntryReader::new(repo, &commit)?;
+    //     let entries = commit_entry_reader.list_entries()?;
+    //     for entry in entries {
+    //         let entry_hash = entry.hash.clone().to_owned();
+    //         let extension = entry.extension().to_owned();
+    //         let commit_id = commit.id.to_owned();
+    //         if entry_hash_to_commit_ids.contains_key(&(entry_hash.clone(), extension.clone())) {
+    //             let commit_ids = entry_hash_to_commit_ids
+    //                 .get_mut(&(entry_hash, extension))
+    //                 .unwrap();
+    //             commit_ids.push(commit_id);
+    //         } else {
+    //             let commit_ids = vec![commit_id];
+    //             entry_hash_to_commit_ids.insert((entry_hash, extension), commit_ids);
+    //         }
+    //     }
+    // }
 
     // Iterate over these, copying the new-format data.extension file to commit_id.extension for all
     // commit ids, then delete new file
