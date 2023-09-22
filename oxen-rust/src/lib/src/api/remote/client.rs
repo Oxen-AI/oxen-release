@@ -22,11 +22,16 @@ pub fn get_host_from_url<U: IntoUrl>(url: U) -> Result<String, OxenError> {
 // new one for each request so we can take advantage of keep-alive
 pub fn new_for_url<U: IntoUrl>(url: U) -> Result<Client, OxenError> {
     let host = get_host_from_url(url)?;
-    new_for_host(host)
+    new_for_host(host, true)
 }
 
-pub fn new_for_host<S: AsRef<str>>(host: S) -> Result<Client, OxenError> {
-    match builder_for_host(host.as_ref())?.build() {
+pub fn new_for_url_no_user_agent<U: IntoUrl>(url: U) -> Result<Client, OxenError> {
+    let host = get_host_from_url(url)?;
+    new_for_host(host, false)
+}
+
+fn new_for_host<S: AsRef<str>>(host: S, should_add_user_agent: bool) -> Result<Client, OxenError> {
+    match builder_for_host(host.as_ref(), should_add_user_agent)?.build() {
         Ok(client) => Ok(client),
         Err(reqwest_err) => Err(OxenError::HTTP(reqwest_err)),
     }
@@ -34,11 +39,18 @@ pub fn new_for_host<S: AsRef<str>>(host: S) -> Result<Client, OxenError> {
 
 pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {
     let host = get_host_from_url(url)?;
-    builder_for_host(host)
+    builder_for_host(host, true)
 }
 
-pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenError> {
-    let builder = builder();
+fn builder_for_host<S: AsRef<str>>(
+    host: S,
+    should_add_user_agent: bool,
+) -> Result<ClientBuilder, OxenError> {
+    let builder = if should_add_user_agent {
+        builder()
+    } else {
+        builder_no_user_agent()
+    };
 
     let config = match UserConfig::get() {
         Ok(config) => config,
@@ -70,6 +82,10 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
 
 fn builder() -> ClientBuilder {
     Client::builder().user_agent(format!("{USER_AGENT}/{VERSION}"))
+}
+
+fn builder_no_user_agent() -> ClientBuilder {
+    Client::builder()
 }
 
 /// Performs an extra parse to validate that the response is success

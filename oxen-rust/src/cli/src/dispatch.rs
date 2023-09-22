@@ -86,13 +86,10 @@ pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
 }
 
 pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-
-    let remote_repo = api::remote::repositories::create(&repo, namespace, name, host).await?;
+    let remote_repo = api::remote::repositories::create_no_root(namespace, name, host).await?;
     println!(
-        "Remote created for {}\n\noxen config --set-remote {} {}",
-        name, name, remote_repo.remote.url
+        "Remote created for {}\n\nIf this is a brand new repository:\n\n  oxen clone {} {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote new-remote-name {}\n",
+        name, name, remote_repo.remote.url, remote_repo.remote.url
     );
 
     Ok(())
