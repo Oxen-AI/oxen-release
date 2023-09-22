@@ -25,7 +25,7 @@ impl Migrate for UpdateVersionFilesMigration {
             update_version_files_for_all_repos_up(path)?;
         } else {
             let repo = LocalRepository::new(path)?;
-            update_version_files_up(&repo)?;
+            update_version_files_up(&repo, &path)?;
         }
         Ok(())
     }
@@ -51,7 +51,7 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
         let namespace_path = path.join(namespace);
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
-            match update_version_files_up(&repo) {
+            match update_version_files_up(&repo, path) {
                 Ok(_) => {}
                 Err(err) => {
                     log::error!(
@@ -68,7 +68,7 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> {
+pub fn update_version_files_up(repo: &LocalRepository, sync_path: &Path) -> Result<(), OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let versions_dir = hidden_dir.join(VERSIONS_DIR);
 
@@ -132,7 +132,6 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
 
     // Iterate over these, copying the new-format data.extension file to commit_id.extension for all
     // commit ids, then delete new file
-
     for ((hash, path), commit_id) in entry_hash_and_path_to_first_commit_id.iter() {
         let version_dir = version_dir_from_hash(&repo.path, hash.to_string());
         let extension = util::fs::file_extension(path);
