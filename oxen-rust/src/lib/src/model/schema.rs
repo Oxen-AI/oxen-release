@@ -187,7 +187,7 @@ impl Schema {
         fields
     }
 
-    // Compare the schemas, looking for removed fields
+    /// Compare the schemas, looking for removed fields
     pub fn removed_fields(&self, other: &Schema) -> Vec<Field> {
         let mut fields: Vec<Field> = vec![];
 
@@ -199,6 +199,39 @@ impl Schema {
         }
 
         fields
+    }
+
+    /// Find the common fields between two schemas
+    pub fn common_fields(&self, other: &Schema) -> Vec<Field> {
+        let mut fields: Vec<Field> = vec![];
+
+        // if field is in both schemas, it was common
+        for current_field in self.fields.iter() {
+            if other.fields.iter().any(|f| f.name == current_field.name) {
+                fields.push(current_field.clone());
+            }
+        }
+
+        fields
+    }
+
+    /// Create a common schema between the two
+    pub fn common(&self, other: &Schema) -> Schema {
+        let mut fields: Vec<Field> = vec![];
+
+        // if field is in both schemas, it was common
+        for current_field in self.fields.iter() {
+            if other.fields.iter().any(|f| f.name == current_field.name) {
+                fields.push(current_field.clone());
+            }
+        }
+
+        Schema {
+            name: None,
+            hash: Schema::hash_fields(&fields),
+            fields,
+            metadata: None,
+        }
     }
 
     pub fn schemas_to_string(schemas: HashMap<PathBuf, Schema>) -> String {
