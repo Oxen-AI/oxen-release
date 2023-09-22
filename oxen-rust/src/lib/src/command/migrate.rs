@@ -124,7 +124,9 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
             let key = (entry_hash, entry_path);
             // If key is in entry_hash_and_path_to_first_commit_id, do nothing.
             // Otherwise, add the key and commit_id to the map
-            entry_hash_and_path_to_first_commit_id.entry(key).or_insert(commit_id);
+            entry_hash_and_path_to_first_commit_id
+                .entry(key)
+                .or_insert(commit_id);
         }
     }
 
