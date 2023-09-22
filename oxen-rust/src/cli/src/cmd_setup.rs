@@ -298,6 +298,12 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("row")
+                .long("row")
+                .help("Select a specific row to view it fully. Format: '3'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("vstack")
                 .long("vstack")
                 .help("Combine row data from different files. The number of columns must match.")

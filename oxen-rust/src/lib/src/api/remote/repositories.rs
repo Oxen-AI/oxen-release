@@ -163,9 +163,10 @@ pub async fn create_no_root<S: AsRef<str>>(
 ) -> Result<RemoteRepository, OxenError> {
     let url = api::endpoint::url_from_host(host.as_ref(), "");
     let params = json!({ "name": name, "namespace": namespace });
-    log::debug!("Create remote: {} {} {}", url, namespace, name);
+    log::debug!("Create remote: {} {} {}\n{}", url, namespace, name, params);
 
-    let client = client::new_for_url(&url)?;
+    let client = client::new_for_url_no_user_agent(&url)?;
+    log::debug!("client: {:?}", client);
     match client.post(&url).json(&params).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
