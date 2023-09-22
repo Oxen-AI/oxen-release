@@ -300,7 +300,7 @@ pub fn df() -> Command {
         .arg(
             Arg::new("row")
                 .long("row")
-                .help("Select a specific row to view it fully.")
+                .help("Select a specific row to view it fully. Format: '3'")
                 .action(clap::ArgAction::Set),
         )
         .arg(
