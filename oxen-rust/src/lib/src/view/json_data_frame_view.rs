@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use super::StatusMessage;
+use crate::constants;
 use crate::core::df::tabular;
 use crate::model::Commit;
 use crate::model::DataFrameSize;
@@ -88,8 +89,47 @@ impl JsonDataFrameView {
         JsonDataFrameView {
             schema: slice_schema,
             size: DataFrameSize {
-                height: full_width,
-                width: full_height,
+                height: full_height,
+                width: full_width,
+            },
+            data: JsonDataFrameView::json_data(&mut sliced_df),
+            pagination: Pagination {
+                page_number: page,
+                page_size,
+                total_pages,
+                total_entries: full_height,
+            },
+        }
+    }
+
+    pub fn from_df_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameView {
+        let full_width = df.width();
+        let full_height = df.height();
+
+        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+        let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+        let start = if page == 0 { 0 } else { page_size * (page - 1) };
+        let end = page_size * page;
+
+        let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
+
+        let mut opts = opts.clone();
+        opts.slice = Some(format!("{}..{}", start, end));
+        let mut sliced_df = tabular::transform(df, opts).unwrap();
+
+        // Merge the metadata from the original schema
+        let mut slice_schema = Schema::from_polars(&sliced_df.schema());
+        log::debug!("OG schema {:?}", og_schema);
+        log::debug!("Pre-Slice schema {:?}", slice_schema);
+        slice_schema.update_metadata_from_schema(&og_schema);
+        log::debug!("Slice schema {:?}", slice_schema);
+
+        JsonDataFrameView {
+            schema: slice_schema,
+            size: DataFrameSize {
+                height: full_height,
+                width: full_width,
             },
             data: JsonDataFrameView::json_data(&mut sliced_df),
             pagination: Pagination {

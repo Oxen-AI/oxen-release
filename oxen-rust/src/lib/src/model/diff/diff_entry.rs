@@ -152,12 +152,6 @@ impl DiffEntry {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
                     TabularDiff::from_commit_entries(repo, &base_entry, &head_entry, df_opts);
-                let diff_summary = DiffEntry::diff_summary_from_file(
-                    repo,
-                    data_type.clone(),
-                    &base_entry,
-                    &head_entry,
-                );
                 return DiffEntry {
                     status: status.to_string(),
                     data_type: data_type.clone(),
@@ -168,7 +162,9 @@ impl DiffEntry {
                     base_resource,
                     head_entry: head_meta_entry,
                     base_entry: base_meta_entry,
-                    diff_summary,
+                    diff_summary: Some(GenericDiffSummary::TabularDiffSummary(
+                        diff.clone().tabular.summary,
+                    )),
                     diff: Some(GenericDiff::TabularDiff(diff)),
                 };
             }
