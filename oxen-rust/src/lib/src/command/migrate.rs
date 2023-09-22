@@ -1,5 +1,6 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 use jwalk::WalkDir;
 
@@ -104,49 +105,35 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
     // List all commits in the order they were created
     let reader = CommitReader::new(repo)?;
     let mut all_commits = reader.list_all()?;
-    // Sort by timestamp from oldest to newest 
+    // Sort by timestamp from oldest to newest
     all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
     // let mut entry_hash_to_commit_ids: HashMap<(String, String), Vec<String>> = HashMap::new();
-    let mut entry_hash_and_path_to_first_commit_id: HashMap<(String, String), String> =
+    let mut entry_hash_and_path_to_first_commit_id: HashMap<(String, PathBuf), String> =
         HashMap::new();
     // Get all commits for repo
-    let commit_reader = CommitReader::new(repo)?;
-    // let all_commits = commit_reader.list_all()?;
 
-    // Collect the FIRST occurrence of a unique hash + full entry path combination. 
+    // Collect the FIRST occurrence of a unique hash + full entry path combination.
     for commit in all_commits {
         let commit_entry_reader = CommitEntryReader::new(repo, &commit)?;
         let entries = commit_entry_reader.list_entries()?;
         for entry in entries {
             let entry_hash = entry.hash.clone().to_owned();
             let entry_path = entry.path.clone().to_owned();
+            let commit_id = commit.id.to_owned();
+            let key = (entry_hash, entry_path);
+            // If key is in entry_hash_and_path_to_first_commit_id, do nothing.
+            // Otherwise, add the key and commit_id to the map
+            entry_hash_and_path_to_first_commit_id.entry(key).or_insert(commit_id);
         }
     }
 
-    // for commit in all_commits {
-    //     let commit_entry_reader = CommitEntryReader::new(repo, &commit)?;
-    //     let entries = commit_entry_reader.list_entries()?;
-    //     for entry in entries {
-    //         let entry_hash = entry.hash.clone().to_owned();
-    //         let extension = entry.extension().to_owned();
-    //         let commit_id = commit.id.to_owned();
-    //         if entry_hash_to_commit_ids.contains_key(&(entry_hash.clone(), extension.clone())) {
-    //             let commit_ids = entry_hash_to_commit_ids
-    //                 .get_mut(&(entry_hash, extension))
-    //                 .unwrap();
-    //             commit_ids.push(commit_id);
-    //         } else {
-    //             let commit_ids = vec![commit_id];
-    //             entry_hash_to_commit_ids.insert((entry_hash, extension), commit_ids);
-    //         }
-    //     }
-    // }
-
     // Iterate over these, copying the new-format data.extension file to commit_id.extension for all
     // commit ids, then delete new file
-    for ((hash, extension), commit_ids) in entry_hash_to_commit_ids.iter() {
+
+    for ((hash, path), commit_id) in entry_hash_and_path_to_first_commit_id.iter() {
         let version_dir = version_dir_from_hash(&repo.path, hash.to_string());
+        let extension = util::fs::file_extension(path);
         let new_filename = if extension.is_empty() {
             version_dir.join(VERSION_FILE_NAME)
         } else {
@@ -154,17 +141,32 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
         };
 
         if new_filename.exists() {
-            for commit_id in commit_ids {
-                let old_filename = version_dir.join(format!("{}.{}", commit_id, extension));
-                println!("Copying {:?} to {:?}", new_filename, old_filename);
-                std::fs::copy(new_filename.clone(), old_filename)?;
-            }
-            // Delete the new-format file
-            std::fs::remove_file(new_filename)?;
+            let old_filename = version_dir.join(format!("{}.{}", commit_id, extension));
+            std::fs::copy(new_filename.clone(), old_filename)?;
         } else {
-            Err(OxenError::basic_str(
-                "Could not find version file, migration failed.",
-            ))?;
+            log::error!("Could not find version file {:?}", new_filename);
+        }
+    }
+
+    // Now that all have been copied, iterate through and delete the new-format files
+    let mut seen_files = HashSet::<PathBuf>::new();
+    for ((hash, path), _commit_id) in entry_hash_and_path_to_first_commit_id.iter() {
+        let version_dir = version_dir_from_hash(&repo.path, hash.to_string());
+        let extension = util::fs::file_extension(path);
+        let new_filename = if extension.is_empty() {
+            version_dir.join(VERSION_FILE_NAME)
+        } else {
+            version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
+        };
+
+        if !seen_files.contains(&new_filename) {
+            if new_filename.exists() {
+                // Delete new file
+                seen_files.insert(new_filename.clone());
+                std::fs::remove_file(new_filename)?;
+            } else {
+                log::error!("Could not find version file {:?}", new_filename);
+            }
         }
     }
 
