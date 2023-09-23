@@ -1,4 +1,4 @@
-// TODO: We are depreciating this format in favor of the new JSON format
+// TODO: This is the new dataframe format, depreciate JsonDataFrameSliceResponse
 
 use std::io::BufWriter;
 use std::str;
@@ -8,74 +8,64 @@ use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use super::StatusMessage;
+use crate::constants;
 use crate::core::df::tabular;
 use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::PaginateOpts;
 use crate::view::entry::ResourceVersion;
+use crate::view::Pagination;
 use crate::{model::Schema, opts::DFOpts};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JsonDataFrame {
+pub struct JsonDataFrameSource {
     pub schema: Schema,
-    pub slice_schema: Schema,
-    pub slice_size: DataFrameSize,
-    pub full_size: DataFrameSize,
-    pub data: serde_json::Value,
+    pub size: DataFrameSize,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JsonDataFrameSliceResponse {
-    #[serde(flatten)]
-    pub status: StatusMessage,
-    pub df: JsonDataFrame,
-    pub full_size: DataFrameSize,
-    pub slice_size: DataFrameSize,
-    pub commit: Option<Commit>,
-    pub resource: Option<ResourceVersion>,
-    pub page_number: usize,
-    pub page_size: usize,
-    pub total_pages: usize,
-    pub total_entries: usize,
+pub struct JsonDataFrameView {
+    pub schema: Schema,
+    pub size: DataFrameSize,
+    pub data: serde_json::Value,
+    pub pagination: Pagination,
 }
 
-impl JsonDataFrame {
-    pub fn empty(schema: &Schema) -> JsonDataFrame {
-        JsonDataFrame {
-            schema: schema.to_owned(),
-            slice_schema: schema.to_owned(),
-            slice_size: DataFrameSize {
-                height: 0,
-                width: 0,
-            },
-            full_size: DataFrameSize {
-                height: 0,
-                width: 0,
-            },
-            data: serde_json::Value::Null,
-        }
-    }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JsonDataFrameViews {
+    pub source: JsonDataFrameSource,
+    pub view: JsonDataFrameView,
+}
 
-    pub fn from_df(df: &mut DataFrame) -> JsonDataFrame {
-        let schema = Schema::from_polars(&df.schema());
-        JsonDataFrame {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JsonDataFrameViewResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub data_frame: JsonDataFrameViews,
+    pub commit: Option<Commit>,
+    pub resource: Option<ResourceVersion>,
+}
+
+impl JsonDataFrameSource {
+    pub fn from_df(df: &DataFrame, schema: &Schema) -> JsonDataFrameSource {
+        JsonDataFrameSource {
             schema: schema.to_owned(),
-            slice_schema: schema.to_owned(),
-            slice_size: DataFrameSize {
+            size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },
-            full_size: DataFrameSize {
-                height: df.height(),
-                width: df.width(),
-            },
-            data: JsonDataFrame::json_data(df),
         }
     }
+}
 
-    pub fn from_df_paginated(df: DataFrame, opts: &PaginateOpts) -> JsonDataFrame {
-        let full_height = df.height();
+impl JsonDataFrameView {
+    pub fn view_from_pagination(
+        df: DataFrame,
+        og_schema: Schema,
+        opts: &PaginateOpts,
+    ) -> JsonDataFrameView {
         let full_width = df.width();
+        let full_height = df.height();
 
         let page_size = opts.page_size;
         let page = opts.page_num;
@@ -83,47 +73,71 @@ impl JsonDataFrame {
         let start = if page == 0 { 0 } else { page_size * (page - 1) };
         let end = page_size * page;
 
-        let schema = Schema::from_polars(&df.schema());
+        let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
+
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
         let mut sliced_df = tabular::transform(df, opts).unwrap();
-        let slice_schema = Schema::from_polars(&sliced_df.schema());
 
-        JsonDataFrame {
-            schema,
-            slice_schema,
-            slice_size: DataFrameSize {
-                height: sliced_df.height(),
-                width: sliced_df.width(),
-            },
-            full_size: DataFrameSize {
+        // Merge the metadata from the original schema
+        let mut slice_schema = Schema::from_polars(&sliced_df.schema());
+        log::debug!("OG schema {:?}", og_schema);
+        log::debug!("Pre-Slice schema {:?}", slice_schema);
+        slice_schema.update_metadata_from_schema(&og_schema);
+        log::debug!("Slice schema {:?}", slice_schema);
+
+        JsonDataFrameView {
+            schema: slice_schema,
+            size: DataFrameSize {
                 height: full_height,
                 width: full_width,
             },
-            data: JsonDataFrame::json_data(&mut sliced_df),
+            data: JsonDataFrameView::json_data(&mut sliced_df),
+            pagination: Pagination {
+                page_number: page,
+                page_size,
+                total_pages,
+                total_entries: full_height,
+            },
         }
     }
 
-    pub fn from_df_opts(df: DataFrame, opts: DFOpts) -> JsonDataFrame {
-        let full_height = df.height();
+    pub fn from_df_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameView {
         let full_width = df.width();
+        let full_height = df.height();
 
-        let schema = Schema::from_polars(&df.schema());
+        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+        let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+        let start = if page == 0 { 0 } else { page_size * (page - 1) };
+        let end = page_size * page;
+
+        let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
+
+        let mut opts = opts.clone();
+        opts.slice = Some(format!("{}..{}", start, end));
         let mut sliced_df = tabular::transform(df, opts).unwrap();
-        let slice_schema = Schema::from_polars(&sliced_df.schema());
 
-        JsonDataFrame {
-            schema,
-            slice_schema,
-            slice_size: DataFrameSize {
-                height: sliced_df.height(),
-                width: sliced_df.width(),
-            },
-            full_size: DataFrameSize {
+        // Merge the metadata from the original schema
+        let mut slice_schema = Schema::from_polars(&sliced_df.schema());
+        log::debug!("OG schema {:?}", og_schema);
+        log::debug!("Pre-Slice schema {:?}", slice_schema);
+        slice_schema.update_metadata_from_schema(&og_schema);
+        log::debug!("Slice schema {:?}", slice_schema);
+
+        JsonDataFrameView {
+            schema: slice_schema,
+            size: DataFrameSize {
                 height: full_height,
                 width: full_width,
             },
-            data: JsonDataFrame::json_data(&mut sliced_df),
+            data: JsonDataFrameView::json_data(&mut sliced_df),
+            pagination: Pagination {
+                page_number: page,
+                page_size,
+                total_pages,
+                total_entries: full_height,
+            },
         }
     }
 
@@ -161,28 +175,10 @@ impl JsonDataFrame {
         }
     }
 
-    pub fn from_slice(
-        df: &mut DataFrame,
-        og_schema: Schema,
-        og_size: DataFrameSize,
-        slice_schema: Schema,
-    ) -> JsonDataFrame {
-        JsonDataFrame {
-            schema: og_schema,
-            slice_schema,
-            slice_size: DataFrameSize {
-                height: df.height(),
-                width: df.width(),
-            },
-            full_size: og_size,
-            data: JsonDataFrame::json_data(df),
-        }
-    }
-
     fn json_data(df: &mut DataFrame) -> serde_json::Value {
         log::debug!("Serializing df: [{}]", df);
 
-        // TODO: serialize to json
+        // TODO: catch errors
         let data: Vec<u8> = Vec::new();
         let mut buf = BufWriter::new(data);
 

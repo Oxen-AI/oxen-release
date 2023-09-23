@@ -280,33 +280,35 @@ pub fn compute_new_rows(
         .collect();
     removed_indices.sort(); // so is deterministic and returned in correct order
 
-    // log::debug!("diff_current added_indices {:?}", added_indices);
+    log::debug!("diff_current added_indices {:?}", added_indices.len());
 
-    // log::debug!("diff_current removed_indices {:?}", removed_indices);
+    log::debug!("diff_current removed_indices {:?}", removed_indices.len());
 
     // Take added from the current df
-    let opts = DFOpts::from_schema_columns(schema);
-    let head_df = tabular::transform(head_df, opts)?;
-    let added_rows = tabular::take(head_df.lazy(), added_indices)?;
+    let added_rows = if !added_indices.is_empty() {
+        let opts = DFOpts::from_schema_columns(schema);
+        let head_df = tabular::transform(head_df, opts)?;
+        Some(tabular::take(head_df.lazy(), added_indices)?)
+    } else {
+        None
+    };
+    log::debug!("diff_current added_rows {:?}", added_rows);
 
     // Take removed from versioned df
-    let opts = DFOpts::from_schema_columns(schema);
-    let base_df = tabular::transform(base_df, opts)?;
-    let removed_rows = tabular::take(base_df.lazy(), removed_indices)?;
+    let removed_rows = if !removed_indices.is_empty() {
+        let opts = DFOpts::from_schema_columns(schema);
+        let base_df = tabular::transform(base_df, opts)?;
+        Some(tabular::take(base_df.lazy(), removed_indices)?)
+    } else {
+        None
+    };
+    log::debug!("diff_current removed_rows {:?}", removed_rows);
 
     Ok(DataFrameDiff {
         head_schema: Some(schema.to_owned()),
         base_schema: Some(schema.to_owned()),
-        added_rows: if added_rows.height() > 0 {
-            Some(added_rows)
-        } else {
-            None
-        },
-        removed_rows: if removed_rows.height() > 0 {
-            Some(removed_rows)
-        } else {
-            None
-        },
+        added_rows,
+        removed_rows,
         added_cols: None,
         removed_cols: None,
     })
