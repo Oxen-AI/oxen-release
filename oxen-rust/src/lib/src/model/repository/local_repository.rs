@@ -96,7 +96,10 @@ impl LocalRepository {
 
     pub fn from_cfg(path: &Path) -> Result<LocalRepository, OxenError> {
         let contents = util::fs::read_from_path(path)?;
-        let repo: LocalRepository = toml::from_str(&contents)?;
+        let mut repo: LocalRepository = toml::from_str(&contents)?;
+        // Override path
+        repo.path = util::fs::get_repo_root(path).unwrap();
+
         Ok(repo)
     }
 
@@ -326,9 +329,6 @@ mod tests {
     use crate::model::{LocalRepository, RepositoryNew};
     use crate::opts::CloneOpts;
     use crate::test;
-    use crate::util;
-
-    use std::path::Path;
 
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
@@ -407,24 +407,34 @@ mod tests {
         .await
     }
 
-    #[test]
-    fn test_read_cfg() -> Result<(), OxenError> {
-        let path = test::repo_cfg_file();
-        let repo = LocalRepository::from_cfg(&path)?;
-        assert_eq!(repo.path, Path::new("Mini-Dogs-Vs-Cats"));
-        Ok(())
-    }
+    #[tokio::test]
+    async fn test_move_local_repo_path_valid() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let namespace = constants::DEFAULT_NAMESPACE;
+            let name = local_repo.dirname();
+            let remote_repo =
+                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
+                    .await?;
+            test::run_empty_dir_test_async(|dir| async move {
+                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
+                let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
 
-    #[test]
-    fn test_local_repository_save() -> Result<(), OxenError> {
-        let final_path = Path::new("repo_config.toml");
-        let orig_repo = LocalRepository::from_cfg(&test::repo_cfg_file())?;
+                api::remote::repositories::delete(&remote_repo).await?;
 
-        orig_repo.save(final_path)?;
+                command::status(&local_repo)?;
 
-        let _repo = LocalRepository::from_cfg(final_path)?;
-        util::fs::remove_file(final_path)?;
+                let new_path = dir.join("new_path");
 
-        Ok(())
+                std::fs::rename(&local_repo.path, &new_path)?;
+
+                let new_repo = LocalRepository::from_dir(&new_path)?;
+                command::status(&new_repo)?;
+                assert_eq!(new_repo.path, new_path);
+
+                Ok(dir)
+            })
+            .await
+        })
+        .await
     }
 }

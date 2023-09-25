@@ -25,7 +25,7 @@ impl Migrate for UpdateVersionFilesMigration {
             update_version_files_for_all_repos_up(path)?;
         } else {
             let repo = LocalRepository::new(path)?;
-            update_version_files_up(&repo, &path)?;
+            update_version_files_up(&repo)?;
         }
         Ok(())
     }
@@ -49,14 +49,19 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
         let namespace_path = path.join(namespace);
+        // Show the canonical namespace path
+        log::debug!(
+            "This is the namespace path we're walking: {:?}",
+            namespace_path.canonicalize()?
+        );
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
-            match update_version_files_up(&repo, path) {
+            match update_version_files_up(&repo) {
                 Ok(_) => {}
                 Err(err) => {
                     log::error!(
                         "Could not migrate version files for repo {:?}\nErr: {}",
-                        repo.path,
+                        repo.path.canonicalize(),
                         err
                     )
                 }
@@ -68,7 +73,7 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
     Ok(())
 }
 
-pub fn update_version_files_up(repo: &LocalRepository, sync_path: &Path) -> Result<(), OxenError> {
+pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let versions_dir = hidden_dir.join(VERSIONS_DIR);
 
@@ -83,6 +88,7 @@ pub fn update_version_files_up(repo: &LocalRepository, sync_path: &Path) -> Resu
                             &path,
                             VERSION_FILE_NAME.to_owned(),
                         );
+                        log::debug!("Renaming {:?} to {:?}", path, new_path);
                         std::fs::rename(path, new_path)?;
                     }
                 } else {
