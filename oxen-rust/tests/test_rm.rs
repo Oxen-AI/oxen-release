@@ -198,3 +198,125 @@ async fn test_rm_one_file_in_dir() -> Result<(), OxenError> {
     })
     .await
 }
+
+#[test]
+fn test_wildcard_remove_nested_nlp_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let dir = Path::new("nlp");
+        let repo_dir = repo.path.join(dir);
+        command::add(&repo, repo_dir)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        // Should add all the sub dirs
+        // nlp/
+        //   classification/
+        //     annotations/
+        assert_eq!(
+            status
+                .staged_dirs
+                .paths
+                .get(Path::new("nlp"))
+                .unwrap()
+                .len(),
+            3
+        );
+        // Should add sub files
+        // nlp/classification/annotations/train.tsv
+        // nlp/classification/annotations/test.tsv
+        assert_eq!(status.staged_files.len(), 2);
+
+        command::commit(&repo, "Adding nlp dir")?;
+
+        // Remove the nlp dir
+        let dir = Path::new("nlp");
+        let repo_nlp_dir = repo.path.join(dir);
+        std::fs::remove_dir_all(repo_nlp_dir)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.removed_files.len(), 2);
+        assert_eq!(status.staged_files.len(), 0);
+        // Add the removed nlp dir with a wildcard
+        command::add(&repo, "nlp/*")?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.staged_dirs.len(), 1);
+        assert_eq!(status.staged_files.len(), 2);
+
+        Ok(())
+    })
+}
+
+#[tokio::test]
+async fn test_wildcard_rm_deleted_and_present() -> Result<(), OxenError> {
+    test::run_empty_data_repo_test_no_commits_async(|repo| async move {
+        // create the images directory
+        let images_dir = repo.path.join("images");
+        util::fs::create_dir_all(&images_dir)?;
+
+        // Add and commit the cats
+        for i in 1..=3 {
+            let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+            let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+        }
+
+        command::add(&repo, &images_dir)?;
+        command::commit(&repo, "Adding initial cat images")?;
+
+        // Add and commit the dogs
+        for i in 1..=4 {
+            let test_file = test::test_img_file_with_name(&format!("dog_{i}.jpg"));
+            let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+            util::fs::copy(&test_file, &repo_filepath)?;
+        }
+
+        command::add(&repo, &images_dir)?;
+        command::commit(&repo, "Adding initial dog images")?;
+
+        // Pre-remove two cats and one dog to ensure deleted images get staged as removed as well as non-deleted images
+        std::fs::remove_file(repo.path.join("images").join("cat_1.jpg"))?;
+        std::fs::remove_file(repo.path.join("images").join("cat_2.jpg"))?;
+        std::fs::remove_file(repo.path.join("images").join("dog_1.jpg"))?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.removed_files.len(), 3);
+        assert_eq!(status.staged_files.len(), 0);
+
+        // Remove with wildcard
+        let rm_opts = RmOpts {
+            path: PathBuf::from("images/*"),
+            recursive: false,
+            staged: false,
+            remote: false,
+        };
+
+        command::rm(&repo, &rm_opts).await?;
+
+        let status = command::status(&repo)?;
+
+        // Should now have 7 staged for removal
+        assert_eq!(status.staged_files.len(), 7);
+        assert_eq!(status.removed_files.len(), 0);
+
+        // Unstage the changes with staged rm
+        let rm_opts = RmOpts {
+            path: PathBuf::from("images/*"),
+            recursive: false,
+            staged: true,
+            remote: false,
+        };
+
+        command::rm(&repo, &rm_opts).await?;
+
+        let status = command::status(&repo)?;
+
+        // Files unstaged, still removed
+        assert_eq!(status.staged_files.len(), 0);
+        assert_eq!(status.removed_files.len(), 7);
+
+        Ok(())
+    })
+    .await
+}

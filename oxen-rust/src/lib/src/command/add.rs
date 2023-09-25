@@ -3,13 +3,13 @@
 //! Stage data for commit
 //!
 
-use glob::{glob, Pattern};
+use glob::glob;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use super::helpers;
 use crate::core::index::{oxenignore, CommitEntryReader, Stager};
 use crate::{api, error::OxenError, model::LocalRepository};
-
 /// # Stage files into repository
 ///
 /// ```
@@ -44,37 +44,21 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let ignore = oxenignore::create(repo);
     log::debug!("---START--- oxen add: {:?}", path.as_ref());
 
-    let glob_chars = vec!['*', '?', '[', ']'];
-
-    log::debug!("Processing path {:?}", path.as_ref());
-
-    // Non-duplicatively collect paths that match the glob pattern either:
+    // Collect paths that match the glob pattern either:
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.as_ref().to_str() {
-        if glob_chars.iter().any(|c| path_str.contains(*c)) {
-            // Also match against any untracked entries in the current dir
+        if helpers::is_glob_path(path_str) {
+            // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
                 paths.insert(entry?);
             }
 
-            // Match the glob pattern against previously committed entries
-            let pattern = Pattern::new(path_str)?;
-            let head = api::local::commits::head_commit(repo)?;
-            let reader = CommitEntryReader::new(repo, &head)?;
-            let entries = reader.list_entries()?;
-            let entry_paths: Vec<PathBuf> =
-                entries.iter().map(|entry| entry.path.to_owned()).collect();
-
-            for path in entry_paths
-                .iter()
-                .filter(|entry_path| pattern.matches_path(entry_path))
-                .map(|entry_path| entry_path.to_owned())
-            {
-                paths.insert(path);
-            }
+            let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
+            paths.extend(pattern_entries);
         } else {
+            // Non-glob path
             paths.insert(path.as_ref().to_owned());
         }
     }

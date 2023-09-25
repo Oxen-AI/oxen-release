@@ -3,10 +3,19 @@
 //! Restore a file to a previous version
 //!
 
+use std::collections::HashSet;
+use std::path::PathBuf;
+
+use crate::api;
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::index;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
+
+use glob::glob;
+
+use super::helpers;
 
 /// # Restore a removed file that was committed
 ///
@@ -46,5 +55,31 @@ use crate::opts::RestoreOpts;
 /// # }
 /// ```
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
-    index::restore(repo, opts)
+    let commit = api::local::commits::head_commit(repo)?;
+    let path = &opts.path;
+    let mut paths: HashSet<PathBuf> = HashSet::new();
+
+    // Quoted wildcard path strings, expand to include present and removed files
+    if let Some(path_str) = path.to_str() {
+        if helpers::is_glob_path(path_str) {
+            for entry in glob(path_str)? {
+                let entry = entry?;
+                if !entry.starts_with(OXEN_HIDDEN_DIR) {
+                    paths.insert(entry);
+                }
+            }
+            let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
+            paths.extend(pattern_entries);
+        } else {
+            paths.insert(path.to_owned());
+        }
+    }
+
+    for path in paths {
+        let mut opts = opts.clone();
+        opts.path = path;
+        index::restore(repo, opts)?;
+    }
+
+    Ok(())
 }
