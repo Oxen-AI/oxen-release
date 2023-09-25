@@ -3,7 +3,6 @@ use env_logger::Env;
 
 pub mod cmd_setup;
 pub mod dispatch;
-pub mod helpers;
 pub mod parse_and_run;
 
 #[tokio::main]
