@@ -5,6 +5,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry};
 use crate::util;
 
+use glob::Pattern;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -251,6 +252,23 @@ impl CommitEntryReader {
         } else {
             Err(OxenError::file_has_no_parent(path))
         }
+    }
+
+    pub fn glob_entry_paths(&self, pattern: &str) -> Result<HashSet<PathBuf>, OxenError> {
+        let pattern = Pattern::new(pattern)?;
+        let entries = self.list_entries()?;
+        let entry_paths: Vec<PathBuf> = entries.iter().map(|entry| entry.path.to_owned()).collect();
+
+        let mut paths = HashSet::new();
+        for path in entry_paths
+            .iter()
+            .filter(|entry_path| pattern.matches_path(entry_path))
+            .map(|entry_path| entry_path.to_owned())
+        {
+            paths.insert(path);
+        }
+
+        Ok(paths)
     }
 }
 
