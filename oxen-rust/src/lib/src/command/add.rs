@@ -3,12 +3,12 @@
 //! Stage data for commit
 //!
 
+use glob::{glob, Pattern};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use glob::Pattern;
 
 use crate::core::index::{oxenignore, CommitEntryReader, Stager};
 use crate::{api, error::OxenError, model::LocalRepository};
-
 
 /// # Stage files into repository
 ///
@@ -51,32 +51,42 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 
     log::debug!("Processing path {:?}", path.as_ref());
 
-    let mut paths: Vec<PathBuf> = vec![];
+    // Non-duplicatively collect paths that match the glob pattern either:
+    // 1. In the repo working directory (untracked or modified files)
+    // 2. In the commit entry db (removed files)
+    let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.as_ref().to_str() {
         if glob_chars.iter().any(|c| path_str.contains(*c)) {
+            // Also match against any untracked entries in the current dir
+            for entry in glob(path_str)? {
+                paths.insert(entry?);
+            }
+
+            // Match the glob pattern against previously committed entries
             let pattern = Pattern::new(path_str)?;
             let head = api::local::commits::head_commit(repo)?;
             let reader = CommitEntryReader::new(repo, &head)?;
             let entries = reader.list_entries()?;
-            let entry_paths: Vec<PathBuf> = entries.iter()
-                .map(|entry| entry.path.to_owned())
-                .collect();
+            let entry_paths: Vec<PathBuf> =
+                entries.iter().map(|entry| entry.path.to_owned()).collect();
 
-            paths = entry_paths.iter()
+            for path in entry_paths
+                .iter()
                 .filter(|entry_path| pattern.matches_path(entry_path))
                 .map(|entry_path| entry_path.to_owned())
-                .collect();
+            {
+                paths.insert(path);
+            }
+        } else {
+            paths.insert(path.as_ref().to_owned());
         }
-        else {
-            paths = vec![path.as_ref().to_owned()];
-        }
-    } 
+    }
 
     // Get all entries in the head commit
     for path in paths {
         stager.add(path.as_ref(), &reader, &ignore)?;
     }
-    
+
     log::debug!("---END--- oxen add: {:?}", path.as_ref());
     Ok(())
 }
