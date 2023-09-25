@@ -166,3 +166,107 @@ fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
         Ok(())
     })
 }
+
+#[test]
+fn test_command_add_stage_with_wildcard() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Modify and add the file deep in a sub dir
+        let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
+        let file_contents = "file,label\ntrain/cat_1.jpg,0";
+        test::modify_txt_file(one_shot_path, file_contents)?;
+        let status = command::status(&repo)?;
+        assert_eq!(status.modified_files.len(), 1);
+        // Add the top level directory, and make sure the modified file gets added
+        let annotation_dir_path = repo.path.join("annotations/*");
+        command::add(&repo, annotation_dir_path)?;
+        let status = command::status(&repo)?;
+        status.print_stdout();
+        assert_eq!(status.staged_files.len(), 1);
+        command::commit(&repo, "Changing one shot")?;
+        let status = command::status(&repo)?;
+        assert!(status.is_clean());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_wildcard_remove_nested_nlp_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let dir = Path::new("nlp");
+        let repo_dir = repo.path.join(dir);
+        command::add(&repo, repo_dir)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        // Should add all the sub dirs
+        // nlp/
+        //   classification/
+        //     annotations/
+        assert_eq!(
+            status
+                .staged_dirs
+                .paths
+                .get(Path::new("nlp"))
+                .unwrap()
+                .len(),
+            3
+        );
+        // Should add sub files
+        // nlp/classification/annotations/train.tsv
+        // nlp/classification/annotations/test.tsv
+        assert_eq!(status.staged_files.len(), 2);
+
+        command::commit(&repo, "Adding nlp dir")?;
+
+        // Remove the nlp dir
+        let dir = Path::new("nlp");
+        let repo_nlp_dir = repo.path.join(dir);
+        std::fs::remove_dir_all(repo_nlp_dir)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.removed_files.len(), 2);
+        assert_eq!(status.staged_files.len(), 0);
+        // Add the removed nlp dir with a wildcard
+        command::add(&repo, "nlp/*")?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.staged_dirs.len(), 1);
+        assert_eq!(status.staged_files.len(), 2);
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_wildcard_add_nested_nlp_dir() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        let dir = Path::new("nlp/*");
+        let repo_dir = repo.path.join(dir);
+        command::add(&repo, repo_dir)?;
+
+        let status = command::status(&repo)?;
+        status.print_stdout();
+
+        // Should add all the sub dirs
+        // nlp/
+        //   classification/
+        //     annotations/
+        assert_eq!(
+            status
+                .staged_dirs
+                .paths
+                .get(Path::new("nlp"))
+                .unwrap()
+                .len(),
+            3
+        );
+        // Should add sub files
+        // nlp/classification/annotations/train.tsv
+        // nlp/classification/annotations/test.tsv
+        assert_eq!(status.staged_files.len(), 2);
+
+        Ok(())
+    })
+}

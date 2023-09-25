@@ -11,7 +11,7 @@ pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
 pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
     "  (use \"oxen add <file>...\" to update what will be committed)\n";
 pub const MSG_OXEN_RM_FILE_EXAMPLE: &str =
-    "  (use \"oxen rm <file>...\" to update what will be committed)\n";
+    "  (use \"oxen add <file>...\" to update what will be committed)\n";
 pub const MSG_OXEN_ADD_DIR_EXAMPLE: &str =
     "  (use \"oxen add <dir>...\" to update what will be committed)\n";
 pub const MSG_OXEN_ADD_FILE_RESOLVE_CONFLICT: &str =

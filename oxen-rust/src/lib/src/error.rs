@@ -88,7 +88,8 @@ pub enum OxenError {
     ENV(std::env::VarError),
     RedisError(redis::RedisError),
     R2D2Error(r2d2::Error),
-    GlobError(glob::PatternError),
+    PatternError(glob::PatternError),
+    GlobError(glob::GlobError),
 
     // Fallback
     Basic(StringError),
@@ -478,6 +479,12 @@ impl From<redis::RedisError> for OxenError {
 
 impl From<glob::PatternError> for OxenError {
     fn from(error: glob::PatternError) -> Self {
+        OxenError::PatternError(error)
+    }
+}
+
+impl From<glob::GlobError> for OxenError {
+    fn from(error: glob::GlobError) -> Self {
         OxenError::GlobError(error)
     }
 }
