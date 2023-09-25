@@ -44,9 +44,6 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let ignore = oxenignore::create(repo);
     log::debug!("---START--- oxen add: {:?}", path.as_ref());
 
-    // Copilot, write a conditional for if the path contains glob characters
-    // TODONOW: Make this more inclusive
-
     let glob_chars = vec!['*', '?', '[', ']'];
 
     log::debug!("Processing path {:?}", path.as_ref());
