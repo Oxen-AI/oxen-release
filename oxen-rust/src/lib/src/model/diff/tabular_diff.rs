@@ -82,7 +82,6 @@ impl TabularDiff {
                 // If the schema is changed, in order to figure out the added rows and removed rows,
                 // we need to make find the minimum common schema between the two dataframes
                 // and then compute the diff between the two dataframes.
-                let common_schema = base_schema.common(&head_schema);
                 let common_fields = base_schema.common_fields(&head_schema);
                 let column_names = common_fields
                     .iter()
@@ -96,16 +95,19 @@ impl TabularDiff {
                 } else {
                     let cols = column_names.iter().map(|c| col(c)).collect::<Vec<Expr>>();
 
-                    let common_base_df = base_df.lazy().select(&cols).collect().unwrap();
-                    let common_head_df = head_df.lazy().select(&cols).collect().unwrap();
+                    let common_base_df = base_df.clone().lazy().select(&cols).collect().unwrap();
+                    let common_head_df = head_df.clone().lazy().select(&cols).collect().unwrap();
 
                     log::debug!("common_base_df: {:?}", common_base_df);
                     log::debug!("common_head_df: {:?}", common_head_df);
 
-                    let df_diff = api::local::diff::compute_new_rows(
-                        common_base_df,
-                        common_head_df,
-                        &common_schema,
+                    let df_diff = api::local::diff::compute_new_rows_proj(
+                        &common_base_df,
+                        &common_head_df,
+                        &base_df,
+                        &head_df,
+                        &base_schema,
+                        &head_schema,
                     )
                     .unwrap();
 
@@ -161,9 +163,10 @@ impl TabularDiff {
                     },
                 };
             } else {
+                // schema has not changed
                 // compute new rows
                 let df_diff =
-                    api::local::diff::compute_new_rows(base_df, head_df, &base_schema).unwrap();
+                    api::local::diff::compute_new_rows(&base_df, &head_df, &base_schema).unwrap();
 
                 let added_rows = df_diff
                     .added_rows

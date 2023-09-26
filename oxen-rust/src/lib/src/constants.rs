@@ -93,7 +93,7 @@ pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 pub const NUM_HTTP_RETRIES: u64 = 10;
 
 /// Pagination page size of 10
-pub const DEFAULT_PAGE_SIZE: usize = 10;
+pub const DEFAULT_PAGE_SIZE: usize = 100;
 /// Pagination page number of 1
 pub const DEFAULT_PAGE_NUM: usize = 1;
 
