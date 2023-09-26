@@ -15,6 +15,7 @@ pub mod diff;
 pub mod fetch;
 pub mod info;
 pub mod init;
+pub mod load;
 pub mod merge;
 pub mod migrate;
 pub mod pull;
@@ -22,8 +23,11 @@ pub mod push;
 pub mod remote;
 pub mod restore;
 pub mod rm;
+pub mod save;
 pub mod schemas;
 pub mod status;
+
+// TODONOW 2
 
 pub use crate::command::add::add;
 pub use crate::command::checkout::{
@@ -36,9 +40,11 @@ pub use crate::command::diff::diff;
 pub use crate::command::fetch::fetch;
 pub use crate::command::info::info;
 pub use crate::command::init::init;
+pub use crate::command::load::load;
 pub use crate::command::merge::merge;
 pub use crate::command::pull::{pull, pull_all, pull_remote_branch, pull_shallow};
 pub use crate::command::push::{push, push_remote_branch, push_remote_repo_branch_name};
 pub use crate::command::restore::restore;
 pub use crate::command::rm::rm;
+pub use crate::command::save::save;
 pub use crate::command::status::{status, status_from_dir};

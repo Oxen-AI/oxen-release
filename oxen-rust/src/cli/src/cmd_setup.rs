@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use clap::{arg, Arg, Command};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -16,6 +18,7 @@ pub const INFO: &str = "info";
 pub const INIT: &str = "init";
 pub const FETCH: &str = "fetch";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
+pub const LOAD: &str = "load";
 pub const LOG: &str = "log";
 pub const LS: &str = "ls";
 pub const MERGE: &str = "merge";
@@ -28,6 +31,7 @@ pub const READ_LINES: &str = "read-lines";
 pub const REMOTE: &str = "remote";
 pub const RESTORE: &str = "restore";
 pub const RM: &str = "rm";
+pub const SAVE: &str = "save";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
 
@@ -864,4 +868,29 @@ pub fn read_lines() -> Command {
                 .default_value("10")
                 .default_missing_value("10"),
         )
+}
+
+pub fn save() -> Command {
+    Command::new(SAVE)
+        .about("Compress and save a local repository as a .tar.gz archive")
+        .arg(arg!(<PATH> "Path to save the .tar.gz archive to"))
+}
+
+pub fn load() -> Command {
+    Command::new(LOAD)
+            .about("Load a repository backup from a .tar.gz archive")
+            .arg(Arg::new("SRC_PATH")
+                .help("Path to the .tar.gz archive to load")
+                .required(true)
+                .index(1))
+            .arg(Arg::new("DEST_PATH")
+                    .help("Path in which to unpack the repository")
+                    .required(true)
+                    .index(2))
+            .arg(
+                Arg::new("no-working-dir")
+                .long("no-working-dir")
+                .help("Don't unpack version files to local working directory (space-saving measure for server repos)")
+                .action(clap::ArgAction::SetTrue)
+            )
 }

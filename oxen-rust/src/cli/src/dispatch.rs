@@ -927,5 +927,29 @@ pub fn show_current_branch() -> Result<(), OxenError> {
 }
 
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
+    println!("🐂 Saving repo backup to {:?}.", path);
     command::db_inspect::inspect(path)
+}
+
+// TODONOW: This might be able to be overcome with the new changes to localrepo
+pub fn save(dst_path: &str) -> Result<(), OxenError> {
+    println!("🐂 Saving repo backup to {:?}.", dst_path);
+    let current_dir = env::current_dir().unwrap();
+    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    println!("Found repo at {:?}", repo_dir);
+
+    command::save(&repo, dst_path)?;
+
+    Ok(())
+}
+
+pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
+    println!(
+        "🐂 Loading repo backup from {:?} to {:?}.",
+        src_path, dest_path
+    );
+    command::load(src_path, dest_path, no_working_dir)?;
+    Ok(())
 }
