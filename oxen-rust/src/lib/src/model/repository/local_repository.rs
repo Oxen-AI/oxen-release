@@ -15,6 +15,7 @@ use crate::view::RepositoryView;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// For creating a remote repo we need the repo name
@@ -23,7 +24,10 @@ use std::path::{Path, PathBuf};
 pub struct RepositoryNew {
     pub namespace: String,
     pub name: String,
+    // Optional root commit
     pub root_commit: Option<Commit>,
+    // Optional files that you want to add to the repo
+    pub file_data: Option<HashMap<PathBuf, String>>,
 }
 
 impl std::fmt::Display for RepositoryNew {
@@ -40,6 +44,33 @@ impl RepositoryNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
             root_commit: None,
+            file_data: None,
+        }
+    }
+
+    pub fn from_root_commit(
+        namespace: impl AsRef<str>,
+        name: impl AsRef<str>,
+        root_commit: Commit,
+    ) -> RepositoryNew {
+        RepositoryNew {
+            namespace: String::from(namespace.as_ref()),
+            name: String::from(name.as_ref()),
+            root_commit: Some(root_commit),
+            file_data: None,
+        }
+    }
+
+    pub fn from_files(
+        namespace: impl AsRef<str>,
+        name: impl AsRef<str>,
+        file_data: HashMap<PathBuf, String>,
+    ) -> RepositoryNew {
+        RepositoryNew {
+            namespace: String::from(namespace.as_ref()),
+            name: String::from(name.as_ref()),
+            root_commit: None,
+            file_data: Some(file_data),
         }
     }
 
@@ -57,6 +88,7 @@ impl RepositoryNew {
             name: String::from(name),
             namespace: String::from(namespace),
             root_commit: None,
+            file_data: None,
         })
     }
 }
@@ -378,9 +410,13 @@ mod tests {
         test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
-            let remote_repo =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
-                    .await?;
+            let repo_new = RepositoryNew::new(namespace, name);
+            let remote_repo = api::remote::repositories::create_from_local(
+                &local_repo,
+                repo_new,
+                test::test_host(),
+            )
+            .await?;
 
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);

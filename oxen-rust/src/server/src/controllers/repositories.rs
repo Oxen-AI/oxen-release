@@ -114,7 +114,7 @@ pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     println!("controllers::repositories::create body:\n{}", body);
     let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => match api::local::repositories::create_empty(&app_data.path, data.to_owned()) {
+        Ok(data) => match api::local::repositories::create(&app_data.path, data.to_owned()) {
             Ok(_) => HttpResponse::Ok().json(RepositoryResponse {
                 status: STATUS_SUCCESS.to_string(),
                 status_message: MSG_RESOURCE_FOUND.to_string(),
@@ -364,18 +364,16 @@ mod tests {
         let sync_dir = test::get_sync_dir()?;
         let queue = test::init_queue();
         let timestamp = OffsetDateTime::now_utc();
-        let repo_new = RepositoryNew {
-            name: String::from("Testing-Name"),
-            namespace: String::from("Testing-Namespace"),
-            root_commit: Some(Commit {
-                id: String::from("1234"),
-                parent_ids: vec![],
-                message: String::from(constants::INITIAL_COMMIT_MSG),
-                author: String::from("Ox"),
-                email: String::from("ox@oxen.ai"),
-                timestamp,
-            }),
+        let root_commit = Commit {
+            id: String::from("1234"),
+            parent_ids: vec![],
+            message: String::from(constants::INITIAL_COMMIT_MSG),
+            author: String::from("Ox"),
+            email: String::from("ox@oxen.ai"),
+            timestamp,
         };
+        let repo_new =
+            RepositoryNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
         let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, queue, "/api/repos");
 
