@@ -285,7 +285,8 @@ fn get_unsynced_entries_for_commit(
         let local_parent = commit_reader
             .get_commit_by_id(parent_id)?
             .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-        let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
+        let entries =
+            api::local::entries::read_unsynced_entries(local_repo, &local_parent, commit)?;
 
         // Get size of these entries
         let entries_size = api::local::entries::compute_entries_size(&entries)?;
@@ -632,57 +633,6 @@ async fn push_missing_commit_entries(
     log::debug!("push_missing_commit_entries done");
 
     Ok(())
-}
-
-pub fn read_unsynced_entries(
-    local_repo: &LocalRepository,
-    last_commit: &Commit,
-    this_commit: &Commit,
-) -> Result<Vec<CommitEntry>, OxenError> {
-    // Find and compare all entries between this commit and last
-    let this_entry_reader = CommitEntryReader::new(local_repo, this_commit)?;
-
-    let this_entries = this_entry_reader.list_entries()?;
-    let grouped = api::local::entries::group_entries_to_parent_dirs(&this_entries);
-    log::debug!(
-        "Checking {} entries in {} groups",
-        this_entries.len(),
-        grouped.len()
-    );
-
-    let mut entries_to_sync: Vec<CommitEntry> = vec![];
-    for (dir, dir_entries) in grouped.iter() {
-        log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
-
-        let last_entry_reader = CommitDirEntryReader::new(local_repo, &last_commit.id, dir)?;
-        let mut entries: Vec<CommitEntry> = dir_entries
-            .into_par_iter()
-            .filter(|entry| {
-                // If hashes are different, or it is a new entry, we'll keep it
-                let filename = entry.path.file_name().unwrap().to_str().unwrap();
-                match last_entry_reader.get_entry(filename) {
-                    Ok(Some(old_entry)) => {
-                        if old_entry.hash != entry.hash {
-                            return true;
-                        }
-                    }
-                    Ok(None) => {
-                        return true;
-                    }
-                    Err(err) => {
-                        panic!("Error filtering entries to sync: {}", err)
-                    }
-                }
-                false
-            })
-            .map(|e| e.to_owned())
-            .collect();
-        entries_to_sync.append(&mut entries);
-    }
-
-    log::debug!("Got {} entries to sync", entries_to_sync.len());
-
-    Ok(entries_to_sync)
 }
 
 async fn push_entries(

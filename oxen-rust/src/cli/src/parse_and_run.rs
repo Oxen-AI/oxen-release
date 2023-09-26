@@ -1088,3 +1088,24 @@ pub fn run_migration(
 
     Ok(())
 }
+
+pub async fn save(sub_matches: &ArgMatches) {
+    // Match on the PATH arg
+    let dest_str = sub_matches.get_one::<String>("PATH").expect("Required");
+
+    dispatch::save(dest_str).expect("Error saving repo backup.");
+}
+
+pub async fn load(sub_matches: &ArgMatches) {
+    // Match on both SRC_PATH and DEST_PATH
+    let src_path_str = sub_matches.get_one::<String>("SRC_PATH").expect("required");
+    let dest_path_str = sub_matches
+        .get_one::<String>("DEST_PATH")
+        .expect("required");
+    let no_working_dir = sub_matches.get_flag("no-working-dir");
+
+    let src_path = Path::new(src_path_str);
+    let dest_path = Path::new(dest_path_str);
+
+    dispatch::load(src_path, dest_path, no_working_dir).expect("Error loading repo from backup.");
+}
