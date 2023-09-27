@@ -157,14 +157,18 @@ pub async fn get_repo_data_by_remote(
 }
 
 pub async fn create_empty<S: AsRef<str>>(
-    namespace: &str,
-    name: &str,
+    namespace: S,
+    name: S,
     host: S,
 ) -> Result<RemoteRepository, OxenError> {
+    let namespace = namespace.as_ref();
+    let name = name.as_ref();
+
     let url = api::endpoint::url_from_host(host.as_ref(), "");
     let params = json!({ "name": name, "namespace": namespace });
     log::debug!("Create remote: {} {} {}\n{}", url, namespace, name, params);
 
+    // no user agent, otherwise the create will fail when going through the hub
     let client = client::new_for_url_no_user_agent(&url)?;
     log::debug!("client: {:?}", client);
     match client.post(&url).json(&params).send().await {
@@ -202,7 +206,8 @@ pub async fn create<S: AsRef<str>>(
     // convert repo_new to json with serde
     log::debug!("Create remote: {}\n{:?}", url, repo_new);
 
-    let client = client::new_for_url(&url)?;
+    // no user agent, otherwise the create will fail when going through the hub
+    let client = client::new_for_url_no_user_agent(&url)?;
     if let Ok(res) = client.post(&url).json(&repo_new).send().await {
         let body = client::parse_json_body(&url, res).await?;
 

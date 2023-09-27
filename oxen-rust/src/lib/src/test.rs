@@ -489,7 +489,7 @@ where
     init_test_env();
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let namespace = constants::DEFAULT_NAMESPACE;
-    let repo = api::remote::repositories::create_empty(namespace, &name, test_host()).await?;
+    let repo = api::remote::repositories::create_empty(namespace, &name, &test_host()).await?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {

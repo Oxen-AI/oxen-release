@@ -152,7 +152,7 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
             api::remote::repositories::create_empty(
                 constants::DEFAULT_NAMESPACE,
                 &repo_name,
-                test::test_host(),
+                &test::test_host(),
             )
             .await?;
 
