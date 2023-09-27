@@ -106,9 +106,52 @@ pub async fn create_remote(
         // Creating a remote with an initial commit and a README
         let config = UserConfig::get()?;
         let user = config.to_user();
+        let readme_body = format!(
+            "
+Welcome to Oxen.ai 🐂 🌾
+
+## Getting Started
+
+Clone the repository to your local machine:
+
+```bash
+oxen clone https://{}/{}/{}
+```
+
+## Adding Data
+
+You can add files to it with
+
+```
+oxen add <path>
+```
+
+Then commit them with
+
+```
+oxen commit -m <message>
+```
+
+## Pushing Data
+
+Push your changes to the remote with
+
+```
+oxen push origin main
+```
+
+## Learn More
+
+For the complete developer documentation, visit https://docs.oxen.ai/
+
+Happy Mooooooving of data 🐂
+",
+            host, namespace, name
+        );
+
         let files: Vec<FileNew> = vec![FileNew {
             path: PathBuf::from("README.md"),
-            contents: format!("# {}\n", name),
+            contents: format!("# {}\n{}", name, readme_body),
         }];
         let repo = RepositoryNew::from_files(namespace, name, files, user);
         let remote_repo = api::remote::repositories::create(repo, host).await?;

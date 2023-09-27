@@ -4,8 +4,10 @@ use crate::constants;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
 use crate::model::Commit;
+use crate::model::CommitEntry;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
+use crate::model::NewCommit;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
@@ -245,16 +247,17 @@ pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepositor
         // if no root commit, but yes files and a user, add and commit them
         if let (Some(files), Some(user)) = (&new_repo.files, &new_repo.user) {
             // Add root commit
-            let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
-            let timestamp = OffsetDateTime::now_utc();
-            let root_commit = Commit {
-                id: initial_commit_id,
+            let commit_data = NewCommit {
                 parent_ids: vec![],
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: user.name.clone(),
                 email: user.email.clone(),
-                timestamp,
+                timestamp: OffsetDateTime::now_utc(),
             };
+
+            let entries: Vec<CommitEntry> = vec![];
+            let id = util::hasher::compute_commit_hash(&commit_data, &entries);
+            let root_commit = Commit::from_new_and_id(&commit_data, id);
             {
                 // Write the root commit and go out of scope to close DB
                 let commit_writer = CommitWriter::new(&local_repo)?;
