@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::fs;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+use crate::constants::{OXEN, CONFIG_DIR};
 
 pub const USER_CONFIG_FILENAME: &str = "user_config.toml";
 
@@ -77,11 +78,13 @@ impl UserConfig {
     }
 
     pub fn get() -> Result<UserConfig, OxenError> {
-        let home_dir = util::fs::oxen_home_dir()?;
-        let mut config_file = home_dir.join(Path::new(USER_CONFIG_FILENAME));
+        
+        let config_dir = util::fs::oxen_config_dir()?;
+        let mut config_file = config_dir.join(Path::new(USER_CONFIG_FILENAME));
         if std::env::var("TEST").is_ok() {
             config_file = PathBuf::from("data/test/config/user_config.toml");
         }
+        log::debug!("looking for config file in...{:?}", config_file);
         if config_file.exists() {
             Ok(UserConfig::new(&config_file))
         } else {
@@ -104,25 +107,21 @@ impl UserConfig {
             Err(_err) => {
                 let config = Self::new_empty();
                 config.save_default()?;
-                println!("🐂 created a new config file in \"$HOME/.oxen/{USER_CONFIG_FILENAME}");
+                println!("🐂 created a new config file in \"$HOME/{CONFIG_DIR}/{OXEN}/{USER_CONFIG_FILENAME}");
                 Ok(config)
             }
         }
     }
 
     pub fn save_default(&self) -> Result<(), OxenError> {
-        if let Some(home_dir) = dirs::home_dir() {
-            let oxen_dir = util::fs::oxen_hidden_dir(home_dir);
-
-            fs::create_dir_all(&oxen_dir)?;
-            let config_file = oxen_dir.join(Path::new(USER_CONFIG_FILENAME));
-            log::debug!("Saving config to {:?}", config_file);
-            self.save(&config_file)
-        } else {
-            Err(OxenError::basic_str(
-                "Save user config could not find home dir",
-            ))
+        let config_dir = util::fs::oxen_config_dir()?;
+        let config_file = config_dir.join(Path::new(USER_CONFIG_FILENAME));
+        log::debug!("Saving config to {:?}", config_file);
+        if !config_dir.exists() {
+            fs::create_dir_all(config_dir)?;
         }
+        self.save(&config_file)?;
+        Ok(())
     }
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {

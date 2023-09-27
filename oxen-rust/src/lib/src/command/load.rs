@@ -14,10 +14,6 @@ use crate::{
 };
 
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
-    if src_path.extension().and_then(|s| s.to_str()) != Some("gz") {
-        return Err(OxenError::basic_str("File is not a .tar.gz archive"));
-    }
-
     let dest_path = if dest_path.exists() {
         if dest_path.is_file() {
             return Err(OxenError::basic_str(

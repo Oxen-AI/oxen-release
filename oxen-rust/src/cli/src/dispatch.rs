@@ -84,6 +84,10 @@ fn version_files_out_of_date(repo: &LocalRepository) -> Result<bool, OxenError> 
                 None => continue,
             };
 
+            if filename.starts_with(constants::HASH_FILE) {
+                continue;
+            }
+
             if filename.starts_with(constants::VERSION_FILE_NAME) {
                 return Ok(false);
             }
@@ -97,7 +101,7 @@ pub fn check_versions_migration_needed(repo: &LocalRepository) -> Result<(), Oxe
     let migration_needed = version_files_out_of_date(repo)?;
 
     if migration_needed {
-        let warning = "Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate update-version-files .` to migrate.\n".to_string().yellow();
+        let warning = "Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate up update-version-files .` to migrate.\n".to_string().yellow();
         eprintln!("{warning}");
         return Err(OxenError::MigrationRequired(
             "Error: Migration required".to_string().into(),
@@ -932,15 +936,15 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
 }
 
 // TODONOW: This might be able to be overcome with the new changes to localrepo
-pub fn save(dst_path: &str) -> Result<(), OxenError> {
-    println!("🐂 Saving repo backup to {:?}.", dst_path);
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
+    println!("🐂 Saving repo backup to {:?}.", repo_path);
+    let repo_path = Path::new(repo_path);
+    let repo_dir = util::fs::get_repo_root(&repo_path).expect(error::NO_REPO_FOUND);
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     println!("Found repo at {:?}", repo_dir);
 
-    command::save(&repo, dst_path)?;
+    command::save(&repo, output_path)?;
 
     Ok(())
 }
