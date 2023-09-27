@@ -7,6 +7,12 @@ pub const OXEN_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
+/// Folder name for oxen home within `.cache`, `.config`., etc.
+pub const OXEN: &str = "oxen";
+/// ~/.cache/oxen holds tmp downloads 
+pub const TMP_DIR: &str = ".cache";
+/// ~/.config/oxen holds config files
+pub const CONFIG_DIR: &str = ".config";
 /// .oxenignore is the name of the file that contains the ignore patterns
 pub const OXEN_IGNORE_FILE: &str = ".oxenignore";
 /// Config file for the repository

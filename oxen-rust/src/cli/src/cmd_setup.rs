@@ -872,8 +872,19 @@ pub fn read_lines() -> Command {
 
 pub fn save() -> Command {
     Command::new(SAVE)
-        .about("Compress and save a local repository as a .tar.gz archive")
-        .arg(arg!(<PATH> "Path to save the .tar.gz archive to"))
+        .arg(
+            Arg::new("PATH")
+                .help("Path of the local repository to save")
+                .required(true)
+                .index(1), // This represents the position of the argument in the command line command.
+        )
+        .arg(
+            Arg::new("output")
+                .help("Name of the output .tar.gz archive")
+                .short('o')
+                .long("output")
+                .required(true), 
+        )
 }
 
 pub fn load() -> Command {

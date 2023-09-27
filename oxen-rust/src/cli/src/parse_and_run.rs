@@ -1091,9 +1091,13 @@ pub fn run_migration(
 
 pub async fn save(sub_matches: &ArgMatches) {
     // Match on the PATH arg
-    let dest_str = sub_matches.get_one::<String>("PATH").expect("Required");
+    let repo_str = sub_matches.get_one::<String>("PATH").expect("Required");
+    let output_str = sub_matches.get_one::<String>("output").expect("Required");
 
-    dispatch::save(dest_str).expect("Error saving repo backup.");
+    let repo_path = Path::new(repo_str);
+    let output_path = Path::new(output_str);
+
+    dispatch::save(repo_path, output_path).expect("Error saving repo backup.");
 }
 
 pub async fn load(sub_matches: &ArgMatches) {

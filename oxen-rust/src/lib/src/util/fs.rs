@@ -26,13 +26,22 @@ use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::view::health::DiskUsage;
 use crate::{api, util};
 
+// Deprecated
 pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
     PathBuf::from(repo_path.as_ref()).join(Path::new(constants::OXEN_HIDDEN_DIR))
 }
 
-pub fn oxen_home_dir() -> Result<PathBuf, OxenError> {
+
+pub fn oxen_tmp_dir() -> Result<PathBuf, OxenError> {
     match dirs::home_dir() {
-        Some(home_dir) => Ok(home_dir.join(constants::OXEN_HIDDEN_DIR)),
+        Some(home_dir) => Ok(home_dir.join(constants::TMP_DIR).join(constants::OXEN)),
+        None => Err(OxenError::home_dir_not_found()),
+    }
+}
+
+pub fn oxen_config_dir() -> Result<PathBuf, OxenError>  {
+    match dirs::home_dir() {
+        Some(home_dir) => Ok(home_dir.join(constants::CONFIG_DIR).join(constants::OXEN)),
         None => Err(OxenError::home_dir_not_found()),
     }
 }

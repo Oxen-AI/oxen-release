@@ -10,13 +10,12 @@ use std::io::Write;
 
 use crate::{constants::OXEN_HIDDEN_DIR, error::OxenError, model::LocalRepository, util};
 
-pub fn save(repo: &LocalRepository, dst_str: &str) -> Result<(), OxenError> {
+pub fn save(repo: &LocalRepository, dst_path: &Path) -> Result<(), OxenError> {
     // Check if "path" is a directory or file.
 
     // TODONOW better error handling below
     // TODONOW better conditionals, didn't actually need this
     // TODONOW totally fine to pass pathbuf
-    let dst_path = Path::new(dst_str);
     println!("Dst path created for checking...");
     let output_path = if !dst_path.exists() {
         println!("Path doesn't exist, but it's cool");
@@ -24,14 +23,12 @@ pub fn save(repo: &LocalRepository, dst_str: &str) -> Result<(), OxenError> {
     } else {
         match (dst_path.is_file(), dst_path.is_dir()) {
             (true, false) => {
-                println!("Path is a file");
                 dst_path.to_path_buf()
             }
             (false, true) => {
-                println!("Path is a directory");
-                dst_path.join("archive.tar.gz")
+                dst_path.join("oxen-archive.tar.gz")
             }
-            _ => return Err(OxenError::basic_str(dst_str.to_string())),
+            _ => return Err(OxenError::basic_str(dst_path.to_str().unwrap())),
         }
     };
 
