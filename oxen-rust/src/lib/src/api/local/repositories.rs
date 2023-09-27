@@ -1,6 +1,7 @@
 use crate::api;
 use crate::command;
 use crate::constants;
+use crate::core::index::Stager;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
 use crate::model::Commit;
@@ -281,7 +282,19 @@ pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepositor
             }
 
             // Commit the file data
-            command::commit(&local_repo, "Adding initial data")?;
+            let parent_id = root_commit.id;
+            let new_commit = NewCommit {
+                parent_ids: vec![parent_id],
+                message: String::from("Adding initial files"),
+                author: user.name.clone(),
+                email: user.email.clone(),
+                timestamp: OffsetDateTime::now_utc(),
+            };
+            let mut status = command::status(&local_repo)?;
+            let stager = Stager::new(&local_repo)?;
+            let commit_writer = CommitWriter::new(&local_repo)?;
+            commit_writer.commit_from_new(&new_commit, &mut status, &local_repo.path)?;
+            stager.unstage()?;
 
             // Cleanup the files since they are now in version dirs
             for file in files {
