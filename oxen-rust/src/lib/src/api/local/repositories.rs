@@ -3,6 +3,7 @@ use crate::command;
 use crate::constants;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
+use crate::model::Commit;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::RepoStats;
@@ -12,6 +13,7 @@ use crate::util;
 use jwalk::WalkDir;
 use std::collections::HashMap;
 use std::path::Path;
+use time::OffsetDateTime;
 
 pub fn get_by_namespace_and_name(
     sync_dir: &Path,
@@ -199,12 +201,15 @@ pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepositor
     }
 
     // Create the repo dir
-    log::debug!("create_empty repo dir: {:?}", repo_dir);
+    log::debug!("api::local::repositories::create repo dir: {:?}", repo_dir);
     std::fs::create_dir_all(&repo_dir)?;
 
     // Create oxen hidden dir
     let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
-    log::debug!("create_empty hidden dir: {:?}", hidden_dir);
+    log::debug!(
+        "api::local::repositories::create hidden dir: {:?}",
+        hidden_dir
+    );
     std::fs::create_dir_all(&hidden_dir)?;
 
     // Create config file
@@ -219,33 +224,68 @@ pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepositor
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
     {
         // Make go out of scope to release LOCK
-        log::debug!("create_empty BEFORE ref writer: {:?}", local_repo.path);
+        log::debug!(
+            "api::local::repositories::create BEFORE ref writer: {:?}",
+            local_repo.path
+        );
         let ref_writer = RefWriter::new(&local_repo)?;
         ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
-        log::debug!("create_empty AFTER ref writer: {:?}", local_repo.path);
+        log::debug!(
+            "api::local::repositories::create AFTER ref writer: {:?}",
+            local_repo.path
+        );
     }
 
+    // TODO: This is kinda ugly...
     if let Some(root_commit) = &new_repo.root_commit {
         // Write the root commit
         let commit_writer = CommitWriter::new(&local_repo)?;
         commit_writer.add_commit_from_empty_status(root_commit)?;
-    }
-
-    if let Some(files) = &new_repo.file_data {
-        for (path, data) in files {
-            // write the data to the path
-            // if the path does not exist within the repo, make it
-            let full_path = repo_dir.join(path);
-            let parent_dir = full_path.parent().unwrap();
-            if !parent_dir.exists() {
-                std::fs::create_dir_all(parent_dir)?;
+    } else {
+        // if no root commit, but yes files and a user, add and commit them
+        if let (Some(files), Some(user)) = (&new_repo.files, &new_repo.user) {
+            // Add root commit
+            let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
+            let timestamp = OffsetDateTime::now_utc();
+            let root_commit = Commit {
+                id: initial_commit_id,
+                parent_ids: vec![],
+                message: String::from(constants::INITIAL_COMMIT_MSG),
+                author: user.name.clone(),
+                email: user.email.clone(),
+                timestamp,
+            };
+            {
+                // Write the root commit and go out of scope to close DB
+                let commit_writer = CommitWriter::new(&local_repo)?;
+                commit_writer.add_commit_from_empty_status(&root_commit)?;
             }
-            std::fs::write(full_path, data)?;
-            command::add(&local_repo, path)?;
-        }
 
-        // Commit the file data
-        command::commit(&local_repo, "Adding initial data")?;
+            // Add the files
+            log::debug!("api::local::repositories::create files: {:?}", files.len());
+            for file in files {
+                let path = &file.path;
+                let contents = &file.contents;
+                // write the data to the path
+                // if the path does not exist within the repo, make it
+                let full_path = repo_dir.join(path);
+                let parent_dir = full_path.parent().unwrap();
+                if !parent_dir.exists() {
+                    std::fs::create_dir_all(parent_dir)?;
+                }
+                util::fs::write(&full_path, contents)?;
+                command::add(&local_repo, &full_path)?;
+            }
+
+            // Commit the file data
+            command::commit(&local_repo, "Adding initial data")?;
+
+            // Cleanup the files since they are now in version dirs
+            for file in files {
+                let full_path = repo_dir.join(&file.path);
+                util::fs::remove_file(&full_path)?;
+            }
+        }
     }
 
     Ok(local_repo)
@@ -266,12 +306,13 @@ pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
 mod tests {
     use crate::api;
     use crate::command;
+    use crate::config::UserConfig;
     use crate::constants;
     use crate::error::OxenError;
+    use crate::model::repository::local_repository::FileNew;
     use crate::model::{Commit, LocalRepository, RepositoryNew};
     use crate::test;
-    use std::collections::HashMap;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use time::OffsetDateTime;
 
     #[test]
@@ -310,12 +351,12 @@ mod tests {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
 
-            let mut files: HashMap<std::path::PathBuf, String> = HashMap::new();
-            files.insert(
-                Path::new("README").to_path_buf(),
-                String::from("# Hello World"),
-            );
-            let repo_new = RepositoryNew::from_files(namespace, name, files);
+            let files: Vec<FileNew> = vec![FileNew {
+                path: PathBuf::from("README"),
+                contents: String::from("Hello world!"),
+            }];
+            let user = UserConfig::get()?.to_user();
+            let repo_new = RepositoryNew::from_files(namespace, name, files, user);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
@@ -325,9 +366,6 @@ mod tests {
 
             // Test that we can successful load a repository from that dir
             let _repo = LocalRepository::from_dir(&repo_path)?;
-            // Test that the README file exists
-            let readme_path = repo_path.join(Path::new("README"));
-            assert!(readme_path.exists());
 
             Ok(())
         })

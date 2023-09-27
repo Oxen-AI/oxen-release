@@ -200,11 +200,10 @@ pub async fn create<S: AsRef<str>>(
     let url = api::endpoint::url_from_host(host.as_ref(), "");
 
     // convert repo_new to json with serde
-    let params = serde_json::to_string(&repo_new)?;
-    log::debug!("Create remote: {}\n{}", url, params);
+    log::debug!("Create remote: {}\n{:?}", url, repo_new);
 
     let client = client::new_for_url(&url)?;
-    if let Ok(res) = client.post(&url).json(&params).send().await {
+    if let Ok(res) = client.post(&url).json(&repo_new).send().await {
         let body = client::parse_json_body(&url, res).await?;
 
         log::debug!("repositories::create response {}", body);
@@ -427,10 +426,14 @@ async fn action_hook(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::api;
+    use crate::config::UserConfig;
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::model::repository::local_repository::FileNew;
     use crate::model::RepositoryNew;
     use crate::test;
     use mockito;
@@ -522,6 +525,36 @@ mod tests {
             .await?;
             println!("got repository: {repository:?}");
             assert_eq!(repository.name, name);
+
+            // cleanup
+            api::remote::repositories::delete(&repository).await?;
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_create_remote_repository_with_readme() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let namespace = constants::DEFAULT_NAMESPACE;
+            let name = local_repo.dirname();
+
+            // Create a README on the remote repo
+            let files: Vec<FileNew> = vec![FileNew {
+                path: PathBuf::from("README"),
+                contents: String::from("Hello world!"),
+            }];
+            let user = UserConfig::get()?.to_user();
+            let repo_new = RepositoryNew::from_files(namespace, &name, files, user);
+
+            let repository = api::remote::repositories::create(repo_new, test::test_host()).await?;
+            println!("got repository: {repository:?}");
+            assert_eq!(repository.name, name);
+
+            // list the files in the repo
+            let entries = api::remote::dir::list_root(&repository).await?;
+            assert_eq!(entries.entries.len(), 1);
+            assert_eq!(entries.entries[0].filename, "README");
 
             // cleanup
             api::remote::repositories::delete(&repository).await?;

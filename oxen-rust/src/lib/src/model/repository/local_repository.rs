@@ -5,6 +5,7 @@ use crate::constants::REPO_CONFIG_FILENAME;
 use crate::constants::SHALLOW_FLAG;
 use crate::core::index::EntryIndexer;
 use crate::error::OxenError;
+use crate::model::User;
 use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::CloneOpts;
 use crate::opts::PullOpts;
@@ -15,8 +16,22 @@ use crate::view::RepositoryView;
 
 use http::Uri;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct FileNew {
+    pub path: PathBuf,
+    pub contents: String,
+}
+
+impl FileNew {
+    pub fn new(path: impl AsRef<Path>, contents: impl AsRef<str>) -> FileNew {
+        FileNew {
+            path: path.as_ref().to_path_buf(),
+            contents: String::from(contents.as_ref()),
+        }
+    }
+}
 
 /// For creating a remote repo we need the repo name
 /// and we need the root commit so that we do not generate a new one on creation on the server
@@ -27,7 +42,9 @@ pub struct RepositoryNew {
     // Optional root commit
     pub root_commit: Option<Commit>,
     // Optional files that you want to add to the repo
-    pub file_data: Option<HashMap<PathBuf, String>>,
+    pub files: Option<Vec<FileNew>>,
+    // The user in which you want to commit the files for, needs to be used in combo with files
+    pub user: Option<User>,
 }
 
 impl std::fmt::Display for RepositoryNew {
@@ -44,7 +61,8 @@ impl RepositoryNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
             root_commit: None,
-            file_data: None,
+            files: None,
+            user: None,
         }
     }
 
@@ -57,20 +75,23 @@ impl RepositoryNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
             root_commit: Some(root_commit),
-            file_data: None,
+            files: None,
+            user: None,
         }
     }
 
     pub fn from_files(
         namespace: impl AsRef<str>,
         name: impl AsRef<str>,
-        file_data: HashMap<PathBuf, String>,
+        files: Vec<FileNew>,
+        user: User,
     ) -> RepositoryNew {
         RepositoryNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
             root_commit: None,
-            file_data: Some(file_data),
+            files: Some(files),
+            user: Some(user),
         }
     }
 
@@ -88,7 +109,8 @@ impl RepositoryNew {
             name: String::from(name),
             namespace: String::from(namespace),
             root_commit: None,
-            file_data: None,
+            files: None,
+            user: None,
         })
     }
 }
