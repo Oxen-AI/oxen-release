@@ -32,7 +32,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # 2. Upload the tarball to S3
-aws s3 cp "$REPO_PATH.tar.gz" "s3://$BUCKET_NAME/$FILEPATH.tar.gz"
+aws s3 cp "$REPO_PATH.tar.gz" "s3://$BUCKET_NAME/$FILEPATH/$TIMESTAMP.tar.gz"
 
 # Check if aws s3 cp was successful
 if [ $? -ne 0 ]; then
