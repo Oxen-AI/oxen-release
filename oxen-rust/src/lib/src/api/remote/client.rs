@@ -154,7 +154,7 @@ fn parse_status_and_message(
             )))
         }
         http::STATUS_ERROR => {
-            log::debug!("Status error: {status}", response.desc_or_msg);
+            log::debug!("Status error: {status}");
             if let Some(msg) = response_msg_override {
                 if let Some(response_type) = response_type {
                     if response.desc_or_msg() == response_type {
