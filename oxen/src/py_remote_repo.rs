@@ -1,8 +1,9 @@
 use liboxen::model::entry::mod_entry::ModType;
+use liboxen::model::repository::local_repository::FileNew;
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
-use liboxen::model::{NewCommitBody, ContentType, Remote, RemoteRepository};
+use liboxen::model::{NewCommitBody, ContentType, Remote, RemoteRepository, RepositoryNew};
 use liboxen::{api, command};
 
 use pyo3::exceptions::PyValueError;
@@ -17,10 +18,10 @@ use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 
 #[pyclass]
 pub struct PyRemoteRepo {
-    repo: RemoteRepository,
-    host: String,
+    pub repo: RemoteRepository,
+    pub host: String,
     #[pyo3(get)]
-    revision: String,
+    pub revision: String,
 }
 
 #[pymethods]
@@ -73,14 +74,25 @@ impl PyRemoteRepo {
         self.revision = new_revision;
     }
 
-    fn create(&mut self) -> Result<PyRemoteRepo, PyOxenError> {
+    fn create(&mut self, empty: bool) -> Result<PyRemoteRepo, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::repositories::create_no_root(
-                &self.repo.namespace,
-                &self.repo.name,
-                &self.host,
-            )
-            .await
+            if empty {
+                api::remote::repositories::create_empty(
+                    &self.repo.namespace,
+                    &self.repo.name,
+                    &self.host,
+                )
+                .await
+            } else {
+                let config = UserConfig::get()?;
+                let user = config.to_user();
+                let files: Vec<FileNew> = vec![FileNew {
+                    path: PathBuf::from("README.md"),
+                    contents: format!("# {}\n", &self.repo.name),
+                }];
+                let repo = RepositoryNew::from_files(&self.repo.namespace, &self.repo.name, files, user);
+                api::remote::repositories::create(repo, &self.host).await
+            }
         })?;
 
         self.repo = result;
@@ -212,7 +224,7 @@ impl PyRemoteRepo {
 
     fn ls(&self, path: PathBuf, page_num: usize, page_size: usize) -> Result<PyPaginatedDirEntries, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::dir::list_dir(
+            api::remote::dir::list(
                 &self.repo,
                 &self.revision,
                 &path,
