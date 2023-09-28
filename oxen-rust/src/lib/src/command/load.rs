@@ -7,8 +7,6 @@ use tar::Archive;
 use crate::opts::RestoreOpts;
 use crate::{error::OxenError, model::LocalRepository};
 
-// start the below with a green check emoji
-
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
     let done_msg: String = format!(
         "✅ Loaded {:?} to an oxen repo at {:?}",
