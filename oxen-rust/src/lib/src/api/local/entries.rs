@@ -390,27 +390,6 @@ pub fn group_entries_to_parent_dirs(entries: &[CommitEntry]) -> HashMap<PathBuf,
     results
 }
 
-/// Use a sequence of commits to hydrate a working directory from a repo's versions directory
-// pub fn hydrate_working_dir_from_commits(repo: &LocalRepository, commits: Vec<Commit>) -> Result<(), OxenError> {
-//     let commit_reader = CommitReader::new(&repo)?;
-//     let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
-//     for commit in &commits {
-//         for parent_id in &commit.parent_ids {
-//             let local_parent = commit_reader
-//                 .get_commit_by_id(parent_id)?
-//                 .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-
-//             let entries = self.read_unsynced_entries(&local_parent, commit)?;
-//             unsynced_entries.push(UnsyncedCommitEntries {
-//                 commit: commit.clone(),
-//                 entries,
-//             });
-//         }
-//     }
-
-//     Ok(())
-// }
-
 pub fn read_unsynced_entries(
     local_repo: &LocalRepository,
     last_commit: &Commit,

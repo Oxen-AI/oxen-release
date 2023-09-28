@@ -326,8 +326,6 @@ impl StagedData {
             opts,
         );
 
-        // Add moved entries
-
         // TODO: Can this be more generic?
         let total = self.staged_dirs.num_files_staged;
         if opts.is_remote && total > opts.limit {

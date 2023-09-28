@@ -79,14 +79,12 @@ pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String
     let type_override = "unauthenticated";
     let err_msg = "You must create an account on https://oxen.ai to enable this feature.\n\nOnce your account is created, set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
 
-    // If the status code is 403...
+    // Raise auth token error for user if unauthorized and no token set
     if res.status() == reqwest::StatusCode::FORBIDDEN {
-        // Check if the auth token is set
         let _ = match AuthConfig::get() {
             Ok(config) => config,
             Err(err) => {
                 log::debug!("remote::client::new_for_host error getting config: {}", err);
-                // eprintln!("{}", OxenError::auth_token_not_set());
                 return Err(OxenError::auth_token_not_set());
             }
         };
@@ -156,6 +154,7 @@ fn parse_status_and_message(
             )))
         }
         http::STATUS_ERROR => {
+            log::debug!("Status error: {status}", response.desc_or_msg);
             if let Some(msg) = response_msg_override {
                 if let Some(response_type) = response_type {
                     if response.desc_or_msg() == response_type {
