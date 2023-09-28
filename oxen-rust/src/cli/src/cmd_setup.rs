@@ -89,11 +89,29 @@ pub fn config() -> Command {
 
 pub fn create_remote() -> Command {
     Command::new(CREATE_REMOTE)
-        .about("Creates a remote repository with the name on the host")
-        .arg(arg!(<NAMESPACE> "The namespace you would like to use"))
-        .arg(arg!(<NAME> "The remote name"))
-        .arg(arg!(<HOST> "The remote host"))
-        .arg_required_else_help(true)
+        .about("Creates a remote repository with the name on the host. Default behavior is to create a remote on the hub.oxen.ai remote with a README file that contains the name of the repository.")
+        .arg(
+            Arg::new("name")
+                .long("name")
+                .short('n')
+                .help("The namespace/name of the remote repository you want to create. For example: 'ox/my_repo'")
+                .required(true)
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .short('r')
+                .help("The host you want to create the remote repository on. For example: 'hub.oxen.ai'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("empty")
+                .long("empty")
+                .short('e')
+                .help("If present, it will create an empty remote that you need to push an initial commit to.")
+                .action(clap::ArgAction::SetTrue),
+        )
 }
 
 pub fn remote() -> Command {

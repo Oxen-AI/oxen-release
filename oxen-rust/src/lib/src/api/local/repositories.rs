@@ -1,9 +1,14 @@
 use crate::api;
+use crate::command;
 use crate::constants;
+use crate::core::index::Stager;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
+use crate::model::Commit;
+use crate::model::CommitEntry;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
+use crate::model::NewCommit;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepositoryNew};
 use crate::util;
@@ -11,6 +16,7 @@ use crate::util;
 use jwalk::WalkDir;
 use std::collections::HashMap;
 use std::path::Path;
+use time::OffsetDateTime;
 
 pub fn get_by_namespace_and_name(
     sync_dir: &Path,
@@ -188,11 +194,8 @@ pub fn transfer_namespace(
     }
 }
 
-pub fn create_empty(
-    sync_dir: &Path,
-    new_repo: RepositoryNew,
-) -> Result<LocalRepository, OxenError> {
-    let repo_dir = sync_dir
+pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepository, OxenError> {
+    let repo_dir = root_dir
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
     if repo_dir.exists() {
@@ -201,12 +204,15 @@ pub fn create_empty(
     }
 
     // Create the repo dir
-    log::debug!("create_empty repo dir: {:?}", repo_dir);
+    log::debug!("api::local::repositories::create repo dir: {:?}", repo_dir);
     std::fs::create_dir_all(&repo_dir)?;
 
     // Create oxen hidden dir
     let hidden_dir = util::fs::oxen_hidden_dir(&repo_dir);
-    log::debug!("create_empty hidden dir: {:?}", hidden_dir);
+    log::debug!(
+        "api::local::repositories::create hidden dir: {:?}",
+        hidden_dir
+    );
     std::fs::create_dir_all(&hidden_dir)?;
 
     // Create config file
@@ -221,16 +227,81 @@ pub fn create_empty(
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
     {
         // Make go out of scope to release LOCK
-        log::debug!("create_empty BEFORE ref writer: {:?}", local_repo.path);
+        log::debug!(
+            "api::local::repositories::create BEFORE ref writer: {:?}",
+            local_repo.path
+        );
         let ref_writer = RefWriter::new(&local_repo)?;
         ref_writer.set_head(constants::DEFAULT_BRANCH_NAME);
-        log::debug!("create_empty AFTER ref writer: {:?}", local_repo.path);
+        log::debug!(
+            "api::local::repositories::create AFTER ref writer: {:?}",
+            local_repo.path
+        );
     }
 
+    // TODO: This is kinda ugly...
     if let Some(root_commit) = &new_repo.root_commit {
         // Write the root commit
         let commit_writer = CommitWriter::new(&local_repo)?;
         commit_writer.add_commit_from_empty_status(root_commit)?;
+    } else {
+        // if no root commit, but yes files and a user, add and commit them
+        if let (Some(files), Some(user)) = (&new_repo.files, &new_repo.user) {
+            // Add root commit
+            let commit_data = NewCommit {
+                parent_ids: vec![],
+                message: String::from(constants::INITIAL_COMMIT_MSG),
+                author: user.name.clone(),
+                email: user.email.clone(),
+                timestamp: OffsetDateTime::now_utc(),
+            };
+
+            let entries: Vec<CommitEntry> = vec![];
+            let id = util::hasher::compute_commit_hash(&commit_data, &entries);
+            let root_commit = Commit::from_new_and_id(&commit_data, id);
+            {
+                // Write the root commit and go out of scope to close DB
+                let commit_writer = CommitWriter::new(&local_repo)?;
+                commit_writer.add_commit_from_empty_status(&root_commit)?;
+            }
+
+            // Add the files
+            log::debug!("api::local::repositories::create files: {:?}", files.len());
+            for file in files {
+                let path = &file.path;
+                let contents = &file.contents;
+                // write the data to the path
+                // if the path does not exist within the repo, make it
+                let full_path = repo_dir.join(path);
+                let parent_dir = full_path.parent().unwrap();
+                if !parent_dir.exists() {
+                    std::fs::create_dir_all(parent_dir)?;
+                }
+                util::fs::write(&full_path, contents)?;
+                command::add(&local_repo, &full_path)?;
+            }
+
+            // Commit the file data
+            let parent_id = root_commit.id;
+            let new_commit = NewCommit {
+                parent_ids: vec![parent_id],
+                message: String::from("Adding initial files"),
+                author: user.name.clone(),
+                email: user.email.clone(),
+                timestamp: OffsetDateTime::now_utc(),
+            };
+            let mut status = command::status(&local_repo)?;
+            let stager = Stager::new(&local_repo)?;
+            let commit_writer = CommitWriter::new(&local_repo)?;
+            commit_writer.commit_from_new(&new_commit, &mut status, &local_repo.path)?;
+            stager.unstage()?;
+
+            // Cleanup the files since they are now in version dirs
+            for file in files {
+                let full_path = repo_dir.join(&file.path);
+                util::fs::remove_file(&full_path)?;
+            }
+        }
     }
 
     Ok(local_repo)
@@ -251,11 +322,13 @@ pub fn delete(repo: LocalRepository) -> Result<LocalRepository, OxenError> {
 mod tests {
     use crate::api;
     use crate::command;
+    use crate::config::UserConfig;
     use crate::constants;
     use crate::error::OxenError;
+    use crate::model::repository::local_repository::FileNew;
     use crate::model::{Commit, LocalRepository, RepositoryNew};
     use crate::test;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use time::OffsetDateTime;
 
     #[test]
@@ -265,19 +338,42 @@ mod tests {
             let name: &str = "test-repo-name";
             let initial_commit_id = format!("{}", uuid::Uuid::new_v4());
             let timestamp = OffsetDateTime::now_utc();
-            let repo_new = RepositoryNew {
-                namespace: String::from(namespace),
-                name: String::from(name),
-                root_commit: Some(Commit {
-                    id: initial_commit_id,
-                    parent_ids: vec![],
-                    message: String::from(constants::INITIAL_COMMIT_MSG),
-                    author: String::from("Ox"),
-                    email: String::from("ox@oxen.ai"),
-                    timestamp,
-                }),
+            let root_commit = Commit {
+                id: initial_commit_id,
+                parent_ids: vec![],
+                message: String::from(constants::INITIAL_COMMIT_MSG),
+                author: String::from("Ox"),
+                email: String::from("ox@oxen.ai"),
+                timestamp,
             };
-            let _repo = api::local::repositories::create_empty(sync_dir, repo_new)?;
+            let repo_new = RepositoryNew::from_root_commit(namespace, name, root_commit);
+            let _repo = api::local::repositories::create(sync_dir, repo_new)?;
+
+            let repo_path = Path::new(&sync_dir)
+                .join(Path::new(namespace))
+                .join(Path::new(name));
+            assert!(repo_path.exists());
+
+            // Test that we can successful load a repository from that dir
+            let _repo = LocalRepository::from_dir(&repo_path)?;
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_local_repository_api_create_empty_with_files() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|sync_dir| {
+            let namespace: &str = "test-namespace";
+            let name: &str = "test-repo-name";
+
+            let files: Vec<FileNew> = vec![FileNew {
+                path: PathBuf::from("README"),
+                contents: String::from("Hello world!"),
+            }];
+            let user = UserConfig::get()?.to_user();
+            let repo_new = RepositoryNew::from_files(namespace, name, files, user);
+            let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -296,12 +392,8 @@ mod tests {
         test::run_empty_dir_test(|sync_dir| {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
-            let repo_new = RepositoryNew {
-                namespace: String::from(namespace),
-                name: String::from(name),
-                root_commit: None,
-            };
-            let _repo = api::local::repositories::create_empty(sync_dir, repo_new)?;
+            let repo_new = RepositoryNew::new(namespace, name);
+            let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
                 .join(Path::new(namespace))
@@ -407,19 +499,16 @@ mod tests {
             // Create new namespace
             std::fs::create_dir_all(&new_namespace_dir)?;
 
-            let repo_new = RepositoryNew {
-                namespace: String::from(old_namespace),
-                name: String::from(name),
-                root_commit: Some(Commit {
-                    id: initial_commit_id,
-                    parent_ids: vec![],
-                    message: String::from(constants::INITIAL_COMMIT_MSG),
-                    author: String::from("Ox"),
-                    email: String::from("ox@oxen.ai"),
-                    timestamp,
-                }),
+            let root_commit = Commit {
+                id: initial_commit_id,
+                parent_ids: vec![],
+                message: String::from(constants::INITIAL_COMMIT_MSG),
+                author: String::from("Ox"),
+                email: String::from("ox@oxen.ai"),
+                timestamp,
             };
-            let _repo = api::local::repositories::create_empty(sync_dir, repo_new)?;
+            let repo_new = RepositoryNew::from_root_commit(old_namespace, name, root_commit);
+            let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let old_namespace_repos =
                 api::local::repositories::list_repos_in_namespace(&old_namespace_dir);
