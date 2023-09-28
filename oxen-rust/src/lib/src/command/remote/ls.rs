@@ -17,7 +17,7 @@ pub async fn ls(
     directory: &Path,
     opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    api::remote::dir::list_dir(
+    api::remote::dir::list(
         remote_repo,
         &branch.name,
         directory,

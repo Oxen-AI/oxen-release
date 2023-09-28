@@ -4,8 +4,10 @@ use liboxen::config::UserConfig;
 use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::model::repository::local_repository::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
+use liboxen::model::RepositoryNew;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
@@ -85,12 +87,79 @@ pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn create_remote(namespace: &str, name: &str, host: &str) -> Result<(), OxenError> {
-    let remote_repo = api::remote::repositories::create_no_root(namespace, name, host).await?;
-    println!(
-        "Remote created for {}\n\nIf this is a brand new repository:\n\n  oxen clone {} {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote new-remote-name {}\n",
-        name, name, remote_repo.remote.url, remote_repo.remote.url
-    );
+pub async fn create_remote(
+    namespace: impl AsRef<str>,
+    name: impl AsRef<str>,
+    host: impl AsRef<str>,
+    empty: bool,
+) -> Result<(), OxenError> {
+    let namespace = namespace.as_ref();
+    let name = name.as_ref();
+    let host = host.as_ref();
+    if empty {
+        let remote_repo = api::remote::repositories::create_empty(&namespace, &name, &host).await?;
+        println!(
+            "Remote created for {}\n\nIf this is a brand new repository:\n\n  oxen clone {} {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote new-remote-name {}\n",
+            name, name, remote_repo.remote.url, remote_repo.remote.url
+        );
+    } else {
+        // Creating a remote with an initial commit and a README
+        let config = UserConfig::get()?;
+        let user = config.to_user();
+        let readme_body = format!(
+            "
+Welcome to Oxen.ai 🐂 🌾
+
+## Getting Started
+
+Clone the repository to your local machine:
+
+```bash
+oxen clone https://{}/{}/{}
+```
+
+## Adding Data
+
+You can add files to it with
+
+```
+oxen add <path>
+```
+
+Then commit them with
+
+```
+oxen commit -m <message>
+```
+
+## Pushing Data
+
+Push your changes to the remote with
+
+```
+oxen push origin main
+```
+
+## Learn More
+
+For the complete developer documentation, visit https://docs.oxen.ai/
+
+Happy Mooooooving of data 🐂
+",
+            host, namespace, name
+        );
+
+        let files: Vec<FileNew> = vec![FileNew {
+            path: PathBuf::from("README.md"),
+            contents: format!("# {}\n{}", name, readme_body),
+        }];
+        let repo = RepositoryNew::from_files(namespace, name, files, user);
+        let remote_repo = api::remote::repositories::create(repo, host).await?;
+        println!(
+            "Created {}/{}\n\nClone to repository to your local:\n\n  oxen clone {}\n",
+            namespace, name, remote_repo.remote.url
+        );
+    }
 
     Ok(())
 }

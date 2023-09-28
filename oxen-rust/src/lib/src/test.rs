@@ -9,6 +9,7 @@ use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::index::{RefWriter, Stager};
 use crate::error::OxenError;
 use crate::model::schema::Field;
+use crate::model::RepositoryNew;
 use crate::model::Schema;
 use crate::model::{LocalRepository, RemoteRepository};
 
@@ -86,13 +87,8 @@ fn create_empty_dir(base_dir: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
 }
 
 pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
-    api::remote::repositories::create(
-        repo,
-        constants::DEFAULT_NAMESPACE,
-        &repo.dirname(),
-        test_host(),
-    )
-    .await
+    let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, repo.dirname());
+    api::remote::repositories::create_from_local(repo, repo_new, test_host()).await
 }
 
 /// # Run a unit test on a test repo directory
@@ -221,8 +217,9 @@ where
 
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
 
     // Run test to see if it panic'd
     let result = match test(&local_repo, remote_repo).await {
@@ -258,8 +255,9 @@ where
 
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
 
     // Set remote
     command::config::set_remote(
@@ -310,8 +308,9 @@ where
 
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
     println!("Got remote repo: {remote_repo:?}");
 
     // Run test to see if it panic'd
@@ -371,8 +370,9 @@ where
     // Create remote
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
 
     // Add remote
     let remote_url = repo_remote_url_from(&local_repo.dirname());
@@ -413,8 +413,9 @@ where
     // Create remote
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
 
     // Add remote
     let remote_url = repo_remote_url_from(&local_repo.dirname());
@@ -455,8 +456,9 @@ where
     // Create remote
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
 
     // Add remote
     let remote_url = repo_remote_url_from(&local_repo.dirname());
@@ -487,7 +489,7 @@ where
     init_test_env();
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let namespace = constants::DEFAULT_NAMESPACE;
-    let repo = api::remote::repositories::create_no_root(namespace, &name, test_host()).await?;
+    let repo = api::remote::repositories::create_empty(namespace, &name, &test_host()).await?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -520,8 +522,9 @@ where
     let local_repo = command::init(&path)?;
     let namespace = constants::DEFAULT_NAMESPACE;
     let name = local_repo.dirname();
+    let repo_new = RepositoryNew::new(namespace, name);
     let remote_repo =
-        api::remote::repositories::create(&local_repo, namespace, &name, test_host()).await?;
+        api::remote::repositories::create_from_local(&local_repo, repo_new, test_host()).await?;
 
     println!("REMOTE REPO: {remote_repo:?}");
 
