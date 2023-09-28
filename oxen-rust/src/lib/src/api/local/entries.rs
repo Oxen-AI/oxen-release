@@ -1,7 +1,6 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
-use crate::core::index::pusher::UnsyncedCommitEntries;
 use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;

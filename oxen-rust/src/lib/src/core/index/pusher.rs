@@ -8,7 +8,6 @@ use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, Pr
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
-use rayon::prelude::*;
 use std::collections::HashSet;
 use std::io::{BufReader, Read};
 
@@ -18,9 +17,7 @@ use tokio::time::Duration;
 
 use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
-use crate::core::index::{
-    self, CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
-};
+use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 

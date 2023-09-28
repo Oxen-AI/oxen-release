@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use clap::{arg, Arg, Command};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -883,7 +881,7 @@ pub fn save() -> Command {
                 .help("Name of the output .tar.gz archive")
                 .short('o')
                 .long("output")
-                .required(true), 
+                .required(true),
         )
 }
 

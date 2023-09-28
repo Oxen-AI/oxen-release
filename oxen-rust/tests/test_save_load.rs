@@ -51,14 +51,13 @@ fn test_command_save_load_repo_with_working_dir() -> Result<(), OxenError> {
 
             Ok(())
         })
-
     })
 }
 
 #[test]
 fn test_command_save_load_repo_no_working_dir() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
-        test::run_empty_dir_test(|dir|  {
+        test::run_empty_dir_test(|dir| {
             // Write one file
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello World")?;
@@ -85,14 +84,13 @@ fn test_command_save_load_repo_no_working_dir() -> Result<(), OxenError> {
 
             Ok(())
         })
-
     })
 }
 
 #[test]
 fn test_command_save_load_moved_and_removed() -> Result<(), OxenError> {
     test::run_empty_local_repo_test(|repo| {
-        test::run_empty_dir_test(|dir|  {
+        test::run_empty_dir_test(|dir| {
             // Write one file
             let hello_file = repo.path.join("hello.txt");
             let goodbye_file = repo.path.join("goodbye.txt");
@@ -134,12 +132,14 @@ fn test_command_save_load_moved_and_removed() -> Result<(), OxenError> {
             let hydrated_repo = LocalRepository::from_dir(&loaded_repo_path)?;
 
             assert_eq!(hydrated_repo.path.join("third.txt").exists(), true);
-            assert_eq!(hydrated_repo.path.join("hello_dir/hello.txt").exists(), true);
+            assert_eq!(
+                hydrated_repo.path.join("hello_dir/hello.txt").exists(),
+                true
+            );
             assert_eq!(hydrated_repo.path.join("hello.txt").exists(), false);
             assert_eq!(hydrated_repo.path.join("goodbye.txt").exists(), false);
 
             Ok(())
         })
-
     })
 }

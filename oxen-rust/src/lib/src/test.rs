@@ -1089,6 +1089,13 @@ pub fn user_cfg_file() -> PathBuf {
         .join("user_config.toml")
 }
 
+pub fn auth_cfg_file() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("config")
+        .join("auth_config.toml")
+}
+
 pub fn repo_cfg_file() -> PathBuf {
     Path::new("data")
         .join("test")

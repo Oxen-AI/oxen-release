@@ -1,7 +1,7 @@
 use jwalk::WalkDir;
 use liboxen::api;
 use liboxen::command;
-use liboxen::config::UserConfig;
+use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
@@ -30,7 +30,7 @@ use std::str::FromStr;
 use time::format_description;
 
 fn get_host_or_default() -> Result<String, OxenError> {
-    let config = UserConfig::get_or_create()?;
+    let config = AuthConfig::get_or_create()?;
     let mut default_host = constants::DEFAULT_HOST.to_string();
     if let Some(host) = config.default_host {
         if !host.is_empty() {
@@ -183,10 +183,21 @@ pub fn list_remotes_verbose() -> Result<(), OxenError> {
 }
 
 pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::get_or_create()?;
+    let mut config = AuthConfig::get_or_create()?;
     config.add_host_auth_token(host, token);
     config.save_default()?;
     println!("Authentication token set for host: {host}");
+    Ok(())
+}
+
+pub fn set_default_host(host: &str) -> Result<(), OxenError> {
+    let mut config = AuthConfig::get_or_create()?;
+    if host.is_empty() {
+        config.default_host = None;
+    } else {
+        config.default_host = Some(String::from(host));
+    }
+    config.save_default()?;
     Ok(())
 }
 
@@ -200,17 +211,6 @@ pub fn set_user_name(name: &str) -> Result<(), OxenError> {
 pub fn set_user_email(email: &str) -> Result<(), OxenError> {
     let mut config = UserConfig::get_or_create()?;
     config.email = String::from(email);
-    config.save_default()?;
-    Ok(())
-}
-
-pub fn set_default_host(host: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::get_or_create()?;
-    if host.is_empty() {
-        config.default_host = None;
-    } else {
-        config.default_host = Some(String::from(host));
-    }
     config.save_default()?;
     Ok(())
 }
@@ -936,7 +936,7 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
 
 pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
     let repo_path = Path::new(repo_path);
-    let repo_dir = util::fs::get_repo_root(&repo_path).expect(error::NO_REPO_FOUND);
+    let repo_dir = util::fs::get_repo_root(repo_path).expect(error::NO_REPO_FOUND);
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     command::save(&repo, output_path)?;

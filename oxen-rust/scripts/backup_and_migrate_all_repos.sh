@@ -3,11 +3,19 @@
 ROOT_PATH=$1
 MIGRATION_NAME=$2
 
+
+if [[ "$ROOT_PATH" == /* ]]; then
+    ABSOLUTE_ROOT_PATH="$ROOT_PATH"
+    ABSOLUTE_ROOT_PATH="$(realpath $ROOT_PATH)"
+else
+    ABSOLUTE_ROOT_PATH="$(pwd)/$ROOT_PATH"
+    ABSOLUTE_ROOT_PATH="$(realpath $ROOT_PATH)"
+fi
+
 # Dir where this script is running - to reference ./backup_and_migrate_repo.sh
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-
-for namespace in "$ROOT_PATH"/*; do
+for namespace in "$ABSOLUTE_ROOT_PATH"/*; do
 
   if [ -d "$namespace" ]; then
     namespace_name=$(basename "$namespace")
@@ -25,7 +33,6 @@ for namespace in "$ROOT_PATH"/*; do
 
           if [ $? -ne 0 ]; then
             echo "Backup and migration failed for $repository"
-            # Decide whether to exit or continue with the next repository
             # exit 1
           fi
         fi

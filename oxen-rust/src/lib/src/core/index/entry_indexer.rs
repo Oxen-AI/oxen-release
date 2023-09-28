@@ -661,7 +661,7 @@ impl EntryIndexer {
 
         Ok(())
     }
-    
+
     pub fn unpack_version_files_to_working_dir(
         &self,
         commit: &Commit,

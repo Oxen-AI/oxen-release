@@ -1,5 +1,4 @@
-use crate::config::UserConfig;
-use crate::error;
+use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::view::http;
 use crate::view::OxenResponse;
@@ -41,11 +40,11 @@ pub fn builder_for_url<U: IntoUrl>(url: U) -> Result<ClientBuilder, OxenError> {
 pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenError> {
     let builder = builder();
 
-    let config = match UserConfig::get() {
+    let config = match AuthConfig::get() {
         Ok(config) => config,
         Err(err) => {
             log::debug!("remote::client::new_for_host error getting config: {}", err);
-            // eprintln!("{}", OxenError::auth_token_not_set());
+
             return Ok(builder);
         }
     };
@@ -67,7 +66,6 @@ pub fn builder_for_host<S: AsRef<str>>(host: S) -> Result<ClientBuilder, OxenErr
         Ok(builder.default_headers(headers))
     } else {
         log::debug!("No auth token found for host: {}", host.as_ref());
-        // eprintln!("{}", OxenError::auth_token_not_set());
         Ok(builder)
     }
 }
@@ -83,8 +81,8 @@ pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String
 
     // If the status code is 403...
     if res.status() == reqwest::StatusCode::FORBIDDEN {
-        // Check if the auth token is set 
-        let _ = match UserConfig::get() {
+        // Check if the auth token is set
+        let _ = match AuthConfig::get() {
             Ok(config) => config,
             Err(err) => {
                 log::debug!("remote::client::new_for_host error getting config: {}", err);

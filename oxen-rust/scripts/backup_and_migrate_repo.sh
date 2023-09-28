@@ -1,16 +1,17 @@
 #!/bin/bash
 
 REPO_PATH=$1
-FILEPATH_PREFIX=$2
+FILEPATH=$2
 MIGRATION_NAME=$3
+
+
+echo "Received Arguments: $1, $2, $3"
 
 BUCKET_NAME="test-repo-backups" #TODONOW CHANGE
 TIMESTAMP=$(date "+%Y%m%d-%H%M%S")
-FILEPATH="${FILEPATH_PREFIX}/${TIMESTAMP}"
-
 
 # Check params
-if [ -z "$REPO_PATH" ] || [ -z "$MIGRATION_NAME" ] || [ -z "$FILEPATH_PREFIX" ]; then
+if [ -z "$REPO_PATH" ] || [ -z "$MIGRATION_NAME" ] || [ -z "$FILEPATH" ]; then
   echo "Usage: $0 <repo_path> <dest_path_prefix> <migration_name>"
   exit 1
 fi
