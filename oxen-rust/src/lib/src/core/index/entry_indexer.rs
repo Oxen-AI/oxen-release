@@ -661,8 +661,7 @@ impl EntryIndexer {
 
         Ok(())
     }
-
-    // TODONOW probably move this away
+    
     pub fn unpack_version_files_to_working_dir(
         &self,
         commit: &Commit,

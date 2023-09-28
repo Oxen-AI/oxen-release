@@ -13,7 +13,13 @@ use crate::{
     model::LocalRepository,
 };
 
+// start the below with a green check emoji
+
+
+
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
+    let done_msg: String = format!("✅ Loaded {:?} to an oxen repo at {:?}", src_path, dest_path); 
+    
     let dest_path = if dest_path.exists() {
         if dest_path.is_file() {
             return Err(OxenError::basic_str(
@@ -28,64 +34,22 @@ pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(
 
     let file = File::open(src_path)?;
     let tar = GzDecoder::new(file);
+    println!("🐂 Decompressing oxen repo into {:?}", dest_path);
     let mut archive = Archive::new(tar);
     archive.unpack(&dest_path)?;
 
     // Server repos - done unpacking
     if no_working_dir {
-        println!("exiting bc no working dir");
+        println!("{done_msg}");
         return Ok(());
     }
-
-    println!("continuing on, we want working dir");
 
     // Client repos - need to hydrate working dir from versions files
     let repo = LocalRepository::new(&dest_path)?;
 
-    // TODONOW make sure this isn't backwards now
-    // Get commit history from the head at which the repo was exported
-    let commit_reader = CommitReader::new(&repo)?;
-
-    // let head = api::local::commits::head_commit(&repo)?;
-    // let history = api::local::commits::list_from(&repo, &head.id)?;
-
-    // TODONOW this can go away
-
-    // let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
-    // for commit in &history {
-    //     for parent_id in &commit.parent_ids {
-    //         let local_parent = commit_reader
-    //             .get_commit_by_id(parent_id)?
-    //             .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-
-    //         let entries = api::local::entries::read_unsynced_entries(&repo, &local_parent, commit)?;
-    //         // TODONOW maybe make this not a class method
-    //         let these_entries = UnsyncedCommitEntries {
-    //             commit: commit.clone(),
-    //             entries: entries,
-    //         };
-    //         unsynced_entries.push(these_entries);
-    //     }
-    // }
-
-    // // TODONOW fix silent bar
-    // let indexer = EntryIndexer{repository: repo};
-    // let silent_bar = Arc::new(indicatif::ProgressBar::hidden());
-    // for commit_with_entries in unsynced_entries {
-    //     indexer.unpack_version_files_to_working_dir(
-    //         &commit_with_entries.commit,
-    //         &commit_with_entries.entries,
-    //         &silent_bar,
-    //     )?;
-    // }
-    // Ok(())
-
-    // Let's do this a bit differently...
-
     let status = command::status(&repo)?;
 
-    // TODONOW fix this once wildcard changes are included -
-    // should just be a restore("*")
+    // TODO: This logic can be simplified to restore("*") once wildcard changes are merged
     let mut restore_opts = RestoreOpts {
         path: PathBuf::from("/"),
         staged: false,
@@ -93,14 +57,13 @@ pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(
         source_ref: None,
     };
 
+    println!("🐂 Unpacking files to working directory {:?}", dest_path);
     for path in status.removed_files {
-        println!("Restoring staged file: {:?}", path);
+        println!("Restoring removed file: {:?}", path);
         restore_opts.path = path;
         command::restore(&repo, restore_opts.clone())?;
     }
 
+    println!("{done_msg}");
     Ok(())
 }
-
-// TODONOW: Over in entry indexer and puller, we can probably fix the
-// commit-gathering process too..
