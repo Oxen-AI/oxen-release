@@ -7,13 +7,12 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::api;
-use crate::constants::OXEN_HIDDEN_DIR;
-use crate::core::index;
+use crate::core::index::{self, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
 
-use glob::glob;
+use glob::Pattern;
 
 use super::helpers;
 
@@ -62,14 +61,33 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     // Quoted wildcard path strings, expand to include present and removed files
     if let Some(path_str) = path.to_str() {
         if helpers::is_glob_path(path_str) {
-            for entry in glob(path_str)? {
-                let entry = entry?;
-                if !entry.starts_with(OXEN_HIDDEN_DIR) {
-                    paths.insert(entry);
+            let pattern = Pattern::new(path_str)?;
+            let stager = index::Stager::new(repo)?;
+            let commit_reader = CommitEntryReader::new(repo, &commit)?;
+            let staged_data = stager.status(&commit_reader)?;
+
+            // If --staged, only operate on staged files
+            if opts.staged {
+                for entry in staged_data.staged_files {
+                    let entry_path_str = entry.0.to_str().unwrap();
+                    if pattern.matches(entry_path_str) {
+                        paths.insert(entry.0.to_owned());
+                    }
+                }
+            // Otherwise, `restore` should operate on unstaged modifications and removals.
+            } else {
+                let modified_and_removed: Vec<PathBuf> = staged_data
+                    .modified_files
+                    .into_iter()
+                    .chain(staged_data.removed_files.into_iter())
+                    .collect();
+                for entry in modified_and_removed {
+                    let entry_path_str = entry.to_str().unwrap();
+                    if pattern.matches(entry_path_str) {
+                        paths.insert(entry.to_owned());
+                    }
                 }
             }
-            let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
-            paths.extend(pattern_entries);
         } else {
             paths.insert(path.to_owned());
         }

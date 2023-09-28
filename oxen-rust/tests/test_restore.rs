@@ -1,6 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
+use actix_http::header::q;
 use liboxen::api;
 use liboxen::command;
 use liboxen::core::df::tabular;
@@ -494,4 +495,61 @@ async fn test_wildcard_restore_deleted_and_present() -> Result<(), OxenError> {
         Ok(())
     })
     .await
+}
+
+#[tokio::test]
+async fn test_restore_staged_schemas_with_wildcard() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_fully_committed(|repo| {
+        // Make a new dir in the repo - new_annotations
+        let new_annotations_dir = repo.path.join("new_annotations");
+        // Copy over bounding_box.csv and one_shot.csv to new_annotations
+        let bbox_path = repo
+            .path
+            .join("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let one_shot_path = repo
+            .path
+            .join("annotations")
+            .join("train")
+            .join("one_shot.csv");
+
+        // Copy bbox and one_shot to new_annotations
+        util::fs::create_dir_all(&new_annotations_dir)?;
+        util::fs::copy(&bbox_path, &new_annotations_dir.join("bounding_box.csv"))?;
+        util::fs::copy(&one_shot_path, &new_annotations_dir.join("one_shot.csv"))?;
+
+        // Get file names for these copied files
+        new_annotations_dir
+            .join("bounding_box.csv")
+            .file_name()
+            .unwrap();
+        new_annotations_dir
+            .join("one_shot.csv")
+            .file_name()
+            .unwrap();
+
+        // Add both files
+        command::add(&repo, &new_annotations_dir)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.staged_files.len(), 2);
+        assert_eq!(status.staged_schemas.len(), 2);
+
+        // Restore *.csv
+        let restore_opts = RestoreOpts {
+            path: PathBuf::from("*.csv"),
+            staged: true,
+            source_ref: None,
+            is_remote: false,
+        };
+
+        command::restore(&repo, restore_opts)?;
+
+        let status = command::status(&repo)?;
+        assert_eq!(status.staged_files.len(), 0);
+        assert_eq!(status.staged_schemas.len(), 0);
+
+        Ok(())
+    })
 }
