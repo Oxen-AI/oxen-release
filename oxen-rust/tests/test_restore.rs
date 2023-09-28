@@ -1,7 +1,6 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-
 use liboxen::api;
 use liboxen::command;
 use liboxen::core::df::tabular;
