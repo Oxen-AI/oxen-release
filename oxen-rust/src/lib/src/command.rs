@@ -13,6 +13,7 @@ pub mod db_inspect;
 pub mod df;
 pub mod diff;
 pub mod fetch;
+pub mod helpers;
 pub mod info;
 pub mod init;
 pub mod merge;

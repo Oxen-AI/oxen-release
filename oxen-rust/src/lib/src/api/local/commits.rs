@@ -16,7 +16,8 @@ use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{api, util};
 
 use rayon::prelude::*;
-use std::path::Path;
+use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 /// Iterate over commits and get the one with the latest timestamp
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
@@ -336,6 +337,17 @@ pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, 
         Ok(commits) => Ok(commits),
         Err(_) => Err(OxenError::local_revision_not_found(revision)),
     }
+}
+
+/// Retrieve entries with filepaths matching a provided glob pattern
+pub fn glob_entry_paths(
+    repo: &LocalRepository,
+    commit: &Commit,
+    pattern: &str,
+) -> Result<HashSet<PathBuf>, OxenError> {
+    let committer = CommitEntryReader::new(repo, commit)?;
+    let entries = committer.glob_entry_paths(pattern)?;
+    Ok(entries)
 }
 
 /// List paginated commits starting from the given revision
