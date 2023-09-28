@@ -1,25 +1,20 @@
 use crate::command;
-use commit_reader::CommitReader;
 use flate2::read::GzDecoder;
 use std::path::PathBuf;
-use std::{fs::File, path::Path, sync::Arc};
+use std::{fs::File, path::Path};
 use tar::Archive;
 
 use crate::opts::RestoreOpts;
-use crate::{
-    api,
-    core::index::{commit_reader, pusher::UnsyncedCommitEntries, EntryIndexer},
-    error::OxenError,
-    model::LocalRepository,
-};
+use crate::{error::OxenError, model::LocalRepository};
 
 // start the below with a green check emoji
 
-
-
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
-    let done_msg: String = format!("✅ Loaded {:?} to an oxen repo at {:?}", src_path, dest_path); 
-    
+    let done_msg: String = format!(
+        "✅ Loaded {:?} to an oxen repo at {:?}",
+        src_path, dest_path
+    );
+
     let dest_path = if dest_path.exists() {
         if dest_path.is_file() {
             return Err(OxenError::basic_str(

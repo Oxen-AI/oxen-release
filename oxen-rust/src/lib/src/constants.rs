@@ -9,7 +9,7 @@ pub const OXEN_VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
 /// Folder name for oxen home within `.cache`, `.config`., etc.
 pub const OXEN: &str = "oxen";
-/// ~/.cache/oxen holds tmp downloads 
+/// ~/.cache/oxen holds tmp downloads
 pub const TMP_DIR: &str = ".cache";
 /// ~/.config/oxen holds config files
 pub const CONFIG_DIR: &str = ".config";

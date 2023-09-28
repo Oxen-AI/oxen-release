@@ -7,11 +7,10 @@ pub struct OxenResponse {
     pub status_message: String,
     pub status_description: Option<String>,
     pub error: Option<ErrorResponse>,
-
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ErrorResponse {
-    title: String, 
+    title: String,
     #[serde(rename = "type")]
     error_type: String,
 }
@@ -31,4 +30,3 @@ impl OxenResponse {
         }
     }
 }
-
