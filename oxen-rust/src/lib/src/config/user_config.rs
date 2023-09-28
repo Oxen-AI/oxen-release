@@ -9,6 +9,7 @@ use std::path::{Path, PathBuf};
 use crate::constants::{OXEN, CONFIG_DIR};
 
 pub const USER_CONFIG_FILENAME: &str = "user_config.toml";
+pub const AUTH_CONFIG_FILENAME: &str = "auth_config.toml";
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HostConfig {
@@ -43,6 +44,11 @@ pub struct UserConfig {
     pub name: String,
     pub email: String,
     pub default_host: Option<String>,
+    pub host_configs: HashSet<HostConfig>,
+}
+
+pub struct AuthConfig {
+    pub default_host: Option<String>, 
     pub host_configs: HashSet<HostConfig>,
 }
 

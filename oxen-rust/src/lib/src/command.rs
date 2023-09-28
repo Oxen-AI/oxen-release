@@ -27,8 +27,6 @@ pub mod save;
 pub mod schemas;
 pub mod status;
 
-// TODONOW 2
-
 pub use crate::command::add::add;
 pub use crate::command::checkout::{
     checkout, checkout_combine, checkout_ours, checkout_theirs, create_checkout,
