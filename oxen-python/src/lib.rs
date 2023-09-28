@@ -1,3 +1,8 @@
+use std::path::PathBuf;
+
+use error::PyOxenError;
+use liboxen::{config::UserConfig, model::{repository::local_repository::FileNew, RepositoryNew}};
+use py_remote_repo::PyRemoteRepo;
 use pyo3::prelude::*;
 
 pub mod error;
@@ -55,4 +60,24 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     auth_module.add_function(wrap_pyfunction!(auth::create_user_config, auth_module)?)?;
     m.add_submodule(auth_module)?;
     Ok(())
+}
+
+// TODO: be able to pass in file list and contents from python
+#[pyfunction]
+pub fn create_remote_repo(namespace: String, name: String, host: String) -> Result<PyRemoteRepo, PyOxenError> {
+    let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let config = UserConfig::get()?;
+        let user = config.to_user();
+        let files: Vec<FileNew> = vec![FileNew {
+            path: PathBuf::from("README.md"),
+            contents: format!("# {}\n", &name),
+        }];
+        let repo = RepositoryNew::from_files(&namespace, &name, files, user);
+        liboxen::api::remote::repositories::create(repo, &host).await
+    })?;
+    Ok(PyRemoteRepo {
+        repo: result.clone(),
+        host: host.clone(),
+        revision: "main".to_string(),
+    })
 }

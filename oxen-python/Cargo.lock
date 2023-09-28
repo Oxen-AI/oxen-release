@@ -2575,9 +2575,9 @@ checksum = "f7012b1bbb0719e1097c47611d3898568c546d597c2e74d66f6087edd5233ff4"
 
 [[package]]
 name = "liboxen"
-version = "0.8.4"
+version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fbf1eabc98ec6811ed7a0b54c63ceb1bd8c243632ae2b1944cacbc2d2a22d1e"
+checksum = "d895b3c7e04c2941f977c58087be00fe0a3318fcd41584baf8c983eee9d2931c"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -2608,6 +2608,7 @@ dependencies = [
  "fs_extra",
  "futures",
  "futures-util",
+ "glob",
  "http",
  "ignore",
  "image",

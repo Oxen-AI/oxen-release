@@ -20,7 +20,7 @@
 
 # 🐂 🌾 What is Oxen?
 
-Oxen is a lighting fast unstructured data version control system for machine learning datasets.
+Oxen is a lightning fast unstructured data version control system for machine learning datasets.
 
 No need to learn a new paradigm. If you are familiar with [git](https://git-scm.com/) you are off to the races with Oxen. The difference is Oxen can handle large unstructured data that traditionally would be a pain to version.
 
@@ -49,18 +49,6 @@ repo.commit("Adding a new dog")
 
 The latest documentation can be found at [https://docs.oxen.ai](https://docs.oxen.ai).
 
-### ⭐️ Every GitHub Star Gives an Ox its Wings
-
-No really.
-
-We hooked up the GitHub webhook for stars to an [OxenHub Repository](https://www.oxen.ai/ox/FlyingOxen). Using a combination of Oxen's [python library](https://docs.oxen.ai/getting-started/python), [remote workspaces](https://docs.oxen.ai/concepts/remote-workspace), and [Stable Diffusion XL](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl) we generate a unique Ox for each user, and attempt to give them wings.
-
-Go find your own in our [ox/FlyingOxen](https://www.oxen.ai/ox/FlyingOxen) repository.
-
-<p align="center">
-    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings.png?raw=true" alt="oxen repo with wings" />
-</p>
-
 # ✅ Features
 
 Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md) on images, video, audio, text, and more.
@@ -74,6 +62,18 @@ Oxen was optimized to be fast on structured and unstructured data types. Unlike 
 * 🤝 Collaborate with your team (sync to an oxen-server)
 * 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
+
+### ⭐️ Every GitHub Star Gives an Ox its Wings
+
+No really.
+
+We hooked up the GitHub webhook for stars to an [OxenHub Repository](https://www.oxen.ai/ox/FlyingOxen). Using a combination of Oxen's [python library](https://docs.oxen.ai/getting-started/python), [remote workspaces](https://docs.oxen.ai/concepts/remote-workspace), and [Stable Diffusion XL](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl) we generate a unique Ox for each user, and attempt to give them wings.
+
+Go find your own in our [ox/FlyingOxen](https://www.oxen.ai/ox/FlyingOxen) repository.
+
+<p align="center">
+    <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings.png?raw=true" alt="oxen repo with wings" />
+</p>
 
 # Overview
 
