@@ -79,7 +79,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
                 let modified_and_removed: Vec<PathBuf> = staged_data
                     .modified_files
                     .into_iter()
-                    .chain(staged_data.removed_files.into_iter())
+                    .chain(staged_data.removed_files)
                     .collect();
                 for entry in modified_and_removed {
                     let entry_path_str = entry.to_str().unwrap();
