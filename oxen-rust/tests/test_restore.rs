@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::path::PathBuf;
 
-use actix_http::header::q;
+
 use liboxen::api;
 use liboxen::command;
 use liboxen::core::df::tabular;
@@ -516,8 +516,8 @@ async fn test_restore_staged_schemas_with_wildcard() -> Result<(), OxenError> {
 
         // Copy bbox and one_shot to new_annotations
         util::fs::create_dir_all(&new_annotations_dir)?;
-        util::fs::copy(&bbox_path, &new_annotations_dir.join("bounding_box.csv"))?;
-        util::fs::copy(&one_shot_path, &new_annotations_dir.join("one_shot.csv"))?;
+        util::fs::copy(bbox_path, new_annotations_dir.join("bounding_box.csv"))?;
+        util::fs::copy(one_shot_path, new_annotations_dir.join("one_shot.csv"))?;
 
         // Get file names for these copied files
         new_annotations_dir
