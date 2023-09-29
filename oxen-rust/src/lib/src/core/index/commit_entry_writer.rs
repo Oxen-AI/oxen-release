@@ -144,7 +144,6 @@ impl CommitEntryWriter {
         &self,
         writer: &CommitDirEntryWriter,
         new_commit: &Commit,
-        staged_entry: &StagedEntry,
         origin_path: &Path,
         file_path: &Path,
     ) -> Result<(), OxenError> {
@@ -159,11 +158,14 @@ impl CommitEntryWriter {
 
         let metadata = fs::metadata(&full_path)?;
 
+        // Re-hash for issues w/ adding
+        let hash = util::hasher::hash_file_contents(&full_path)?;
+
         // Create entry object to as json
         let entry = CommitEntry {
             commit_id: new_commit.id.to_owned(),
             path: file_path.to_path_buf(),
-            hash: staged_entry.hash.to_owned(),
+            hash: hash.to_owned(),
             num_bytes: metadata.len(),
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
@@ -351,7 +353,7 @@ impl CommitEntryWriter {
                 }
             },
             StagedEntryStatus::Modified => {
-                match self.add_staged_entry_to_db(writer, commit, entry, origin_path, path) {
+                match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to commit MODIFIED file: {err}");
@@ -360,7 +362,7 @@ impl CommitEntryWriter {
                 }
             }
             StagedEntryStatus::Added => {
-                match self.add_staged_entry_to_db(writer, commit, entry, origin_path, path) {
+                match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
