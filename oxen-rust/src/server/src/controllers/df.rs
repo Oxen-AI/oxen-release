@@ -41,12 +41,13 @@ pub async fn get(
     let df = tabular::read_df(&version_path, DFOpts::empty())?;
 
     // Try to get the schema from disk
-    let og_schema =
-        if let Some(schema) = api::local::schemas::get_by_path(&repo, &resource.file_path)? {
-            schema
-        } else {
-            Schema::from_polars(&df.schema())
-        };
+    let og_schema = if let Some(schema) =
+        api::local::schemas::get_by_path_from_ref(&repo, &resource.commit.id, &resource.file_path)?
+    {
+        schema
+    } else {
+        Schema::from_polars(&df.schema())
+    };
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);

@@ -1013,7 +1013,6 @@ mod tests {
     #[tokio::test]
     async fn test_list_remote_commits_base_head() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-            let local_repo = local_repo;
             // There should be >= 7 commits here
             let commit_history = api::local::commits::list(&local_repo)?;
             assert!(commit_history.len() >= 7);

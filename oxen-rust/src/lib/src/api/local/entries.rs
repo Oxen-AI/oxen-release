@@ -963,7 +963,7 @@ mod tests {
             util::fs::create_dir_all(&dir_path)?;
             let filename = "data.txt";
             let filepath = dir_path.join(filename);
-            util::fs::write(&filepath, "All the lonely directories")?;
+            util::fs::write(filepath, "All the lonely directories")?;
 
             // Create many files
             let num_files = 45;
