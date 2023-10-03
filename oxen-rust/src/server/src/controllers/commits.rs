@@ -735,7 +735,11 @@ fn check_if_upload_complete_and_unpack(
                     // TODO: better error handling...
 
                     log::debug!("Got filename {}", filename);
-                    let full_path = hidden_dir.join(filename);
+                    let mut full_path = hidden_dir.join(filename);
+                    full_path = util::fs::replace_file_name_keep_extension(
+                        &full_path,
+                        VERSION_FILE_NAME.to_owned(),
+                    );
                     log::debug!("Unpack to {:?}", full_path);
                     if let Some(parent) = full_path.parent() {
                         if !parent.exists() {
