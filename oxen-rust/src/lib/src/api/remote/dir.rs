@@ -2,11 +2,23 @@ use std::path::Path;
 
 use crate::api;
 use crate::api::remote::client;
+use crate::constants;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::PaginatedDirEntries;
 
-pub async fn list_dir(
+pub async fn list_root(remote_repo: &RemoteRepository) -> Result<PaginatedDirEntries, OxenError> {
+    list(
+        remote_repo,
+        constants::DEFAULT_BRANCH_NAME,
+        Path::new(""),
+        1,
+        1,
+    )
+    .await
+}
+
+pub async fn list(
     remote_repo: &RemoteRepository,
     commit_or_branch: &str,
     path: impl AsRef<Path>,

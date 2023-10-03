@@ -99,13 +99,26 @@ pub fn config(sub_matches: &ArgMatches) {
 }
 
 pub async fn create_remote(sub_matches: &ArgMatches) {
-    let namespace = sub_matches
-        .get_one::<String>("NAMESPACE")
-        .expect("required");
-    let name = sub_matches.get_one::<String>("NAME").expect("required");
-    let host = sub_matches.get_one::<String>("HOST").expect("required");
+    // The format is namespace/name
+    let namespace_name = sub_matches.get_one::<String>("name").expect("required");
+    // Default the host to the oxen.ai hub
+    let remote_host = sub_matches
+        .get_one::<String>("remote")
+        .map(String::from)
+        .unwrap_or(DEFAULT_HOST.to_string());
 
-    match dispatch::create_remote(namespace, name, host).await {
+    // Validate the format
+    let parts: Vec<&str> = namespace_name.split('/').collect();
+    if parts.len() != 2 {
+        eprintln!("Invalid name format. Must be namespace/name");
+        return;
+    }
+
+    let namespace = parts[0];
+    let name = parts[1];
+    let empty = sub_matches.get_flag("empty");
+
+    match dispatch::create_remote(namespace, name, remote_host, empty).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
@@ -510,6 +523,9 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
         tail: sub_matches
             .get_one::<String>("tail")
             .map(|x| x.parse::<usize>().expect("tail must be valid int")),
+        row: sub_matches
+            .get_one::<String>("row")
+            .map(|x| x.parse::<usize>().expect("row must be valid int")),
         take: sub_matches.get_one::<String>("take").map(String::from),
         columns: sub_matches.get_one::<String>("columns").map(String::from),
         filter: sub_matches.get_one::<String>("filter").map(String::from),

@@ -872,7 +872,6 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
 
 // Bulk complete
 pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("In the commits controller");
     let app_data = req.app_data::<OxenAppData>().unwrap();
     let mut queue = app_data.queue.clone();
 
@@ -892,6 +891,31 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
             .ok_or(OxenError::repo_not_found(RepositoryNew::new(
                 namespace, repo_name,
             )))?;
+
+    // List commits for this repo
+    let all_commits = api::local::commits::list(&repo)?;
+
+    // Read through existing commits and find any with pending status stuck from previous pushes.
+    // This shouldn't be a super common case, but can freeze the repo on commits from old versions
+
+    for commit in all_commits {
+        log::debug!("Checking commit {:?}", commit.id);
+        if commit_cacher::get_status(&repo, &commit)? == Some(CacherStatusType::Pending) {
+            // Need to force remove errantly left locks
+            commit_cacher::force_remove_lock(&repo, &commit)?;
+            let task = PostPushComplete {
+                commit: commit.clone(),
+                repo: repo.clone(),
+            };
+            // Append a task to the queue
+            log::debug!(
+                "complete_bulk found stuck pending commit {:?}, adding to queue",
+                commit.clone()
+            );
+
+            queue.push(tasks::Task::PostPushComplete(task))
+        }
+    }
 
     let commit_reader = CommitReader::new(&repo)?;
 

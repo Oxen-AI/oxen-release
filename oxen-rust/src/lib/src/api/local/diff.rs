@@ -162,7 +162,7 @@ pub fn diff_tabular(
         compute_new_columns_from_paths(base_path, head_path, &base_schema, &head_schema)
     } else {
         log::debug!("Computing diff for {base_path:?} to {head_path:?}");
-        compute_new_rows(base_df, head_df, &base_schema)
+        compute_new_rows(&base_df, &head_df, &base_schema)
     }
 }
 
@@ -233,16 +233,16 @@ pub fn count_removed_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usiz
     Ok(num_removed_rows)
 }
 
-pub fn compute_new_rows(
-    base_df: DataFrame,
-    head_df: DataFrame,
-    schema: &Schema,
-) -> Result<DataFrameDiff, OxenError> {
+pub fn compute_new_row_indices(
+    base_df: &DataFrame,
+    head_df: &DataFrame,
+) -> Result<(Vec<u32>, Vec<u32>), OxenError> {
     // Hash the rows
-    let base_df = tabular::df_hash_rows(base_df)?;
-    let head_df = tabular::df_hash_rows(head_df)?;
+    let base_df = tabular::df_hash_rows(base_df.clone())?;
+    let head_df = tabular::df_hash_rows(head_df.clone())?;
 
-    // log::debug!("diff_current got current hashes {}", current_df);
+    log::debug!("diff_current got current hashes base_df {:?}", base_df);
+    log::debug!("diff_current got current hashes head_df {:?}", head_df);
 
     let base_hash_indices: HashMap<String, u32> = base_df
         .column(constants::ROW_HASH_COL_NAME)
@@ -280,33 +280,89 @@ pub fn compute_new_rows(
         .collect();
     removed_indices.sort(); // so is deterministic and returned in correct order
 
-    // log::debug!("diff_current added_indices {:?}", added_indices);
+    log::debug!("diff_current added_indices {:?}", added_indices.len());
+    log::debug!("diff_current removed_indices {:?}", removed_indices.len());
 
-    // log::debug!("diff_current removed_indices {:?}", removed_indices);
+    Ok((added_indices, removed_indices))
+}
+
+pub fn compute_new_rows(
+    base_df: &DataFrame,
+    head_df: &DataFrame,
+    schema: &Schema,
+) -> Result<DataFrameDiff, OxenError> {
+    // Compute row indices
+    let (added_indices, removed_indices) = compute_new_row_indices(base_df, head_df)?;
 
     // Take added from the current df
-    let opts = DFOpts::from_schema_columns(schema);
-    let head_df = tabular::transform(head_df, opts)?;
-    let added_rows = tabular::take(head_df.lazy(), added_indices)?;
+    let added_rows = if !added_indices.is_empty() {
+        let opts = DFOpts::from_schema_columns(schema);
+        let head_df = tabular::transform(head_df.clone(), opts)?;
+        Some(tabular::take(head_df.lazy(), added_indices)?)
+    } else {
+        None
+    };
+    log::debug!("diff_current added_rows {:?}", added_rows);
 
     // Take removed from versioned df
-    let opts = DFOpts::from_schema_columns(schema);
-    let base_df = tabular::transform(base_df, opts)?;
-    let removed_rows = tabular::take(base_df.lazy(), removed_indices)?;
+    let removed_rows = if !removed_indices.is_empty() {
+        let opts = DFOpts::from_schema_columns(schema);
+        let base_df = tabular::transform(base_df.clone(), opts)?;
+        Some(tabular::take(base_df.lazy(), removed_indices)?)
+    } else {
+        None
+    };
+    log::debug!("diff_current removed_rows {:?}", removed_rows);
 
     Ok(DataFrameDiff {
         head_schema: Some(schema.to_owned()),
         base_schema: Some(schema.to_owned()),
-        added_rows: if added_rows.height() > 0 {
-            Some(added_rows)
-        } else {
-            None
-        },
-        removed_rows: if removed_rows.height() > 0 {
-            Some(removed_rows)
-        } else {
-            None
-        },
+        added_rows,
+        removed_rows,
+        added_cols: None,
+        removed_cols: None,
+    })
+}
+
+pub fn compute_new_rows_proj(
+    // the lowest common schema dataframes
+    base_df: &DataFrame,
+    head_df: &DataFrame,
+    // the original dataframes
+    proj_base_df: &DataFrame,
+    proj_head_df: &DataFrame,
+    // have to pass in the correct schemas to select the new rows
+    base_schema: &Schema,
+    head_schema: &Schema,
+) -> Result<DataFrameDiff, OxenError> {
+    // Compute row indices
+    let (added_indices, removed_indices) = compute_new_row_indices(base_df, head_df)?;
+
+    // Take added from the current df
+    let added_rows = if !added_indices.is_empty() {
+        let opts = DFOpts::from_schema_columns(head_schema);
+        let proj_head_df = tabular::transform(proj_head_df.clone(), opts)?;
+        Some(tabular::take(proj_head_df.lazy(), added_indices)?)
+    } else {
+        None
+    };
+    log::debug!("diff_current added_rows {:?}", added_rows);
+
+    // Take removed from versioned df
+    let removed_rows = if !removed_indices.is_empty() {
+        let opts = DFOpts::from_schema_columns(base_schema);
+        let proj_base_df = tabular::transform(proj_base_df.clone(), opts)?;
+        Some(tabular::take(proj_base_df.lazy(), removed_indices)?)
+    } else {
+        None
+    };
+    log::debug!("diff_current removed_rows {:?}", removed_rows);
+
+    Ok(DataFrameDiff {
+        head_schema: Some(base_schema.to_owned()),
+        base_schema: Some(head_schema.to_owned()),
+        added_rows,
+        removed_rows,
         added_cols: None,
         removed_cols: None,
     })
@@ -671,19 +727,19 @@ fn collect_removed_directories(
     diff_entries: &mut Vec<DiffEntry>,
 ) -> Result<(), OxenError> {
     // DEBUG
-    for base_dir in base_dirs.iter() {
-        log::debug!(
-            "collect_removed_directories BASE dir {}",
-            base_dir.display()
-        );
-    }
+    // for base_dir in base_dirs.iter() {
+    //     log::debug!(
+    //         "collect_removed_directories BASE dir {}",
+    //         base_dir.display()
+    //     );
+    // }
 
-    for head_dir in head_dirs.iter() {
-        log::debug!(
-            "collect_removed_directories HEAD dir {}",
-            head_dir.display()
-        );
-    }
+    // for head_dir in head_dirs.iter() {
+    //     log::debug!(
+    //         "collect_removed_directories HEAD dir {}",
+    //         head_dir.display()
+    //     );
+    // }
 
     for base_dir in base_dirs {
         // HEAD entry is *not* in BASE

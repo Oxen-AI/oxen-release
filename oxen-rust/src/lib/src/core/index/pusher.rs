@@ -191,11 +191,13 @@ pub async fn try_push_remote_repo(
     push_missing_commit_entries(
         local_repo,
         remote_repo,
-        &branch,
         &unsynced_entries_commits,
         unsynced_entries,
     )
     .await?;
+
+    // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
+    api::remote::commits::bulk_post_push_complete(remote_repo, &unsynced_entries_commits).await?;
 
     api::remote::branches::update(remote_repo, &branch.name, head_commit).await?;
 
@@ -551,7 +553,6 @@ async fn push_missing_commit_dbs(
 async fn push_missing_commit_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    branch: &Branch,
     commits: &Vec<Commit>,
     mut unsynced_entries: Vec<UnsyncedCommitEntries>,
 ) -> Result<(), OxenError> {
@@ -619,14 +620,6 @@ async fn push_missing_commit_entries(
     } else {
         println!("🐂 No entries to push");
     }
-
-    // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
-    api::remote::commits::bulk_post_push_complete(remote_repo, commits).await?;
-
-    // Re-validate last commit to sent latest commit for Hub. TODO: do this non-duplicatively
-    api::remote::commits::post_push_complete(remote_repo, branch, &commits.last().unwrap().id)
-        .await?;
-
     log::debug!("push_missing_commit_entries done");
 
     Ok(())
@@ -984,6 +977,7 @@ mod tests {
     use crate::core::index::pusher;
     use crate::core::index::CommitReader;
     use crate::error::OxenError;
+    use crate::model::RepositoryNew;
     use crate::opts::RmOpts;
     use crate::util;
 
@@ -997,13 +991,10 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = api::remote::repositories::create(
-                &repo,
-                constants::DEFAULT_NAMESPACE,
-                &name,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
+            let remote_repo =
+                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
+                    .await?;
 
             // Get commits to sync...
             let head_commit = api::local::commits::head_commit(&repo)?;
@@ -1075,13 +1066,10 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = api::remote::repositories::create(
-                &repo,
-                constants::DEFAULT_NAMESPACE,
-                &name,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
+            let remote_repo =
+                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
+                    .await?;
 
             // Get commits to sync...
             let head_commit = api::local::commits::head_commit(&repo)?;
@@ -1120,13 +1108,10 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = api::remote::repositories::create(
-                &repo,
-                constants::DEFAULT_NAMESPACE,
-                &name,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
+            let remote_repo =
+                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
+                    .await?;
 
             // Get commits to sync...
             let head_commit = api::local::commits::head_commit(&repo)?;

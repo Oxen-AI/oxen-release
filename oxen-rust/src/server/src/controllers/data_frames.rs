@@ -5,14 +5,17 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::api;
 use liboxen::error::OxenError;
-use liboxen::model::{DataFrameSize, Schema};
+use liboxen::model::Schema;
 use liboxen::view::entry::ResourceVersion;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::opts::DFOpts;
-use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
+use liboxen::opts::{DFOpts, PaginateOpts};
+use liboxen::view::{
+    JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage,
+};
 
 use liboxen::util;
 
@@ -56,66 +59,33 @@ pub async fn get(
 
     log::debug!("Full df {:?}", df);
 
-    let full_height = df.height();
-    let full_width = df.width();
-
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
     let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
 
-    let start = if page == 0 { 0 } else { page_size * (page - 1) };
-    let end = page_size * page;
-
     // We have to run the query param transforms, then paginate separately
+    let og_df_json = JsonDataFrameSource::from_df(&df, &og_schema);
     match tabular::transform(df, opts) {
-        Ok(sliced_df) => {
-            log::debug!("Sliced df {:?}", sliced_df);
-
-            let sliced_width = sliced_df.width();
-            let sliced_height = sliced_df.height();
-
-            // Paginate after transform
-            let mut paginate_opts = DFOpts::empty();
-            paginate_opts.slice = Some(format!("{}..{}", start, end));
-            let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
-
-            let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
-            let full_size = DataFrameSize {
-                width: full_width,
-                height: full_height,
-            };
-
-            // Merge the metadata from the original schema
-            let mut slice_schema = Schema::from_polars(&paginated_df.schema());
-            log::debug!("OG schema {:?}", og_schema);
-            log::debug!("Pre-Slice schema {:?}", slice_schema);
-            slice_schema.update_metadata_from_schema(&og_schema);
-
-            log::debug!("Slice schema {:?}", slice_schema);
+        Ok(df_view) => {
+            log::debug!("DF view {:?}", df_view);
 
             let resource_version = ResourceVersion {
                 path: resource.file_path.to_string_lossy().into(),
                 version: resource.version().to_owned(),
             };
 
-            let response = JsonDataFrameSliceResponse {
+            let page_opts = PaginateOpts {
+                page_num: page,
+                page_size,
+            };
+
+            let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_found(),
-                full_size: full_size.to_owned(),
-                slice_size: DataFrameSize {
-                    width: sliced_width,
-                    height: sliced_height,
+                data_frame: JsonDataFrameViews {
+                    source: og_df_json,
+                    view: JsonDataFrameView::view_from_pagination(df_view, og_schema, &page_opts),
                 },
-                df: JsonDataFrame::from_slice(
-                    &mut paginated_df,
-                    og_schema,
-                    full_size,
-                    slice_schema,
-                ),
                 commit: Some(resource.commit.clone()),
                 resource: Some(resource_version),
-                page_number: page,
-                page_size,
-                total_pages,
-                total_entries: sliced_height,
             };
             Ok(HttpResponse::Ok().json(response))
         }
