@@ -227,6 +227,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- DataFrame ----- //
         .route(
+            "/{namespace}/{repo_name}/data_frame/{resource:.*}",
+            web::get().to(controllers::data_frames::get),
+        )
+        // ----- /df IS A DEPRECIATED FORMAT ----- //
+        .route(
             "/{namespace}/{repo_name}/df/{resource:.*}",
             web::get().to(controllers::df::get),
         )

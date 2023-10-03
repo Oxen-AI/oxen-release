@@ -823,6 +823,7 @@ mod tests {
     use crate::core::index::EntryIndexer;
     use crate::error::OxenError;
     use crate::model::RemoteBranch;
+    use crate::model::RepositoryNew;
     use crate::opts::CloneOpts;
     use crate::opts::PullOpts;
     use crate::test;
@@ -839,13 +840,10 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = api::remote::repositories::create(
-                &repo,
-                constants::DEFAULT_NAMESPACE,
-                &name,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
+            let remote_repo =
+                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
+                    .await?;
 
             command::push(&repo).await?;
 
@@ -884,13 +882,10 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let remote_repo = api::remote::repositories::create(
-                &repo,
-                constants::DEFAULT_NAMESPACE,
-                &name,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
+            let remote_repo =
+                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
+                    .await?;
 
             command::push(&repo).await?;
 
@@ -954,13 +949,10 @@ mod tests {
             command::commit(&repo, "Adding testing data")?;
 
             // Create remote
-            let remote_repo = api::remote::repositories::create(
-                &repo,
-                constants::DEFAULT_NAMESPACE,
-                &name,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
+            let remote_repo =
+                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
+                    .await?;
 
             // Push it
             command::push(&repo).await?;

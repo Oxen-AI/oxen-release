@@ -526,10 +526,21 @@ impl Stager {
 
             let staged_dir: StagedDirEntryDB<SingleThreaded> =
                 StagedDirEntryDB::new(&self.repository, parent)?;
+            if util::fs::is_tabular(path) {
+                log::debug!("remove_staged_file {:?} is tabular, removing schema", path);
+                self.remove_staged_schema(path)?;
+            }
+
             staged_dir.remove_path(filename)
         } else {
             Err(OxenError::file_has_no_parent(path))
         }
+    }
+
+    fn remove_staged_schema(&self, path: &Path) -> Result<(), OxenError> {
+        log::debug!("remove_staged_schema {:?}", path);
+        path_db::delete(&self.schemas_db, path)?;
+        Ok(())
     }
 
     fn add_removed_file(
@@ -1085,7 +1096,7 @@ impl Stager {
         Ok(())
     }
 
-    /// Update all the schema field type overrides on a staged schema
+    /// Update all the schema field tyfpe overrides on a staged schema
     pub fn update_schema_for_path(
         &self,
         path: impl AsRef<Path>,

@@ -36,8 +36,7 @@ async fn test_command_push_one_commit() -> Result<(), OxenError> {
         let page_num = 1;
         let page_size = num_files + 10;
         let entries =
-            api::remote::dir::list_dir(&remote_repo, &commit.id, "train", page_num, page_size)
-                .await?;
+            api::remote::dir::list(&remote_repo, &commit.id, "train", page_num, page_size).await?;
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 
@@ -172,11 +171,9 @@ async fn test_command_push_inbetween_two_commits() -> Result<(), OxenError> {
         let page_num = 1;
         let page_size = num_train_files + num_test_files + 5;
         let train_entries =
-            api::remote::dir::list_dir(&remote_repo, &commit.id, "/train", page_num, page_size)
-                .await?;
+            api::remote::dir::list(&remote_repo, &commit.id, "/train", page_num, page_size).await?;
         let test_entries =
-            api::remote::dir::list_dir(&remote_repo, &commit.id, "/test", page_num, page_size)
-                .await?;
+            api::remote::dir::list(&remote_repo, &commit.id, "/test", page_num, page_size).await?;
         assert_eq!(
             train_entries.total_entries + test_entries.total_entries,
             num_train_files + num_test_files
@@ -222,15 +219,13 @@ async fn test_command_push_after_two_commits() -> Result<(), OxenError> {
         command::push(&repo).await?;
 
         let page_num = 1;
-        let entries =
-            api::remote::dir::list_dir(&remote_repo, &commit.id, ".", page_num, 10).await?;
+        let entries = api::remote::dir::list(&remote_repo, &commit.id, ".", page_num, 10).await?;
         assert_eq!(entries.total_entries, 2);
         assert_eq!(entries.entries.len(), 2);
 
         let page_size = num_test_files + 10;
         let entries =
-            api::remote::dir::list_dir(&remote_repo, &commit.id, "test", page_num, page_size)
-                .await?;
+            api::remote::dir::list(&remote_repo, &commit.id, "test", page_num, page_size).await?;
         assert_eq!(entries.total_entries, num_test_files);
         assert_eq!(entries.entries.len(), num_test_files);
 
@@ -274,7 +269,7 @@ async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenErro
         let page_num = 1;
         let page_size = num_files + 10;
         let entries =
-            api::remote::dir::list_dir(&remote_repo, &commit.id, ".", page_num, page_size).await?;
+            api::remote::dir::list(&remote_repo, &commit.id, ".", page_num, page_size).await?;
         assert_eq!(entries.total_entries, num_files);
         assert_eq!(entries.entries.len(), num_files);
 

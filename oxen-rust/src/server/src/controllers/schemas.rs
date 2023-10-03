@@ -8,6 +8,7 @@ use liboxen::api;
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::error::OxenError;
+use liboxen::view::entry::ResourceVersion;
 use liboxen::view::{ListSchemaResponse, StatusMessage};
 
 pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -20,7 +21,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     // Try to see if they are asking for a specific file
     if let Ok(resource) = parse_resource(&req, &repo) {
         if resource.file_path != Path::new("") {
-            let commit = resource.commit;
+            let commit = &resource.commit;
 
             log::debug!(
                 "schemas::list_or_get file {:?} commit {}",
@@ -34,9 +35,15 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 resource.file_path.to_string_lossy(),
             )?;
             let schemas = schemas.into_values().collect::<Vec<_>>();
+            let resource = ResourceVersion {
+                path: resource.file_path.to_string_lossy().into(),
+                version: resource.version().to_owned(),
+            };
             let response = ListSchemaResponse {
                 status: StatusMessage::resource_found(),
                 schemas,
+                commit: Some(commit.clone()),
+                resource: Some(resource),
             };
             return Ok(HttpResponse::Ok().json(response));
         }
@@ -59,6 +66,8 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     let response = ListSchemaResponse {
         status: StatusMessage::resource_found(),
         schemas,
+        commit: Some(commit),
+        resource: None,
     };
     Ok(HttpResponse::Ok().json(response))
 }

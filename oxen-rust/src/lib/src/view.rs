@@ -11,6 +11,7 @@ pub mod file_metadata;
 pub mod health;
 pub mod http;
 pub mod json_data_frame;
+pub mod json_data_frame_view;
 pub mod merge;
 pub mod mime_type_count;
 pub mod namespace;
@@ -31,8 +32,11 @@ pub use crate::view::status_message::{
 };
 
 pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameSliceResponse};
+pub use crate::view::json_data_frame_view::{
+    JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,
+};
 pub use crate::view::namespace::{ListNamespacesResponse, NamespaceResponse, NamespaceView};
-pub use crate::view::schema::{ListSchemaResponse, SchemaResponse};
+pub use crate::view::schema::ListSchemaResponse;
 
 pub use crate::view::repository::{
     ListRepositoryResponse, RepositoryResolveResponse, RepositoryResponse, RepositoryView,

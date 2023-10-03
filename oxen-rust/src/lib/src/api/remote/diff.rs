@@ -345,7 +345,7 @@ mod tests {
 
             let diff_summary = compare.diff_summary.as_ref().unwrap();
             match diff_summary {
-                GenericDiffSummary::TabularDiffSummary(diff_summary) => {
+                GenericDiffSummary::TabularDiffWrapper(diff_summary) => {
                     assert_eq!(diff_summary.tabular.num_added_rows, 2);
                     assert_eq!(diff_summary.tabular.num_removed_rows, 0);
                     assert_eq!(diff_summary.tabular.num_added_cols, 0);
@@ -472,7 +472,7 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
 
             let diff_summary = compare.diff_summary.as_ref().unwrap();
             match diff_summary {
-                GenericDiffSummary::TabularDiffSummary(diff_summary) => {
+                GenericDiffSummary::TabularDiffWrapper(diff_summary) => {
                     assert_eq!(diff_summary.tabular.num_added_rows, 1);
                     assert_eq!(diff_summary.tabular.num_removed_rows, 2);
                     assert_eq!(diff_summary.tabular.num_added_cols, 0);
@@ -611,7 +611,7 @@ who won the game?,The packers beat up on the bears,packers
 
             let diff_summary = compare.diff_summary.as_ref().unwrap();
             match diff_summary {
-                GenericDiffSummary::TabularDiffSummary(diff_summary) => {
+                GenericDiffSummary::TabularDiffWrapper(diff_summary) => {
                     assert_eq!(diff_summary.tabular.num_added_rows, 0);
                     assert_eq!(diff_summary.tabular.num_removed_rows, 0);
                     assert_eq!(diff_summary.tabular.num_added_cols, 0);
@@ -809,7 +809,7 @@ who won the game?,The packers beat up on the bears,packers
 
             let summary = test_csv.diff_summary.as_ref().unwrap();
             match summary {
-                GenericDiffSummary::TabularDiffSummary(summary) => {
+                GenericDiffSummary::TabularDiffWrapper(summary) => {
                     assert_eq!(summary.tabular.num_added_rows, 1);
                     assert_eq!(summary.tabular.num_removed_rows, 0);
                     assert_eq!(summary.tabular.num_added_cols, 0);
@@ -825,7 +825,7 @@ who won the game?,The packers beat up on the bears,packers
 
             let summary = test_csv.diff_summary.as_ref().unwrap();
             match summary {
-                GenericDiffSummary::TabularDiffSummary(summary) => {
+                GenericDiffSummary::TabularDiffWrapper(summary) => {
                     assert_eq!(summary.tabular.num_added_rows, 0);
                     assert_eq!(summary.tabular.num_removed_rows, 0);
                     assert_eq!(summary.tabular.num_added_cols, 3);
