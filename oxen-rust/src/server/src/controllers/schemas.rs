@@ -4,7 +4,10 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::api;
+use liboxen::core::df::tabular;
+use liboxen::model::Schema;
+use liboxen::opts::DFOpts;
+use liboxen::{api, util};
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::error::OxenError;
@@ -34,7 +37,28 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 &commit.id,
                 resource.file_path.to_string_lossy(),
             )?;
-            let schemas = schemas.into_values().collect::<Vec<_>>();
+            let mut schemas = schemas.into_values().collect::<Vec<_>>();
+
+            // If none found, try to get the schema from the file
+            if schemas.is_empty() {
+                if let Some(entry) = api::local::entries::get_commit_entry(
+                    &repo,
+                    &resource.commit,
+                    &resource.file_path,
+                )? {
+                    let version_path = util::fs::version_path(&repo, &entry);
+                    log::debug!(
+                        "No schemas found, trying to get from file {:?}",
+                        resource.file_path
+                    );
+                    if util::fs::is_tabular(&version_path) {
+                        let df = tabular::read_df(&version_path, DFOpts::empty())?;
+                        let schema = Schema::from_polars(&df.schema());
+                        schemas.push(schema);
+                    }
+                }
+            }
+
             let resource = ResourceVersion {
                 path: resource.file_path.to_string_lossy().into(),
                 version: resource.version().to_owned(),
