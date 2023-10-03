@@ -1397,8 +1397,8 @@ mod tests {
 
             // Commit it
             let commit_writer = CommitWriter::new(&repo)?;
-            let mut status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&mut status, "Add Hello World")?;
+            let status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&status, "Add Hello World")?;
             stager.unstage()?;
 
             // try to add it again
@@ -1671,9 +1671,9 @@ mod tests {
             stager.add_file(&hello_file, &entry_reader)?;
 
             // commit the file
-            let mut status = stager.status(&entry_reader)?;
+            let status = stager.status(&entry_reader)?;
             let commit_writer = CommitWriter::new(&repo)?;
-            let commit = commit_writer.commit(&mut status, "added hello 1")?;
+            let commit = commit_writer.commit(&status, "added hello 1")?;
             stager.unstage()?;
 
             let mod_files = stager.status(&entry_reader)?.modified_files;

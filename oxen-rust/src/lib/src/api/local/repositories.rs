@@ -290,10 +290,10 @@ pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepositor
                 email: user.email.clone(),
                 timestamp: OffsetDateTime::now_utc(),
             };
-            let mut status = command::status(&local_repo)?;
+            let status = command::status(&local_repo)?;
             let stager = Stager::new(&local_repo)?;
             let commit_writer = CommitWriter::new(&local_repo)?;
-            commit_writer.commit_from_new(&new_commit, &mut status, &local_repo.path)?;
+            commit_writer.commit_from_new(&new_commit, &status, &local_repo.path)?;
             stager.unstage()?;
 
             // Cleanup the files since they are now in version dirs

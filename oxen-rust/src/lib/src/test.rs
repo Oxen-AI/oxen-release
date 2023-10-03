@@ -875,14 +875,14 @@ fn create_bounding_box_csv(repo_path: &Path) -> Result<(), OxenError> {
     // Write all the files
     write_txt_file_to_path(
         dir.join("bounding_box.csv"),
-        r#"file,label,min_x,min_y,width,height
+        r"file,label,min_x,min_y,width,height
 train/dog_1.jpg,dog,101.5,32.0,385,330
 train/dog_1.jpg,dog,102.5,31.0,386,330
 train/dog_2.jpg,dog,7.0,29.5,246,247
 train/dog_3.jpg,dog,19.0,63.5,376,421
 train/cat_1.jpg,cat,57.0,35.5,304,427
 train/cat_2.jpg,cat,30.5,44.0,333,396
-"#,
+",
     )?;
 
     Ok(())
@@ -1150,7 +1150,7 @@ pub fn test_nlp_classification_csv() -> PathBuf {
 pub fn populate_readme(repo_dir: &Path) -> Result<(), OxenError> {
     write_txt_file_to_path(
         repo_dir.join("README.md"),
-        r#"
+        r"
         # Welcome to the party
 
         If you are seeing this, you are deep in the test framework, love to see it, keep testing.
@@ -1158,7 +1158,7 @@ pub fn populate_readme(repo_dir: &Path) -> Result<(), OxenError> {
         Yes I am biased, dog is label 0, cat is label 1, not alphabetical. Interpret that as you will.
 
         🐂 💨
-    "#,
+    ",
     )?;
 
     Ok(())
@@ -1167,10 +1167,10 @@ pub fn populate_readme(repo_dir: &Path) -> Result<(), OxenError> {
 pub fn populate_labels(repo_dir: &Path) -> Result<(), OxenError> {
     write_txt_file_to_path(
         repo_dir.join("labels.txt"),
-        r#"
+        r"
         dog
         cat
-    "#,
+    ",
     )?;
 
     Ok(())
@@ -1255,10 +1255,10 @@ pub fn populate_annotations_dir(repo_dir: &Path) -> Result<(), OxenError> {
     let annotations_readme_file = annotations_dir.join("README.md");
     write_txt_file_to_path(
         annotations_readme_file,
-        r#"
+        r"
         # Annotations
         Some info about our annotations structure....
-        "#,
+        ",
     )?;
 
     // annotations/train/
@@ -1266,30 +1266,30 @@ pub fn populate_annotations_dir(repo_dir: &Path) -> Result<(), OxenError> {
     std::fs::create_dir_all(&train_annotations_dir)?;
     write_txt_file_to_path(
         train_annotations_dir.join("annotations.txt"),
-        r#"
+        r"
 train/dog_1.jpg 0
 train/dog_2.jpg 0
 train/dog_3.jpg 0
 train/cat_1.jpg 1
 train/cat_2.jpg 1
-    "#,
+    ",
     )?;
 
     create_bounding_box_csv(repo_dir)?;
 
     write_txt_file_to_path(
         train_annotations_dir.join("one_shot.csv"),
-        r#"file,label,min_x,min_y,width,height
+        r"file,label,min_x,min_y,width,height
 train/dog_1.jpg,dog,101.5,32.0,385,330
-"#,
+",
     )?;
 
     write_txt_file_to_path(
         train_annotations_dir.join("two_shot.csv"),
-        r#"file,label,min_x,min_y,width,height
+        r"file,label,min_x,min_y,width,height
 train/dog_3.jpg,dog,19.0,63.5,376,421
 train/cat_1.jpg,cat,57.0,35.5,304,427
-"#,
+",
     )?;
 
     // annotations/test/
@@ -1297,11 +1297,11 @@ train/cat_1.jpg,cat,57.0,35.5,304,427
     std::fs::create_dir_all(&test_annotations_dir)?;
     write_txt_file_to_path(
         test_annotations_dir.join("annotations.csv"),
-        r#"file,label,min_x,min_y,width,height
+        r"file,label,min_x,min_y,width,height
 test/dog_3.jpg,dog,19.0,63.5,376,421
 test/cat_1.jpg,cat,57.0,35.5,304,427
 test/unknown.jpg,unknown,0.0,0.0,0,0
-"#,
+",
     )?;
 
     Ok(())
@@ -1316,7 +1316,7 @@ pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
     std::fs::create_dir_all(&nlp_annotations_dir)?;
     write_txt_file_to_path(
         nlp_annotations_dir.join("train.tsv"),
-        r#"text	label
+        r"text	label
 My tummy hurts	negative
 I have a headache	negative
 My tummy hurts	negative
@@ -1328,12 +1328,12 @@ loving the sunshine	positive
 I am a lonely example	negative
 I am adding more examples	positive
 One more time	positive
-"#,
+",
     )?;
 
     write_txt_file_to_path(
         nlp_annotations_dir.join("test.tsv"),
-        r#"text	label
+        r"text	label
 My tummy hurts	negative
 My tummy hurts	negative
 My tummy hurts	negative
@@ -1343,7 +1343,7 @@ loving the sunshine	positive
 loving the sunshine	positive
 I am a lonely example	negative
 I am a great testing example	positive
-    "#,
+    ",
     )?;
     Ok(())
 }

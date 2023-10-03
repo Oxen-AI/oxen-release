@@ -402,13 +402,13 @@ mod tests {
             // Modify and commit the dataframe
             let repo_filepath = test::write_txt_file_to_path(
                 repo_filepath,
-                r#"instruction,context,response,category
+                r"instruction,context,response,category
 answer the question,what is the capital of france?,paris,geography
 answer the question,who was the 44th president of the united states?,barack obama,politics
 who won the game,,I don't know what game you are referring to,sports
 who won the game?,The packers beat up on the bears,packers,sports
 define the word,what does the word 'the' mean?,it is a stopword.,language
-"#,
+",
             )?;
 
             command::add(&repo, &repo_filepath)?;

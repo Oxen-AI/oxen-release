@@ -183,15 +183,15 @@ pub fn commit_history_db_exists(
 }
 
 pub fn commit_with_no_files(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let mut status = StagedData::empty();
-    let commit = commit(repo, &mut status, message)?;
+    let status = StagedData::empty();
+    let commit = commit(repo, &status, message)?;
     println!("Initial commit {}", commit.id);
     Ok(commit)
 }
 
 pub fn commit(
     repo: &LocalRepository,
-    status: &mut StagedData,
+    status: &StagedData,
     message: &str,
 ) -> Result<Commit, OxenError> {
     let stager = Stager::new(repo)?;

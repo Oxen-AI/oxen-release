@@ -185,7 +185,7 @@ pub fn commit(
     log::debug!("commit_staged started on branch: {}", branch.name);
 
     let staging_dir = branch_staging_dir(repo, branch, user_id);
-    let mut status = status_for_branch(repo, branch_repo, branch)?;
+    let status = status_for_branch(repo, branch_repo, branch)?;
 
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();
@@ -202,7 +202,7 @@ pub fn commit(
     // This should copy all the files over from the staging dir to the versions dir
     let commit = commit_writer.commit_from_new_on_remote_branch(
         &new_commit,
-        &mut status,
+        &status,
         &staging_dir,
         branch,
         user_id,

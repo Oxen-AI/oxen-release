@@ -125,7 +125,7 @@ impl CommitWriter {
     //       image_1.png -> b"{entry_json}"
     //       image_2.png -> b"{entry_json}"
     //       image_2.png -> b"{entry_json}"
-    pub fn commit(&self, status: &mut StagedData, message: &str) -> Result<Commit, OxenError> {
+    pub fn commit(&self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.
         log::debug!("---COMMIT START---"); // for debug logging / timing purposes
@@ -146,7 +146,7 @@ impl CommitWriter {
     pub fn commit_from_new(
         &self,
         new_commit: &NewCommit,
-        status: &mut StagedData,
+        status: &StagedData,
         origin_path: &Path,
     ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(new_commit, status);
@@ -164,7 +164,7 @@ impl CommitWriter {
     pub fn commit_from_new_on_remote_branch(
         &self,
         new_commit: &NewCommit,
-        status: &mut StagedData,
+        status: &StagedData,
         origin_path: &Path,
         branch: &Branch,
         user_id: &str,
@@ -727,10 +727,10 @@ mod tests {
     #[test]
     fn test_commit_no_files() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, repo| {
-            let mut status = StagedData::empty();
+            let status = StagedData::empty();
             log::debug!("run_empty_stager_test before CommitWriter::new...");
             let commit_writer = CommitWriter::new(&repo)?;
-            commit_writer.commit(&mut status, "Init")?;
+            commit_writer.commit(&status, "Init")?;
             stager.unstage()?;
 
             Ok(())
@@ -762,8 +762,8 @@ mod tests {
             stager.add_dir(&train_dir, &entry_reader)?;
 
             let message = "Adding training data to 🐂";
-            let mut status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&mut status, message)?;
+            let status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&status, message)?;
             stager.unstage()?;
 
             let commit_history =
