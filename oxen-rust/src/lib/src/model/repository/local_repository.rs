@@ -471,9 +471,12 @@ mod tests {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
             let repo_new = RepositoryNew::new(namespace, name);
-            let remote_repo =
-                api::remote::repositories::create_from_local(&local_repo, repo_new, test::test_host())
-                    .await?;
+            let remote_repo = api::remote::repositories::create_from_local(
+                &local_repo,
+                repo_new,
+                test::test_host(),
+            )
+            .await?;
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
                 let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
