@@ -1,6 +1,7 @@
+use jwalk::WalkDir;
 use liboxen::api;
 use liboxen::command;
-use liboxen::config::UserConfig;
+use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
@@ -31,7 +32,7 @@ use std::str::FromStr;
 use time::format_description;
 
 fn get_host_or_default() -> Result<String, OxenError> {
-    let config = UserConfig::get_or_create()?;
+    let config = AuthConfig::get_or_create()?;
     let mut default_host = constants::DEFAULT_HOST.to_string();
     if let Some(host) = config.default_host {
         if !host.is_empty() {
@@ -65,6 +66,49 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
         }
     }
 
+    Ok(())
+}
+
+fn version_files_out_of_date(repo: &LocalRepository) -> Result<bool, OxenError> {
+    let versions_dir = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::VERSIONS_DIR);
+    if !versions_dir.exists() {
+        return Ok(false);
+    }
+    for entry in WalkDir::new(&versions_dir) {
+        let entry = entry?;
+        if entry.file_type().is_file() {
+            let path = entry.path();
+            let filename = match path.file_name() {
+                Some(filename) => filename.to_string_lossy().to_string(),
+                None => continue,
+            };
+
+            if filename.starts_with(constants::HASH_FILE) {
+                continue;
+            }
+
+            if filename.starts_with(constants::VERSION_FILE_NAME) {
+                return Ok(false);
+            }
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+pub fn check_versions_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
+    let migration_needed = version_files_out_of_date(repo)?;
+
+    if migration_needed {
+        let warning = "Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate up update-version-files .` to migrate.\n".to_string().yellow();
+        eprintln!("{warning}");
+        return Err(OxenError::MigrationRequired(
+            "Error: Migration required".to_string().into(),
+        ));
+    }
     Ok(())
 }
 
@@ -205,10 +249,21 @@ pub fn list_remotes_verbose() -> Result<(), OxenError> {
 }
 
 pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::get_or_create()?;
+    let mut config = AuthConfig::get_or_create()?;
     config.add_host_auth_token(host, token);
     config.save_default()?;
     println!("Authentication token set for host: {host}");
+    Ok(())
+}
+
+pub fn set_default_host(host: &str) -> Result<(), OxenError> {
+    let mut config = AuthConfig::get_or_create()?;
+    if host.is_empty() {
+        config.default_host = None;
+    } else {
+        config.default_host = Some(String::from(host));
+    }
+    config.save_default()?;
     Ok(())
 }
 
@@ -222,17 +277,6 @@ pub fn set_user_name(name: &str) -> Result<(), OxenError> {
 pub fn set_user_email(email: &str) -> Result<(), OxenError> {
     let mut config = UserConfig::get_or_create()?;
     config.email = String::from(email);
-    config.save_default()?;
-    Ok(())
-}
-
-pub fn set_default_host(host: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::get_or_create()?;
-    if host.is_empty() {
-        config.default_host = None;
-    } else {
-        config.default_host = Some(String::from(host));
-    }
     config.save_default()?;
     Ok(())
 }
@@ -365,6 +409,7 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    check_versions_migration_needed(&repository)?;
     if opts.is_remote {
         command::remote::restore(&repository, opts).await?;
     } else {
@@ -378,6 +423,7 @@ pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
+    check_versions_migration_needed(&repository)?;
     let host = get_host_from_repo(&repository)?;
     check_remote_version(host).await?;
 
@@ -390,6 +436,7 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repository)?;
+    check_versions_migration_needed(&repository)?;
     check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch, all).await?;
@@ -951,4 +998,19 @@ pub fn show_current_branch() -> Result<(), OxenError> {
 
 pub fn inspect(path: &Path) -> Result<(), OxenError> {
     command::db_inspect::inspect(path)
+}
+
+pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
+    let repo_path = Path::new(repo_path);
+    let repo_dir = util::fs::get_repo_root(repo_path).expect(error::NO_REPO_FOUND);
+    let repo = LocalRepository::from_dir(&repo_dir)?;
+
+    command::save(&repo, output_path)?;
+
+    Ok(())
+}
+
+pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
+    command::load(src_path, dest_path, no_working_dir)?;
+    Ok(())
 }

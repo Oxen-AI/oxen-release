@@ -1,3 +1,4 @@
+use crate::constants::VERSION_FILE_NAME;
 use crate::model::{ContentHashable, LocalRepository, RemoteEntry};
 use crate::util;
 
@@ -57,8 +58,17 @@ impl CommitEntry {
         util::fs::version_path(&repo, self)
     }
 
-    pub fn filename(&self) -> PathBuf {
+    // <= 0.8.4:
+    pub fn deprecated_filename(&self) -> PathBuf {
         PathBuf::from(format!("{}.{}", self.commit_id, self.extension()))
+    }
+
+    pub fn filename(&self) -> PathBuf {
+        if self.extension() == "" {
+            PathBuf::from(VERSION_FILE_NAME)
+        } else {
+            PathBuf::from(format!("{}.{}", VERSION_FILE_NAME, self.extension()))
+        }
     }
 
     pub fn filename_from_commit_id(&self, commit_id: &str) -> PathBuf {

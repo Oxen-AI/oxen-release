@@ -16,16 +16,20 @@ pub const INFO: &str = "info";
 pub const INIT: &str = "init";
 pub const FETCH: &str = "fetch";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
+pub const LOAD: &str = "load";
 pub const LOG: &str = "log";
 pub const LS: &str = "ls";
 pub const MERGE: &str = "merge";
 pub const METADATA: &str = "metadata";
+pub const MIGRATE: &str = "migrate";
+pub const MIGRATE_VERSION_FILES: &str = "update-version-files";
 pub const PULL: &str = "pull";
 pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
 pub const REMOTE: &str = "remote";
 pub const RESTORE: &str = "restore";
 pub const RM: &str = "rm";
+pub const SAVE: &str = "save";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
 
@@ -816,6 +820,60 @@ pub fn commit_cache() -> Command {
         .arg(arg!([REVISION] "The commit or branch id you want to compute the cache for. Defaults to main."))
 }
 
+// TODO: if future migration commands all are expected to follow the <path> --all structure,
+// move that arg parsing up to the top level of the command
+pub fn migrate() -> Command {
+    Command::new(MIGRATE)
+        .about("Run a named migration on a server repository or set of repositories")
+        .subcommand_required(true)
+        .subcommand(
+            Command::new("up")
+                .about("Apply a named migration forward.")
+                .subcommand_required(true)
+                .subcommand(
+                    Command::new(MIGRATE_VERSION_FILES)
+                        .about("Migrates version files from commit id to common prefix")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                ),
+        )
+        .subcommand(
+            Command::new("down")
+                .about("Apply a named migration backward.")
+                .subcommand_required(true)
+                .subcommand(
+                    Command::new(MIGRATE_VERSION_FILES)
+                        .about("Migrates version files from commit id to common prefix")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                ),
+        )
+}
+
 pub fn read_lines() -> Command {
     Command::new("read-lines")
         .about("Read a set of lines from a file without loading it all into memory")
@@ -832,4 +890,40 @@ pub fn read_lines() -> Command {
                 .default_value("10")
                 .default_missing_value("10"),
         )
+}
+
+pub fn save() -> Command {
+    Command::new(SAVE)
+        .arg(
+            Arg::new("PATH")
+                .help("Path of the local repository to save")
+                .required(true)
+                .index(1), // This represents the position of the argument in the command line command.
+        )
+        .arg(
+            Arg::new("output")
+                .help("Name of the output .tar.gz archive")
+                .short('o')
+                .long("output")
+                .required(true),
+        )
+}
+
+pub fn load() -> Command {
+    Command::new(LOAD)
+            .about("Load a repository backup from a .tar.gz archive")
+            .arg(Arg::new("SRC_PATH")
+                .help("Path to the .tar.gz archive to load")
+                .required(true)
+                .index(1))
+            .arg(Arg::new("DEST_PATH")
+                    .help("Path in which to unpack the repository")
+                    .required(true)
+                    .index(2))
+            .arg(
+                Arg::new("no-working-dir")
+                .long("no-working-dir")
+                .help("Don't unpack version files to local working directory (space-saving measure for server repos)")
+                .action(clap::ArgAction::SetTrue)
+            )
 }

@@ -55,6 +55,9 @@ pub enum OxenError {
     PathDoesNotExist(Box<PathBufError>),
     ParsedResourceNotFound(Box<PathBufError>),
 
+    // Versioning
+    MigrationRequired(StringError),
+
     // Entry
     CommitEntryNotFound(StringError),
 
@@ -88,6 +91,7 @@ pub enum OxenError {
     ENV(std::env::VarError),
     RedisError(redis::RedisError),
     R2D2Error(r2d2::Error),
+    JwalkError(jwalk::Error),
     PatternError(glob::PatternError),
     GlobError(glob::GlobError),
 
@@ -102,6 +106,10 @@ impl OxenError {
 
     pub fn authentication<T: AsRef<str>>(s: T) -> Self {
         OxenError::Authentication(StringError::from(s.as_ref()))
+    }
+
+    pub fn migration_required<T: AsRef<str>>(s: T) -> Self {
+        OxenError::MigrationRequired(StringError::from(s.as_ref()))
     }
 
     pub fn user_config_not_found(value: StringError) -> Self {
@@ -468,6 +476,12 @@ impl From<std::str::Utf8Error> for OxenError {
 impl From<r2d2::Error> for OxenError {
     fn from(error: r2d2::Error) -> Self {
         OxenError::R2D2Error(error)
+    }
+}
+
+impl From<jwalk::Error> for OxenError {
+    fn from(error: jwalk::Error) -> Self {
+        OxenError::JwalkError(error)
     }
 }
 

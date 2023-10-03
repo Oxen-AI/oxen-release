@@ -87,7 +87,7 @@ pub async fn download_dir(
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
     let revision = &entry.resource.as_ref().unwrap().version;
-    let home_dir = util::fs::oxen_home_dir()?;
+    let home_dir = util::fs::oxen_tmp_dir()?;
     let repo_dir = home_dir
         .join(&remote_repo.namespace)
         .join(&remote_repo.name);
@@ -195,7 +195,7 @@ pub async fn download_large_entry(
     let local_path = local_path.as_ref();
     let hash = util::hasher::hash_str(format!("{:?}_{:?}", remote_path, local_path));
 
-    let home_dir = util::fs::oxen_home_dir()?;
+    let home_dir = util::fs::oxen_tmp_dir()?;
 
     let tmp_dir = home_dir.join("tmp").join(&hash);
     if !tmp_dir.exists() {

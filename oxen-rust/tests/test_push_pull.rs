@@ -585,3 +585,55 @@ async fn test_push_pull_separate_branch_more_files() -> Result<(), OxenError> {
     })
     .await
 }
+
+#[tokio::test]
+async fn test_push_pull_moved_files() -> Result<(), OxenError> {
+    // Push the Remote Repo
+    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+        let contents = "this is the file";
+        let path = &local_repo.path.join("a.txt");
+        test::write_txt_file_to_path(path, contents)?;
+        println!("Writing file to {}", path.display());
+        command::add(&local_repo, &path)?;
+        println!("adding file to index at path {}", path.display());
+        println!("First commit");
+        command::commit(&local_repo, "Adding file for first time")?;
+        println!("Commit successfull");
+        // Write the same file to newfolder/a.txt
+
+        let new_path = &local_repo.path.join("newfolder").join("a.txt");
+
+        util::fs::create_dir_all(&local_repo.path.join("newfolder"))?;
+        test::write_txt_file_to_path(new_path, contents)?;
+        command::add(&local_repo, new_path)?;
+
+        // Write the same file to newfolder/b.txt
+        let new_path = &local_repo.path.join("newfolder").join("b.txt");
+
+        test::write_txt_file_to_path(new_path, contents)?;
+        command::add(&local_repo, &new_path)?;
+
+        // Delete the original file at a.txt
+        let path = "a.txt";
+        let new_path = local_repo.path.join(path);
+        util::fs::remove_file(&new_path)?;
+        command::add(&local_repo, &new_path)?;
+        println!("Second commit");
+        command::commit(
+            &local_repo,
+            "Moved file to 2 new places and deleted original",
+        )?;
+        command::push(&local_repo).await?;
+
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            // Pull down this removal
+            let cloned_repo = command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}

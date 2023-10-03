@@ -253,6 +253,9 @@ impl Stager {
             self.process_dir(dir, &mut staged_data, &ignore)?;
         }
 
+        // Make pairs from Added + Removed stage entries with same hash, store in staged_data.moved_entries
+        self.find_moved_files(&mut staged_data)?;
+
         // Find merge conflicts
         staged_data.merge_conflicts = self.list_merge_conflicts()?;
 
@@ -264,6 +267,52 @@ impl Stager {
         staged_data.staged_schemas = schemas;
 
         Ok(staged_data)
+    }
+
+    fn find_moved_files(&self, staged_data: &mut StagedData) -> Result<(), OxenError> {
+        let files = staged_data.staged_files.clone();
+        let files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().map(|(k, v)| (k, v)).collect();
+
+        // Find pairs of added-removed with same hash and add them to moved.
+        // We won't mutate StagedEntries here, the "moved" property is read-only
+        let mut added_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+        let mut removed_map: HashMap<String, Vec<&PathBuf>> = HashMap::new();
+
+        for (path, entry) in files_vec.iter() {
+            match entry.status {
+                StagedEntryStatus::Added => {
+                    added_map
+                        .entry(entry.hash.clone())
+                        .or_insert_with(Vec::new)
+                        .push(path);
+                }
+                StagedEntryStatus::Removed => {
+                    removed_map
+                        .entry(entry.hash.clone())
+                        .or_insert_with(Vec::new)
+                        .push(path);
+                }
+                _ => continue,
+            }
+        }
+
+        for (hash, added_paths) in added_map.iter_mut() {
+            if let Some(removed_paths) = removed_map.get_mut(hash) {
+                while !added_paths.is_empty() && !removed_paths.is_empty() {
+                    if let (Some(added_path), Some(removed_path)) =
+                        (added_paths.pop(), removed_paths.pop())
+                    {
+                        // moved_entries.push((added_path, removed_path, hash.to_string()));
+                        staged_data.moved_files.push((
+                            added_path.clone(),
+                            removed_path.clone(),
+                            hash.to_string(),
+                        ));
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn process_dir(

@@ -8,7 +8,7 @@ use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, Pr
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use indicatif::ProgressBar;
-use rayon::prelude::*;
+use std::collections::HashSet;
 use std::io::{BufReader, Read};
 
 use std::sync::Arc;
@@ -17,9 +17,7 @@ use tokio::time::Duration;
 
 use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
-use crate::core::index::{
-    self, CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, RefReader,
-};
+use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 
@@ -162,7 +160,7 @@ pub async fn try_push_remote_repo(
         commits_to_sync
     );
 
-    let (unsynced_entries, total_size) =
+    let (unsynced_entries, _total_size) =
         push_missing_commit_objects(local_repo, remote_repo, &commits_to_sync, &branch).await?;
 
     log::debug!("🐂 Identifying unsynced commits dbs...");
@@ -195,7 +193,6 @@ pub async fn try_push_remote_repo(
         remote_repo,
         &unsynced_entries_commits,
         unsynced_entries,
-        total_size,
     )
     .await?;
 
@@ -287,7 +284,8 @@ fn get_unsynced_entries_for_commit(
         let local_parent = commit_reader
             .get_commit_by_id(parent_id)?
             .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
-        let entries = read_unsynced_entries(local_repo, &local_parent, commit)?;
+        let entries =
+            api::local::entries::read_unsynced_entries(local_repo, &local_parent, commit)?;
 
         // Get size of these entries
         let entries_size = api::local::entries::compute_entries_size(&entries)?;
@@ -557,7 +555,6 @@ async fn push_missing_commit_entries(
     remote_repo: &RemoteRepository,
     commits: &Vec<Commit>,
     mut unsynced_entries: Vec<UnsyncedCommitEntries>,
-    mut total_size: u64,
 ) -> Result<(), OxenError> {
     // If no commits, nothing to do here. If no entries, but still commits to sync, need to do this step
     // TODO: maybe factor validation into a separate fourth step so that this can be skipped if no entries
@@ -579,19 +576,27 @@ async fn push_missing_commit_entries(
     for commit in commits {
         // Only if the commit is not already accounted for in unsynced entries - avoid double counting
         if !unsynced_entries.iter().any(|u| u.commit.id == commit.id) {
-            let (commit_unsynced_commits, commit_size) =
+            let (commit_unsynced_commits, _commit_size) =
                 get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
-            total_size += commit_size;
             unsynced_entries.extend(commit_unsynced_commits);
         }
     }
 
-    let unsynced_entries: Vec<CommitEntry> = unsynced_entries
+    let mut unsynced_entries: Vec<CommitEntry> = unsynced_entries
         .iter()
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
 
     spinner.finish_and_clear();
+
+    // Dedupe unsynced_entries on hash and file extension to form unique version path names
+    let mut seen_entries: HashSet<String> = HashSet::new();
+    unsynced_entries.retain(|e| {
+        let key = format!("{}{}", e.hash.clone(), e.extension());
+        seen_entries.insert(key)
+    });
+
+    let total_size = compute_entries_size(&unsynced_entries)?;
 
     println!("🐂 Pushing {}", bytesize::ByteSize::b(total_size));
 
@@ -618,57 +623,6 @@ async fn push_missing_commit_entries(
     log::debug!("push_missing_commit_entries done");
 
     Ok(())
-}
-
-pub fn read_unsynced_entries(
-    local_repo: &LocalRepository,
-    last_commit: &Commit,
-    this_commit: &Commit,
-) -> Result<Vec<CommitEntry>, OxenError> {
-    // Find and compare all entries between this commit and last
-    let this_entry_reader = CommitEntryReader::new(local_repo, this_commit)?;
-
-    let this_entries = this_entry_reader.list_entries()?;
-    let grouped = api::local::entries::group_entries_to_parent_dirs(&this_entries);
-    log::debug!(
-        "Checking {} entries in {} groups",
-        this_entries.len(),
-        grouped.len()
-    );
-
-    let mut entries_to_sync: Vec<CommitEntry> = vec![];
-    for (dir, dir_entries) in grouped.iter() {
-        log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
-
-        let last_entry_reader = CommitDirEntryReader::new(local_repo, &last_commit.id, dir)?;
-        let mut entries: Vec<CommitEntry> = dir_entries
-            .into_par_iter()
-            .filter(|entry| {
-                // If hashes are different, or it is a new entry, we'll keep it
-                let filename = entry.path.file_name().unwrap().to_str().unwrap();
-                match last_entry_reader.get_entry(filename) {
-                    Ok(Some(old_entry)) => {
-                        if old_entry.hash != entry.hash {
-                            return true;
-                        }
-                    }
-                    Ok(None) => {
-                        return true;
-                    }
-                    Err(err) => {
-                        panic!("Error filtering entries to sync: {}", err)
-                    }
-                }
-                false
-            })
-            .map(|e| e.to_owned())
-            .collect();
-        entries_to_sync.append(&mut entries);
-    }
-
-    log::debug!("Got {} entries to sync", entries_to_sync.len());
-
-    Ok(entries_to_sync)
 }
 
 async fn push_entries(

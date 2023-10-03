@@ -26,13 +26,21 @@ use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::view::health::DiskUsage;
 use crate::{api, util};
 
+// Deprecated
 pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
     PathBuf::from(repo_path.as_ref()).join(Path::new(constants::OXEN_HIDDEN_DIR))
 }
 
-pub fn oxen_home_dir() -> Result<PathBuf, OxenError> {
+pub fn oxen_tmp_dir() -> Result<PathBuf, OxenError> {
     match dirs::home_dir() {
-        Some(home_dir) => Ok(home_dir.join(constants::OXEN_HIDDEN_DIR)),
+        Some(home_dir) => Ok(home_dir.join(constants::TMP_DIR).join(constants::OXEN)),
+        None => Err(OxenError::home_dir_not_found()),
+    }
+}
+
+pub fn oxen_config_dir() -> Result<PathBuf, OxenError> {
+    match dirs::home_dir() {
+        Some(home_dir) => Ok(home_dir.join(constants::CONFIG_DIR).join(constants::OXEN)),
         None => Err(OxenError::home_dir_not_found()),
     }
 }
@@ -721,6 +729,15 @@ pub fn has_ext(path: &Path, ext: &str) -> bool {
     }
 }
 
+pub fn replace_file_name_keep_extension(path: &Path, new_filename: String) -> PathBuf {
+    let mut result = path.to_owned();
+    result.set_file_name(new_filename);
+    if let Some(extension) = path.extension() {
+        result.set_extension(extension);
+    }
+    result
+}
+
 // recursive count files with extension
 pub fn rcount_files_with_extension(dir: &Path, exts: &HashSet<String>) -> usize {
     let mut count = 0;
@@ -948,7 +965,7 @@ pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::constants;
+    use crate::constants::{self, VERSION_FILE_NAME};
     use crate::error::OxenError;
     use crate::model::{CommitEntry, EntryDataType};
     use crate::test;
@@ -1054,7 +1071,7 @@ mod tests {
                 Path::new(constants::FILES_DIR)
                     .join("59")
                     .join(Path::new("E029D4812AEBF0"))
-                    .join(Path::new("1234.txt"))
+                    .join(Path::new(&format!("{}.txt", VERSION_FILE_NAME)))
             );
 
             Ok(())
@@ -1131,5 +1148,33 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[test]
+    fn replace_file_name_keep_extension_no_extension() -> Result<(), OxenError> {
+        let prior_path = Path::new("adjfkaljeklwjkljdaklfd.txt");
+        let prior_path_no_extension = Path::new("bdsfadfklajfkelj");
+        let prior_path_arbitrary = Path::new("jdakfljdfskl.boom");
+
+        let new_filename = "data".to_string();
+        assert_eq!(
+            util::fs::replace_file_name_keep_extension(prior_path, new_filename.clone()),
+            Path::new("data.txt")
+        );
+
+        assert_eq!(
+            util::fs::replace_file_name_keep_extension(
+                prior_path_no_extension,
+                new_filename.clone()
+            ),
+            Path::new("data")
+        );
+
+        assert_eq!(
+            util::fs::replace_file_name_keep_extension(prior_path_arbitrary, new_filename),
+            Path::new("data.boom")
+        );
+
+        Ok(())
     }
 }

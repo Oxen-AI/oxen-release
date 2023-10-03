@@ -7,6 +7,12 @@ pub const OXEN_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// # Filenames and dirs
 /// .oxen is the name of the hidden directory where all our data lives
 pub const OXEN_HIDDEN_DIR: &str = ".oxen";
+/// Folder name for oxen home within `.cache`, `.config`., etc.
+pub const OXEN: &str = "oxen";
+/// ~/.cache/oxen holds tmp downloads
+pub const TMP_DIR: &str = ".cache";
+/// ~/.config/oxen holds config files
+pub const CONFIG_DIR: &str = ".config";
 /// .oxenignore is the name of the file that contains the ignore patterns
 pub const OXEN_IGNORE_FILE: &str = ".oxenignore";
 /// Config file for the repository
@@ -45,6 +51,8 @@ pub const INDICES_DIR: &str = "indices";
 pub const FIELDS_DIR: &str = "fields";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
+/// File name for files stored in versions directory (>0.8.4). (Was commit id <= 0.8.4)
+pub const VERSION_FILE_NAME: &str = "data";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
 pub const MERGE_DIR: &str = "merge";
 /// mods/ is where we can stage appends, modifications, deletions to files to be merged later

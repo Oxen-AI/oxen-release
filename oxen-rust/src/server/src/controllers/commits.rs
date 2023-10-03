@@ -6,6 +6,7 @@ use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::SCHEMAS_DIR;
+use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
@@ -734,7 +735,11 @@ fn check_if_upload_complete_and_unpack(
                     // TODO: better error handling...
 
                     log::debug!("Got filename {}", filename);
-                    let full_path = hidden_dir.join(filename);
+                    let mut full_path = hidden_dir.join(filename);
+                    full_path = util::fs::replace_file_name_keep_extension(
+                        &full_path,
+                        VERSION_FILE_NAME.to_owned(),
+                    );
                     log::debug!("Unpack to {:?}", full_path);
                     if let Some(parent) = full_path.parent() {
                         if !parent.exists() {
@@ -945,18 +950,33 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     // When we want to check is_synced, it is expensive to rehash everything
                     // But since upload is network bound already, hashing here makes sense, and we will just
                     // load the HASH file later
-                    file.unpack_in(hidden_dir).unwrap();
                     let path = file.path().unwrap();
-                    let full_path = hidden_dir.join(&path);
-                    let hash_dir = full_path.parent().unwrap();
-                    let hash_file = hash_dir.join(HASH_FILE);
+                    let mut version_path = PathBuf::from(hidden_dir);
 
-                    // log::debug!("unpack_entry_tarball unpacking entry {:?} to {:?}", path, full_path);
+                    if path.starts_with("versions/files") {
+                        // Unpack version files to common name (data.extension) regardless of the name sent from the client
+                        let new_path = util::fs::replace_file_name_keep_extension(
+                            &path,
+                            VERSION_FILE_NAME.to_owned(),
+                        );
+                        version_path.push(new_path);
 
-                    if path.starts_with("versions/files/") {
-                        let hash = util::hasher::hash_file_contents(&full_path).unwrap();
+                        if let Some(parent) = version_path.parent() {
+                            if !parent.exists() {
+                                std::fs::create_dir_all(parent)
+                                    .expect("Could not create parent dir");
+                            }
+                        }
+                        file.unpack(&version_path).unwrap();
+
+                        let hash_dir = version_path.parent().unwrap();
+                        let hash_file = hash_dir.join(HASH_FILE);
+                        let hash = util::hasher::hash_file_contents(&version_path).unwrap();
                         util::fs::write_to_path(&hash_file, &hash)
                             .expect("Could not write hash file");
+                    } else {
+                        // For non-version files, use filename sent by client
+                        file.unpack_in(hidden_dir).unwrap();
                     }
                 } else {
                     log::error!("Could not unpack file in archive...");

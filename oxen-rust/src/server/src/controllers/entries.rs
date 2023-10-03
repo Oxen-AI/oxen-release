@@ -5,6 +5,7 @@ use crate::view::PaginatedLinesResponse;
 
 use liboxen::constants::AVG_CHUNK_SIZE;
 use liboxen::util;
+use liboxen::util::fs::replace_file_name_keep_extension;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::{constants, current_function};
 
@@ -60,15 +61,25 @@ pub async fn download_data_from_version_paths(
             continue;
         }
 
-        let version_path = repo.path.join(content_file);
-        if version_path.exists() {
-            tar.append_path_with_name(version_path, content_file)
+        log::debug!("download_data_from_version_paths pulling {}", content_file);
+
+        // We read from version file as determined by the latest logic (data.extension)
+        // but still want to write the tar archive with the original filename so that it
+        // unpacks to the location old clients expect.
+        let mut path_to_read = repo.path.join(content_file);
+        path_to_read = replace_file_name_keep_extension(
+            &path_to_read,
+            constants::VERSION_FILE_NAME.to_string(),
+        );
+
+        if path_to_read.exists() {
+            tar.append_path_with_name(path_to_read, content_file)
                 .unwrap();
         } else {
             log::error!(
                 "Could not find content: {:?} -> {:?}",
                 content_file,
-                version_path
+                path_to_read
             );
         }
     }

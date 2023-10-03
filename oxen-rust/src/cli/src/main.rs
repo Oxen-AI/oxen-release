@@ -30,14 +30,17 @@ async fn main() {
         .subcommand(cmd_setup::init())
         .subcommand(cmd_setup::inspect_kv_db())
         .subcommand(cmd_setup::fetch())
+        .subcommand(cmd_setup::load())
         .subcommand(cmd_setup::log())
         .subcommand(cmd_setup::merge())
+        .subcommand(cmd_setup::migrate())
         .subcommand(cmd_setup::pull())
         .subcommand(cmd_setup::push())
         .subcommand(cmd_setup::read_lines())
         .subcommand(cmd_setup::remote())
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::rm())
+        .subcommand(cmd_setup::save())
         .subcommand(cmd_setup::schemas())
         .subcommand(cmd_setup::status());
 
@@ -62,14 +65,17 @@ async fn main() {
         Some((cmd_setup::INFO, sub_matches)) => parse_and_run::info(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
         Some((cmd_setup::FETCH, sub_matches)) => parse_and_run::fetch(sub_matches).await,
+        Some((cmd_setup::LOAD, sub_matches)) => parse_and_run::load(sub_matches).await,
         Some((cmd_setup::LOG, sub_matches)) => parse_and_run::log(sub_matches).await,
         Some((cmd_setup::MERGE, sub_matches)) => parse_and_run::merge(sub_matches),
+        Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
         Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),
         Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
+        Some((cmd_setup::SAVE, sub_matches)) => parse_and_run::save(sub_matches).await,
         Some((cmd_setup::SCHEMAS, sub_matches)) => parse_and_run::schemas(sub_matches),
         Some((cmd_setup::STATUS, sub_matches)) => parse_and_run::status(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
