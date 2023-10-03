@@ -146,7 +146,7 @@ impl CommitWriter {
     pub fn commit_from_new(
         &self,
         new_commit: &NewCommit,
-        status: &mut StagedData,
+        status: &StagedData,
         origin_path: &Path,
     ) -> Result<Commit, OxenError> {
         let commit = self.gen_commit(new_commit, status);
@@ -164,7 +164,7 @@ impl CommitWriter {
     pub fn commit_from_new_on_remote_branch(
         &self,
         new_commit: &NewCommit,
-        status: &mut StagedData,
+        status: &StagedData,
         origin_path: &Path,
         branch: &Branch,
         user_id: &str,
