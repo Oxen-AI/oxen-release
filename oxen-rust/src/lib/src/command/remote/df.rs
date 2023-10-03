@@ -30,8 +30,8 @@ pub async fn df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val = api::remote::df::show(&remote_repo, &branch.name, input, opts).await?;
-        let mut df = val.df.to_df();
+        let val = api::remote::df::get(&remote_repo, &branch.name, input, opts).await?;
+        let mut df = val.data_frame.view.to_df();
         if let Some(output) = output {
             println!("Writing {output:?}");
             tabular::write_df(&mut df, output)?;
@@ -39,7 +39,7 @@ pub async fn df<P: AsRef<Path>>(
 
         println!(
             "Full shape: ({}, {})\n",
-            val.full_size.height, val.full_size.width
+            val.data_frame.source.size.height, val.data_frame.source.size.width
         );
         println!("Slice {df:?}");
         Ok(df)

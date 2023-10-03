@@ -50,3 +50,21 @@ pub fn get_by_path(
     let schema_reader = SchemaReader::new(repo, &commit.id)?;
     schema_reader.get_schema_for_file(path)
 }
+
+/// Get a schema for a specific revision
+pub fn get_by_path_from_ref(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<Option<Schema>, OxenError> {
+    let revision = revision.as_ref();
+    let path = path.as_ref();
+    log::debug!("Getting schema for {:?} at revision {}", path, revision);
+    if let Some(commit) = api::local::revisions::get(repo, revision)? {
+        log::debug!("Got commit {:?} at revision {}", commit.id, revision);
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
+        schema_reader.get_schema_for_file(path)
+    } else {
+        Err(OxenError::revision_not_found(revision.into()))
+    }
+}

@@ -54,7 +54,7 @@ pub fn show(
         get_staged(repo, schema_ref)?
     } else {
         let commit = api::local::commits::head_commit(repo)?;
-        api::local::schemas::list_from_ref(repo, &commit.id, schema_ref)?
+        api::local::schemas::list_from_ref(repo, commit.id, schema_ref)?
     };
 
     if schemas.is_empty() {
