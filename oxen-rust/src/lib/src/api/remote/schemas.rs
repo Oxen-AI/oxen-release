@@ -234,4 +234,97 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_remote_get_schema_on_branch() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+            let repo_dir = &local_repo.path;
+            let large_dir = repo_dir.join("csvs");
+            std::fs::create_dir_all(&large_dir)?;
+            let csv_file = large_dir.join("test.csv");
+            let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
+            util::fs::copy(from_file, &csv_file)?;
+
+            // Add the file
+            command::add(&local_repo, &csv_file)?;
+            command::commit(&local_repo, "add test.csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Cannot get schema that does not exist
+            let result =
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv")
+                    .await?;
+            assert!(result.is_none());
+
+            // Push the repo
+            command::push(&local_repo).await?;
+
+            // Create a new branch
+            let branch_name = "new_branch";
+            command::create_checkout(&local_repo, branch_name)?;
+
+            // Add some metadata to the schema
+            /*
+            prompt,response,is_correct,response_time,difficulty
+            who is it?,issa me,true,0.5,1
+            */
+            let schema_ref = "csvs/test.csv";
+            let schema_metadata = json!({
+                "task": "chat_bot",
+                "description": "some generic description",
+            });
+
+            let column_name = "difficulty".to_string();
+            let column_metadata = json!(
+                {
+                    "values": [0, 1, 2]
+                }
+            );
+            command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
+            command::schemas::add_column_metadata(
+                &local_repo,
+                schema_ref,
+                &column_name,
+                &column_metadata,
+            )?;
+
+            command::commit(&local_repo, "add test.csv schema metadata")?;
+
+            // Push the repo
+            command::push(&local_repo).await?;
+
+            // List the one schema
+            let schema =
+                api::remote::schemas::get(&remote_repo, branch_name, "csvs/test.csv").await?;
+
+            assert!(schema.is_some());
+            let schema = schema.unwrap();
+
+            // prompt,response,is_correct,response_time,difficulty
+            assert_eq!(schema.fields.len(), 5);
+            assert_eq!(schema.fields[0].name, "prompt");
+            assert_eq!(schema.fields[0].dtype, "str");
+            assert_eq!(schema.fields[1].name, "response");
+            assert_eq!(schema.fields[1].dtype, "str");
+            assert_eq!(schema.fields[2].name, "is_correct");
+            assert_eq!(schema.fields[2].dtype, "bool");
+            assert_eq!(schema.fields[3].name, "response_time");
+            assert_eq!(schema.fields[3].dtype, "f64");
+            assert_eq!(schema.fields[4].name, "difficulty");
+            assert_eq!(schema.fields[4].dtype, "i64");
+
+            // Check the metadata
+            assert_eq!(schema.metadata, Some(schema_metadata));
+            assert_eq!(schema.fields[4].metadata, Some(column_metadata));
+
+            Ok(())
+        })
+        .await
+    }
 }

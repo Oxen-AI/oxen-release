@@ -39,7 +39,7 @@ use crate::model::{Commit, LocalRepository};
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let mut status = command::status(repo)?;
+    let status = command::status(repo)?;
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
         return Err(OxenError::NothingToCommit(
             error::string_error::StringError::new(
@@ -49,7 +49,7 @@ Stage a file or directory with `oxen add <file>`"
             ),
         ));
     }
-    let commit = api::local::commits::commit(repo, &mut status, message)?;
-    log::info!("DONE COMMITTING in command::commit {}", commit.id);
+    let commit = api::local::commits::commit(repo, &status, message)?;
+    log::info!("DONE COMMITTING in command::commit {}", commit);
     Ok(commit)
 }

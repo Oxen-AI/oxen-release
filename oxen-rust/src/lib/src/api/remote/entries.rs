@@ -193,7 +193,7 @@ pub async fn download_large_entry(
     // Write files to ~/.oxen/tmp/HASH/chunk_0..N
     let remote_path = remote_path.as_ref();
     let local_path = local_path.as_ref();
-    let hash = util::hasher::hash_str(&format!("{:?}_{:?}", remote_path, local_path));
+    let hash = util::hasher::hash_str(format!("{:?}_{:?}", remote_path, local_path));
 
     let home_dir = util::fs::oxen_tmp_dir()?;
 
