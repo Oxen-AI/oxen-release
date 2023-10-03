@@ -470,8 +470,9 @@ mod tests {
         test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
+            let repo_new = RepositoryNew::new(namespace, name);
             let remote_repo =
-                api::remote::repositories::create(&local_repo, namespace, &name, test::test_host())
+                api::remote::repositories::create_from_local(&local_repo, repo_new, test::test_host())
                     .await?;
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
