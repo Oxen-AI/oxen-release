@@ -15,18 +15,14 @@ jobs:
     strategy:
       matrix:
         python: [
-          # {
-          #   name: "cp37-cp37m",
-          #   version: "3.7"
-          # },
           {
             name: "cp38-cp38",
             version: "3.8"
           },
-          # {
-          #   name: "cp39-cp39",
-          #   version: "3.9"
-          # },
+          {
+            name: "cp39-cp39",
+            version: "3.9"
+          },
           {
             name: "cp310-cp310",
             version: "3.10"
