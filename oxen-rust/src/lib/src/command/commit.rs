@@ -50,6 +50,6 @@ Stage a file or directory with `oxen add <file>`"
         ));
     }
     let commit = api::local::commits::commit(repo, &mut status, message)?;
-    log::info!("DONE COMMITTING in command::commit {}", commit.id);
+    log::info!("DONE COMMITTING in command::commit {}", commit);
     Ok(commit)
 }

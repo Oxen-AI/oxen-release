@@ -181,7 +181,7 @@ async fn test_rm_one_file_in_dir() -> Result<(), OxenError> {
         // Add dwight howard and vince carter
         let test_file = test::test_img_file_with_name("dwight_vince.jpeg");
         let repo_filepath = images_dir.join(test_file.file_name().unwrap());
-        util::fs::copy(&test_file, &repo_filepath)?;
+        util::fs::copy(&test_file, repo_filepath)?;
         command::add(&repo, &images_dir)?;
         let commit = command::commit(&repo, "Adding dwight and vince")?;
 
