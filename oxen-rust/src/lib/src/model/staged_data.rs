@@ -63,6 +63,7 @@ pub struct StagedData {
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
+    pub moved_files: Vec<(PathBuf, PathBuf, String)>,
     pub removed_files: Vec<PathBuf>,
     pub merge_conflicts: Vec<MergeConflict>,
 }
@@ -77,6 +78,7 @@ impl StagedData {
             untracked_files: vec![],
             modified_files: vec![],
             removed_files: vec![],
+            moved_files: vec![],
             merge_conflicts: vec![],
         }
     }
@@ -89,6 +91,7 @@ impl StagedData {
             && self.modified_files.is_empty()
             && self.removed_files.is_empty()
             && self.merge_conflicts.is_empty()
+            && self.moved_files.is_empty()
     }
 
     pub fn has_added_entries(&self) -> bool {
@@ -109,6 +112,10 @@ impl StagedData {
 
     pub fn has_merge_conflicts(&self) -> bool {
         !self.merge_conflicts.is_empty()
+    }
+
+    pub fn has_moved_entries(&self) -> bool {
+        !self.moved_files.is_empty()
     }
 
     /// Line by line output that we want to print
@@ -261,8 +268,16 @@ impl StagedData {
             outputs.push(MSG_OXEN_RESTORE_STAGED_FILE.normal())
         }
 
+        let files = &self.staged_files;
+        // // For each added, look for a removed with the same hash. If there is a match, delete both entries and replace them with a moved entry
         let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
-            self.staged_files.iter().map(|(k, v)| (k, v)).collect();
+            files.iter().map(|(k, v)| (k, v)).collect();
+
+        // For display purposes, filter out the entries that are already displayed in moved_files
+        for (path, removed_path, _hash) in self.moved_files.iter() {
+            files_vec.retain(|(p, _)| p != &path && p != &removed_path);
+        }
+
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
@@ -285,6 +300,27 @@ impl StagedData {
                         format!("{}\n", path.to_str().unwrap()).green().bold(),
                     ]
                 }
+            },
+            outputs,
+            opts,
+        );
+
+        let mut moved_entries = self.moved_files.clone();
+        moved_entries.sort_by(|(_, old_a, _), (_, old_b, _)| old_a.partial_cmp(old_b).unwrap());
+
+        self.__collapse_outputs(
+            &self.moved_files,
+            |(path, removed_path, _hash)| {
+                vec![
+                    "  moved: ".green(),
+                    format!(
+                        "{} -> {}\n",
+                        removed_path.to_str().unwrap(),
+                        path.to_str().unwrap()
+                    )
+                    .green()
+                    .bold(),
+                ]
             },
             outputs,
             opts,

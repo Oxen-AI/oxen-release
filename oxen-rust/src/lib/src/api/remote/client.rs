@@ -1,4 +1,4 @@
-use crate::config::UserConfig;
+use crate::config::AuthConfig;
 use crate::error::OxenError;
 use crate::view::http;
 use crate::view::OxenResponse;
@@ -52,10 +52,11 @@ fn builder_for_host<S: AsRef<str>>(
         builder_no_user_agent()
     };
 
-    let config = match UserConfig::get() {
+    let config = match AuthConfig::get() {
         Ok(config) => config,
         Err(err) => {
             log::debug!("remote::client::new_for_host error getting config: {}", err);
+
             return Ok(builder);
         }
     };
@@ -76,6 +77,7 @@ fn builder_for_host<S: AsRef<str>>(
         headers.insert(header::AUTHORIZATION, auth_value);
         Ok(builder.default_headers(headers))
     } else {
+        log::debug!("No auth token found for host: {}", host.as_ref());
         Ok(builder)
     }
 }
@@ -92,6 +94,17 @@ fn builder_no_user_agent() -> ClientBuilder {
 pub async fn parse_json_body(url: &str, res: reqwest::Response) -> Result<String, OxenError> {
     let type_override = "unauthenticated";
     let err_msg = "You must create an account on https://oxen.ai to enable this feature.\n\nOnce your account is created, set your auth token with the command:\n\n  oxen config --auth hub.oxen.ai YOUR_AUTH_TOKEN\n";
+
+    // Raise auth token error for user if unauthorized and no token set
+    if res.status() == reqwest::StatusCode::FORBIDDEN {
+        let _ = match AuthConfig::get() {
+            Ok(config) => config,
+            Err(err) => {
+                log::debug!("remote::client::new_for_host error getting config: {}", err);
+                return Err(OxenError::auth_token_not_set());
+            }
+        };
+    }
 
     parse_json_body_with_err_msg(url, res, Some(type_override), Some(err_msg)).await
 }
@@ -157,7 +170,7 @@ fn parse_status_and_message(
             )))
         }
         http::STATUS_ERROR => {
-            log::debug!("Status error: {status} {}", response.desc_or_msg());
+            log::debug!("Status error: {status}");
             if let Some(msg) = response_msg_override {
                 if let Some(response_type) = response_type {
                     if response.desc_or_msg() == response_type {
@@ -168,7 +181,7 @@ fn parse_status_and_message(
 
             Err(OxenError::basic_str(format!(
                 "Remote Err: {}",
-                response.desc_or_msg()
+                response.error_or_msg()
             )))
         }
         status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),

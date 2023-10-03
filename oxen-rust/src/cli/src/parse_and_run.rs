@@ -4,9 +4,13 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
+use crate::cmd_setup::{
+    ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, MIGRATE_VERSION_FILES, RESTORE, RM, STATUS,
+};
 use crate::dispatch;
 use clap::ArgMatches;
+use liboxen::command::migrate::Migrate;
+use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
@@ -1018,6 +1022,31 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
         }
     }
 }
+pub async fn migrate(sub_matches: &ArgMatches) {
+    if let Some((direction, sub_matches)) = sub_matches.subcommand() {
+        match direction {
+            "up" | "down" => {
+                if let Some((migration, sub_matches)) = sub_matches.subcommand() {
+                    match migration {
+                        MIGRATE_VERSION_FILES => {
+                            if let Err(err) =
+                                run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
+                            {
+                                eprintln!("Error running migration: {}", err);
+                            }
+                        }
+                        command => {
+                            eprintln!("Invalid migration: {}", command);
+                        }
+                    }
+                }
+            }
+            command => {
+                eprintln!("Invalid subcommand: {}", command);
+            }
+        }
+    }
+}
 
 pub fn kvdb_inspect(sub_matches: &ArgMatches) {
     let path_str = sub_matches.get_one::<String>("PATH").expect("required");
@@ -1049,4 +1078,54 @@ pub fn read_lines(sub_matches: &ArgMatches) {
         println!("{line}");
     }
     println!("Total: {size}");
+}
+
+pub fn run_migration(
+    migration: &dyn Migrate,
+    direction: &str,
+    sub_matches: &ArgMatches,
+) -> Result<(), OxenError> {
+    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
+    let path = Path::new(path_str);
+
+    let all = sub_matches.get_flag("all");
+
+    match direction {
+        "up" => {
+            migration.up(path, all)?;
+        }
+        "down" => {
+            migration.down(path, all)?;
+        }
+        _ => {
+            eprintln!("Invalid migration direction: {}", direction);
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn save(sub_matches: &ArgMatches) {
+    // Match on the PATH arg
+    let repo_str = sub_matches.get_one::<String>("PATH").expect("Required");
+    let output_str = sub_matches.get_one::<String>("output").expect("Required");
+
+    let repo_path = Path::new(repo_str);
+    let output_path = Path::new(output_str);
+
+    dispatch::save(repo_path, output_path).expect("Error saving repo backup.");
+}
+
+pub async fn load(sub_matches: &ArgMatches) {
+    // Match on both SRC_PATH and DEST_PATH
+    let src_path_str = sub_matches.get_one::<String>("SRC_PATH").expect("required");
+    let dest_path_str = sub_matches
+        .get_one::<String>("DEST_PATH")
+        .expect("required");
+    let no_working_dir = sub_matches.get_flag("no-working-dir");
+
+    let src_path = Path::new(src_path_str);
+    let dest_path = Path::new(dest_path_str);
+
+    dispatch::load(src_path, dest_path, no_working_dir).expect("Error loading repo from backup.");
 }

@@ -170,8 +170,6 @@ async fn pull_large_entries(
                 // Chunk and individual files
                 let remote_path = &entry.path;
 
-                // let download_path = path.join(&entry.path);
-
                 // Download to the tmp path, then copy over to the entries dir
                 match api::remote::entries::download_large_entry(
                     &remote_repo,

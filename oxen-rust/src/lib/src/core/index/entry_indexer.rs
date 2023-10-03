@@ -115,6 +115,7 @@ impl EntryIndexer {
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
+
         self.cleanup_removed_entries(&commit)?;
 
         Ok(())
@@ -501,56 +502,6 @@ impl EntryIndexer {
             .await
     }
 
-    pub fn read_unsynced_entries(
-        &self,
-        last_commit: &Commit,
-        this_commit: &Commit,
-    ) -> Result<Vec<CommitEntry>, OxenError> {
-        // Find and compare all entries between this commit and last
-        let this_entry_reader = CommitEntryReader::new(&self.repository, this_commit)?;
-
-        let this_entries = this_entry_reader.list_entries()?;
-        let grouped = api::local::entries::group_entries_to_parent_dirs(&this_entries);
-        log::debug!(
-            "Checking {} entries in {} groups",
-            this_entries.len(),
-            grouped.len()
-        );
-
-        let mut entries_to_sync: Vec<CommitEntry> = vec![];
-        for (dir, dir_entries) in grouped.iter() {
-            let last_entry_reader =
-                CommitDirEntryReader::new(&self.repository, &last_commit.id, dir)?;
-            let mut entries: Vec<CommitEntry> = dir_entries
-                .into_par_iter()
-                .filter(|entry| {
-                    // If hashes are different, or it is a new entry, we'll keep it
-                    let filename = entry.path.file_name().unwrap().to_str().unwrap();
-                    match last_entry_reader.get_entry(filename) {
-                        Ok(Some(old_entry)) => {
-                            if old_entry.hash != entry.hash {
-                                return true;
-                            }
-                        }
-                        Ok(None) => {
-                            return true;
-                        }
-                        Err(err) => {
-                            panic!("Error filtering entries to sync: {}", err)
-                        }
-                    }
-                    false
-                })
-                .map(|e| e.to_owned())
-                .collect();
-            entries_to_sync.append(&mut entries);
-        }
-
-        log::debug!("Got {} entries to sync", entries_to_sync.len());
-
-        Ok(entries_to_sync)
-    }
-
     fn read_pulled_commit_entries(
         &self,
         commit: &Commit,
@@ -569,7 +520,6 @@ impl EntryIndexer {
         }
         Ok(entries[0..limit].to_vec())
     }
-
     pub async fn pull_entries_for_commits(
         &self,
         remote_repo: &RemoteRepository,
@@ -588,7 +538,11 @@ impl EntryIndexer {
                     .get_commit_by_id(parent_id)?
                     .ok_or_else(|| OxenError::local_parent_link_broken(&commit.id))?;
 
-                let entries = self.read_unsynced_entries(&local_parent, commit)?;
+                let entries = api::local::entries::read_unsynced_entries(
+                    &self.repository,
+                    &local_parent,
+                    commit,
+                )?;
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
                     entries,
@@ -603,17 +557,10 @@ impl EntryIndexer {
             all_entries.extend(commit_with_entries.entries.clone());
         }
 
-        // Dedupe all_entries on commit id, path, hash, size - necessary because entries
-        // can be repeated via merge commits in loop above, causes races in unpacking
+        // Only pull entries with unique hashes to save storage and data transfe for duplicate and/or moved files.
         let mut seen_entries: HashSet<String> = HashSet::new();
         all_entries.retain(|entry| {
-            let key = format!(
-                "{}{}{}{}",
-                entry.commit_id,
-                entry.path.to_string_lossy(),
-                entry.hash,
-                entry.num_bytes
-            );
+            let key = format!("{}{}", entry.hash, entry.extension());
             seen_entries.insert(key)
         });
 
@@ -715,7 +662,7 @@ impl EntryIndexer {
         Ok(())
     }
 
-    fn unpack_version_files_to_working_dir(
+    pub fn unpack_version_files_to_working_dir(
         &self,
         commit: &Commit,
         entries: &[CommitEntry],
