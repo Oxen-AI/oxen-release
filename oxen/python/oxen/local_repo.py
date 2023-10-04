@@ -1,5 +1,5 @@
 from oxen import PyLocalRepo
-
+import os
 
 class LocalRepo:
     """
@@ -27,7 +27,7 @@ class LocalRepo:
     ```
     """
 
-    def __init__(self, path: str = ""):
+    def __init__(self, path: str = "", mkdir=False):
         """
         Create a new Repo object. Use .init() to initialize a new oxen repository,
         or pass the path to an existing one.
@@ -35,7 +35,17 @@ class LocalRepo:
         Args:
             path: `str`
                 Path to the main working directory of your oxen repo.
+            mkdir: `bool`
+                Whether to create the directory if one doesn't exist. Default: False
         """
+        # Check if the path exists, and convert to absolute path
+        if path:
+            path = os.path.abspath(path)
+            if not os.path.exists(path) and mkdir:
+                os.makedirs(path)
+            elif not os.path.exists(path):
+                raise Exception(f"Path {path} does not exist.")
+
         self._repo = PyLocalRepo(path)
 
     def __repr__(self):
