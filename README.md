@@ -63,13 +63,12 @@ Oxen was optimized to be fast on structured and unstructured data types. Unlike 
 * 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
-### ⭐️ Every GitHub Star Gives an Ox its Wings
+
+# ⭐️ Every GitHub Star Gives an Ox its Wings
 
 No really.
 
-We hooked up the GitHub webhook for stars to an [OxenHub Repository](https://www.oxen.ai/ox/FlyingOxen). Using a combination of Oxen's [python library](https://docs.oxen.ai/getting-started/python), [remote workspaces](https://docs.oxen.ai/concepts/remote-workspace), and [Stable Diffusion XL](https://huggingface.co/docs/diffusers/api/pipelines/stable_diffusion/stable_diffusion_xl) we generate a unique Ox for each user, and attempt to give them wings.
-
-Go find your own in our [ox/FlyingOxen](https://www.oxen.ai/ox/FlyingOxen) repository.
+We hooked up the GitHub webhook for stars to an [OxenHub Repository](https://www.oxen.ai/ox/FlyingOxen). Learn how we did it and go find your own in our [ox/FlyingOxen](https://www.oxen.ai/ox/FlyingOxen) repository.
 
 <p align="center">
     <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings.png?raw=true" alt="oxen repo with wings" />
