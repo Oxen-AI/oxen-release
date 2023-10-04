@@ -74,7 +74,7 @@ We hooked up the GitHub webhook for stars to an [OxenHub Repository](https://www
     <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/ox-with-wings.png?raw=true" alt="oxen repo with wings" />
 </p>
 
-# Overview
+# 🧑‍💻 Overview
 
 No need to learn a new paradigm.
 
@@ -106,7 +106,7 @@ For other platforms follow the [installation instructions](https://docs.oxen.ai/
 $ pip install oxenai
 ```
 
-# 🧑‍💻 OxenHub
+# OxenHub
 
 The shift to [Software 2.0](https://karpathy.medium.com/software-2-0-a64152b37c35) is happening where we are replacing lines with machine learning models and large datasets. Software is already complex, without the complexity of machine learning in the mix. We need better tooling to keep track of changes as data and models evolve over time.
 
