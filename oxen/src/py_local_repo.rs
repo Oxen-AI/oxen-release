@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use crate::error::PyOxenError;
 use crate::py_branch::PyBranch;
 use crate::py_commit::PyCommit;
+// use crate::py_diff::PyDiff;
 use crate::py_staged_data::PyStagedData;
 
 #[pyclass]
@@ -151,4 +152,9 @@ impl PyLocalRepo {
         })?;
         Ok(())
     }
+
+    // pub fn diff(&self, path: &str) -> Result<PyDiff, PyOxenError> {
+    //     let repo = LocalRepository::from_dir(&self.path)?;
+    //     let diff = 
+    // }
 }
