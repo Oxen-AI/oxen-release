@@ -11,6 +11,7 @@ pub mod py_branch;
 pub mod auth;
 pub mod py_commit;
 pub mod py_dataset;
+pub mod py_diff;
 pub mod py_entry;
 pub mod py_local_repo;
 pub mod py_remote_repo;
@@ -45,6 +46,7 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<py_branch::PyBranch>()?;
     m.add_class::<py_commit::PyCommit>()?;
     m.add_class::<py_dataset::PyDataset>()?;
+    m.add_class::<py_diff::PyDiff>()?;
     m.add_class::<py_local_repo::PyLocalRepo>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
@@ -54,7 +56,7 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     let util_module = PyModule::new(py, "util")?;
     util_module.add_function(wrap_pyfunction!(util::is_tabular, util_module)?)?;
     util_module.add_function(wrap_pyfunction!(util::read_df, util_module)?)?;
-    util_module.add_function(wrap_pyfunction!(util::get_oxen_home_dir, util_module)?)?;
+    util_module.add_function(wrap_pyfunction!(util::get_oxen_config_dir, util_module)?)?;
     m.add_submodule(util_module)?;
 
     // Auth Module
