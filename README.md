@@ -1,5 +1,4 @@
 
-# 🐂 Oxen.ai
 
 <div align="center">
   <a href="https://docs.oxen.ai/">
@@ -17,9 +16,14 @@
   <br/>
 </div>
 
+
+# 🐂 Oxen.ai
+
 Oxen is a lightning fast unstructured data version control system for machine learning datasets.
 
-![Oxen Logo](http://localhost:3333/images/MoonOx.png)
+<p align="center">
+  <img src="https://mintlify.s3-us-west-1.amazonaws.com/oxenai/images/MoonOx.png">
+</p>
 
 ## 🌾 Why Build Oxen?
 
