@@ -22,7 +22,7 @@
 Oxen is a lightning fast unstructured data version control system for machine learning datasets.
 
 <p align="center">
-  <img src="https://mintlify.s3-us-west-1.amazonaws.com/oxenai/images/MoonOx.png">
+  <img src="https://github.com/Oxen-AI/oxen-release/blob/main/images/space-ox.png?raw=true">
 </p>
 
 ## 🌾 Why Build Oxen?
