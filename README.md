@@ -46,7 +46,7 @@ The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in man
 The difference is Oxen is built for data. It is optimized to handle large files, and large datasets. It is built to be fast, and easy to use.
 
 <p align="center">
-  <a href="#getting-started">Try It Out</a>
+  <a href="https://docs.oxen.ai/getting-started/intro#getting-started">Try It Out</a>
 </p>
 
 <p align="center">
