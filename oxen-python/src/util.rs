@@ -8,6 +8,14 @@ use std::path::PathBuf;
 use crate::error::PyOxenError;
 
 use liboxen::{opts::DFOpts, util};
+use liboxen::util::fs::oxen_config_dir;
+
+/// Get the default home directory for exen
+#[pyfunction]
+pub fn get_oxen_config_dir() -> Result<PathBuf, PyOxenError> {
+    let path = oxen_config_dir()?;
+    Ok(path)
+}
 
 /// Checks if a path is tabular
 #[pyfunction]

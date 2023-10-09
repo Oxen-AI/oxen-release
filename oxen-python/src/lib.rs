@@ -11,11 +11,14 @@ pub mod py_branch;
 pub mod auth;
 pub mod py_commit;
 pub mod py_dataset;
+pub mod py_diff;
 pub mod py_entry;
 pub mod py_local_repo;
 pub mod py_remote_repo;
 pub mod py_paginated_dir_entries;
 pub mod py_staged_data;
+pub mod py_user;
+pub mod user;
 pub mod util;
 
 /// A Python module implemented in Rust.
@@ -40,25 +43,33 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     // https://docs.rs/pyo3-log/latest/pyo3_log/#interaction-with-python-gil
     // pyo3_log::init();
 
-    m.add_class::<py_local_repo::PyLocalRepo>()?;
     m.add_class::<py_branch::PyBranch>()?;
-    m.add_class::<py_remote_repo::PyRemoteRepo>()?;
-    m.add_class::<py_dataset::PyDataset>()?;
-    m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_commit::PyCommit>()?;
+    m.add_class::<py_dataset::PyDataset>()?;
+    m.add_class::<py_diff::PyDiff>()?;
+    m.add_class::<py_local_repo::PyLocalRepo>()?;
+    m.add_class::<py_remote_repo::PyRemoteRepo>()?;
+    m.add_class::<py_staged_data::PyStagedData>()?;
+    m.add_class::<py_user::PyUser>()?;
 
     // Util Module
     let util_module = PyModule::new(py, "util")?;
     util_module.add_function(wrap_pyfunction!(util::is_tabular, util_module)?)?;
     util_module.add_function(wrap_pyfunction!(util::read_df, util_module)?)?;
+    util_module.add_function(wrap_pyfunction!(util::get_oxen_config_dir, util_module)?)?;
     m.add_submodule(util_module)?;
 
     // Auth Module
     let auth_module = PyModule::new(py, "auth")?;
-    auth_module.add_function(wrap_pyfunction!(auth::get_oxen_home_dir, auth_module)?)?;
-    auth_module.add_function(wrap_pyfunction!(auth::add_host_auth, auth_module)?)?;
-    auth_module.add_function(wrap_pyfunction!(auth::create_user_config, auth_module)?)?;
+    auth_module.add_function(wrap_pyfunction!(auth::config_auth, auth_module)?)?;
     m.add_submodule(auth_module)?;
+
+    // User Module
+    let user_module = PyModule::new(py, "user")?;
+    user_module.add_function(wrap_pyfunction!(user::config_user, user_module)?)?;
+    user_module.add_function(wrap_pyfunction!(user::current_user, user_module)?)?;
+    m.add_submodule(user_module)?;
+
     Ok(())
 }
 
