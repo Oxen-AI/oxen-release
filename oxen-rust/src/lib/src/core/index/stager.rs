@@ -264,8 +264,8 @@ impl Stager {
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
             schemas.insert(path, schema);
         }
-        staged_data.staged_schemas = schemas;
 
+        staged_data.staged_schemas = schemas;
         Ok(staged_data)
     }
 
@@ -281,15 +281,12 @@ impl Stager {
         for (path, entry) in files_vec.iter() {
             match entry.status {
                 StagedEntryStatus::Added => {
-                    added_map
-                        .entry(entry.hash.clone())
-                        .or_insert_with(Vec::new)
-                        .push(path);
+                    added_map.entry(entry.hash.clone()).or_default().push(path);
                 }
                 StagedEntryStatus::Removed => {
                     removed_map
                         .entry(entry.hash.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(path);
                 }
                 _ => continue,
