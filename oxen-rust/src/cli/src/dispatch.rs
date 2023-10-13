@@ -5,10 +5,10 @@ use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::model::repository::local_repository::FileNew;
+use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
-use liboxen::model::RepositoryNew;
+use liboxen::model::RepoNew;
 use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
@@ -141,9 +141,11 @@ pub async fn create_remote(
     let name = name.as_ref();
     let host = host.as_ref();
     if empty {
-        let remote_repo = api::remote::repositories::create_empty(&namespace, &name, &host).await?;
+        let mut repo_new = RepoNew::from_namespace_name(namespace, name);
+        repo_new.host = Some(String::from(host));
+        let remote_repo = api::remote::repositories::create_empty(repo_new).await?;
         println!(
-            "Remote created for {}\n\nIf this is a brand new repository:\n\n  oxen clone {} {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote new-remote-name {}\n",
+            "Remote created for {}\n\nIf this is a brand new repository:\n\n  oxen clone {} {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote origin {}\n",
             name, name, remote_repo.remote.url, remote_repo.remote.url
         );
     } else {
@@ -196,9 +198,12 @@ Happy Mooooooving of data 🐂
         let files: Vec<FileNew> = vec![FileNew {
             path: PathBuf::from("README.md"),
             contents: format!("# {}\n{}", name, readme_body),
+            user,
         }];
-        let repo = RepositoryNew::from_files(namespace, name, files, user);
-        let remote_repo = api::remote::repositories::create(repo, host).await?;
+        let mut repo = RepoNew::from_files(namespace, name, files);
+        repo.host = Some(String::from(host));
+
+        let remote_repo = api::remote::repositories::create(repo).await?;
         println!(
             "Created {}/{}\n\nClone to repository to your local:\n\n  oxen clone {}\n",
             namespace, name, remote_repo.remote.url
@@ -300,7 +305,8 @@ pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
     // Check if the first path is a valid remote repo
     let name = paths[0].to_string_lossy();
     if let Some(remote_repo) =
-        api::remote::repositories::get_by_host_remote_name(&opts.host, &opts.remote, name).await?
+        api::remote::repositories::get_by_name_host_and_remote(name, &opts.host, &opts.remote)
+            .await?
     {
         // Download from the remote without having to have a local repo directory
         let remote_paths = paths[1..].to_vec();
@@ -652,7 +658,8 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
     // Check if the first path is a valid remote repo
     let name = paths[0].to_string_lossy();
     let entries = if let Some(remote_repo) =
-        api::remote::repositories::get_by_host_remote_name(&opts.host, &opts.remote, name).await?
+        api::remote::repositories::get_by_name_host_and_remote(name, &opts.host, &opts.remote)
+            .await?
     {
         let branch = api::remote::branches::get_by_name(&remote_repo, &opts.branch_name)
             .await?

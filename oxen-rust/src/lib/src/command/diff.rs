@@ -27,13 +27,13 @@ pub fn diff(
         if let Some(compare_commit) = api::local::commits::get_by_id(repo, resource)? {
             // `resource` is a commit id
             let original_commit = api::local::commits::head_commit(repo)?;
-            api::local::diff::single_diff_str(repo, &original_commit, &compare_commit, path)
+            api::local::diff::diff_one(repo, &original_commit, &compare_commit, path)
         } else if let Some(branch) = api::local::branches::get_by_name(repo, resource)? {
             // `resource` is a branch name
             let compare_commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
             let original_commit = api::local::commits::head_commit(repo)?;
 
-            api::local::diff::single_diff_str(repo, &original_commit, &compare_commit, path)
+            api::local::diff::diff_one(repo, &original_commit, &compare_commit, path)
         } else if Path::new(resource).exists() {
             // `resource` is another path
             api::local::diff::diff_files(resource, path)

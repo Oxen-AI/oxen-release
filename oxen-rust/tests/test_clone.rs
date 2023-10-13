@@ -4,7 +4,7 @@ use liboxen::constants;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::constants::DEFAULT_REMOTE_NAME;
 use liboxen::error::OxenError;
-use liboxen::model::RepositoryNew;
+use liboxen::model::RepoNew;
 use liboxen::test;
 use liboxen::util;
 
@@ -86,9 +86,12 @@ async fn test_clone_all_push_all() -> Result<(), OxenError> {
             let remote_name = "different";
 
             // Create a different repo
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, repo_name);
-            api::remote::repositories::create_from_local(&cloned_repo, repo_new, test::test_host())
-                .await?;
+            let repo_new = RepoNew::from_namespace_name_host(
+                constants::DEFAULT_NAMESPACE,
+                repo_name,
+                test::test_host(),
+            );
+            api::remote::repositories::create_from_local(&cloned_repo, repo_new).await?;
 
             command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
@@ -149,12 +152,15 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
             let remote_name = "different";
 
             // Create a different repo
-            api::remote::repositories::create_empty(
-                constants::DEFAULT_NAMESPACE,
-                &repo_name,
-                &test::test_host(),
-            )
-            .await?;
+            let repo_new = RepoNew {
+                namespace: constants::DEFAULT_NAMESPACE.to_owned(),
+                name: repo_name.to_owned(),
+                host: Some(test::test_host()),
+                root_commit: None,
+                description: None,
+                files: None,
+            };
+            api::remote::repositories::create_empty(repo_new).await?;
 
             command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
@@ -185,9 +191,12 @@ async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {
             let remote_name = "different";
 
             // Create a different repo
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, repo_name);
-            api::remote::repositories::create_from_local(&cloned_repo, repo_new, test::test_host())
-                .await?;
+            let repo_new = RepoNew::from_namespace_name_host(
+                constants::DEFAULT_NAMESPACE,
+                repo_name,
+                test::test_host(),
+            );
+            api::remote::repositories::create_from_local(&cloned_repo, repo_new).await?;
 
             command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 

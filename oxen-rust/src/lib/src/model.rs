@@ -8,6 +8,7 @@ pub mod content_type;
 pub mod data_frame_size;
 pub mod diff;
 pub mod entry;
+pub mod file;
 pub mod merge_conflict;
 pub mod metadata;
 pub mod namespace;
@@ -23,8 +24,9 @@ pub mod summarized_staged_dir_stats;
 pub mod user;
 
 // Repository
-pub use crate::model::repository::local_repository::{LocalRepository, RepositoryNew};
+pub use crate::model::repository::local_repository::LocalRepository;
 pub use crate::model::repository::remote_repository::RemoteRepository;
+pub use crate::model::repository::repo_new::RepoNew;
 pub use crate::model::repository::repo_stats::{DataTypeStat, RepoStats};
 
 // Commit

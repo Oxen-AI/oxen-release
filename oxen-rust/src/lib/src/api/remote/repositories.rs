@@ -2,7 +2,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
-use crate::model::{Branch, LocalRepository, Remote, RemoteRepository, RepositoryNew};
+use crate::model::{Branch, LocalRepository, Remote, RemoteRepository, RepoNew};
 use crate::view::repository::{RepositoryDataTypesResponse, RepositoryDataTypesView};
 use crate::view::{NamespaceView, RepositoryResponse, StatusMessage};
 use serde_json::json;
@@ -49,18 +49,25 @@ pub async fn get_by_remote_repo(
 pub async fn get_by_name_default(
     name: impl AsRef<str>,
 ) -> Result<Option<RemoteRepository>, OxenError> {
-    get_by_host_remote_name(DEFAULT_HOST, DEFAULT_REMOTE_NAME, name).await
+    get_by_name_host_and_remote(name, DEFAULT_HOST, DEFAULT_REMOTE_NAME).await
 }
 
-pub async fn get_by_host_remote_name(
+pub async fn get_by_name_and_host(
+    name: impl AsRef<str>,
+    host: impl AsRef<str>,
+) -> Result<Option<RemoteRepository>, OxenError> {
+    get_by_name_host_and_remote(name, host, DEFAULT_REMOTE_NAME).await
+}
+
+pub async fn get_by_name_host_and_remote(
+    name: impl AsRef<str>,
     host: impl AsRef<str>,
     remote: impl AsRef<str>,
-    name: impl AsRef<str>,
 ) -> Result<Option<RemoteRepository>, OxenError> {
     let name = name.as_ref();
     let url = api::endpoint::remote_url_from_name(host.as_ref(), name);
     log::debug!(
-        "api::remote::repositories::get_by_host_remote_name({}) remote url: {}",
+        "api::remote::repositories::get_by_name_host_and_remote({}) remote url: {}",
         name,
         url
     );
@@ -156,17 +163,18 @@ pub async fn get_repo_data_by_remote(
     }
 }
 
-pub async fn create_empty<S: AsRef<str>>(
-    namespace: S,
-    name: S,
-    host: S,
-) -> Result<RemoteRepository, OxenError> {
-    let namespace = namespace.as_ref();
-    let name = name.as_ref();
+pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> {
+    let namespace = repo.namespace.as_ref();
+    let repo_name = repo.name.as_ref();
+    let host = repo.host();
 
-    let url = api::endpoint::url_from_host(host.as_ref(), "");
-    let params = json!({ "name": name, "namespace": namespace });
-    log::debug!("Create remote: {} {} {}\n{}", url, namespace, name, params);
+    let url = api::endpoint::url_from_host(&host, "");
+    let params = json!({
+        "name": repo_name,
+        "namespace": namespace,
+        "description": repo.description
+    });
+    log::debug!("Create remote: {} {}\n{}", url, repo.repo_id(), params);
 
     // no user agent, otherwise the create will fail when going through the hub
     let client = client::new_for_url_no_user_agent(&url)?;
@@ -180,11 +188,7 @@ pub async fn create_empty<S: AsRef<str>>(
             Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name(
-                        host.as_ref(),
-                        namespace,
-                        name,
-                    ),
+                    url: api::endpoint::remote_url_from_namespace_name(&host, namespace, repo_name),
                     name: String::from("origin"),
                 },
             ))
@@ -197,11 +201,9 @@ pub async fn create_empty<S: AsRef<str>>(
     }
 }
 
-pub async fn create<S: AsRef<str>>(
-    repo_new: RepositoryNew,
-    host: S,
-) -> Result<RemoteRepository, OxenError> {
-    let url = api::endpoint::url_from_host(host.as_ref(), "");
+pub async fn create(repo_new: RepoNew) -> Result<RemoteRepository, OxenError> {
+    let host = repo_new.host();
+    let url = api::endpoint::url_from_host(&host, "");
 
     // convert repo_new to json with serde
     log::debug!("Create remote: {}\n{:?}", url, repo_new);
@@ -218,7 +220,7 @@ pub async fn create<S: AsRef<str>>(
                 &response.repository,
                 &Remote {
                     url: api::endpoint::remote_url_from_namespace_name(
-                        host.as_ref(),
+                        &host,
                         &repo_new.namespace,
                         &repo_new.name,
                     ),
@@ -228,7 +230,7 @@ pub async fn create<S: AsRef<str>>(
             Err(err) => {
                 let err = format!(
                     "Could not create or find repository [{}]: {err}\n{body}",
-                    repo_new.name
+                    repo_new.repo_id()
                 );
                 Err(OxenError::basic_str(err))
             }
@@ -239,12 +241,12 @@ pub async fn create<S: AsRef<str>>(
     }
 }
 
-pub async fn create_from_local<S: AsRef<str>>(
+pub async fn create_from_local(
     repository: &LocalRepository,
-    mut repo_new: RepositoryNew,
-    host: S,
+    mut repo_new: RepoNew,
 ) -> Result<RemoteRepository, OxenError> {
-    let url = api::endpoint::url_from_host(host.as_ref(), "");
+    let host = repo_new.host();
+    let url = api::endpoint::url_from_host(&host, "");
     let root_commit = api::local::commits::root_commit(repository)?;
     repo_new.root_commit = Some(root_commit);
 
@@ -263,7 +265,7 @@ pub async fn create_from_local<S: AsRef<str>>(
                 &response.repository,
                 &Remote {
                     url: api::endpoint::remote_url_from_namespace_name(
-                        host.as_ref(),
+                        &host,
                         &repo_new.namespace,
                         &repo_new.name,
                     ),
@@ -273,7 +275,7 @@ pub async fn create_from_local<S: AsRef<str>>(
             Err(err) => {
                 let err = format!(
                     "Could not create or find repository [{}]: {err}\n{body}",
-                    repo_new.name
+                    repo_new.repo_id()
                 );
                 Err(OxenError::basic_str(err))
             }
@@ -438,8 +440,8 @@ mod tests {
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::repository::local_repository::FileNew;
-    use crate::model::RepositoryNew;
+    use crate::model::file::FileNew;
+    use crate::model::RepoNew;
     use crate::test;
     use mockito;
 
@@ -521,13 +523,9 @@ mod tests {
         test::run_empty_local_repo_test_async(|local_repo| async move {
             let namespace = constants::DEFAULT_NAMESPACE;
             let name = local_repo.dirname();
-            let repo_new = RepositoryNew::new(namespace, &name);
-            let repository = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            let repo_new = RepoNew::from_namespace_name_host(namespace, &name, test::test_host());
+            let repository =
+                api::remote::repositories::create_from_local(&local_repo, repo_new).await?;
             println!("got repository: {repository:?}");
             assert_eq!(repository.name, name);
 
@@ -545,14 +543,15 @@ mod tests {
             let name = local_repo.dirname();
 
             // Create a README on the remote repo
+            let user = UserConfig::get()?.to_user();
             let files: Vec<FileNew> = vec![FileNew {
                 path: PathBuf::from("README"),
                 contents: String::from("Hello world!"),
+                user,
             }];
-            let user = UserConfig::get()?.to_user();
-            let repo_new = RepositoryNew::from_files(namespace, &name, files, user);
-
-            let repository = api::remote::repositories::create(repo_new, test::test_host()).await?;
+            let mut repo_new = RepoNew::from_files(namespace, &name, files);
+            repo_new.host = Some(test::test_host());
+            let repository = api::remote::repositories::create(repo_new).await?;
             println!("got repository: {repository:?}");
             assert_eq!(repository.name, name);
 
@@ -571,24 +570,16 @@ mod tests {
     #[tokio::test]
     async fn test_get_by_name() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-            let repo_new = RepositoryNew::new(namespace, name);
-            let repository = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
-            let url_repo = api::remote::repositories::get_by_remote_repo(&repository)
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+            let url_repo = api::remote::repositories::get_by_remote_repo(&remote_repo)
                 .await?
                 .unwrap();
 
-            assert_eq!(repository.namespace, url_repo.namespace);
-            assert_eq!(repository.name, url_repo.name);
+            assert_eq!(remote_repo.namespace, url_repo.namespace);
+            assert_eq!(remote_repo.name, url_repo.name);
 
             // cleanup
-            api::remote::repositories::delete(&repository).await?;
+            api::remote::repositories::delete(&remote_repo).await?;
 
             Ok(())
         })
@@ -598,23 +589,16 @@ mod tests {
     #[tokio::test]
     async fn test_delete_repository() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-            let repo_new = RepositoryNew::new(namespace, name);
-            let repository = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            // Create a remote repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
 
-            // delete
-            api::remote::repositories::delete(&repository).await?;
+            // Delete it
+            api::remote::repositories::delete(&remote_repo).await?;
 
             // We delete in a background thread, so give it a second
             std::thread::sleep(std::time::Duration::from_secs(1));
 
-            let result = api::remote::repositories::get_by_remote_repo(&repository).await;
+            let result = api::remote::repositories::get_by_remote_repo(&remote_repo).await;
             assert!(result.is_ok());
             assert!(result.unwrap().is_none());
 
@@ -626,22 +610,14 @@ mod tests {
     #[tokio::test]
     async fn test_transfer_remote_repository() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-            let repo_new = RepositoryNew::new(namespace, &name);
-            let repository = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             let new_namespace = "new-namespace";
             let new_repository =
-                api::remote::repositories::transfer_namespace(&repository, new_namespace).await?;
+                api::remote::repositories::transfer_namespace(&remote_repo, new_namespace).await?;
 
             assert_eq!(new_repository.namespace, new_namespace);
-            assert_eq!(new_repository.name, name);
+            assert_eq!(new_repository.name, remote_repo.name);
 
             // Delete repo - cleanup + check for correct remote namespace transfer
             api::remote::repositories::delete(&new_repository).await?;

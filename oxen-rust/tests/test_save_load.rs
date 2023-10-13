@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use liboxen::api;
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
@@ -75,7 +74,7 @@ fn test_command_save_load_repo_no_working_dir() -> Result<(), OxenError> {
 
             let hydrated_repo = LocalRepository::from_dir(&loaded_repo_path)?;
 
-            assert_eq!(hydrated_repo.path.join("hello.txt").exists(), false);
+            assert!(!hydrated_repo.path.join("hello.txt").exists());
 
             // Should have `hello.txt` in removed files bc it's in commits db but not working dir
             let status = command::status(&hydrated_repo)?;
@@ -131,13 +130,10 @@ fn test_command_save_load_moved_and_removed() -> Result<(), OxenError> {
 
             let hydrated_repo = LocalRepository::from_dir(&loaded_repo_path)?;
 
-            assert_eq!(hydrated_repo.path.join("third.txt").exists(), true);
-            assert_eq!(
-                hydrated_repo.path.join("hello_dir/hello.txt").exists(),
-                true
-            );
-            assert_eq!(hydrated_repo.path.join("hello.txt").exists(), false);
-            assert_eq!(hydrated_repo.path.join("goodbye.txt").exists(), false);
+            assert!(hydrated_repo.path.join("third.txt").exists());
+            assert!(hydrated_repo.path.join("hello_dir/hello.txt").exists());
+            assert!(!hydrated_repo.path.join("hello.txt").exists());
+            assert!(!hydrated_repo.path.join("goodbye.txt").exists());
 
             Ok(())
         })
