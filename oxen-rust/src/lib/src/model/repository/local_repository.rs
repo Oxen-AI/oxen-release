@@ -5,8 +5,7 @@ use crate::constants::REPO_CONFIG_FILENAME;
 use crate::constants::SHALLOW_FLAG;
 use crate::core::index::EntryIndexer;
 use crate::error::OxenError;
-use crate::model::User;
-use crate::model::{Commit, Remote, RemoteBranch, RemoteRepository};
+use crate::model::{Remote, RemoteBranch, RemoteRepository};
 use crate::opts::CloneOpts;
 use crate::opts::PullOpts;
 use crate::util;
@@ -14,106 +13,8 @@ use crate::util::progress_bar::oxen_progress_bar;
 use crate::util::progress_bar::ProgressBarType;
 use crate::view::RepositoryView;
 
-use http::Uri;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct FileNew {
-    pub path: PathBuf,
-    pub contents: String,
-}
-
-impl FileNew {
-    pub fn new(path: impl AsRef<Path>, contents: impl AsRef<str>) -> FileNew {
-        FileNew {
-            path: path.as_ref().to_path_buf(),
-            contents: String::from(contents.as_ref()),
-        }
-    }
-}
-
-/// For creating a remote repo we need the repo name
-/// and we need the root commit so that we do not generate a new one on creation on the server
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct RepositoryNew {
-    pub namespace: String,
-    pub name: String,
-    // Optional root commit
-    pub root_commit: Option<Commit>,
-    // Optional files that you want to add to the repo
-    pub files: Option<Vec<FileNew>>,
-    // The user in which you want to commit the files for, needs to be used in combo with files
-    pub user: Option<User>,
-}
-
-impl std::fmt::Display for RepositoryNew {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}/{}", self.namespace, self.name)
-    }
-}
-
-impl std::error::Error for RepositoryNew {}
-
-impl RepositoryNew {
-    pub fn new(namespace: impl AsRef<str>, name: impl AsRef<str>) -> RepositoryNew {
-        RepositoryNew {
-            namespace: String::from(namespace.as_ref()),
-            name: String::from(name.as_ref()),
-            root_commit: None,
-            files: None,
-            user: None,
-        }
-    }
-
-    pub fn from_root_commit(
-        namespace: impl AsRef<str>,
-        name: impl AsRef<str>,
-        root_commit: Commit,
-    ) -> RepositoryNew {
-        RepositoryNew {
-            namespace: String::from(namespace.as_ref()),
-            name: String::from(name.as_ref()),
-            root_commit: Some(root_commit),
-            files: None,
-            user: None,
-        }
-    }
-
-    pub fn from_files(
-        namespace: impl AsRef<str>,
-        name: impl AsRef<str>,
-        files: Vec<FileNew>,
-        user: User,
-    ) -> RepositoryNew {
-        RepositoryNew {
-            namespace: String::from(namespace.as_ref()),
-            name: String::from(name.as_ref()),
-            root_commit: None,
-            files: Some(files),
-            user: Some(user),
-        }
-    }
-
-    pub fn from_url(url: &str) -> Result<RepositoryNew, OxenError> {
-        let uri = url.parse::<Uri>()?;
-        let mut split_path: Vec<&str> = uri.path().split('/').collect();
-
-        if split_path.len() < 3 {
-            return Err(OxenError::basic_str("Invalid repo url"));
-        }
-
-        let name = split_path.pop().unwrap();
-        let namespace = split_path.pop().unwrap();
-        Ok(RepositoryNew {
-            name: String::from(name),
-            namespace: String::from(namespace),
-            root_commit: None,
-            files: None,
-            user: None,
-        })
-    }
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LocalRepository {
@@ -378,16 +279,15 @@ impl LocalRepository {
 mod tests {
     use crate::api;
     use crate::command;
-    use crate::constants;
     use crate::error::OxenError;
-    use crate::model::{LocalRepository, RepositoryNew};
+    use crate::model::{LocalRepository, RepoNew};
     use crate::opts::CloneOpts;
     use crate::test;
 
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
         let url = "http://0.0.0.0:3000/repositories/OxenData";
-        let repo = RepositoryNew::from_url(url)?;
+        let repo = RepoNew::from_url(url)?;
         assert_eq!(repo.name, "OxenData");
         assert_eq!(repo.namespace, "repositories");
         Ok(())
@@ -430,15 +330,8 @@ mod tests {
     #[tokio::test]
     async fn test_clone_remote() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-            let repo_new = RepositoryNew::new(namespace, name);
-            let remote_repo = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            // Create remote repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
@@ -468,15 +361,9 @@ mod tests {
     #[tokio::test]
     async fn test_move_local_repo_path_valid() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|local_repo| async move {
-            let namespace = constants::DEFAULT_NAMESPACE;
-            let name = local_repo.dirname();
-            let repo_new = RepositoryNew::new(namespace, name);
-            let remote_repo = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            // Create remote repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
                 let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
