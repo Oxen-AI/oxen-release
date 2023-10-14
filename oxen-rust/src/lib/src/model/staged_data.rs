@@ -1,5 +1,5 @@
 use colored::{ColoredString, Colorize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
 
@@ -157,7 +157,6 @@ impl StagedData {
 
     pub fn print_stdout_with_params(&self, opts: &StagedDataOpts) {
         let outputs = self.__collect_outputs(opts);
-
         for output in outputs {
             print!("{output}")
         }
@@ -274,9 +273,13 @@ impl StagedData {
             files.iter().map(|(k, v)| (k, v)).collect();
 
         // For display purposes, filter out the entries that are already displayed in moved_files
-        for (path, removed_path, _hash) in self.moved_files.iter() {
-            files_vec.retain(|(p, _)| p != &path && p != &removed_path);
-        }
+        let moved_paths: HashSet<&PathBuf> = self
+            .moved_files
+            .iter()
+            .flat_map(|(path, removed_path, _hash)| vec![path, removed_path])
+            .collect();
+
+        files_vec.retain(|(p, _)| !moved_paths.contains(p));
 
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
