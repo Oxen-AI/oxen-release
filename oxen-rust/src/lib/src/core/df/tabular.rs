@@ -216,7 +216,7 @@ pub fn parse_data_into_df(
             let cursor = Cursor::new(data.as_bytes());
             let schema = schema.to_polars();
             match CsvReader::new(cursor)
-                .with_schema(Some(Arc::new(schema)))
+                .with_schema(Arc::new(schema))
                 .finish()
             {
                 Ok(df) => Ok(df),
@@ -360,7 +360,7 @@ fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame,
         .map(|f| agg_fn_to_expr(f).expect("Err:"))
         .collect();
 
-    Ok(df.group_by(group_by).agg(agg))
+    Ok(df.groupby(group_by).agg(agg))
 }
 
 fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
