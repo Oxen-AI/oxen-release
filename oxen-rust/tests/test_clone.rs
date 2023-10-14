@@ -152,14 +152,11 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
             let remote_name = "different";
 
             // Create a different repo
-            let repo_new = RepoNew {
-                namespace: constants::DEFAULT_NAMESPACE.to_owned(),
-                name: repo_name.to_owned(),
-                host: Some(test::test_host()),
-                root_commit: None,
-                description: None,
-                files: None,
-            };
+            let repo_new = RepoNew::from_namespace_name_host(
+                constants::DEFAULT_NAMESPACE,
+                repo_name,
+                test::test_host(),
+            );
             api::remote::repositories::create_empty(repo_new).await?;
 
             command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;

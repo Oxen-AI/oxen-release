@@ -467,14 +467,7 @@ where
     init_test_env();
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let namespace = constants::DEFAULT_NAMESPACE;
-    let repo_new = RepoNew {
-        namespace: String::from(namespace),
-        name: String::from(&name),
-        host: Some(test_host()),
-        root_commit: None,
-        description: None,
-        files: None,
-    };
+    let repo_new = RepoNew::from_namespace_name_host(namespace, name, test_host());
     let repo = api::remote::repositories::create_empty(repo_new).await?;
 
     // Run test to see if it panic'd
