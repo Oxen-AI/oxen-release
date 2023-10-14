@@ -10,7 +10,7 @@ use std::path::Path;
 
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
-use crate::model::{Remote, RepositoryNew};
+use crate::model::{Remote, RepoNew};
 
 pub mod path_buf_error;
 pub mod string_error;
@@ -35,8 +35,8 @@ pub enum OxenError {
     UserConfigNotFound(Box<StringError>),
 
     // Repo
-    RepoNotFound(Box<RepositoryNew>),
-    RepoAlreadyExists(Box<RepositoryNew>),
+    RepoNotFound(Box<RepoNew>),
+    RepoAlreadyExists(Box<RepoNew>),
 
     // Remotes
     RemoteRepoNotFound(Box<Remote>),
@@ -116,7 +116,7 @@ impl OxenError {
         OxenError::UserConfigNotFound(Box::new(value))
     }
 
-    pub fn repo_not_found(repo: RepositoryNew) -> Self {
+    pub fn repo_not_found(repo: RepoNew) -> Self {
         OxenError::RepoNotFound(Box::new(repo))
     }
 
@@ -172,7 +172,7 @@ impl OxenError {
         OxenError::ParsedResourceNotFound(Box::new(resource.resource.into()))
     }
 
-    pub fn repo_already_exists(repo: RepositoryNew) -> Self {
+    pub fn repo_already_exists(repo: RepoNew) -> Self {
         OxenError::RepoAlreadyExists(Box::new(repo))
     }
 

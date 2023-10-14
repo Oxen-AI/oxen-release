@@ -4,6 +4,7 @@ use crate::core::df::tabular;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
+use crate::model::diff::generic_diff::GenericDiff;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
@@ -38,7 +39,7 @@ struct DiffCommitEntry {
 }
 
 /// Get a String representation of a diff between two commits given a file
-pub fn single_diff_str(
+pub fn diff_one(
     repo: &LocalRepository,
     original: &Commit,
     compare: &Commit,
@@ -47,6 +48,18 @@ pub fn single_diff_str(
     let base_path = get_version_file_from_commit(repo, original, &path)?;
     let head_path = get_version_file_from_commit(repo, compare, &path)?;
     diff_files(base_path, head_path)
+}
+
+/// Compare a file between commits
+pub fn diff_one_2(
+    repo: &LocalRepository,
+    original: &Commit,
+    compare: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<GenericDiff, OxenError> {
+    let base_path = get_version_file_from_commit(repo, original, &path)?;
+    let head_path = get_version_file_from_commit(repo, compare, &path)?;
+    diff_files_2(base_path, head_path)
 }
 
 pub fn get_version_file_from_commit(
@@ -90,6 +103,23 @@ pub fn diff_files(
         return Ok(tabular_diff.to_string());
     } else if util::fs::is_utf8(original) && util::fs::is_utf8(compare) {
         return diff_utf8(original, compare);
+    }
+    Err(OxenError::basic_str(format!(
+        "Diff not supported for files: {original:?} and {compare:?}"
+    )))
+}
+
+// TODO: this should be the one that is returned instead of a string
+pub fn diff_files_2(
+    original: impl AsRef<Path>,
+    compare: impl AsRef<Path>,
+) -> Result<GenericDiff, OxenError> {
+    let original = original.as_ref();
+    let compare = compare.as_ref();
+    if util::fs::is_tabular(original) && util::fs::is_tabular(compare) {
+        // TODO: consolidate TabularDiff and DataFrameDiff
+        // let tabular_diff = diff_tabular(original, compare)?;
+        // return Ok(GenericDiff::TabularDiff(tabular_diff));
     }
     Err(OxenError::basic_str(format!(
         "Diff not supported for files: {original:?} and {compare:?}"

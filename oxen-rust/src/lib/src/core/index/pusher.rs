@@ -977,7 +977,7 @@ mod tests {
     use crate::core::index::pusher;
     use crate::core::index::CommitReader;
     use crate::error::OxenError;
-    use crate::model::RepositoryNew;
+
     use crate::opts::RmOpts;
     use crate::util;
 
@@ -991,10 +991,8 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
-            let remote_repo =
-                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
-                    .await?;
+            // Create remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Get commits to sync...
             let head_commit = api::local::commits::head_commit(&repo)?;
@@ -1066,10 +1064,8 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
-            let remote_repo =
-                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
-                    .await?;
+            // Create remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Get commits to sync...
             let head_commit = api::local::commits::head_commit(&repo)?;
@@ -1108,10 +1104,8 @@ mod tests {
             let remote = test::repo_remote_url_from(&name);
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
-            let remote_repo =
-                api::remote::repositories::create_from_local(&repo, repo_new, test::test_host())
-                    .await?;
+            // Create remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Get commits to sync...
             let head_commit = api::local::commits::head_commit(&repo)?;

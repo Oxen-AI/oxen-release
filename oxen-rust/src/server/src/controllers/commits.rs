@@ -16,7 +16,7 @@ use liboxen::core::index::CommitWriter;
 use liboxen::core::index::RefWriter;
 use liboxen::error::OxenError;
 use liboxen::model::commit::CommitWithBranchName;
-use liboxen::model::RepositoryNew;
+use liboxen::model::RepoNew;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::branch::BranchName;
@@ -892,7 +892,7 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     // Get repo by name
     let repo =
         api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
-            .ok_or(OxenError::repo_not_found(RepositoryNew::new(
+            .ok_or(OxenError::repo_not_found(RepoNew::from_namespace_name(
                 namespace, repo_name,
             )))?;
 
