@@ -264,8 +264,8 @@ impl Stager {
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
             schemas.insert(path, schema);
         }
-        staged_data.staged_schemas = schemas;
 
+        staged_data.staged_schemas = schemas;
         Ok(staged_data)
     }
 
