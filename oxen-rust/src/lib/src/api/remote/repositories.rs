@@ -172,7 +172,8 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
     let params = json!({
         "name": repo_name,
         "namespace": namespace,
-        "description": repo.description
+        "description": repo.description,
+        "is_public": repo.is_public(),
     });
     log::debug!("Create remote: {} {}\n{}", url, repo.repo_id(), params);
 

@@ -11,6 +11,8 @@ pub struct RepoNew {
     pub namespace: String,
     pub name: String,
     // All these are optional because you can create a repo with just a namespace and name
+    // is_public only applies to OxenHub so is optional
+    pub is_public: Option<bool>,
     // Host is where you are going to create the repo
     pub host: Option<String>,
     // Root commit to create on the server
@@ -34,6 +36,10 @@ impl RepoNew {
         format!("{}/{}", self.namespace, self.name)
     }
 
+    pub fn is_public(&self) -> bool {
+        self.is_public.unwrap_or(false)
+    }
+
     pub fn host(&self) -> String {
         self.host
             .clone()
@@ -54,6 +60,7 @@ impl RepoNew {
         Ok(RepoNew {
             namespace,
             name: repo_name,
+            is_public: None,
             host: Some(String::from(DEFAULT_HOST)),
             root_commit: None,
             description: None,
@@ -66,6 +73,7 @@ impl RepoNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
             host: Some(String::from(DEFAULT_HOST)),
+            is_public: None,
             root_commit: None,
             description: None,
             files: None,
@@ -80,6 +88,7 @@ impl RepoNew {
         RepoNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
+            is_public: None,
             host: Some(String::from(host.as_ref())),
             root_commit: None,
             description: None,
@@ -95,6 +104,7 @@ impl RepoNew {
         RepoNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
+            is_public: None,
             host: Some(String::from(DEFAULT_HOST)),
             root_commit: Some(root_commit),
             description: None,
@@ -110,6 +120,7 @@ impl RepoNew {
         RepoNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
+            is_public: None,
             host: Some(String::from(DEFAULT_HOST)),
             root_commit: None,
             description: None,
@@ -131,6 +142,7 @@ impl RepoNew {
         Ok(RepoNew {
             namespace: namespace.to_string(),
             name: repo_name.to_string(),
+            is_public: None,
             host: Some(uri.host().unwrap().to_string()),
             root_commit: None,
             description: None,
