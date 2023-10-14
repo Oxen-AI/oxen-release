@@ -41,6 +41,7 @@ async fn test_pull_multiple_commits() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
@@ -81,6 +82,7 @@ async fn test_pull_data_frame() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
@@ -137,6 +139,7 @@ async fn test_pull_multiple_data_frames_multiple_schemas() -> Result<(), OxenErr
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
@@ -212,6 +215,7 @@ async fn test_pull_full_commit_history() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull_all(&cloned_repo).await?;
@@ -250,6 +254,7 @@ async fn test_pull_shallow_local_status_is_err() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
+            let repo_dir = repo_dir.join("repoo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
@@ -271,6 +276,8 @@ async fn test_pull_shallow_local_add_is_err() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
+            let repo_dir = repo_dir.join("repoo");
+
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
@@ -296,15 +303,16 @@ async fn test_pull_shallow_clone_only_pulls_head() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
         test::run_empty_dir_test_async(|user_a_repo_dir| async move {
             let user_a_repo_dir_copy = user_a_repo_dir.clone();
+            let user_a_repo_dir_copy = user_a_repo_dir_copy.join("repoo");
             let user_a_shallow =
-                command::shallow_clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                command::shallow_clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
             // Deep copy pushes two new commits to advance the remote
             test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                let user_b_repo_dir_copy = user_b_repo_dir.clone();
+                let user_b_repo_dir_copy = user_b_repo_dir.join("repoo");
 
                 let user_b_repo =
-                    command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                 let new_file = "new_file.txt";
                 let new_file_path = user_b_repo.path.join(new_file);
@@ -356,15 +364,16 @@ async fn test_pull_standard_clone_only_pulls_head() -> Result<(), OxenError> {
     test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
         let remote_repo_copy = remote_repo.clone();
         test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-            let user_a_repo_dir_copy = user_a_repo_dir.clone();
-            let user_a_repo = command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+            let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
+            let user_a_repo =
+                command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
             // Deep copy pushes two new commits to advance the remote
             test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                let user_b_repo_dir_copy = user_b_repo_dir.clone();
+                let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
 
                 let user_b_repo =
-                    command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                 let new_file = "new_file.txt";
                 let new_file_path = user_b_repo.path.join(new_file);

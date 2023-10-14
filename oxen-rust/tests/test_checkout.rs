@@ -391,7 +391,8 @@ async fn test_checkout_deleted_after_clone() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
 
             // Make sure we have all the commit objects
             let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
@@ -452,7 +453,8 @@ async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), Oxen
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
 
             let commits = api::local::commits::list(&cloned_repo)?;
             // iterate over commits in reverse order and checkout each one

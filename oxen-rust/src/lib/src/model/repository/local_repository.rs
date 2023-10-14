@@ -168,23 +168,23 @@ impl LocalRepository {
         api::remote::repositories::pre_clone(&repo).await?;
 
         // if directory already exists -> return Err
-        let repo_path = opts.dst.join(&repo.name);
+        let repo_path = &opts.dst;
         if repo_path.exists() {
             let err = format!("Directory already exists: {}", repo.name);
             return Err(OxenError::basic_str(err));
         }
 
         // if directory does not exist, create it
-        std::fs::create_dir_all(&repo_path)?;
+        std::fs::create_dir_all(repo_path)?;
 
         // if create successful, create .oxen directory
-        let oxen_hidden_path = util::fs::oxen_hidden_dir(&repo_path);
+        let oxen_hidden_path = util::fs::oxen_hidden_dir(repo_path);
         std::fs::create_dir(&oxen_hidden_path)?;
 
         // save LocalRepository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new(REPO_CONFIG_FILENAME));
-        let mut local_repo = LocalRepository::from_remote(repo.clone(), &repo_path)?;
-        local_repo.path = repo_path;
+        let mut local_repo = LocalRepository::from_remote(repo.clone(), repo_path)?;
+        local_repo.path = repo_path.to_owned();
         local_repo.set_remote(DEFAULT_REMOTE_NAME, &repo.remote.url);
 
         let toml = toml::to_string(&local_repo)?;
@@ -334,7 +334,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
+                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
                 let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
 
                 let cfg_fname = ".oxen/config.toml".to_string();
@@ -365,7 +365,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &dir);
+                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
                 let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
 
                 api::remote::repositories::delete(&remote_repo).await?;

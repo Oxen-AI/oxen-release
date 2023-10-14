@@ -97,16 +97,16 @@ mod tests {
 
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
+                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
                     let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file.txt";
@@ -165,15 +165,15 @@ mod tests {
 
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-                let user_a_repo_dir_copy = user_a_repo_dir.clone();
+                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
                     let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                     // Add file_1 and file_2 to user A repo
                     let file_1 = "file_1.txt";
