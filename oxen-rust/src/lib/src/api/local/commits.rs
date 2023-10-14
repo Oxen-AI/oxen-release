@@ -401,6 +401,7 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let new_repo_dir = new_repo_dir.join("repoo");
                 let deep_clone =
                     command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 // Get head commit of deep_clone repo
@@ -425,7 +426,9 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let clone = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                let clone =
+                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                        .await?;
                 // Get head commit of deep_clone repo
                 let head_commit = api::local::commits::head_commit(&clone)?;
                 assert!(!api::local::commits::commit_history_is_complete(
@@ -448,6 +451,7 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
+                let new_repo_dir = new_repo_dir.join("repoo");
                 let shallow_clone =
                     command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 // Get head commit of deep_clone repo

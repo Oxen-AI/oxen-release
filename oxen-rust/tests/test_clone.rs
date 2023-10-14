@@ -23,6 +23,7 @@ async fn test_clone_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -78,6 +79,7 @@ async fn test_clone_all_push_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let mut cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -144,6 +146,7 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let mut cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -180,6 +183,7 @@ async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let mut cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -240,7 +244,8 @@ async fn test_clone_full() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
@@ -261,7 +266,8 @@ async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
 
         // Create a new repo to clone to, then clean it up
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());
@@ -282,7 +288,8 @@ async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
 
         // Create a new repo to clone to, then clean it up
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());

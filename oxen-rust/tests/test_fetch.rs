@@ -28,7 +28,8 @@ async fn test_fetch_branches() -> Result<(), OxenError> {
 
         // Clone the main branch, then fetch the others
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
             let branches = api::local::branches::list(&cloned_repo)?;
 
             assert_eq!(1, branches.len());
