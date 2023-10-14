@@ -281,15 +281,12 @@ impl Stager {
         for (path, entry) in files_vec.iter() {
             match entry.status {
                 StagedEntryStatus::Added => {
-                    added_map
-                        .entry(entry.hash.clone())
-                        .or_insert_with(Vec::new)
-                        .push(path);
+                    added_map.entry(entry.hash.clone()).or_default().push(path);
                 }
                 StagedEntryStatus::Removed => {
                     removed_map
                         .entry(entry.hash.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(path);
                 }
                 _ => continue,

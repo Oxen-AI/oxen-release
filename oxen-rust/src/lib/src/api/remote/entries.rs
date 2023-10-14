@@ -66,10 +66,12 @@ pub async fn download_entry(
 
     // * if the dst is a directory, and it exists, then we download the file to the dst
     // given by the dst + the file name
-    if local_path.is_dir() && local_path.exists() && remote_file_name.is_some() {
-        // Only append if the remote entry is a file
-        if !entry.is_dir {
-            local_path = local_path.join(remote_file_name.unwrap());
+    if let Some(filename) = remote_file_name {
+        if local_path.is_dir() && local_path.exists() {
+            // Only append if the remote entry is a file
+            if !entry.is_dir {
+                local_path = local_path.join(filename);
+            }
         }
     }
 
