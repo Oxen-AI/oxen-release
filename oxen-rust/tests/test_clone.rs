@@ -10,7 +10,7 @@ use liboxen::util;
 
 // Test for clone --all that checks to make sure we have all commits, all deleted files, etc
 #[tokio::test]
-async fn test_clone_all() -> Result<(), OxenError> {
+async fn test_clone_dash_all() -> Result<(), OxenError> {
     test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
         // Create additional branch on remote repo before clone
         let branch_name = "test-branch";
@@ -23,9 +23,9 @@ async fn test_clone_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let new_repo_dir = new_repo_dir.join("repoo");
             let cloned_repo =
-                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    .await?;
 
             // Make sure we have all the commit objects
             let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
@@ -42,6 +42,7 @@ async fn test_clone_all() -> Result<(), OxenError> {
             // We remove the test/ directory in one of the commits, so make sure we can go
             // back in the history to that commit
             let test_dir_path = cloned_repo.path.join("test");
+            println!("test_clone_dash_all test_dir_path: {:?}", test_dir_path);
             let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
             assert!(commit.is_some());
             assert!(!test_dir_path.exists());
