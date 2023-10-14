@@ -10,7 +10,7 @@ use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::NewCommit;
 use crate::model::RepoStats;
-use crate::model::{CommitStats, LocalRepository, RepositoryNew};
+use crate::model::{CommitStats, LocalRepository, RepoNew};
 use crate::util;
 
 use jwalk::WalkDir;
@@ -168,7 +168,7 @@ pub fn transfer_namespace(
             "Error while transferring repo: repo does not exist: {:?}",
             repo_dir
         );
-        return Err(OxenError::repo_not_found(RepositoryNew::new(
+        return Err(OxenError::repo_not_found(RepoNew::from_namespace_name(
             from_namespace,
             repo_name,
         )));
@@ -194,7 +194,7 @@ pub fn transfer_namespace(
     }
 }
 
-pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepository, OxenError> {
+pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, OxenError> {
     let repo_dir = root_dir
         .join(&new_repo.namespace)
         .join(Path::new(&new_repo.name));
@@ -246,7 +246,8 @@ pub fn create(root_dir: &Path, new_repo: RepositoryNew) -> Result<LocalRepositor
         commit_writer.add_commit_from_empty_status(root_commit)?;
     } else {
         // if no root commit, but yes files and a user, add and commit them
-        if let (Some(files), Some(user)) = (&new_repo.files, &new_repo.user) {
+        if let Some(files) = &new_repo.files {
+            let user = &files[0].user;
             // Add root commit
             let commit_data = NewCommit {
                 parent_ids: vec![],
@@ -325,8 +326,8 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants;
     use crate::error::OxenError;
-    use crate::model::repository::local_repository::FileNew;
-    use crate::model::{Commit, LocalRepository, RepositoryNew};
+    use crate::model::file::FileNew;
+    use crate::model::{Commit, LocalRepository, RepoNew};
     use crate::test;
     use std::path::{Path, PathBuf};
     use time::OffsetDateTime;
@@ -346,7 +347,7 @@ mod tests {
                 email: String::from("ox@oxen.ai"),
                 timestamp,
             };
-            let repo_new = RepositoryNew::from_root_commit(namespace, name, root_commit);
+            let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
@@ -367,12 +368,13 @@ mod tests {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
 
+            let user = UserConfig::get()?.to_user();
             let files: Vec<FileNew> = vec![FileNew {
                 path: PathBuf::from("README"),
                 contents: String::from("Hello world!"),
+                user,
             }];
-            let user = UserConfig::get()?.to_user();
-            let repo_new = RepositoryNew::from_files(namespace, name, files, user);
+            let repo_new = RepoNew::from_files(namespace, name, files);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
@@ -392,7 +394,7 @@ mod tests {
         test::run_empty_dir_test(|sync_dir| {
             let namespace: &str = "test-namespace";
             let name: &str = "test-repo-name";
-            let repo_new = RepositoryNew::new(namespace, name);
+            let repo_new = RepoNew::from_namespace_name(namespace, name);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let repo_path = Path::new(&sync_dir)
@@ -507,7 +509,7 @@ mod tests {
                 email: String::from("ox@oxen.ai"),
                 timestamp,
             };
-            let repo_new = RepositoryNew::from_root_commit(old_namespace, name, root_commit);
+            let repo_new = RepoNew::from_root_commit(old_namespace, name, root_commit);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;
 
             let old_namespace_repos =

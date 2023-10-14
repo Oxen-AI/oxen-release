@@ -258,7 +258,7 @@ async fn test_status_move_regular_file() -> Result<(), OxenError> {
         let og_basename = PathBuf::from("README.md");
         let og_file = repo.path.join(&og_basename);
         let new_basename = PathBuf::from("README2.md");
-        let new_file = repo.path.join(&new_basename);
+        let new_file = repo.path.join(new_basename);
 
         util::fs::rename(&og_file, &new_file)?;
 
@@ -300,9 +300,9 @@ async fn test_status_move_dir() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed_async(|repo| async move {
         // Move train to to new_train/train2
         let og_basename = PathBuf::from("train");
-        let og_dir = repo.path.join(&og_basename);
+        let og_dir = repo.path.join(og_basename);
         let new_basename = PathBuf::from("new_train").join("train2");
-        let new_dir = repo.path.join(&new_basename);
+        let new_dir = repo.path.join(new_basename);
 
         // Create the dir before move
         util::fs::create_dir_all(&new_dir)?;

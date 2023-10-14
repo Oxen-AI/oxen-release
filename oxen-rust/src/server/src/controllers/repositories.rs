@@ -15,7 +15,7 @@ use liboxen::view::{
     ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage,
 };
 
-use liboxen::model::{LocalRepository, RepositoryNew};
+use liboxen::model::{LocalRepository, RepoNew};
 
 use actix_files::NamedFile;
 use actix_web::{HttpRequest, HttpResponse};
@@ -112,7 +112,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
 pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
     let app_data = req.app_data::<OxenAppData>().unwrap();
     println!("controllers::repositories::create body:\n{}", body);
-    let data: Result<RepositoryNew, serde_json::Error> = serde_json::from_str(&body);
+    let data: Result<RepoNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::create(&app_data.path, data.to_owned()) {
             Ok(_) => HttpResponse::Ok().json(RepositoryResponse {
@@ -276,7 +276,7 @@ mod tests {
 
     use liboxen::constants;
     use liboxen::error::OxenError;
-    use liboxen::model::{Commit, RepositoryNew};
+    use liboxen::model::{Commit, RepoNew};
     use liboxen::util;
 
     use liboxen::view::http::STATUS_SUCCESS;
@@ -372,8 +372,7 @@ mod tests {
             email: String::from("ox@oxen.ai"),
             timestamp,
         };
-        let repo_new =
-            RepositoryNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
+        let repo_new = RepoNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
         let data = serde_json::to_string(&repo_new)?;
         let req = test::request(&sync_dir, queue, "/api/repos");
 

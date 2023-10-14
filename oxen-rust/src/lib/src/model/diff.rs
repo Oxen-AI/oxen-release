@@ -10,3 +10,5 @@ pub mod dir_diff_summary;
 
 pub mod tabular_diff;
 pub mod tabular_diff_summary;
+
+pub mod text_diff;

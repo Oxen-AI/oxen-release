@@ -595,7 +595,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
         let path = &local_repo.path.join("a.txt");
         test::write_txt_file_to_path(path, contents)?;
         println!("Writing file to {}", path.display());
-        command::add(&local_repo, &path)?;
+        command::add(&local_repo, path)?;
         println!("adding file to index at path {}", path.display());
         println!("First commit");
         command::commit(&local_repo, "Adding file for first time")?;
@@ -604,7 +604,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
 
         let new_path = &local_repo.path.join("newfolder").join("a.txt");
 
-        util::fs::create_dir_all(&local_repo.path.join("newfolder"))?;
+        util::fs::create_dir_all(local_repo.path.join("newfolder"))?;
         test::write_txt_file_to_path(new_path, contents)?;
         command::add(&local_repo, new_path)?;
 
@@ -612,7 +612,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
         let new_path = &local_repo.path.join("newfolder").join("b.txt");
 
         test::write_txt_file_to_path(new_path, contents)?;
-        command::add(&local_repo, &new_path)?;
+        command::add(&local_repo, new_path)?;
 
         // Delete the original file at a.txt
         let path = "a.txt";
@@ -628,7 +628,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
 
         test::run_empty_dir_test_async(|repo_dir| async move {
             // Pull down this removal
-            let cloned_repo = command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+            let _cloned_repo = command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
             Ok(repo_dir)
         })
         .await?;

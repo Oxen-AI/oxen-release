@@ -829,7 +829,6 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::CommitEntry;
 
-    use crate::model::RepositoryNew;
     use crate::test;
     use rocksdb::{DBWithThreadMode, MultiThreaded};
 
@@ -897,13 +896,7 @@ mod tests {
             command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
-            let remote_repo = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push it
             command::push(&local_repo).await?;
@@ -983,13 +976,7 @@ mod tests {
             command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create Remote
-            let repo_new = RepositoryNew::new(constants::DEFAULT_NAMESPACE, name);
-            let remote_repo = api::remote::repositories::create_from_local(
-                &local_repo,
-                repo_new,
-                test::test_host(),
-            )
-            .await?;
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push it
             command::push(&local_repo).await?;
