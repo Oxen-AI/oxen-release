@@ -29,15 +29,15 @@ Oxen is a lightning fast unstructured data version control system for machine le
 
 Oxen was build by a team of machine learning engineers, who have spent countless hours in their careers managing datasets. We have used many different tools, but none of them were as easy to use and as ergonomic as we would like. 
 
-If you have ever tried [git lfs](https://git-lfs.com/) to version large datasets and became frustrated, we feel your pain. 
+If you have ever tried [git lfs](https://git-lfs.com/) to version large datasets and became frustrated, we feel your pain. Solutions like git-lfs are too slow when it comes to the scale of data we need for machine learning.
 
 If you have ever uploaded a large dataset of images, audio, video, or text to a cloud storage bucket with the name:
 
 `s3://data/images_july_2022_final_2_no_really_final.tar.gz`
 
-We feel your pain. We built Oxen to be the tool we wish we had.
+We built Oxen to be the tool we wish we had.
 
-## 📚 Simple Learning Curve
+## 📚 Familiar Workflow
 
 No need to learn a new paradigm.
 
@@ -46,7 +46,7 @@ The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in man
 The difference is Oxen is built for data. It is optimized to handle large files, and large datasets. It is built to be fast, and easy to use.
 
 <p align="center">
-  <a href="https://docs.oxen.ai/getting-started/intro#getting-started">Try It Out</a>
+  <a href="https://docs.oxen.ai/getting-started/intro#getting-started">🐮 Learn The Basics</a>
 </p>
 
 <p align="center">
@@ -55,11 +55,13 @@ The difference is Oxen is built for data. It is optimized to handle large files,
 
 ## 🤖 Built for AI
 
-If you are building an AI application, data is the lifeblood. Whether you are building your own model from scratch, fine-tuning a pre-trained model, or using a model as a service, you will need to manage and compare datasets over time. Data differentiates your model from the competition. 
+If you are building an AI application, data is the lifeblood. Data is constantly changing over time, and data differentiates your model from the competition.
+
+Whether you are building your own model from scratch, fine-tuning a pre-trained model, or using a model as a service, you will need to manage and compare the inputs and outputs over time to ensure your model is improving.
 
 [We version our code, why not our data?](https://blog.oxen.ai/we-version-our-code-why-not-our-data/)
 
-Versioning your data means you can experiment on models in parallel with different data. The more experiments you run, the smarter your model becomes, and the more confident you can be in it.
+Versioning your data means you can experiment on models in parallel with different data. The more experiments you run, the smarter your model becomes, and more robust models lead to better products.
 
 ## ✅ Features
 
