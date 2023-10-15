@@ -1,6 +1,7 @@
 from typing import Optional
 from oxen.local_repo import LocalRepo
 
+
 def clone(
     repo_id: str,
     path: Optional[str] = None,
@@ -8,11 +9,11 @@ def clone(
     branch: str = "main",
     protocol: str = "https",
     shallow=False,
-    all=False
+    all=False,
 ):
     """
     Clone a repository
-    
+
     Args:
         repo_id: `str`
             Name of the repository in the format 'namespace/repo_name'.

@@ -1,6 +1,7 @@
 from oxen import PyLocalRepo
 import os
 
+
 class LocalRepo:
     """
     The LocalRepo class that allows you to interact with your local oxen repo.
@@ -55,6 +56,7 @@ class LocalRepo:
         Will create a .oxen folder to store all the versions and metadata.
         """
         self._repo.init()
+        return self
 
     def clone(self, url: str, branch: str = "main", shallow=False, all=False):
         """
@@ -145,7 +147,7 @@ class LocalRepo:
                 The url you want to map the name to. Ex) https://hub.oxen.ai/ox/chatbot
         """
         self._repo.set_remote(name, url)
-        
+
     def create_remote(self, name: str):
         self._repo.create_remote(name)
 
