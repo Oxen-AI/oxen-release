@@ -1,17 +1,24 @@
 
 
 <div align="center">
-  <a href="https://docs.oxen.ai/">
-    <img src="https://img.shields.io/badge/%F0%9F%93%9A-Documentation-245AF0">
+  <a href="https://docs.oxen.ai/" style="padding: 2px;">
+    <img src="https://img.shields.io/badge/%F0%9F%93%9A-Documentation-245AF0" alt="Oxen.ai Documentation">
   </a>
-  <a href="https://oxen.ai/">
-    <img src="https://img.shields.io/badge/%F0%9F%90%82-Oxen%20Hub-245AF0">
+  <a href="https://oxen.ai/" style="padding: 2px;">
+    <img src="https://img.shields.io/badge/%F0%9F%90%82-Oxen%20Hub-245AF0" alt="Oxen.ai">
   </a>
-  <a href="https://crates.io/crates/liboxen">
-    <img src="https://img.shields.io/crates/v/liboxen.svg?color=245AF0"/>
+  <a href="https://crates.io/crates/liboxen" style="padding: 2px;">
+    <img src="https://img.shields.io/crates/v/liboxen.svg?color=245AF0" alt="Oxen.ai Crate"/>
   </a>
-  <a href="https://pypi.org/project/oxenai/">
+  <a href="https://pypi.org/project/oxenai/" style="padding: 2px;">
     <img src="https://img.shields.io/pypi/v/oxenai.svg?color=245AF0" alt="PyPi Latest Release"/>
+  </a>
+  <a href="https://discord.gg/8PKjB9Dz" style="padding: 2px;">
+    <img src="https://dcbadge.vercel.app/api/server/8PKjB9Dz?compact=true&style=flat" alt ="Oxen.ai Discord">
+  </a>
+  <a href="https://twitter.com/oxen_ai" style="padding: 2px;">
+    <img src="https://img.shields.io/twitter/url/https/twitter.com/oxen_ai
+.svg?style=social&label=Follow%20%40Oxen.ai" alt ="Oxen.ai Twitter">
   </a>
   <br/>
 </div>
@@ -124,7 +131,15 @@ If you have any questions, comments, suggestions, or just want to get in contact
 
 ## Contributing
 
-This repository contains the documentation and release builds. To contribute to the core code base visit [https://github.com/Oxen-AI/Oxen](https://github.com/Oxen-AI/Oxen)
+This repository contains the Python library that wraps the core Rust codebase. We would love help extending out the python interfaces, the documentation, or the core rust library.
+
+Code bases to contribute to:
+
+* 🦀 [Core Rust Library](https://github.com/Oxen-AI/Oxen)
+* 🐍 [Python Interface](https://github.com/Oxen-AI/oxen-release/tree/main/oxen)
+* 📚 [Documentation](https://github.com/Oxen-AI/docs)
+
+If you are building anything with oxen
 
 ## Why the name Oxen?
 
