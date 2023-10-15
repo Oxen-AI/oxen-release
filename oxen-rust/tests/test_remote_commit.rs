@@ -16,7 +16,8 @@ async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
 
             // Remote stage row
             let path = test::test_nlp_classification_csv();

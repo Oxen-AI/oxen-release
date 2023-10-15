@@ -10,7 +10,7 @@ use liboxen::util;
 
 // Test for clone --all that checks to make sure we have all commits, all deleted files, etc
 #[tokio::test]
-async fn test_clone_all() -> Result<(), OxenError> {
+async fn test_clone_dash_all() -> Result<(), OxenError> {
     test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
         // Create additional branch on remote repo before clone
         let branch_name = "test-branch";
@@ -24,7 +24,8 @@ async fn test_clone_all() -> Result<(), OxenError> {
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
             let cloned_repo =
-                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    .await?;
 
             // Make sure we have all the commit objects
             let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
@@ -41,6 +42,7 @@ async fn test_clone_all() -> Result<(), OxenError> {
             // We remove the test/ directory in one of the commits, so make sure we can go
             // back in the history to that commit
             let test_dir_path = cloned_repo.path.join("test");
+            println!("test_clone_dash_all test_dir_path: {:?}", test_dir_path);
             let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
             assert!(commit.is_some());
             assert!(!test_dir_path.exists());
@@ -78,6 +80,7 @@ async fn test_clone_all_push_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let mut cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -144,6 +147,7 @@ async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenErro
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let mut cloned_repo =
                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -180,6 +184,7 @@ async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {
 
         // Clone with the --all flag
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
             let mut cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
@@ -240,7 +245,8 @@ async fn test_clone_full() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
             let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
             // 2 test, 5 train, 1 labels
             assert_eq!(8, cloned_num_files);
@@ -261,7 +267,8 @@ async fn test_oxen_clone_empty_repo() -> Result<(), OxenError> {
 
         // Create a new repo to clone to, then clean it up
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());
@@ -282,7 +289,8 @@ async fn test_oxen_clone_empty_repo_then_push() -> Result<(), OxenError> {
 
         // Create a new repo to clone to, then clean it up
         test::run_empty_dir_test_async(|new_repo_dir| async move {
-            let cloned_repo = command::clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+            let cloned_repo =
+                command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo")).await?;
 
             let status = command::status(&cloned_repo);
             assert!(status.is_ok());

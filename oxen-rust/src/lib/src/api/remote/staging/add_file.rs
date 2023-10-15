@@ -241,7 +241,7 @@ mod tests {
             let remote_repo_cloned = remote_repo.clone();
             test::run_empty_dir_test_async(|cloned_repo_dir| async move {
                 // Clone repo
-                let opts = CloneOpts::new(remote_repo.remote.url, &cloned_repo_dir);
+                let opts = CloneOpts::new(remote_repo.remote.url, cloned_repo_dir.join("new_repo"));
                 let cloned_repo = command::clone(&opts).await?;
 
                 // Make sure that image is not on main branch

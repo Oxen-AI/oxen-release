@@ -15,6 +15,7 @@ async fn test_remote_stage_add_row_commit_clears_remote_status() -> Result<(), O
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
+            let repo_dir = repo_dir.join("new_repo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
@@ -57,6 +58,8 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
         let remote_repo_copy = remote_repo.clone();
 
         test::run_empty_dir_test_async(|repo_dir| async move {
+            let repo_dir = repo_dir.join("new_repo");
+
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 

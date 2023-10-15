@@ -847,7 +847,10 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                let mut opts = CloneOpts::new(
+                    remote_repo.remote.url.to_owned(),
+                    new_repo_dir.join("new_repo"),
+                );
                 opts.shallow = true;
 
                 let cloned_repo = command::clone(&opts).await?;
@@ -888,7 +891,10 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                let mut opts = CloneOpts::new(
+                    remote_repo.remote.url.to_owned(),
+                    new_repo_dir.join("new_repo"),
+                );
                 opts.shallow = true;
 
                 let cloned_repo = command::clone(&opts).await?;
@@ -953,7 +959,10 @@ mod tests {
             command::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let mut opts = CloneOpts::new(remote_repo.remote.url.to_owned(), &new_repo_dir);
+                let mut opts = CloneOpts::new(
+                    remote_repo.remote.url.to_owned(),
+                    new_repo_dir.join("new_repo"),
+                );
                 opts.shallow = true;
                 let cloned_repo = command::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
