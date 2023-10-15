@@ -10,21 +10,21 @@ pub struct PyDiff {
 #[pymethods]
 impl PyDiff {
     fn __repr__(&self) -> String {
-        format!("PyDiff(type={})", self.get_type())
+        format!("PyDiff(type=TODO)")
     }
 
-    #[getter]
-    pub fn get_type(&self) -> String {
-        match &self.diff {
-            GenericDiff::DirDiff(_diff) => {
-                "dir".to_string()
-            },
-            GenericDiff::TabularDiff(_diff) => {
-                "tabular".to_string()
-            },
-            // GenericDiff::TextDiff(_diff) => {
-            //     "text".to_string()
-            // },
-        }
-    }
+    // #[getter]
+    // pub fn get_type(&self) -> String {
+    //     match &self.diff {
+    //         GenericDiff::DirDiff(_diff) => {
+    //             "dir".to_string()
+    //         },
+    //         GenericDiff::TabularDiff(_diff) => {
+    //             "tabular".to_string()
+    //         },
+    //         // GenericDiff::TextDiff(_diff) => {
+    //         //     "text".to_string()
+    //         // },
+    //     }
+    // }
 }

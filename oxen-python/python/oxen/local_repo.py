@@ -43,8 +43,6 @@ class LocalRepo:
             path = os.path.abspath(path)
             if not os.path.exists(path) and mkdir:
                 os.makedirs(path)
-            elif not os.path.exists(path):
-                raise Exception(f"Path {path} does not exist.")
 
         self._repo = PyLocalRepo(path)
 
@@ -147,6 +145,9 @@ class LocalRepo:
                 The url you want to map the name to. Ex) https://hub.oxen.ai/ox/chatbot
         """
         self._repo.set_remote(name, url)
+        
+    def create_remote(self, name: str):
+        self._repo.create_remote(name)
 
     def push(self, remote_name: str = "origin", branch: str = "main"):
         """
