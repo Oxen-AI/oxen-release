@@ -13,6 +13,7 @@ from oxen.op import Op
 from oxen import auth
 from oxen import loaders
 from oxen.clone import clone
+from oxen.init import init
 
 # Names of public modules we want to expose
 __all__ = [
@@ -24,11 +25,12 @@ __all__ = [
     "PyLocalRepo",
     "PyStagedData",
     "Op",
+    "clone",
+    "init",
     "RemoteRepo",
     "LocalRepo",
     "auth",
     "loaders",
     "remote",
-    "util",
-    "clone"
+    "util"
 ]
