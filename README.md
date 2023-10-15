@@ -139,7 +139,7 @@ Code bases to contribute to:
 * 🐍 [Python Interface](https://github.com/Oxen-AI/oxen-release/tree/main/oxen)
 * 📚 [Documentation](https://github.com/Oxen-AI/docs)
 
-If you are building anything with oxen
+If you are building anything with Oxen.ai or have any questions we would love to hear from you in our [discord](https://discord.gg/8PKjB9Dz).
 
 ## Why the name Oxen?
 
