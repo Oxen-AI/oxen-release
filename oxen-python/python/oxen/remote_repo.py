@@ -2,7 +2,50 @@ import json
 import os
 
 from typing import Optional
-from oxen import PyRemoteRepo
+from typing import List, Tuple
+from .oxen import PyRemoteRepo, remote
+
+
+def get_repo(name: str, host: str = "hub.oxen.ai"):
+    """
+    Get a RemoteRepo object for the specified name. For example 'ox/CatDogBBox'.
+
+    Args:
+        name: `str`
+            Name of the repository in the format 'namespace/repo_name'.
+        host: `str`
+            The host to connect to. Defaults to 'hub.oxen.ai'
+    Returns:
+        [RemoteRepo](/python-api/remote_repo)
+    """
+    return remote.get_repo(name, host)
+
+
+def create_repo(
+    name: str,
+    description="",
+    is_public: bool = True,
+    host: str = "hub.oxen.ai",
+    files: List[Tuple[str, str]] = [],
+):
+    """
+    Create a new repository on the remote server.
+
+    Args:
+        name: `str`
+            Name of the repository in the format 'namespace/repo_name'.
+        description: `str`
+            Description of the repository. Only applicable to [OxenHub](https://oxen.ai).
+        is_public: `bool`
+            Whether the repository is public or private. Only applicable to [OxenHub](https://oxen.ai).
+        host: `str`
+            The host to connect to. Defaults to 'hub.oxen.ai'
+        files: `List[Tuple[str, str]]`
+            A list of tuples containing the path to the file and the contents of the file that you would like to seed the repository with.
+    Returns:
+        [RemoteRepo](/python-api/remote_repo)
+    """
+    return remote.create_repo(name, description, is_public, host, files)
 
 
 class RemoteRepo:
@@ -115,7 +158,9 @@ class RemoteRepo:
 
         return self._repo.ls(directory, page_num, page_size)
 
-    def download(self, remote_path: str, local_path: Optional[str] = None, revision: str = ""):
+    def download(
+        self, remote_path: str, local_path: Optional[str] = None, revision: str = ""
+    ):
         """
         Download a file or directory from the remote repo.
 
