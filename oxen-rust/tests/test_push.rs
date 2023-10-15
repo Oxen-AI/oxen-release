@@ -340,12 +340,16 @@ async fn test_cannot_push_two_separate_empty_roots() -> Result<(), OxenError> {
         // Clone the first repo
         test::run_empty_dir_test_async(|first_repo_dir| async move {
             let first_cloned_repo =
-                command::clone_url(&remote_repo.remote.url, &first_repo_dir).await?;
+                command::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
+                    .await?;
 
             // Clone the second repo
             test::run_empty_dir_test_async(|second_repo_dir| async move {
-                let second_cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &second_repo_dir).await?;
+                let second_cloned_repo = command::clone_url(
+                    &remote_repo.remote.url,
+                    &second_repo_dir.join("second_repo"),
+                )
+                .await?;
 
                 // Add to the first repo, after we have the second repo cloned
                 let new_file = "new_file.txt";
@@ -531,12 +535,16 @@ async fn test_cannot_push_while_another_user_is_pushing() -> Result<(), OxenErro
         // Clone the first repo
         test::run_empty_dir_test_async(|first_repo_dir| async move {
             let first_cloned_repo =
-                command::clone_url(&remote_repo.remote.url, &first_repo_dir).await?;
+                command::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
+                    .await?;
 
             // Clone the second repo
             test::run_empty_dir_test_async(|second_repo_dir| async move {
-                let second_cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &second_repo_dir).await?;
+                let second_cloned_repo = command::clone_url(
+                    &remote_repo.remote.url,
+                    &second_repo_dir.join("second_repo"),
+                )
+                .await?;
 
                 // Add to the first repo, after we have the second repo cloned
                 let new_file = "new_file.txt";

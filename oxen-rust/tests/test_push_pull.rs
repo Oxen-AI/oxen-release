@@ -43,6 +43,7 @@ async fn test_command_push_clone_pull_push() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("new_repo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             let oxen_dir = cloned_repo.path.join(".oxen");
@@ -160,6 +161,7 @@ async fn test_command_add_modify_remove_push_pull() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("new_repo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
@@ -227,6 +229,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("new_repo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull_all(&cloned_repo).await?;
@@ -322,6 +325,7 @@ async fn test_push_pull_push_pull_on_other_branch() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("new_repo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull_all(&cloned_repo).await?;
@@ -391,6 +395,7 @@ async fn test_push_pull_file_without_extension() -> Result<(), OxenError> {
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("new_repo");
             let cloned_repo =
                 command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
             command::pull(&cloned_repo).await?;
@@ -480,7 +485,7 @@ async fn test_push_pull_separate_branch_less_files() -> Result<(), OxenError> {
             // Clone the branch
             let opts = CloneOpts {
                 url: remote_repo.url().to_string(),
-                dst: new_repo_dir.to_owned(),
+                dst: new_repo_dir.join("new_repo"),
                 branch: branch_name.to_owned(),
                 shallow: false,
                 all: false,
@@ -558,7 +563,7 @@ async fn test_push_pull_separate_branch_more_files() -> Result<(), OxenError> {
             // Clone the branch
             let opts = CloneOpts {
                 url: remote_repo.url().to_string(),
-                dst: new_repo_dir.to_owned(),
+                dst: new_repo_dir.join("new_repo"),
                 branch: DEFAULT_BRANCH_NAME.to_string(),
                 shallow: false,
                 all: false,
@@ -628,6 +633,7 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
 
         test::run_empty_dir_test_async(|repo_dir| async move {
             // Pull down this removal
+            let repo_dir = repo_dir.join("repoo");
             let _cloned_repo = command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
             Ok(repo_dir)
         })

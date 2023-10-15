@@ -952,6 +952,9 @@ pub async fn clone(sub_matches: &ArgMatches) {
         .expect("Must supply a branch");
 
     let dst = std::env::current_dir().expect("Could not get current working directory");
+    // Get the name of the repo from the url
+    let name = url.split('/').last().unwrap();
+    let dst = dst.join(name);
 
     let opts = CloneOpts {
         url: url.to_string(),
