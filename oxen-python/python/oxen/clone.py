@@ -30,7 +30,7 @@ def clone(
         all: `bool`
             Whether to clone the full commit history or not. Default: False
      Returns:
-        [oxen.LocalRepo](/python-api/local_repo)
+        [LocalRepo](/python-api/local_repo)
             A LocalRepo object that can be used to interact with the cloned repo.
     """
     # Verify repo_id format
