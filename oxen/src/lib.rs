@@ -1,8 +1,4 @@
-use std::path::PathBuf;
 
-use error::PyOxenError;
-use liboxen::{config::UserConfig, model::{repository::local_repository::FileNew, RepositoryNew}};
-use py_remote_repo::PyRemoteRepo;
 use pyo3::prelude::*;
 
 pub mod error;
@@ -18,6 +14,7 @@ pub mod py_remote_repo;
 pub mod py_paginated_dir_entries;
 pub mod py_staged_data;
 pub mod py_user;
+pub mod remote;
 pub mod user;
 pub mod util;
 
@@ -70,25 +67,11 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     user_module.add_function(wrap_pyfunction!(user::current_user, user_module)?)?;
     m.add_submodule(user_module)?;
 
-    Ok(())
-}
+    // Remote Module
+    let remote_module = PyModule::new(py, "remote")?;
+    remote_module.add_function(wrap_pyfunction!(remote::get_repo, remote_module)?)?;
+    remote_module.add_function(wrap_pyfunction!(remote::create_repo, remote_module)?)?;
+    m.add_submodule(remote_module)?;
 
-// TODO: be able to pass in file list and contents from python
-#[pyfunction]
-pub fn create_remote_repo(namespace: String, name: String, host: String) -> Result<PyRemoteRepo, PyOxenError> {
-    let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
-        let config = UserConfig::get()?;
-        let user = config.to_user();
-        let files: Vec<FileNew> = vec![FileNew {
-            path: PathBuf::from("README.md"),
-            contents: format!("# {}\n", &name),
-        }];
-        let repo = RepositoryNew::from_files(&namespace, &name, files, user);
-        liboxen::api::remote::repositories::create(repo, &host).await
-    })?;
-    Ok(PyRemoteRepo {
-        repo: result.clone(),
-        host: host.clone(),
-        revision: "main".to_string(),
-    })
+    Ok(())
 }
