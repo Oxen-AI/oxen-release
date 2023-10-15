@@ -1,9 +1,9 @@
 use liboxen::model::entry::mod_entry::ModType;
-use liboxen::model::repository::local_repository::FileNew;
+use liboxen::model::file::FileNew;
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
-use liboxen::model::{NewCommitBody, ContentType, Remote, RemoteRepository, RepositoryNew};
+use liboxen::model::{NewCommitBody, ContentType, Remote, RemoteRepository, RepoNew};
 use liboxen::{api, command};
 
 use pyo3::exceptions::PyValueError;
@@ -54,6 +54,14 @@ impl PyRemoteRepo {
         })
     }
 
+    fn __repr__(&self) -> String {
+        format!("RemoteRepo(namespace='{}', name='{}', url='{}')", self.namespace(), self.name(), self.url())
+    }
+
+    fn __str__(&self) -> String {
+        format!("{}/{}", self.namespace(), self.name())
+    }
+
     fn url(&self) -> &str {
         self.repo.url()
     }
@@ -77,21 +85,22 @@ impl PyRemoteRepo {
     fn create(&mut self, empty: bool) -> Result<PyRemoteRepo, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
             if empty {
-                api::remote::repositories::create_empty(
-                    &self.repo.namespace,
-                    &self.repo.name,
-                    &self.host,
-                )
-                .await
+                let repo = RepoNew::from_namespace_name_host(
+                    self.repo.namespace.clone(),
+                    self.repo.name.clone(),
+                    self.host.clone(),
+                );
+                api::remote::repositories::create_empty(repo).await
             } else {
                 let config = UserConfig::get()?;
                 let user = config.to_user();
                 let files: Vec<FileNew> = vec![FileNew {
                     path: PathBuf::from("README.md"),
                     contents: format!("# {}\n", &self.repo.name),
+                    user: user.clone()
                 }];
-                let repo = RepositoryNew::from_files(&self.repo.namespace, &self.repo.name, files, user);
-                api::remote::repositories::create(repo, &self.host).await
+                let repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);
+                api::remote::repositories::create(repo).await
             }
         })?;
 
