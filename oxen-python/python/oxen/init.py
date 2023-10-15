@@ -1,12 +1,12 @@
-
 from oxen.local_repo import LocalRepo
+
 
 def init(
     path: str,
 ):
     """
     Initialize a [LocalRepo](/python-api/local_repo) at the given path.
-    
+
     Args:
         path: `str`
             The path to initialize the repo at.

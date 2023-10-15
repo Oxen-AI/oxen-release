@@ -2,7 +2,7 @@
 
 # Rust wrappers
 from .oxen import PyLocalRepo, PyStagedData, PyCommit, PyRemoteRepo, PyDataset
-from .oxen import util, remote
+from .oxen import util
 
 # Python classes
 from oxen.dataset import Dataset
@@ -31,6 +31,5 @@ __all__ = [
     "LocalRepo",
     "auth",
     "loaders",
-    "remote",
-    "util"
+    "util",
 ]
