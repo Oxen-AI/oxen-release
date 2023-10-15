@@ -21,6 +21,14 @@ impl PyStagedData {
         self.data.to_string()
     }
 
+    pub fn is_dirty(&self) -> bool {
+        return !self.data.is_clean();
+    }
+
+    pub fn is_clean(&self) -> bool {
+        return self.data.is_clean();
+    }
+
     pub fn added_files(&self) -> PyResult<Vec<String>> {
         Ok(self
             .data
