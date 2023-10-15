@@ -866,9 +866,9 @@ dependencies = [
 
 [[package]]
 name = "base64"
-version = "0.21.3"
+version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "414dcefbc63d77c526a76b3afcf6fbb9b5e2791c19c3aa2297733208750c6e53"
+checksum = "9ba43ea6f343b788c8764558649e08df62f86c6ef251fdaeb1ffd010a9ae50a2"
 
 [[package]]
 name = "bindgen"
@@ -2575,9 +2575,9 @@ checksum = "f7012b1bbb0719e1097c47611d3898568c546d597c2e74d66f6087edd5233ff4"
 
 [[package]]
 name = "liboxen"
-version = "0.9.1"
+version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f5c336147545f23b80f22ff06faf3fc9e766043c7a6a87151e3fff2eed824868"
+checksum = "c2897f48f0de5764e5044abeea0e2e396dde28e57b9c96d80627eecef6ba191c"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -2725,9 +2725,9 @@ dependencies = [
 
 [[package]]
 name = "lofty"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8143c1ac799df98778738e48e403990dcae27c9843f89ae0bd79967ddd512448"
+checksum = "cfa7a62ede7d634892901a2be8bb32f3e13d0418f276d2a391a509afe050f01b"
 dependencies = [
  "base64",
  "byteorder",
@@ -3128,7 +3128,7 @@ checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
 
 [[package]]
 name = "oxen"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bindgen 0.66.1",
  "cc",
