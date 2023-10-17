@@ -36,6 +36,7 @@ def get_repo_info(dataset_name):
     print("="*80)
     
     sizes = [0]
+    subsets = []
     description = ""
     if 'dataset_info' in info:
         subsets = info['dataset_info'].keys()
@@ -52,9 +53,7 @@ def get_repo_info(dataset_name):
             print(subset_description)
             if description == "":
                 description = subset_description
-    else:
-        subsets = ["default"]
-        
+
     sum_sizes = sum(sizes)
     print(f"Dataset Total Size: {human_size(sum_sizes)}")
     print("="*80)
@@ -65,6 +64,10 @@ def get_repo_info(dataset_name):
     return {"size": sum_sizes, "description": description, "subsets": subsets}
 
 def download_dataset_subsets(dataset_name, subsets, local_repo, data_dir, commit=None):
+    if len(subsets) == 0:
+        # if we failed to get subsets, just try the default subset
+        subsets = ["default"]
+
     for subset in subsets:
         branch_name = subset
 
@@ -145,7 +148,6 @@ if __name__ == "__main__":
     namespace = args.namespace
     host = args.host
 
-
     # if dir exists, do not continue
     output_dir = os.path.join(output_dir, dataset_name)
     if os.path.exists(output_dir):
@@ -201,12 +203,13 @@ if __name__ == "__main__":
             print(f"Failed to download commit {commit} from dataset {dataset_name}")
             print(f"Got Exception: {e}")
 
+    if len(subsets) == 0:
+        # Download the dataset with the base load_dataset function to get the latest version in case all the commit history fails, because sometimes the commit history is broken
+        local_repo.checkout("main")
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
+        download_dataset_subsets(dataset_name, subsets, local_repo, data_dir)
 
-    # Download the dataset with the base load_dataset function to get the latest version in case all the commit history fails, because sometimes the commit history is broken
-    local_repo.checkout("main")
-    subsets = ["default"]
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-    download_dataset_subsets(dataset_name, subsets, local_repo, data_dir)
+    # TODO: what to do it main does not exist in the dataset? like lighteval/legal_summarization
 
 
