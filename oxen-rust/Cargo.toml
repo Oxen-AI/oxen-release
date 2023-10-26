@@ -68,6 +68,7 @@ mp4 = "0.14.0"
 minus = { version = "5.4.0", features = ["static_output", "search"] }
 nom = "7.1.3"
 num_cpus = "1.16.0"
+par-stream = "0.10.2"
 pluralizer = "0.4.0"
 polars = { version = "0.34.0", features = ["lazy", "parquet", "json", "ipc", "ipc_streaming", "dtype-struct"] }
 polars-sql = "0.34.0"

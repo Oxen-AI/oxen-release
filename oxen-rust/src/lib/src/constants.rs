@@ -95,6 +95,7 @@ pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
 // Data transfer
 // Average chunk size of ~4mb
 /// Average chunk size of ~4mb when chunking and sending data
+// pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 // Retry and back off of requests N times
 /// Retry and back off of requests N times
