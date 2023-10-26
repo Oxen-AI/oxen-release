@@ -69,7 +69,10 @@ async fn validate_repo_is_pushable(
 ) -> Result<(), OxenError> {
     // Make sure the remote branch is not ahead of the local branch
     if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
-        return Err(OxenError::remote_ahead_of_local());
+        if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit).await? == false {
+            return Err(OxenError::upstream_merge_conflict());
+        }
+        // Otherwise, we're good to push - TODONOW, maybe some sort of confirmation here?
     }
 
     if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {
@@ -160,6 +163,8 @@ pub async fn try_push_remote_repo(
         "push_remote_repo commit order after get_commit_objects_to_sync {:?}",
         commits_to_sync
     );
+    // TODONOW remove
+    let t_remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
 
     let (unsynced_entries, _total_size) =
         push_missing_commit_objects(local_repo, remote_repo, &commits_to_sync, &branch).await?;
@@ -170,15 +175,20 @@ pub async fn try_push_remote_repo(
 
     push_missing_commit_dbs(local_repo, remote_repo, unsynced_db_commits).await?;
 
-    // update the branch after everything else is synced
-    log::debug!(
-        "Updating remote branch {:?} to commit {:?}",
-        &branch.name,
-        &head_commit
-    );
     log::debug!("🐂 Identifying commits with unsynced entries...");
 
-    // Raise an OxenError for testing purposes
+
+    // TODONOW: is this the best place for this?
+    // TODONOW: this can maybe be put under a flag driven by behind-main validation from earlier.
+    // Check if merge commit needed on push, if it is, head_commit is the merge commit, otherwise it's the current head
+    log::debug!("about to maybe create merge");
+
+    log::debug!("for sake of sanity, here is the head commit {:?}", head_commit);
+
+
+    log::debug!("and here is the remote branch commit, if it exists {:?}", t_remote_branch);
+
+
 
     // Get commits with unsynced entries
     let unsynced_entries_commits =
@@ -197,10 +207,32 @@ pub async fn try_push_remote_repo(
     )
     .await?;
 
+    // Try again after the entries are all up there 
+    // TODONOW: fix for this is likely sending over the previous remote head.
+        // TODONOW hack delete
+    let t_remote_commit = api::remote::commits::get_by_id(remote_repo, t_remote_branch.unwrap().commit_id.as_str()).await?.unwrap();
+
+
+    // TODONOW: BIGHACK we shouldn't be actively rolling the branch back like this. but `push_missing_commit_objects` 
+    // is implicitly updating stuff, so this is just for testing...
+    api::remote::branches::update(remote_repo, &branch.name, &t_remote_commit).await?;
+
+
+    let head_commit = api::remote::branches::maybe_create_merge(remote_repo, branch.name.as_str(), head_commit).await?;
+
+    log::debug!("got new merge head commit {:?}", head_commit);
+
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     api::remote::commits::bulk_post_push_complete(remote_repo, &unsynced_entries_commits).await?;
+    // Update the head...
+    api::remote::branches::update(remote_repo, &branch.name, &head_commit).await?;
 
-    api::remote::branches::update(remote_repo, &branch.name, head_commit).await?;
+    // update the branch after everything else is synced
+    log::debug!(
+        "Updating remote branch {:?} to commit {:?}",
+        &branch.name,
+        &head_commit
+    );
 
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
@@ -209,7 +241,7 @@ pub async fn try_push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(remote_repo, head_commit, &bar).await?;
+    poll_until_synced(remote_repo, &head_commit, &bar).await?;
     bar.finish_and_clear();
 
     log::debug!("Just finished push.");
@@ -355,6 +387,7 @@ async fn remote_is_ahead_of_local(
     // Meaning we do not have the remote branch commit in our history
     Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
 }
+
 
 async fn cannot_push_incomplete_history(
     local_repo: &LocalRepository,
@@ -1083,11 +1116,14 @@ async fn bundle_and_send_small_entries(
                 // TODO: Refactor where the bars are being passed so we don't need silent here
                 let quiet_bar = Arc::new(ProgressBar::hidden());
 
+                let uri = format!("/commits/{}/data", commit.id);
+                let url = api::endpoint::url_from_repo(&remote_repo, &uri).unwrap(); // TODONOW feel medium about this
                 match api::remote::commits::post_data_to_server(
                     &remote_repo,
                     &commit,
                     buffer,
                     is_compressed,
+                    &url,
                     &file_name,
                     quiet_bar,
                 )

@@ -61,6 +61,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::upload),
         )
         .route(
+            "/{namespace}/{repo_name}/commits/{commit_id}/upload_tree",
+            web::post().to(controllers::commits::upload_tree),
+        )
+        .route(
+            "/{namespace}/{repo_name}/commits/{commit_id}/can_push",
+            web::get().to(controllers::commits::can_push),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/complete",
             web::post().to(controllers::commits::complete),
         )
@@ -108,6 +116,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/branches/{branch_name:.*}/unlock",
             web::post().to(controllers::branches::unlock),
+        )
+        .route(
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/merge",
+            web::put().to(controllers::branches::maybe_create_merge),
         )
         .route(
             "/{namespace}/{repo_name}/branches/{branch_name:.*}",

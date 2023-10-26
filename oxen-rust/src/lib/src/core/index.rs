@@ -29,6 +29,7 @@ pub mod schema_writer;
 pub mod staged_dir_entry_db;
 pub mod staged_dir_entry_reader;
 pub mod stager;
+pub mod tree_db_reader;
 pub mod versioner;
 
 pub use crate::core::index::commit_db_reader::CommitDBReader;
@@ -53,3 +54,4 @@ pub use crate::core::index::schema_writer::SchemaWriter;
 pub use crate::core::index::staged_dir_entry_db::StagedDirEntryDB;
 pub use crate::core::index::staged_dir_entry_reader::StagedDirEntryReader;
 pub use crate::core::index::stager::Stager;
+pub use crate::core::index::tree_db_reader::TreeDBReader;

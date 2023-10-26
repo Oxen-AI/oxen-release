@@ -2,6 +2,7 @@ use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
 use liboxen::constants::DIRS_DIR;
+use liboxen::constants::TREE_DIR;
 use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
@@ -21,6 +22,7 @@ use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
+use liboxen::view::commit::CommitTreeValidationResponse;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -29,6 +31,7 @@ use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::PaginatedCommits;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
+use serde_json::json;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -45,6 +48,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Read;
 use std::io::Write;
@@ -464,7 +468,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
 
     // Ignore cache and other dirs, only take what we need
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -584,6 +588,7 @@ pub async fn create_bulk(
         commits: result_commits.to_owned(),
     }))
 }
+
 
 /// Controller to upload large chunks of data that will be combined at the end
 pub async fn upload_chunk(
@@ -769,6 +774,97 @@ fn check_if_upload_complete_and_unpack(
     }
 }
 
+// TODONOW maybe type the query params
+pub async fn upload_tree(
+    req: HttpRequest,
+    mut body: web::Payload,
+    query: web::Query<HashMap<String, String>>
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let client_head_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+    // TODONOW: go back to using a tree tmp dir...
+    // TODONOW factored out lca params here
+    // TODONOW better error handling
+    // TODONOW fetch actual commits here for lca_id and such
+    let server_head_id = query.get("remote_head").unwrap();
+    let lca_id = query.get("lca").unwrap();
+
+    log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
+
+
+    // Get head commit on sever repo
+    let server_head_commit = api::local::commits::head_commit(&repo)?;
+
+
+    // Unpack in tmp/tree/commit_id
+    // TODONOW: store this in a more valid place 
+    // TODONOW: cleanup after done
+    let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+
+    let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    log::debug!(
+        "Got compressed data for tree {} -> {}",
+        client_head_id,
+        ByteSize::b(total_size)
+    );
+
+    log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
+
+    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+    // Unpack from archive...
+    unpack_tree_tarball(&tmp_dir, &mut archive);
+
+    log::debug!("Tree tarball successfully unpacked");
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_found(),
+        commit: server_head_commit.to_owned(),
+    }))
+}
+
+pub async fn can_push(
+    req: HttpRequest,
+    query: web::Query<HashMap<String, String>>
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let client_head_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+    // TODONOW: go back to using a tree tmp dir...
+    // TODONOW factored out lca params here
+    // TODONOW better error handling
+    // TODONOW fetch actual commits here for lca_id and such
+    let server_head_id = query.get("remote_head").unwrap();
+    let lca_id = query.get("lca").unwrap();
+
+    log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
+    let can_merge = !api::local::commits::head_commits_have_conflicts(&repo, &client_head_id, &server_head_id, &lca_id)?;
+
+    // Change this to the proper view in commitresponse
+
+    if can_merge {
+        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
+            status: StatusMessage::resource_found(), 
+            can_merge: true
+        }))
+    } else {
+        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
+            status: StatusMessage::resource_found(), 
+            can_merge: false
+        }))
+    }
+}
+
+
 /// Controller to upload the commit database
 pub async fn upload(
     req: HttpRequest,
@@ -813,7 +909,6 @@ pub async fn upload(
     }))
 }
 
-// Deprecated in favor of bulk - can we remove?
 /// Notify that the push should be complete, and we should start doing our background processing
 pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -939,6 +1034,42 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     }
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
+
+// TODONOW how to dedupe
+fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
+    match archive.entries() {
+        Ok(entries) => {
+            for file in entries {
+                if let Ok(mut file) = file {
+                    let path = file.path().unwrap();
+                    let stripped_path = if path.starts_with(HISTORY_DIR) {
+                        path.strip_prefix(HISTORY_DIR).unwrap() // TODONOW where to store, how to handle this path logic
+                    } else {
+                        &path
+                    };
+
+                    let mut new_path = PathBuf::from(tmp_dir);
+                    new_path.push(stripped_path);
+
+                    if let Some(parent) = new_path.parent() {
+                        if !parent.exists() {
+                            std::fs::create_dir_all(parent)
+                                .expect("Could not create parent dir");
+                        }
+                    }
+                    file.unpack(&new_path).unwrap();
+                } else {
+                    log::error!("Could not unpack file in archive...");
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Could not unpack tree database from archive...");
+            log::error!("Err: {:?}", err);
+        }
+    }
+}
+
 
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     // Unpack and compute HASH and save next to the file to speed up computation later

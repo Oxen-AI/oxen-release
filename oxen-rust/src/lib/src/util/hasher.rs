@@ -1,3 +1,4 @@
+use crate::core::db::tree_db::{TreeNode, TreeChild};
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
@@ -21,6 +22,8 @@ pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
     xxh3_128(buffer)
 }
 
+//MERKLE: this will become a recursive thing starting from the bottom of the tree.
+// but we will only need to re-hash the dirs which are changed - which we can know through tree-ifing the stageddirsdb. 
 pub fn compute_commit_hash<E>(commit_data: &NewCommit, entries: &[E]) -> String
 where
     E: ContentHashable + std::fmt::Debug,
@@ -40,6 +43,18 @@ where
     commit_hasher.update(commit_str.as_bytes());
 
     let val = commit_hasher.digest();
+    format!("{val:x}")
+}
+
+// For subtrees with already-hashed children
+pub fn compute_subtree_hash(children: &Vec<TreeChild>) -> String {
+    let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
+    for child in children {
+        let hash = child.hash();
+        let input = hash.as_bytes(); // TODONOW error handling?
+        subtree_hasher.update(input);
+    }
+    let val = subtree_hasher.digest();
     format!("{val:x}")
 }
 
