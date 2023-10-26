@@ -2,7 +2,7 @@ on:
   push:
     # Pattern matched against refs/tags
     tags:
-      - '*'
+      - "*"
 jobs:
   release_ubuntu_latest:
     runs-on: ubuntu-latest
@@ -296,8 +296,18 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build Docker
-        run: docker build -t oxen/oxen-server .
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          tags: oxen/oxen-server
 
       - name: Save Docker
         run: docker save oxen/oxen-server -o oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
