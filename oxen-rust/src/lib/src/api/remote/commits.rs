@@ -1,17 +1,17 @@
 use crate::api::remote::client;
 use crate::constants::{
-    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR,
+    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, TREE_DIR,
 };
 use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{CommitDBReader, CommitWriter};
+use crate::core::index::{CommitDBReader, CommitWriter, CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::hasher::hash_buffer;
 use crate::util::progress_bar::{oxify_bar, ProgressBarType};
-use crate::view::commit::CommitSyncStatusResponse;
+use crate::view::commit::{CommitSyncStatusResponse, CommitTreeValidationResponse};
 use crate::{api, constants};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
@@ -245,6 +245,108 @@ pub async fn download_commits_db_to_repo(
 
     Ok(writer.commits_db.path().to_path_buf())
 }
+
+
+
+
+// TODONOW: remote branch name? local branch name?
+pub async fn can_push( // TODONOW: factor with `post_commit_db_to_server` common fx
+    remote_repo: &RemoteRepository, 
+    remote_branch_name: &str, 
+    local_repo: &LocalRepository,
+    local_head: &Commit // Todonow maybe just bool 
+) -> Result<bool, OxenError> {
+
+    // First need to download local history so we can get LCA 
+    download_commits_db_to_repo(local_repo, remote_repo).await?;
+
+    // TODONOW: better way to handle this to reduce http reqs
+    // TODONOW edge case: unwrapping not-yet-created branch? should be fine
+    let remote_branch = api::remote::branches::get_by_name(&remote_repo, remote_branch_name).await?.unwrap();
+    let remote_head_id = remote_branch.commit_id;
+    let remote_head = api::remote::commits::get_by_id(&remote_repo, &remote_head_id).await?.unwrap();
+
+
+    // Get LCA...TODONOW LCA is broken...
+    let merger = Merger::new(local_repo)?;
+    let reader = CommitReader::new(local_repo)?;
+    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head )?;
+
+    let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
+        .join(HISTORY_DIR)
+        .join(local_head.id.clone());
+
+    // This will be the subdir within the tarball
+    let tar_subdir = Path::new(HISTORY_DIR).join(local_head.id.clone());
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    let dirs_to_compress = vec![TREE_DIR];
+
+    for dir in &dirs_to_compress {
+        let full_path = head_commit_dir.join(dir);
+        let tar_path = tar_subdir.join(dir);
+        if full_path.exists() {
+            tar.append_dir_all(&tar_path, full_path)?;
+        }
+    }
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let is_compressed = true;
+    let filename = None;
+
+    // TODONOW: do we ever actually want to see a bar on post_data_to_server?
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    // TODONOW remote branch
+
+    // TODONOW drop these query params
+    let uri = format!("/commits/{}/upload_tree?remote_head={}&lca={}", local_head.id, remote_head.id, lca.id);
+    let tree_url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+
+    log::debug!("before posting");
+
+    post_data_to_server(
+        remote_repo, 
+        local_head,
+        buffer,
+        is_compressed,
+        &tree_url,
+        &filename, 
+        quiet_bar
+    )
+    .await?;
+
+    log::debug!("after posting...");
+
+    // TODONOW: Make sure the tree is deleted on server 
+    // TODONOW factor this out into an endpoint
+    let uri = format!("/commits/{}/can_push?remote_head={}&lca={}", local_head.id, remote_head.id, lca.id);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+
+    log::debug!("About to hit can_push");
+
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
+        Ok(response.can_merge)
+    } else {
+        Err(OxenError::basic_str("can_push() Request failed"))
+    }
+
+
+}
+
+
+
+
 
 pub async fn download_commits_db_to_path(
     remote_repo: &RemoteRepository,
@@ -510,7 +612,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -529,11 +631,15 @@ pub async fn post_commit_db_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
+    let uri = format!("/commits/{}/data", commit.id);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
     post_data_to_server(
         remote_repo,
         commit,
         buffer,
         is_compressed,
+        &url,
         &filename,
         quiet_bar,
     )
@@ -565,27 +671,32 @@ pub async fn bulk_create_commit_obj_on_server(
     }
 }
 
+
+
 pub async fn post_data_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: Vec<u8>,
     is_compressed: bool,
+    single_upload_url: &str,
     filename: &Option<String>,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
+    let chunk_endpoint = "upload_chunk";
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
             remote_repo,
             commit,
             &buffer,
             chunk_size,
+            chunk_endpoint,
             is_compressed,
             filename,
         )
         .await?;
     } else {
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, bar).await?;
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, &single_upload_url, bar).await?;
     }
     Ok(())
 }
@@ -594,12 +705,13 @@ pub async fn upload_single_tarball_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
+    url: &str,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
 
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
+        match upload_single_tarball_to_server(remote_repo, commit, buffer, url, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -624,17 +736,17 @@ async fn upload_single_tarball_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     buffer: &[u8],
+    url: &str,
     bar: Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
-    let uri = format!("/commits/{}/data", commit.id);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    let client = client::builder_for_url(&url)?
+
+    let client = client::builder_for_url(url)?
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
     let size = buffer.len() as u64;
-    match client.post(&url).body(buffer.to_owned()).send().await {
+    match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
 
@@ -661,6 +773,7 @@ async fn upload_data_to_server_in_chunks(
     commit: &Commit,
     buffer: &[u8],
     chunk_size: usize,
+    endpoint: &str,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
@@ -695,6 +808,7 @@ async fn upload_data_to_server_in_chunks(
             chunk,
             &hash,
             &params,
+            endpoint,
             is_compressed,
             filename,
         )
@@ -717,6 +831,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
     chunk: &[u8],
     hash: &str,
     params: &ChunkParams,
+    endpoint: &str,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
@@ -729,6 +844,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
             chunk,
             hash,
             params,
+            endpoint,
             is_compressed,
             filename,
         )
@@ -764,6 +880,7 @@ async fn upload_data_chunk_to_server(
     chunk: &[u8],
     hash: &str,
     params: &ChunkParams,
+    endpoint: &str,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<CommitResponse, OxenError> {
@@ -781,8 +898,8 @@ async fn upload_data_chunk_to_server(
     };
 
     let uri = format!(
-        "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
-        commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename
+        "/commits/{}/{}?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
+        commit.id, endpoint, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let total_size = chunk.len() as u64;

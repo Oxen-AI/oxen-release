@@ -43,6 +43,7 @@ pub enum OxenError {
     RemoteAheadOfLocal(StringError),
     IncompleteLocalHistory(StringError),
     RemoteBranchLocked(StringError),
+    UpstreamMergeConflict(StringError),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -133,6 +134,12 @@ impl OxenError {
     pub fn remote_ahead_of_local() -> Self {
         OxenError::RemoteAheadOfLocal(StringError::from(
             "\nRemote ahead of local, must pull changes. To fix run:\n\n  oxen pull\n",
+        ))
+    }
+
+    pub fn upstream_merge_conflict() -> Self {
+        OxenError::UpstreamMergeConflict(StringError::from(
+            "\nThis remote is ahead of your local branch and has merge conflicts. To fix run:\n\n  oxen pull\n"
         ))
     }
 

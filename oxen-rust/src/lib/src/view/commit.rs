@@ -32,6 +32,13 @@ pub struct CommitSyncStatusResponse {
     pub num_unsynced: usize,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct CommitTreeValidationResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub can_merge: bool
+}
+
 impl ListCommitResponse {
     pub fn success(commits: Vec<Commit>) -> ListCommitResponse {
         ListCommitResponse {

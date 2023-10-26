@@ -116,7 +116,7 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     let directory = dunce::canonicalize(PathBuf::from(&path))?;
 
     let host = get_host_or_default()?;
-    check_remote_version(host).await?;
+    // check_remote_version(host).await?; // TODONOW bring this back, i guess
 
     command::init(&directory)?;
     println!("🐂 repository initialized at: {directory:?}");

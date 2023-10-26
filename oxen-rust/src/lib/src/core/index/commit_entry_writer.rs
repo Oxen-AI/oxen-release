@@ -1,14 +1,17 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db;
-use crate::core::db::{kv_db, path_db};
+use crate::core::db::tree_db::{TreeNode, TreeChild};
+use crate::core::db::{kv_db, path_db, tree_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
+use crate::core::index::oxenignore;
 use crate::error::OxenError;
 use crate::model::schema::Schema;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
 };
 use crate::util;
+use crate::util::fs::path_relative_to_dir;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use filetime::FileTime;
@@ -23,6 +26,7 @@ use super::{CommitDirEntryReader, CommitEntryReader};
 pub struct CommitEntryWriter {
     repository: LocalRepository,
     dir_db: DBWithThreadMode<MultiThreaded>,
+    tree_db: DBWithThreadMode<MultiThreaded>,
     commit: Commit,
 }
 
@@ -41,6 +45,10 @@ impl CommitEntryWriter {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIRS_DIR)
     }
 
+    pub fn commit_tree_db(path: &Path, commit_id: &str) -> PathBuf {
+        CommitEntryWriter::commit_dir(path, commit_id).join(constants::TREE_DIR)
+    }
+
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
@@ -51,10 +59,13 @@ impl CommitEntryWriter {
             util::fs::create_dir_all(&db_path)?;
         }
 
+        let tree_db_path = CommitEntryWriter::commit_tree_db(&repository.path, &commit.id);
+
         let opts = db::opts::default();
         Ok(CommitEntryWriter {
             repository: repository.clone(),
             dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
+            tree_db: DBWithThreadMode::open(&opts, dunce::simplified(&tree_db_path))?,
             commit: commit.to_owned(),
         })
     }
@@ -95,6 +106,7 @@ impl CommitEntryWriter {
         Ok(())
     }
 
+    // MERKLE - here's where we get dirs
     fn write_entries_from_reader(&self, reader: &CommitEntryReader) -> Result<(), OxenError> {
         let dirs = reader.list_dirs()?;
         for dir in dirs {
@@ -144,6 +156,7 @@ impl CommitEntryWriter {
         &self,
         writer: &CommitDirEntryWriter,
         new_commit: &Commit,
+        staged_entry: &StagedEntry,
         origin_path: &Path,
         file_path: &Path,
     ) -> Result<(), OxenError> {
@@ -158,14 +171,14 @@ impl CommitEntryWriter {
 
         let metadata = fs::metadata(&full_path)?;
 
-        // Re-hash for issues w/ adding
+        // Re-hash for issues w/ adding - TODONOW deprecated
         let hash = util::hasher::hash_file_contents(&full_path)?;
 
         // Create entry object to as json
         let entry = CommitEntry {
             commit_id: new_commit.id.to_owned(),
             path: file_path.to_path_buf(),
-            hash: hash.to_owned(),
+            hash: staged_entry.hash.to_owned(),
             num_bytes: metadata.len(),
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
@@ -191,6 +204,8 @@ impl CommitEntryWriter {
 
         writer.add_commit_entry(&entry)
     }
+
+    // TODONOW: issue with .oxenignore being modified at weird times possible?
 
     fn backup_file_to_versions_dir(
         &self,
@@ -277,6 +292,20 @@ impl CommitEntryWriter {
         results
     }
 
+    // TODONOW: this is duplicated in stager.rs
+    fn should_ignore_path(&self, 
+        path: &Path,
+    ) -> bool {
+        let ignore = oxenignore::create(&self.repository);
+        let should_ignore = if let Some(ignore) = ignore {
+            ignore.matched(path, path.is_dir()).is_ignore()
+        } else {
+            false
+        };
+
+        should_ignore || util::fs::is_in_oxen_hidden_dir(path)
+    }
+
     fn commit_staged_entries_with_prog(
         &self,
         commit: &Commit,
@@ -288,24 +317,128 @@ impl CommitEntryWriter {
             return Ok(());
         }
         let bar = oxen_progress_bar(size, ProgressBarType::Counter);
-        let grouped = self.group_staged_files_to_dirs(&staged_data.staged_files);
+        let mut grouped = self.group_staged_files_to_dirs(&staged_data.staged_files);
         log::debug!(
             "commit_staged_entries_with_prog got groups {}",
             grouped.len()
         );
 
-        // Track entries in commit
+        // MERKLE 
+        // TODONOW - constructor?
+        // let mut root_node = TreeNode {
+        //     path: PathBuf::from("/"),
+        //     children: vec![],
+        //     hash: "".to_string(),
+        // };
+
+
         for (dir, files) in grouped.iter() {
+            log::debug!("doing dir: {:?}", dir);
+            log::debug!("doing file: {:?}", files);
+        }
+
+
+        // Track entries in commit
+        for (dir, files) in grouped.iter_mut() {
+            // TODONOW likely error source
+            let mut tree_dir_node: TreeNode = path_db::get_entry(&self.tree_db, dir)?.unwrap_or_default();
+            tree_dir_node.set_path(dir.to_path_buf());
             // Write entries per dir
+            //TODONOW: tree_db?
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
             path_db::put(&self.dir_db, dir, &0)?;
+
+
+            // TODONOW parallelize or fold in
+            // TODONOW figure out the duplciate hash issue with rbuild_tree_for_dir
+            log::debug!("commit_staged_entries_with_prog got files {} for dir {:?}", files.len(), dir);
+            // Re-hash all entries except Removed
+            // for (path, entry) in files.iter_mut() {
+            //     // Re-hash here, for Merkle + for files changed after addition.
+            //     if entry.status == StagedEntryStatus::Added  || entry.status == StagedEntryStatus::Modified {
+            //         entry.hash = util::hasher::hash_file_contents(&path)?;
+            //     }
+
+            //     tree_dir_node.children.push(TreeChild::File {
+            //         path: path.to_path_buf(),
+            //         hash: entry.hash.to_owned(),
+            //     });
+            // }
+
+            // TODONOW: how can we avoid having to store all the hashes up front...
 
             // Commit entries data
             files.par_iter().for_each(|(path, entry)| {
                 self.commit_staged_entry(&entry_writer, commit, origin_path, path, entry);
                 bar.inc(1);
             });
+
+            // Get root path 
+
+
+            // TODONOW delete
+            // log::debug!("commit_staged_entries_with_prog sorting children for reinsert");
+            // tree_dir_node.children.sort_by(|a, b| a.path().cmp(&b.path()));
+
+            // // Reinsert 
+            // log::debug!("commit_staged_entries_with_prog reinserting dir {:?} -> {:?}", dir, tree_dir_node);
+            // path_db::put(&self.tree_db, dir, &tree_dir_node)?;
         }
+
+        // Rebuild tree, temporarily without reference to `StagedEntries`
+
+        // TODONOW: whats up with these paths...
+        match self.rbuild_tree_for_dir(&self.repository.path) {
+            Ok(root_node) => {
+                log::debug!("commit_staged_entries_with_prog got root node {:?}", root_node);
+            }
+            Err(e) => {
+                log::error!("commit_staged_entries_with_prog error rebuilding tree {:?}", e);
+            }
+        }
+
+        // Show all entries of the tree db. 
+        // TODO remove this debug
+
+        // TODONOW remove 
+        let hello = util::fs::rlist_paths_in_dir(&self.repository.path);
+        // Log out all of these paths 
+        for path in hello {
+            log::debug!("\n\ncommit_staged_entries_with_prog path: {:?}", path);
+        }
+        
+
+        let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
+        for item in iter {
+            match item {
+                Ok((key_bytes, value_bytes)) => {
+                    match String::from_utf8(key_bytes.to_vec()) {
+                        Ok(key_str) => {
+                            let key_path = PathBuf::from(key_str);
+
+                            // Attempting to deserialize the value into TreeNode
+                            let deserialized_value: Result<TreeNode, _> = serde_json::from_slice(&value_bytes);
+                            match deserialized_value {
+                                Ok(tree_node) => {
+                                    log::debug!("\n\ntree_db entry: {:?} -> {:?}\n\n", key_path, tree_node);
+                                }
+                                Err(e) => {
+                                    log::error!("tree_db error deserializing value: {:?}", e);
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            log::error!("tree_db Could not decode key {:?}", key_bytes);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("tree_db error: {:?}", e);
+                }
+            }
+        }
+
+        //
 
         // Track dirs in commit
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
@@ -336,6 +469,65 @@ impl CommitEntryWriter {
         Ok(())
     }
 
+
+    // TODONOW use oxen stuff instead of built in fs? 
+    // TODONOW: does this need to be iterative
+
+    fn rbuild_tree_for_dir(&self, dir_path: &PathBuf) -> Result<TreeNode, OxenError> {
+        log::debug!("rbuild_tree_for_dir called on, {:?}", dir_path);
+        let mut children: Vec<TreeChild> = Vec::new();
+        let entries = fs::read_dir(dir_path)?; // TODONOW: oxenignore? 
+        let dir_path = util::fs::path_relative_to_dir(dir_path, &self.repository.path)?;
+        for entry in entries {
+            log::debug!("the entry is {:?}", &entry);
+            // let path = util::fs::path_relative_to_dir(entry?.path(), &self.repository.path)?;
+            let path = entry?.path();
+            log::debug!("the path is {:?}", path);
+            if self.should_ignore_path(&path) {
+                log::debug!("ignoring / skipping the path");
+                continue;
+            }
+            log::debug!("not skipping the path");
+
+            if path.is_file() {
+                let hash = util::hasher::hash_file_contents(&path)?;
+                children.push(TreeChild::File {
+                    path: util::fs::path_relative_to_dir(path.clone(), &self.repository.path)?,
+                    hash: hash.clone(),
+                });    
+                let file_node = TreeNode::File {
+                    path: util::fs::path_relative_to_dir(path, &self.repository.path)?,
+                    hash: hash,
+                };
+                path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
+            } else if path.is_dir() {
+                log::debug!("traversing on {:?}", path);
+                let subtree_node = self.rbuild_tree_for_dir(&path)?;
+                children.push(TreeChild::Directory {
+                    path: util::fs::path_relative_to_dir(path, &self.repository.path)?,
+                    hash: subtree_node.hash().clone()
+                });
+            }
+        }
+
+        children.sort_by(|a, b| a.path().cmp(&b.path()));
+        let hash = util::hasher::compute_subtree_hash(&children);
+
+        let mut subtree_node = TreeNode::Directory {
+            path: dir_path.to_path_buf(),
+            children: children,
+            hash: hash.to_owned()
+        };
+
+        // Write to db 
+        // TODONOW: parse out list of affected paths
+        let relative_path = util::fs::path_relative_to_dir(dir_path, &self.repository.path)?;
+        path_db::put(&self.tree_db, relative_path, &subtree_node)?;
+
+        Ok(subtree_node)
+
+    }
+
     fn commit_staged_entry(
         &self,
         writer: &CommitDirEntryWriter,
@@ -353,7 +545,7 @@ impl CommitEntryWriter {
                 }
             },
             StagedEntryStatus::Modified => {
-                match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
+                match self.add_staged_entry_to_db(writer, commit, entry, origin_path, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to commit MODIFIED file: {err}");
@@ -362,7 +554,7 @@ impl CommitEntryWriter {
                 }
             }
             StagedEntryStatus::Added => {
-                match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
+                match self.add_staged_entry_to_db(writer, commit, entry, origin_path, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
