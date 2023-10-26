@@ -13,7 +13,7 @@
   <a href="https://pypi.org/project/oxenai/" style="padding: 2px;">
     <img src="https://img.shields.io/pypi/v/oxenai.svg?color=245AF0" alt="PyPi Latest Release"/>
   </a>
-  <a href="https://discord.gg/8PKjB9Dz" style="padding: 2px;">
+  <a href="https://discord.gg/s3tBEn7Ptg" style="padding: 2px;">
     <img src="https://dcbadge.vercel.app/api/server/8PKjB9Dz?compact=true&style=flat" alt ="Oxen.ai Discord">
   </a>
   <a href="https://twitter.com/oxen_ai" style="padding: 2px;">
