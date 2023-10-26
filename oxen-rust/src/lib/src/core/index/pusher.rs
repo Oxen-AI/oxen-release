@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use tokio::time::Duration;
 
-use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
+use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES, self};
 
 use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
@@ -466,7 +466,7 @@ async fn push_missing_commit_dbs(
     let pb = oxen_progress_bar_with_msg(pieces_of_work as u64, "Syncing databases");
 
     // Compute size for this subset of entries
-    let num_chunks = num_cpus::get();
+    let num_chunks = constants::DEFAULT_NUM_WORKERS;
     let mut chunk_size = pieces_of_work / num_chunks;
     if num_chunks > pieces_of_work {
         chunk_size = pieces_of_work;
@@ -498,7 +498,7 @@ async fn push_missing_commit_dbs(
         })
         .collect();
 
-    let worker_count: usize = num_cpus::get();
+    let worker_count: usize = constants::DEFAULT_NUM_WORKERS;
     let queue = Arc::new(TaskQueue::new(chunks.len()));
     let finished_queue = Arc::new(FinishedTaskQueue::new(unsynced_commits.len()));
     for chunk in chunks {
@@ -745,10 +745,10 @@ async fn chunk_and_send_large_entries(
     //     finished_queue.try_push(false).unwrap();
     // }
 
-    // let worker_count: usize = if num_cpus::get() > entries.len() {
+    // let worker_count: usize = if constants::DEFAULT_NUM_WORKERS > entries.len() {
     //     entries.len()
     // } else {
-    //     num_cpus::get()
+    //     constants::DEFAULT_NUM_WORKERS
     // };
 
     // log::debug!(
@@ -840,25 +840,27 @@ async fn upload_large_file_chunks(
     // In order to upload chunks in parallel
     // We should only read N chunks at a time so that
     // the whole file does not get read into memory
-    let sub_chunk_size: usize = 64;
-    // if num_cpus::get() > total_chunks {
-    //     total_chunks
-    // } else {
-    //     num_cpus::get()
-    // };
+    let sub_chunk_size: usize = 8;
 
     // TODO: try rayon and try a thread pool to see if it's faster
 
+    // Just get the progress bar on the screen
+    bar.enable_steady_tick(Duration::from_secs(1));
+    bar.inc(0);
+
     let mut read_chunk_idx = 0;
-    let num_sub_chunks = (total_chunks as usize) / sub_chunk_size;
+    let num_sub_chunks = ((total_chunks as usize) / sub_chunk_size) + 1;
+    log::debug!("upload_large_file_chunks proccessing file in {} subchunks of size {} from total {}", num_sub_chunks, sub_chunk_size, total_chunks);
     for i in 0..num_sub_chunks {
         log::debug!("Reading subchunk {}/{} of size {}", i, num_sub_chunks, sub_chunk_size);
         // Read and send the subset of buffers sequentially
         let mut sub_buffers: Vec<Vec<u8>> = Vec::new();
         for _ in 0..sub_chunk_size {
             // Make sure we read the last size correctly
+            let mut should_break = false;
             if (total_read + chunk_size) > total_size {
                 chunk_size = total_size % chunk_size;
+                should_break = true;
             }
 
             // Only read as much as you need to send so we don't blow up memory on large files
@@ -867,6 +869,10 @@ async fn upload_large_file_chunks(
             total_read += chunk_size;
 
             sub_buffers.push(buffer);
+
+            if should_break {
+                break;
+            }
         }
         log::debug!("Done, have read subchunk {}/{} of size {}", i, num_sub_chunks, sub_chunk_size);
 
@@ -931,7 +937,7 @@ async fn upload_large_file_chunks(
             // log::debug!("Finished uploading subchunk {}/{} overall chunk {}/{} queue size: {}", sub_chunk_i, sub_chunk_size, chunk_num, total_chunks, finished_queue.len());
             // chunk_size
         })
-        .buffer_unordered(32);
+        .buffer_unordered(sub_chunk_size);
         // .await;
 
         // TODO: test locally, smaller file, and get some baseline times with the old method
@@ -1054,7 +1060,7 @@ async fn bundle_and_send_small_entries(
         })
         .collect();
 
-    let worker_count: usize = num_cpus::get();
+    let worker_count: usize = constants::DEFAULT_NUM_WORKERS;
     let queue = Arc::new(TaskQueue::new(chunks.len()));
     let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
     for chunk in chunks {
