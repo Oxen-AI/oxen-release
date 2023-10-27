@@ -4,7 +4,7 @@ use crate::constants::{
 };
 use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{CommitDBReader, CommitWriter, CommitReader, Merger};
+use crate::core::index::{CommitDBReader, CommitReader, CommitWriter, Merger};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
@@ -246,31 +246,69 @@ pub async fn download_commits_db_to_repo(
     Ok(writer.commits_db.path().to_path_buf())
 }
 
+pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenError> {
+    let uri = format!("/commits/root");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("remote::commits::root_commit {}", url);
 
-
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        log::debug!("api::remote::commits::root_commit Got response {}", body);
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.commit),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "root_commit() Could not deserialize response [{err}]\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("root_commit() Request failed"))
+    }
+}
 
 // TODONOW: remote branch name? local branch name?
-pub async fn can_push( // TODONOW: factor with `post_commit_db_to_server` common fx
-    remote_repo: &RemoteRepository, 
-    remote_branch_name: &str, 
+pub async fn can_push(
+    // TODONOW: factor with `post_commit_db_to_server` common fx
+    remote_repo: &RemoteRepository,
+    remote_branch_name: &str,
     local_repo: &LocalRepository,
-    local_head: &Commit // Todonow maybe just bool 
+    local_head: &Commit, // Todonow maybe just bool
 ) -> Result<bool, OxenError> {
+    // Before we do this, need to ensure that we are working in the same repo
+    // If we don't, downloading the commits db in the next step
+    // will mess up the local commit history by merging two different repos
+    let local_root = api::local::commits::root_commit(local_repo)?;
+    let remote_root = api::remote::commits::root_commit(remote_repo).await?;
 
-    // First need to download local history so we can get LCA 
+    // TODONOW: better error type
+    if local_root.id != remote_root.id {
+        return Err(OxenError::basic_str(
+            "Cannot push to a different repository",
+        ));
+    }
+
+    // First need to download local history so we can get LCA
     download_commits_db_to_repo(local_repo, remote_repo).await?;
 
     // TODONOW: better way to handle this to reduce http reqs
     // TODONOW edge case: unwrapping not-yet-created branch? should be fine
-    let remote_branch = api::remote::branches::get_by_name(&remote_repo, remote_branch_name).await?.unwrap();
+    let remote_branch = api::remote::branches::get_by_name(&remote_repo, remote_branch_name)
+        .await?
+        .unwrap();
     let remote_head_id = remote_branch.commit_id;
-    let remote_head = api::remote::commits::get_by_id(&remote_repo, &remote_head_id).await?.unwrap();
-
+    let remote_head = api::remote::commits::get_by_id(&remote_repo, &remote_head_id)
+        .await?
+        .unwrap();
 
     // Get LCA...TODONOW LCA is broken...
     let merger = Merger::new(local_repo)?;
     let reader = CommitReader::new(local_repo)?;
-    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head )?;
+    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
+
+    log::debug!("Got the lca of {:?} and {:?}", remote_head, local_head);
+
+    log::debug!("LCA in this case is... {:?}", lca);
 
     let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
@@ -305,28 +343,33 @@ pub async fn can_push( // TODONOW: factor with `post_commit_db_to_server` common
     // TODONOW remote branch
 
     // TODONOW drop these query params
-    let uri = format!("/commits/{}/upload_tree?remote_head={}&lca={}", local_head.id, remote_head.id, lca.id);
+    let uri = format!(
+        "/commits/{}/upload_tree?remote_head={}&lca={}",
+        local_head.id, remote_head.id, lca.id
+    );
     let tree_url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
 
     log::debug!("before posting");
 
     post_data_to_server(
-        remote_repo, 
+        remote_repo,
         local_head,
         buffer,
         is_compressed,
         &tree_url,
-        &filename, 
-        quiet_bar
+        &filename,
+        quiet_bar,
     )
     .await?;
 
     log::debug!("after posting...");
 
-    // TODONOW: Make sure the tree is deleted on server 
+    // TODONOW: Make sure the tree is deleted on server
     // TODONOW factor this out into an endpoint
-    let uri = format!("/commits/{}/can_push?remote_head={}&lca={}", local_head.id, remote_head.id, lca.id);
+    let uri = format!(
+        "/commits/{}/can_push?remote_head={}&lca={}",
+        local_head.id, remote_head.id, lca.id
+    );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -340,13 +383,7 @@ pub async fn can_push( // TODONOW: factor with `post_commit_db_to_server` common
     } else {
         Err(OxenError::basic_str("can_push() Request failed"))
     }
-
-
 }
-
-
-
-
 
 pub async fn download_commits_db_to_path(
     remote_repo: &RemoteRepository,
@@ -671,8 +708,6 @@ pub async fn bulk_create_commit_obj_on_server(
     }
 }
 
-
-
 pub async fn post_data_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
@@ -696,7 +731,14 @@ pub async fn post_data_to_server(
         )
         .await?;
     } else {
-        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, &single_upload_url, bar).await?;
+        upload_single_tarball_to_server_with_retry(
+            remote_repo,
+            commit,
+            &buffer,
+            &single_upload_url,
+            bar,
+        )
+        .await?;
     }
     Ok(())
 }
@@ -711,7 +753,9 @@ pub async fn upload_single_tarball_to_server_with_retry(
     let mut total_tries = 0;
 
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_single_tarball_to_server(remote_repo, commit, buffer, url, bar.to_owned()).await {
+        match upload_single_tarball_to_server(remote_repo, commit, buffer, url, bar.to_owned())
+            .await
+        {
             Ok(_) => {
                 return Ok(());
             }
@@ -739,8 +783,6 @@ async fn upload_single_tarball_to_server(
     url: &str,
     bar: Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
-
-
     let client = client::builder_for_url(url)?
         .timeout(time::Duration::from_secs(120))
         .build()?;
@@ -899,7 +941,14 @@ async fn upload_data_chunk_to_server(
 
     let uri = format!(
         "/commits/{}/{}?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
-        commit.id, endpoint, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename
+        commit.id,
+        endpoint,
+        params.chunk_num,
+        params.total_size,
+        hash,
+        params.total_chunks,
+        is_compressed,
+        maybe_filename
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let total_size = chunk.len() as u64;

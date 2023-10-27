@@ -126,15 +126,17 @@ pub async fn maybe_create_merge(
     let branch_name = path_param(&req, "branch_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-    // Get current head of this branch 
+    // Get current head of this branch
     let branch = api::local::branches::get_by_name(&repository, &branch_name)?
         .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
     let current_commit_id = branch.commit_id;
     let current_commit = api::local::commits::get_by_id(&repository, &current_commit_id)?
         .ok_or(OxenError::resource_not_found(&current_commit_id))?;
 
-
-    log::debug!("maybe_create_merge got server head commit {:?}", current_commit_id);
+    log::debug!(
+        "maybe_create_merge got server head commit {:?}",
+        current_commit_id
+    );
 
     let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
     let data = data.map_err(|err| OxenHttpError::BadRequest(format!("{:?}", err).into()))?;
@@ -142,7 +144,10 @@ pub async fn maybe_create_merge(
     let incoming_commit = api::local::commits::get_by_id(&repository, &incoming_commit_id)?
         .ok_or(OxenError::resource_not_found(&incoming_commit_id))?;
 
-    log::debug!("maybe_create_merge got client head commit {:?}", incoming_commit_id);
+    log::debug!(
+        "maybe_create_merge got client head commit {:?}",
+        incoming_commit_id
+    );
 
     let merger = Merger::new(&repository)?;
     let maybe_merge_commit = merger.merge_commit_into_base(&incoming_commit, &current_commit)?;

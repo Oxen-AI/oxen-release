@@ -36,7 +36,7 @@ pub struct CommitSyncStatusResponse {
 pub struct CommitTreeValidationResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub can_merge: bool
+    pub can_merge: bool,
 }
 
 impl ListCommitResponse {

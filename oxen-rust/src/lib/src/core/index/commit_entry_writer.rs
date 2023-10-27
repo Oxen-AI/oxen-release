@@ -1,10 +1,10 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db;
-use crate::core::db::tree_db::{TreeNode, TreeChild};
+use crate::core::db::tree_db::{TreeChild, TreeNode};
 use crate::core::db::{kv_db, path_db, tree_db};
-use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
 use crate::core::index::oxenignore;
+use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::schema::Schema;
 use crate::model::{
@@ -293,9 +293,7 @@ impl CommitEntryWriter {
     }
 
     // TODONOW: this is duplicated in stager.rs
-    fn should_ignore_path(&self, 
-        path: &Path,
-    ) -> bool {
+    fn should_ignore_path(&self, path: &Path) -> bool {
         let ignore = oxenignore::create(&self.repository);
         let should_ignore = if let Some(ignore) = ignore {
             ignore.matched(path, path.is_dir()).is_ignore()
@@ -323,7 +321,7 @@ impl CommitEntryWriter {
             grouped.len()
         );
 
-        // MERKLE 
+        // MERKLE
         // TODONOW - constructor?
         // let mut root_node = TreeNode {
         //     path: PathBuf::from("/"),
@@ -331,27 +329,29 @@ impl CommitEntryWriter {
         //     hash: "".to_string(),
         // };
 
-
         for (dir, files) in grouped.iter() {
             log::debug!("doing dir: {:?}", dir);
             log::debug!("doing file: {:?}", files);
         }
 
-
         // Track entries in commit
         for (dir, files) in grouped.iter_mut() {
             // TODONOW likely error source
-            let mut tree_dir_node: TreeNode = path_db::get_entry(&self.tree_db, dir)?.unwrap_or_default();
+            let mut tree_dir_node: TreeNode =
+                path_db::get_entry(&self.tree_db, dir)?.unwrap_or_default();
             tree_dir_node.set_path(dir.to_path_buf());
             // Write entries per dir
             //TODONOW: tree_db?
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
             path_db::put(&self.dir_db, dir, &0)?;
 
-
             // TODONOW parallelize or fold in
             // TODONOW figure out the duplciate hash issue with rbuild_tree_for_dir
-            log::debug!("commit_staged_entries_with_prog got files {} for dir {:?}", files.len(), dir);
+            log::debug!(
+                "commit_staged_entries_with_prog got files {} for dir {:?}",
+                files.len(),
+                dir
+            );
             // Re-hash all entries except Removed
             // for (path, entry) in files.iter_mut() {
             //     // Re-hash here, for Merkle + for files changed after addition.
@@ -373,14 +373,13 @@ impl CommitEntryWriter {
                 bar.inc(1);
             });
 
-            // Get root path 
-
+            // Get root path
 
             // TODONOW delete
             // log::debug!("commit_staged_entries_with_prog sorting children for reinsert");
             // tree_dir_node.children.sort_by(|a, b| a.path().cmp(&b.path()));
 
-            // // Reinsert 
+            // // Reinsert
             // log::debug!("commit_staged_entries_with_prog reinserting dir {:?} -> {:?}", dir, tree_dir_node);
             // path_db::put(&self.tree_db, dir, &tree_dir_node)?;
         }
@@ -390,23 +389,28 @@ impl CommitEntryWriter {
         // TODONOW: whats up with these paths...
         match self.rbuild_tree_for_dir(&self.repository.path) {
             Ok(root_node) => {
-                log::debug!("commit_staged_entries_with_prog got root node {:?}", root_node);
+                log::debug!(
+                    "commit_staged_entries_with_prog got root node {:?}",
+                    root_node
+                );
             }
             Err(e) => {
-                log::error!("commit_staged_entries_with_prog error rebuilding tree {:?}", e);
+                log::error!(
+                    "commit_staged_entries_with_prog error rebuilding tree {:?}",
+                    e
+                );
             }
         }
 
-        // Show all entries of the tree db. 
+        // Show all entries of the tree db.
         // TODO remove this debug
 
-        // TODONOW remove 
+        // TODONOW remove
         let hello = util::fs::rlist_paths_in_dir(&self.repository.path);
-        // Log out all of these paths 
+        // Log out all of these paths
         for path in hello {
             log::debug!("\n\ncommit_staged_entries_with_prog path: {:?}", path);
         }
-        
 
         let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
         for item in iter {
@@ -417,10 +421,15 @@ impl CommitEntryWriter {
                             let key_path = PathBuf::from(key_str);
 
                             // Attempting to deserialize the value into TreeNode
-                            let deserialized_value: Result<TreeNode, _> = serde_json::from_slice(&value_bytes);
+                            let deserialized_value: Result<TreeNode, _> =
+                                serde_json::from_slice(&value_bytes);
                             match deserialized_value {
                                 Ok(tree_node) => {
-                                    log::debug!("\n\ntree_db entry: {:?} -> {:?}\n\n", key_path, tree_node);
+                                    log::debug!(
+                                        "\n\ntree_db entry: {:?} -> {:?}\n\n",
+                                        key_path,
+                                        tree_node
+                                    );
                                 }
                                 Err(e) => {
                                     log::error!("tree_db error deserializing value: {:?}", e);
@@ -469,14 +478,13 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-
-    // TODONOW use oxen stuff instead of built in fs? 
+    // TODONOW use oxen stuff instead of built in fs?
     // TODONOW: does this need to be iterative
 
     fn rbuild_tree_for_dir(&self, dir_path: &PathBuf) -> Result<TreeNode, OxenError> {
         log::debug!("rbuild_tree_for_dir called on, {:?}", dir_path);
         let mut children: Vec<TreeChild> = Vec::new();
-        let entries = fs::read_dir(dir_path)?; // TODONOW: oxenignore? 
+        let entries = fs::read_dir(dir_path)?; // TODONOW: oxenignore?
         let dir_path = util::fs::path_relative_to_dir(dir_path, &self.repository.path)?;
         for entry in entries {
             log::debug!("the entry is {:?}", &entry);
@@ -494,7 +502,7 @@ impl CommitEntryWriter {
                 children.push(TreeChild::File {
                     path: util::fs::path_relative_to_dir(path.clone(), &self.repository.path)?,
                     hash: hash.clone(),
-                });    
+                });
                 let file_node = TreeNode::File {
                     path: util::fs::path_relative_to_dir(path, &self.repository.path)?,
                     hash: hash,
@@ -505,7 +513,7 @@ impl CommitEntryWriter {
                 let subtree_node = self.rbuild_tree_for_dir(&path)?;
                 children.push(TreeChild::Directory {
                     path: util::fs::path_relative_to_dir(path, &self.repository.path)?,
-                    hash: subtree_node.hash().clone()
+                    hash: subtree_node.hash().clone(),
                 });
             }
         }
@@ -516,16 +524,15 @@ impl CommitEntryWriter {
         let mut subtree_node = TreeNode::Directory {
             path: dir_path.to_path_buf(),
             children: children,
-            hash: hash.to_owned()
+            hash: hash.to_owned(),
         };
 
-        // Write to db 
+        // Write to db
         // TODONOW: parse out list of affected paths
         let relative_path = util::fs::path_relative_to_dir(dir_path, &self.repository.path)?;
         path_db::put(&self.tree_db, relative_path, &subtree_node)?;
 
         Ok(subtree_node)
-
     }
 
     fn commit_staged_entry(

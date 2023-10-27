@@ -60,16 +60,21 @@ pub async fn push(
     push_remote_repo(repo, remote_repo, branch).await
 }
 
+// TODONOW fix structure: err if not pushable, false if no merge required, true if merge required
 async fn validate_repo_is_pushable(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     branch: &Branch,
     commit_reader: &CommitReader,
     head_commit: &Commit,
-) -> Result<(), OxenError> {
+) -> Result<bool, OxenError> {
     // Make sure the remote branch is not ahead of the local branch
     if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
-        if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit).await? == false {
+        if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit)
+            .await?
+        {
+            return Ok(true); // We need a merge commit
+        } else {
             return Err(OxenError::upstream_merge_conflict());
         }
         // Otherwise, we're good to push - TODONOW, maybe some sort of confirmation here?
@@ -79,7 +84,7 @@ async fn validate_repo_is_pushable(
         return Err(OxenError::incomplete_local_history());
     }
 
-    Ok(())
+    Ok(false)
 }
 
 pub async fn push_remote_repo(
@@ -99,6 +104,8 @@ pub async fn push_remote_repo(
     // Lock successfully acquired
     api::remote::repositories::pre_push(&remote_repo, &branch, &head_commit.id).await?;
 
+    // TODO naming
+    let mut requires_merge = false;
     match validate_repo_is_pushable(
         local_repo,
         &remote_repo,
@@ -108,7 +115,9 @@ pub async fn push_remote_repo(
     )
     .await
     {
-        Ok(_) => {}
+        Ok(result) => {
+            requires_merge = result;
+        }
         Err(err) => {
             api::remote::branches::unlock(&remote_repo, &branch.name).await?;
             return Err(err);
@@ -122,7 +131,7 @@ pub async fn push_remote_repo(
     // TODO: Maybe we should only release the lock if we haven't yet started adding commits to the queue.
     // IF we've added commits to the queue, should we cede control of lock removal to when the queue is finished processing?
     tokio::select! {
-        result = try_push_remote_repo(local_repo, &remote_repo, branch, &head_commit) => {
+        result = try_push_remote_repo(local_repo, &remote_repo, branch, &head_commit, requires_merge) => {
             match result {
                 Ok(_) => {
                     // Unlock the branch
@@ -155,6 +164,7 @@ pub async fn try_push_remote_repo(
     remote_repo: &RemoteRepository,
     branch: Branch,
     head_commit: &Commit,
+    requires_merge: bool,
 ) -> Result<(), OxenError> {
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, remote_repo, head_commit, &branch).await?;
@@ -177,21 +187,23 @@ pub async fn try_push_remote_repo(
 
     log::debug!("🐂 Identifying commits with unsynced entries...");
 
-
     // TODONOW: is this the best place for this?
     // TODONOW: this can maybe be put under a flag driven by behind-main validation from earlier.
     // Check if merge commit needed on push, if it is, head_commit is the merge commit, otherwise it's the current head
     log::debug!("about to maybe create merge");
 
-    log::debug!("for sake of sanity, here is the head commit {:?}", head_commit);
+    log::debug!(
+        "for sake of sanity, here is the head commit {:?}",
+        head_commit
+    );
 
-
-    log::debug!("and here is the remote branch commit, if it exists {:?}", t_remote_branch);
-
-
+    log::debug!(
+        "and here is the remote branch commit, if it exists {:?}",
+        t_remote_branch
+    );
 
     // Get commits with unsynced entries
-    let unsynced_entries_commits =
+    let mut unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(remote_repo, &branch).await?;
 
     log::debug!(
@@ -207,20 +219,30 @@ pub async fn try_push_remote_repo(
     )
     .await?;
 
-    // Try again after the entries are all up there 
+    // Try again after the entries are all up there
     // TODONOW: fix for this is likely sending over the previous remote head.
-        // TODONOW hack delete
-    let t_remote_commit = api::remote::commits::get_by_id(remote_repo, t_remote_branch.unwrap().commit_id.as_str()).await?.unwrap();
+    // TODONOW hack delete
+    if requires_merge {
+        let t_remote_commit = api::remote::commits::get_by_id(
+            remote_repo,
+            t_remote_branch.unwrap().commit_id.as_str(),
+        )
+        .await?
+        .unwrap();
+        // TODONOW: BIGHACK we shouldn't be actively rolling the branch back like this. but `push_missing_commit_objects`
+        // is implicitly updating stuff, so this is just for testing...
+        api::remote::branches::update(remote_repo, &branch.name, &t_remote_commit).await?;
+        let head_commit = api::remote::branches::maybe_create_merge(
+            remote_repo,
+            branch.name.as_str(),
+            head_commit,
+        )
+        .await?;
 
-
-    // TODONOW: BIGHACK we shouldn't be actively rolling the branch back like this. but `push_missing_commit_objects` 
-    // is implicitly updating stuff, so this is just for testing...
-    api::remote::branches::update(remote_repo, &branch.name, &t_remote_commit).await?;
-
-
-    let head_commit = api::remote::branches::maybe_create_merge(remote_repo, branch.name.as_str(), head_commit).await?;
-
-    log::debug!("got new merge head commit {:?}", head_commit);
+        log::debug!("got new merge head commit {:?}", head_commit);
+        unsynced_entries_commits.push(head_commit);
+        // TODONOW dedupe unsynced_entries_commits ?
+    }
 
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     api::remote::commits::bulk_post_push_complete(remote_repo, &unsynced_entries_commits).await?;
@@ -387,7 +409,6 @@ async fn remote_is_ahead_of_local(
     // Meaning we do not have the remote branch commit in our history
     Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
 }
-
 
 async fn cannot_push_incomplete_history(
     local_repo: &LocalRepository,
