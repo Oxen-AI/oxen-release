@@ -101,7 +101,6 @@ pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenErro
     }
 }
 
-
 // TODONOW: is this a bastardization of update
 pub async fn update(
     repository: &RemoteRepository,
@@ -168,7 +167,6 @@ pub async fn maybe_create_merge(
         Err(OxenError::basic_str(&msg))
     }
 }
-
 
 /// # Delete a remote branch
 pub async fn delete_remote(

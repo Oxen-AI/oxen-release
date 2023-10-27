@@ -1,14 +1,13 @@
-use std::path::{PathBuf, Path};
-use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
-use serde::{de, Serialize, Deserialize};
 use crate::core::db;
+use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
+use serde::{de, Deserialize, Serialize};
+use std::path::{Path, PathBuf};
 
-use crate::{model::LocalRepository, error::OxenError};
-
+use crate::{error::OxenError, model::LocalRepository};
 
 pub struct TreeDB<T: ThreadMode> {
     pub db: DBWithThreadMode<T>,
-    repository: LocalRepository // TODONOW needed?
+    repository: LocalRepository, // TODONOW needed?
 }
 
 // TODONOW: handle path parsing rather than passing in the db path
@@ -34,7 +33,7 @@ impl<T: ThreadMode> TreeDB<T> {
     ) -> Result<TreeDB<T>, OxenError> {
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
-        }   
+        }
         let opts = db::opts::default();
         let db = if read_only {
             if !db_path.join("CURRENT").exists() {
@@ -46,7 +45,8 @@ impl<T: ThreadMode> TreeDB<T> {
                         err
                     );
                 }
-            let _db: DBWithThreadMode<T> = DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+                let _db: DBWithThreadMode<T> =
+                    DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
             }
 
             DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), false)?
@@ -58,20 +58,19 @@ impl<T: ThreadMode> TreeDB<T> {
             repository: repository.clone(),
         })
     }
-
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TreeNode {
     File {
-        path: PathBuf, 
-        hash: String
+        path: PathBuf,
+        hash: String,
     },
     Directory {
-        path: PathBuf, 
+        path: PathBuf,
         children: Vec<TreeChild>,
-        hash: String
-    }
+        hash: String,
+    },
 }
 
 impl Default for TreeNode {
@@ -84,7 +83,8 @@ impl Default for TreeNode {
     }
 }
 
-impl TreeNode { // TODONOW might not actually need these paths bc they are the keys but idk.
+impl TreeNode {
+    // TODONOW might not actually need these paths bc they are the keys but idk.
     pub fn path(&self) -> &PathBuf {
         match self {
             TreeNode::File { path, .. } => path,
@@ -109,15 +109,9 @@ impl TreeNode { // TODONOW might not actually need these paths bc they are the k
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TreeChild {
-    File {
-        path: PathBuf,
-        hash: String,
-    },
+    File { path: PathBuf, hash: String },
 
-    Directory {
-        path: PathBuf, 
-        hash: String,
-    }
+    Directory { path: PathBuf, hash: String },
 }
 
 impl TreeChild {
@@ -134,4 +128,4 @@ impl TreeChild {
             TreeChild::Directory { hash, .. } => hash,
         }
     }
- }
+}

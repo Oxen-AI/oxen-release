@@ -33,6 +33,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::create_bulk),
         )
         .route(
+            "/{namespace}/{repo_name}/commits/root",
+            web::get().to(controllers::commits::root_commit),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/complete",
             web::post().to(controllers::commits::complete_bulk),
         )

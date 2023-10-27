@@ -2,11 +2,11 @@ use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
 use liboxen::constants::DIRS_DIR;
-use liboxen::constants::TREE_DIR;
 use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::SCHEMAS_DIR;
+use liboxen::constants::TREE_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
@@ -589,7 +589,6 @@ pub async fn create_bulk(
     }))
 }
 
-
 /// Controller to upload large chunks of data that will be combined at the end
 pub async fn upload_chunk(
     req: HttpRequest,
@@ -778,7 +777,7 @@ fn check_if_upload_complete_and_unpack(
 pub async fn upload_tree(
     req: HttpRequest,
     mut body: web::Payload,
-    query: web::Query<HashMap<String, String>>
+    query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -794,13 +793,11 @@ pub async fn upload_tree(
 
     log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
 
-
     // Get head commit on sever repo
     let server_head_commit = api::local::commits::head_commit(&repo)?;
 
-
     // Unpack in tmp/tree/commit_id
-    // TODONOW: store this in a more valid place 
+    // TODONOW: store this in a more valid place
     // TODONOW: cleanup after done
     let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
 
@@ -832,7 +829,7 @@ pub async fn upload_tree(
 
 pub async fn can_push(
     req: HttpRequest,
-    query: web::Query<HashMap<String, String>>
+    query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -847,23 +844,41 @@ pub async fn can_push(
     let lca_id = query.get("lca").unwrap();
 
     log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
-    let can_merge = !api::local::commits::head_commits_have_conflicts(&repo, &client_head_id, &server_head_id, &lca_id)?;
+    let can_merge = !api::local::commits::head_commits_have_conflicts(
+        &repo,
+        &client_head_id,
+        &server_head_id,
+        &lca_id,
+    )?;
 
     // Change this to the proper view in commitresponse
 
     if can_merge {
         Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
-            status: StatusMessage::resource_found(), 
-            can_merge: true
+            status: StatusMessage::resource_found(),
+            can_merge: true,
         }))
     } else {
         Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
-            status: StatusMessage::resource_found(), 
-            can_merge: false
+            status: StatusMessage::resource_found(),
+            can_merge: false,
         }))
     }
 }
 
+pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+
+    let root = api::local::commits::root_commit(&repo)?;
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_found(),
+        commit: root,
+    }))
+}
 
 /// Controller to upload the commit database
 pub async fn upload(
@@ -1053,8 +1068,7 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
 
                     if let Some(parent) = new_path.parent() {
                         if !parent.exists() {
-                            std::fs::create_dir_all(parent)
-                                .expect("Could not create parent dir");
+                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
                         }
                     }
                     file.unpack(&new_path).unwrap();
@@ -1069,7 +1083,6 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
         }
     }
 }
-
 
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     // Unpack and compute HASH and save next to the file to speed up computation later

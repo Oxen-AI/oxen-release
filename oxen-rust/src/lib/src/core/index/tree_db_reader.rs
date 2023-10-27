@@ -9,7 +9,6 @@ pub struct TreeDBReader {
     pub lca_db: TreeDB<SingleThreaded>, // TODONOW: multithread if needed
 }
 
-
 // TODONOW naming of these (client, server etc)
 // TODONOW: do we actually need these repos here or in treedb land...
 impl TreeDBReader {

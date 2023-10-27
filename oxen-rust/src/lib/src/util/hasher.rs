@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::{TreeNode, TreeChild};
+use crate::core::db::tree_db::{TreeChild, TreeNode};
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
@@ -23,7 +23,7 @@ pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
 }
 
 //MERKLE: this will become a recursive thing starting from the bottom of the tree.
-// but we will only need to re-hash the dirs which are changed - which we can know through tree-ifing the stageddirsdb. 
+// but we will only need to re-hash the dirs which are changed - which we can know through tree-ifing the stageddirsdb.
 pub fn compute_commit_hash<E>(commit_data: &NewCommit, entries: &[E]) -> String
 where
     E: ContentHashable + std::fmt::Debug,
