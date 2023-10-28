@@ -57,7 +57,6 @@ log = "0.4.17"
 mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"
-par-stream = "0.10.2"
 pluralizer = "0.4.0"
 polars = { version = "0.34.0", features = ["lazy", "parquet", "json", "ipc", "ipc_streaming", "dtype-struct"] }
 polars-sql = "0.34.0"
