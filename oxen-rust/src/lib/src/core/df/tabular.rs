@@ -113,7 +113,8 @@ pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> 
     let error_str = format!("Could not read tabular data from path {path:?}");
     let file = File::open(path)?;
     let mut reader = ParquetReader::new(file);
-    let num_rows = reader.num_rows().unwrap();
+
+    let num_rows = reader.num_rows().unwrap_or(0);
 
     println!("got {} rows", num_rows);
 
