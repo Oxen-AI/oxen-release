@@ -60,7 +60,6 @@ dependencies = [
  "mp4",
  "nom",
  "num_cpus",
- "par-stream",
  "pluralizer",
  "polars",
  "polars-sql",
@@ -1152,12 +1151,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f30e7476521f6f8af1a1c4c0b8cc94f0bee37d91763d0ca2665f299b6cd8aec"
 
 [[package]]
-name = "by_address"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf8dba2868114ed769a1f2590fc9ae5eb331175b44313b6c9b922f8f7ca813d0"
-
-[[package]]
 name = "bytecheck"
 version = "0.6.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1659,19 +1652,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "dashmap"
-version = "5.5.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
-dependencies = [
- "cfg-if",
- "hashbrown 0.14.1",
- "lock_api",
- "once_cell",
- "parking_lot_core",
-]
-
-[[package]]
 name = "deadqueue"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1688,17 +1668,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2696e8a945f658fd14dc3b87242e6b80cd0f36ff04ea560fa39082368847946"
 dependencies = [
  "serde",
-]
-
-[[package]]
-name = "derivative"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -2803,7 +2772,6 @@ dependencies = [
  "mp4",
  "nom",
  "num_cpus",
- "par-stream",
  "pluralizer",
  "polars",
  "polars-sql",
@@ -3387,25 +3355,6 @@ dependencies = [
  "tokio",
  "tokio-util",
  "uuid",
-]
-
-[[package]]
-name = "par-stream"
-version = "0.10.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ef8c7bc0cbc89c3d02fb0cce36f609e8707150bd38c1cbce79c6b7906f4099a"
-dependencies = [
- "by_address",
- "crossbeam",
- "dashmap",
- "derivative",
- "flume",
- "futures",
- "num_cpus",
- "once_cell",
- "parking_lot",
- "pin-project",
- "tokio",
 ]
 
 [[package]]
