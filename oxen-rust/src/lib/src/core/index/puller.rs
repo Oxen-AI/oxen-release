@@ -6,10 +6,11 @@ use std::sync::Arc;
 
 use indicatif::ProgressBar;
 
-use crate::{api, constants};
+use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, RemoteRepository};
+use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
@@ -145,12 +146,7 @@ async fn pull_large_entries(
         finished_queue.try_push(false).unwrap();
     }
 
-    let worker_count: usize = if constants::DEFAULT_NUM_WORKERS > entries.len() {
-        entries.len()
-    } else {
-        constants::DEFAULT_NUM_WORKERS
-    };
-
+    let worker_count = concurrency::num_threads_for_items(entries.len());
     log::debug!(
         "worker_count {} entries len {}",
         worker_count,
@@ -253,7 +249,7 @@ async fn pull_small_entries(
         })
         .collect();
 
-    let worker_count: usize = constants::DEFAULT_NUM_WORKERS;
+    let worker_count = concurrency::num_threads_for_items(entries.len());
     let queue = Arc::new(TaskQueue::new(chunks.len()));
     let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
     for chunk in chunks {
