@@ -8,7 +8,6 @@ use crate::{api, constants};
 use crate::{current_function, util};
 
 use async_compression::futures::bufread::GzipDecoder;
-use async_std::prelude::*;
 use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -210,7 +209,16 @@ pub async fn download_large_entry(
         tmp_dir
     );
 
-    // TODO: We could probably download chunks in parallel too
+    // Download chunks in parallel
+    type PieceOfWork = (
+        RemoteRepository,
+        PathBuf, // remote_path
+        PathBuf, // local_path
+        String,  // revision
+        u64,     // chunk_start
+        u64,     // chunk_size
+    );
+    let mut tasks: Vec<PieceOfWork> = Vec::new();
     for i in 0..num_chunks {
         // Make sure we read the last size correctly
         let chunk_start = (i as u64) * chunk_size;
@@ -221,22 +229,52 @@ pub async fn download_large_entry(
         let filename = format!("chunk_{i}");
         let tmp_file = tmp_dir.join(filename);
 
-        // log::debug!("Downloading chunk {:?} -> {:?}", remote_path, tmp_file);
-
-        try_download_entry_chunk(
-            remote_repo,
-            &remote_path,
-            &tmp_file, // local_path
-            &revision,
+        tasks.push((
+            remote_repo.clone(),
+            remote_path.to_path_buf(),
+            tmp_file,
+            revision.as_ref().to_string(),
             chunk_start,
             chunk_size,
-        )
-        .await?;
-
-        // log::debug!("Downloaded chunk {:?} -> {:?}", remote_path, tmp_file);
-
-        bar.inc(chunk_size);
+        ));
     }
+
+    use futures::prelude::*;
+    let num_workers = constants::DEFAULT_NUM_WORKERS;
+    let bodies = stream::iter(tasks)
+        .map(|item| async move {
+            // log::debug!("Downloading chunk {:?} -> {:?}", remote_path, tmp_file);
+            let (remote_repo, remote_path, tmp_file, revision, chunk_start, chunk_size) = item;
+
+            match try_download_entry_chunk(
+                &remote_repo,
+                &remote_path,
+                &tmp_file, // local_path
+                &revision,
+                chunk_start,
+                chunk_size,
+            )
+            .await
+            {
+                Ok(_) => Ok(chunk_size),
+                Err(err) => Err(err),
+            }
+        })
+        .buffer_unordered(num_workers);
+
+    // Wait for all requests to finish
+    bodies
+        .for_each(|b| async {
+            match b {
+                Ok(_) => {
+                    bar.inc(chunk_size);
+                }
+                Err(err) => {
+                    log::error!("Error uploading chunk: {:?}", err)
+                }
+            }
+        })
+        .await;
 
     // Once all downloaded, recombine file and delete temp dir
     log::debug!("Unpack to {:?}", local_path);
@@ -418,6 +456,8 @@ pub async fn try_download_data_from_version_paths(
     content_ids: &[(String, PathBuf)], // tuple of content id and entry path
     dst: impl AsRef<Path>,
 ) -> Result<u64, OxenError> {
+    use async_std::prelude::*;
+
     let dst = dst.as_ref();
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
     for (content_id, _) in content_ids.iter() {

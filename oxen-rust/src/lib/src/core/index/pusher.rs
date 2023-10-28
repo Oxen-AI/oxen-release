@@ -806,9 +806,6 @@ async fn upload_large_file_chunks(
     let mut chunk_size = chunk_size;
 
     // Create queues for sending data to workers
-    /// The above code is a Rust program that is using the `tokio` library to import the `sleep`
-    /// function from the `time` module.
-    // use tokio::time::sleep;
     type PieceOfWork = (
         Vec<u8>,
         u64,   // chunk size
