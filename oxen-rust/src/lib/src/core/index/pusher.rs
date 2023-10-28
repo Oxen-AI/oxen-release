@@ -840,7 +840,7 @@ async fn upload_large_file_chunks(
     // In order to upload chunks in parallel
     // We should only read N chunks at a time so that
     // the whole file does not get read into memory
-    let sub_chunk_size: usize = 8;
+    let sub_chunk_size: usize = num_cpus::get() * 2;
 
     // TODO: try rayon and try a thread pool to see if it's faster
 
