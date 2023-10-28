@@ -3,19 +3,20 @@
 
 use crate::api::local::entries::compute_entries_size;
 use crate::api::remote::commits::ChunkParams;
+use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use futures::prelude::*;
 use indicatif::ProgressBar;
 use std::collections::HashSet;
 use std::io::{BufReader, Read};
-
 use std::sync::Arc;
 
 use tokio::time::Duration;
 
-use crate::constants::{AVG_CHUNK_SIZE, NUM_HTTP_RETRIES, self};
+use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
 use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
@@ -466,7 +467,7 @@ async fn push_missing_commit_dbs(
     let pb = oxen_progress_bar_with_msg(pieces_of_work as u64, "Syncing databases");
 
     // Compute size for this subset of entries
-    let num_chunks = constants::DEFAULT_NUM_WORKERS;
+    let num_chunks = concurrency::num_threads_for_items(unsynced_commits.len());
     let mut chunk_size = pieces_of_work / num_chunks;
     if num_chunks > pieces_of_work {
         chunk_size = pieces_of_work;
@@ -498,9 +499,9 @@ async fn push_missing_commit_dbs(
         })
         .collect();
 
-    let worker_count: usize = constants::DEFAULT_NUM_WORKERS;
+    let worker_count = concurrency::num_threads_for_items(chunks.len());
     let queue = Arc::new(TaskQueue::new(chunks.len()));
-    let finished_queue = Arc::new(FinishedTaskQueue::new(unsynced_commits.len()));
+    let finished_queue = Arc::new(FinishedTaskQueue::new(chunks.len()));
     for chunk in chunks {
         queue.try_push(chunk).unwrap();
         finished_queue.try_push(false).unwrap();
@@ -701,7 +702,7 @@ async fn chunk_and_send_large_entries(
         return Ok(());
     }
 
-    // use tokio::time::sleep;
+    use tokio::time::sleep;
     type PieceOfWork = (
         CommitEntry,
         LocalRepository,
@@ -709,8 +710,8 @@ async fn chunk_and_send_large_entries(
         RemoteRepository,
         Arc<ProgressBar>,
     );
-    // type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
-    // type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
+    type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
+    type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
     log::debug!("Chunking and sending {} larger files", entries.len());
     let entries: Vec<PieceOfWork> = entries
@@ -726,66 +727,54 @@ async fn chunk_and_send_large_entries(
         })
         .collect();
 
-    for entry in entries {
-        let (entry, repo, commit, remote_repo, bar) = entry;
-        upload_large_file_chunks(
-            entry,
-            repo,
-            commit,
-            remote_repo,
-            chunk_size,
-            &bar
-        ).await;
+    // for entry in entries {
+    //     let (entry, repo, commit, remote_repo, bar) = entry;
+    //     upload_large_file_chunks(
+    //         entry,
+    //         repo,
+    //         commit,
+    //         remote_repo,
+    //         chunk_size,
+    //         &bar
+    //     ).await;
+    // }
+
+    let queue = Arc::new(TaskQueue::new(entries.len()));
+    let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+    for entry in entries.iter() {
+        queue.try_push(entry.to_owned()).unwrap();
+        finished_queue.try_push(false).unwrap();
     }
 
-    // let queue = Arc::new(TaskQueue::new(entries.len()));
-    // let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
-    // for entry in entries.iter() {
-    //     queue.try_push(entry.to_owned()).unwrap();
-    //     finished_queue.try_push(false).unwrap();
-    // }
+    let worker_count = concurrency::num_threads_for_items(entries.len());
+    log::debug!(
+        "worker_count {} entries len {}",
+        worker_count,
+        entries.len()
+    );
+    for worker in 0..worker_count {
+        let queue = queue.clone();
+        let finished_queue = finished_queue.clone();
+        tokio::spawn(async move {
+            loop {
+                let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
+                log::debug!("worker[{}] processing task...", worker);
 
-    // let worker_count: usize = if constants::DEFAULT_NUM_WORKERS > entries.len() {
-    //     entries.len()
-    // } else {
-    //     constants::DEFAULT_NUM_WORKERS
-    // };
+                upload_large_file_chunks(entry, repo, commit, remote_repo, chunk_size, &bar).await;
 
-    // log::debug!(
-    //     "worker_count {} entries len {}",
-    //     worker_count,
-    //     entries.len()
-    // );
-    // for worker in 0..worker_count {
-    //     let queue = queue.clone();
-    //     let finished_queue = finished_queue.clone();
-    //     tokio::spawn(async move {
-    //         loop {
-    //             let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
-    //             log::debug!("worker[{}] processing task...", worker);
+                finished_queue.pop().await;
+            }
+        });
+    }
 
-    //             upload_large_file_chunks(
-    //                 entry,
-    //                 repo,
-    //                 commit,
-    //                 remote_repo,
-    //                 chunk_size,
-    //                 &bar
-    //             ).await;
+    while finished_queue.len() > 0 {
+        // log::debug!("Before waiting for {} workers to finish...", queue.len());
+        sleep(Duration::from_secs(1)).await;
+    }
+    log::debug!("All large file tasks done. :-)");
 
-    //             finished_queue.pop().await;
-    //         }
-    //     });
-    // }
-
-    // while finished_queue.len() > 0 {
-    //     // log::debug!("Before waiting for {} workers to finish...", queue.len());
-    //     sleep(Duration::from_secs(1)).await;
-    // }
-    // log::debug!("All large file tasks done. :-)");
-
-    // // Sleep again to let things sync...
-    // sleep(Duration::from_millis(100)).await;
+    // Sleep again to let things sync...
+    sleep(Duration::from_millis(100)).await;
 
     Ok(())
 }
@@ -797,7 +786,7 @@ async fn upload_large_file_chunks(
     commit: Commit,
     remote_repo: RemoteRepository,
     chunk_size: u64,
-    bar: &Arc<ProgressBar>
+    bar: &Arc<ProgressBar>,
 ) {
     // Open versioned file
     let version_path = util::fs::version_path(&repo, &entry);
@@ -822,37 +811,40 @@ async fn upload_large_file_chunks(
     // use tokio::time::sleep;
     type PieceOfWork = (
         Vec<u8>,
-        u64, // chunk size
+        u64,   // chunk size
         usize, // chunk num
         usize, // total chunks
-        u64, // total size
+        u64,   // total size
         RemoteRepository,
         String, // entry hash
         Commit,
         Option<String>, // filename
-        Arc<ProgressBar>,
     );
-    type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
-    type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
-    use futures::prelude::*;
-    use par_stream::prelude::*;
 
     // In order to upload chunks in parallel
     // We should only read N chunks at a time so that
     // the whole file does not get read into memory
-    let sub_chunk_size: usize = num_cpus::get() * 2;
-
-    // TODO: try rayon and try a thread pool to see if it's faster
+    let sub_chunk_size = constants::DEFAULT_NUM_WORKERS;
 
     // Just get the progress bar on the screen
     bar.enable_steady_tick(Duration::from_secs(1));
     bar.inc(0);
 
     let mut read_chunk_idx = 0;
-    let num_sub_chunks = ((total_chunks as usize) / sub_chunk_size) + 1;
-    log::debug!("upload_large_file_chunks proccessing file in {} subchunks of size {} from total {}", num_sub_chunks, sub_chunk_size, total_chunks);
+    let num_sub_chunks = (total_chunks / sub_chunk_size) + 1;
+    log::debug!(
+        "upload_large_file_chunks proccessing file in {} subchunks of size {} from total {}",
+        num_sub_chunks,
+        sub_chunk_size,
+        total_chunks
+    );
     for i in 0..num_sub_chunks {
-        log::debug!("Reading subchunk {}/{} of size {}", i, num_sub_chunks, sub_chunk_size);
+        log::debug!(
+            "Reading subchunk {}/{} of size {}",
+            i,
+            num_sub_chunks,
+            sub_chunk_size
+        );
         // Read and send the subset of buffers sequentially
         let mut sub_buffers: Vec<Vec<u8>> = Vec::new();
         for _ in 0..sub_chunk_size {
@@ -874,7 +866,12 @@ async fn upload_large_file_chunks(
                 break;
             }
         }
-        log::debug!("Done, have read subchunk {}/{} of size {}", i, num_sub_chunks, sub_chunk_size);
+        log::debug!(
+            "Done, have read subchunk {}/{} of size {}",
+            i,
+            num_sub_chunks,
+            sub_chunk_size
+        );
 
         // Then send sub_buffers over network in parallel
         // let queue = Arc::new(TaskQueue::new(sub_buffers.len()));
@@ -891,122 +888,81 @@ async fn upload_large_file_chunks(
                 entry.hash.to_owned(),
                 commit.to_owned(),
                 file_name.to_owned(),
-                bar.to_owned(),
             ));
             // finished_queue.try_push(false).unwrap();
             read_chunk_idx += 1;
         }
 
-        // Use rayon to send chunks in parallel
-        let bodies = stream::iter(tasks).map(|item| async move {
-            let (buffer, chunk_size, chunk_num, total_chunks, total_size, remote_repo, entry_hash, commit, file_name, bar) = item;
-            let size = buffer.len() as u64;
-            log::debug!("Got entry buffer [{}/{}] of size {}", chunk_num, total_chunks, size);
+        // Setup the stream chunks in parallel
+        let bodies = stream::iter(tasks)
+            .map(|item| async move {
+                let (
+                    buffer,
+                    chunk_size,
+                    chunk_num,
+                    total_chunks,
+                    total_size,
+                    remote_repo,
+                    entry_hash,
+                    commit,
+                    file_name,
+                ) = item;
+                let size = buffer.len() as u64;
+                log::debug!(
+                    "Got entry buffer [{}/{}] of size {}",
+                    chunk_num,
+                    total_chunks,
+                    size
+                );
 
-            let params = ChunkParams {
-                chunk_num,
-                total_chunks: total_chunks.clone(),
-                total_size: total_size as usize,
-            };
+                let params = ChunkParams {
+                    chunk_num,
+                    total_chunks,
+                    total_size: total_size as usize,
+                };
 
-            let is_compressed = false;
-            match api::remote::commits::upload_data_chunk_to_server_with_retry(
-                &remote_repo,
-                &commit,
-                &buffer,
-                &entry_hash,
-                &params,
-                is_compressed,
-                &file_name,
-            )
-            .await
-            {
-                Ok(_) => {
-                    // bar.inc(chunk_size.clone());
-                    log::debug!("Successfully uploaded subchunk overall chunk {}/{}", chunk_num, total_chunks);
-                    Ok(chunk_size)
-                }
-                Err(err) => {
-                    log::error!("Error uploading chunk: {:?}", err);
-                    Err(err)
-                }
-            }
-
-            // log::debug!("Before queue pop subchunk {}/{} overall {}/{}", sub_chunk_i, sub_chunk_size, chunk_num, total_chunks);
-            // finished_queue.pop().await;
-            // log::debug!("Finished uploading subchunk {}/{} overall chunk {}/{} queue size: {}", sub_chunk_i, sub_chunk_size, chunk_num, total_chunks, finished_queue.len());
-            // chunk_size
-        })
-        .buffer_unordered(sub_chunk_size);
-        // .await;
-
-        // TODO: test locally, smaller file, and get some baseline times with the old method
-
-        bodies.for_each(|b| async {
-
-            match b {
-                Ok(_) => {
-                    bar.inc(chunk_size.clone());
-                }
-                Err(err) => {
-                    log::error!("Error uploading chunk: {:?}", err)
-                }
-            }
-
-        }).await;
-
-
-
-        log::debug!("Subchunk [{i}] tasks created. :-)");
-        /*
-        // Send data to server
-        for sub_chunk_i in 0..sub_chunk_size {
-            let queue = queue.clone();
-            let finished_queue = finished_queue.clone();
-            tokio::spawn(async move {
-                loop {
-                    let (buffer, chunk_num, remote_repo, entry_hash, commit, file_name, bar) = queue.pop().await;
-                    let size = buffer.len() as u64;
-                    log::debug!("Got queue.len() {} entry buffer [{}/{}] of size {}", queue.len(), chunk_num, total_chunks, size);
-
-                    let params = ChunkParams {
-                        chunk_num: chunk_num,
-                        total_chunks: total_chunks,
-                        total_size: total_size as usize,
-                    };
-
-                    match api::remote::commits::upload_data_chunk_to_server_with_retry(
-                        &remote_repo,
-                        &commit,
-                        &buffer,
-                        &entry_hash,
-                        &params,
-                        is_compressed,
-                        &file_name,
-                    )
-                    .await
-                    {
-                        Ok(_) => {
-                            bar.inc(chunk_size);
-                            log::debug!("Successfully uploaded subchunk {}/{} overall chunk {}/{}", sub_chunk_i, sub_chunk_size, chunk_num, total_chunks)
-                        }
-                        Err(err) => {
-                            log::error!("Error uploading chunk: {:?}", err)
-                        }
+                let is_compressed = false;
+                match api::remote::commits::upload_data_chunk_to_server_with_retry(
+                    &remote_repo,
+                    &commit,
+                    &buffer,
+                    &entry_hash,
+                    &params,
+                    is_compressed,
+                    &file_name,
+                )
+                .await
+                {
+                    Ok(_) => {
+                        // bar.inc(chunk_size.clone());
+                        log::debug!(
+                            "Successfully uploaded subchunk overall chunk {}/{}",
+                            chunk_num,
+                            total_chunks
+                        );
+                        Ok(chunk_size)
                     }
-
-                    log::debug!("Before queue pop subchunk {}/{} overall {}/{}", sub_chunk_i, sub_chunk_size, chunk_num, total_chunks);
-                    finished_queue.pop().await;
-                    log::debug!("Finished uploading subchunk {}/{} overall chunk {}/{} queue size: {}", sub_chunk_i, sub_chunk_size, chunk_num, total_chunks, finished_queue.len());
+                    Err(err) => {
+                        log::error!("Error uploading chunk: {:?}", err);
+                        Err(err)
+                    }
                 }
-            });
-        }
+            })
+            .buffer_unordered(sub_chunk_size);
 
-        while finished_queue.len() > 0 {
-            log::debug!("Before waiting for {} workers to finish...", queue.len());
-            sleep(Duration::from_millis(500)).await;
-        }
-         */
+        // Wait for all requests to finish
+        bodies
+            .for_each(|b| async {
+                match b {
+                    Ok(_) => {
+                        bar.inc(chunk_size);
+                    }
+                    Err(err) => {
+                        log::error!("Error uploading chunk: {:?}", err)
+                    }
+                }
+            })
+            .await;
 
         log::debug!("Subchunk [{i}] tasks done. :-)");
     }
@@ -1060,9 +1016,9 @@ async fn bundle_and_send_small_entries(
         })
         .collect();
 
-    let worker_count: usize = constants::DEFAULT_NUM_WORKERS;
+    let worker_count = concurrency::num_threads_for_items(chunks.len());
     let queue = Arc::new(TaskQueue::new(chunks.len()));
-    let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
+    let finished_queue = Arc::new(FinishedTaskQueue::new(chunks.len()));
     for chunk in chunks {
         queue.try_push(chunk).unwrap();
         finished_queue.try_push(false).unwrap();

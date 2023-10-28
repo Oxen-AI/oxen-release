@@ -803,7 +803,7 @@ who won the game?,The packers beat up on the bears,packers
 
             assert_eq!(compare.entries.len(), 2);
 
-            let test_csv = compare.entries.get(0).unwrap();
+            let test_csv = compare.entries.first().unwrap();
             assert_eq!(test_csv.filename, "test.csv");
             assert_eq!(test_csv.status, "modified");
 
@@ -903,7 +903,7 @@ who won the game?,The packers beat up on the bears,packers
             // Added 4 dogs, one dir
             assert_eq!(compare.entries.len(), 5);
 
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1017,7 +1017,7 @@ who won the game?,The packers beat up on the bears,packers
             // Added 4 dogs, modified 1 cat, removed 1 cat, three dirs
             assert_eq!(compare.entries.len(), 9);
 
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1134,7 +1134,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(compare.entries.len(), 5);
 
             // images
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1239,7 +1239,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(compare.entries.len(), 5);
 
             // images
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "removed");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1344,7 +1344,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(compare.entries.len(), 6);
 
             // images
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1472,7 +1472,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(compare.entries.len(), 7);
 
             // images
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1598,7 +1598,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(compare.entries.len(), 5);
 
             // images
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1698,7 +1698,7 @@ who won the game?,The packers beat up on the bears,packers
             // Removed 3 cats, one dir
             assert_eq!(compare.entries.len(), 4);
 
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "removed");
             assert_eq!(entry.data_type, EntryDataType::Dir);
@@ -1817,7 +1817,7 @@ who won the game?,The packers beat up on the bears,packers
             // removed 1 dog, add 1 dog, modified 3 cats, modified 1 directory
             assert_eq!(compare.entries.len(), 6);
 
-            let entry = compare.entries.get(0).unwrap();
+            let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
