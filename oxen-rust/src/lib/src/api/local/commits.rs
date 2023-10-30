@@ -17,9 +17,8 @@ use crate::opts::LogOpts;
 use crate::util::fs::commit_content_is_valid_path;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{api, util};
-use env_logger::Logger;
 use rayon::prelude::*;
-use rocksdb::SingleThreaded;
+
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -392,7 +391,7 @@ pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit) -> bo
 }
 
 // For merkle-tree driven conflict detection between local
-// and remote heads. NOT a general-purpose merge conflict utility!
+// and remote heads. NOT a general-purpose merge conflict utility (yet)
 pub fn head_commits_have_conflicts(
     repo: &LocalRepository,
     client_head_id: &str,
@@ -425,7 +424,6 @@ pub fn head_commits_have_conflicts(
     has_conflict
 }
 
-// TODONOW: can / should speed up these linear scans by storing file information in rocksdb?
 fn r_tree_has_conflict(
     tree_reader: &TreeDBReader,
     client_node: &TreeNode,
@@ -441,14 +439,13 @@ fn r_tree_has_conflict(
     }
 
     match (client_node, server_node, lca_node) {
-        // For directories, we will recurse into their children
         (
             TreeNode::Directory {
                 children: client_children,
                 ..
             },
             TreeNode::Directory {
-                children: _server_children,
+                children: server_children,
                 ..
             },
             TreeNode::Directory {
@@ -456,7 +453,10 @@ fn r_tree_has_conflict(
                 ..
             },
         ) => {
+
+            let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
             for client_child in client_children {
+                visited_paths.insert(client_child.path());
                 let client_child: TreeNode =
                     path_db::get_entry(&tree_reader.client_db.db, client_child.path())?.unwrap();
                 let server_child: Option<TreeNode> =
@@ -482,7 +482,8 @@ fn r_tree_has_conflict(
                     }
                 }
 
-                // TODO: deletion on client
+                // TODONOW: files deleted on client 
+                // TODONOW: Recursive Call: When making a recursive call in r_tree_has_conflict, you might encounter scenarios where either the server_child or lca_child does not exist (i.e., they're None). You'll need a way to handle these Option<TreeNode> types when they're None. Consider using unwrap_or with a default value or a different approach.
 
                 if r_tree_has_conflict(
                     tree_reader,
@@ -491,6 +492,22 @@ fn r_tree_has_conflict(
                     &lca_child.unwrap(),
                 )? {
                     return Ok(true);
+                }
+            }
+
+            // Check for deletion on client + modification on server - conflict
+            for server_child in server_children {
+                if !visited_paths.contains(server_child.path()) {
+                    // If it's not in the LCA OR client child, no conflict 
+                    // TODONOW, refactor db access please
+                    let maybe_lca_node: Option<TreeNode> = path_db::get_entry(&tree_reader.lca_db.db, server_child.path())?;
+                    if maybe_lca_node.is_some() {
+                        // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict. 
+                        if maybe_lca_node.unwrap().hash() != server_child.hash() {
+                            return Ok(true);
+                        }
+                    }
+
                 }
             }
             return Ok(false);

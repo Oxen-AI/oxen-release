@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, VERSIONS_DIR};
 use crate::core::db;
-use crate::core::db::tree_db::{TreeChild, TreeNode};
+use crate::core::db::tree_db::{TreeChild, TreeNode, TreeDB};
 use crate::core::db::{kv_db, path_db, tree_db};
 use crate::core::index::oxenignore;
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
@@ -387,7 +387,7 @@ impl CommitEntryWriter {
         // Rebuild tree, temporarily without reference to `StagedEntries`
 
         // TODONOW: whats up with these paths...
-        match self.rbuild_tree_for_dir(&self.repository.path) {
+        match self.r_build_tree_for_dir(&self.repository.path) {
             Ok(root_node) => {
                 log::debug!(
                     "commit_staged_entries_with_prog got root node {:?}",
@@ -481,7 +481,7 @@ impl CommitEntryWriter {
     // TODONOW use oxen stuff instead of built in fs?
     // TODONOW: does this need to be iterative
 
-    fn rbuild_tree_for_dir(&self, dir_path: &PathBuf) -> Result<TreeNode, OxenError> {
+    fn r_build_tree_for_dir_new(&self, dir_path: &PathBuf) -> Result<TreeNode, OxenError> {
         log::debug!("rbuild_tree_for_dir called on, {:?}", dir_path);
         let mut children: Vec<TreeChild> = Vec::new();
         let entries = fs::read_dir(dir_path)?; // TODONOW: oxenignore?
@@ -510,7 +510,7 @@ impl CommitEntryWriter {
                 path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
             } else if path.is_dir() {
                 log::debug!("traversing on {:?}", path);
-                let subtree_node = self.rbuild_tree_for_dir(&path)?;
+                let subtree_node = self.r_build_tree_for_dir(&path)?;
                 children.push(TreeChild::Directory {
                     path: util::fs::path_relative_to_dir(path, &self.repository.path)?,
                     hash: subtree_node.hash().clone(),
@@ -533,6 +533,10 @@ impl CommitEntryWriter {
         path_db::put(&self.tree_db, relative_path, &subtree_node)?;
 
         Ok(subtree_node)
+    }
+
+    fn r_build_tree_for_dir_cached(&self, dir_path: &PathBuf, prev_tree: &TreeDB) {
+        
     }
 
     fn commit_staged_entry(
