@@ -359,6 +359,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
       - name: Build Docker Image
         run: docker build -t oxen/oxen-server .
 
