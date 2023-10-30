@@ -12,6 +12,7 @@ pub struct TreeDB<T: ThreadMode> {
 
 // TODONOW: handle path parsing rather than passing in the db path
 
+
 impl<T: ThreadMode> TreeDB<T> {
     pub fn new(repository: &LocalRepository, db_path: &Path) -> Result<TreeDB<T>, OxenError> {
         let read_only = false;
