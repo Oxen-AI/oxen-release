@@ -836,12 +836,17 @@ pub async fn can_push(
     let name = path_param(&req, "repo_name")?;
     let client_head_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
-    // TODONOW: go back to using a tree tmp dir...
     // TODONOW factored out lca params here
     // TODONOW better error handling
-    // TODONOW fetch actual commits here for lca_id and such
     let server_head_id = query.get("remote_head").unwrap();
     let lca_id = query.get("lca").unwrap();
+
+    // Ensuring these commits exist on server 
+    let _server_head_commit = api::local::commits::get_by_id(&repo, &server_head_id)?
+        .ok_or(OxenError::revision_not_found(server_head_id.to_owned().into()))?;
+    let _lca_commit = api::local::commits::get_by_id(&repo, &lca_id)?
+        .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
+
 
     log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
     let can_merge = !api::local::commits::head_commits_have_conflicts(
