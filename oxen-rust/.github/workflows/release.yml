@@ -3,13 +3,53 @@ on:
     # Pattern matched against refs/tags
     tags:
       - "*"
+
+env:
+  AWS_REGION: us-west-1
+  AWS_ROLE: ${{ vars.EC2_GITHUB_RUNNER_ROLE }}
+  REGISTRY_IMAGE: oxen/oxen-server
+
+permissions:
+  id-token: write
+  contents: write
+
 jobs:
+  start-self-hosted-runner:
+    name: Start self-hosted EC2 runner
+    runs-on: ubuntu-latest
+    outputs:
+      label: ${{ steps.start-ec2-runner.outputs.label }}
+      ec2-instance-id: ${{ steps.start-ec2-runner.outputs.ec2-instance-id }}
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          role-duration-seconds: 900
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Start EC2 runner
+        id: start-ec2-runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: start
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          ec2-image-id: ${{ vars.EC2_IMAGE_ID }}
+          ec2-instance-type: m7g.large
+          subnet-id: ${{ vars.SUBNET_ID }}
+          security-group-id: ${{ vars.SECURITY_GROUP_ID }}
+          aws-resource-tags: >
+            [
+              {"Key": "Name", "Value": "ec2-github-runner"}
+            ]
+
   release_ubuntu_latest:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
@@ -128,7 +168,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
@@ -245,7 +285,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
       - name: Install ffmpeg dependencies
         run: |
@@ -291,23 +331,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          platforms: linux/arm64
-          tags: oxen/oxen-server
+      - name: Build Docker Image
+        run: docker build -t oxen/oxen-server .
 
       - name: Save Docker
         run: docker save oxen/oxen-server -o oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
@@ -321,12 +351,35 @@ jobs:
           asset_name: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
           tag: ${{ github.ref }}
 
+  release_docker_arm64:
+    needs: start-self-hosted-runner
+    runs-on: ${{ needs.start-self-hosted-runner.outputs.label }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: docker build -t oxen/oxen-server .
+
+      - name: Save Docker
+        run: docker save oxen/oxen-server -o oxen-server-docker-arm64-${{ env.RELEASE_VERSION }}.tar
+
+      - name: Upload docker to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-server-docker-arm64-${{ env.RELEASE_VERSION }}.tar
+          asset_name: oxen-server-docker-arm64-${{ env.RELEASE_VERSION }}.tar
+          tag: ${{ github.ref }}
+
   release_mac_13:
     runs-on: macos-13
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
@@ -396,7 +449,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
@@ -466,7 +519,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+        uses: actions/checkout@v4
 
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
@@ -530,3 +583,26 @@ jobs:
           file: target/release/oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
           asset_name: oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
           tag: ${{ github.ref }}
+
+  stop-self-hosted-runner:
+    name: Stop self-hosted EC2 runner
+    needs:
+      - start-self-hosted-runner
+      - release_docker_arm64
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE }}
+          role-duration-seconds: 900
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Stop EC2 runner
+        uses: machulav/ec2-github-runner@v2
+        with:
+          mode: stop
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          label: ${{ needs.start-self-hosted-runner.outputs.label }}
+          ec2-instance-id: ${{ needs.start-self-hosted-runner.outputs.ec2-instance-id }}
