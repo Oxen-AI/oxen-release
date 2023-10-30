@@ -1,9 +1,11 @@
+use crate::api::endpoint;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::view::StatusMessage;
 
 pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
-    let url = format!("http://{host}/api/version");
+    let protocol = endpoint::get_protocol(host);
+    let url = format!("{protocol}://{host}/api/version");
     log::debug!("Checking version at url {}", url);
 
     let client = client::new_for_url(&url)?;
