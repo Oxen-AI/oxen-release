@@ -1,6 +1,7 @@
 //! Various utility functions
 //!
 
+pub mod concurrency;
 pub mod fs;
 pub mod hasher;
 pub mod logging;

@@ -30,7 +30,7 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataVideo, OxenError> 
                 .collect();
 
             let video = video_tracks
-                .get(0)
+                .first()
                 .ok_or(OxenError::basic_str("Could not get video track"))?;
 
             Ok(MetadataVideo::new(

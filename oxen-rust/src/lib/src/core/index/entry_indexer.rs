@@ -19,8 +19,8 @@ use crate::core::index::{
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::PullOpts;
-use crate::util;
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
+use crate::util::{self, concurrency};
 use crate::view::repository::RepositoryDataTypesView;
 use crate::{api, current_function};
 
@@ -410,12 +410,7 @@ impl EntryIndexer {
             finished_queue.try_push(false).unwrap();
         }
 
-        let worker_count: usize = if num_cpus::get() > total_missing {
-            total_missing
-        } else {
-            num_cpus::get()
-        };
-
+        let worker_count = concurrency::num_threads_for_items(total_missing);
         log::debug!(
             "worker_count {} total_missing {}",
             worker_count,
