@@ -1,3 +1,4 @@
+use crate::api::endpoint;
 use crate::error::OxenError;
 use crate::{api::remote::client, constants::DEFAULT_HOST};
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,8 @@ pub async fn convert(query: &str, schema: &str, host: Option<String>) -> Result<
         Some(host) => host,
         None => DEFAULT_HOST.to_string(),
     };
-    let url = format!("http://{host}/api/df/text2sql?query={query}&schema={schema}");
+    let protocol = endpoint::get_protocol(&host);
+    let url = format!("{protocol}://{host}/api/df/text2sql?query={query}&schema={schema}");
     log::debug!("text2sql url: {}", url);
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
