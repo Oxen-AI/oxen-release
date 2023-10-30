@@ -126,7 +126,7 @@ mod tests {
     // 3) Push Repo A
     // 4) Push repo B to repo A and fail
     #[tokio::test]
-    async fn test_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
+    async fn test_tree_cannot_push_two_separate_cloned_repos() -> Result<(), OxenError> {
         // Push the first repo with data
         test::run_training_data_fully_sync_remote(|_, remote_repo_1| async move {
             let remote_repo_1_copy = remote_repo_1.clone();
@@ -224,7 +224,7 @@ mod tests {
     // 4) User B makes commit, pushes and fails
     // 5) User B pulls user A's changes, pushes and succeeds
     #[tokio::test]
-    async fn test_cannot_push_when_remote_repo_is_ahead_new_file() -> Result<(), OxenError> {
+    async fn test_tree_cannot_push_when_remote_repo_is_ahead_new_file() -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
@@ -285,7 +285,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cannot_push_when_remote_repo_is_many_commits_ahead_new_file(
+    async fn test_tree_cannot_push_when_remote_repo_is_many_commits_ahead_new_file(
     ) -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
@@ -368,7 +368,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_can_push_when_remote_is_many_commits_ahead_no_tree_conflicts(
+    async fn test_tree_can_push_when_remote_is_many_commits_ahead_no_tree_conflicts(
     ) -> Result<(), OxenError> {
         let open_fds = count_open_fds()?;
         log::debug!("open_fds before starting is_many_commits_ahead: {:?}", open_fds);
@@ -454,7 +454,7 @@ mod tests {
         .await
     }
     #[tokio::test]
-    async fn test_cannot_push_when_remote_is_many_commits_ahead_tree_conflicts(
+    async fn test_tree_cannot_push_when_remote_is_many_commits_ahead_tree_conflicts(
     ) -> Result<(), OxenError> {
         // Count and print open fds before process 
         let open_fds = count_open_fds()?;
@@ -540,7 +540,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_can_push_tree_no_conflict_added_file() -> Result<(), OxenError> {
+    async fn test_tree_can_push_tree_no_conflict_added_file() -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
@@ -607,7 +607,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cannot_push_tree_conflict_deleted_file() -> Result<(), OxenError> {
+    async fn test_tree_cannot_push_tree_conflict_deleted_file() -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
@@ -681,7 +681,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_can_push_tree_no_conflict_deleted_file() -> Result<(), OxenError> {
+    async fn test_tree_can_push_tree_no_conflict_deleted_file() -> Result<(), OxenError> {
         // open fds 
         let open_fds = count_open_fds()?;
         log::debug!("open_fds before starting tree_no_conflict_deleted_file: {:?}", open_fds);

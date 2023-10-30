@@ -7,6 +7,7 @@ use crate::constants::{HISTORY_DIR, TREE_DIR};
 use crate::core::cache::cachers::content_validator;
 use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeDB, TreeNode};
+use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
     Stager, TreeDBReader,
@@ -409,116 +410,22 @@ pub fn head_commits_have_conflicts(
 
     // TODONOW: multithreaded
     // TODONOW: not loving this param ordering tbh
-    let tree_reader = TreeDBReader::new(repo, client_db_path, server_db_path, lca_db_path)?;
+    let tree_merger = TreeDBMerger::new(repo, client_db_path, server_db_path, lca_db_path)?;
 
     // Start at the top level of the client db
     // TODONOW: need to probably fold these up into a tree_db_reader
     // TODONOW this is horrifying, fix the double .db
-    let client_root: TreeNode = path_db::get_entry(&tree_reader.client_db.db, "")?.unwrap();
-    let server_root: TreeNode = path_db::get_entry(&tree_reader.server_db.db, "")?.unwrap();
-    let lca_root: TreeNode = path_db::get_entry(&tree_reader.lca_db.db, "")?.unwrap();
+
+    let client_root = &tree_merger.client_reader.get_entry("")?.unwrap();
+    let server_root = &tree_merger.server_reader.get_entry("")?.unwrap();
+    let lca_root = &tree_merger.lca_reader.get_entry("")?.unwrap();
 
     // TODONOW: state management for these db connections...probably needs to be on a struct.
-    let has_conflict = r_tree_has_conflict(&tree_reader, &client_root, &server_root, &lca_root);
+    let has_conflict = tree_merger.r_tree_has_conflict(&client_root, &server_root, &lca_root);
     log::debug!("This tree has conflict: {:?}", has_conflict);
     has_conflict
 }
 
-fn r_tree_has_conflict(
-    tree_reader: &TreeDBReader,
-    client_node: &TreeNode,
-    server_node: &TreeNode,
-    lca_node: &TreeNode,
-) -> Result<bool, OxenError> {
-    // Base checks
-    if client_node.hash() == server_node.hash() {
-        return Ok(false); // No changes in either commit
-    }
-    if client_node.hash() == lca_node.hash() || server_node.hash() == lca_node.hash() {
-        return Ok(false); // Changes in only one commit since LCA
-    }
-
-    match (client_node, server_node, lca_node) {
-        (
-            TreeNode::Directory {
-                children: client_children,
-                ..
-            },
-            TreeNode::Directory {
-                children: server_children,
-                ..
-            },
-            TreeNode::Directory {
-                children: _lca_children,
-                ..
-            },
-        ) => {
-
-            let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
-            for client_child in client_children {
-                visited_paths.insert(client_child.path());
-                let client_child: TreeNode =
-                    path_db::get_entry(&tree_reader.client_db.db, client_child.path())?.unwrap();
-                let server_child: Option<TreeNode> =
-                    path_db::get_entry(&tree_reader.server_db.db, client_child.path())?;
-                let lca_child: Option<TreeNode> =
-                    path_db::get_entry(&tree_reader.lca_db.db, client_child.path())?;
-
-                // TODONOW: paths existing on server but not in client
-
-                // Addition on client
-                if server_child.is_none() && lca_child.is_none() {
-                    return Ok(false);
-                }
-
-                // Deletion on server
-                if server_child.is_none() && lca_child.is_some() {
-                    // Deleted on server, unchanged on client.
-                    if lca_child.unwrap().hash() == client_child.hash() {
-                        return Ok(false);
-                    } else {
-                        // Deleted on server, changed on client == conflict
-                        return Ok(true);
-                    }
-                }
-
-                // TODONOW: files deleted on client 
-                // TODONOW: Recursive Call: When making a recursive call in r_tree_has_conflict, you might encounter scenarios where either the server_child or lca_child does not exist (i.e., they're None). You'll need a way to handle these Option<TreeNode> types when they're None. Consider using unwrap_or with a default value or a different approach.
-
-                if r_tree_has_conflict(
-                    tree_reader,
-                    &client_child,
-                    &server_child.unwrap(),
-                    &lca_child.unwrap(),
-                )? {
-                    return Ok(true);
-                }
-            }
-
-            // Check for deletion on client + modification on server - conflict
-            for server_child in server_children {
-                if !visited_paths.contains(server_child.path()) {
-                    // If it's not in the LCA OR client child, no conflict 
-                    // TODONOW, refactor db access please
-                    let maybe_lca_node: Option<TreeNode> = path_db::get_entry(&tree_reader.lca_db.db, server_child.path())?;
-                    if maybe_lca_node.is_some() {
-                        // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict. 
-                        if maybe_lca_node.unwrap().hash() != server_child.hash() {
-                            return Ok(true);
-                        }
-                    }
-
-                }
-            }
-            return Ok(false);
-        }
-        // For files, if we reach here, it's a conflict because they have different hashes and neither matches the LCA
-        (TreeNode::File { .. }, TreeNode::File { .. }, TreeNode::File { .. }) => Ok(true),
-
-        // Other cases, including changing between file and directory types, are conflicts
-        _ => Ok(true),
-    }
-}
 
 #[cfg(test)]
 mod tests {

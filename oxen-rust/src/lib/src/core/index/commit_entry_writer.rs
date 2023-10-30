@@ -16,8 +16,8 @@ use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use filetime::FileTime;
 use rayon::prelude::*;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
-use std::collections::HashMap;
+use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -304,6 +304,33 @@ impl CommitEntryWriter {
         should_ignore || util::fs::is_in_oxen_hidden_dir(path)
     }
 
+    // TODONOW delete or handle
+    // fn construct_commit_merkle_tree(
+    //     &self, 
+    //     staged_data: &StagedData, 
+    // ) -> Result<(), OxenError> {
+    //     // Check if tree from previous commit exists
+    //     // TODONOW: What if this commit has two parents...
+    //     if &self.commit.parent_ids != 1 {
+    //         panic!("Merkle tree construction not yet implemented for duplicate parents!")
+    //     }
+
+    //     // Get previous commit merkle tree
+
+    //     let prev_tree = CommitEntryWriter::commit_tree_db(&self.repository.path, &self.commit.parent_ids[0]);
+    //     // Check if there is anything at prev_tree path 
+    //     if prev_tree.exists() {
+
+    //         // self.r_update_tree_for_dir(&self.repository.path, &prev_tree, staged_data)
+    //         self.update_tree
+    //     } else { // TODONOW why are we passing paths in both these branches that are part of `self`
+    //         self.r_build_tree_for_dir( &self.repository.path)
+    //     }
+
+
+
+    // }
+
     fn commit_staged_entries_with_prog(
         &self,
         commit: &Commit,
@@ -402,6 +429,8 @@ impl CommitEntryWriter {
             }
         }
 
+        // self.construct_commit_merkle_tree(&staged_data)?;
+
         // Show all entries of the tree db.
         // TODO remove this debug
 
@@ -412,6 +441,7 @@ impl CommitEntryWriter {
             log::debug!("\n\ncommit_staged_entries_with_prog path: {:?}", path);
         }
 
+        // TODONOW debug print remove
         let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
         for item in iter {
             match item {
@@ -481,7 +511,7 @@ impl CommitEntryWriter {
     // TODONOW use oxen stuff instead of built in fs?
     // TODONOW: does this need to be iterative
 
-    fn r_build_tree_for_dir_new(&self, dir_path: &PathBuf) -> Result<TreeNode, OxenError> {
+    fn r_build_tree_for_dir(&self, dir_path: &PathBuf) -> Result<TreeNode, OxenError> {
         log::debug!("rbuild_tree_for_dir called on, {:?}", dir_path);
         let mut children: Vec<TreeChild> = Vec::new();
         let entries = fs::read_dir(dir_path)?; // TODONOW: oxenignore?
@@ -535,9 +565,48 @@ impl CommitEntryWriter {
         Ok(subtree_node)
     }
 
-    fn r_build_tree_for_dir_cached(&self, dir_path: &PathBuf, prev_tree: &TreeDB) {
-        
-    }
+    // fn update_tree(&self, prev_tree_path: PathBuf, staged_data: &StagedData) -> Result<(), OxenError> {
+    //     // Open a TreeDB at this path 
+
+    //     let new_tree_path = CommitEntryWriter::commit_tree_db(&self.repository.path, &self.commit.id);
+
+    //     let prev_tree_db: TreeDB<SingleThreaded> = TreeDB::new(&self.repository, &prev_tree_path)?;
+    //     let new_tree_db: TreeDB<SingleThreaded> = TreeDB::new(&self.repository, &new_tree_path)?;
+    //     // Get affected paths from the StagedData 
+    //     // TODONOW schemas...
+    //     // TODONOW probably extract this out.
+    //     let mut affected_paths: HashSet<PathBuf> = HashSet::new();
+    //     for (path, entry) in staged_data.staged_files.iter() {
+    //         let mut current_path = PathBuf::new(); 
+    //         for component in path.iter() {
+    //             current_path = current_path.join(component); 
+    //             affected_paths.insert(current_path);
+    //         }
+    //     }
+
+    //     // Copy all unaffected nodes from old tree to new - iterate over the rocksdb 
+    //     // for result in prev_tree_db.db.iterator(rocksdb::IteratorMode::Start) {
+    //     //     let (key, value) = match result {
+    //     //         Ok((k, v)) => (k, v),
+    //     //         Err(e) => return Err(OxenError::from(e))
+    //     //     };
+
+    //     //     let path = PathBuf::from(String::from_utf8_lossy(&key).to_string());
+    //     //     if !affected_paths.contains(&path) {
+    //     //         // Copy this node to the new tree
+    //     //         new_tree_db.db.put(&key, &value)?;
+    //     //     }
+    //     // }
+
+
+
+
+
+
+    //     Ok(())
+
+    // }
+
 
     fn commit_staged_entry(
         &self,
