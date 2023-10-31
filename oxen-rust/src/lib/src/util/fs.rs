@@ -423,22 +423,65 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
-    let src = src.as_ref();
-    let dst = dst.as_ref();
+pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), OxenError> {
+    let from = from.as_ref();
+    let to = to.as_ref();
     log::debug!(
-        "copy_dir_all Copy directory src: {:?} -> dst: {:?}",
-        src,
-        dst
+        "copy_dir_all Copy directory from: {:?} -> to: {:?}",
+        from,
+        to
     );
-    std::fs::create_dir_all(dst)?;
+    // std::fs::create_dir_all(to)?;
 
-    let mut options = fs_extra::dir::CopyOptions::new();
-    options.overwrite = true;
+    // let mut options = fs_extra::dir::CopyOptions::new();
+    // options.overwrite = true;
 
-    match fs_extra::dir::copy(src, dst, &options) {
-        Ok(_) => log::debug!("copy_dir_all Copy directory success {:?}", dst),
-        Err(e) => log::debug!("copy_dir_all Copy directory error: {}", e),
+    // match fs_extra::dir::copy(from, to, &options) {
+    //     Ok(_) => log::debug!("copy_dir_all Copy directory success {:?}", to),
+    //     Err(e) => log::debug!("copy_dir_all Copy directory error: {}", e),
+    // }
+
+    let mut stack = Vec::new();
+    stack.push(PathBuf::from(from));
+
+    let output_root = PathBuf::from(to);
+    let input_root = PathBuf::from(from).components().count();
+
+    while let Some(working_path) = stack.pop() {
+        log::debug!("copy_dir_all process: {:?}", &working_path);
+
+        // Generate a relative path
+        let src: PathBuf = working_path.components().skip(input_root).collect();
+
+        // Create a destination if missing
+        let dest = if src.components().count() == 0 {
+            output_root.clone()
+        } else {
+            output_root.join(&src)
+        };
+        if std::fs::metadata(&dest).is_err() {
+            log::debug!("copy_dir_all  mkdir: {:?}", dest);
+            std::fs::create_dir_all(&dest)?;
+        }
+
+        for entry in std::fs::read_dir(working_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                match path.file_name() {
+                    Some(filename) => {
+                        let dest_path = dest.join(filename);
+                        log::debug!("copy_dir_all   copy: {:?} -> {:?}", &path, &dest_path);
+                        std::fs::copy(&path, &dest_path)?;
+                    }
+                    None => {
+                        log::debug!("copy_dir_all failed: {:?}", path);
+                    }
+                }
+            }
+        }
     }
 
     Ok(())
