@@ -424,6 +424,7 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
 }
 
 pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), OxenError> {
+    // There is not a recursive copy in the standard library, so we implement it here
     let from = from.as_ref();
     let to = to.as_ref();
     log::debug!(
@@ -431,15 +432,6 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         from,
         to
     );
-    // std::fs::create_dir_all(to)?;
-
-    // let mut options = fs_extra::dir::CopyOptions::new();
-    // options.overwrite = true;
-
-    // match fs_extra::dir::copy(from, to, &options) {
-    //     Ok(_) => log::debug!("copy_dir_all Copy directory success {:?}", to),
-    //     Err(e) => log::debug!("copy_dir_all Copy directory error: {}", e),
-    // }
 
     let mut stack = Vec::new();
     stack.push(PathBuf::from(from));
@@ -448,7 +440,7 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
     let input_root = PathBuf::from(from).components().count();
 
     while let Some(working_path) = stack.pop() {
-        log::debug!("copy_dir_all process: {:?}", &working_path);
+        // log::debug!("copy_dir_all process: {:?}", &working_path);
 
         // Generate a relative path
         let src: PathBuf = working_path.components().skip(input_root).collect();
@@ -459,9 +451,8 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         } else {
             output_root.join(&src)
         };
-
         if std::fs::metadata(&dest).is_err() {
-            log::debug!("copy_dir_all  mkdir: {:?}", dest);
+            // log::debug!("copy_dir_all  mkdir: {:?}", dest);
             std::fs::create_dir_all(&dest)?;
         }
 
@@ -469,39 +460,16 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
-                log::debug!("copy_dir_all add sub_dir: {:?}", &path);
-
                 stack.push(path);
             } else {
                 match path.file_name() {
                     Some(filename) => {
                         let dest_path = dest.join(filename);
-                        log::debug!("copy_dir_all   copy: {:?} -> {:?}", &path, &dest_path);
-
-                        match std::fs::metadata(&dest) {
-                            Ok(meta) => {
-                                // trying to debug why the build is hanging on ARM here
-                                log::debug!("copy_dir_all len: {:?}", meta.len());
-                                if meta.len() > 0 {
-                                    std::fs::copy(&path, &dest_path)?;
-                                } else {
-                                    // write a file of size 0
-                                    let mut file = File::create(&dest_path)?;
-                                    file.write_all(&[])?;
-                                }
-                            }
-                            Err(err) => {
-                                log::debug!(
-                                    "copy_dir_all metadata failed: {:?} Err: {:?}",
-                                    dest,
-                                    err
-                                );
-                                continue;
-                            }
-                        }
+                        // log::debug!("copy_dir_all   copy: {:?} -> {:?}", &path, &dest_path);
+                        std::fs::copy(&path, &dest_path)?;
                     }
                     None => {
-                        log::debug!("copy_dir_all failed: {:?}", path);
+                        log::error!("copy_dir_all could not get file_name: {:?}", path);
                     }
                 }
             }
