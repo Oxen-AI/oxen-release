@@ -459,6 +459,7 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
         } else {
             output_root.join(&src)
         };
+
         if std::fs::metadata(&dest).is_err() {
             log::debug!("copy_dir_all  mkdir: {:?}", dest);
             std::fs::create_dir_all(&dest)?;
@@ -468,13 +469,36 @@ pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), 
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
+                log::debug!("copy_dir_all add sub_dir: {:?}", &path);
+
                 stack.push(path);
             } else {
                 match path.file_name() {
                     Some(filename) => {
                         let dest_path = dest.join(filename);
                         log::debug!("copy_dir_all   copy: {:?} -> {:?}", &path, &dest_path);
-                        std::fs::copy(&path, &dest_path)?;
+
+                        match std::fs::metadata(&dest) {
+                            Ok(meta) => {
+                                // trying to debug why the build is hanging on ARM here
+                                log::debug!("copy_dir_all len: {:?}", meta.len());
+                                if meta.len() > 0 {
+                                    std::fs::copy(&path, &dest_path)?;
+                                } else {
+                                    // write a file of size 0
+                                    let mut file = File::create(&dest_path)?;
+                                    file.write_all(&[])?;
+                                }
+                            }
+                            Err(err) => {
+                                log::debug!(
+                                    "copy_dir_all metadata failed: {:?} Err: {:?}",
+                                    dest,
+                                    err
+                                );
+                                continue;
+                            }
+                        }
                     }
                     None => {
                         log::debug!("copy_dir_all failed: {:?}", path);
