@@ -165,7 +165,7 @@ pub fn aggregate_col(
 
             let aggregated = stacked
                 .lazy()
-                .group_by([column])
+                .groupby([column])
                 .agg([sum("count")])
                 .select(&[col(column), col("count")])
                 .sort(column, Default::default())

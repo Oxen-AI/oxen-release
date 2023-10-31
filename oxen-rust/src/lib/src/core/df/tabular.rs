@@ -39,7 +39,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
         .sample_size(DEFAULT_SAMPLE_SIZE)
         .with_ignore_errors(true)
         .has_header(true)
-        .with_separator(delimiter)
+        .with_delimiter(delimiter)
         .with_end_of_line_char(b'\n')
         .with_quote_char(Some(b'"'))
         .with_rechunk(true)
@@ -222,7 +222,7 @@ pub fn parse_data_into_df(
             let cursor = Cursor::new(data.as_bytes());
             let schema = schema.to_polars();
             match CsvReader::new(cursor)
-                .with_schema(Some(Arc::new(schema)))
+                .with_schema(Arc::new(schema))
                 .finish()
             {
                 Ok(df) => Ok(df),
@@ -366,7 +366,7 @@ fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame,
         .map(|f| agg_fn_to_expr(f).expect("Err:"))
         .collect();
 
-    Ok(df.group_by(group_by).agg(agg))
+    Ok(df.groupby(group_by).agg(agg))
 }
 
 fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
@@ -642,7 +642,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
         .lazy()
         .select([
             all(),
-            as_struct(col_names)
+            as_struct(&col_names)
                 .apply(
                     move |s| {
                         // log::debug!("s: {:?}", s);
@@ -794,7 +794,7 @@ pub fn write_df_csv<P: AsRef<Path>>(
     let f = std::fs::File::create(output).unwrap();
     CsvWriter::new(f)
         .has_header(true)
-        .with_separator(delimiter)
+        .with_delimiter(delimiter)
         .finish(df)
         .expect(&error_str);
     Ok(())
