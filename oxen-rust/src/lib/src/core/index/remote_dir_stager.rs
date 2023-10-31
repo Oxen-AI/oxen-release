@@ -104,7 +104,7 @@ pub fn init_local_repo_staging_dir(
     std::fs::create_dir_all(&staging_oxen_dir)?;
 
     let dirs_to_copy = vec![
-        // constants::COMMITS_DIR,
+        constants::COMMITS_DIR,
         constants::HISTORY_DIR,
         constants::REFS_DIR,
         constants::HEAD_FILE,
