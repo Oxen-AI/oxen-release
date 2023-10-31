@@ -424,16 +424,23 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
 }
 
 pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
-    std::fs::create_dir_all(&dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        if ty.is_dir() {
-            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        } else {
-            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
-        }
+    let src = src.as_ref();
+    let dst = dst.as_ref();
+    log::debug!(
+        "copy_dir_all Copy directory src: {:?} -> dst: {:?}",
+        src,
+        dst
+    );
+    std::fs::create_dir_all(dst)?;
+
+    let mut options = fs_extra::dir::CopyOptions::new();
+    options.overwrite = true;
+
+    match fs_extra::dir::copy(src, dst, &options) {
+        Ok(_) => log::debug!("copy_dir_all Copy directory success {:?}", dst),
+        Err(e) => log::debug!("copy_dir_all Copy directory error: {}", e),
     }
+
     Ok(())
 }
 
