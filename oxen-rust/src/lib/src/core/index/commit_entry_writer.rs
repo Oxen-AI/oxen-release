@@ -16,12 +16,12 @@ use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use filetime::FileTime;
 use rayon::prelude::*;
-use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded, IteratorMode};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{CommitDirEntryReader, CommitEntryReader};
+use super::{CommitDirEntryReader, CommitEntryReader, TreeDBReader};
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -106,7 +106,6 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    // MERKLE - here's where we get dirs
     fn write_entries_from_reader(&self, reader: &CommitEntryReader) -> Result<(), OxenError> {
         let dirs = reader.list_dirs()?;
         for dir in dirs {
@@ -156,7 +155,7 @@ impl CommitEntryWriter {
         &self,
         writer: &CommitDirEntryWriter,
         new_commit: &Commit,
-        staged_entry: &StagedEntry,
+        staged_entry: &StagedEntry, // TODONOW drop
         origin_path: &Path,
         file_path: &Path,
     ) -> Result<(), OxenError> {
@@ -178,7 +177,7 @@ impl CommitEntryWriter {
         let entry = CommitEntry {
             commit_id: new_commit.id.to_owned(),
             path: file_path.to_path_buf(),
-            hash: staged_entry.hash.to_owned(),
+            hash: hash.to_owned(),
             num_bytes: metadata.len(),
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
@@ -204,8 +203,6 @@ impl CommitEntryWriter {
 
         writer.add_commit_entry(&entry)
     }
-
-    // TODONOW: issue with .oxenignore being modified at weird times possible?
 
     fn backup_file_to_versions_dir(
         &self,
@@ -304,6 +301,476 @@ impl CommitEntryWriter {
         should_ignore || util::fs::is_in_oxen_hidden_dir(path)
     }
 
+    pub fn construct_merkle_tree_from_parent(&self, staged_data: &StagedData) -> Result<(), OxenError> {
+        // Step 1: Establish link to previous commit's tree
+        if self.commit.parent_ids.len() != 1 {
+            panic!("Merkle tree construction not yet implemented for multiple parents")
+        }; // TODONOW: merge commits..
+
+        let parent_tree_path = CommitEntryWriter::commit_tree_db(&self.repository.path, &self.commit.parent_ids[0]);
+        let parent_tree = TreeDBReader::new(&self.repository, parent_tree_path)?;
+
+        // Step 1.25: Copy over all parent tree stuff to new tree...
+
+        for result in parent_tree.db.iterator(IteratorMode::Start) {
+            match result {
+                Ok((key, value)) => {
+                    // Try parsing the key as a UTF-8 string
+                    let path_str = match String::from_utf8(key.to_vec()) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            log::error!("Failed to convert key to UTF-8 string: {:?}", e);
+                            continue;
+                        }
+                    };
+                    
+                    // Parse the `value` into a TreeNode
+                    let node = match serde_json::from_slice::<TreeNode>(&value) {
+                        Ok(n) => n,
+                        Err(e) => {
+                            log::error!("Failed to parse value as TreeNode: {:?}", e);
+                            continue;
+                        }
+                    };
+                    
+                    let path = PathBuf::from(path_str);
+        
+                    // Copy entire old db to new tree, then modify
+                    log::debug!("Copying over tree path {:?} from parent tree", path);
+                    path_db::put(&self.tree_db, &path, &node)?;
+
+                    // Get the path we just put to see what's going on 
+                    let entry: TreeNode = path_db::get_entry(&self.tree_db, &path)?.unwrap();
+                    log::debug!("here's the entry we jus got...{:?}", entry);
+                }
+                _ => {
+                    return Err(OxenError::basic_str(
+                        "Could not iterate over db values"
+                    ))
+                }
+            }
+        }
+        
+
+        // Step 1.5: Get all dirs and put into hash set representing the commit tree 
+    
+        // TODONOW: factor out code = dirgetting
+
+        let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
+        dir_paths.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
+
+        // Build a map of dir to children 
+        let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+
+        log::debug!("inserting stuff into dir_map now for commit with message {:?} and id {:?}", self.commit.message, self.commit.id);
+        for dir in &dir_paths {
+            let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
+            // Insert the dir itself 
+            dir_map.entry(dir.to_path_buf()).or_default();
+            log::debug!("inserting {:?} into dir_map", dir);
+            if &parent != dir {
+                log::debug!("inserting {:?} into dir_map", dir);
+                dir_map.entry(parent).or_default().push(dir.to_path_buf());
+            }
+            
+        }
+
+        // Print every dir in dir map 
+        for (dir, children) in &dir_map {
+            log::debug!("dir_map dir: {:?} children: {:?}", dir, children);
+        }
+
+
+        // Step 2: Get all DIRS implicated in the changes for this commit via stageddata
+        //...IF THEY ARE A DIR aka if they are in dirs db
+        // TODONOW - schemas?
+        // TODONOW - extrac tthis out probably
+
+        log::debug!("Here's our dir map: {:?}", dir_map);
+
+        let mut dirs_to_recompute: HashSet<PathBuf> = HashSet::new();
+        for (path, entry) in staged_data.staged_files.iter() {
+            let mut current_path = PathBuf::new(); 
+            for component in path.iter() {
+                current_path = current_path.join(component); 
+                log::debug!("checking to see if we can insert component {:?} into dirs_to_recompute", current_path);
+                log::debug!("dir_map contains {:?}: {:?}", current_path.clone(), dir_map.contains_key(&current_path));
+                if dir_map.contains_key(&current_path) {
+                    log::debug!("inserting {:?} into dirs_to_recompute", current_path);
+                    dirs_to_recompute.insert(current_path.clone());
+                } else {
+                    log::debug!("unable to insert {:?} into dirs_to_recompute", current_path);
+                }
+            }
+        }
+        // Always need to recompute the root dir, but gets missed by this logic
+        dirs_to_recompute.insert(PathBuf::from(""));
+        // Sort them by descending component count to work bottom-up
+        
+        let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
+        modified_dirs_vec.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
+
+        
+
+        for dir in &modified_dirs_vec {            
+            log::debug!("Processing dir... {:?}", dir);
+            let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
+            
+            // Get all file children
+            let children_entries = dir_entry_reader.list_entries()?;
+            log::debug!("children_entries {:?}", children_entries);
+
+            let child_entry_nodes: Vec<TreeChild> = children_entries.iter().map(|entry| CommitEntryWriter::entry_to_treechild(entry)).collect::<Vec<_>>();
+
+            // Get all directory children as treenodes
+            let children_dirs = dir_map.get(dir).unwrap();
+            log::debug!("children_dirs: {:?}", children_dirs);
+
+            // Read each dir into a vec of nodes
+            // unwrapping both here bc if the dir doesn't exist in the db yet, something has gone wrong in treebuilding
+            // let dir_entry_nodes: Vec<TreeChild> = children_dirs.iter().map(|path| path_db::get_entry(&self.tree_db, path).unwrap().unwrap()).collect::<Vec<_>>();
+            let mut dir_entry_nodes: Vec<TreeChild> = Vec::new();
+
+            log::debug!("Here's the state of the db right where it's about to fail.");
+            // Iterate over self.tree_db and print everything out 
+            self.temp_print_tree_db();
+
+            for path in children_dirs {
+                println!("Processing path: {:?}", path);
+
+                match path_db::get_entry(&self.tree_db, path) {
+                    Ok(Some(entry)) => {
+                        dir_entry_nodes.push(entry);
+                    },
+                    Ok(None) => {
+                        println!("Warning: No entry found for path: {:?}", path);
+                        panic!();
+                    },
+                    Err(e) => {
+                        println!("Error fetching entry for path {:?}: {:?}", path, e);
+                        panic!();
+                    }
+                }
+            }
+
+            
+
+            // Create tree_db nodes for these children. 
+            for file_child in &child_entry_nodes {
+                let file_node = TreeNode::File {
+                    path: file_child.path().to_path_buf(),
+                    hash: file_child.hash().to_string(),
+                };
+                path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
+            }
+
+            // Combine the child and dir nodes into a list sorted by path() 
+            let mut all_children: Vec<TreeChild> = child_entry_nodes;
+            all_children.extend(dir_entry_nodes);
+            all_children.sort_by(|a, b| a.path().cmp(b.path()));
+
+
+            let node_hash = util::hasher::compute_subtree_hash(&all_children);
+
+            // Create a Directory style TreeNode of the children in the pathdb 
+            let dir_node = TreeNode::Directory {
+                path: dir.to_path_buf(),
+                children: all_children,
+                hash: node_hash.to_string(),
+            };
+
+            // Put this node into the db 
+            path_db::put(&self.tree_db, dir, &dir_node)?;
+        }
+
+        
+
+
+
+        Ok(())
+
+    }
+
+    // pub fn construct_merkle_tree_from_parent(&self, staged_data: &StagedData) -> Result<(), OxenError> {
+    //     // Parent commit 
+    //     // TODONOW: handling for merge commits? 
+    //     if self.commit.parent_ids.len() != 1 {
+    //         panic!("Merkle tree construction not yet implemented for multiple parents")
+    //     }
+
+    //     let parent_tree_path = CommitEntryWriter::commit_tree_db(&self.repository.path, &self.commit.parent_ids[0]);
+    //     let parent_tree = TreeDBReader::new(&self.repository, parent_tree_path)?;
+
+    //     // Get all paths implicated in the changes via stageddata 
+    //     // TODONOW - schemas?
+    //     // TODONOW - extrac tthis out probably
+    //     let mut affected_paths: HashSet<PathBuf> = HashSet::new();
+    //     for (path, entry) in staged_data.staged_files.iter() {
+    //         let mut current_path = PathBuf::new(); 
+    //         for component in path.iter() {
+    //             current_path = current_path.join(component); 
+    //             affected_paths.insert(current_path.clone());
+    //         }
+    //     }
+
+    //     // Handle affected paths from bottom up. Sorting by affected component count to ensure 
+    //     // every child is processed before its parent
+    //     let mut affected_paths_vec: Vec<PathBuf> = affected_paths.into_iter().collect();
+    //     affected_paths_vec.sort_by(|a, b| {
+    //         let a_count = a.components().count();
+    //         let b_count = b.components().count();
+    //         b_count.cmp(&a_count)
+    //     });
+
+    //     // Copy all paths from parent tree to new tree 
+    //     for result in parent_tree.db.iterator(IteratorMode::Start) {
+    //         match result {
+    //             Ok((key, value)) => {
+    //                 // Parse key as a path  
+    //                 let path_str = String::from_utf8_lossy(&key).into_owned();
+    //                 let path = PathBuf::from(path_str); // TODONOW lossy?
+
+    //                 // Copy entire old db to new tree, then modifiy - // TODONOW copy whole
+    //                 // if !affected_paths.contains(&path) {
+    //                 path_db::put(&self.tree_db, &path, &value)?;
+    //                 // }
+
+    //             }
+    //             _ => {
+    //                 return Err(OxenError::basic_str(
+    //                     "Could not iterate over db values"
+    //                 ))
+    //             }
+    //         }
+    //     }
+
+    //     // Iterate through staged entries, making in-place modifications of the duplicate tree according to 
+    //     // ADDED / MODIFIED / REMOVED status
+    //     // TODONOW: Group these by dir to avoid multiple db ops / sorts as we go
+    //     // TODONOW schemas
+    //     for (path, entry) in &staged_data.staged_files {
+    //         // Match on the StagedEntryStatus of the entry 
+    //         match entry.status {
+    //             StagedEntryStatus::Added => {
+    //                 self.modify_tree_added(&path, &entry)?;
+    //             }
+    //             StagedEntryStatus::Modified => {
+    //                 self.modify_tree_modified(&path,  &entry)?;
+    //             }
+    //             StagedEntryStatus::Removed => {
+    //                 self.modify_tree_deleted(&path,  &entry)?;
+    //             }
+    //         }
+    //     }
+
+    //     // Re-hash upwards - affected paths are ordered by desc number of path components 
+    //     for path in affected_paths_vec {
+    //         log::debug!("Recomputing hashes for path {:?}", path);
+    //         // Get node 
+    //         let mut node: TreeNode = path_db::get_entry(&self.tree_db, &path)?.unwrap();
+    //         // If node has no children after all ops, delete it and remove from its parent
+    //         if node.children().is_empty() {
+    //             // Delete the node itself
+    //             path_db::delete(&self.tree_db, &path)?;
+
+    //             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+    //             let mut parent_node: TreeNode = path_db::get_entry(&self.tree_db, &parent)?.unwrap();
+    //             parent_node.delete_child(&path.to_path_buf())?;
+    //             path_db::put(&self.tree_db, &parent_node.path(), &parent_node)?;
+    //             continue;
+    //         }
+    //         // If there are still children, sort them, then update the hash 
+    //         node.sort_children()?;
+
+    //         // Get hash of new children
+    //         node.set_hash(util::hasher::compute_subtree_hash(&node.children()));
+    //         path_db::put(&self.tree_db, &node.path(), &node)?;
+
+    //     }
+
+
+    //     Ok(())
+    // }
+
+    fn modify_tree_added(&self, path: &Path, entry: &StagedEntry) -> Result<(), OxenError> {
+        log::debug!("modify_tree adding file {:?}", path);
+        // Create a treenode and treechild for this entry 
+        let new_child = TreeChild::File {
+            path: path.to_path_buf(),
+            hash: entry.hash.clone(),
+        };
+        let new_node = TreeNode::File {
+            path: path.to_path_buf(),
+            hash: entry.hash.clone(),
+        };
+
+        // Add the new file node to the db 
+        path_db::put(&self.tree_db, &path, &new_node)?;
+
+        // Get parent path // TODONOW what to do about "" directory with no parent
+        let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+        // Get parent node from tree_db
+        log::debug!("Trying to get parent node at path {:?}", parent);
+        let mut parent_node: TreeNode = path_db::get_entry(&self.tree_db, &parent)?.unwrap();
+        parent_node.add_child(new_child)?;
+
+        // Put the new parent node into the tree_db - re-hashing occurs later to avoid it happening duplicatively
+        path_db::put(&self.tree_db, &parent_node.path(), &parent_node)?;
+
+        Ok(())
+    }
+
+    fn modify_tree_modified(&self, path: &Path, entry: &StagedEntry) -> Result<(), OxenError> {
+        log::debug!("modify_tree modifying file {:?}", path);
+
+        // Create a treenode and treechild for this entry 
+        let new_child = TreeChild::File {
+            path: path.to_path_buf(),
+            hash: entry.hash.clone(),
+        };
+        let new_node = TreeNode::File {
+            path: path.to_path_buf(),
+            hash: entry.hash.clone(),
+        };
+
+        // Overwrite the existing file in the db 
+        path_db::put(&self.tree_db, &path, &new_node)?;
+        
+
+        let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+        // Get parent node from tree_db
+        let mut parent_node: TreeNode = path_db::get_entry(&self.tree_db, &parent)?.unwrap();
+        parent_node.update_child(new_child)?;
+        // Reinsert the parent node 
+        path_db::put(&self.tree_db, &parent_node.path(), &parent_node)?;
+
+        Ok(())
+        
+    }
+
+    fn modify_tree_deleted(&self, path: &Path, entry: &StagedEntry) -> Result<(), OxenError> {
+        // Delete the file node from the db 
+        path_db::delete(&self.tree_db, &path)?;
+
+        // Get the parent node from the db 
+        let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+        let mut parent_node: TreeNode = path_db::get_entry(&self.tree_db, &parent)?.unwrap();
+        parent_node.delete_child(&path.to_path_buf())?; // TODONOW error handling
+        // Reinsert the parent node
+        path_db::put(&self.tree_db, &parent_node.path(), &parent_node)?;
+
+        Ok(())
+    }
+
+
+
+    pub fn construct_merkle_tree_new(&self) -> Result<(), OxenError> {
+        // Get all directory paths...
+        let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
+
+        // Sort all paths by descending component count so that we can build the tree from the bottom up
+        dir_paths.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
+
+         // todonow factor out code = dirgetting
+        // Build a map of dir to children 
+        let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+
+        for dir in &dir_paths {
+            let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
+            // Insert the dir itself 
+            dir_map.entry(dir.to_path_buf()).or_default();
+            if &parent != dir {
+                dir_map.entry(parent).or_default().push(dir.to_path_buf());
+            }
+            
+        }
+
+        // Iterate over the dir map to debug print 
+        for (dir, children) in dir_map.iter() {
+            log::debug!("here is dir: {:?} children: {:?}", dir, children);
+        }
+
+        // Treedb reader 
+        // let tree_db_reader = TreeDBReader::new_from_db(&self.repository, self.tree_db)?;
+
+        // Iterate over these dirs, getting all the children, both file and dir 
+        // TODONOW extract with the other one
+        for dir in &dir_paths {
+
+            
+            log::debug!("Processing dir... {:?}", dir);
+            let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
+            
+            // Get all file children
+            let children_entries = dir_entry_reader.list_entries()?;
+            log::debug!("children_entries {:?}", children_entries);
+
+            let child_entry_nodes: Vec<TreeChild> = children_entries.iter().map(|entry| CommitEntryWriter::entry_to_treechild(entry)).collect::<Vec<_>>();
+
+            // Get all directory children as treenodes
+            let children_dirs = dir_map.get(dir).unwrap();
+            log::debug!("children_dirs: {:?}", children_dirs);
+
+            // Read each dir into a vec of nodes
+            // unwrapping both here bc if the dir doesn't exist in the db yet, something has gone wrong in treebuilding
+            let dir_entry_nodes: Vec<TreeChild> = children_dirs.iter().map(|path| path_db::get_entry(&self.tree_db, path).unwrap().unwrap()).collect::<Vec<_>>();
+
+            // Create tree_db nodes for these children. 
+            for file_child in &child_entry_nodes {
+                let file_node = TreeNode::File {
+                    path: file_child.path().to_path_buf(),
+                    hash: file_child.hash().to_string(),
+                };
+                path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
+            }
+
+            // Combine the child and dir nodes into a list sorted by path() 
+            let mut all_children: Vec<TreeChild> = child_entry_nodes;
+            all_children.extend(dir_entry_nodes);
+            all_children.sort_by(|a, b| a.path().cmp(b.path()));
+
+
+            let node_hash = util::hasher::compute_subtree_hash(&all_children);
+
+            // Create a Directory style TreeNode of the children in the pathdb 
+            let dir_node = TreeNode::Directory {
+                path: dir.to_path_buf(),
+                children: all_children,
+                hash: node_hash.to_string(),
+            };
+
+            // Put this node into the db 
+            path_db::put(&self.tree_db, dir, &dir_node)?;
+        }
+
+        Ok(())
+
+    }
+
+    fn entry_to_treechild(entry: &CommitEntry) -> TreeChild {
+        TreeChild::File {
+            path: entry.path.clone(),
+            hash: entry.hash.clone(),
+        }
+    }
+
+    
+
+
+
+
     // TODONOW delete or handle
     // fn construct_commit_merkle_tree(
     //     &self, 
@@ -330,6 +797,46 @@ impl CommitEntryWriter {
 
 
     // }
+
+    // TODONOW branch and recreat
+
+    // TODONOW delete 
+    pub fn temp_print_tree_db(&self) -> () {
+        let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
+        for item in iter {
+            match item {
+                Ok((key_bytes, value_bytes)) => {
+                    match String::from_utf8(key_bytes.to_vec()) {
+                        Ok(key_str) => {
+                            let key_path = PathBuf::from(key_str);
+
+                            // Attempting to deserialize the value into TreeNode
+                            let deserialized_value: Result<TreeNode, _> =
+                                serde_json::from_slice(&value_bytes);
+                            match deserialized_value {
+                                Ok(tree_node) => {
+                                    log::debug!(
+                                        "\n\ntree_db entry: {:?} -> {:?}\n\n",
+                                        key_path,
+                                        tree_node
+                                    );
+                                }
+                                Err(e) => {
+                                    log::error!("tree_db error deserializing value: {:?}", e);
+                                }
+                            }
+                        }
+                        Err(_) => {
+                            log::error!("tree_db Could not decode key {:?}", key_bytes);
+                        }
+                    }
+                }
+                Err(e) => {
+                    log::error!("tree_db error: {:?}", e);
+                }
+            }
+        }
+    }
 
     fn commit_staged_entries_with_prog(
         &self,
@@ -414,20 +921,32 @@ impl CommitEntryWriter {
         // Rebuild tree, temporarily without reference to `StagedEntries`
 
         // TODONOW: whats up with these paths...
-        match self.r_build_tree_for_dir(&self.repository.path) {
-            Ok(root_node) => {
-                log::debug!(
-                    "commit_staged_entries_with_prog got root node {:?}",
-                    root_node
-                );
-            }
-            Err(e) => {
-                log::error!(
-                    "commit_staged_entries_with_prog error rebuilding tree {:?}",
-                    e
-                );
-            }
-        }
+        // match self.construct_merkle_tree() {
+        //     Ok(root_node) => {
+        //         log::debug!(
+        //             "commit_staged_entries_with_prog got root node {:?}",
+        //             root_node
+        //         );
+        //     }
+        //     Err(e) => {
+        //         log::error!(
+        //             "commit_staged_entries_with_prog error rebuilding tree {:?}",
+        //             e
+        //         );
+        //     }
+        // }
+
+        // TODONOW: are we sure we're re-hashing? 
+        // TODONOW: make sure all hashes are correctly updated at this point.
+        
+
+        // Check if the merkle tree for the previous commit exists - TODONOW - merge commits w/ multi parent
+
+
+        // self.construct_merkle_tree_new()?;
+        self.temp_print_tree_db(); // TODONOW delete
+
+        
 
         // self.construct_commit_merkle_tree(&staged_data)?;
 
@@ -442,40 +961,7 @@ impl CommitEntryWriter {
         }
 
         // TODONOW debug print remove
-        let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
-        for item in iter {
-            match item {
-                Ok((key_bytes, value_bytes)) => {
-                    match String::from_utf8(key_bytes.to_vec()) {
-                        Ok(key_str) => {
-                            let key_path = PathBuf::from(key_str);
-
-                            // Attempting to deserialize the value into TreeNode
-                            let deserialized_value: Result<TreeNode, _> =
-                                serde_json::from_slice(&value_bytes);
-                            match deserialized_value {
-                                Ok(tree_node) => {
-                                    log::debug!(
-                                        "\n\ntree_db entry: {:?} -> {:?}\n\n",
-                                        key_path,
-                                        tree_node
-                                    );
-                                }
-                                Err(e) => {
-                                    log::error!("tree_db error deserializing value: {:?}", e);
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            log::error!("tree_db Could not decode key {:?}", key_bytes);
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!("tree_db error: {:?}", e);
-                }
-            }
-        }
+        self.temp_print_tree_db();
 
         //
 
@@ -503,6 +989,22 @@ impl CommitEntryWriter {
             }
         }
 
+        // This needs to happen after both the commit dirs db and the entries dbs are fully updated - hence here 
+
+        
+        // TODONOW: Merge commit logic? 
+        if self.commit.parent_ids.len() == 1 {
+            let prev_tree_path = CommitEntryWriter::commit_tree_db(&self.repository.path, &self.commit.parent_ids[0]);
+            if prev_tree_path.exists() {
+                log::debug!("constructing merkle tree from parent commit");
+                self.construct_merkle_tree_from_parent(staged_data)?;
+            }
+        } else {
+            // Merge commit, initial commit, or no previous tree
+            log::debug!("constructing new merkle tree");
+            self.construct_merkle_tree_new()?;
+        }
+
         bar.finish_and_clear();
 
         Ok(())
@@ -517,15 +1019,10 @@ impl CommitEntryWriter {
         let entries = fs::read_dir(dir_path)?; // TODONOW: oxenignore?
         let dir_path = util::fs::path_relative_to_dir(dir_path, &self.repository.path)?;
         for entry in entries {
-            log::debug!("the entry is {:?}", &entry);
-            // let path = util::fs::path_relative_to_dir(entry?.path(), &self.repository.path)?;
             let path = entry?.path();
-            log::debug!("the path is {:?}", path);
             if self.should_ignore_path(&path) {
-                log::debug!("ignoring / skipping the path");
                 continue;
             }
-            log::debug!("not skipping the path");
 
             if path.is_file() {
                 let hash = util::hasher::hash_file_contents(&path)?;
@@ -585,20 +1082,24 @@ impl CommitEntryWriter {
     //     }
 
     //     // Copy all unaffected nodes from old tree to new - iterate over the rocksdb 
-    //     // for result in prev_tree_db.db.iterator(rocksdb::IteratorMode::Start) {
-    //     //     let (key, value) = match result {
-    //     //         Ok((k, v)) => (k, v),
-    //     //         Err(e) => return Err(OxenError::from(e))
-    //     //     };
+    //     for result in prev_tree_db.db.iterator(rocksdb::IteratorMode::Start) {
+    //         let (key, value) = match result {
+    //             Ok((k, v)) => (k, v),
+    //             Err(e) => return Err(OxenError::from(e))
+    //         };
 
-    //     //     let path = PathBuf::from(String::from_utf8_lossy(&key).to_string());
-    //     //     if !affected_paths.contains(&path) {
-    //     //         // Copy this node to the new tree
-    //     //         new_tree_db.db.put(&key, &value)?;
-    //     //     }
-    //     // }
+    //         let path = PathBuf::from(String::from_utf8_lossy(&key).to_string());
+    //         if !affected_paths.contains(&path) {
+    //             // Copy this node to the new tree
+    //             new_tree_db.db.put(&key, &value)?;
+    //         }
+    //     }
 
 
+    //     // Hanlde affected nodes 
+    //     for path in &affected_paths {
+
+    //     }
 
 
 

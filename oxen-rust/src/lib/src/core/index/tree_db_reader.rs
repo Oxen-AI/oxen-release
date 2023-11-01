@@ -2,11 +2,11 @@ use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeDB, TreeNode};
 use crate::error::OxenError;
 use crate::model::repository::local_repository::LocalRepository;
-use rocksdb::{SingleThreaded, DBWithThreadMode};
+use rocksdb::{SingleThreaded, DBWithThreadMode, MultiThreaded};
 use std::path::{PathBuf, Path};
 use std::collections::HashSet;
 pub struct TreeDBReader {
-    db: DBWithThreadMode<SingleThreaded>
+    pub db: DBWithThreadMode<MultiThreaded>
 }
 
 // TODONOW naming of these (client, server etc)
@@ -17,6 +17,12 @@ impl TreeDBReader {
         let db = TreeDB::new_read_only(repo, &db_path)?;
         Ok(TreeDBReader {
             db: db.db // TODONOW fix this...
+        })
+    }
+
+    pub fn new_from_db(repo: &LocalRepository, db: DBWithThreadMode<MultiThreaded>) -> Result<Self, OxenError> {
+        Ok(TreeDBReader {
+            db
         })
     }
 

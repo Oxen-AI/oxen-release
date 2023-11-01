@@ -60,20 +60,6 @@ pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError>
     indexer.push(&rb).await
 }
 
-// TODONOW delete 
-pub fn count_open_fds() -> Result<usize, std::io::Error> {
-    // Get current process ID
-    let pid = std::process::id();
-
-    // Run lsof for the current process
-    let output = Command::new("lsof")
-        .arg("-p")
-        .arg(pid.to_string())
-        .output()?;
-
-    // Count the lines of output, subtracting 1 for the header
-    Ok(String::from_utf8_lossy(&output.stdout).lines().count() - 1)
-}
 
 
 /// Push to a specific remote branch on the default remote repository
@@ -663,7 +649,6 @@ mod tests {
                     let res = command::push(&user_b_repo).await;
 
                     assert!(res.is_err());
-                    // TODONOW: Fix this test - it's actually failing, uncomment the above.
 
                     Ok(user_b_repo_dir_copy)
                 })

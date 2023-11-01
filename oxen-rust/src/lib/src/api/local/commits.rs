@@ -392,7 +392,7 @@ pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit) -> bo
 }
 
 // For merkle-tree driven conflict detection between local
-// and remote heads. NOT a general-purpose merge conflict utility (yet)
+// and remote heads. NOT a general-purpose merge conflict utility 
 pub fn head_commits_have_conflicts(
     repo: &LocalRepository,
     client_head_id: &str,
@@ -400,7 +400,6 @@ pub fn head_commits_have_conflicts(
     lca_id: &str,
 ) -> Result<bool, OxenError> {
     // Connect to the 3 commit merkle trees
-    // TODONOW: generalize the tree_db access
     let lca_db_path = CommitEntryWriter::commit_tree_db(&repo.path, lca_id);
     let server_db_path = CommitEntryWriter::commit_tree_db(&repo.path, server_head_id);
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
@@ -413,17 +412,32 @@ pub fn head_commits_have_conflicts(
     let tree_merger = TreeDBMerger::new(repo, client_db_path, server_db_path, lca_db_path)?;
 
     // Start at the top level of the client db
-    // TODONOW: need to probably fold these up into a tree_db_reader
-    // TODONOW this is horrifying, fix the double .db
-
     let client_root = &tree_merger.client_reader.get_entry("")?.unwrap();
     let server_root = &tree_merger.server_reader.get_entry("")?.unwrap();
     let lca_root = &tree_merger.lca_reader.get_entry("")?.unwrap();
 
-    // TODONOW: state management for these db connections...probably needs to be on a struct.
     let has_conflict = tree_merger.r_tree_has_conflict(&client_root, &server_root, &lca_root);
     log::debug!("This tree has conflict: {:?}", has_conflict);
     has_conflict
+}
+
+pub fn has_merkle_tree(
+    repo: &LocalRepository, 
+    commit: &Commit
+) -> Result<bool, OxenError> {
+    let path = CommitEntryWriter::commit_tree_db(&repo.path, &commit.id);
+    Ok(path.exists())
+}
+
+pub fn construct_commit_merkle_tree(
+    repo: &LocalRepository, 
+    commit: &Commit
+) -> Result<(), OxenError> {
+    let commit_writer = CommitEntryWriter::new(repo, commit)?;
+    // commit_writer.construct_merkle_tree()?;
+    commit_writer.construct_merkle_tree_new()?;
+    commit_writer.temp_print_tree_db(); // TODONOW delete
+    Ok(())
 }
 
 

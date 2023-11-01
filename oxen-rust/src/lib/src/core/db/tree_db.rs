@@ -106,12 +106,82 @@ impl TreeNode {
             TreeNode::Directory { hash, .. } => hash,
         }
     }
+
+    pub fn children(&self) -> &Vec<TreeChild> {
+        match self {
+            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::Directory { children, .. } => children,
+        }
+    }
+
+    pub fn set_children(&mut self, new_children: Vec<TreeChild>) {
+        match self {
+            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::Directory { children, .. } => *children = new_children,
+        }
+    }
+
+    pub fn set_hash(&mut self, new_hash: String) {
+        match self {
+            TreeNode::File { hash, .. } => *hash = new_hash,
+            TreeNode::Directory { hash, .. } => *hash = new_hash,
+        }
+    }
+
+    pub fn add_child(&mut self, child: TreeChild) -> Result<(), OxenError> {
+        match self {
+            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::Directory { children, .. } => children.push(child),
+        }
+        Ok(())
+    }
+
+    pub fn update_child(&mut self, child: TreeChild) -> Result<(), OxenError> {
+        match self {
+            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::Directory { children, .. } => {
+                let index = children.binary_search_by(|c| c.path().cmp(child.path()));
+                match index {
+                    Ok(index) => {
+                        children.remove(index);
+                    },
+                    Err(_) => panic!("Child not found"), // TODONOW oxenerror
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn delete_child(&mut self, child_path: &PathBuf) -> Result<(), OxenError> {
+        match self {
+            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::Directory { children, .. } => {
+                let index = children.binary_search_by(|c| c.path().cmp(child_path));
+                match index {
+                    Ok(index) => {
+                        children.remove(index);
+                    },
+                    Err(_) => panic!("Child not found"), // TODONOW oxenerror
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn sort_children(&mut self) -> Result<(), OxenError> {
+        match self {
+            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::Directory { children, .. } => {
+                children.sort_by(|a, b| a.path().cmp(b.path()));
+            }
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum TreeChild {
     File { path: PathBuf, hash: String },
-
     Directory { path: PathBuf, hash: String },
 }
 
