@@ -46,6 +46,9 @@ RUN cargo build --release --bin oxen-server
 
 # Minimal image to run the binary (without Rust toolchain)
 FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y openssl
+
 WORKDIR /oxen-server
 COPY --from=builder /usr/src/oxen-server/target/release/oxen-server /usr/local/bin
 ENV SYNC_DIR=/var/oxen/data
