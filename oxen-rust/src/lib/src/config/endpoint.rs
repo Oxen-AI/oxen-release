@@ -1,3 +1,6 @@
+use crate::api::endpoint;
+
 pub fn http_endpoint(host: &str) -> String {
-    format!("http://{host}/api/v1")
+    let protocol = endpoint::get_protocol(host);
+    format!("{protocol}://{host}/api/v1")
 }
