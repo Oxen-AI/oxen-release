@@ -423,17 +423,59 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     }
 }
 
-pub fn copy_dir_all(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
-    std::fs::create_dir_all(&dst)?;
-    for entry in std::fs::read_dir(src)? {
-        let entry = entry?;
-        let ty = entry.file_type()?;
-        if ty.is_dir() {
-            copy_dir_all(entry.path(), dst.as_ref().join(entry.file_name()))?;
+pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), OxenError> {
+    // There is not a recursive copy in the standard library, so we implement it here
+    let from = from.as_ref();
+    let to = to.as_ref();
+    log::debug!(
+        "copy_dir_all Copy directory from: {:?} -> to: {:?}",
+        from,
+        to
+    );
+
+    let mut stack = Vec::new();
+    stack.push(PathBuf::from(from));
+
+    let output_root = PathBuf::from(to);
+    let input_root = PathBuf::from(from).components().count();
+
+    while let Some(working_path) = stack.pop() {
+        // log::debug!("copy_dir_all process: {:?}", &working_path);
+
+        // Generate a relative path
+        let src: PathBuf = working_path.components().skip(input_root).collect();
+
+        // Create a destination if missing
+        let dest = if src.components().count() == 0 {
+            output_root.clone()
         } else {
-            std::fs::copy(entry.path(), dst.as_ref().join(entry.file_name()))?;
+            output_root.join(&src)
+        };
+        if std::fs::metadata(&dest).is_err() {
+            // log::debug!("copy_dir_all  mkdir: {:?}", dest);
+            std::fs::create_dir_all(&dest)?;
+        }
+
+        for entry in std::fs::read_dir(working_path)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                match path.file_name() {
+                    Some(filename) => {
+                        let dest_path = dest.join(filename);
+                        // log::debug!("copy_dir_all   copy: {:?} -> {:?}", &path, &dest_path);
+                        std::fs::copy(&path, &dest_path)?;
+                    }
+                    None => {
+                        log::error!("copy_dir_all could not get file_name: {:?}", path);
+                    }
+                }
+            }
         }
     }
+
     Ok(())
 }
 

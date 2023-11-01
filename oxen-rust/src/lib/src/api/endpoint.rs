@@ -7,16 +7,26 @@ use url::Url;
 
 const API_NAMESPACE: &str = "/api/repos";
 
+pub fn get_protocol(host: impl AsRef<str>) -> String {
+    let host = host.as_ref();
+    // if localhost use http, otherwise use https
+    if host.contains("localhost") {
+        "http".to_string()
+    } else {
+        "https".to_string()
+    }
+}
+
 pub fn url_from_host(host: &str, uri: &str) -> String {
-    format!("http://{host}{API_NAMESPACE}{uri}")
+    format!("{}://{host}{API_NAMESPACE}{uri}", get_protocol(host))
 }
 
 pub fn remote_url_from_namespace_name(host: &str, namespace: &str, name: &str) -> String {
-    format!("http://{host}/{namespace}/{name}")
+    format!("{}://{host}/{namespace}/{name}", get_protocol(host))
 }
 
 pub fn remote_url_from_name(host: &str, name: &str) -> String {
-    format!("http://{host}/{name}")
+    format!("{}://{host}/{name}", get_protocol(host))
 }
 
 pub fn url_from_remote_url(url: &str) -> Result<String, OxenError> {

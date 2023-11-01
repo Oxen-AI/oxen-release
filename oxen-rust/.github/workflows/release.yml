@@ -36,7 +36,7 @@ jobs:
           mode: start
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           ec2-image-id: ${{ vars.EC2_IMAGE_ID }}
-          ec2-instance-type: m7g.large
+          ec2-instance-type: m7g.4xlarge
           subnet-id: ${{ vars.SUBNET_ID }}
           security-group-id: ${{ vars.SECURITY_GROUP_ID }}
           aws-resource-tags: >
@@ -71,7 +71,7 @@ jobs:
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           profile: minimal
           default: true
           override: true
@@ -190,7 +190,7 @@ jobs:
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           profile: minimal
           default: true
           override: true
@@ -301,7 +301,7 @@ jobs:
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: nightly
           default: true
           override: true
 
@@ -407,7 +407,7 @@ jobs:
           target: x86_64-apple-darwin
           default: true
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
           override: true
 
       # - name: Install mold linker
@@ -477,7 +477,7 @@ jobs:
           target: x86_64-apple-darwin
           default: true
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
           override: true
 
       # - name: Install mold linker
@@ -547,7 +547,7 @@ jobs:
           target: x86_64-apple-darwin
           default: true
           profile: minimal
-          toolchain: stable
+          toolchain: nightly
           override: true
 
       # - name: Install mold linker
