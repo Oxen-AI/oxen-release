@@ -281,7 +281,6 @@ pub async fn can_push(
     let local_root = api::local::commits::root_commit(local_repo)?;
     let remote_root = api::remote::commits::root_commit(remote_repo).await?;
 
-    // TODONOW: better error type
     if local_root.id != remote_root.id {
         return Err(OxenError::basic_str(
             "Cannot push to a different repository",
@@ -301,7 +300,7 @@ pub async fn can_push(
         .await?
         .unwrap();
 
-    // Get LCA...TODONOW LCA is broken...
+    // Get LCA...TODONOW LCA is broken for merge commits...
     let merger = Merger::new(local_repo)?;
     let reader = CommitReader::new(local_repo)?;
     let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
@@ -337,7 +336,6 @@ pub async fn can_push(
     let is_compressed = true;
     let filename = None;
 
-    // TODONOW: do we ever actually want to see a bar on post_data_to_server?
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
     // TODONOW remote branch
