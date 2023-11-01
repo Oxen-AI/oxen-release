@@ -3,7 +3,7 @@ FROM rust:1.73.0 as builder
 USER root
 RUN apt-get update
 RUN apt-get install -y apt-utils
-RUN apt-get install -y clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev libssl3-dev pkg-config
+RUN apt-get install -y clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev openssl libssl-dev pkg-config
 
 RUN apt-get update \
  && apt-get -y install curl build-essential clang cmake pkg-config libjpeg-turbo-progs libpng-dev \
@@ -45,7 +45,7 @@ COPY src src
 RUN cargo build --release --bin oxen-server
 
 # Minimal image to run the binary (without Rust toolchain)
-FROM debian:bullseye-slim AS runtime
+FROM debian:bookworm-slim AS runtime
 WORKDIR /oxen-server
 COPY --from=builder /usr/src/oxen-server/target/release/oxen-server /usr/local/bin
 ENV SYNC_DIR=/var/oxen/data
