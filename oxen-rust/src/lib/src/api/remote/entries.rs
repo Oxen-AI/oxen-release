@@ -266,8 +266,8 @@ pub async fn download_large_entry(
     bodies
         .for_each(|b| async {
             match b {
-                Ok(_) => {
-                    bar.inc(chunk_size);
+                Ok(s) => {
+                    bar.inc(s);
                 }
                 Err(err) => {
                     log::error!("Error uploading chunk: {:?}", err)
@@ -335,7 +335,7 @@ async fn try_download_entry_chunk(
     revision: impl AsRef<str>,
     chunk_start: u64,
     chunk_size: u64,
-) -> Result<(), OxenError> {
+) -> Result<u64, OxenError> {
     let mut try_num = 0;
     while try_num < constants::NUM_HTTP_RETRIES {
         match download_entry_chunk(
@@ -350,7 +350,7 @@ async fn try_download_entry_chunk(
         {
             Ok(_) => {
                 log::debug!("Downloaded chunk {:?}", local_path.as_ref());
-                return Ok(());
+                return Ok(chunk_size);
             }
             Err(err) => {
                 log::error!("Error trying to download chunk: {}", err);
