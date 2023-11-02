@@ -5,12 +5,10 @@
 
 use crate::constants::{HISTORY_DIR, TREE_DIR};
 use crate::core::cache::cachers::content_validator;
-use crate::core::db::path_db;
-use crate::core::db::tree_db::{TreeDB, TreeNode};
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
-    Stager, TreeDBReader,
+    Stager, 
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -402,14 +400,13 @@ pub fn head_commits_have_conflicts(
     // Connect to the 3 commit merkle trees
     let lca_db_path = CommitEntryWriter::commit_tree_db(&repo.path, lca_id);
     let server_db_path = CommitEntryWriter::commit_tree_db(&repo.path, server_head_id);
+    // todonow factor out
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join("tmp")
         .join(client_head_id)
         .join(TREE_DIR); // TODONOW this path...
 
-    // TODONOW: multithreaded
-    // TODONOW: not loving this param ordering tbh
-    let tree_merger = TreeDBMerger::new(repo, client_db_path, server_db_path, lca_db_path)?;
+    let tree_merger = TreeDBMerger::new(client_db_path, server_db_path, lca_db_path)?;
 
     // Start at the top level of the client db
     let client_root = &tree_merger.client_reader.get_entry("")?.unwrap();

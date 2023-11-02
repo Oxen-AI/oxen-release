@@ -9,6 +9,7 @@ pub mod paginate;
 pub mod progress_bar;
 pub mod read_progress;
 pub mod str;
+pub mod oxen_version;
 
 pub use crate::util::read_progress::ReadProgress;
 pub use paginate::{paginate, paginate_with_total};

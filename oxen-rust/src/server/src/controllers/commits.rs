@@ -773,11 +773,9 @@ fn check_if_upload_complete_and_unpack(
     }
 }
 
-// TODONOW maybe type the query params
 pub async fn upload_tree(
     req: HttpRequest,
     mut body: web::Payload,
-    query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -785,13 +783,7 @@ pub async fn upload_tree(
     let client_head_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
     // TODONOW: go back to using a tree tmp dir...
-    // TODONOW factored out lca params here
     // TODONOW better error handling
-    // TODONOW fetch actual commits here for lca_id and such
-    let server_head_id = query.get("remote_head").unwrap();
-    let lca_id = query.get("lca").unwrap();
-
-    log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
 
     // Get head commit on sever repo
     let server_head_commit = api::local::commits::head_commit(&repo)?;
@@ -816,10 +808,8 @@ pub async fn upload_tree(
     log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
 
     let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-    // Unpack from archive...
+    
     unpack_tree_tarball(&tmp_dir, &mut archive);
-
-    log::debug!("Tree tarball successfully unpacked");
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_found(),
@@ -848,7 +838,6 @@ pub async fn can_push(
         .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
 
 
-    log::debug!("Got remote head {} and lca {}", server_head_id, lca_id); // DLOG
     let can_merge = !api::local::commits::head_commits_have_conflicts(
         &repo,
         &client_head_id,
@@ -856,7 +845,13 @@ pub async fn can_push(
         &lca_id,
     )?;
 
-    // Change this to the proper view in commitresponse
+    // Clean up tmp tree files from client head commit 
+    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp")
+        .join(client_head_id)
+        .join(TREE_DIR);
+    if tmp_tree_dir.exists() {
+        std::fs::remove_dir_all(tmp_tree_dir).unwrap();
+    }
 
     if can_merge {
         Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {

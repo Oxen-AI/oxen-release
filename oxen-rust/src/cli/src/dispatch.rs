@@ -21,6 +21,7 @@ use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
+use liboxen::util::oxen_version::OxenVersion;
 
 use colored::Colorize;
 use liboxen::view::PaginatedDirEntries;
@@ -65,7 +66,30 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             eprintln!("Err checking remote version: {err}")
         }
     }
+    Ok(())
+}
 
+pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), OxenError> {
+    match api::remote::version::get_min_cli_version(host.as_ref()).await {
+        Ok(remote_version) => {
+            let local_version: &str = constants::OXEN_VERSION;
+            let min_oxen_version = OxenVersion::from_str(&remote_version)?;
+            let local_oxen_version = OxenVersion::from_str(&local_version)?;
+
+            // TODONOW fix this
+            if local_oxen_version < min_oxen_version {
+                return Err(OxenError::basic_str(format!(
+                    "Error: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n",
+                    local_version = local_version,
+                    remote_version = remote_version
+                )));
+            }
+        }
+        Err(err) => {
+            return Err(OxenError::basic_str("Error: unable to verify remote version"));
+
+        }
+    }
     Ok(())
 }
 
@@ -116,7 +140,7 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     let directory = dunce::canonicalize(PathBuf::from(&path))?;
 
     let host = get_host_or_default()?;
-    // check_remote_version(host).await?; // TODONOW bring this back
+    check_remote_version(host).await?; 
 
     command::init(&directory)?;
     println!("🐂 repository initialized at: {directory:?}");
@@ -428,9 +452,10 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
 pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    let host = get_host_from_repo(&repository)?;
 
     check_versions_migration_needed(&repository)?;
-    let host = get_host_from_repo(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     command::push_remote_branch(&repository, remote, branch).await?;

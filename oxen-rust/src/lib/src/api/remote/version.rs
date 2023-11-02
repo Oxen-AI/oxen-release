@@ -2,6 +2,7 @@ use crate::api::endpoint;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::view::StatusMessage;
+use crate::view::version::VersionResponse;
 
 pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
     let protocol = endpoint::get_protocol(host);
@@ -24,4 +25,27 @@ pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
         let err = format!("api::version::get_remote_version Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
+}
+
+pub async fn get_min_cli_version(host: &str) -> Result<String, OxenError> {
+    let url = format!("http://{host}/api/min_version");
+    log::debug!("Checking min cli version at url {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        log::debug!("get_remote_version got status: {}", res.status());
+        let body = client::parse_json_body(&url, res).await?;
+        log::debug!("get_remote_version got body: {}", body);
+        let response: Result<VersionResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(val) => Ok(val.version),
+            Err(_) => Err(OxenError::basic_str(format!(
+                "api::version::get_min_cli_version {url} Err parsing response \n\n{body}"
+            ))),
+        }
+    } else {
+        let err = format!("api::version::get_min_cli_version Err request failed: {url}");
+        Err(OxenError::basic_str(err))
+    }
+
 }
