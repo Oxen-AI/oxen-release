@@ -60,7 +60,6 @@ pub async fn push(
     push_remote_repo(repo, remote_repo, branch).await
 }
 
-// TODONOW fix structure: err if not pushable, false if no merge required, true if merge required
 async fn validate_repo_is_pushable(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -77,7 +76,6 @@ async fn validate_repo_is_pushable(
         } else {
             return Err(OxenError::upstream_merge_conflict());
         }
-        // Otherwise, we're good to push - TODONOW, maybe some sort of confirmation here?
     }
 
     if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {

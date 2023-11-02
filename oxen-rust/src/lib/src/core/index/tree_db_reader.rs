@@ -2,9 +2,11 @@ use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeDB, TreeNode};
 use crate::error::OxenError;
 use crate::model::repository::local_repository::LocalRepository;
-use rocksdb::{SingleThreaded, DBWithThreadMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::{PathBuf, Path};
 use std::collections::HashSet;
+
+use super::CommitEntryWriter;
 pub struct TreeDBReader {
     pub db: DBWithThreadMode<MultiThreaded>
 }
@@ -13,10 +15,18 @@ pub struct TreeDBReader {
 // TODONOW: do we actually need these repos here or in treedb land...
 impl TreeDBReader {
 
-    pub fn new(repo: &LocalRepository, db_path: PathBuf) -> Result<Self, OxenError> {
-        let db = TreeDB::new_read_only(repo, &db_path)?;
+    pub fn new(repo: &LocalRepository, commit_id: &str) -> Result<Self, OxenError> {
+        let path = CommitEntryWriter::commit_tree_db(&repo.path.to_path_buf(), commit_id);
+        let db = TreeDB::new_read_only( &path)?;
         Ok(TreeDBReader {
             db: db.db // TODONOW fix this...
+        })
+    }
+
+    pub fn new_from_path(db_path: PathBuf) -> Result<Self, OxenError> {
+        let db = TreeDB::new_read_only(&db_path)?;
+        Ok(TreeDBReader {
+            db: db.db
         })
     }
 
@@ -30,6 +40,10 @@ impl TreeDBReader {
         let path = path.as_ref();
         path_db::get_entry(&self.db, path)
     }
+
+    pub fn get_root_node(&self) -> Result<Option<TreeNode>, OxenError> {
+        path_db::get_entry(&self.db, Path::new(""))
+    }
 }
 
 pub struct TreeDBMerger {
@@ -40,15 +54,14 @@ pub struct TreeDBMerger {
 
 impl TreeDBMerger {
     pub fn new(
-        repo: &LocalRepository,
         client_db_path: PathBuf,
         server_db_path: PathBuf,
         lca_db_path: PathBuf,
     ) -> Result<Self, OxenError> {
         Ok(TreeDBMerger {
-            client_reader: TreeDBReader::new(repo, client_db_path).unwrap(),
-            server_reader: TreeDBReader::new(repo, server_db_path).unwrap(),
-            lca_reader: TreeDBReader::new(repo, lca_db_path).unwrap(),
+            client_reader: TreeDBReader::new_from_path(client_db_path).unwrap(),
+            server_reader: TreeDBReader::new_from_path(server_db_path).unwrap(),
+            lca_reader: TreeDBReader::new_from_path(lca_db_path).unwrap(),
         })
     }
 
@@ -104,7 +117,6 @@ impl TreeDBMerger {
                     }
                 }
 
-                // TODONOW: files deleted on client 
                 // TODONOW: Recursive Call: When making a recursive call in r_tree_has_conflict, you might encounter scenarios where either the server_child or lca_child does not exist (i.e., they're None). You'll need a way to handle these Option<TreeNode> types when they're None. Consider using unwrap_or with a default value or a different approach.
 
                 if self.r_tree_has_conflict(
@@ -120,7 +132,6 @@ impl TreeDBMerger {
             for server_child in server_children {
                 if !visited_paths.contains(server_child.path()) {
                     // If it's not in the LCA OR client child, no conflict 
-                    // TODONOW, refactor db access please
                     let maybe_lca_node: Option<TreeNode> = self.lca_reader.get_entry(server_child.path())?;
                     if maybe_lca_node.is_some() {
                         // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict. 

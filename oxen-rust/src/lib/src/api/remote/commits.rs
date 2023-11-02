@@ -268,12 +268,12 @@ pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenE
 }
 
 // TODONOW: remote branch name? local branch name?
+// TODOM: factor out common functionality for uploading w/ post_commit_db_to_server
 pub async fn can_push(
-    // TODONOW: factor with `post_commit_db_to_server` common fx
     remote_repo: &RemoteRepository,
     remote_branch_name: &str,
     local_repo: &LocalRepository,
-    local_head: &Commit, // Todonow maybe just bool
+    local_head: &Commit,
 ) -> Result<bool, OxenError> {
     // Before we do this, need to ensure that we are working in the same repo
     // If we don't, downloading the commits db in the next step
@@ -290,11 +290,10 @@ pub async fn can_push(
     // First need to download local history so we can get LCA
     download_commits_db_to_repo(local_repo, remote_repo).await?;
 
-    // TODONOW: better way to handle this to reduce http reqs
-    // TODONOW edge case: unwrapping not-yet-created branch? should be fine
     let remote_branch = api::remote::branches::get_by_name(&remote_repo, remote_branch_name)
         .await?
-        .unwrap();
+        .ok_or(OxenError::remote_branch_not_found(remote_branch_name))?;
+
     let remote_head_id = remote_branch.commit_id;
     let remote_head = api::remote::commits::get_by_id(&remote_repo, &remote_head_id)
         .await?
@@ -305,15 +304,11 @@ pub async fn can_push(
     let reader = CommitReader::new(local_repo)?;
     let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
 
-    log::debug!("Got the lca of {:?} and {:?}", remote_head, local_head);
-
-    log::debug!("LCA in this case is... {:?}", lca);
 
     let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
         .join(local_head.id.clone());
 
-    // This will be the subdir within the tarball
     let tar_subdir = Path::new(HISTORY_DIR).join(local_head.id.clone());
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -340,14 +335,12 @@ pub async fn can_push(
 
     // TODONOW remote branch
 
-    // TODONOW drop these query params
     let uri = format!(
-        "/commits/{}/upload_tree?remote_head={}&lca={}",
-        local_head.id, remote_head.id, lca.id
+        "/commits/{}/upload_tree",
+        local_head.id
     );
     let tree_url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
-    log::debug!("before posting");
 
     post_data_to_server(
         remote_repo,
@@ -360,7 +353,6 @@ pub async fn can_push(
     )
     .await?;
 
-    log::debug!("after posting...");
 
     // TODONOW: Make sure the tree is deleted on server
     // TODONOW factor this out into an endpoint
@@ -647,7 +639,8 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
+    // let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);

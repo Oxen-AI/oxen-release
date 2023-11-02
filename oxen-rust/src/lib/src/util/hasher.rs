@@ -51,7 +51,7 @@ pub fn compute_subtree_hash(children: &Vec<TreeChild>) -> String {
     let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
     for child in children {
         let hash = child.hash();
-        let input = hash.as_bytes(); // TODONOW error handling?
+        let input = hash.as_bytes();
         subtree_hasher.update(input);
     }
     let val = subtree_hasher.digest();

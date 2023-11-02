@@ -533,3 +533,9 @@ impl From<std::env::VarError> for OxenError {
         OxenError::ENV(error)
     }
 }
+
+impl From<std::num::ParseIntError> for OxenError {
+    fn from(_: std::num::ParseIntError) -> Self {
+        OxenError::basic_str("Failed to parse version component")
+    }
+}

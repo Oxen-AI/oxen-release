@@ -27,6 +27,8 @@ pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DIR: &str = "commits";
 /// name of the schema db
 pub const SCHEMAS_DIR: &str = "schemas";
+/// schemas node in merkle tree
+pub const SCHEMAS_TREE_PREFIX: &str = "_oxen_schemas";
 // name of dir for locking branches during push
 pub const BRANCH_LOCKS_DIR: &str = "locks";
 /// prefix for the commit rows
@@ -122,3 +124,6 @@ pub const AUDIO: &str = "audio";
 pub const TABULAR: &str = "tabular";
 pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
+
+/// Minimum allowable oxen version to push new data 
+pub const MIN_CLI_VERSION: &str = "0.10.0";

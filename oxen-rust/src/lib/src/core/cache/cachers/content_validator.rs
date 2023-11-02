@@ -45,6 +45,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     // If there's no commit tree, we need to create it - first commit + old clients
     if !api::local::commits::has_merkle_tree(repo, commit)? {
+        log::debug!("Merkle tree for commit {} not provided by client, creating", commit.id);
         api::local::commits::construct_commit_merkle_tree(repo, commit)?;
     } 
 
