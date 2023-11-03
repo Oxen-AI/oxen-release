@@ -54,7 +54,7 @@ pub use crate::view::commit::{
 
 pub use crate::view::branch::{
     BranchLockResponse, BranchNew, BranchNewFromExisting, BranchResponse, BranchUpdate,
-    ListBranchesResponse,
+    ListBranchesResponse, BranchRemoteMerge
 };
 
 pub use crate::view::entry_metadata::MetadataEntryResponse;

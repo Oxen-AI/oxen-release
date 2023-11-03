@@ -126,4 +126,4 @@ pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
 
 /// Minimum allowable oxen version to push new data 
-pub const MIN_CLI_VERSION: &str = "0.10.0";
+pub const MIN_CLI_VERSION: &str = "0.8.0";

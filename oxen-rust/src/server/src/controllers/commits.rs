@@ -782,15 +782,11 @@ pub async fn upload_tree(
     let name = path_param(&req, "repo_name")?;
     let client_head_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
-    // TODONOW: go back to using a tree tmp dir...
-    // TODONOW better error handling
-
     // Get head commit on sever repo
     let server_head_commit = api::local::commits::head_commit(&repo)?;
 
     // Unpack in tmp/tree/commit_id
-    // TODONOW: store this in a more valid place
-    // TODONOW: cleanup after done
+    
     let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
 
     let mut bytes = web::BytesMut::new();
@@ -826,8 +822,6 @@ pub async fn can_push(
     let name = path_param(&req, "repo_name")?;
     let client_head_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
-    // TODONOW factored out lca params here
-    // TODONOW better error handling
     let server_head_id = query.get("remote_head").unwrap();
     let lca_id = query.get("lca").unwrap();
 
@@ -1050,7 +1044,6 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
 
-// TODONOW how to dedupe
 fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     match archive.entries() {
         Ok(entries) => {
@@ -1058,7 +1051,7 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
                 if let Ok(mut file) = file {
                     let path = file.path().unwrap();
                     let stripped_path = if path.starts_with(HISTORY_DIR) {
-                        path.strip_prefix(HISTORY_DIR).unwrap() // TODONOW where to store, how to handle this path logic
+                        path.strip_prefix(HISTORY_DIR).unwrap()
                     } else {
                         &path
                     };

@@ -11,15 +11,14 @@ pub struct TreeDBReader {
     pub db: DBWithThreadMode<MultiThreaded>
 }
 
-// TODONOW naming of these (client, server etc)
-// TODONOW: do we actually need these repos here or in treedb land...
 impl TreeDBReader {
 
+    // TODONOW: should we directly initialize the tree_db class, or just the treedb reader?
     pub fn new(repo: &LocalRepository, commit_id: &str) -> Result<Self, OxenError> {
         let path = CommitEntryWriter::commit_tree_db(&repo.path.to_path_buf(), commit_id);
         let db = TreeDB::new_read_only( &path)?;
         Ok(TreeDBReader {
-            db: db.db // TODONOW fix this...
+            db: db.db 
         })
     }
 
@@ -30,7 +29,7 @@ impl TreeDBReader {
         })
     }
 
-    pub fn new_from_db(repo: &LocalRepository, db: DBWithThreadMode<MultiThreaded>) -> Result<Self, OxenError> {
+    pub fn new_from_db(db: DBWithThreadMode<MultiThreaded>) -> Result<Self, OxenError> {
         Ok(TreeDBReader {
             db
         })
@@ -45,7 +44,7 @@ impl TreeDBReader {
         path_db::get_entry(&self.db, Path::new(""))
     }
 }
-
+ 
 pub struct TreeDBMerger {
     pub client_reader: TreeDBReader,
     pub server_reader: TreeDBReader,

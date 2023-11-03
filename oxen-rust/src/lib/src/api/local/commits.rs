@@ -400,11 +400,10 @@ pub fn head_commits_have_conflicts(
     // Connect to the 3 commit merkle trees
     let lca_db_path = CommitEntryWriter::commit_tree_db(&repo.path, lca_id);
     let server_db_path = CommitEntryWriter::commit_tree_db(&repo.path, server_head_id);
-    // todonow factor out
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join("tmp")
         .join(client_head_id)
-        .join(TREE_DIR); // TODONOW this path...
+        .join(TREE_DIR); 
 
     let tree_merger = TreeDBMerger::new(client_db_path, server_db_path, lca_db_path)?;
 
@@ -414,7 +413,6 @@ pub fn head_commits_have_conflicts(
     let lca_root = &tree_merger.lca_reader.get_entry("")?.unwrap();
 
     let has_conflict = tree_merger.r_tree_has_conflict(&client_root, &server_root, &lca_root);
-    log::debug!("This tree has conflict: {:?}", has_conflict);
     has_conflict
 }
 

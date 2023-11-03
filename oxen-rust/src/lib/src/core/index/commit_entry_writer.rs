@@ -167,7 +167,7 @@ impl CommitEntryWriter {
 
         let metadata = fs::metadata(&full_path)?;
 
-        // Re-hash for issues w/ adding - TODONOW deprecated
+        // Re-hash for issues w/ adding 
         let hash = util::hasher::hash_file_contents(&full_path)?;
 
         // Create entry object to as json
@@ -298,7 +298,7 @@ impl CommitEntryWriter {
             if let Some(mut root) = path_db::get_entry(&self.tree_db, &PathBuf::from(""))? {
                 if let TreeNode::Directory { .. } = &mut root {
                     root.delete_child(&PathBuf::from(SCHEMAS_TREE_PREFIX))?;
-                    root.set_hash(util::hasher::compute_subtree_hash(&root.children()));
+                    root.set_hash(util::hasher::compute_subtree_hash(root.children()?));
                     path_db::put(&self.tree_db, &root.path(), &root)?;
                 }
             }
@@ -338,7 +338,7 @@ impl CommitEntryWriter {
         // Add the schemas db as a child to the root node 
         let mut root: TreeNode = path_db::get_entry(&self.tree_db, &PathBuf::from(""))?.unwrap();
         root.upsert_child(schemas_child)?;
-        root.set_hash(util::hasher::compute_subtree_hash(&root.children()));
+        root.set_hash(util::hasher::compute_subtree_hash(root.children()?));
         path_db::put(&self.tree_db, &root.path(), &root)?;
         
         Ok(())
@@ -369,24 +369,10 @@ impl CommitEntryWriter {
         for result in parent_tree.db.iterator(IteratorMode::Start) {
             match result {
                 Ok((key, value)) => {
-                    // Try parsing the key as a UTF-8 string
-                    let path_str = match String::from_utf8(key.to_vec()) {
-                        Ok(s) => s,
-                        Err(e) => {
-                            log::error!("Failed to convert key to UTF-8 string: {:?}", e);
-                            continue;
-                        }
-                    };
-                    
-                    // Parse the `value` into a TreeNode
-                    let node = match serde_json::from_slice::<TreeNode>(&value) {
-                        Ok(n) => n,
-                        Err(e) => {
-                            log::error!("Failed to parse value as TreeNode: {:?}", e);
-                            continue;
-                        }
-                    };
-                    
+
+                    let path_str = String::from_utf8(key.to_vec()).unwrap();
+                    let node = serde_json::from_slice::<TreeNode>(&value).unwrap();
+                        
                     let path = PathBuf::from(path_str);
                     path_db::put(&self.tree_db, &path, &node)?;
 
@@ -401,224 +387,55 @@ impl CommitEntryWriter {
         
 
         // Step 2: Get all dirs and put into hash set representing the commit tree 
-        // TODONOW: Factor out the dirgetting here
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
-        dir_paths.sort_by(|a, b| {
-            let a_count = a.components().count();
-            let b_count = b.components().count();
-            b_count.cmp(&a_count)
-        });
 
-        // Build a map of dir to children 
+        // Build a map of dirs to children for lookup in tree construction
         let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
-
-        log::debug!("inserting stuff into dir_map now for commit with message {:?} and id {:?}", self.commit.message, self.commit.id);
         for dir in &dir_paths {
             let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
             // Insert the dir itself 
             dir_map.entry(dir.to_path_buf()).or_default();
-            log::debug!("inserting {:?} into dir_map", dir);
             if &parent != dir {
-                log::debug!("inserting {:?} into dir_map", dir);
                 dir_map.entry(parent).or_default().push(dir.to_path_buf());
             }
             
         }
 
-        // Print every dir in dir map 
-        for (dir, children) in &dir_map {
-            log::debug!("dir_map dir: {:?} children: {:?}", dir, children);
-        }
-
-
-        // Step 2: Get all DIRS implicated in the changes for this commit via stageddata
-        //...IF THEY ARE A DIR aka if they are in dirs db
-        // TODONOW - schemas?
-        // TODONOW - extrac tthis out probably
-
-        log::debug!("Here's our dir map: {:?}", dir_map);
-
+        // Step 2: Parse StagedEntry paths to save time by only recomputing dirs that saw changes in this commit
         let mut dirs_to_recompute: HashSet<PathBuf> = HashSet::new();
-        for (path, entry) in staged_data.staged_files.iter() {
+        for (path, _entry) in staged_data.staged_files.iter() {
             let mut current_path = PathBuf::new(); 
             for component in path.iter() {
                 current_path = current_path.join(component); 
-                log::debug!("checking to see if we can insert component {:?} into dirs_to_recompute", current_path);
-                log::debug!("dir_map contains {:?}: {:?}", current_path.clone(), dir_map.contains_key(&current_path));
                 if dir_map.contains_key(&current_path) {
-                    log::debug!("inserting {:?} into dirs_to_recompute", current_path);
                     dirs_to_recompute.insert(current_path.clone());
-                } else {
-                    log::debug!("unable to insert {:?} into dirs_to_recompute", current_path);
                 }
             }
         }
-        // Always need to recompute the root dir, but gets missed by this logic
+        // Always need to recompute the root dir, but can get missed by this logic
         dirs_to_recompute.insert(PathBuf::from(""));
-        // Sort them by descending component count to work bottom-up
-        
         let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
-        modified_dirs_vec.sort_by(|a, b| {
-            let a_count = a.components().count();
-            let b_count = b.components().count();
-            b_count.cmp(&a_count)
-        });
 
-        
-
-        for dir in &modified_dirs_vec {            
-            log::debug!("Processing dir... {:?}", dir);
-            let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
-            
-            // Get all file children
-            let children_entries = dir_entry_reader.list_entries()?;
-            log::debug!("children_entries {:?}", children_entries);
-
-            let child_entry_nodes: Vec<TreeChild> = children_entries.iter().map(|entry| CommitEntryWriter::entry_to_treechild(entry)).collect::<Vec<_>>();
-
-            // Get all directory children as treenodes
-            let children_dirs = dir_map.get(dir).unwrap();
-            log::debug!("children_dirs: {:?}", children_dirs);
-
-            // Read each dir into a vec of nodes
-            // unwrapping both here bc if the dir doesn't exist in the db yet, something has gone wrong in treebuilding
-            // let dir_entry_nodes: Vec<TreeChild> = children_dirs.iter().map(|path| path_db::get_entry(&self.tree_db, path).unwrap().unwrap()).collect::<Vec<_>>();
-            let mut dir_entry_nodes: Vec<TreeChild> = Vec::new();
-
-            log::debug!("Here's the state of the db right where it's about to fail.");
-            // Iterate over self.tree_db and print everything out 
-            // self.temp_print_tree_db();
-
-            for path in children_dirs {
-                println!("Processing path: {:?}", path);
-
-                match path_db::get_entry(&self.tree_db, path) {
-                    Ok(Some(entry)) => {
-                        dir_entry_nodes.push(entry);
-                    },
-                    Ok(None) => {
-                        println!("Warning: No entry found for path: {:?}", path);
-                        panic!();
-                    },
-                    Err(e) => {
-                        println!("Error fetching entry for path {:?}: {:?}", path, e);
-                        panic!();
-                    }
-                }
-            }
-
-            
-
-            // Create tree_db nodes for these children. 
-            for file_child in &child_entry_nodes {
-                let file_node = TreeNode::File {
-                    path: file_child.path().to_path_buf(),
-                    hash: file_child.hash().to_string(),
-                };
-                path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
-            }
-
-            // Combine the child and dir nodes into a list sorted by path() 
-            let mut all_children: Vec<TreeChild> = child_entry_nodes;
-            all_children.extend(dir_entry_nodes);
-            all_children.sort_by(|a, b| a.path().cmp(b.path()));
-
-
-            let node_hash = util::hasher::compute_subtree_hash(&all_children);
-
-            // Create a Directory style TreeNode of the children in the pathdb 
-            let dir_node = TreeNode::Directory {
-                path: dir.to_path_buf(),
-                children: all_children,
-                hash: node_hash.to_string(),
-            };
-
-            // Put this node into the db 
-            path_db::put(&self.tree_db, dir, &dir_node)?;
-        }
-        
-        self.merkelize_schemas()
+        self.create_tree_nodes_from_dirs(&mut modified_dirs_vec, dir_map)
     }
 
 
 
     pub fn construct_merkle_tree_new(&self) -> Result<(), OxenError> {
-        // Get all directory paths...
+        // Operates on ALL directories to make a merkle tree from scratch
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
 
-        // Sort all paths by descending component count so that we can build the tree from the bottom up
-        dir_paths.sort_by(|a, b| {
-            let a_count = a.components().count();
-            let b_count = b.components().count();
-            b_count.cmp(&a_count)
-        });
-
-         // todonow factor out code = dirgetting
         // Build a map of dir to children 
         let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
-
         for dir in &dir_paths {
             let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
-            // Insert the dir itself 
             dir_map.entry(dir.to_path_buf()).or_default();
             if &parent != dir {
                 dir_map.entry(parent).or_default().push(dir.to_path_buf());
             }
             
         }
-
-        // Iterate over the dir map to debug print 
-        for (dir, children) in dir_map.iter() {
-            log::debug!("here is dir: {:?} children: {:?}", dir, children);
-        }
-
-        // Iterate over these dirs, getting all the children, both file and dir 
-        // TODONOW extract with the other one
-        for dir in &dir_paths {
-
-            let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
-            
-            // Get all file children
-            let children_entries = dir_entry_reader.list_entries()?;
-
-            let child_entry_nodes: Vec<TreeChild> = children_entries.iter().map(|entry| CommitEntryWriter::entry_to_treechild(entry)).collect::<Vec<_>>();
-
-            // Get all directory children as treenodes
-            let children_dirs = dir_map.get(dir).unwrap();
-
-            // Read each dir into a vec of nodes
-            // unwrapping both here bc if the dir doesn't exist in the db yet, something has gone wrong in treebuilding
-            let dir_entry_nodes: Vec<TreeChild> = children_dirs.iter().map(|path| path_db::get_entry(&self.tree_db, path).unwrap().unwrap()).collect::<Vec<_>>();
-
-            // Create tree_db nodes for these children. 
-            for file_child in &child_entry_nodes {
-                let file_node = TreeNode::File {
-                    path: file_child.path().to_path_buf(),
-                    hash: file_child.hash().to_string(),
-                };
-                path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
-            }
-
-            // Combine the child and dir nodes into a list sorted by path() 
-            let mut all_children: Vec<TreeChild> = child_entry_nodes;
-            all_children.extend(dir_entry_nodes);
-            all_children.sort_by(|a, b| a.path().cmp(b.path()));
-
-
-            let node_hash = util::hasher::compute_subtree_hash(&all_children);
-
-            // Create a Directory style TreeNode of the children in the pathdb 
-            let dir_node = TreeNode::Directory {
-                path: dir.to_path_buf(),
-                children: all_children,
-                hash: node_hash.to_string(),
-            };
-
-            // Put this node into the db 
-            path_db::put(&self.tree_db, dir, &dir_node)?;
-
-        }
-        self.merkelize_schemas()
+        self.create_tree_nodes_from_dirs( &mut dir_paths, dir_map)
     }
 
     fn entry_to_treechild(entry: &CommitEntry) -> TreeChild {
@@ -626,6 +443,90 @@ impl CommitEntryWriter {
             path: entry.path.clone(),
             hash: entry.hash.clone(),
         }
+    }
+
+    fn entry_to_treenode(entry: &CommitEntry) -> TreeNode {
+        TreeNode::File {
+            path: entry.path.clone(),
+            hash: entry.hash.clone(),
+        }
+    }
+
+    // fn build_dir_map(&self, dirs:) -> Result<HashMap<PathBuf, Vec<PathBuf>>, OxenError> {
+    //     // Get all dirs from dirs db 
+    //     let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
+
+    //     // Sort all paths by descending component count so that we can build the tree from the bottom up
+    //     dir_paths.sort_by(|a, b| {
+    //         let a_count = a.components().count();
+    //         let b_count = b.components().count();
+    //         b_count.cmp(&a_count)
+    //     });
+
+    //     // Build a map of dir to children 
+    //     let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+    //     for dir in &dir_paths {
+    //         let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
+    //         dir_map.entry(dir.to_path_buf()).or_default();
+    //         if &parent != dir {
+    //             dir_map.entry(parent).or_default().push(dir.to_path_buf());
+    //         }
+            
+    //     }
+    // } // TODONOW
+
+    fn create_tree_nodes_from_dirs(&self, dirs: &mut Vec<PathBuf>, dir_map: HashMap<PathBuf, Vec<PathBuf>>) -> Result<(), OxenError> {
+        // Sort dirs by descending component count to work bottom up 
+        dirs.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
+
+        for dir in dirs {
+            let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
+            // Get all file children 
+            let children_entries = dir_entry_reader.list_entries()?;
+            let child_entry_nodes: Vec<TreeChild> = children_entries.iter().map(|entry| CommitEntryWriter::entry_to_treechild(entry)).collect::<Vec<_>>();
+            let child_tree_nodes: Vec<TreeNode> = children_entries.iter().map(|entry| CommitEntryWriter::entry_to_treenode(entry)).collect::<Vec<_>>();
+            // Get all directory children. Since we work bottom up, these are already updated in tree
+            let children_dirs = dir_map.get(dir).unwrap();
+            let mut dir_entry_nodes: Vec<TreeChild> = Vec::new();
+
+            // Collect dir children as treenodes 
+            for path in children_dirs {
+                let entry: TreeChild = path_db::get_entry(&self.tree_db, path)?.unwrap();     
+                dir_entry_nodes.push(entry)               
+            }
+
+            // Insert updated file nodes into the db 
+            for file_child in &child_tree_nodes {
+                let file_node = TreeNode::File {
+                    path: file_child.path().to_path_buf(), 
+                    hash: file_child.hash().to_string()
+                };
+                path_db::put(&self.tree_db, &file_node.path(), &file_node)?;
+            }
+
+            // Get a combined, lexically sorted list of all children 
+            let mut all_children: Vec<TreeChild> = child_entry_nodes;
+            all_children.extend(dir_entry_nodes);
+
+            let node_hash = util::hasher::compute_subtree_hash(&all_children);
+
+            // Create a Directory TreeNode of the children in the pathdb
+            let dir_node = TreeNode::Directory {
+                path: dir.to_path_buf(),
+                children: all_children,
+                hash: node_hash.to_string(),
+            };
+
+            // Put this node into the db
+            path_db::put(&self.tree_db, dir, &dir_node)?;
+        }
+
+        // After all dirs are processed, process schemas and recalculate root node 
+        self.merkelize_schemas()
     }
 
 
@@ -685,24 +586,13 @@ impl CommitEntryWriter {
             grouped.len()
         );
 
-        for (dir, files) in grouped.iter() {
-            log::debug!("doing dir: {:?}", dir);
-            log::debug!("doing file: {:?}", files);
-        }
-
         // Track entries in commit
         for (dir, files) in grouped.iter_mut() {
-            // TODONOW likely error source
-            let mut tree_dir_node: TreeNode =
-                path_db::get_entry(&self.tree_db, dir)?.unwrap_or_default();
-            tree_dir_node.set_path(dir.to_path_buf());
+            
             // Write entries per dir
-            //TODONOW: tree_db?
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
             path_db::put(&self.dir_db, dir, &0)?;
 
-            // TODONOW parallelize or fold in
-            // TODONOW figure out the duplciate hash issue with rbuild_tree_for_dir
             log::debug!(
                 "commit_staged_entries_with_prog got files {} for dir {:?}",
                 files.len(),
