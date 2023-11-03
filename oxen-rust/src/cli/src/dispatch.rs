@@ -76,13 +76,13 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
             let min_oxen_version = OxenVersion::from_str(&remote_version)?;
             let local_oxen_version = OxenVersion::from_str(&local_version)?;
 
-            // TODONOW fix this
+        
             if local_oxen_version < min_oxen_version {
-                return Err(OxenError::basic_str(format!(
-                    "Error: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n",
-                    local_version = local_version,
-                    remote_version = remote_version
-                )));
+                return Err(OxenError::OxenUpdateRequired(format!(
+                    "Error: Oxen CLI out of date. Pushing to OxenHub requires version >= {:?}, found version {:?}.\n\nVisit https://docs.oxen.ai/getting-started/intro for update instructions.",
+                    min_oxen_version,
+                    local_oxen_version
+                ).into()));
             }
         }
         Err(err) => {

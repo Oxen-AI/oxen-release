@@ -58,6 +58,7 @@ pub enum OxenError {
 
     // Versioning
     MigrationRequired(StringError),
+    OxenUpdateRequired(StringError),
 
     // Entry
     CommitEntryNotFound(StringError),
@@ -111,6 +112,10 @@ impl OxenError {
 
     pub fn migration_required<T: AsRef<str>>(s: T) -> Self {
         OxenError::MigrationRequired(StringError::from(s.as_ref()))
+    }
+
+    pub fn oxen_update_required<T: AsRef<str>>(s: T) -> Self {
+        OxenError::OxenUpdateRequired(StringError::from(s.as_ref()))
     }
 
     pub fn user_config_not_found(value: StringError) -> Self {

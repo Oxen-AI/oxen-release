@@ -9,7 +9,7 @@ use liboxen::core::index::Merger;
 use liboxen::error::OxenError;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchResponse, BranchUpdate, CommitResponse,
-    ListBranchesResponse, StatusMessage,
+    ListBranchesResponse, StatusMessage, BranchRemoteMerge
 };
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -114,8 +114,6 @@ pub async fn update(
         branch,
     }))
 }
-
-// TODONOW maybe move this to commits
 pub async fn maybe_create_merge(
     req: HttpRequest,
     body: String,
@@ -123,26 +121,17 @@ pub async fn maybe_create_merge(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
-    let branch_name = path_param(&req, "branch_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-    // Get current head of this branch
-    let branch = api::local::branches::get_by_name(&repository, &branch_name)?
-        .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
-    let current_commit_id = branch.commit_id;
-    let current_commit = api::local::commits::get_by_id(&repository, &current_commit_id)?
-        .ok_or(OxenError::resource_not_found(&current_commit_id))?;
-
-    log::debug!(
-        "maybe_create_merge got server head commit {:?}",
-        current_commit_id
-    );
-
-    let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
+    let data: Result<BranchRemoteMerge, serde_json::Error> = serde_json::from_str(&body);
     let data = data.map_err(|err| OxenHttpError::BadRequest(format!("{:?}", err).into()))?;
-    let incoming_commit_id = data.commit_id;
+    let incoming_commit_id = data.client_commit_id;
     let incoming_commit = api::local::commits::get_by_id(&repository, &incoming_commit_id)?
         .ok_or(OxenError::resource_not_found(&incoming_commit_id))?;
+
+    let current_commit_id = data.server_commit_id;
+    let current_commit = api::local::commits::get_by_id(&repository, &current_commit_id)?
+        .ok_or(OxenError::resource_not_found(&current_commit_id))?;
 
     log::debug!(
         "maybe_create_merge got client head commit {:?}",
@@ -162,6 +151,8 @@ pub async fn maybe_create_merge(
             commit: merge_commit,
         }))
     } else {
+        // If there are merge conflicts, we can't complete this merge and want to reset the branch to the previous remote head
+        // as if this push never happened
         log::debug!("returning current commit {:?}.", current_commit_id);
         Ok(HttpResponse::Ok().json(CommitResponse {
             status: StatusMessage::resource_found(),

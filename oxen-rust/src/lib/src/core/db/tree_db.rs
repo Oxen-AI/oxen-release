@@ -109,10 +109,10 @@ impl TreeNode {
         }
     }
 
-    pub fn children(&self) -> &Vec<TreeChild> {
+    pub fn children(&self) -> Result<&Vec<TreeChild>, OxenError> {
         match self {
-            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
-            TreeNode::Directory { children, .. } => children,
+            TreeNode::File { .. } => Err(OxenError::basic_str("Node is File type, cannot have children")),
+            TreeNode::Directory { children, .. } => Ok(children),
         }
     }
 
@@ -120,21 +120,18 @@ impl TreeNode {
     // after reading node out of db, this will break down 
     pub fn upsert_child(&mut self, child: TreeChild) -> Result<(), OxenError> {
         match self {
-            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODONOW error handling
+            TreeNode::File { .. } => Err(OxenError::basic_str("Node is File type, cannot have children")),
             TreeNode::Directory { children, ..} => {
-                // Upsert on path 
                 let path_to_find = child.path();
                 match children.binary_search_by(|probe| {
                     let probe_path = probe.path();
                     probe_path.cmp(path_to_find)
                 }) {
                     Ok(index) => {
-                        // Update existing child
                         children[index] = child;
                         Ok(())
                     }
                     Err(index) => {
-                        // Insert at the provided index 
                         children.insert(index, child);
                         Ok(())
                     }
@@ -146,7 +143,7 @@ impl TreeNode {
 
     pub fn delete_child(&mut self, target_path: &PathBuf) -> Result<(), OxenError> {
         match self {
-            TreeNode::File { .. } => panic!("Node is File type, cannot have children"), // TODO: error handling
+            TreeNode::File { .. } => Err(OxenError::basic_str("Node is File type, cannot have children")),
             TreeNode::Directory { children, ..} => {
                 // Search for child by path
                 match children.binary_search_by(|probe| {
@@ -154,13 +151,11 @@ impl TreeNode {
                     probe_path.cmp(target_path)
                 }) {
                     Ok(index) => {
-                        // Remove the child at the found index
                         children.remove(index);
                         Ok(())
                     }
                     Err(_) => {
-                        // Child not found
-                        Ok(())  // You can return an error here if you want to notify about absence
+                        Ok(())  
                     }
                 }
             }

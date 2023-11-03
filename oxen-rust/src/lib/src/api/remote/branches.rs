@@ -4,7 +4,7 @@ use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::view::{
     BranchLockResponse, BranchNewFromExisting, BranchResponse, CommitResponse,
-    ListBranchesResponse, StatusMessage,
+    ListBranchesResponse, StatusMessage, BranchRemoteMerge
 };
 use serde_json::json;
 
@@ -101,7 +101,6 @@ pub async fn list(repository: &RemoteRepository) -> Result<Vec<Branch>, OxenErro
     }
 }
 
-// TODONOW: is this a bastardization of update
 pub async fn update(
     repository: &RemoteRepository,
     branch_name: &str,
@@ -134,18 +133,22 @@ pub async fn update(
     }
 }
 
-// Return merge commit if one is created (to be set as head later)
-//TODONOW this should maybe be moved to commits...
+// Creates a merge commit between two commits on the server if possible, returning the commit
 pub async fn maybe_create_merge(
     repository: &RemoteRepository,
     branch_name: &str,
-    commit: &Commit,
+    local_head_id: &str,
+    remote_head_id: &str, // Remote head pre-push - merge target
 ) -> Result<Commit, OxenError> {
     let uri = format!("/branches/{branch_name}/merge");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::branches::update url: {}", url);
 
-    let params = serde_json::to_string(&json!({ "commit_id": commit.id }))?;
+    let commits = BranchRemoteMerge {
+        client_commit_id: local_head_id.to_string(),
+        server_commit_id: remote_head_id.to_string(),
+    };
+    let params = serde_json::to_string(&commits)?;
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.put(&url).body(params).send().await {
@@ -155,14 +158,14 @@ pub async fn maybe_create_merge(
             Ok(response) => Ok(response.commit),
             Err(err) => {
                 let err = format!(
-                    "Could not update branch [{}]: {}\n{}",
+                    "Could not create merge commit [{}]: {}\n{}",
                     repository.name, err, body
                 );
                 Err(OxenError::basic_str(err))
             }
         }
     } else {
-        let msg = format!("Could not update branch {branch_name}");
+        let msg = format!("Could not create merge commit {branch_name}");
         log::error!("remote::branches::update() {}", msg);
         Err(OxenError::basic_str(&msg))
     }

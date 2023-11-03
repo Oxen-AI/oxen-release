@@ -267,8 +267,6 @@ pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenE
     }
 }
 
-// TODONOW: remote branch name? local branch name?
-// TODOM: factor out common functionality for uploading w/ post_commit_db_to_server
 pub async fn can_push(
     remote_repo: &RemoteRepository,
     remote_branch_name: &str,
@@ -364,7 +362,6 @@ pub async fn can_push(
 
     let client = client::new_for_url(&url)?;
 
-    log::debug!("About to hit can_push");
 
     if let Ok(res) = client.get(&url).send().await {
         let body = client::parse_json_body(&url, res).await?;
@@ -639,7 +636,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    // let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
+    // let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR]; // TODONOW switch back!
     let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
 
     for dir in &dirs_to_compress {

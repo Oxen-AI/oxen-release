@@ -1,5 +1,6 @@
 
 use std::str::FromStr;
+use std::fmt;
 use crate::error::OxenError;
 pub struct OxenVersion {
     pub major: u32,
@@ -11,7 +12,7 @@ impl FromStr for OxenVersion {
     type Err = OxenError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let mut parts: Vec<&str> = s.split(|c| c == '.' || c == '-').collect();
+        let parts: Vec<&str> = s.split(|c| c == '.' || c == '-').collect();
         if parts.len() < 3 || parts.len() > 4 {
             return Err(OxenError::basic_str("Invalid version string"));
         }
@@ -26,6 +27,18 @@ impl FromStr for OxenVersion {
     }
 }
 
+
+impl fmt::Debug for OxenVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
+impl fmt::Display for OxenVersion {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
 
 // Ignore everything after patch (beta, etc.)
 impl Eq for OxenVersion {}

@@ -171,8 +171,8 @@ pub async fn try_push_remote_repo(
         "push_remote_repo commit order after get_commit_objects_to_sync {:?}",
         commits_to_sync
     );
-    // TODONOW remove
-    let t_remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
+
+    let maybe_remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
 
     let (unsynced_entries, _total_size) =
         push_missing_commit_objects(local_repo, remote_repo, &commits_to_sync, &branch).await?;
@@ -182,23 +182,6 @@ pub async fn try_push_remote_repo(
         api::remote::commits::get_commits_with_unsynced_dbs(remote_repo, &branch).await?;
 
     push_missing_commit_dbs(local_repo, remote_repo, unsynced_db_commits).await?;
-
-    log::debug!("🐂 Identifying commits with unsynced entries...");
-
-    // TODONOW: is this the best place for this?
-    // TODONOW: this can maybe be put under a flag driven by behind-main validation from earlier.
-    // Check if merge commit needed on push, if it is, head_commit is the merge commit, otherwise it's the current head
-    log::debug!("about to maybe create merge");
-
-    log::debug!(
-        "for sake of sanity, here is the head commit {:?}",
-        head_commit
-    );
-
-    log::debug!(
-        "and here is the remote branch commit, if it exists {:?}",
-        t_remote_branch
-    );
 
     // Get commits with unsynced entries
     let mut unsynced_entries_commits =
@@ -217,23 +200,17 @@ pub async fn try_push_remote_repo(
     )
     .await?;
 
-    // Try again after the entries are all up there
-    // TODONOW: fix for this is likely sending over the previous remote head.
-    // TODONOW hack delete
     if requires_merge {
-        let t_remote_commit = api::remote::commits::get_by_id(
-            remote_repo,
-            t_remote_branch.unwrap().commit_id.as_str(),
-        )
-        .await?
-        .unwrap();
-        // TODONOW: BIGHACK we shouldn't be actively rolling the branch back like this. but `push_missing_commit_objects`
-        // is implicitly updating stuff, so this is just for testing...
-        api::remote::branches::update(remote_repo, &branch.name, &t_remote_commit).await?;
+        let remote_head_id = match maybe_remote_branch {
+            Some(remote_branch) => remote_branch.commit_id,
+            None => return Err(OxenError::remote_branch_not_found(&branch.name)),
+        };
+
         let head_commit = api::remote::branches::maybe_create_merge(
             remote_repo,
             branch.name.as_str(),
-            head_commit,
+            head_commit.id.as_str(),
+            remote_head_id.as_str(),
         )
         .await?;
 
@@ -1103,7 +1080,6 @@ async fn bundle_and_send_small_entries(
                     }
                 };
 
-                log::debug!("got repo {:?}", &repo.path);
                 for entry in chunk.into_iter() {
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
                     let version_path = util::fs::version_path(&repo, &entry);
@@ -1136,7 +1112,8 @@ async fn bundle_and_send_small_entries(
                 let quiet_bar = Arc::new(ProgressBar::hidden());
 
                 let uri = format!("/commits/{}/data", commit.id);
-                let url = api::endpoint::url_from_repo(&remote_repo, &uri).unwrap(); // TODONOW feel medium about this
+                let url = api::endpoint::url_from_repo(&remote_repo, &uri).unwrap();
+
                 match api::remote::commits::post_data_to_server(
                     &remote_repo,
                     &commit,
