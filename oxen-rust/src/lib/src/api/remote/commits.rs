@@ -247,7 +247,7 @@ pub async fn download_commits_db_to_repo(
 }
 
 pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenError> {
-    let uri = format!("/commits/root");
+    let uri = "/commits/root".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("remote::commits::root_commit {}", url);
 
@@ -288,20 +288,18 @@ pub async fn can_push(
     // First need to download local history so we can get LCA
     download_commits_db_to_repo(local_repo, remote_repo).await?;
 
-    let remote_branch = api::remote::branches::get_by_name(&remote_repo, remote_branch_name)
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, remote_branch_name)
         .await?
         .ok_or(OxenError::remote_branch_not_found(remote_branch_name))?;
 
     let remote_head_id = remote_branch.commit_id;
-    let remote_head = api::remote::commits::get_by_id(&remote_repo, &remote_head_id)
+    let remote_head = api::remote::commits::get_by_id(remote_repo, &remote_head_id)
         .await?
         .unwrap();
 
-    // Get LCA...TODONOW LCA is broken for merge commits...
     let merger = Merger::new(local_repo)?;
     let reader = CommitReader::new(local_repo)?;
     let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
-
 
     let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
         .join(HISTORY_DIR)
@@ -331,14 +329,8 @@ pub async fn can_push(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    // TODONOW remote branch
-
-    let uri = format!(
-        "/commits/{}/upload_tree",
-        local_head.id
-    );
+    let uri = format!("/commits/{}/upload_tree", local_head.id);
     let tree_url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
 
     post_data_to_server(
         remote_repo,
@@ -351,9 +343,6 @@ pub async fn can_push(
     )
     .await?;
 
-
-    // TODONOW: Make sure the tree is deleted on server
-    // TODONOW factor this out into an endpoint
     let uri = format!(
         "/commits/{}/can_push?remote_head={}&lca={}",
         local_head.id, remote_head.id, lca.id
@@ -361,7 +350,6 @@ pub async fn can_push(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-
 
     if let Ok(res) = client.get(&url).send().await {
         let body = client::parse_json_body(&url, res).await?;
@@ -636,8 +624,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    // let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR]; // TODONOW switch back!
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -719,21 +706,12 @@ pub async fn post_data_to_server(
         )
         .await?;
     } else {
-        upload_single_tarball_to_server_with_retry(
-            remote_repo,
-            commit,
-            &buffer,
-            &single_upload_url,
-            bar,
-        )
-        .await?;
+        upload_single_tarball_to_server_with_retry(&buffer, single_upload_url, bar).await?;
     }
     Ok(())
 }
 
 pub async fn upload_single_tarball_to_server_with_retry(
-    remote_repo: &RemoteRepository,
-    commit: &Commit,
     buffer: &[u8],
     url: &str,
     bar: Arc<ProgressBar>,
@@ -741,9 +719,7 @@ pub async fn upload_single_tarball_to_server_with_retry(
     let mut total_tries = 0;
 
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_single_tarball_to_server(remote_repo, commit, buffer, url, bar.to_owned())
-            .await
-        {
+        match upload_single_tarball_to_server(buffer, url, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -765,8 +741,6 @@ pub async fn upload_single_tarball_to_server_with_retry(
 }
 
 async fn upload_single_tarball_to_server(
-    remote_repo: &RemoteRepository,
-    commit: &Commit,
     buffer: &[u8],
     url: &str,
     bar: Arc<ProgressBar>,
@@ -778,7 +752,7 @@ async fn upload_single_tarball_to_server(
     let size = buffer.len() as u64;
     match client.post(url).body(buffer.to_owned()).send().await {
         Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
+            let body = client::parse_json_body(url, res).await?;
 
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
@@ -855,6 +829,7 @@ async fn upload_data_to_server_in_chunks(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)] // TODONOW: maybe refactor to fix
 pub async fn upload_data_chunk_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
@@ -904,6 +879,7 @@ pub async fn upload_data_chunk_to_server_with_retry(
     )))
 }
 
+#[allow(clippy::too_many_arguments)] // TODONOW: maybe refactor to fix
 async fn upload_data_chunk_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,

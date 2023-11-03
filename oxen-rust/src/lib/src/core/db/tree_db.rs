@@ -15,41 +15,30 @@ impl<T: ThreadMode> TreeDB<T> {
         TreeDB::p_new(db_path, read_only)
     }
 
-    pub fn new_read_only(
-        db_path: &Path,
-    ) -> Result<TreeDB<T>, OxenError> {
+    pub fn new_read_only(db_path: &Path) -> Result<TreeDB<T>, OxenError> {
         let read_only = true;
         TreeDB::p_new(db_path, read_only)
     }
 
-    pub fn p_new(
-        db_path: &Path,
-        read_only: bool,
-    ) -> Result<TreeDB<T>, OxenError> {
+    pub fn p_new(db_path: &Path, read_only: bool) -> Result<TreeDB<T>, OxenError> {
         if !db_path.exists() {
-            std::fs::create_dir_all(&db_path)?;
+            std::fs::create_dir_all(db_path)?;
         }
         let opts = db::opts::default();
         let db = if read_only {
             if !db_path.join("CURRENT").exists() {
-                if let Err(err) = std::fs::create_dir_all(&db_path) {
-                    log::error!(
-                        "Could not create staging dir {:?}\nErr: {}",
-                        db_path,
-                        err
-                    );
+                if let Err(err) = std::fs::create_dir_all(db_path) {
+                    log::error!("Could not create staging dir {:?}\nErr: {}", db_path, err);
                 }
                 let _db: DBWithThreadMode<T> =
-                    DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+                    DBWithThreadMode::open(&opts, dunce::simplified(db_path))?;
             }
 
-            DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), false)?
+            DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(db_path), false)?
         } else {
-            DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?
+            DBWithThreadMode::open(&opts, dunce::simplified(db_path))?
         };
-        Ok(TreeDB {
-            db
-        })
+        Ok(TreeDB { db })
     }
 }
 
@@ -111,17 +100,21 @@ impl TreeNode {
 
     pub fn children(&self) -> Result<&Vec<TreeChild>, OxenError> {
         match self {
-            TreeNode::File { .. } => Err(OxenError::basic_str("Node is File type, cannot have children")),
+            TreeNode::File { .. } => Err(OxenError::basic_str(
+                "Node is File type, cannot have children",
+            )),
             TreeNode::Directory { children, .. } => Ok(children),
         }
     }
 
-    // Assumes children are sorted - with any other transforms applied 
-    // after reading node out of db, this will break down 
+    // Assumes children are sorted - with any other transforms applied
+    // after reading node out of db, this will break down
     pub fn upsert_child(&mut self, child: TreeChild) -> Result<(), OxenError> {
         match self {
-            TreeNode::File { .. } => Err(OxenError::basic_str("Node is File type, cannot have children")),
-            TreeNode::Directory { children, ..} => {
+            TreeNode::File { .. } => Err(OxenError::basic_str(
+                "Node is File type, cannot have children",
+            )),
+            TreeNode::Directory { children, .. } => {
                 let path_to_find = child.path();
                 match children.binary_search_by(|probe| {
                     let probe_path = probe.path();
@@ -136,15 +129,16 @@ impl TreeNode {
                         Ok(())
                     }
                 }
-
             }
         }
     }
 
     pub fn delete_child(&mut self, target_path: &PathBuf) -> Result<(), OxenError> {
         match self {
-            TreeNode::File { .. } => Err(OxenError::basic_str("Node is File type, cannot have children")),
-            TreeNode::Directory { children, ..} => {
+            TreeNode::File { .. } => Err(OxenError::basic_str(
+                "Node is File type, cannot have children",
+            )),
+            TreeNode::Directory { children, .. } => {
                 // Search for child by path
                 match children.binary_search_by(|probe| {
                     let probe_path = probe.path();
@@ -154,15 +148,11 @@ impl TreeNode {
                         children.remove(index);
                         Ok(())
                     }
-                    Err(_) => {
-                        Ok(())  
-                    }
+                    Err(_) => Ok(()),
                 }
             }
         }
     }
-
-
 }
 
 #[derive(Serialize, Deserialize, Debug)]

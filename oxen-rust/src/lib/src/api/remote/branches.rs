@@ -3,8 +3,8 @@ use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::view::{
-    BranchLockResponse, BranchNewFromExisting, BranchResponse, CommitResponse,
-    ListBranchesResponse, StatusMessage, BranchRemoteMerge
+    BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, CommitResponse,
+    ListBranchesResponse, StatusMessage,
 };
 use serde_json::json;
 

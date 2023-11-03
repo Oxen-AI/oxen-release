@@ -8,8 +8,8 @@ use liboxen::api;
 use liboxen::core::index::Merger;
 use liboxen::error::OxenError;
 use liboxen::view::{
-    BranchLockResponse, BranchNewFromExisting, BranchResponse, BranchUpdate, CommitResponse,
-    ListBranchesResponse, StatusMessage, BranchRemoteMerge
+    BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
+    CommitResponse, ListBranchesResponse, StatusMessage,
 };
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
