@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::{TreeChild, TreeNode};
+use crate::core::db::tree_db::TreeChild;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 

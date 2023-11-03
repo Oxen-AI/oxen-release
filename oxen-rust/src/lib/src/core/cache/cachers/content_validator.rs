@@ -1,15 +1,9 @@
 //! goes through the commit entry list and pre-computes the hash to verify everything is synced
 
-use std::path::PathBuf;
-
-use crate::core::index::{commit_validator, CommitEntryReader, CommitDirEntryReader};
+use crate::core::index::{commit_validator, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, NewCommit};
-use crate::{util, api};
-use crate::core::db;
-use rocksdb::DBWithThreadMode;
-use rocksdb::SingleThreaded;
-use rocksdb::IteratorMode;
+use crate::{api, util};
 
 pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
     log::debug!("Running compute_and_write_hash");
@@ -45,9 +39,12 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     // If there's no commit tree, we need to create it - first commit + old clients
     if !api::local::commits::has_merkle_tree(repo, commit)? {
-        log::debug!("Merkle tree for commit {} not provided by client, creating", commit.id);
+        log::debug!(
+            "Merkle tree for commit {} not provided by client, creating",
+            commit.id
+        );
         api::local::commits::construct_commit_merkle_tree(repo, commit)?;
-    } 
+    }
 
     Ok(())
 }

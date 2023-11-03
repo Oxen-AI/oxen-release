@@ -31,7 +31,6 @@ use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::PaginatedCommits;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
-use serde_json::json;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -786,7 +785,7 @@ pub async fn upload_tree(
     let server_head_commit = api::local::commits::head_commit(&repo)?;
 
     // Unpack in tmp/tree/commit_id
-    
+
     let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
 
     let mut bytes = web::BytesMut::new();
@@ -804,7 +803,7 @@ pub async fn upload_tree(
     log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
 
     let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
-    
+
     unpack_tree_tarball(&tmp_dir, &mut archive);
 
     Ok(HttpResponse::Ok().json(CommitResponse {
@@ -825,22 +824,23 @@ pub async fn can_push(
     let server_head_id = query.get("remote_head").unwrap();
     let lca_id = query.get("lca").unwrap();
 
-    // Ensuring these commits exist on server 
-    let _server_head_commit = api::local::commits::get_by_id(&repo, &server_head_id)?
-        .ok_or(OxenError::revision_not_found(server_head_id.to_owned().into()))?;
-    let _lca_commit = api::local::commits::get_by_id(&repo, &lca_id)?
+    // Ensuring these commits exist on server
+    let _server_head_commit = api::local::commits::get_by_id(&repo, server_head_id)?.ok_or(
+        OxenError::revision_not_found(server_head_id.to_owned().into()),
+    )?;
+    let _lca_commit = api::local::commits::get_by_id(&repo, lca_id)?
         .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
-
 
     let can_merge = !api::local::commits::head_commits_have_conflicts(
         &repo,
         &client_head_id,
-        &server_head_id,
-        &lca_id,
+        server_head_id,
+        lca_id,
     )?;
 
-    // Clean up tmp tree files from client head commit 
-    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp")
+    // Clean up tmp tree files from client head commit
+    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path)
+        .join("tmp")
         .join(client_head_id)
         .join(TREE_DIR);
     if tmp_tree_dir.exists() {

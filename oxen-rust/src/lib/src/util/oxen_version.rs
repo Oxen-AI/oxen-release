@@ -1,7 +1,6 @@
-
-use std::str::FromStr;
-use std::fmt;
 use crate::error::OxenError;
+use std::fmt;
+use std::str::FromStr;
 pub struct OxenVersion {
     pub major: u32,
     pub minor: u32,
@@ -26,7 +25,6 @@ impl FromStr for OxenVersion {
         })
     }
 }
-
 
 impl fmt::Debug for OxenVersion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

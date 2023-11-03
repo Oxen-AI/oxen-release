@@ -74,9 +74,8 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
         Ok(remote_version) => {
             let local_version: &str = constants::OXEN_VERSION;
             let min_oxen_version = OxenVersion::from_str(&remote_version)?;
-            let local_oxen_version = OxenVersion::from_str(&local_version)?;
+            let local_oxen_version = OxenVersion::from_str(local_version)?;
 
-        
             if local_oxen_version < min_oxen_version {
                 return Err(OxenError::OxenUpdateRequired(format!(
                     "Error: Oxen CLI out of date. Pushing to OxenHub requires version >= {:?}, found version {:?}.\n\nVisit https://docs.oxen.ai/getting-started/intro for update instructions.",
@@ -85,9 +84,10 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
                 ).into()));
             }
         }
-        Err(err) => {
-            return Err(OxenError::basic_str("Error: unable to verify remote version"));
-
+        Err(_) => {
+            return Err(OxenError::basic_str(
+                "Error: unable to verify remote version",
+            ));
         }
     }
     Ok(())
@@ -140,7 +140,7 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
     let directory = dunce::canonicalize(PathBuf::from(&path))?;
 
     let host = get_host_or_default()?;
-    check_remote_version(host).await?; 
+    check_remote_version(host).await?;
 
     command::init(&directory)?;
     println!("🐂 repository initialized at: {directory:?}");

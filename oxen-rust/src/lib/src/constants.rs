@@ -125,5 +125,5 @@ pub const TABULAR: &str = "tabular";
 pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
 
-/// Minimum allowable oxen version to push new data 
+/// Minimum allowable oxen version to push new data
 pub const MIN_CLI_VERSION: &str = "0.8.0";

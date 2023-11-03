@@ -59,8 +59,6 @@ pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError>
     indexer.push(&rb).await
 }
 
-
-
 /// Push to a specific remote branch on the default remote repository
 pub async fn push_remote_branch(
     repo: &LocalRepository,
@@ -191,7 +189,6 @@ mod tests {
             .await?;
 
             Ok(remote_repo_1_copy)
-            
         })
         .await
     }
@@ -332,7 +329,6 @@ mod tests {
             })
             .await?;
 
-
             Ok(remote_repo_copy)
         })
         .await
@@ -462,10 +458,8 @@ mod tests {
                     test::write_txt_file_to_path(&modify_path_a, "new file")?;
                     command::add(&user_a_repo, &modify_path_a)?;
                     command::commit(&user_a_repo, "Adding first file path.")?;
-                     
 
                     command::push(&user_a_repo).await?;
-
 
                     // User B adds a different file and pushe
                     test::write_txt_file_to_path(&modify_path_b, "newer file")?;
@@ -475,7 +469,6 @@ mod tests {
                     // Push should fail - this creates a merge conflict.
                     let res = command::push(&user_b_repo).await;
                     assert!(res.is_err());
-
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -680,7 +673,6 @@ mod tests {
             })
             .await?;
             Ok(remote_repo_copy)
-            
         })
         .await
     }

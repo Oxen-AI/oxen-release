@@ -8,7 +8,7 @@ use crate::core::cache::cachers::content_validator;
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
-    Stager, 
+    Stager,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -390,7 +390,7 @@ pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit) -> bo
 }
 
 // For merkle-tree driven conflict detection between local
-// and remote heads. NOT a general-purpose merge conflict utility 
+// and remote heads. NOT a general-purpose merge conflict utility
 pub fn head_commits_have_conflicts(
     repo: &LocalRepository,
     client_head_id: &str,
@@ -403,7 +403,7 @@ pub fn head_commits_have_conflicts(
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join("tmp")
         .join(client_head_id)
-        .join(TREE_DIR); 
+        .join(TREE_DIR);
 
     let tree_merger = TreeDBMerger::new(client_db_path, server_db_path, lca_db_path)?;
 
@@ -412,29 +412,23 @@ pub fn head_commits_have_conflicts(
     let server_root = &tree_merger.server_reader.get_entry("")?.unwrap();
     let lca_root = &tree_merger.lca_reader.get_entry("")?.unwrap();
 
-    let has_conflict = tree_merger.r_tree_has_conflict(&client_root, &server_root, &lca_root);
-    has_conflict
+    tree_merger.r_tree_has_conflict(client_root, server_root, lca_root)
 }
 
-pub fn has_merkle_tree(
-    repo: &LocalRepository, 
-    commit: &Commit
-) -> Result<bool, OxenError> {
+pub fn has_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
     let path = CommitEntryWriter::commit_tree_db(&repo.path, &commit.id);
     Ok(path.exists())
 }
 
 pub fn construct_commit_merkle_tree(
-    repo: &LocalRepository, 
-    commit: &Commit
+    repo: &LocalRepository,
+    commit: &Commit,
 ) -> Result<(), OxenError> {
     let commit_writer = CommitEntryWriter::new(repo, commit)?;
-    // commit_writer.construct_merkle_tree()?;
     commit_writer.construct_merkle_tree_new()?;
-    commit_writer.temp_print_tree_db(); // TODONOW delete
+    commit_writer.temp_print_tree_db(); // TODONOW delete after testing;
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {

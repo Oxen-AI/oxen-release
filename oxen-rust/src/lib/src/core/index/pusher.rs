@@ -102,7 +102,7 @@ pub async fn push_remote_repo(
     // Lock successfully acquired
     api::remote::repositories::pre_push(&remote_repo, &branch, &head_commit.id).await?;
 
-    // TODO naming
+    #[allow(unused_assignments)]
     let mut requires_merge = false;
     match validate_repo_is_pushable(
         local_repo,
@@ -216,13 +216,12 @@ pub async fn try_push_remote_repo(
 
         log::debug!("got new merge head commit {:?}", head_commit);
         unsynced_entries_commits.push(head_commit);
-        // TODONOW dedupe unsynced_entries_commits ?
     }
 
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     api::remote::commits::bulk_post_push_complete(remote_repo, &unsynced_entries_commits).await?;
     // Update the head...
-    api::remote::branches::update(remote_repo, &branch.name, &head_commit).await?;
+    api::remote::branches::update(remote_repo, &branch.name, head_commit).await?;
 
     // update the branch after everything else is synced
     log::debug!(
@@ -238,7 +237,7 @@ pub async fn try_push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(remote_repo, &head_commit, &bar).await?;
+    poll_until_synced(remote_repo, head_commit, &bar).await?;
     bar.finish_and_clear();
 
     log::debug!("Just finished push.");

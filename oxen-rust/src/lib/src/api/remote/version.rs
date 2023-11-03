@@ -1,8 +1,8 @@
 use crate::api::endpoint;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::view::StatusMessage;
 use crate::view::version::VersionResponse;
+use crate::view::StatusMessage;
 
 pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
     let protocol = endpoint::get_protocol(host);
@@ -47,5 +47,4 @@ pub async fn get_min_cli_version(host: &str) -> Result<String, OxenError> {
         let err = format!("api::version::get_min_cli_version Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
-
 }
