@@ -29,7 +29,7 @@
 
 ## 🐂 What is Oxen?
 
-Oxen is a lightning fast data version control system for structured and unstructured machine learning datasets. The interface mirror git, so that it is easy to learn if you are a software engineer, but it optimized from the ground up to work with large datasets.
+Oxen is a lightning fast data version control system for structured and unstructured machine learning datasets. The interface mirrors git, so that it is easy to learn if you are a software engineer, but it optimized from the ground up to work with large datasets.
 
 ```bash
 oxen init
