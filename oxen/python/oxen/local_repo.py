@@ -96,6 +96,16 @@ class LocalRepo:
         """
         Stage a file or directory to be committed.
         """
+        # Check if the path exists
+        if not os.path.exists(path):
+            # try repo.path + path
+            path = os.path.join(self.path, path)
+
+        # Convert to absolute path before adding
+        path = os.path.abspath(path)
+        if not os.path.exists(path):
+            raise Exception(f"Path {path} does not exist.")
+
         self._repo.add(path)
 
     def rm(self, path: str, recursive=False, staged=False, remote=False):
