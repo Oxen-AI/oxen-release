@@ -43,7 +43,7 @@ As well as a [command line interface](https://docs.oxen.ai/getting-started/cli),
 
 ## ✅ Features
 
-Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md) on images, video, audio, text, and more.
+Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md) on data frames, images, video, audio, text, and more.
 
 * 🔥 Fast (efficient indexing and syncing of data)
 * 🧠 Easy to learn (same commands as git)
