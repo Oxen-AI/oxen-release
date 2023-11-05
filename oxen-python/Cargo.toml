@@ -15,7 +15,7 @@ log = "0.4.17"
 pyo3-log = "0.8.1"
 tokio = { version = "1", features = ["full"] }
 pyo3-polars = "0.6.0"
-liboxen = "0.9.3"
+liboxen = "0.9.6"
 # liboxen = { path = "../../rust/Oxen/src/lib" }
 
 [build-dependencies]
