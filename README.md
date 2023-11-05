@@ -29,7 +29,9 @@
 
 ## 🐂 What is Oxen?
 
-Oxen is a lightning fast data version control system for structured and unstructured machine learning datasets. The interface mirrors git, so that it is easy to learn if you are a software engineer, but it optimized from the ground up to work with large datasets.
+Oxen is a lightning fast data version control system for structured and unstructured machine learning datasets. We aim to make versioning datasets as easy as versioning code.
+
+The interface mirrors git, but shines in many areas that git or git-lfs fall short. Oxen is built from the ground up for data, and is optimized to handle large datasets, and large files.
 
 ```bash
 oxen init
@@ -39,35 +41,37 @@ oxen commit "Adding 200k images and their corresponding annotations"
 oxen push origin main
 ```
 
-As well as a [command line interface](https://docs.oxen.ai/getting-started/cli), there are bindings for [Rust](https://github.com/Oxen-AI/Oxen) 🦀, [Python](https://docs.oxen.ai/getting-started/python) 🐍, and [HTTP interfaces](https://docs.oxen.ai/http-api) 🌎.
+Oxen is comprised of a [command line interface](https://docs.oxen.ai/getting-started/cli), as well as bindings for [Rust](https://github.com/Oxen-AI/Oxen) 🦀, [Python](https://docs.oxen.ai/getting-started/python) 🐍, and [HTTP interfaces](https://docs.oxen.ai/http-api) 🌎 to make it easy to integrate into your workflow.
 
-## ✅ Features
+## 🌾 What kind of data?
 
-Oxen was optimized to be fast on structured and unstructured data types. Unlike traditional version control systems that are optimized for text files and code, Oxen was built from the [ground up to be fast](https://github.com/Oxen-AI/oxen-release/blob/main/Performance.md) on data frames, images, video, audio, text, and more.
+Oxen is designed to efficiently manage large datasets, including those with large individual files, for example CSV files with millions of rows. It also handles datasets comprising millions of individual files and directories such as the complete collection of ImageNet images.
 
-* 🔥 Fast (efficient indexing and syncing of data)
-* 🧠 Easy to learn (same commands as git)
-* 🗄️ Index lots of files (millions of images? no problem)
-* 🎥 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
-* 📊 Native DataFrame processing (index, compare and serve up DataFrames)
-* 📈 Tracks changes over time (never worry about losing the state of your data)
-* 🤝 Collaborate with your team (sync to an oxen-server)
-* 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
-* 👀 Better data visualization on [OxenHub](https://oxen.ai)
+## 🚀 Built for speed
 
+One of the main reasons datasets are hard to maintain is the pure performance of indexing the data and transferring the data over the network. We wanted to be able to index hundreds of thousands of images, videos, audio files, and text files in seconds. 
 
-## 📚 Familiar Workflow
-
-No need to learn a new paradigm.
-
-The Oxen Command Line Interface (CLI) mirrors [git](https://git-scm.com/) in many ways, so if you are comfortable versioning code with git, it will be straightforward to version your datasets with Oxen.
-
-The difference is Oxen is built for data. It is optimized to handle large files, and large datasets. It is built to be fast, and easy to use.
+Watch below as we version **hundreds of thousands of images** in seconds 🔥
 
 <p align="center">
     <img src="https://github.com/Oxen-AI/oxen-release/raw/main/images/cli-celeba.gif?raw=true" alt="oxen cli demo" />
 </p>
 
+But speed is only the beginning. 
+
+## ✅ Features
+
+Oxen is built around ergonomics, ease of use, and it is easy to learn. If you know how to use git, you know how to use Oxen.
+
+* 🔥 Fast (efficient indexing and syncing of data)
+* 🧠 Easy to learn (same commands as git)
+* 💪 Handles large files (images, videos, audio, text, parquet, arrow, json, models, etc)
+* 🗄️ Index lots of files (millions of images? no problem)
+* 📊 Native DataFrame processing (index, compare and serve up DataFrames)
+* 📈 Tracks changes over time (never worry about losing the state of your data)
+* 🤝 Collaborate with your team (sync to an oxen-server)
+* 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
+* 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
 ## 🐮 Learn The Basics
 
@@ -76,7 +80,7 @@ To learn what everything Oxen can do, the full documentation can be found at [ht
 
 ## 🧑‍💻 Getting Started
 
-Oxen makes versioning your datasets as easy as versioning your code. You can install through homebrew or pip or from our [releases page](https://github.com/Oxen-AI/Oxen/releases).
+You can install through homebrew or pip or from our [releases page](https://github.com/Oxen-AI/Oxen/releases).
 
 ### 🐂 Install Command Line Tool
 
