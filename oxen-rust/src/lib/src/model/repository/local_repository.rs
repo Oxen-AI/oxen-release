@@ -169,6 +169,8 @@ impl LocalRepository {
 
         // if directory already exists -> return Err
         let repo_path = &opts.dst;
+        log::debug!("checking repo_path exists: {:?}", repo_path);
+        log::debug!("does it exist? {}", repo_path.exists());
         if repo_path.exists() {
             let err = format!("Directory already exists: {}", repo.name);
             return Err(OxenError::basic_str(err));

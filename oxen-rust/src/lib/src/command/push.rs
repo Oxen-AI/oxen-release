@@ -208,15 +208,21 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                let user_a_repo = command::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir_copy.join("new_repo"),
+                )
+                .await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir_copy.join("New_repo"),
+                    )
+                    .await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file.txt";
@@ -266,15 +272,21 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                let user_a_repo = command::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir_copy.join("new_repo"),
+                )
+                .await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir_copy.join("new_repo"),
+                    )
+                    .await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file.txt";
@@ -345,7 +357,8 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                        .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -363,8 +376,11 @@ mod tests {
 
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir.join("new_repo"),
+                    )
+                    .await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file.txt";
@@ -426,7 +442,8 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                        .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -441,8 +458,11 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir.join("new_repo"),
+                    )
+                    .await?;
 
                     // User A adds a file and pushes
                     let modify_path_a = user_a_repo
@@ -492,8 +512,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
+                log::debug!("about to clone...");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                        .await?;
+                log::debug!("finished cloning.");
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -505,8 +528,13 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    log::debug!("About to clone b...");
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir.join("new_repo"),
+                    )
+                    .await?;
+                    log::debug!("finished cloning b.");
 
                     // User A adds a file and pushes
                     let modify_path_a = user_a_repo
@@ -554,7 +582,8 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                        .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -569,8 +598,11 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir.join("new_repo"),
+                    )
+                    .await?;
 
                     // User A deletes the file and commits
                     let modify_path_a = user_a_repo
@@ -623,7 +655,8 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir).await?;
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                        .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -638,8 +671,11 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir).await?;
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir.join("new_repo"),
+                    )
+                    .await?;
 
                     // User A adds a file and pushes
                     let modify_path_a = user_a_repo

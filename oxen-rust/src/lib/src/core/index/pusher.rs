@@ -965,6 +965,7 @@ async fn upload_large_file_chunks(
                     &buffer,
                     &entry_hash,
                     &params,
+                    "upload_chunk",
                     is_compressed,
                     &file_name,
                 )
