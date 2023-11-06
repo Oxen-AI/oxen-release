@@ -509,7 +509,6 @@ impl CommitEntryWriter {
 
     // TODONOW delete after testing
     pub fn temp_print_tree_db(&self) {
-        log::debug!("PRINTING COMMIT TREE FOR COMMIT {:?}", self.commit.id);
         let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
         for item in iter {
             match item {

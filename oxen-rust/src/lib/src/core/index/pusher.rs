@@ -965,7 +965,6 @@ async fn upload_large_file_chunks(
                     &buffer,
                     &entry_hash,
                     &params,
-                    "upload_chunk", // TODONOW fix
                     is_compressed,
                     &file_name,
                 )
@@ -1110,16 +1109,12 @@ async fn bundle_and_send_small_entries(
 
                 // TODO: Refactor where the bars are being passed so we don't need silent here
                 let quiet_bar = Arc::new(ProgressBar::hidden());
-
-                let uri = format!("/commits/{}/data", commit.id);
-                let url = api::endpoint::url_from_repo(&remote_repo, &uri).unwrap();
-
+                
                 match api::remote::commits::post_data_to_server(
                     &remote_repo,
                     &commit,
                     buffer,
                     is_compressed,
-                    &url,
                     &file_name,
                     quiet_bar,
                 )

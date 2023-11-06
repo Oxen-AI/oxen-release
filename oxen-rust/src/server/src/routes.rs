@@ -65,10 +65,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::upload),
         )
         .route(
-            "/{namespace}/{repo_name}/commits/{commit_id}/upload_tree",
-            web::post().to(controllers::commits::upload_tree),
-        )
-        .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/can_push",
             web::get().to(controllers::commits::can_push),
         )

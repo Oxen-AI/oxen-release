@@ -888,12 +888,10 @@ pub async fn upload(
 
     // Match commit as either the provided commit id if it exists, or the head commit of the repo otherwise.
 
-    log::debug!("about to check commit");
     let commit = match api::local::commits::get_by_id(&repo, &commit_id)? {
         Some(commit) => commit,
         None => api::local::commits::head_commit(&repo)?,
     };
-    log::debug!("got commit {:?}", commit);
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
@@ -1121,7 +1119,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                             .expect("Could not write hash file");
                     } else {
                         // For non-version files, use filename sent by client
-                        log::debug!("Unpacking file {:?}", path);
                         file.unpack_in(hidden_dir).unwrap();
                     }
                 } else {

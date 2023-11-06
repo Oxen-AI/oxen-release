@@ -99,7 +99,6 @@ pub fn create_checkout(repo: &LocalRepository, name: &str) -> Result<Branch, Oxe
 
 /// Update the branch name to point to a commit id
 pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
-    log::debug!("updating branch {name} to commit {commit_id}");
     let ref_reader = RefReader::new(repo)?;
     match ref_reader.get_branch_by_name(name)? {
         Some(branch) => {

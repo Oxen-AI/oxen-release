@@ -164,15 +164,6 @@ mod tests {
                         command::add(&second_cloned_repo, &new_file_path)?;
                         command::commit(&second_cloned_repo, "Adding third file path.")?;
 
-                        // Get and log the commit trace of second_cloned_repo
-                        let commit_trace = api::local::commits::list(&second_cloned_repo)?;
-                        let remote_commit_trace =
-                            api::remote::commits::list_commit_history(&remote_repo_1, "main")
-                                .await?;
-
-                        log::debug!("commit_trace: {:?}", commit_trace);
-                        log::debug!("remote_commit_trace: {:?}", remote_commit_trace);
-
                         // Push should FAIL
                         let result = command::push(&second_cloned_repo).await;
                         assert!(result.is_err());
@@ -512,11 +503,9 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                log::debug!("about to clone...");
                 let user_a_repo =
                     command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
                         .await?;
-                log::debug!("finished cloning.");
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);

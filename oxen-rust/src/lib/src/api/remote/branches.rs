@@ -142,7 +142,7 @@ pub async fn maybe_create_merge(
 ) -> Result<Commit, OxenError> {
     let uri = format!("/branches/{branch_name}/merge");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-    log::debug!("remote::branches::update url: {}", url);
+    log::debug!("remote::branches::maybe_create_merge url: {}", url);
 
     let commits = BranchRemoteMerge {
         client_commit_id: local_head_id.to_string(),
