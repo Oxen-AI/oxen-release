@@ -22,8 +22,6 @@ pub fn hash_buffer_128bit(buffer: &[u8]) -> u128 {
     xxh3_128(buffer)
 }
 
-//MERKLE: this will become a recursive thing starting from the bottom of the tree.
-// but we will only need to re-hash the dirs which are changed - which we can know through tree-ifing the stageddirsdb.
 pub fn compute_commit_hash<E>(commit_data: &NewCommit, entries: &[E]) -> String
 where
     E: ContentHashable + std::fmt::Debug,

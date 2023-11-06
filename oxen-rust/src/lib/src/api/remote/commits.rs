@@ -317,7 +317,6 @@ pub async fn can_push(
         let full_path = head_commit_dir.join(dir);
         let tar_path = tar_base_dir.join(dir);
         if full_path.exists() {
-            log::debug!("appending to tar: {:?} -> {:?}", dir, tar_path);
             tar.append_dir_all(&tar_path, full_path)?;
         }
     }
@@ -331,21 +330,15 @@ pub async fn can_push(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    let uri = format!("/commits/{}/data", local_head.id);
-    let tree_url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    log::debug!("about to post tree data to server");
     post_data_to_server(
         remote_repo,
         local_head,
         buffer,
         is_compressed,
-        &tree_url,
         &filename,
         quiet_bar,
     )
     .await?;
-    log::debug!("done posting tree data to server");
 
     let uri = format!(
         "/commits/{}/can_push?remote_head={}&lca={}",
@@ -648,15 +641,11 @@ pub async fn post_commit_db_to_server(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    let uri = format!("/commits/{}/data", commit.id);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
     post_data_to_server(
         remote_repo,
         commit,
         buffer,
         is_compressed,
-        &url,
         &filename,
         quiet_bar,
     )
@@ -693,12 +682,10 @@ pub async fn post_data_to_server(
     commit: &Commit,
     buffer: Vec<u8>,
     is_compressed: bool,
-    single_upload_url: &str,
     filename: &Option<String>,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
-    let chunk_endpoint = "upload_chunk";
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
             // TODONOW fix
@@ -706,26 +693,26 @@ pub async fn post_data_to_server(
             commit,
             &buffer,
             chunk_size,
-            chunk_endpoint,
             is_compressed,
             filename,
         )
         .await?;
     } else {
-        upload_single_tarball_to_server_with_retry(&buffer, single_upload_url, bar).await?;
+        upload_single_tarball_to_server_with_retry(remote_repo, commit, &buffer, bar).await?;
     }
     Ok(())
 }
 
 pub async fn upload_single_tarball_to_server_with_retry(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
     buffer: &[u8],
-    url: &str,
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let mut total_tries = 0;
 
     while total_tries < constants::NUM_HTTP_RETRIES {
-        match upload_single_tarball_to_server(buffer, url, bar.to_owned()).await {
+        match upload_single_tarball_to_server(remote_repo, commit, buffer, bar.to_owned()).await {
             Ok(_) => {
                 return Ok(());
             }
@@ -747,18 +734,21 @@ pub async fn upload_single_tarball_to_server_with_retry(
 }
 
 async fn upload_single_tarball_to_server(
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
     buffer: &[u8],
-    url: &str,
     bar: Arc<ProgressBar>,
 ) -> Result<CommitResponse, OxenError> {
-    let client = client::builder_for_url(url)?
+    let uri = format!("/commits/{}/data", commit.id);
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
     let size = buffer.len() as u64;
-    match client.post(url).body(buffer.to_owned()).send().await {
+    match client.post(&url).body(buffer.to_owned()).send().await {
         Ok(res) => {
-            let body = client::parse_json_body(url, res).await?;
+            let body = client::parse_json_body(&url, res).await?;
 
             let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
@@ -783,7 +773,6 @@ async fn upload_data_to_server_in_chunks(
     commit: &Commit,
     buffer: &[u8],
     chunk_size: usize,
-    endpoint: &str,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
@@ -818,7 +807,6 @@ async fn upload_data_to_server_in_chunks(
             chunk,
             &hash,
             &params,
-            endpoint,
             is_compressed,
             filename,
         )
@@ -835,14 +823,12 @@ async fn upload_data_to_server_in_chunks(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)] // TODONOW: maybe refactor to fix
 pub async fn upload_data_chunk_to_server_with_retry(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     chunk: &[u8],
     hash: &str,
     params: &ChunkParams,
-    endpoint: &str,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<(), OxenError> {
@@ -855,7 +841,6 @@ pub async fn upload_data_chunk_to_server_with_retry(
             chunk,
             hash,
             params,
-            endpoint,
             is_compressed,
             filename,
         )
@@ -885,14 +870,12 @@ pub async fn upload_data_chunk_to_server_with_retry(
     )))
 }
 
-#[allow(clippy::too_many_arguments)] // TODONOW: maybe refactor to fix
 async fn upload_data_chunk_to_server(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     chunk: &[u8],
     hash: &str,
     params: &ChunkParams,
-    endpoint: &str,
     is_compressed: bool,
     filename: &Option<String>,
 ) -> Result<CommitResponse, OxenError> {
@@ -910,16 +893,8 @@ async fn upload_data_chunk_to_server(
     };
 
     let uri = format!(
-        "/commits/{}/{}?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
-        commit.id,
-        endpoint,
-        params.chunk_num,
-        params.total_size,
-        hash,
-        params.total_chunks,
-        is_compressed,
-        maybe_filename
-    );
+        "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
+        commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let total_size = chunk.len() as u64;
     log::debug!(
