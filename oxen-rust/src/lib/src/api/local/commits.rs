@@ -405,10 +405,15 @@ pub fn head_commits_have_conflicts(
         .join(client_head_id)
         .join(TREE_DIR);
 
-    let tree_merger = TreeDBMerger::new(client_db_path, server_db_path, lca_db_path)?;
+    log::debug!("About to try to read client db: {:?}", client_db_path);
+
+    let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_db_path, lca_db_path)?;
+
+    log::debug!("About to try to read client root: {:?}", client_db_path);
 
     // Start at the top level of the client db
     let client_root = &tree_merger.client_reader.get_entry("")?.unwrap();
+    log::debug!("successfully read client root: {:?}", client_root);
     let server_root = &tree_merger.server_reader.get_entry("")?.unwrap();
     let lca_root = &tree_merger.lca_reader.get_entry("")?.unwrap();
 

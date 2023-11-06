@@ -602,9 +602,11 @@ pub async fn upload_chunk(
 
     let commit_reader = CommitReader::new(&repo)?;
 
-    let commit = commit_reader
-        .get_commit_by_id(&commit_id)?
-        .ok_or(OxenError::revision_not_found(commit_id.into()))?;
+    // TODONOW: this is just to enable getting commits that don't exist yet...better way?
+    let commit = match commit_reader.get_commit_by_id(&commit_id)? {
+        Some(commit) => commit,
+        None => api::local::commits::head_commit(&repo)?,
+    };
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let id = query.hash.clone();
@@ -785,7 +787,6 @@ pub async fn upload_tree(
     let server_head_commit = api::local::commits::head_commit(&repo)?;
 
     // Unpack in tmp/tree/commit_id
-
     let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
 
     let mut bytes = web::BytesMut::new();
@@ -885,8 +886,15 @@ pub async fn upload(
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
-    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
-        .ok_or(OxenError::revision_not_found(commit_id.to_owned().into()))?;
+    // Match commit as either the provided commit id if it exists, or the head commit of the repo otherwise.
+
+    log::debug!("about to check commit");
+    let commit = match api::local::commits::get_by_id(&repo, &commit_id)? {
+        Some(commit) => commit,
+        None => api::local::commits::head_commit(&repo)?,
+    };
+    log::debug!("got commit {:?}", commit);
+
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
     // Read bytes from body
@@ -1113,6 +1121,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                             .expect("Could not write hash file");
                     } else {
                         // For non-version files, use filename sent by client
+                        log::debug!("Unpacking file {:?}", path);
                         file.unpack_in(hidden_dir).unwrap();
                     }
                 } else {
