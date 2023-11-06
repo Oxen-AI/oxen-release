@@ -271,7 +271,7 @@ impl Stager {
 
     fn find_moved_files(&self, staged_data: &mut StagedData) -> Result<(), OxenError> {
         let files = staged_data.staged_files.clone();
-        let files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().map(|(k, v)| (k, v)).collect();
+        let files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().collect();
 
         // Find pairs of added-removed with same hash and add them to moved.
         // We won't mutate StagedEntries here, the "moved" property is read-only

@@ -33,7 +33,7 @@ fn compute_versions_hash(
 ) -> Result<String, OxenError> {
     // log::debug!("Computing commit hash for {} entries", entries.len());
     let mut hashes: Vec<SimpleHash> = vec![];
-    for (_, entry) in entries.iter().enumerate() {
+    for entry in entries.iter() {
         // Sometimes we have pre computed the HASH, so that we don't have to fully hash contents again to
         // check if data is synced (I guess this is already in the file path...should we just grab it from there instead?)
         // I think the extra hash computation on the server is nice so that you know the actual contents was saved to disk
