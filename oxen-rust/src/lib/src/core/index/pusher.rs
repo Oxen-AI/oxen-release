@@ -914,7 +914,7 @@ async fn upload_large_file_chunks(
         // let queue = Arc::new(TaskQueue::new(sub_buffers.len()));
         // let finished_queue = Arc::new(FinishedTaskQueue::new(sub_buffers.len()));
         let mut tasks: Vec<PieceOfWork> = Vec::new();
-        for (_, buffer) in sub_buffers.iter().enumerate() {
+        for buffer in sub_buffers.iter() {
             tasks.push((
                 buffer.to_owned(),
                 chunk_size,
@@ -1109,7 +1109,7 @@ async fn bundle_and_send_small_entries(
 
                 // TODO: Refactor where the bars are being passed so we don't need silent here
                 let quiet_bar = Arc::new(ProgressBar::hidden());
-                
+
                 match api::remote::commits::post_data_to_server(
                     &remote_repo,
                     &commit,

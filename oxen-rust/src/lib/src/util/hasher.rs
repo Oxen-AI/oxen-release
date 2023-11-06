@@ -28,7 +28,7 @@ where
 {
     let mut commit_hasher = xxhash_rust::xxh3::Xxh3::new();
     log::debug!("Hashing {} entries", entries.len());
-    for (_, entry) in entries.iter().enumerate() {
+    for entry in entries.iter() {
         let hash = entry.content_hash();
         // log::debug!("Entry [{}] hash {}", i, hash);
 
