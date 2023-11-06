@@ -273,6 +273,7 @@ pub async fn can_push(
     local_repo: &LocalRepository,
     local_head: &Commit,
 ) -> Result<bool, OxenError> {
+    log::debug!("delete in can_push()");
     // Before we do this, need to ensure that we are working in the same repo
     // If we don't, downloading the commits db in the next step
     // will mess up the local commit history by merging two different repos
@@ -305,7 +306,7 @@ pub async fn can_push(
         .join(HISTORY_DIR)
         .join(local_head.id.clone());
 
-    let tar_subdir = Path::new(HISTORY_DIR).join(local_head.id.clone());
+    let tar_base_dir = Path::new("tmp").join(&local_head.id); // TODONOW
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
@@ -314,8 +315,9 @@ pub async fn can_push(
 
     for dir in &dirs_to_compress {
         let full_path = head_commit_dir.join(dir);
-        let tar_path = tar_subdir.join(dir);
+        let tar_path = tar_base_dir.join(dir);
         if full_path.exists() {
+            log::debug!("appending to tar: {:?} -> {:?}", dir, tar_path);
             tar.append_dir_all(&tar_path, full_path)?;
         }
     }
@@ -329,9 +331,10 @@ pub async fn can_push(
 
     let quiet_bar = Arc::new(ProgressBar::hidden());
 
-    let uri = format!("/commits/{}/upload_tree", local_head.id);
+    let uri = format!("/commits/{}/data", local_head.id);
     let tree_url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
+    log::debug!("about to post tree data to server");
     post_data_to_server(
         remote_repo,
         local_head,
@@ -342,6 +345,7 @@ pub async fn can_push(
         quiet_bar,
     )
     .await?;
+    log::debug!("done posting tree data to server");
 
     let uri = format!(
         "/commits/{}/can_push?remote_head={}&lca={}",
@@ -352,6 +356,7 @@ pub async fn can_push(
     let client = client::new_for_url(&url)?;
 
     if let Ok(res) = client.get(&url).send().await {
+        log::debug!("can_push() request successful");
         let body = client::parse_json_body(&url, res).await?;
         let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
         Ok(response.can_merge)
@@ -696,6 +701,7 @@ pub async fn post_data_to_server(
     let chunk_endpoint = "upload_chunk";
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
+            // TODONOW fix
             remote_repo,
             commit,
             &buffer,
