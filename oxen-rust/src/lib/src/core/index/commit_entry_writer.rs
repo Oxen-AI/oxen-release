@@ -488,8 +488,9 @@ impl CommitEntryWriter {
 
             // Collect dir children as treenodes
             for path in children_dirs {
-                let entry: TreeChild = path_db::get_entry(&self.tree_db, path)?.unwrap();
-                dir_entry_nodes.push(entry)
+                if let Some(entry) = path_db::get_entry(&self.tree_db, path)? {
+                    dir_entry_nodes.push(entry)
+                }
             }
 
             // Insert updated file nodes into the db
