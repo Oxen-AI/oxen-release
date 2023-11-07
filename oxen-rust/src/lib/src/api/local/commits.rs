@@ -407,11 +407,14 @@ pub fn head_commits_have_conflicts(
     let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_db_path, lca_db_path)?;
 
     // Start at the top level of the client db
-    let client_root = &tree_merger.client_reader.get_entry("")?.unwrap();
-    let server_root = &tree_merger.server_reader.get_entry("")?.unwrap();
-    let lca_root = &tree_merger.lca_reader.get_entry("")?.unwrap();
+    let maybe_client_root = &tree_merger.client_reader.get_entry("")?;
+    let maybe_server_root = &tree_merger.server_reader.get_entry("")?;
+    // This is only called when server is ahead of client, so server will always have a root node.
+    // ...but client may not have a root node if it is a new repo
+    let maybe_lca_root = &tree_merger.lca_reader.get_entry("")?;
+    // If lca_root is null, create a dummy node for traversal
 
-    tree_merger.r_tree_has_conflict(client_root, server_root, lca_root)
+    tree_merger.r_tree_has_conflict(maybe_client_root, maybe_server_root, maybe_lca_root)
 }
 
 pub fn has_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {

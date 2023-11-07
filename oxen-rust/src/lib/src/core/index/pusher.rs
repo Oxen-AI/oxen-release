@@ -69,15 +69,19 @@ async fn validate_repo_is_pushable(
 ) -> Result<bool, OxenError> {
     // Make sure the remote branch is not ahead of the local branch
     if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
+        log::debug!("confirmed remote is ahead of local");
         if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit)
             .await?
         {
+            log::debug!("can_push is true");
             return Ok(true); // We need a merge commit
         } else {
+            log::debug!("can_push is false");
             return Err(OxenError::upstream_merge_conflict());
         }
     }
 
+    log::debug!("remote is not ahead of local...");
     if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {
         return Err(OxenError::incomplete_local_history());
     }
@@ -114,6 +118,7 @@ pub async fn push_remote_repo(
     .await
     {
         Ok(result) => {
+            log::debug!("setting requires merge inner to {}", result);
             requires_merge = result;
         }
         Err(err) => {
@@ -122,14 +127,17 @@ pub async fn push_remote_repo(
         }
     }
 
+    log::debug!("requires_merge outer is {}", requires_merge);
+
     let branch_clone = branch.clone();
     let branch_name = branch.name.clone();
 
     // Push the commits. If at any point during this process, we have errors or the user ctrl+c's, we release the branch lock.
     // TODO: Maybe we should only release the lock if we haven't yet started adding commits to the queue.
     // IF we've added commits to the queue, should we cede control of lock removal to when the queue is finished processing?
+    let head_commit_clone = head_commit.clone();
     tokio::select! {
-        result = try_push_remote_repo(local_repo, &remote_repo, branch, &head_commit, requires_merge) => {
+        result = try_push_remote_repo(local_repo, &remote_repo, branch, head_commit, requires_merge) => {
             match result {
                 Ok(_) => {
                     // Unlock the branch
@@ -153,7 +161,8 @@ pub async fn push_remote_repo(
         }
     }
     // TODO: Handle additional push complete / incomplete statuses on ctrl + c
-    api::remote::repositories::post_push(&remote_repo, &branch_clone, &head_commit.id).await?;
+    api::remote::repositories::post_push(&remote_repo, &branch_clone, &head_commit_clone.id)
+        .await?;
     Ok(remote_repo)
 }
 
@@ -161,11 +170,12 @@ pub async fn try_push_remote_repo(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     branch: Branch,
-    head_commit: &Commit,
+    mut head_commit: Commit,
     requires_merge: bool,
 ) -> Result<(), OxenError> {
+    log::debug!("requires_merge inside try_push is {:?}", requires_merge);
     let commits_to_sync =
-        get_commit_objects_to_sync(local_repo, remote_repo, head_commit, &branch).await?;
+        get_commit_objects_to_sync(local_repo, remote_repo, &head_commit, &branch).await?;
 
     log::debug!(
         "push_remote_repo commit order after get_commit_objects_to_sync {:?}",
@@ -206,7 +216,7 @@ pub async fn try_push_remote_repo(
             None => return Err(OxenError::remote_branch_not_found(&branch.name)),
         };
 
-        let head_commit = api::remote::branches::maybe_create_merge(
+        let merge_commit = api::remote::branches::maybe_create_merge(
             remote_repo,
             branch.name.as_str(),
             head_commit.id.as_str(),
@@ -215,17 +225,21 @@ pub async fn try_push_remote_repo(
         .await?;
 
         log::debug!("got new merge head commit {:?}", head_commit);
-        unsynced_entries_commits.push(head_commit);
+        unsynced_entries_commits.push(merge_commit.clone());
+
+        head_commit = merge_commit;
+    } else {
+        log::debug!("didn't get new merge head, old head is {:?}", head_commit);
     }
 
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     api::remote::commits::bulk_post_push_complete(remote_repo, &unsynced_entries_commits).await?;
     // Update the head...
-    api::remote::branches::update(remote_repo, &branch.name, head_commit).await?;
+    api::remote::branches::update(remote_repo, &branch.name, &head_commit).await?;
 
     // update the branch after everything else is synced
     log::debug!(
-        "Updating remote branch {:?} to commit {:?}",
+        "updated remote branch {:?} to commit {:?}",
         &branch.name,
         &head_commit
     );
@@ -237,7 +251,7 @@ pub async fn try_push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(remote_repo, head_commit, &bar).await?;
+    poll_until_synced(remote_repo, &head_commit, &bar).await?;
     bar.finish_and_clear();
 
     log::debug!("Just finished push.");
