@@ -195,9 +195,8 @@ mod tests {
                     command::add(&user_b_repo, user_b_repo.path.join(file_3))?;
                     command::commit(&user_b_repo, "Adding file_3")?;
 
-                    // Push should fail, we are behind
-                    let result = command::push(&user_b_repo).await;
-                    assert!(result.is_err());
+                    // Push should succeed - no conflict
+                    command::push(&user_b_repo).await?;
 
                     // Pull changes
                     command::pull(&user_b_repo).await?;

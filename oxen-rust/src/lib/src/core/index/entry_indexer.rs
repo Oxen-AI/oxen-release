@@ -76,6 +76,12 @@ impl EntryIndexer {
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = api::local::commits::head_commit(&self.repository);
 
+        log::debug!("Here's maybe_head_commit {:?}", maybe_head_commit);
+        let maybe_list_commits = api::local::commits::head_commit(&self.repository);
+        log::debug!("Here's maybe_list_commits {:?}", maybe_list_commits);
+        let maybe_list_all = api::local::commits::head_commit(&self.repository);
+        log::debug!("Here's maybe_list_all {:?}", maybe_list_all);
+
         let head_commit = if let Ok(commit) = maybe_head_commit {
             Some(commit)
         } else {
@@ -106,9 +112,12 @@ impl EntryIndexer {
                 if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
                     commit = merge_commit;
                 }
+                log::debug!("Executing merge commit")
             } else {
                 log::debug!("No merge commit required");
             }
+        } else {
+            log::debug!("no head commit found");
         }
 
         // Mark the new commit (merged or pulled) as synced

@@ -409,8 +409,6 @@ pub fn head_commits_have_conflicts(
     // Start at the top level of the client db
     let maybe_client_root = &tree_merger.client_reader.get_entry("")?;
     let maybe_server_root = &tree_merger.server_reader.get_entry("")?;
-    // This is only called when server is ahead of client, so server will always have a root node.
-    // ...but client may not have a root node if it is a new repo
     let maybe_lca_root = &tree_merger.lca_reader.get_entry("")?;
     // If lca_root is null, create a dummy node for traversal
 
