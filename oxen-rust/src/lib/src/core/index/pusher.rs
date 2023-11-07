@@ -69,19 +69,15 @@ async fn validate_repo_is_pushable(
 ) -> Result<bool, OxenError> {
     // Make sure the remote branch is not ahead of the local branch
     if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
-        log::debug!("confirmed remote is ahead of local");
         if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit)
             .await?
         {
-            log::debug!("can_push is true");
             return Ok(true); // We need a merge commit
         } else {
-            log::debug!("can_push is false");
             return Err(OxenError::upstream_merge_conflict());
         }
     }
 
-    log::debug!("remote is not ahead of local...");
     if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {
         return Err(OxenError::incomplete_local_history());
     }
@@ -118,7 +114,6 @@ pub async fn push_remote_repo(
     .await
     {
         Ok(result) => {
-            log::debug!("setting requires merge inner to {}", result);
             requires_merge = result;
         }
         Err(err) => {
@@ -126,8 +121,6 @@ pub async fn push_remote_repo(
             return Err(err);
         }
     }
-
-    log::debug!("requires_merge outer is {}", requires_merge);
 
     let branch_clone = branch.clone();
     let branch_name = branch.name.clone();
@@ -173,7 +166,6 @@ pub async fn try_push_remote_repo(
     mut head_commit: Commit,
     requires_merge: bool,
 ) -> Result<(), OxenError> {
-    log::debug!("requires_merge inside try_push is {:?}", requires_merge);
     let commits_to_sync =
         get_commit_objects_to_sync(local_repo, remote_repo, &head_commit, &branch).await?;
 
