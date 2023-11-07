@@ -405,6 +405,21 @@ impl CommitEntryWriter {
                 }
             }
         }
+
+        // Step 3: Delete path db entries for files that were removed in this commit
+        for (path, entry) in staged_data.staged_files.iter() {
+            if entry.status == StagedEntryStatus::Removed {
+                log::debug!("construct_merkle_tree_from_parent removing {:?}", path);
+                path_db::delete(&self.tree_db, path)?;
+                // Get the parent path
+                let parent = path.parent().unwrap().to_path_buf();
+                // If the parent isn't in the `dirs_map`, it's been deleted in this commit - delete it from the tree
+                if !dir_map.contains_key(&parent) {
+                    path_db::delete(&self.tree_db, &parent)?;
+                }
+            }
+        }
+
         // Always need to recompute the root dir, but can get missed by this logic
         dirs_to_recompute.insert(PathBuf::from(""));
         let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
@@ -492,15 +507,18 @@ impl CommitEntryWriter {
 
             let node_hash = util::hasher::compute_subtree_hash(&all_children);
 
-            // Create a Directory TreeNode of the children in the pathdb
+            // Update or a Directory TreeNode of the children in the pathdb
             let dir_node = TreeNode::Directory {
                 path: dir.to_path_buf(),
                 children: all_children,
                 hash: node_hash.to_string(),
             };
 
-            // Put this node into the db
-            path_db::put(&self.tree_db, dir, &dir_node)?;
+            if dir_node.children()?.is_empty() {
+                path_db::delete(&self.tree_db, dir)?;
+            } else {
+                path_db::put(&self.tree_db, dir, &dir_node)?;
+            }
         }
 
         // After all dirs are processed, process schemas and recalculate root node

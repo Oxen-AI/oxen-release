@@ -57,93 +57,252 @@ impl TreeDBMerger {
         })
     }
 
+    // pub fn r_tree_has_conflict_old(
+    //     &self,
+    //     client_node: &Option<TreeNode>,
+    //     server_node: &Option<TreeNode>,
+    //     lca_node: &<Option<TreeNode>,
+    // ) -> Result<bool, OxenError> {
+    //     // Base checks
+    //     if client_node.hash() == server_node.hash() {
+    //         return Ok(false); // No changes in either commit
+    //     }
+    //     if client_node.hash() == lca_node.hash() || server_node.hash() == lca_node.hash() {
+    //         return Ok(false); // Changes in only one commit since LCA
+    //     }
+
+    //     match (client_node, server_node, lca_node) {
+    //         (
+    //             TreeNode::Directory {
+    //                 children: client_children,
+    //                 ..
+    //             },
+    //             TreeNode::Directory {
+    //                 children: server_children,
+    //                 ..
+    //             },
+    //             TreeNode::Directory {
+    //                 children: _lca_children,
+    //                 ..
+    //             },
+    //         ) => {
+    //             let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
+    //             for client_child in client_children {
+    //                 visited_paths.insert(client_child.path());
+    //                 // We know there's a client child bc we're iterating over it - unsure for server or lca.
+    //                 let client_child: TreeNode =
+    //                     self.client_reader.get_entry(client_child.path())?.unwrap();
+    //                 let server_child: Option<TreeNode> =
+    //                     self.server_reader.get_entry(client_child.path())?;
+    //                 let lca_child: Option<TreeNode> =
+    //                     self.lca_reader.get_entry(client_child.path())?;
+
+    //                 // Addition on client
+    //                 if server_child.is_none() && lca_child.is_none() {
+    //                     return Ok(false);
+    //                 }
+
+    //                 // Deletion on server
+    //                 if let Some(ref lca_child) = lca_child {
+    //                     if server_child.is_none() {
+    //                         // Deleted on server, unchanged on client.
+    //                         if lca_child.hash() == client_child.hash() {
+    //                             return Ok(false);
+    //                         } else {
+    //                             // Deleted on server, changed on client == conflict
+    //                             return Ok(true);
+    //                         }
+    //                     }
+    //                 }
+
+    //                 if self.r_tree_has_conflict(
+    //                     &client_child,
+    //                     &server_child.unwrap(),
+    //                     &lca_child.unwrap(),
+    //                 )? {
+    //                     return Ok(true);
+    //                 }
+    //             }
+
+    //             // Check for deletion on client + modification on server - conflict
+    //             for server_child in server_children {
+    //                 if !visited_paths.contains(server_child.path()) {
+    //                     // If it's not in the LCA OR client child, no conflict
+    //                     let maybe_lca_node: Option<TreeNode> =
+    //                         self.lca_reader.get_entry(server_child.path())?;
+    //                     if let Some(lca_node) = maybe_lca_node {
+    //                         // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict.
+    //                         if lca_node.hash() != server_child.hash() {
+    //                             return Ok(true);
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //             Ok(false)
+    //         }
+    //         // For files, if we reach here, it's a conflict because they have different hashes and neither matches the LCA
+    //         (TreeNode::File { .. }, TreeNode::File { .. }, TreeNode::File { .. }) => Ok(true),
+
+    //         // Other cases, including changing between file and directory types, are conflicts
+    //         _ => Ok(true),
+    //     }
+    // }
+
     pub fn r_tree_has_conflict(
         &self,
-        client_node: &TreeNode,
-        server_node: &TreeNode,
-        lca_node: &TreeNode,
+        client_node: &Option<TreeNode>,
+        server_node: &Option<TreeNode>,
+        lca_node: &Option<TreeNode>,
     ) -> Result<bool, OxenError> {
-        // Base checks
-        if client_node.hash() == server_node.hash() {
-            return Ok(false); // No changes in either commit
-        }
-        if client_node.hash() == lca_node.hash() || server_node.hash() == lca_node.hash() {
-            return Ok(false); // Changes in only one commit since LCA
-        }
-
+        // All 3 are present
         match (client_node, server_node, lca_node) {
-            (
-                TreeNode::Directory {
-                    children: client_children,
-                    ..
-                },
-                TreeNode::Directory {
-                    children: server_children,
-                    ..
-                },
-                TreeNode::Directory {
-                    children: _lca_children,
-                    ..
-                },
-            ) => {
-                let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
-                for client_child in client_children {
-                    visited_paths.insert(client_child.path());
-                    // We know there's a client child bc we're iterating over it - unsure for server or lca.
-                    let client_child: TreeNode =
-                        self.client_reader.get_entry(client_child.path())?.unwrap();
-                    let server_child: Option<TreeNode> =
-                        self.server_reader.get_entry(client_child.path())?;
-                    let lca_child: Option<TreeNode> =
-                        self.lca_reader.get_entry(client_child.path())?;
+            (Some(client_node), Some(server_node), Some(lca_node)) => {
+                if client_node.hash() == server_node.hash() {
+                    return Ok(false); // No changes in either head commit
+                }
 
-                    // Addition on client
-                    if server_child.is_none() && lca_child.is_none() {
-                        return Ok(false);
-                    }
+                if client_node.hash() == lca_node.hash() || server_node.hash() == lca_node.hash() {
+                    return Ok(false); // Changes in only one head commit
+                }
 
-                    // Deletion on server
-                    if let Some(ref lca_child) = lca_child {
-                        if server_child.is_none() {
-                            // Deleted on server, unchanged on client.
-                            if lca_child.hash() == client_child.hash() {
-                                return Ok(false);
-                            } else {
-                                // Deleted on server, changed on client == conflict
+                // We have a hash conflict: if all are directories, recurse down on chidlren. Otherwise, conflict.
+                // TODO: we could get more granular here and check if, ex., client + server are dirs but lca is file.
+                // biasing towards safety to start
+                match (client_node, server_node, lca_node) {
+                    (
+                        TreeNode::Directory {
+                            children: client_children,
+                            ..
+                        },
+                        TreeNode::Directory {
+                            children: server_children,
+                            ..
+                        },
+                        TreeNode::Directory {
+                            children: _lca_children,
+                            ..
+                        },
+                    ) => {
+                        // Recurse down on children
+                        let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
+                        for child in client_children {
+                            visited_paths.insert(child.path());
+                            let client_child: Option<TreeNode> =
+                                self.client_reader.get_entry(child.path())?;
+                            let server_child: Option<TreeNode> =
+                                self.server_reader.get_entry(child.path())?;
+                            let lca_child: Option<TreeNode> =
+                                self.lca_reader.get_entry(child.path())?;
+
+                            if self.r_tree_has_conflict(&client_child, &server_child, &lca_child)? {
                                 return Ok(true);
                             }
                         }
+                        // Check for deletion on client + modification on server - conflict
+                        for child in server_children {
+                            if !visited_paths.contains(child.path()) {
+                                // If it's not in the LCA OR client child, no conflict
+                                let maybe_lca_node: Option<TreeNode> =
+                                    self.lca_reader.get_entry(child.path())?;
+                                if let Some(lca_node) = maybe_lca_node {
+                                    // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict.
+                                    if lca_node.hash() != child.hash() {
+                                        return Ok(true);
+                                    }
+                                }
+                            }
+                        }
+                        // If neither loop runs, then server_children = client_children = None
+                        // (this case is covered by hash checks, but the compiler doesn't know that)
+                        Ok(false)
                     }
-
-                    if self.r_tree_has_conflict(
-                        &client_child,
-                        &server_child.unwrap(),
-                        &lca_child.unwrap(),
-                    )? {
-                        return Ok(true);
+                    (_, _, _) => {
+                        Ok(true) // If at least one of these is a file, merge conflict (for now)
                     }
                 }
+            }
+            (Some(client_node), Some(server_node), None) => {
+                // Missing LCA node - node is new to both commits
+                if client_node.hash() == server_node.hash() {
+                    Ok(false) // Duplicate addition between two commits. No conflict
+                } else {
+                    match (client_node, server_node) {
+                        (
+                            TreeNode::Directory {
+                                children: client_children,
+                                ..
+                            },
+                            TreeNode::Directory { .. },
+                        ) => {
+                            // Recurse down on children
+                            let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
+                            for child in client_children {
+                                visited_paths.insert(child.path());
+                                let client_child: Option<TreeNode> =
+                                    self.client_reader.get_entry(child.path())?;
+                                let server_child: Option<TreeNode> =
+                                    self.server_reader.get_entry(child.path())?;
+                                let lca_child: Option<TreeNode> = Option::None;
 
-                // Check for deletion on client + modification on server - conflict
-                for server_child in server_children {
-                    if !visited_paths.contains(server_child.path()) {
-                        // If it's not in the LCA OR client child, no conflict
-                        let maybe_lca_node: Option<TreeNode> =
-                            self.lca_reader.get_entry(server_child.path())?;
-                        if let Some(lca_node) = maybe_lca_node {
-                            // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict.
-                            if lca_node.hash() != server_child.hash() {
-                                return Ok(true);
+                                if self.r_tree_has_conflict(
+                                    &client_child,
+                                    &server_child,
+                                    &lca_child,
+                                )? {
+                                    return Ok(true);
+                                }
                             }
+                            Ok(false)
+                        }
+                        (_, _) => {
+                            Ok(true) // If at least one of the new, differently-hashed additions is a file, merge conflict.
                         }
                     }
                 }
+            }
+            (Some(head), None, Some(lca)) | (None, Some(head), Some(lca)) => {
+                if head.hash() == lca.hash() {
+                    Ok(false)
+                } else {
+                    match (head, lca) {
+                        (
+                            TreeNode::Directory {
+                                children: head_children,
+                                ..
+                            },
+                            TreeNode::Directory { .. },
+                        ) => {
+                            // Recurse down on children
+                            let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
+                            for head_child in head_children {
+                                visited_paths.insert(head_child.path());
+                                // Client + server symmetric here
+                                let client_child: Option<TreeNode> =
+                                    self.client_reader.get_entry(head_child.path())?;
+                                let server_child: Option<TreeNode> = Option::None;
+                                let lca_child: Option<TreeNode> =
+                                    self.client_reader.get_entry(head_child.path())?;
+
+                                if self.r_tree_has_conflict(
+                                    &client_child,
+                                    &server_child,
+                                    &lca_child,
+                                )? {
+                                    return Ok(true);
+                                }
+                            }
+                            Ok(false)
+                        }
+                        (_, _) => {
+                            Ok(true) // If at least one of the new, differently-hashed additions is a file, merge conflict.
+                        }
+                    }
+                }
+            }
+            (Some(_head), None, None) | (None, Some(_head), None) => {
+                // Node is new to one commit, doesn't exist in the other or LCA. No merge conflict.
                 Ok(false)
             }
-            // For files, if we reach here, it's a conflict because they have different hashes and neither matches the LCA
-            (TreeNode::File { .. }, TreeNode::File { .. }, TreeNode::File { .. }) => Ok(true),
-
-            // Other cases, including changing between file and directory types, are conflicts
             _ => Ok(true),
         }
     }

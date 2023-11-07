@@ -273,7 +273,6 @@ pub async fn can_push(
     local_repo: &LocalRepository,
     local_head: &Commit,
 ) -> Result<bool, OxenError> {
-    log::debug!("delete in can_push()");
     // Before we do this, need to ensure that we are working in the same repo
     // If we don't, downloading the commits db in the next step
     // will mess up the local commit history by merging two different repos
