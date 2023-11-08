@@ -5,12 +5,13 @@
 //           * printing errors as strings
 
 use crate::cmd_setup::{
-    ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, MIGRATE_VERSION_FILES, RESTORE, RM, STATUS,
+    ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, MIGRATE_MERKLE_TREES,
+    MIGRATE_VERSION_FILES, RESTORE, RM, STATUS,
 };
 use crate::dispatch;
 use clap::ArgMatches;
-use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;
+use liboxen::command::migrate::{CreateMerkleTreesMigration, Migrate};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
@@ -1034,6 +1035,13 @@ pub async fn migrate(sub_matches: &ArgMatches) {
                         MIGRATE_VERSION_FILES => {
                             if let Err(err) =
                                 run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
+                            {
+                                eprintln!("Error running migration: {}", err);
+                            }
+                        }
+                        MIGRATE_MERKLE_TREES => {
+                            if let Err(err) =
+                                run_migration(&CreateMerkleTreesMigration, direction, sub_matches)
                             {
                                 eprintln!("Error running migration: {}", err);
                             }
