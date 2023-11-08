@@ -23,6 +23,7 @@ pub const MERGE: &str = "merge";
 pub const METADATA: &str = "metadata";
 pub const MIGRATE: &str = "migrate";
 pub const MIGRATE_VERSION_FILES: &str = "update-version-files";
+pub const MIGRATE_MERKLE_TREES: &str = "create-merkle-trees";
 pub const PULL: &str = "pull";
 pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
@@ -847,6 +848,24 @@ pub fn migrate() -> Command {
                                 )
                                 .action(clap::ArgAction::SetTrue),
                         ),
+                )
+                .subcommand(
+                    Command::new(MIGRATE_MERKLE_TREES)
+                        .about("Create merkle tree representations for each commit to speed up merge conflict detection")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
                 ),
         )
         .subcommand(
@@ -855,6 +874,24 @@ pub fn migrate() -> Command {
                 .subcommand_required(true)
                 .subcommand(
                     Command::new(MIGRATE_VERSION_FILES)
+                        .about("Create merkle tree representations for each commit to speed up merge conflict detection")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                )
+                .subcommand(
+                    Command::new(MIGRATE_MERKLE_TREES)
                         .about("Migrates version files from commit id to common prefix")
                         .arg(
                             Arg::new("PATH")
