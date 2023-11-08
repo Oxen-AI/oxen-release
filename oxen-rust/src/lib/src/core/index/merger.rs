@@ -229,6 +229,12 @@ impl Merger {
 
         let lca =
             self.lowest_common_ancestor_from_commits(&commit_reader, base_commit, merge_commit)?;
+        log::debug!(
+            "got lca {:?} for merge commit {:?} and base {:?}",
+            lca,
+            merge_commit,
+            base_commit
+        );
         let merge_commits = MergeCommits {
             lca,
             base: base_commit.to_owned(),
