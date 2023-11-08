@@ -109,15 +109,14 @@ impl EntryIndexer {
         if let Some(ref head_commit) = head_commit {
             if head_commit.id != commit.id {
                 let merger = Merger::new(&self.repository)?;
-                if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
-                    commit = merge_commit;
+                match merger.merge_commit_into_base(&commit, head_commit)? {
+                    Some(merge_commit) => {
+                        log::debug!("merge_commit: {}", merge_commit.id);
+                        commit = merge_commit;
+                    }
+                    None => return Err(OxenError::upstream_merge_conflict()),
                 }
-                log::debug!("Executing merge commit")
-            } else {
-                log::debug!("No merge commit required");
             }
-        } else {
-            log::debug!("no head commit found");
         }
 
         // Mark the new commit (merged or pulled) as synced
