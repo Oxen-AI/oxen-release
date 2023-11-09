@@ -286,62 +286,6 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    fn merkelize_schemas(&self) -> Result<(), OxenError> {
-        // Add all schemas
-        let schema_reader = SchemaReader::new(&self.repository, &self.commit.id)?;
-        let schemas = schema_reader.list_schemas()?;
-
-        if schemas.is_empty() {
-            path_db::delete(&self.tree_db, PathBuf::from(SCHEMAS_TREE_PREFIX))?;
-            if let Some(mut root) = path_db::get_entry(&self.tree_db, PathBuf::from(""))? {
-                if let TreeNode::Directory { .. } = &mut root {
-                    root.delete_child(&PathBuf::from(SCHEMAS_TREE_PREFIX))?;
-                    root.set_hash(util::hasher::compute_subtree_hash(root.children()?));
-                    path_db::put(&self.tree_db, root.path(), &root)?;
-                }
-            }
-            return Ok(());
-        }
-
-        let mut schema_children: Vec<TreeChild> = Vec::new();
-        for (path, schema) in schemas {
-            let node = TreeNode::File {
-                path: Path::new(SCHEMAS_TREE_PREFIX).join(path.clone()),
-                hash: schema.hash.clone(),
-            };
-            let child = TreeChild::File {
-                path: Path::new(SCHEMAS_TREE_PREFIX).join(path.clone()),
-                hash: schema.hash.clone(),
-            };
-
-            schema_children.push(child);
-            path_db::put(&self.tree_db, node.path(), &node)?;
-        }
-
-        // Sort lexically by path
-        schema_children.sort_by(|a, b| a.path().cmp(b.path()));
-        let schemas_hash = util::hasher::compute_subtree_hash(&schema_children);
-        let schemas_node = TreeNode::Directory {
-            path: Path::new(SCHEMAS_TREE_PREFIX).to_path_buf(),
-            children: schema_children,
-            hash: schemas_hash.clone(),
-        };
-        let schemas_child = TreeChild::Directory {
-            path: Path::new(SCHEMAS_TREE_PREFIX).to_path_buf(),
-            hash: schemas_hash,
-        };
-
-        path_db::put(&self.tree_db, schemas_node.path(), &schemas_node)?;
-
-        // Add the schemas db as a child to the root node
-        let mut root: TreeNode = path_db::get_entry(&self.tree_db, PathBuf::from(""))?.unwrap();
-        root.upsert_child(schemas_child)?;
-        root.set_hash(util::hasher::compute_subtree_hash(root.children()?));
-        path_db::put(&self.tree_db, root.path(), &root)?;
-
-        Ok(())
-    }
-
     fn group_staged_files_to_dirs(
         &self,
         files: &HashMap<PathBuf, StagedEntry>,
@@ -397,6 +341,17 @@ impl CommitEntryWriter {
         // Step 2: Parse StagedEntry paths to save time by only recomputing dirs that saw changes in this commit
         let mut dirs_to_recompute: HashSet<PathBuf> = HashSet::new();
         for (path, _entry) in staged_data.staged_files.iter() {
+            let mut current_path = PathBuf::new();
+            for component in path.iter() {
+                current_path = current_path.join(component);
+                if dir_map.contains_key(&current_path) {
+                    dirs_to_recompute.insert(current_path.clone());
+                }
+            }
+        }
+
+        // Also recomepute for staged schemas
+        for (path, _schema) in staged_data.staged_schemas.iter() {
             let mut current_path = PathBuf::new();
             for component in path.iter() {
                 current_path = current_path.join(component);
@@ -469,9 +424,24 @@ impl CommitEntryWriter {
             b_count.cmp(&a_count)
         });
 
+        let schema_reader = SchemaReader::new(&self.repository, &self.commit.id)?;
+        let schemas = schema_reader.list_schemas()?;
+
+        // Map parent dirs to schemas
+        let mut schema_map: HashMap<PathBuf, Vec<TreeChild>> = HashMap::new();
+        for (path, schema) in schemas {
+            let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+            let schema_child = TreeChild::Schema {
+                path: PathBuf::from(SCHEMAS_TREE_PREFIX).join(path.clone()),
+                hash: schema.hash.clone(),
+            };
+            schema_map.entry(parent).or_default().push(schema_child);
+        }
+
         for dir in dirs {
             let dir_entry_reader =
                 CommitDirEntryReader::new(&self.repository, &self.commit.id, dir)?;
+
             // Get all file children
             let children_entries = dir_entry_reader.list_entries()?;
             let child_entry_nodes: Vec<TreeChild> = children_entries
@@ -482,11 +452,18 @@ impl CommitEntryWriter {
                 .iter()
                 .map(CommitEntryWriter::entry_to_treenode)
                 .collect::<Vec<_>>();
+
+            // Get all schema children
+            let schema_entry_nodes: Vec<TreeChild> = match schema_map.get(dir) {
+                Some(nodes) => nodes.clone(),
+                None => Vec::new(),
+            };
+
             // Get all directory children. Since we work bottom up, these are already updated in tree
             let children_dirs = dir_map.get(dir).unwrap();
             let mut dir_entry_nodes: Vec<TreeChild> = Vec::new();
 
-            // Collect dir children as treenodes
+            // Collect dir children as treechildren
             for path in children_dirs {
                 if let Some(entry) = path_db::get_entry(&self.tree_db, path)? {
                     dir_entry_nodes.push(entry)
@@ -502,9 +479,22 @@ impl CommitEntryWriter {
                 path_db::put(&self.tree_db, file_node.path(), &file_node)?;
             }
 
+            // INsert updated schema nodes into the db
+            for schema_child in &schema_entry_nodes {
+                let schema_node = TreeNode::Schema {
+                    path: schema_child.path().to_path_buf(),
+                    hash: schema_child.hash().to_string(),
+                };
+                path_db::put(&self.tree_db, schema_node.path(), &schema_node)?;
+            }
+
             // Get a combined, lexically sorted list of all children
             let mut all_children: Vec<TreeChild> = child_entry_nodes;
             all_children.extend(dir_entry_nodes);
+            all_children.extend(schema_entry_nodes);
+
+            // Lexically sort the children
+            all_children.sort_by(|a, b| a.path().cmp(b.path()));
 
             let node_hash = util::hasher::compute_subtree_hash(&all_children);
 
@@ -522,8 +512,21 @@ impl CommitEntryWriter {
             }
         }
 
-        // After all dirs are processed, process schemas and recalculate root node
-        self.merkelize_schemas()
+        // If there's no root node in the db (if it was deleted), recreate it empty
+        // to avoid tree traversal errors on server - TODONOW - should be a better way
+
+        let maybe_root: Option<TreeNode> = path_db::get_entry(&self.tree_db, PathBuf::from(""))?;
+        if maybe_root.is_none() {
+            log::debug!("maybe_root is none!");
+            let empty_root = TreeNode::Directory {
+                path: PathBuf::from(""),
+                children: Vec::new(),
+                hash: util::hasher::compute_subtree_hash(&Vec::new()),
+            };
+            path_db::put(&self.tree_db, PathBuf::from(""), &empty_root)?;
+        }
+
+        Ok(())
     }
 
     // TODONOW delete after testing
@@ -679,7 +682,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merkle_tree_tracks_schemas() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("large_files");
             std::fs::create_dir_all(&large_dir)?;

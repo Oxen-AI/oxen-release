@@ -28,7 +28,8 @@ pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
 }
 
 pub async fn get_min_cli_version(host: &str) -> Result<String, OxenError> {
-    let url = format!("http://{host}/api/min_version");
+    let protocol = endpoint::get_protocol(host);
+    let url = format!("{protocol}://{host}/api/min_version");
     log::debug!("Checking min cli version at url {}", url);
 
     let client = client::new_for_url(&url)?;

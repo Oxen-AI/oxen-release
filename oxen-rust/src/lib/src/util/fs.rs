@@ -20,6 +20,7 @@ use crate::constants::CACHE_DIR;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
 use crate::constants::HISTORY_DIR;
+use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
@@ -159,7 +160,20 @@ pub fn version_path_from_hash_and_file(
     filename: PathBuf,
 ) -> PathBuf {
     let version_dir = version_dir_from_hash(dst, hash);
-    version_dir.join(filename)
+    let extension = extension_from_path(&filename);
+    if extension.is_empty() {
+        version_dir.join(VERSION_FILE_NAME)
+    } else {
+        version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
+    }
+}
+
+pub fn extension_from_path(path: &Path) -> String {
+    if let Some(ext) = path.extension() {
+        String::from(ext.to_str().unwrap_or(""))
+    } else {
+        String::from("")
+    }
 }
 
 pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {

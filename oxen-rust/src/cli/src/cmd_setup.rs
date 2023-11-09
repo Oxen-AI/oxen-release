@@ -1,4 +1,5 @@
 use clap::{arg, Arg, Command};
+use liboxen::command::migrate::{CreateMerkleTreesMigration, Migrate, UpdateVersionFilesMigration};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 pub const ADD: &str = "add";
@@ -22,8 +23,6 @@ pub const LS: &str = "ls";
 pub const MERGE: &str = "merge";
 pub const METADATA: &str = "metadata";
 pub const MIGRATE: &str = "migrate";
-pub const MIGRATE_VERSION_FILES: &str = "update-version-files";
-pub const MIGRATE_MERKLE_TREES: &str = "create-merkle-trees";
 pub const PULL: &str = "pull";
 pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
@@ -832,7 +831,7 @@ pub fn migrate() -> Command {
                 .about("Apply a named migration forward.")
                 .subcommand_required(true)
                 .subcommand(
-                    Command::new(MIGRATE_VERSION_FILES)
+                    Command::new(UpdateVersionFilesMigration.name())
                         .about("Migrates version files from commit id to common prefix")
                         .arg(
                             Arg::new("PATH")
@@ -850,7 +849,7 @@ pub fn migrate() -> Command {
                         ),
                 )
                 .subcommand(
-                    Command::new(MIGRATE_MERKLE_TREES)
+                    Command::new(CreateMerkleTreesMigration.name())
                         .about("Create merkle tree representations for each commit to speed up merge conflict detection")
                         .arg(
                             Arg::new("PATH")
@@ -873,7 +872,7 @@ pub fn migrate() -> Command {
                 .about("Apply a named migration backward.")
                 .subcommand_required(true)
                 .subcommand(
-                    Command::new(MIGRATE_VERSION_FILES)
+                    Command::new(CreateMerkleTreesMigration.name())
                         .about("Create merkle tree representations for each commit to speed up merge conflict detection")
                         .arg(
                             Arg::new("PATH")
@@ -891,7 +890,7 @@ pub fn migrate() -> Command {
                         ),
                 )
                 .subcommand(
-                    Command::new(MIGRATE_MERKLE_TREES)
+                    Command::new(UpdateVersionFilesMigration.name())
                         .about("Migrates version files from commit id to common prefix")
                         .arg(
                             Arg::new("PATH")

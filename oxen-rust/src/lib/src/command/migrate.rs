@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use jwalk::WalkDir;
 
+use crate::constants;
 use crate::constants::{HASH_FILE, HISTORY_DIR, TREE_DIR, VERSIONS_DIR, VERSION_FILE_NAME};
 use crate::core::index::{CommitEntryReader, CommitReader};
 use crate::error::OxenError;
@@ -15,12 +16,20 @@ use crate::{api, util};
 pub trait Migrate {
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError>;
     fn down(&self, path: &Path, all: bool) -> Result<(), OxenError>;
+    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError>;
+
+    fn name(&self) -> &'static str;
 }
 
 pub struct UpdateVersionFilesMigration;
+impl UpdateVersionFilesMigration {}
 pub struct CreateMerkleTreesMigration;
+impl CreateMerkleTreesMigration {}
 
 impl Migrate for CreateMerkleTreesMigration {
+    fn name(&self) -> &'static str {
+        "create_merkle_trees"
+    }
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             create_merkle_trees_for_all_repos_up(path)?;
@@ -40,9 +49,30 @@ impl Migrate for CreateMerkleTreesMigration {
         }
         Ok(())
     }
+    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+        let history_dir = repo
+            .path
+            .join(constants::OXEN_HIDDEN_DIR)
+            .join(constants::HISTORY_DIR);
+        // Every top-level directory in history dir should have a subdirectory "tree"
+        for entry in WalkDir::new(history_dir).min_depth(1).max_depth(1) {
+            let entry = entry?;
+            if entry.file_type().is_dir() {
+                let path = entry.path();
+                let tree_dir = path.join(constants::TREE_DIR);
+                if !tree_dir.exists() {
+                    return Ok(true);
+                }
+            }
+        }
+        Ok(false)
+    }
 }
 
 impl Migrate for UpdateVersionFilesMigration {
+    fn name(&self) -> &'static str {
+        "update_version_files"
+    }
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             update_version_files_for_all_repos_up(path)?;
@@ -62,6 +92,36 @@ impl Migrate for UpdateVersionFilesMigration {
             update_version_files_down(&repo)?;
         }
         Ok(())
+    }
+
+    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+        let versions_dir = repo
+            .path
+            .join(constants::OXEN_HIDDEN_DIR)
+            .join(constants::VERSIONS_DIR);
+        if !versions_dir.exists() {
+            return Ok(false);
+        }
+        for entry in WalkDir::new(&versions_dir) {
+            let entry = entry?;
+            if entry.file_type().is_file() {
+                let path = entry.path();
+                let filename = match path.file_name() {
+                    Some(filename) => filename.to_string_lossy().to_string(),
+                    None => continue,
+                };
+
+                if filename.starts_with(constants::HASH_FILE) {
+                    continue;
+                }
+
+                if filename.starts_with(constants::VERSION_FILE_NAME) {
+                    return Ok(false);
+                }
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 
@@ -123,6 +183,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Get all commits in repo, then construct merkle tree for each commit
     let reader = CommitReader::new(repo)?;
     let all_commits = reader.list_all()?;
+    let bar = oxen_progress_bar(all_commits.len() as u64, ProgressBarType::Counter);
     for commit in all_commits {
         match api::local::commits::construct_commit_merkle_tree(repo, &commit) {
             Ok(_) => {}
@@ -134,6 +195,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
                 )
             }
         }
+        bar.inc(1);
     }
     Ok(())
 }
