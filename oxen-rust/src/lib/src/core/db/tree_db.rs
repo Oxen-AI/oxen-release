@@ -42,9 +42,13 @@ impl<T: ThreadMode> TreeDB<T> {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeNode {
     File {
+        path: PathBuf,
+        hash: String,
+    },
+    Schema {
         path: PathBuf,
         hash: String,
     },
@@ -69,6 +73,7 @@ impl TreeNode {
     pub fn path(&self) -> &PathBuf {
         match self {
             TreeNode::File { path, .. } => path,
+            TreeNode::Schema { path, .. } => path,
             TreeNode::Directory { path, .. } => path,
         }
     }
@@ -76,6 +81,7 @@ impl TreeNode {
     pub fn set_path(&mut self, new_path: PathBuf) {
         match self {
             TreeNode::File { path, .. } => *path = new_path,
+            TreeNode::Schema { path, .. } => *path = new_path,
             TreeNode::Directory { path, .. } => *path = new_path,
         }
     }
@@ -83,6 +89,7 @@ impl TreeNode {
     pub fn hash(&self) -> &String {
         match self {
             TreeNode::File { hash, .. } => hash,
+            TreeNode::Schema { hash, .. } => hash,
             TreeNode::Directory { hash, .. } => hash,
         }
     }
@@ -95,15 +102,21 @@ impl TreeNode {
             TreeNode::Directory { hash, .. } => {
                 *hash = new_hash;
             }
+            TreeNode::Schema { hash, .. } => {
+                *hash = new_hash;
+            }
         }
     }
 
     pub fn children(&self) -> Result<&Vec<TreeChild>, OxenError> {
         match self {
+            TreeNode::Directory { children, .. } => Ok(children),
+            TreeNode::Schema { .. } => Err(OxenError::basic_str(
+                "Node is Schema type, cannot have children",
+            )),
             TreeNode::File { .. } => Err(OxenError::basic_str(
                 "Node is File type, cannot have children",
             )),
-            TreeNode::Directory { children, .. } => Ok(children),
         }
     }
 
@@ -113,6 +126,9 @@ impl TreeNode {
         match self {
             TreeNode::File { .. } => Err(OxenError::basic_str(
                 "Node is File type, cannot have children",
+            )),
+            TreeNode::Schema { .. } => Err(OxenError::basic_str(
+                "Node is Schema type, cannot have children",
             )),
             TreeNode::Directory { children, .. } => {
                 let path_to_find = child.path();
@@ -138,6 +154,9 @@ impl TreeNode {
             TreeNode::File { .. } => Err(OxenError::basic_str(
                 "Node is File type, cannot have children",
             )),
+            TreeNode::Schema { .. } => Err(OxenError::basic_str(
+                "Node is Schema type, cannot have children",
+            )),
             TreeNode::Directory { children, .. } => {
                 // Search for child by path
                 match children.binary_search_by(|probe| {
@@ -155,9 +174,10 @@ impl TreeNode {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeChild {
     File { path: PathBuf, hash: String },
+    Schema { path: PathBuf, hash: String },
     Directory { path: PathBuf, hash: String },
 }
 
@@ -165,6 +185,7 @@ impl TreeChild {
     pub fn path(&self) -> &PathBuf {
         match self {
             TreeChild::File { path, .. } => path,
+            TreeChild::Schema { path, .. } => path,
             TreeChild::Directory { path, .. } => path,
         }
     }
@@ -172,6 +193,7 @@ impl TreeChild {
     pub fn hash(&self) -> &String {
         match self {
             TreeChild::File { hash, .. } => hash,
+            TreeChild::Schema { hash, .. } => hash,
             TreeChild::Directory { hash, .. } => hash,
         }
     }

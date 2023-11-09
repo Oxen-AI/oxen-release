@@ -7,6 +7,7 @@ use derive_more::{Display, Error};
 use std::fmt::Debug;
 use std::io;
 use std::path::Path;
+use std::path::StripPrefixError;
 
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
@@ -77,6 +78,9 @@ pub enum OxenError {
 
     // CLI Interaction
     OperationCancelled(StringError),
+
+    // fs / io
+    StripPrefixError(StringError),
 
     // External Library Errors
     IO(io::Error),
@@ -542,5 +546,11 @@ impl From<std::env::VarError> for OxenError {
 impl From<std::num::ParseIntError> for OxenError {
     fn from(_: std::num::ParseIntError) -> Self {
         OxenError::basic_str("Failed to parse version component")
+    }
+}
+
+impl From<StripPrefixError> for OxenError {
+    fn from(error: StripPrefixError) -> Self {
+        OxenError::basic_str(format!("Error stripping prefix: {}", error))
     }
 }

@@ -1,6 +1,7 @@
-use jwalk::WalkDir;
 use liboxen::api;
 use liboxen::command;
+use liboxen::command::migrate::Migrate;
+use liboxen::command::migrate::{CreateMerkleTreesMigration, UpdateVersionFilesMigration};
 use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
@@ -93,47 +94,35 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
     Ok(())
 }
 
-fn version_files_out_of_date(repo: &LocalRepository) -> Result<bool, OxenError> {
-    let versions_dir = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::VERSIONS_DIR);
-    if !versions_dir.exists() {
-        return Ok(false);
-    }
-    for entry in WalkDir::new(&versions_dir) {
-        let entry = entry?;
-        if entry.file_type().is_file() {
-            let path = entry.path();
-            let filename = match path.file_name() {
-                Some(filename) => filename.to_string_lossy().to_string(),
-                None => continue,
-            };
+pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
+    let migrations: Vec<Box<dyn Migrate>> = vec![
+        Box::new(UpdateVersionFilesMigration),
+        Box::new(CreateMerkleTreesMigration),
+    ];
 
-            if filename.starts_with(constants::HASH_FILE) {
-                continue;
-            }
+    let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
 
-            if filename.starts_with(constants::VERSION_FILE_NAME) {
-                return Ok(false);
-            }
-            return Ok(true);
+    for migration in migrations {
+        if migration.is_needed(repo)? {
+            migrations_needed.push(migration);
         }
     }
-    Ok(false)
-}
 
-pub fn check_versions_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
-    let migration_needed = version_files_out_of_date(repo)?;
-
-    if migration_needed {
-        let warning = "Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate up update-version-files .` to migrate.\n".to_string().yellow();
-        eprintln!("{warning}");
-        return Err(OxenError::MigrationRequired(
-            "Error: Migration required".to_string().into(),
-        ));
+    if migrations_needed.is_empty() {
+        return Ok(());
     }
-    Ok(())
+    let warning = "\nWarning: 🐂 This repo requires a quick migration to the latest Oxen version. \n\nPlease run the following to update:".to_string().yellow();
+    eprintln!("{warning}\n\n");
+    for migration in migrations_needed {
+        eprintln!(
+            "{}",
+            format!("oxen migrate up {} .\n", migration.name()).yellow()
+        );
+    }
+    eprintln!("\n");
+    Err(OxenError::MigrationRequired(
+        "Error: Migration required".to_string().into(),
+    ))
 }
 
 pub async fn init(path: &str) -> Result<(), OxenError> {
@@ -439,7 +428,7 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    check_versions_migration_needed(&repository)?;
+    check_repo_migration_needed(&repository)?;
     if opts.is_remote {
         command::remote::restore(&repository, opts).await?;
     } else {
@@ -454,7 +443,7 @@ pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let host = get_host_from_repo(&repository)?;
 
-    check_versions_migration_needed(&repository)?;
+    check_repo_migration_needed(&repository)?;
     check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
@@ -467,7 +456,7 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repository)?;
-    check_versions_migration_needed(&repository)?;
+    check_repo_migration_needed(&repository)?;
     check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch, all).await?;
