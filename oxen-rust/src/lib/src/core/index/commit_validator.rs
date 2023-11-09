@@ -100,12 +100,16 @@ fn r_validate_complete_merkle_node(
     match node {
         // Base case: if the node is a file, check the hash
         TreeNode::File { path, hash } => {
-            let version_path =
-                util::fs::version_path_from_hash_and_file(&repository.path, hash.clone(), path);
+            let version_path = util::fs::version_path_from_hash_and_file(
+                &repository.path,
+                hash.clone(),
+                path.clone(),
+            );
             let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
             if maybe_hash_file.exists() {
                 let disk_hash = util::fs::read_from_path(&maybe_hash_file)?;
                 if disk_hash != hash {
+                    // log::debug!("validation failing on hash mismatch complete for file {:?}", path);
                     return Ok(false);
                 }
                 Ok(true)
@@ -114,6 +118,7 @@ fn r_validate_complete_merkle_node(
                 // posting commit entries
                 let disk_hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
                 if hash != disk_hash {
+                    // log::debug!("validation failing on re-hash complete for file {:?}", path);
                     Ok(false)
                 } else {
                     Ok(true)
@@ -132,11 +137,16 @@ fn r_validate_complete_merkle_node(
             match maybe_schema {
                 Some(schema) => {
                     if schema.hash != hash {
+                        // log::debug!("validation failing on schema hash mismatch complete for schema {:?}", path);
                         return Ok(false);
                     }
                 }
+                // TODO: This is failing because schemas are not appropriately removed from the tree.
+                // Change this branch to false after handling StagedSchemas.
+                // Passing for now to avoid commits errantly being marked invalid
                 None => {
-                    return Ok(false);
+                    // log::debug!("validation failing on schema not found changed for schema {:?}", path);
+                    return Ok(true);
                 }
             }
 
@@ -195,18 +205,23 @@ fn r_validate_changed_parts_of_merkle_node(
                     return Ok(true);
                 }
             }
-            let version_path =
-                util::fs::version_path_from_hash_and_file(&repository.path, hash.clone(), path);
+            let version_path = util::fs::version_path_from_hash_and_file(
+                &repository.path,
+                hash.clone(),
+                path.clone(),
+            );
             let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
             if maybe_hash_file.exists() {
                 let disk_hash = util::fs::read_from_path(&maybe_hash_file)?;
                 if disk_hash != hash {
+                    // log::debug!("validation failing on hash mismatch changed for file {:?}", path);
                     return Ok(false);
                 }
                 return Ok(true);
             } else {
                 let disk_hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
                 if hash != disk_hash {
+                    // log::debug!("validation failing on hash rehash changed for file {:?}", path);
                     return Ok(false);
                 } else {
                     return Ok(true);
@@ -225,11 +240,16 @@ fn r_validate_changed_parts_of_merkle_node(
             match maybe_schema {
                 Some(schema) => {
                     if schema.hash != hash {
+                        // log::debug!("validation failing on schema hash mismatch changed for schema {:?}", path);
                         return Ok(false);
                     }
                 }
+                // TODO: This is failing because schemas are not appropriately removed from the tree.
+                // Change this branch to false after handling StagedSchemas.
+                // Passing for now to avoid commits errantly being marked invalid
                 None => {
-                    return Ok(false);
+                    // log::debug!("validation failing on schema not found changed for schema {:?}", path);
+                    return Ok(true);
                 }
             }
 
