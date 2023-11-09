@@ -1,6 +1,8 @@
+use liboxen::api;
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::test;
+use liboxen::util;
 
 use std::path::Path;
 
@@ -85,6 +87,71 @@ fn test_stage_and_commit_schema() -> Result<(), OxenError> {
             assert_eq!(schema.fields[5].name, "height");
             assert_eq!(schema.fields[5].dtype, "i64");
         }
+
+        Ok(())
+    })
+}
+
+#[test]
+fn test_copy_schemas_from_parent() -> Result<(), OxenError> {
+    test::run_training_data_repo_test_no_commits(|repo| {
+        // Make sure no schemas are staged
+        let status = command::status(&repo)?;
+        assert_eq!(status.staged_schemas.len(), 0);
+
+        // Make sure no schemas are committed
+        let schemas = command::schemas::list(&repo, None)?;
+        assert_eq!(schemas.len(), 0);
+
+        // Schema should be staged when added
+        let bbox_filename = Path::new("annotations")
+            .join("train")
+            .join("bounding_box.csv");
+        let bbox_file = repo.path.join(&bbox_filename);
+        command::add(&repo, bbox_file)?;
+
+        // Make sure it is staged
+        let status = command::status(&repo)?;
+        assert_eq!(status.staged_schemas.len(), 1);
+        for (path, schema) in status.staged_schemas.iter() {
+            println!("GOT SCHEMA {path:?} -> {schema:?}");
+        }
+
+        // name the schema when staged
+        let schema_ref = "b821946753334c083124fd563377d795";
+        let schema_name = "bounding_box";
+        command::schemas::set_name(&repo, schema_ref, schema_name)?;
+
+        // Schema should be committed after commit
+        command::commit(&repo, "Adding bounding box schema")?;
+
+        // Write a new commit that is modifies any file
+        let readme_filename = Path::new("README.md");
+        let readme_file = repo.path.join(readme_filename);
+        util::fs::write(&readme_file, "Changing the README")?;
+        command::add(&repo, readme_file)?;
+        let commit = command::commit(&repo, "Changing the README")?;
+
+        // Fetch schema from HEAD commit, it should still be there in all it's glory
+        let maybe_schema =
+            api::local::schemas::get_by_path_from_ref(&repo, commit.id, &bbox_filename)?;
+        assert!(maybe_schema.is_some());
+
+        let schema = maybe_schema.unwrap();
+        assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
+        assert_eq!(schema.fields.len(), 6);
+        assert_eq!(schema.fields[0].name, "file");
+        assert_eq!(schema.fields[0].dtype, "str");
+        assert_eq!(schema.fields[1].name, "label");
+        assert_eq!(schema.fields[1].dtype, "str");
+        assert_eq!(schema.fields[2].name, "min_x");
+        assert_eq!(schema.fields[2].dtype, "f64");
+        assert_eq!(schema.fields[3].name, "min_y");
+        assert_eq!(schema.fields[3].dtype, "f64");
+        assert_eq!(schema.fields[4].name, "width");
+        assert_eq!(schema.fields[4].dtype, "i64");
+        assert_eq!(schema.fields[5].name, "height");
+        assert_eq!(schema.fields[5].dtype, "i64");
 
         Ok(())
     })

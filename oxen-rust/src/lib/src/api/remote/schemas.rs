@@ -7,7 +7,8 @@ use std::path::Path;
 
 use crate::api;
 use crate::error::OxenError;
-use crate::model::{RemoteRepository, Schema};
+use crate::model::RemoteRepository;
+use crate::view::schema::SchemaWithPath;
 use crate::view::ListSchemaResponse;
 
 use super::client;
@@ -15,7 +16,7 @@ use super::client;
 pub async fn list(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
-) -> Result<Vec<Schema>, OxenError> {
+) -> Result<Vec<SchemaWithPath>, OxenError> {
     let revision = revision.as_ref();
 
     let uri = format!("/schemas/{revision}");
@@ -49,7 +50,7 @@ pub async fn get(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
-) -> Result<Option<Schema>, OxenError> {
+) -> Result<Option<SchemaWithPath>, OxenError> {
     let revision = revision.as_ref();
     let path = path.as_ref();
 
@@ -130,7 +131,7 @@ mod tests {
             assert_eq!(schemas.len(), 1);
 
             // prompt,response,is_correct,response_time,difficulty
-            let schema = &schemas[0];
+            let schema = &schemas[0].schema;
             assert_eq!(schema.fields.len(), 5);
             assert_eq!(schema.fields[0].name, "prompt");
             assert_eq!(schema.fields[0].dtype, "str");
@@ -211,7 +212,7 @@ mod tests {
                     .await?;
 
             assert!(schema.is_some());
-            let schema = schema.unwrap();
+            let schema = schema.unwrap().schema;
 
             // prompt,response,is_correct,response_time,difficulty
             assert_eq!(schema.fields.len(), 5);
@@ -304,7 +305,7 @@ mod tests {
                 api::remote::schemas::get(&remote_repo, branch_name, "csvs/test.csv").await?;
 
             assert!(schema.is_some());
-            let schema = schema.unwrap();
+            let schema = schema.unwrap().schema;
 
             // prompt,response,is_correct,response_time,difficulty
             assert_eq!(schema.fields.len(), 5);
