@@ -3,7 +3,7 @@ use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREF
 use crate::core::db;
 use crate::core::db::tree_db::{TreeChild, TreeNode};
 use crate::core::db::{kv_db, path_db};
-use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaWriter};
+use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::schema::Schema;
 use crate::model::{
@@ -97,8 +97,19 @@ impl CommitEntryWriter {
                 parent_commit.message
             );
 
+            // Copy parent entries
             let reader = CommitEntryReader::new(repo, &parent_commit)?;
             self.write_entries_from_reader(&reader)?;
+
+            // Copy parent schemas
+            let schemas = {
+                let schema_reader = SchemaReader::new(repo, &parent_commit.id)?;
+                schema_reader.list_schemas()?
+            };
+            let schema_writer = SchemaWriter::new(repo, &self.commit.id)?;
+            for (path, schema) in schemas {
+                schema_writer.put_schema_for_file(&path, &schema)?;
+            }
         }
 
         Ok(())
