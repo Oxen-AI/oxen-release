@@ -886,7 +886,7 @@ async fn upload_large_file_chunks(
         // let queue = Arc::new(TaskQueue::new(sub_buffers.len()));
         // let finished_queue = Arc::new(FinishedTaskQueue::new(sub_buffers.len()));
         let mut tasks: Vec<PieceOfWork> = Vec::new();
-        for (_, buffer) in sub_buffers.iter().enumerate() {
+        for buffer in sub_buffers.iter() {
             tasks.push((
                 buffer.to_owned(),
                 chunk_size,
