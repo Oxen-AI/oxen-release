@@ -3,9 +3,11 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::path::PathBuf;
 
-use crate::model::{MergeConflict, StagedEntry, StagedEntryStatus, SummarizedStagedDirStats};
+use crate::model::{
+    MergeConflict, StagedEntry, StagedEntryStatus, StagedSchema, SummarizedStagedDirStats,
+};
 
-use super::Schema;
+use super::schema::staged_schema::StagedSchemaStatus;
 
 pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
 pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
@@ -59,7 +61,7 @@ impl fmt::Display for StagedData {
 pub struct StagedData {
     pub staged_dirs: SummarizedStagedDirStats,
     pub staged_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
-    pub staged_schemas: HashMap<PathBuf, Schema>,    // All the staged entries will be in here
+    pub staged_schemas: HashMap<PathBuf, StagedSchema>, // All the staged entries will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -344,22 +346,43 @@ impl StagedData {
         outputs.push("Schemas to be committed\n".normal());
         outputs.push(MSG_OXEN_SHOW_SCHEMA_STAGED.normal());
 
-        let mut files_vec: Vec<(&PathBuf, &Schema)> = self.staged_schemas.iter().collect();
+        let mut files_vec: Vec<(&PathBuf, &StagedSchema)> = self.staged_schemas.iter().collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
-            |(path, schema)| {
-                let schema_ref = if let Some(name) = &schema.name {
+            |(path, staged_schema)| {
+                let schema_ref = if let Some(name) = &staged_schema.schema.name {
                     name
                 } else {
-                    &schema.hash
+                    &staged_schema.schema.hash
                 };
-                vec![
-                    "  detected schema: ".green(),
-                    format!("{} {}\n", path.to_str().unwrap(), schema_ref)
-                        .green()
-                        .bold(),
-                ]
+
+                match staged_schema.status {
+                    StagedSchemaStatus::Removed => {
+                        vec![
+                            "  removed schema: ".green(),
+                            format!("{} {}\n", path.to_str().unwrap(), schema_ref)
+                                .green()
+                                .bold(),
+                        ]
+                    }
+                    StagedSchemaStatus::Modified => {
+                        vec![
+                            "  modified schema: ".green(),
+                            format!("{} {}\n", path.to_str().unwrap(), schema_ref)
+                                .green()
+                                .bold(),
+                        ]
+                    }
+                    StagedSchemaStatus::Added => {
+                        vec![
+                            "  new schema: ".green(),
+                            format!("{} {}\n", path.to_str().unwrap(), schema_ref)
+                                .green()
+                                .bold(),
+                        ]
+                    }
+                }
             },
             outputs,
             opts,

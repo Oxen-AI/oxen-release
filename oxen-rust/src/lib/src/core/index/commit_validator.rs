@@ -137,16 +137,11 @@ fn r_validate_complete_merkle_node(
             match maybe_schema {
                 Some(schema) => {
                     if schema.hash != hash {
-                        // log::debug!("validation failing on schema hash mismatch complete for schema {:?}", path);
                         return Ok(false);
                     }
                 }
-                // TODO: This is failing because schemas are not appropriately removed from the tree.
-                // Change this branch to false after handling StagedSchemas.
-                // Passing for now to avoid commits errantly being marked invalid
                 None => {
-                    // log::debug!("validation failing on schema not found changed for schema {:?}", path);
-                    return Ok(true);
+                    return Ok(false);
                 }
             }
 
@@ -240,16 +235,11 @@ fn r_validate_changed_parts_of_merkle_node(
             match maybe_schema {
                 Some(schema) => {
                     if schema.hash != hash {
-                        // log::debug!("validation failing on schema hash mismatch changed for schema {:?}", path);
                         return Ok(false);
                     }
                 }
-                // TODO: This is failing because schemas are not appropriately removed from the tree.
-                // Change this branch to false after handling StagedSchemas.
-                // Passing for now to avoid commits errantly being marked invalid
                 None => {
-                    // log::debug!("validation failing on schema not found changed for schema {:?}", path);
-                    return Ok(true);
+                    return Ok(false);
                 }
             }
 

@@ -406,9 +406,18 @@ mod tests {
             });
             let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
             let schema_ref = bbox_file.to_string_lossy();
+            log::debug!("about to add");
             command::add(&repo, &bbox_path)?;
-            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
+            log::debug!("successfully added");
 
+            let status = command::status(&repo)?;
+            log::debug!(
+                "here's the status after adding schema: {:?}",
+                status.staged_schemas
+            );
+
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
+            log::debug!("metadata added");
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
             assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
