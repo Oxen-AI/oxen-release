@@ -115,11 +115,9 @@ impl SchemaReader {
         let schema_ref = schema_ref.as_ref();
         // This is a map of paths to schema hashes
         let paths_to_hashes: HashMap<String, String> = str_val_db::hash_map(&self.schema_files_db)?;
-        log::debug!("hello paths_to_hashes {:?}", paths_to_hashes);
 
         // This is a map of hashes to schemas
         let hash_to_schemas: HashMap<String, Schema> = str_json_db::hash_map(&self.schema_db)?;
-        log::debug!("hello hash_to_schemas {:?}", hash_to_schemas);
 
         // For each path, get the schema
         let path_vals: HashMap<PathBuf, Schema> = paths_to_hashes
@@ -132,7 +130,6 @@ impl SchemaReader {
             })
             .collect();
 
-        log::debug!("hello path_vals {:?}", path_vals);
         Ok(path_vals)
     }
 }

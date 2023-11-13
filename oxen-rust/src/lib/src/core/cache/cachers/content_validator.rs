@@ -22,7 +22,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         api::local::commits::construct_commit_merkle_tree(repo, commit)?;
     }
 
-    // Keeping this in for short-term debugging purposes, will fix this after schemas are fixed
     let tree_is_valid = commit_validator::validate_tree_hash(repo, commit)?;
 
     if tree_is_valid {

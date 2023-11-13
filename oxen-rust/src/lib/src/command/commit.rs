@@ -40,7 +40,6 @@ use crate::model::{Commit, LocalRepository};
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     let status = command::status(repo)?;
-    log::debug!("here's our stageddata...{:?}", status.staged_schemas);
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
         return Err(OxenError::NothingToCommit(
             error::string_error::StringError::new(
