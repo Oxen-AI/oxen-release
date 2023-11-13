@@ -398,8 +398,6 @@ impl CommitEntryWriter {
                     schema_tree_path
                 );
                 path_db::delete(&self.tree_db, schema_tree_path)?;
-                log::debug!("tree status after alleged successful deletion");
-                self.temp_print_tree_db();
                 let parent = path.parent().unwrap().to_path_buf();
                 if !dir_map.contains_key(&parent) {
                     path_db::delete(&self.tree_db, &parent)?;

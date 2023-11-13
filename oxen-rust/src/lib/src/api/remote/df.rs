@@ -69,7 +69,6 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             command::add(&local_repo, &csv_file)?;
-            log::debug!("about to add first commit");
             command::commit(&local_repo, "add test.csv")?;
 
             // Add some metadata to the schema
@@ -102,18 +101,14 @@ mod tests {
             let column_metadata = json!({
                 "root": "images"
             });
-            log::debug!("about to add column metadata");
             command::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
                 &column_name,
                 &column_metadata,
             )?;
-            log::debug!("about to add schema metadata");
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
-            log::debug!("about to add second commit");
             command::commit(&local_repo, "add test.csv schema metadata")?;
-            log::debug!("added second commit");
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());

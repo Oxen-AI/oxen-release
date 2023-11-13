@@ -1121,9 +1121,7 @@ impl Stager {
         new_schema: &schema::Schema,
     ) -> Result<schema::Schema, OxenError> {
         let path = path.as_ref();
-        log::debug!("trying to get existing schema");
         let maybe_schema = self.maybe_get_existing_schema(path)?;
-        log::debug!("got existing schema");
         if let Some(mut schema) = maybe_schema {
             log::debug!(
                 "update_schema_field_dtype_overrides found schema for path {:?}\n{}",
