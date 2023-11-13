@@ -10,11 +10,14 @@ use crate::core::db::path_db;
 use crate::core::db::{self, str_json_db};
 use crate::core::df::tabular;
 use crate::core::index::oxenignore;
+use crate::core::index::SchemaReader;
 use crate::core::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, MergeConflictReader, Merger,
     StagedDirEntryDB,
 };
 use crate::error::OxenError;
+use crate::model::schema::staged_schema::StagedSchema;
+use crate::model::schema::staged_schema::StagedSchemaStatus;
 use crate::opts::DFOpts;
 
 use crate::model::schema;
@@ -260,7 +263,7 @@ impl Stager {
         staged_data.merge_conflicts = self.list_merge_conflicts()?;
 
         // Populate schemas from db
-        let mut schemas: HashMap<PathBuf, schema::Schema> = HashMap::new();
+        let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
             schemas.insert(path, schema);
         }
@@ -556,12 +559,25 @@ impl Stager {
 
             // add parent to staged dir db
             let short_path = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
-            log::debug!(
-                "about to put {:?} as removed into db {:?}",
-                short_path,
-                self.dir_db
-            );
             path_db::put(&self.dir_db, short_path, &StagedEntryStatus::Removed)?;
+            // Also add as removed to staged schema db
+            if util::fs::is_tabular(path) {
+                // Get schema for this file
+                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
+                let schema = schema_reader.get_schema_for_file(path)?;
+                if let Some(schema) = schema {
+                    let staged_schema = StagedSchema {
+                        status: StagedSchemaStatus::Removed,
+                        schema,
+                    };
+                    path_db::put(&self.schemas_db, path, &staged_schema)?;
+                }
+
+                log::debug!(
+                    "remove_staged_file {:?} is tabular, adding StagedSchema as removed",
+                    path
+                );
+            }
 
             staged_dir_db.add_removed_file(filename, entry)
         } else {
@@ -860,7 +876,7 @@ impl Stager {
         log::debug!("--- START OXEN ADD {:?} ---", path);
         let relative = self.add_staged_entry(path, entry_reader)?;
 
-        // We should tracking changes to this parent dir too
+        // We should be tracking changes to this parent dir too
         let path_parent = path.parent();
         if let Some(parent) = path_parent {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
@@ -882,14 +898,14 @@ impl Stager {
     ) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
         let schema_ref = schema_ref.as_ref();
         let mut results = HashMap::new();
-        for (path, schema) in
-            str_json_db::hash_map::<MultiThreaded, schema::Schema>(&self.schemas_db)?
+        for (path, staged_schema) in
+            str_json_db::hash_map::<MultiThreaded, StagedSchema>(&self.schemas_db)?
         {
-            if schema.hash == schema_ref
-                || schema.name == Some(schema_ref.to_string())
+            if staged_schema.schema.hash == schema_ref
+                || staged_schema.schema.name == Some(schema_ref.to_string())
                 || path == schema_ref
             {
-                results.insert(PathBuf::from(path), schema);
+                results.insert(PathBuf::from(path), staged_schema.schema);
             }
         }
         Ok(results)
@@ -1075,19 +1091,24 @@ impl Stager {
             None => schema,
         };
 
-        path_db::put(&self.schemas_db, path, &schema)?;
+        let staged_schema = StagedSchema {
+            schema,
+            status: StagedSchemaStatus::Added,
+        };
+
+        path_db::put(&self.schemas_db, path, &staged_schema)?;
         Ok(())
     }
 
     /// Update the name of a staged schema, assuming it exists
     pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
-        for (path, mut schema) in path_db::list_path_entries::<MultiThreaded, schema::Schema>(
+        for (path, mut staged) in path_db::list_path_entries::<MultiThreaded, StagedSchema>(
             &self.schemas_db,
             Path::new(""),
         )? {
-            if schema.hash == hash {
-                schema.name = Some(String::from(name));
-                path_db::put(&self.schemas_db, path, &schema)?;
+            if staged.schema.hash == hash {
+                staged.schema.name = Some(String::from(name));
+                path_db::put(&self.schemas_db, path, &staged)?;
             }
         }
         Ok(())
@@ -1100,7 +1121,9 @@ impl Stager {
         new_schema: &schema::Schema,
     ) -> Result<schema::Schema, OxenError> {
         let path = path.as_ref();
+        log::debug!("trying to get existing schema");
         let maybe_schema = self.maybe_get_existing_schema(path)?;
+        log::debug!("got existing schema");
         if let Some(mut schema) = maybe_schema {
             log::debug!(
                 "update_schema_field_dtype_overrides found schema for path {:?}\n{}",
@@ -1118,8 +1141,13 @@ impl Stager {
             }
 
             schema.update_metadata_from_schema(new_schema);
-            log::debug!("after update {:?}\n{}", path, schema.verbose_str());
-            path_db::put(&self.schemas_db, path, &schema)?;
+
+            let staged_schema = StagedSchema {
+                schema: schema.to_owned(),
+                status: StagedSchemaStatus::Modified,
+            };
+            // TODONOW: modified if nothing actually changes?
+            path_db::put(&self.schemas_db, path, &staged_schema)?;
         } else {
             // If it doesn't exist, create the schema just based on the fields
             log::debug!(
@@ -1131,20 +1159,26 @@ impl Stager {
                 new_schema,
                 path
             );
-            path_db::put(&self.schemas_db, path, new_schema)?;
+            let staged_schema = StagedSchema {
+                schema: new_schema.to_owned(),
+                status: StagedSchemaStatus::Added,
+            };
+            path_db::put(&self.schemas_db, path, &staged_schema)?;
         }
-        let schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, path)?;
+        let staged_schema: Option<StagedSchema> = path_db::get_entry(&self.schemas_db, path)?;
+
         // We just inserted so unwrap is okay
-        Ok(schema.unwrap())
+        // TODONOW: maybe return the stagedschema here? idk.
+        Ok(staged_schema.unwrap().schema)
     }
 
     fn maybe_get_existing_schema(
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<schema::Schema>, OxenError> {
-        let maybe_schema: Option<schema::Schema> = path_db::get_entry(&self.schemas_db, &path)?;
-        if let Some(schema) = maybe_schema {
-            return Ok(Some(schema));
+        let maybe_schema: Option<StagedSchema> = path_db::get_entry(&self.schemas_db, &path)?;
+        if let Some(staged_schema) = maybe_schema {
+            return Ok(Some(staged_schema.schema));
         }
         api::local::schemas::get_by_path(&self.repository, path)
     }
@@ -1152,12 +1186,12 @@ impl Stager {
     /// Remove a staged schema
     pub fn rm_schema(&self, schema_ref: impl AsRef<str>) -> Result<(), OxenError> {
         let schema_ref = schema_ref.as_ref();
-        for (path, schema) in path_db::list_path_entries::<MultiThreaded, schema::Schema>(
+        for (path, staged) in path_db::list_path_entries::<MultiThreaded, StagedSchema>(
             &self.schemas_db,
             Path::new(""),
         )? {
-            if schema.hash == schema_ref
-                || schema.name == Some(String::from(schema_ref))
+            if staged.schema.hash == schema_ref
+                || staged.schema.name == Some(String::from(schema_ref))
                 || path == Path::new(schema_ref)
             {
                 path_db::delete(&self.schemas_db, path)?;

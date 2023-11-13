@@ -5,9 +5,9 @@ use crate::core::db::tree_db::{TreeChild, TreeNode};
 use crate::core::db::{kv_db, path_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
 use crate::error::OxenError;
-use crate::model::schema::Schema;
+use crate::model::schema::staged_schema::StagedSchemaStatus;
 use crate::model::{
-    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus,
+    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,
 };
 use crate::util;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -19,7 +19,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{CommitDirEntryReader, CommitEntryReader, SchemaReader, TreeDBReader};
+use super::{CommitDirEntryReader, CommitEntryReader, TreeDBReader};
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -262,19 +262,22 @@ impl CommitEntryWriter {
     fn commit_schemas(
         &self,
         commit: &Commit,
-        schemas: &HashMap<PathBuf, Schema>,
+        staged_schemas: &HashMap<PathBuf, StagedSchema>,
     ) -> Result<(), OxenError> {
-        log::debug!("commit_schemas got {} schemas", schemas.len());
+        log::debug!("commit_schemas got {} schemas", staged_schemas.len());
 
         let schema_writer = SchemaWriter::new(&self.repository, &commit.id)?;
-        for (path, schema) in schemas.iter() {
-            // Add schema if it does not exist
-            if !schema_writer.has_schema(schema) {
-                schema_writer.put_schema(schema)?;
+        for (path, staged_schema) in staged_schemas.iter() {
+            if staged_schema.status == StagedSchemaStatus::Removed {
+                schema_writer.delete_schema(&staged_schema.schema)?;
+                schema_writer.delete_schema_for_file(path, &staged_schema.schema)?;
+            } else {
+                if !schema_writer.has_schema(&staged_schema.schema) {
+                    schema_writer.put_schema(&staged_schema.schema)?;
+                }
+                // Map the file to the schema
+                schema_writer.put_schema_for_file(path, &staged_schema.schema)?;
             }
-
-            // Map the file to the schema
-            schema_writer.put_schema_for_file(path, schema)?;
         }
 
         Ok(())
@@ -386,6 +389,24 @@ impl CommitEntryWriter {
             }
         }
 
+        // Same with schemas
+        for (path, staged_schema) in staged_data.staged_schemas.iter() {
+            if staged_schema.status == StagedSchemaStatus::Removed {
+                let schema_tree_path = PathBuf::from(SCHEMAS_TREE_PREFIX).join(path.clone());
+                log::debug!(
+                    "construct_merkle_tree_from_parent removing {:?}",
+                    schema_tree_path
+                );
+                path_db::delete(&self.tree_db, schema_tree_path)?;
+                log::debug!("tree status after alleged successful deletion");
+                self.temp_print_tree_db();
+                let parent = path.parent().unwrap().to_path_buf();
+                if !dir_map.contains_key(&parent) {
+                    path_db::delete(&self.tree_db, &parent)?;
+                }
+            }
+        }
+
         // Always need to recompute the root dir, but can get missed by this logic
         dirs_to_recompute.insert(PathBuf::from(""));
         let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
@@ -490,7 +511,7 @@ impl CommitEntryWriter {
                 path_db::put(&self.tree_db, file_node.path(), &file_node)?;
             }
 
-            // INsert updated schema nodes into the db
+            // Insert updated schema nodes into the db
             for schema_child in &schema_entry_nodes {
                 let schema_node = TreeNode::Schema {
                     path: schema_child.path().to_path_buf(),
@@ -684,6 +705,7 @@ impl CommitEntryWriter {
 #[cfg(test)]
 mod tests {
     use crate::command;
+    use crate::constants::SCHEMAS_TREE_PREFIX;
     use crate::core::index::TreeDBReader;
     use crate::error::OxenError;
     use crate::test;
@@ -739,6 +761,65 @@ mod tests {
             let root_node = db.get_entry(&PathBuf::from(""))?.unwrap();
             let second_root_hash = root_node.hash().to_string();
             assert_ne!(first_root_hash, second_root_hash);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_merkle_tree_deletes_schemas() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let repo_dir = &local_repo.path;
+            let large_dir = repo_dir.join("large_files");
+            std::fs::create_dir_all(&large_dir)?;
+            let csv_file = large_dir.join("test.csv");
+            let from_file = test::test_200k_csv();
+            util::fs::copy(from_file, &csv_file)?;
+
+            command::add(&local_repo, &csv_file)?;
+
+            // Get commit merkle hash for root level of repo for the most recent commit
+
+            // Add a schema for the csv file
+            let schema_ref = "large_files/test.csv";
+            let schema_metadata = json!({
+                "description": "A dataset of faces",
+                "task": "gen_faces"
+            });
+
+            let column_name = "image_id".to_string();
+            let column_metadata = json!({
+                "root": "images"
+            });
+            command::schemas::add_column_metadata(
+                &local_repo,
+                schema_ref,
+                &column_name,
+                &column_metadata,
+            )?;
+
+            command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
+            let second_commit = command::commit(&local_repo, "add test.csv schema metadata")?;
+
+            // Second commit merkle db
+            let second_merkle_reader = TreeDBReader::new(&local_repo, &second_commit.id)?;
+            let merkle_schema_path = PathBuf::from(SCHEMAS_TREE_PREFIX).join(schema_ref);
+
+            // The schema should be in the merkle tree
+            let schema_node = second_merkle_reader.get_entry(&merkle_schema_path)?;
+            assert!(schema_node.is_some());
+
+            // Delete the file for the schema, add, recommit.
+            // TODONOW: add a status checker here on commit
+            std::fs::remove_file(&csv_file)?;
+            command::add(&local_repo, &csv_file)?;
+            let third_commit = command::commit(&local_repo, "delete test.csv")?;
+
+            let merkle_schema_path = PathBuf::from(SCHEMAS_TREE_PREFIX).join(schema_ref);
+            let third_merkle_reader = TreeDBReader::new(&local_repo, &third_commit.id)?;
+            let schema_node = third_merkle_reader.get_entry(&merkle_schema_path)?;
+            assert!(schema_node.is_none());
 
             Ok(())
         })

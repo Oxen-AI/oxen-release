@@ -45,6 +45,11 @@ impl SchemaWriter {
         str_json_db::put(&self.db, &schema.hash, schema)
     }
 
+    pub fn delete_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
+        str_val_db::delete(&self.files_db, path.to_string_lossy())?;
+        str_json_db::delete(&self.db, &schema.hash)
+    }
+
     pub fn has_schema(&self, schema: &Schema) -> bool {
         str_json_db::has_key(&self.db, &schema.hash)
     }
@@ -56,6 +61,11 @@ impl SchemaWriter {
     pub fn update_schema(&self, schema: &Schema) -> Result<Schema, OxenError> {
         str_json_db::put(&self.db, &schema.hash, schema)?;
         Ok(str_json_db::get(&self.db, &schema.hash)?.unwrap())
+    }
+
+    pub fn delete_schema(&self, schema: &Schema) -> Result<(), OxenError> {
+        str_json_db::delete(&self.db, &schema.hash)?;
+        Ok(())
     }
 }
 

@@ -341,6 +341,10 @@ impl CommitWriter {
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
         log::debug!("add_commit_from_status about to commit staged entries...");
+        log::debug!(
+            "here are the staged schemas at this point...{:?}",
+            status.staged_schemas
+        );
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
