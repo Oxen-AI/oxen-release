@@ -62,6 +62,7 @@ pub fn diff_one_2(
     diff_files_2(base_path, head_path)
 }
 
+// TODONOW: move to somewhere shared? we're using it from compare api now
 pub fn get_version_file_from_commit(
     repo: &LocalRepository,
     commit: &Commit,

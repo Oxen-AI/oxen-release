@@ -3,6 +3,7 @@
 
 pub mod branches;
 pub mod commits;
+pub mod compare;
 pub mod diff;
 pub mod entries;
 pub mod metadata;

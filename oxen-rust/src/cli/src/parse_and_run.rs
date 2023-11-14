@@ -915,6 +915,39 @@ pub async fn remote_diff(sub_matches: &ArgMatches) {
     p_diff(sub_matches, is_remote).await
 }
 
+pub async fn compare(sub_matches: &ArgMatches) {
+    let resource1 = sub_matches
+        .get_one::<String>("RESOURCE1")
+        .expect("required");
+    let resource2 = sub_matches
+        .get_one::<String>("RESOURCE2")
+        .expect("required");
+
+    let (file1, revision1) = parse_file_and_revision(resource1);
+    let (file2, revision2) = parse_file_and_revision(resource2);
+
+    let file1 = PathBuf::from(file1);
+    let file2 = PathBuf::from(file2);
+
+    let keys: Vec<String> = match sub_matches.get_many::<String>("keys") {
+        Some(values) => values.cloned().collect(),
+        None => Vec::new(),
+    };
+
+    let targets: Vec<String> = match sub_matches.get_many::<String>("targets") {
+        Some(values) => values.cloned().collect(),
+        None => Vec::new(),
+    };
+
+    match dispatch::compare(file1, revision1, file2, revision2, keys, targets) {
+        // TODONOW: restructure to file1, file2, revision1, revision2 ?
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
 pub async fn diff(sub_matches: &ArgMatches) {
     let is_remote = false;
     p_diff(sub_matches, is_remote).await
@@ -1131,4 +1164,13 @@ pub async fn load(sub_matches: &ArgMatches) {
     let dest_path = Path::new(dest_path_str);
 
     dispatch::load(src_path, dest_path, no_working_dir).expect("Error loading repo from backup.");
+}
+
+fn parse_file_and_revision(file_revision: &str) -> (String, Option<&str>) {
+    let parts: Vec<&str> = file_revision.split(':').collect();
+    if parts.len() == 2 {
+        (parts[0].to_string(), Some(parts[1]))
+    } else {
+        (parts[0].to_string(), None)
+    }
 }

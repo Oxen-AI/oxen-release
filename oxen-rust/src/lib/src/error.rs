@@ -63,6 +63,7 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
+    InvalidFileType(StringError),
 
     // Generic
     ParsingError(Box<StringError>),
@@ -394,6 +395,11 @@ impl OxenError {
     pub fn invalid_set_remote_url<S: AsRef<str>>(url: S) -> OxenError {
         let err = format!("\nRemote invalid, must be fully qualified URL, got: {:?}\n\n  oxen config --set-remote origin https://hub.oxen.ai/<namespace>/<reponame>\n", url.as_ref());
         OxenError::basic_str(err)
+    }
+
+    pub fn invalid_file_type<S: AsRef<str>>(file_type: S) -> OxenError {
+        let err = format!("Invalid file type: {:?}", file_type.as_ref());
+        OxenError::InvalidFileType(StringError::from(err))
     }
 
     pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
