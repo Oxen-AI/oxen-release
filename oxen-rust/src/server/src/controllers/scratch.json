@@ -1,0 +1,79 @@
+{
+    "status": "success",
+    "status_message": "resource_found",
+    "oxen_version": "0.9.6", 
+    "compare": {
+        "summary": {
+            "num_left_only_rows": 1,
+            "num_right_only_rows": 1,
+            "num_diff_rows": 1,
+            "num_match_rows": 3
+        },
+        "schema_left": {
+            "name": null, 
+            "hash": "whatever", 
+            "fields": [
+                {"name": "query", "dtype": "str", "metadata": null}
+            ]
+        },
+        "schema_right": {
+            "name": null, 
+            "hash": "whatever", 
+            "fields": [
+                {"name": "query", "dtype": "str", "metadata": null}
+            ]
+        },
+        "keys": [
+            "query1", "query2"
+        ],
+        "targets": [
+            "target1", "target2"
+        ],
+        "match_rows": {
+            "schema": {
+                // etc
+            },
+            "slice_schema": {
+                // this is all standard dfresponse stuff
+            },
+            "slice_size": {
+                // same
+            },
+            "full_size": {
+                //same
+            },
+            "data": [
+                {
+                    "target1": 1, 
+                    "target2": 2,
+                    "query1": "foo",
+                    "query2": "foo"
+                }
+            ]
+        }
+        "diff_rows": {
+            "schema": {
+                // etc
+            },
+            "slice_schema": {
+                // this is all standard dfresponse stuff
+            },
+            "slice_size": {
+                // same
+            },
+            "full_size": {
+                //same
+            },
+            "data": [
+                {
+                    "target1.left": 1, 
+                    "target2.left": 2,
+                    "target1.right": 3, 
+                    "target2.right": 4,
+                    "query1": "foo",
+                    "query2": "foo"
+                }
+            ]
+        }
+    }
+}

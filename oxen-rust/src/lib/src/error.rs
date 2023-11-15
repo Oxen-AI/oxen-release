@@ -12,11 +12,13 @@ use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
 use crate::model::{Remote, RepoNew};
 
+
 pub mod path_buf_error;
 pub mod string_error;
 
 pub use crate::error::path_buf_error::PathBufError;
 pub use crate::error::string_error::StringError;
+use polars::prelude::PolarsError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
@@ -95,6 +97,7 @@ pub enum OxenError {
     JwalkError(jwalk::Error),
     PatternError(glob::PatternError),
     GlobError(glob::GlobError),
+    PolarsError(polars::prelude::PolarsError),
 
     // Fallback
     Basic(StringError),
@@ -500,6 +503,12 @@ impl From<redis::RedisError> for OxenError {
 impl From<glob::PatternError> for OxenError {
     fn from(error: glob::PatternError) -> Self {
         OxenError::PatternError(error)
+    }
+}
+
+impl From<PolarsError> for OxenError {
+    fn from(err: PolarsError) -> Self {
+        OxenError::PolarsError(err)
     }
 }
 

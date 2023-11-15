@@ -684,6 +684,56 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
+// Maybe pass in fields here? 
+pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<DataFrame, OxenError> {
+    let num_rows = df.height() as i64;
+
+    // Create a vector to store columns to be hashed
+    let mut col_names = vec![];
+    let schema = df.schema();
+    for field in schema.iter_fields() {
+        let field_name = field.name().as_str();
+        if hash_fields.contains(&field_name) {
+            col_names.push(col(field.name()));
+        }
+    }
+
+    // Continue as before
+    let df = df
+        .lazy()
+        .select([
+            all(),
+            as_struct(&col_names)
+                .apply(
+                    move |s| {
+                        let pb = ProgressBar::new(num_rows as u64);
+                        let ca = s.struct_()?;
+                        let out: Utf8Chunked = ca
+                            .into_iter()
+                            .map(|row| {
+                                pb.inc(1);
+                                let mut buffer: Vec<u8> = vec![];
+                                for elem in row.iter() {
+                                    let mut elem: Vec<u8> = any_val_to_bytes(elem);
+                                    buffer.append(&mut elem);
+                                }
+                                let result = hasher::hash_buffer(&buffer);
+                                Some(result)
+                            })
+                            .collect();
+
+                        Ok(Some(out.into_series()))
+                    },
+                    GetOutput::from_type(polars::prelude::DataType::Utf8),
+                )
+                .alias(constants::ROW_HASH_COL_NAME),
+        ])
+        .collect()
+        .unwrap();
+    log::debug!("Hashed rows: {}", df);
+    Ok(df)
+}
+
 fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, OxenError> {
     if let Some(delimiter) = &opts.delimiter {
         if delimiter.len() != 1 {
