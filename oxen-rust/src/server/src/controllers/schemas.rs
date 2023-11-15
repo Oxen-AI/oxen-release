@@ -7,6 +7,7 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::core::df::tabular;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
+use liboxen::view::schema::SchemaWithPath;
 use liboxen::{api, util};
 
 use actix_web::{HttpRequest, HttpResponse};
@@ -37,10 +38,18 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 &commit.id,
                 resource.file_path.to_string_lossy(),
             )?;
-            let mut schemas = schemas.into_values().collect::<Vec<_>>();
+
+            let mut schema_w_paths: Vec<SchemaWithPath> = schemas
+                .into_iter()
+                .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))
+                .collect();
+
+            // sort by hash
+            schema_w_paths.sort_by(|a, b| a.schema.hash.cmp(&b.schema.hash));
 
             // If none found, try to get the schema from the file
-            if schemas.is_empty() {
+            // TODO: Do we need this?
+            if schema_w_paths.is_empty() {
                 if let Some(entry) = api::local::entries::get_commit_entry(
                     &repo,
                     &resource.commit,
@@ -54,7 +63,10 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                     if util::fs::is_tabular(&version_path) {
                         let df = tabular::read_df(&version_path, DFOpts::empty())?;
                         let schema = Schema::from_polars(&df.schema());
-                        schemas.push(schema);
+                        schema_w_paths.push(SchemaWithPath::new(
+                            resource.file_path.to_string_lossy().into(),
+                            schema,
+                        ));
                     }
                 }
             }
@@ -65,7 +77,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             };
             let response = ListSchemaResponse {
                 status: StatusMessage::resource_found(),
-                schemas,
+                schemas: schema_w_paths,
                 commit: Some(commit.clone()),
                 resource: Some(resource),
             };
@@ -86,10 +98,15 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     );
 
     let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
-    let schemas = schemas.into_values().collect::<Vec<_>>();
+    let mut schema_w_paths: Vec<SchemaWithPath> = schemas
+        .into_iter()
+        .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))
+        .collect();
+    schema_w_paths.sort_by(|a, b| a.schema.hash.cmp(&b.schema.hash));
+
     let response = ListSchemaResponse {
         status: StatusMessage::resource_found(),
-        schemas,
+        schemas: schema_w_paths,
         commit: Some(commit),
         resource: None,
     };

@@ -269,8 +269,7 @@ impl StagedData {
 
         let files = &self.staged_files;
         // // For each added, look for a removed with the same hash. If there is a match, delete both entries and replace them with a moved entry
-        let mut files_vec: Vec<(&PathBuf, &StagedEntry)> =
-            files.iter().map(|(k, v)| (k, v)).collect();
+        let mut files_vec: Vec<(&PathBuf, &StagedEntry)> = files.iter().collect();
 
         // For display purposes, filter out the entries that are already displayed in moved_files
         let moved_paths: HashSet<&PathBuf> = self
@@ -345,8 +344,7 @@ impl StagedData {
         outputs.push("Schemas to be committed\n".normal());
         outputs.push(MSG_OXEN_SHOW_SCHEMA_STAGED.normal());
 
-        let mut files_vec: Vec<(&PathBuf, &Schema)> =
-            self.staged_schemas.iter().map(|(k, v)| (k, v)).collect();
+        let mut files_vec: Vec<(&PathBuf, &Schema)> = self.staged_schemas.iter().collect();
         files_vec.sort_by(|(a, _), (b, _)| a.partial_cmp(b).unwrap());
         self.__collapse_outputs(
             &files_vec,
