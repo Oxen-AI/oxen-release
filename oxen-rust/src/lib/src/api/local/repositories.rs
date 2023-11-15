@@ -1,6 +1,7 @@
 use crate::api;
 use crate::command;
 use crate::constants;
+use crate::core::cache::commit_cacher;
 use crate::core::index::Stager;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
@@ -294,7 +295,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
             let status = command::status(&local_repo)?;
             let stager = Stager::new(&local_repo)?;
             let commit_writer = CommitWriter::new(&local_repo)?;
-            commit_writer.commit_from_new(&new_commit, &status, &local_repo.path)?;
+            let commit = commit_writer.commit_from_new(&new_commit, &status, &local_repo.path)?;
             stager.unstage()?;
 
             // Cleanup the files since they are now in version dirs
@@ -302,6 +303,10 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
                 let full_path = repo_dir.join(&file.path);
                 util::fs::remove_file(&full_path)?;
             }
+
+            // Kick off post commit actions
+            let force = true;
+            commit_cacher::run_all(&local_repo, &commit, force)?;
         }
     }
 
