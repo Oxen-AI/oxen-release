@@ -44,6 +44,9 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))
                 .collect();
 
+            // sort by hash
+            schema_w_paths.sort_by(|a, b| a.schema.hash.cmp(&b.schema.hash));
+
             // If none found, try to get the schema from the file
             // TODO: Do we need this?
             if schema_w_paths.is_empty() {
@@ -95,10 +98,12 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     );
 
     let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
-    let schema_w_paths: Vec<SchemaWithPath> = schemas
+    let mut schema_w_paths: Vec<SchemaWithPath> = schemas
         .into_iter()
         .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))
         .collect();
+    schema_w_paths.sort_by(|a, b| a.schema.hash.cmp(&b.schema.hash));
+
     let response = ListSchemaResponse {
         status: StatusMessage::resource_found(),
         schemas: schema_w_paths,
