@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::api;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
+use crate::opts::DFOpts;
 
 // TODONOW: Doc comments
 
@@ -44,7 +45,8 @@ pub fn compare(
         commit_2,
         keys,
         targets,
-    );
+        DFOpts::empty() // TODONOW: is this going to affect anything?
+    )?;
 
     Ok("".to_string())
 }
