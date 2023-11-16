@@ -7,6 +7,7 @@ pub const CHECKOUT: &str = "checkout";
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
 pub const COMMIT: &str = "commit";
+pub const COMPARE: &str = "compare";
 pub const CONFIG: &str = "config";
 pub const CREATE_REMOTE: &str = "create-remote";
 pub const DF: &str = "df";
@@ -797,6 +798,30 @@ pub fn diff() -> Command {
         .about("Compare two files against each other or against versions. The first parameter can be one of three things 1) another file 2) a commit hash 3) a branch name. If the first parameter is a revision it will compare the second parameter path to that version of the file.")
         .arg(Arg::new("FILE_OR_REVISION").required(true))
         .arg(Arg::new("PATH").required(false))
+}
+
+pub fn compare() -> Command {
+    Command::new(COMPARE)
+        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") // TODONOW more here 
+        .arg(Arg::new("RESOURCE1")
+            .required(true)
+            .help("First resource, in format `file` or `file:revision`")
+            .index(1)
+        )
+        .arg(Arg::new("RESOURCE2")
+            .required(true)
+            .help("Second resource, in format `file` or `file:revision`")
+            .index(2))
+        .arg(Arg::new("keys")
+            .long("keys")
+            .help("Comma-separated list of columns to compare on. If not specified, all columns are used for comparison.")
+            .use_value_delimiter(true)
+            .action(clap::ArgAction::Set))
+        .arg(Arg::new("targets")
+            .long("targets")
+            .help("Comma-separated list of columns in which to view changes. If not specified, all columns are viewed")
+            .use_value_delimiter(true)
+            .action(clap::ArgAction::Set))
 }
 
 pub fn commit_cache() -> Command {

@@ -17,6 +17,7 @@ pub mod string_error;
 
 pub use crate::error::path_buf_error::PathBufError;
 pub use crate::error::string_error::StringError;
+use polars::prelude::PolarsError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
@@ -63,6 +64,7 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
+    InvalidFileType(StringError),
 
     // Generic
     ParsingError(Box<StringError>),
@@ -94,6 +96,7 @@ pub enum OxenError {
     JwalkError(jwalk::Error),
     PatternError(glob::PatternError),
     GlobError(glob::GlobError),
+    PolarsError(polars::prelude::PolarsError),
 
     // Fallback
     Basic(StringError),
@@ -396,6 +399,11 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn invalid_file_type<S: AsRef<str>>(file_type: S) -> OxenError {
+        let err = format!("Invalid file type: {:?}", file_type.as_ref());
+        OxenError::InvalidFileType(StringError::from(err))
+    }
+
     pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
         OxenError::basic_str(err)
@@ -494,6 +502,12 @@ impl From<redis::RedisError> for OxenError {
 impl From<glob::PatternError> for OxenError {
     fn from(error: glob::PatternError) -> Self {
         OxenError::PatternError(error)
+    }
+}
+
+impl From<PolarsError> for OxenError {
+    fn from(err: PolarsError) -> Self {
+        OxenError::PolarsError(err)
     }
 }
 
