@@ -1,20 +1,19 @@
-
-use serde::{Deserialize, Serialize};
+use crate::model::{EntryDataType, MetadataEntry};
 use crate::view::entry::ResourceVersion;
-use crate::model::{MetadataEntry, EntryDataType};
+use serde::{Deserialize, Serialize};
 
 use super::tabular_compare::TabularCompare;
 use super::tabular_compare_summary::TabularCompareSummary;
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug)]
 // TODONOW naming
 pub struct CompareFiles {
-    pub status: String, 
-    pub data_type: EntryDataType, 
-    pub filename_1: String, 
-    pub filename_2: String, 
+    pub status: String,
+    pub data_type: EntryDataType,
+    pub filename_1: String,
+    pub filename_2: String,
 
     pub resource_1: Option<ResourceVersion>,
-    pub resource_2: Option<ResourceVersion>, 
+    pub resource_2: Option<ResourceVersion>,
 
     pub entry_1: Option<MetadataEntry>,
     pub entry_2: Option<MetadataEntry>,

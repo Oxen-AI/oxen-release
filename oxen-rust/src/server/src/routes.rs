@@ -134,9 +134,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/compare/file/{base_head:.*}",
             web::get().to(controllers::compare::file),
         )
+        // TODONOW: change this back to get if tesla allows.
         .route(
             "/{namespace}/{repo_name}/compare/df/{base_head:.*}",
-            web::get().to(controllers::compare::df),
+            web::post().to(controllers::compare::df),
         )
         // ----- Merge ----- //
         // GET merge to test if merge is possible

@@ -684,7 +684,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-// Maybe pass in fields here? 
+// Maybe pass in fields here?
 pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<DataFrame, OxenError> {
     let num_rows = df.height() as i64;
 

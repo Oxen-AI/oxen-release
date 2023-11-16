@@ -9,15 +9,16 @@ use liboxen::model::compare::tabular_compare::TabularCompareBody;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
-    CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse, CompareTabularResponse,
+    CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
+    CompareTabularResponse,
 };
 use liboxen::view::{CompareEntriesResponse, StatusMessage};
 use liboxen::{api, constants, util};
 
 use crate::helpers::get_repo;
 use crate::params::{
-    app_data, df_opts_query, parse_base_head, path_param, resolve_base_head, DFOptsQuery,
-    PageNumQuery, self,
+    self, app_data, df_opts_query, parse_base_head, path_param, resolve_base_head, DFOptsQuery,
+    PageNumQuery,
 };
 
 pub async fn commits(
@@ -133,7 +134,6 @@ pub async fn file(
     let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
     let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
 
-
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
@@ -160,10 +160,10 @@ pub async fn file(
     Ok(HttpResponse::Ok().json(view))
 }
 
-// TODONOW, naming - since `compare` namespae already eaten up by diff 
+// TODONOW, naming - since `compare` namespae already eaten up by diff
 
 pub async fn df(
-    req: HttpRequest, 
+    req: HttpRequest,
     query: web::Query<DFOptsQuery>, // todonow needed?
     body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -173,12 +173,15 @@ pub async fn df(
     let base_head = path_param(&req, "base_head")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-
     let data: Result<TabularCompareBody, serde_json::Error> = serde_json::from_str(&body);
     let data = match data {
         Ok(data) => data,
         Err(err) => {
-            log::error!("unable to parse tabular comparison data. Err: {}\n{}", err, body);
+            log::error!(
+                "unable to parse tabular comparison data. Err: {}\n{}",
+                err,
+                body
+            );
             return Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())));
         }
     };
@@ -186,18 +189,16 @@ pub async fn df(
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
-    let resource_1 = PathBuf::from(data.path_1);
-    let resource_2 = PathBuf::from(data.path_2);
+    let resource_1 = PathBuf::from(data.left_resource);
+    let resource_2 = PathBuf::from(data.right_resource);
     let keys = data.keys;
     let targets = data.targets;
-    
 
     let (commit_1, commit_2) = params::parse_base_head(&base_head)?;
     let commit_1 = api::local::revisions::get(&repository, &commit_1)?
         .ok_or_else(|| OxenError::revision_not_found(commit_1.into()))?;
     let commit_2 = api::local::revisions::get(&repository, &commit_2)?
         .ok_or_else(|| OxenError::revision_not_found(commit_2.into()))?;
-
 
     let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?;
     let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_2, &resource_2)?;
@@ -213,10 +214,19 @@ pub async fn df(
     // let end = page_size * page;
     // opts.slice = Some(format!("{}..{}", start, end));
 
-    // TODONOW PAGINATION! 
-    
+    // TODONOW PAGINATION!
+
     // TODONOW: resource with commit?
-    let compare = api::local::compare::compare_files(&repository, resource_1, commit_1, resource_2, commit_2, keys, targets, opts)?;
+    let compare = api::local::compare::compare_files(
+        &repository,
+        resource_1,
+        commit_1,
+        resource_2,
+        commit_2,
+        keys,
+        targets,
+        opts,
+    )?;
 
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),
@@ -272,10 +282,10 @@ fn parse_base_head_resource(
     Ok((base_commit, head_commit, resource))
 }
 
-// TODONOW - anything we can factor out here? 
+// TODONOW - anything we can factor out here?
 // fn parse_base_head_resources_symmetric(
 //     repo: &LocalRepository,
-//     base_head: &str, 
+//     base_head: &str,
 // ) -> Result<(Commit, Commit, PathBuf, PathBuf), OxenError> {
 //     log::debug!("Parsing base_head_resource_symmetric: {}", base_head);
 

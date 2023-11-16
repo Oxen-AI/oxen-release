@@ -1,15 +1,13 @@
-
-
-use std::path::{Path, PathBuf};
 use crate::api;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
+use std::path::{Path, PathBuf};
 
 // TODONOW: Doc comments
 
 pub fn compare(
-    repo: &LocalRepository, 
+    repo: &LocalRepository,
     file_1: PathBuf,
     revision_1: Option<&str>,
     file_2: PathBuf,
@@ -27,8 +25,7 @@ pub fn compare(
     let commit_2 = api::local::revisions::get(repo, revision_2)?
         .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
 
-
-    // TODONOW: assert and parse tabular 
+    // TODONOW: assert and parse tabular
 
     println!("file_1: {:?}", file_1);
     println!("file_2: {:?}", file_2);
@@ -45,7 +42,7 @@ pub fn compare(
         commit_2,
         keys,
         targets,
-        DFOpts::empty() // TODONOW: is this going to affect anything?
+        DFOpts::empty(), // TODONOW: is this going to affect anything?
     )?;
 
     Ok("".to_string())
