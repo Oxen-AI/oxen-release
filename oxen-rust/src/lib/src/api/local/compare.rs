@@ -58,7 +58,7 @@ pub fn compare_files(
     let required_fields = keys
         .iter()
         .chain(targets.iter())
-        .map(|field| field.clone())
+        .cloned()
         .collect::<Vec<String>>();
 
     println!("required fields are {:?}", required_fields);
@@ -115,13 +115,13 @@ fn compute_row_comparison(
 
     // TODONOW, maybe we don't need the independent hashing and can let polars handle
 
-    let mut joined_df = df_1.outer_join(&df_2, keys.clone(), keys.clone())?;
+    let mut joined_df = df_1.outer_join(df_2, keys.clone(), keys.clone())?;
 
     // Rename every target col to be {name}.left, and every target_right column to be {name}.right
 
     // TODONOW: ew
     for target in targets.iter() {
-        let left_before = format!("{}", target);
+        let left_before = target.to_string();
         let left_after = format!("{}.left", target);
         let right_before = format!("{}_right", target);
         let right_after = format!("{}.right", target);

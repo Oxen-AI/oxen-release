@@ -230,7 +230,7 @@ pub async fn df(
 
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),
-        compare: compare,
+        compare,
     };
 
     Ok(HttpResponse::Ok().json(view))
