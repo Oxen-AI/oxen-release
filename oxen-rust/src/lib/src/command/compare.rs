@@ -2,7 +2,7 @@ use crate::api;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 // TODONOW: Doc comments
 
@@ -26,14 +26,6 @@ pub fn compare(
         .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
 
     // TODONOW: assert and parse tabular
-
-    println!("file_1: {:?}", file_1);
-    println!("file_2: {:?}", file_2);
-    println!("commit_1: {:?}", commit_1);
-    println!("commit_2: {:?}", commit_2);
-    println!("keys: {:?}", keys);
-    println!("targets: {:?}", targets);
-
     api::local::compare::compare_files(
         repo,
         file_1,
@@ -44,6 +36,5 @@ pub fn compare(
         targets,
         DFOpts::empty(), // TODONOW: is this going to affect anything?
     )?;
-
     Ok("".to_string())
 }
