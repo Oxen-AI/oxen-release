@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 
+use crate::model::compare::tabular_compare::TabularCompare;
 use crate::model::{Commit, DiffEntry};
 use crate::view::Pagination;
 
@@ -52,4 +53,12 @@ pub struct CompareEntriesResponse {
     pub pagination: Pagination,
     // Wrap everything else in a compare object
     pub compare: CompareEntries,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompareTabularResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub compare: TabularCompare,
+    // TODONOW pagination
 }

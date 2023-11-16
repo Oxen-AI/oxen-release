@@ -463,6 +463,29 @@ pub async fn diff(commit_id: Option<&str>, path: &str, remote: bool) -> Result<(
     Ok(())
 }
 
+pub fn compare(
+    file_1: PathBuf,
+    revision_1: Option<&str>,
+    file_2: PathBuf,
+    reivision_2: Option<&str>,
+    keys: Vec<String>,
+    targets: Vec<String>,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let result = command::compare(
+        &repository,
+        file_1,
+        revision_1,
+        file_2,
+        reivision_2,
+        keys,
+        targets,
+    )?;
+    println!("{result}");
+    Ok(())
+}
+
 pub fn merge(branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
