@@ -200,8 +200,8 @@ pub async fn df(
     let commit_2 = api::local::revisions::get(&repository, &commit_2)?
         .ok_or_else(|| OxenError::revision_not_found(commit_2.into()))?;
 
-    let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?;
-    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_2, &resource_2)?;
+    // let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?;
+    // let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_2, &resource_2)?;
 
     // TODONOW handle these opts later
     // let mut opts = DFOpts::empty();

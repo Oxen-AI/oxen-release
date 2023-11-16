@@ -1,32 +1,20 @@
 use polars::datatypes::BooleanChunked;
-use polars::frame::hash_join::JoinType;
-use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
-use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::compare::tabular_compare::TabularCompare;
 use crate::model::compare::tabular_compare_summary::TabularCompareSummary;
-use crate::model::diff::diff_entry_status::DiffEntryStatus;
-use crate::model::diff::generic_diff::GenericDiff;
-use crate::model::schema::Field;
-use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
-use crate::opts::DFOpts;
-use crate::view::compare::AddRemoveModifyCounts;
-use crate::view::schema::SchemaWithPath;
-use crate::view::{JsonDataFrame, JsonDataFrameView, Pagination};
-use crate::{api, constants, util};
 
-use crate::core::index::CommitEntryReader;
-use colored::Colorize;
-use difference::{Changeset, Difference};
-use polars::export::ahash::HashMap;
+use crate::model::{Commit, LocalRepository, Schema};
+use crate::opts::DFOpts;
+
+use crate::view::schema::SchemaWithPath;
+use crate::view::JsonDataFrame;
+use crate::{api, util};
+
 use polars::prelude::ChunkCompare;
-use polars::prelude::IntoLazy;
 use polars::prelude::{DataFrame, DataFrameJoinOps};
-use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 pub fn compare_files(
     // TODONOW split this function up!!!
