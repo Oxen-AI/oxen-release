@@ -1,6 +1,6 @@
 [package]
 name = "oxen"
-version = "0.3.1"
+version = "0.3.2"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -15,7 +15,7 @@ log = "0.4.17"
 pyo3-log = "0.8.1"
 tokio = { version = "1", features = ["full"] }
 pyo3-polars = "0.6.0"
-liboxen = "0.9.6"
+liboxen = "0.9.8"
 # liboxen = { path = "../../rust/Oxen/src/lib" }
 
 [build-dependencies]
