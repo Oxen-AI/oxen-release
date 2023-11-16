@@ -24,11 +24,11 @@ XXXXXXXX
 To give user access have them run the command `oxen config --auth <HOST> <TOKEN>`
 ```
 
-You may have different authentication tokens for different hosts. From the client side, you can setup an auth token per host with the `config` command. If you ever need to debug or edit the tokens manually, they are stored in the `~/.oxen/user_config.toml` file.
+You may have different authentication tokens for different hosts. From the client side, you can setup an auth token per host with the `config` command. If you ever need to debug or edit the tokens manually, they are stored in the `~/.config/oxen/user_config.toml` file.
 
 ```bash
 $ oxen config --auth <HOST> <TOKEN>
-$ cat ~/.oxen/user_config.toml
+$ cat ~/.config/oxen/user_config.toml
 ```
 
 To run the server with authentication, use the `-a` flag
