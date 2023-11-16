@@ -12,7 +12,6 @@ use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
 use crate::model::{Remote, RepoNew};
 
-
 pub mod path_buf_error;
 pub mod string_error;
 

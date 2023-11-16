@@ -1,32 +1,36 @@
 use polars::frame::DataFrame;
 use serde::{Deserialize, Serialize};
 
-use crate::{model::{Schema, LocalRepository}, view::{JsonDataFrameView, JsonDataFrame}, opts::DFOpts, error::OxenError};
+use crate::{
+    error::OxenError,
+    model::{LocalRepository, Schema},
+    opts::DFOpts,
+    view::{schema::SchemaWithPath, JsonDataFrame, JsonDataFrameView},
+};
 
 use super::tabular_compare_summary::TabularCompareSummary;
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct TabularCompare {
     pub summary: TabularCompareSummary,
 
-    pub schema_left: Option<Schema>,
-    pub schema_right: Option<Schema>,
+    pub schema_left: Option<SchemaWithPath>,
+    pub schema_right: Option<SchemaWithPath>,
 
     pub keys: Vec<String>,
     pub targets: Vec<String>,
 
-    // Send the hash column back but don't display it 
+    // Send the hash column back but don't display it
     pub match_rows: Option<JsonDataFrame>,
     // pub match_rows_view: Option<JsonDataFrameView>,
-
     pub diff_rows: Option<JsonDataFrame>,
     // pub diff_rows_view: Option<JsonDataFrameView>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularCompareBody {
-    pub path_1: String,
-    pub path_2: String,
+    pub left_resource: String,
+    pub right_resource: String,
     pub keys: Vec<String>,
     pub targets: Vec<String>,
 }
@@ -34,7 +38,7 @@ pub struct TabularCompareBody {
 // impl TabularCompare {
 //     // TODONOW: get straight to the source, this is duplicative
 //     pub fn from_data_frames(
-//         repo: &LocalRepository, 
+//         repo: &LocalRepository,
 //         df_1: DataFrame,
 //         df_2: DataFrame,
 //         only_df1: DataFrame,
@@ -48,7 +52,6 @@ pub struct TabularCompareBody {
 //         let different_targets_json = JsonDataFrame::from_df_opts(different_targets, df_opts.clone());
 //         let same_targets_json = JsonDataFrame::from_df_opts(same_targets, df_opts.clone());
 
-
 //     }
-    
+
 // }
