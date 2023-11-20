@@ -25,16 +25,20 @@ pub fn compare(
     let commit_2 = api::local::revisions::get(repo, revision_2)?
         .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
 
-    // TODONOW: assert and parse tabular
+    let entry_1 = api::local::entries::get_commit_entry(repo, &commit_1, &file_1)?
+        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", file_1.display(), revision_1).into()))?;
+    let entry_2 = api::local::entries::get_commit_entry(repo, &commit_2, &file_2)?
+        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", file_2.display(), revision_2).into()))?;
+
+
     api::local::compare::compare_files(
         repo,
-        file_1,
-        commit_1,
-        file_2,
-        commit_2,
+        entry_1,
+        entry_2,
         keys,
         targets,
-        DFOpts::empty(), // TODONOW: is this going to affect anything?
+        false, 
+        DFOpts::empty(),
     )?;
     Ok("".to_string())
 }

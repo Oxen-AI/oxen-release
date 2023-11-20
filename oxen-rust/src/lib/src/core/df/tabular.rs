@@ -572,6 +572,7 @@ pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, Ox
     Ok(df.collect().expect(COLLECT_ERROR))
 }
 
+
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts.slice);
     if opts.page.is_some() || opts.page_size.is_some() {
@@ -612,6 +613,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
         AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
         AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+        AnyValue::Boolean(val) => vec![if *val { 1 } else { 0 }],
         // TODO: handle rows with lists...
         // AnyValue::List(val) => {
         //     match val.dtype() {
@@ -685,7 +687,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 }
 
 // Maybe pass in fields here?
-pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<DataFrame, OxenError> {
+pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>, out_col_name: &str) -> Result<DataFrame, OxenError> {
     let num_rows = df.height() as i64;
 
     // Create a vector to store columns to be hashed
@@ -714,10 +716,13 @@ pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<Dat
                                 pb.inc(1);
                                 let mut buffer: Vec<u8> = vec![];
                                 for elem in row.iter() {
+                                    log::debug!("adding elem {:?} to buffer", elem);
                                     let mut elem: Vec<u8> = any_val_to_bytes(elem);
                                     buffer.append(&mut elem);
                                 }
+                                log::debug!("about to hash buffer {:?}", buffer);
                                 let result = hasher::hash_buffer(&buffer);
+                                log::debug!("got hashed result {} for buffer {:?}", result, buffer);
                                 Some(result)
                             })
                             .collect();
@@ -726,7 +731,7 @@ pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<Dat
                     },
                     GetOutput::from_type(polars::prelude::DataType::Utf8),
                 )
-                .alias(constants::ROW_HASH_COL_NAME),
+                .alias(out_col_name),
         ])
         .collect()
         .unwrap();
