@@ -940,7 +940,6 @@ pub async fn compare(sub_matches: &ArgMatches) {
     };
 
     match dispatch::compare(file1, revision1, file2, revision2, keys, targets) {
-        // TODONOW: restructure to file1, file2, revision1, revision2 ?
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

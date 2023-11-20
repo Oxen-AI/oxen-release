@@ -193,6 +193,7 @@ pub async fn df(
     let resource_2 = PathBuf::from(data.right_resource);
     let keys = data.keys;
     let targets = data.targets;
+    let randomize = data.randomize;
 
     let (commit_1, commit_2) = params::parse_base_head(&base_head)?;
     let commit_1 = api::local::revisions::get(&repository, &commit_1)?
@@ -200,31 +201,20 @@ pub async fn df(
     let commit_2 = api::local::revisions::get(&repository, &commit_2)?
         .ok_or_else(|| OxenError::revision_not_found(commit_2.into()))?;
 
-    // let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?;
-    // let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_2, &resource_2)?;
+    let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
+        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into()))?;
+    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
+        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into()))?;
 
-    // TODONOW handle these opts later
-    // let mut opts = DFOpts::empty();
-    // opts = df_opts_query::parse_opts(&query, &mut opts);
+    
 
-    // let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-    // let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-
-    // let start = if page == 0 { 0 } else { page_size * (page - 1) };
-    // let end = page_size * page;
-    // opts.slice = Some(format!("{}..{}", start, end));
-
-    // TODONOW PAGINATION!
-
-    // TODONOW: resource with commit?
     let compare = api::local::compare::compare_files(
         &repository,
-        resource_1,
-        commit_1,
-        resource_2,
-        commit_2,
+        entry_1, 
+        entry_2,
         keys,
         targets,
+        randomize,
         opts,
     )?;
 
@@ -281,63 +271,3 @@ fn parse_base_head_resource(
 
     Ok((base_commit, head_commit, resource))
 }
-
-// TODONOW - anything we can factor out here?
-// fn parse_base_head_resources_symmetric(
-//     repo: &LocalRepository,
-//     base_head: &str,
-// ) -> Result<(Commit, Commit, PathBuf, PathBuf), OxenError> {
-//     log::debug!("Parsing base_head_resource_symmetric: {}", base_head);
-
-//     let mut split = base_head.split("..");
-//     let base = split
-//         .next()
-//         .ok_or(OxenError::resource_not_found(base_head))?;
-//     let head = split
-//         .next()
-//         .ok_or(OxenError::resource_not_found(base_head))?;
-
-//     let longest_str = String::from("");
-//     let base_commit: Option<Commit> = None;
-//     let base_resource: Option<PathBuf> = None;
-//     let split_base = base.split('/');
-
-//     for s in split_base {
-//         let maybe_revision = format!("{}{}", longest_str, s);
-//         log::debug!("Checking maybe head revision: {}", maybe_revision);
-//         let commit = api::local::revisions::get(repo, &maybe_revision)?;
-//         if commit.is_some() {
-//             base_commit = commit;
-//             let mut r_str = head.replace(&maybe_revision, "");
-//             // remove first char from r_str
-//             r_str.remove(0);
-//             base_resource = Some(PathBuf::from(r_str));
-//         }
-//         longest_str = format!("{}/", maybe_revision);
-//     }
-
-//     let longest_str = String::from("");
-//     let head_commit: Option<Commit> = None;
-//     let head_resource: Option<PathBuf> = None;
-//     let split_base = base.split('/');
-
-//     for s in split_head {
-//         let maybe_revision = format!("{}{}", longest_str, s);
-//         log::debug!("Checking maybe head revision: {}", maybe_revision);
-//         let commit = api::local::revisions::get(repo, &maybe_revision)?;
-//         if commit.is_some() {
-//             head_commit = commit;
-//             let mut r_str = head.replace(&maybe_revision, "");
-//             // remove first char from r_str
-//             r_str.remove(0);
-//             base_resource = Some(PathBuf::from(r_str));
-//         }
-//         longest_str = format!("{}/", maybe_revision);
-//     }
-
-//     log::debug!("Got head_commit: {:?}", head_commit);
-//     log::debug!("Got head resource: {:?}", head_resource);
-
-//     log::debug!("Got base_commit: {:?}", base_commit);
-//     log::debug!("Got base resource: {:?}", base_resource);
-// }

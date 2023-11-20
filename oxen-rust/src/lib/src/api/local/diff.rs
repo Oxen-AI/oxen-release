@@ -1,3 +1,4 @@
+use approx::assert_relative_eq;
 use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
@@ -62,32 +63,35 @@ pub fn diff_one_2(
     diff_files_2(base_path, head_path)
 }
 
-// TODONOW: move to somewhere shared? we're using it from compare api now
 pub fn get_version_file_from_commit(
     repo: &LocalRepository,
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
+    get_version_file_from_commit_id(repo, &commit.id, path)
+}
 
-    // Extract parent so we can use it to instantiate CommitDirEntryReader
+pub fn get_version_file_from_commit_id(
+    repo: &LocalRepository, 
+    commit_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
     let parent = match path.parent() {
         Some(parent) => parent,
         None => return Err(OxenError::file_has_no_parent(path)),
     };
 
-    // Instantiate CommitDirEntryReader to fetch entry
     let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
+    let commit_entry_reader = CommitDirEntryReader::new(repo, commit_id, &relative_parent)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
         None => return Err(OxenError::file_has_no_name(path)),
     };
 
-    // Get entry from the reader
     let entry = match commit_entry_reader.get_entry(file_name) {
         Ok(Some(entry)) => entry,
-        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, &commit.id)),
+        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, commit_id)),
     };
 
     Ok(util::fs::version_path(repo, &entry))

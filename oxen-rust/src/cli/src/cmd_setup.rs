@@ -802,7 +802,7 @@ pub fn diff() -> Command {
 
 pub fn compare() -> Command {
     Command::new(COMPARE)
-        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") // TODONOW more here 
+        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") 
         .arg(Arg::new("RESOURCE1")
             .required(true)
             .help("First resource, in format `file` or `file:revision`")

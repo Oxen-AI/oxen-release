@@ -91,6 +91,10 @@ pub const ROW_NUM_COL_NAME: &str = "_row_num";
 pub const ROW_HASH_COL_NAME: &str = "_row_hash";
 /// Internal Name When Performing Computation
 pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
+// Internal Name When Performing Computation
+pub const TARGETS_HASH_COL: &str = "_targets_hash";
+// Internal Name When Performing Computation
+pub const KEYS_HASH_COL: &str = "_keys_hash";
 
 // Data transfer
 // Average chunk size of ~4mb
@@ -120,3 +124,5 @@ pub const AUDIO: &str = "audio";
 pub const TABULAR: &str = "tabular";
 pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
+
+// DF processing for compares 
