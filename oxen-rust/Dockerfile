@@ -40,7 +40,7 @@ COPY src/server/Cargo.toml src/server/Cargo.toml
 # build just the deps for caching
 RUN cargo build-deps --release
 
-# copy the rest of the source and build the server
+# copy the rest of the source and build the server and cli
 COPY src src
 RUN cargo build --release
 
