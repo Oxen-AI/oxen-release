@@ -33,6 +33,7 @@ pub fn compare(
 
     api::local::compare::compare_files(
         repo,
+        "temp_cli_id",
         entry_1,
         entry_2,
         keys,

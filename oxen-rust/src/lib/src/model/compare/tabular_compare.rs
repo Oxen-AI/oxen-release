@@ -19,6 +19,17 @@ pub struct TabularCompare {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularCompareBody {
+    pub compare_id: String,
+    pub left_resource: String,
+    pub right_resource: String,
+    pub keys: Vec<String>,
+    pub targets: Vec<String>,
+    pub randomize: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareQuery {
+    pub compare_id: String,
     pub left_resource: String,
     pub right_resource: String,
     pub keys: Vec<String>,

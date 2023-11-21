@@ -50,7 +50,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             // log::debug!("df {}", df);
             tabular::write_df(&mut df, &path)?;
         }
-    }
-
+    }   
     Ok(())
 }
