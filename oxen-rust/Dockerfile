@@ -6,8 +6,8 @@ RUN apt-get install -y apt-utils
 RUN apt-get install -y clang libavcodec-dev libavformat-dev libavfilter-dev libavdevice-dev libavutil-dev openssl libssl-dev pkg-config
 
 RUN apt-get update \
- && apt-get -y install curl build-essential clang cmake pkg-config libjpeg-turbo-progs libpng-dev \
- && rm -rfv /var/lib/apt/lists/*
+  && apt-get -y install curl build-essential clang cmake pkg-config libjpeg-turbo-progs libpng-dev \
+  && rm -rfv /var/lib/apt/lists/*
 
 # ENV MAGICK_VERSION 7.1
 
@@ -42,7 +42,7 @@ RUN cargo build-deps --release
 
 # copy the rest of the source and build the server
 COPY src src
-RUN cargo build --release --bin oxen-server
+RUN cargo build --release
 
 # Minimal image to run the binary (without Rust toolchain)
 FROM debian:bookworm-slim AS runtime
@@ -50,6 +50,7 @@ FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y openssl
 
 WORKDIR /oxen-server
+COPY --from=builder /usr/src/oxen-server/target/release/oxen /usr/local/bin
 COPY --from=builder /usr/src/oxen-server/target/release/oxen-server /usr/local/bin
 ENV SYNC_DIR=/var/oxen/data
 ENV REDIS_URL=redis://localhost:6379
