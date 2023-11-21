@@ -1,6 +1,6 @@
 use polars::datatypes::BooleanChunked;
 
-use crate::constants::TARGETS_HASH_COL;
+use crate::constants::{TARGETS_HASH_COL, COMPARES_DIR, CACHE_DIR, RIGHT_COMPARE_COMMIT, LEFT_COMPARE_COMMIT};
 use crate::core::df::tabular::{self, any_val_to_bytes};
 use crate::error::OxenError;
 use crate::model::compare::tabular_compare::TabularCompare;
@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 
 pub fn compare_files(
     repo: &LocalRepository,
+    compare_id: &str,
     entry_1: CommitEntry,
     entry_2: CommitEntry,
     keys: Vec<String>,
@@ -68,13 +69,181 @@ pub fn compare_files(
         .map(|target| target.as_str())
         .collect::<Vec<&str>>();
 
-    let compare = compute_row_comparison(df_1, df_2, &entry_1.path, &entry_2.path, keys, targets, randomize, opts)?;
+    let compare = compute_row_comparison(repo, compare_id, df_1, df_2, &entry_1.path, &entry_2.path, keys, targets, randomize, opts)?;
+
+    write_compare_commit_ids(repo, compare_id, &entry_1.commit_id, &entry_2.commit_id)?;
 
     Ok(compare)
 }
 
+pub fn get_cached_compare(repo: &LocalRepository, compare_id: &str, left_commit: &Commit, right_commit: &Commit) -> Result<Option<TabularCompare>, OxenError> {
+
+    // Check if commits have changed since LEFT and RIGHT files were cached
+    // TODONOW: need tests for this big time 
+
+    let (cached_left_id, cached_right_id) = get_compare_commit_ids(repo, compare_id)?;
+
+    // If commits cache files do not exist or have changed since last hash (via branch name) then return None to recompute
+    if cached_left_id.is_none() || cached_right_id.is_none() {
+        return Ok(None);
+    }
+
+    if cached_left_id.unwrap() != left_commit.id || cached_right_id.unwrap() != right_commit.id {
+        return Ok(None);
+    }
+
+    let match_df = tabular::read_df(&get_compare_match_path(repo, compare_id), DFOpts::empty())?;
+    let diff_df = tabular::read_df(&get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
+    let left_df = tabular::read_df(&get_compare_left_path(repo, compare_id), DFOpts::empty())?;
+    let right_df = tabular::read_df(&get_compare_right_path(repo, compare_id), DFOpts::empty())?;
+
+    let match_height = match_df.height();
+    let diff_height = diff_df.height();
+
+    let match_rows = JsonDataFrame::from_df_opts(match_df, DFOpts::empty());
+    let diff_rows = JsonDataFrame::from_df_opts(diff_df, DFOpts::empty());
+
+    let compare = TabularCompare {
+        summary: TabularCompareSummary {
+            num_left_only_rows: left_df.height(),
+            num_right_only_rows: right_df.height(),
+            num_diff_rows: match_height,
+            num_match_rows: diff_height,
+        },
+        schema_left: None, // TODONOW fix schema 
+        schema_right: None,
+        keys: vec![],
+        targets: vec![],
+        match_rows: Some(match_rows),
+        diff_rows: Some(diff_rows),
+    };
+
+    Ok(Some(compare))
+}
+
+// TODONOW: Somewhere to relocate this? 
+
+pub fn get_compare_dir(
+    repo: &LocalRepository, 
+    compare_id: &str, 
+) -> PathBuf {
+    let compare_dir = util::fs::oxen_hidden_dir(&repo.path)
+        .join(CACHE_DIR)
+        .join(COMPARES_DIR)
+        .join(compare_id);
+    compare_dir
+}
+
+pub fn get_compare_match_path(
+    repo: &LocalRepository, 
+    compare_id: &str, 
+) -> PathBuf {
+    let compare_dir = get_compare_dir(repo, compare_id);
+    compare_dir.join("match.parquet")
+}
+
+pub fn get_compare_diff_path(
+    repo: &LocalRepository, 
+    compare_id: &str, 
+) -> PathBuf {
+    let compare_dir = get_compare_dir(repo, compare_id);
+    compare_dir.join("diff.parquet")
+}
+
+pub fn get_compare_left_path(
+    repo: &LocalRepository, 
+    compare_id: &str, 
+) -> PathBuf {
+    let compare_dir = get_compare_dir(repo, compare_id);
+    compare_dir.join("left_only.parquet")
+}
+
+pub fn get_compare_right_path(
+    repo: &LocalRepository, 
+    compare_id: &str, 
+) -> PathBuf {
+    let compare_dir = get_compare_dir(repo, compare_id);
+    compare_dir.join("right_only.parquet")
+}
+
+fn write_compare_dfs(
+    repo: &LocalRepository,
+    compare_id: &str,
+    left_only: &mut DataFrame,
+    right_only: &mut DataFrame,
+    match_df: &mut DataFrame,
+    diff_df: &mut DataFrame,
+) -> Result<(), OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        std::fs::create_dir_all(&compare_dir)?;
+    }
+
+    let match_path = get_compare_match_path(repo, compare_id);
+    let diff_path = get_compare_diff_path(repo, compare_id);
+    let left_path = get_compare_left_path(repo, compare_id);
+    let right_path = get_compare_right_path(repo, compare_id);
+
+    tabular::write_df(match_df, &match_path)?;
+    tabular::write_df(diff_df, &diff_path)?;
+    tabular::write_df(left_only, &left_path)?;
+    tabular::write_df(right_only, &right_path)?;
+
+    Ok(())
+}
+
+fn write_compare_commit_ids(
+    repo: &LocalRepository, 
+    compare_id: &str,
+    left_id: &str,
+    right_id: &str,
+) -> Result<(), OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        std::fs::create_dir_all(&compare_dir)?;
+    }
+
+    let left_path = compare_dir.join(LEFT_COMPARE_COMMIT);
+    let right_path = compare_dir.join(RIGHT_COMPARE_COMMIT);
+
+    std::fs::write(left_path, left_id)?;
+    std::fs::write(right_path, right_id)?;
+
+    Ok(())
+}
+
+fn get_compare_commit_ids(
+    repo: &LocalRepository, 
+    compare_id: &str,
+) -> Result<(Option<String>, Option<String>), OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        return Ok((None, None));
+    }
+
+    let left_path = compare_dir.join(LEFT_COMPARE_COMMIT);
+    let right_path = compare_dir.join(RIGHT_COMPARE_COMMIT);
+
+    // Should exist together or not at all, but recalculate if for some reaosn one not present
+    if !left_path.exists() || !right_path.exists() {
+        return Ok((None, None));
+    }
+
+    let left_id = std::fs::read_to_string(left_path)?;
+    let right_id = std::fs::read_to_string(right_path)?;
+    
+    return Ok((Some(left_id), Some(right_id)));
+}
+
+
+
 fn compute_row_comparison(
-    df_1: DataFrame, // TODONOW: probably make these mut 
+    repo: &LocalRepository,
+    compare_id: &str,
+    df_1: DataFrame, 
     df_2: DataFrame,
     path_1: &Path,
     path_2: &Path,
@@ -99,29 +268,40 @@ fn compute_row_comparison(
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let joined_df = hash_and_join_dfs(df_1, df_2, keys.clone(), targets.clone())?;
 
-    let df1_unique = joined_df.filter(
+    let mut left_only = joined_df.filter(
         &joined_df
             .column(format!("{}.right", targets[0]).as_str())?
             .is_null(),
     )?;
 
-    let df2_unique = joined_df.filter(
+    let mut right_only = joined_df.filter(
         &joined_df
             .column(format!("{}.left", targets[0]).as_str())?
             .is_null(),
     )?;
 
-    let diff_df = calculate_diff_df(&joined_df, targets.clone(), keys.clone())?;
-    let match_df = calculate_match_df(&joined_df, targets.clone(), keys.clone())?;
+    let mut diff_df = calculate_diff_df(&joined_df, targets.clone(), keys.clone())?;
+    let mut match_df = calculate_match_df(&joined_df, targets.clone(), keys.clone())?;
 
     println!("different targets are {:?}", diff_df);
     println!("same targets are {:?}", match_df);
-    println!("df1 unique are {:?}", df1_unique);
-    println!("df2 unique are {:?}", df2_unique);
+    println!("df1 unique are {:?}", left_only);
+    println!("df2 unique are {:?}", right_only);
 
-    
-    let different_targets_size = diff_df.height();
-    let same_targets_size = match_df.height();
+
+        
+    let diff_size = diff_df.height();
+    let match_size = match_df.height();
+
+    write_compare_dfs(
+        repo,
+        compare_id,
+        &mut left_only,
+        &mut right_only,
+        &mut match_df,
+        &mut diff_df,
+    )?;
+
 
     let diff_view = generate_df_view(diff_df, randomize, Some(COMPARE_SLICE_SIZE))?;
     let match_view = generate_df_view(match_df, randomize, Some(COMPARE_SLICE_SIZE))?;
@@ -129,10 +309,10 @@ fn compute_row_comparison(
 
     // Print different_targets with only the columns in rename_cols with .right and .left 
     let summary = TabularCompareSummary {
-        num_left_only_rows: df1_unique.height(),
-        num_right_only_rows: df2_unique.height(),
-        num_diff_rows: different_targets_size,
-        num_match_rows: same_targets_size,
+        num_left_only_rows: left_only.height(),
+        num_right_only_rows: right_only.height(),
+        num_diff_rows: diff_size,
+        num_match_rows: match_size,
     };
 
     // TODONOW: Paginate?
@@ -290,6 +470,7 @@ mod tests {
 
             let result = api::local::compare::compare_files(
                 &repo,
+                "temp_cli_id", // TODONOW
                 entry_left, 
                 entry_right,
                 keys,
@@ -325,6 +506,7 @@ mod tests {
 
             let result = api::local::compare::compare_files(
                 &repo,
+                "temp_cli_id", // TODONOW
                 entry.clone(), 
                 entry,
                 keys,
@@ -339,5 +521,30 @@ mod tests {
             assert_eq!(result.summary.num_match_rows, 6);
             Ok(())
         })
+    }
+
+    #[test]
+    fn test_compare_files() -> Result<(), OxenError> {
+        test::run_compare_data_repo_test_fully_commited(|repo| {
+            let head_commit = api::local::commits::head_commit(&repo)?;
+            let compare = api::local::compare::compare_files(
+                &repo,
+                "temp_cli_id", // TODONOW
+                api::local::entries::get_commit_entry(&repo, &head_commit, &PathBuf::from("compare_left.csv"))?.unwrap(),
+                api::local::entries::get_commit_entry(&repo, &head_commit, &PathBuf::from("compare_right.csv"))?.unwrap(),
+                vec!["height".to_string(), "weight".to_string(), "gender".to_string()],
+                vec!["target".to_string(), "other_target".to_string()],
+                false,
+                DFOpts::empty(),
+            )?;
+
+            assert_eq!(compare.summary.num_left_only_rows, 2);
+            assert_eq!(compare.summary.num_right_only_rows, 1);
+            assert_eq!(compare.summary.num_match_rows, 6);
+            assert_eq!(compare.summary.num_diff_rows, 5);
+
+            Ok(())
+        })
+
     }
 }

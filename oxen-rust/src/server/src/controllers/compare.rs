@@ -5,7 +5,7 @@ use crate::errors::OxenHttpError;
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
-use liboxen::model::compare::tabular_compare::TabularCompareBody;
+use liboxen::model::compare::tabular_compare::{TabularCompareQuery, TabularCompareBody};
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
@@ -17,7 +17,7 @@ use liboxen::{api, constants, util};
 
 use crate::helpers::get_repo;
 use crate::params::{
-    self, app_data, df_opts_query, parse_base_head, path_param, resolve_base_head, DFOptsQuery,
+    self, app_data, df_opts_query, parse_base_head, path_param, path_param_to_vec, resolve_base_head, DFOptsQuery,
     PageNumQuery,
 };
 
@@ -162,7 +162,7 @@ pub async fn file(
 
 // TODONOW, naming - since `compare` namespae already eaten up by diff
 
-pub async fn df(
+pub async fn create_df_compare(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>, // todonow needed?
     body: String,
@@ -189,11 +189,13 @@ pub async fn df(
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
+    // TODONOW cleanup
     let resource_1 = PathBuf::from(data.left_resource);
     let resource_2 = PathBuf::from(data.right_resource);
     let keys = data.keys;
     let targets = data.targets;
     let randomize = data.randomize;
+    let compare_id = data.compare_id;
 
     let (commit_1, commit_2) = params::parse_base_head(&base_head)?;
     let commit_1 = api::local::revisions::get(&repository, &commit_1)?
@@ -210,6 +212,7 @@ pub async fn df(
 
     let compare = api::local::compare::compare_files(
         &repository,
+        &compare_id,
         entry_1, 
         entry_2,
         keys,
@@ -217,6 +220,74 @@ pub async fn df(
         randomize,
         opts,
     )?;
+
+    let view = CompareTabularResponse {
+        status: StatusMessage::resource_found(),
+        compare: compare,
+    };
+
+    Ok(HttpResponse::Ok().json(view))
+}
+
+pub async fn get_df_compare(
+    req: HttpRequest, 
+    query: web::Query<DFOptsQuery>,
+    body: String,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let compare_id = path_param(&req, "compare_id")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+    let base_head = path_param(&req, "base_head")?;
+    // let keys = path_param_to_vec(&req, "keys")?;
+    // let targets = path_param_to_vec(&req, "targets")?;
+    // let left_path = PathBuf::from(path_param(&req, "left_path")?);
+    // let right_path = PathBuf::from(path_param(&req, "right_path")?);
+
+    let data: TabularCompareBody = serde_json::from_str(&body)?;
+
+    let (left, right) = parse_base_head(&base_head)?;
+    let (left_commit, right_commit) = resolve_base_head(&repository, &left, &right)?;
+
+    let left_commit = left_commit.ok_or(OxenError::revision_not_found(left.into()))?;
+    let right_commit = right_commit.ok_or(OxenError::revision_not_found(right.into()))?;
+
+    let mut opts = DFOpts::empty();
+
+    let maybe_cached_compare = api::local::compare::get_cached_compare(
+        &repository,
+        &compare_id,
+        &left_commit,
+        &right_commit,
+    )?;
+
+    // If cache hit, use cached compare, else recalculate
+    let compare = match maybe_cached_compare {
+        Some(compare) => {
+            log::debug!("cache hit!");
+            compare
+        }
+        None => {
+            log::debug!("cache miss");
+            let entry_1 = api::local::entries::get_commit_entry(&repository, &left_commit, &PathBuf::from(data.left_resource.clone()))?
+                .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", data.left_resource, left_commit).into()))?;
+            let entry_2 = api::local::entries::get_commit_entry(&repository, &right_commit, &PathBuf::from(data.right_resource.clone()))?
+                .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", data.right_resource, right_commit).into()))?;
+
+            api::local::compare::compare_files(
+                &repository,
+                &compare_id,
+                entry_1,
+                entry_2,
+                data.keys,
+                data.targets,
+                false,
+                opts,
+            )?
+        }
+    };
+
 
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),
@@ -271,3 +342,29 @@ fn parse_base_head_resource(
 
     Ok((base_commit, head_commit, resource))
 }
+
+// #[cfg(test)]
+// mod tests {
+
+//     use actix_web::http::{self};
+
+//     use actix_web::body::to_bytes;
+
+//     use liboxen::api;
+//     use liboxen::constants::DEFAULT_BRANCH_NAME;
+//     use liboxen::error::OxenError;
+//     use liboxen::util;
+//     use liboxen::view::http::STATUS_SUCCESS;
+//     use liboxen::view::{
+//         BranchNewFromExisting, BranchResponse, CommitResponse, ListBranchesResponse,
+//     };
+
+//     use crate::controllers;
+//     use crate::test;
+
+//     #[actix_web::test]
+//     async fn test_controllers_compare_advance_main() -> Result<(), OxenError> {
+
+//     }
+
+// }
