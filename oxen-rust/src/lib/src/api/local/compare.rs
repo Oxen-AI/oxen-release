@@ -24,7 +24,6 @@ pub fn compare_files(
     entry_2: CommitEntry,
     keys: Vec<String>,
     targets: Vec<String>,
-    randomize: bool,
     opts: DFOpts, 
 ) -> Result<TabularCompare, OxenError> {
     // Assert that the files exist in their respective commits and are tabular.
@@ -69,14 +68,14 @@ pub fn compare_files(
         .map(|target| target.as_str())
         .collect::<Vec<&str>>();
 
-    let compare = compute_row_comparison(repo, compare_id, df_1, df_2, &entry_1.path, &entry_2.path, keys, targets, randomize, opts)?;
+    let compare = compute_row_comparison(repo, compare_id, df_1, df_2, &entry_1.path, &entry_2.path, keys, targets, opts)?;
 
     write_compare_commit_ids(repo, compare_id, &entry_1.commit_id, &entry_2.commit_id)?;
 
     Ok(compare)
 }
 
-pub fn get_cached_compare(repo: &LocalRepository, compare_id: &str, left_commit: &Commit, right_commit: &Commit) -> Result<Option<TabularCompare>, OxenError> {
+pub fn get_cached_compare(repo: &LocalRepository, compare_id: &str, left_entry: &CommitEntry, right_entry: &CommitEntry, opts: &DFOpts) -> Result<Option<TabularCompare>, OxenError> {
 
     // Check if commits have changed since LEFT and RIGHT files were cached
     // TODONOW: need tests for this big time 
@@ -88,9 +87,25 @@ pub fn get_cached_compare(repo: &LocalRepository, compare_id: &str, left_commit:
         return Ok(None);
     }
 
-    if cached_left_id.unwrap() != left_commit.id || cached_right_id.unwrap() != right_commit.id {
+    if cached_left_id.unwrap() != left_entry.commit_id || cached_right_id.unwrap() != right_entry.commit_id {
         return Ok(None);
     }
+
+    // Get schemas - TODO: after schema population migration, can get these directly from 
+    // schemas dbs to avoid loading these into memory
+    let left_full_df = tabular::read_df(&api::local::diff::get_version_file_from_commit_id(repo, &left_entry.commit_id, &left_entry.path)?, DFOpts::empty())?;
+    let right_full_df = tabular::read_df(&api::local::diff::get_version_file_from_commit_id(repo, &right_entry.commit_id, &right_entry.path)?, DFOpts::empty())?;
+
+    let left_schema = SchemaWithPath {
+        schema: Schema::from_polars(&left_full_df.schema()),
+        path: left_entry.path.to_str().map(|s| s.to_owned()).unwrap(),
+    };
+
+    let right_schema = SchemaWithPath {
+        schema: Schema::from_polars(&right_full_df.schema()),
+        path: right_entry.path.to_str().map(|s| s.to_owned()).unwrap(),
+    };
+
 
     let match_df = tabular::read_df(&get_compare_match_path(repo, compare_id), DFOpts::empty())?;
     let diff_df = tabular::read_df(&get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
@@ -100,18 +115,18 @@ pub fn get_cached_compare(repo: &LocalRepository, compare_id: &str, left_commit:
     let match_height = match_df.height();
     let diff_height = diff_df.height();
 
-    let match_rows = JsonDataFrame::from_df_opts(match_df, DFOpts::empty());
-    let diff_rows = JsonDataFrame::from_df_opts(diff_df, DFOpts::empty());
+    let match_rows = JsonDataFrame::from_df_opts(match_df, opts.clone());
+    let diff_rows = JsonDataFrame::from_df_opts(diff_df, opts.clone());
 
     let compare = TabularCompare {
         summary: TabularCompareSummary {
             num_left_only_rows: left_df.height(),
             num_right_only_rows: right_df.height(),
-            num_diff_rows: match_height,
-            num_match_rows: diff_height,
+            num_diff_rows: diff_height,
+            num_match_rows: match_height,
         },
-        schema_left: None, // TODONOW fix schema 
-        schema_right: None,
+        schema_left: Some(left_schema),
+        schema_right: Some(right_schema),
         keys: vec![],
         targets: vec![],
         match_rows: Some(match_rows),
@@ -185,9 +200,13 @@ fn write_compare_dfs(
     let left_path = get_compare_left_path(repo, compare_id);
     let right_path = get_compare_right_path(repo, compare_id);
 
+    log::debug!("writing {:?} rows to {:?}", match_df.height(), match_path);
     tabular::write_df(match_df, &match_path)?;
+    log::debug!("writing {:?} rows to {:?}", diff_df.height(), diff_path);
     tabular::write_df(diff_df, &diff_path)?;
+    log::debug!("writing {:?} rows to {:?}", left_only.height(), left_path);
     tabular::write_df(left_only, &left_path)?;
+    log::debug!("writing {:?} rows to {:?}", right_only.height(), right_path);
     tabular::write_df(right_only, &right_path)?;
 
     Ok(())
@@ -249,11 +268,8 @@ fn compute_row_comparison(
     path_2: &Path,
     keys: Vec<&str>,
     targets: Vec<&str>,
-    randomize: bool,
     opts: DFOpts,
 ) -> Result<TabularCompare, OxenError> {
-    const COMPARE_SLICE_SIZE: usize = 100;
-
     let og_schema_1 = SchemaWithPath {
         path: path_1.as_os_str().to_str().map(|s| s.to_owned()).unwrap(),
         schema: Schema::from_polars(&df_1.schema()),
@@ -263,7 +279,6 @@ fn compute_row_comparison(
         path: path_2.as_os_str().to_str().map(|s| s.to_owned()).unwrap(),
         schema: Schema::from_polars(&df_2.schema()),
     };
-
 
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let joined_df = hash_and_join_dfs(df_1, df_2, keys.clone(), targets.clone())?;
@@ -302,11 +317,6 @@ fn compute_row_comparison(
         &mut diff_df,
     )?;
 
-
-    let diff_view = generate_df_view(diff_df, randomize, Some(COMPARE_SLICE_SIZE))?;
-    let match_view = generate_df_view(match_df, randomize, Some(COMPARE_SLICE_SIZE))?;
-
-
     // Print different_targets with only the columns in rename_cols with .right and .left 
     let summary = TabularCompareSummary {
         num_left_only_rows: left_only.height(),
@@ -315,10 +325,9 @@ fn compute_row_comparison(
         num_match_rows: match_size,
     };
 
-    // TODONOW: Paginate?
-    // TODONOW: view?
-    let match_rows = JsonDataFrame::from_df_opts(match_view, opts.clone());
-    let diff_rows = JsonDataFrame::from_df_opts(diff_view, opts.clone());
+
+    let match_rows = JsonDataFrame::from_df_opts(match_df, opts.clone());
+    let diff_rows = JsonDataFrame::from_df_opts(diff_df, opts.clone());
 
     let tabular_compare = TabularCompare {
         summary,
@@ -421,15 +430,6 @@ fn calculate_match_df(df: &DataFrame, targets: Vec<&str>, keys: Vec<&str>) -> Re
     Ok(match_df.select(&cols_to_keep)?)
 }
 
-// TODONOW: Should be able to replace this with DFOpts
-fn generate_df_view(df: DataFrame, random: bool, limit: Option<usize>) -> Result<DataFrame, OxenError> {
-    if random {
-        Ok(df.sample_n(limit.unwrap_or(100), false, true, None)?)
-    } else {
-        Ok(df.slice(0, limit.unwrap_or(100)))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -440,6 +440,7 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::command::df;
+    use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::model::diff::diff_entry_status::DiffEntryStatus;
     use crate::opts::RmOpts;
@@ -475,7 +476,6 @@ mod tests {
                 entry_right,
                 keys,
                 targets,
-                false,
                 DFOpts::empty(),
             );
 
@@ -484,41 +484,6 @@ mod tests {
                 OxenError::InvalidFileType(_)
             ));
 
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_compare_file_to_itself() -> Result<(), OxenError> {
-        test::run_bounding_box_csv_repo_test_fully_committed(|repo| {
-
-            // Debug log all files in the `repo` directory 
-            let path = Path::new("annotations").join("train").join("bounding_box.csv");
-
-            let head_commit = api::local::commits::head_commit(&repo)?;
-
-            let entry = api::local::entries::get_commit_entry(&repo, &head_commit, &path)?.unwrap();
-
-            let keys = vec!["file".to_string()];
-            let targets: Vec<String> = vec!["label", "width", "height"].iter()
-                .map(|&s| String::from(s))
-                .collect();
-
-            let result = api::local::compare::compare_files(
-                &repo,
-                "temp_cli_id", // TODONOW
-                entry.clone(), 
-                entry,
-                keys,
-                targets,
-                false,
-                DFOpts::empty(),
-            )?;
-
-            assert_eq!(result.summary.num_left_only_rows, 0);
-            assert_eq!(result.summary.num_right_only_rows, 0);
-            assert_eq!(result.summary.num_diff_rows, 0);
-            assert_eq!(result.summary.num_match_rows, 6);
             Ok(())
         })
     }
@@ -534,7 +499,6 @@ mod tests {
                 api::local::entries::get_commit_entry(&repo, &head_commit, &PathBuf::from("compare_right.csv"))?.unwrap(),
                 vec!["height".to_string(), "weight".to_string(), "gender".to_string()],
                 vec!["target".to_string(), "other_target".to_string()],
-                false,
                 DFOpts::empty(),
             )?;
 
@@ -546,5 +510,66 @@ mod tests {
             Ok(())
         })
 
+    }
+
+    #[test]
+    fn test_compare_cache_miss_when_branch_ref_updates() -> Result<(), OxenError> {
+        test::run_compare_data_repo_test_fully_commited(|repo| {
+            let old_head = api::local::commits::head_commit(&repo)?;
+            let left_entry = api::local::entries::get_commit_entry(&repo, &old_head, &PathBuf::from("compare_left.csv"))?.unwrap();
+            let right_entry = api::local::entries::get_commit_entry(&repo, &old_head, &PathBuf::from("compare_right.csv"))?.unwrap();
+            // Create compare on this commit 
+            let created_compare = api::local::compare::compare_files(
+                &repo, "a_compare_id", left_entry.clone(), right_entry.clone(), vec![String::from("height"), String::from("weight"), String::from("gender")], 
+                vec![String::from("target"), String::from("other_target")], DFOpts::empty())?;
+
+            log::debug!("Here is the original compare {:?}", created_compare);
+
+
+            // Check getting via cache
+            let compare = api::local::compare::get_cached_compare(&repo, "a_compare_id", &left_entry, &right_entry, &DFOpts::empty())?.unwrap();
+
+            log::debug!("here is the cached compare {:?}", compare);
+            assert_eq!(compare.summary.num_left_only_rows, 2);
+            assert_eq!(compare.summary.num_right_only_rows, 1);
+            assert_eq!(compare.summary.num_match_rows, 6);
+            assert_eq!(compare.summary.num_diff_rows, 5);
+
+            // Update one of the files
+            let path = Path::new("compare_left.csv");
+            let file_path = repo.path.join(path);
+            let mut df = tabular::read_df(&file_path, DFOpts::empty())?;
+            df = df.slice(0, 6);
+            tabular::write_df(&mut df, &file_path)?;
+
+            let status = command::status(&repo)?;
+
+            // Commit the new modification
+            command::add(&repo, &repo.path)?;
+            let status = command::status(&repo)?;
+            log::debug!("Here's our status after adding the file {:?}", status);
+            command::commit(&repo, "updating compare_left.csv")?;
+
+            // Get new entries and check the cached compare 
+            let new_head = api::local::commits::head_commit(&repo)?;
+            let new_left_entry = api::local::entries::get_commit_entry(&repo, &new_head, &PathBuf::from("compare_left.csv"))?.unwrap();
+            let new_right_entry = api::local::entries::get_commit_entry(&repo, &new_head, &PathBuf::from("compare_right.csv"))?.unwrap();
+
+            let maybe_compare = api::local::compare::get_cached_compare(&repo, "no_id", &new_left_entry, &new_right_entry, &DFOpts::empty())?;
+            assert!(maybe_compare.is_none());
+
+            // Create the compare and add to the cache to ensure proper update
+            let new_compare = api::local::compare::compare_files(
+                &repo, "a_compare_id", new_left_entry, new_right_entry, vec![String::from("height"), String::from("weight"), String::from("gender")], 
+                vec![String::from("target"), String::from("other_target")], DFOpts::empty())?;
+
+            // Should be updated values
+            assert_eq!(new_compare.summary.num_left_only_rows, 0);
+            assert_eq!(new_compare.summary.num_right_only_rows, 6);
+            assert_eq!(new_compare.summary.num_match_rows, 6);
+            assert_eq!(new_compare.summary.num_diff_rows, 0);
+
+            Ok(())
+        })
     }
 }
