@@ -813,15 +813,24 @@ pub fn compare() -> Command {
             .help("Second resource, in format `file` or `file:revision`")
             .index(2))
         .arg(Arg::new("keys")
+            .required(true)
             .long("keys")
             .help("Comma-separated list of columns to compare on. If not specified, all columns are used for comparison.")
             .use_value_delimiter(true)
             .action(clap::ArgAction::Set))
         .arg(Arg::new("targets")
+            .required(true)
             .long("targets")
             .help("Comma-separated list of columns in which to view changes. If not specified, all columns are viewed")
             .use_value_delimiter(true)
             .action(clap::ArgAction::Set))
+        .arg(Arg::new("output")
+            .required(true)
+            .long("output")
+            .short('o')
+            .help("Output directory path to write the results of the comparison. Will write both match.csv (rows with same keys and targets) and diff.csv (rows with different targets between files")
+            .action(clap::ArgAction::Set))
+        
 }
 
 pub fn commit_cache() -> Command {

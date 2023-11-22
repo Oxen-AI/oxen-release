@@ -470,6 +470,7 @@ pub fn compare(
     reivision_2: Option<&str>,
     keys: Vec<String>,
     targets: Vec<String>,
+    output: Option<PathBuf>
 ) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -481,6 +482,7 @@ pub fn compare(
         reivision_2,
         keys,
         targets,
+        output,
     )?;
     println!("{result}");
     Ok(())
