@@ -1,4 +1,5 @@
 use clap::{arg, Arg, Command};
+use liboxen::command::migrate::{Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 pub const ADD: &str = "add";
@@ -23,7 +24,6 @@ pub const LS: &str = "ls";
 pub const MERGE: &str = "merge";
 pub const METADATA: &str = "metadata";
 pub const MIGRATE: &str = "migrate";
-pub const MIGRATE_VERSION_FILES: &str = "update-version-files";
 pub const PULL: &str = "pull";
 pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
@@ -802,7 +802,7 @@ pub fn diff() -> Command {
 
 pub fn compare() -> Command {
     Command::new(COMPARE)
-        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") // TODONOW more here 
+        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") // TODONOW more here
         .arg(Arg::new("RESOURCE1")
             .required(true)
             .help("First resource, in format `file` or `file:revision`")
@@ -856,8 +856,26 @@ pub fn migrate() -> Command {
                 .about("Apply a named migration forward.")
                 .subcommand_required(true)
                 .subcommand(
-                    Command::new(MIGRATE_VERSION_FILES)
+                    Command::new(UpdateVersionFilesMigration.name())
                         .about("Migrates version files from commit id to common prefix")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                )
+                .subcommand(
+                    Command::new(PropagateSchemasMigration.name())
+                        .about("Propagates schemas to the latest commit")
                         .arg(
                             Arg::new("PATH")
                                 .help("Directory in which to apply the migration")
@@ -879,7 +897,25 @@ pub fn migrate() -> Command {
                 .about("Apply a named migration backward.")
                 .subcommand_required(true)
                 .subcommand(
-                    Command::new(MIGRATE_VERSION_FILES)
+                    Command::new(PropagateSchemasMigration.name())
+                        .about("Propagate the schemas on the HEAD commit")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                )
+                .subcommand(
+                    Command::new(UpdateVersionFilesMigration.name())
                         .about("Migrates version files from commit id to common prefix")
                         .arg(
                             Arg::new("PATH")
