@@ -6,6 +6,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::compare::tabular_compare::TabularCompareBody;
+use liboxen::model::entry::commit_entry::CommitPath;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
@@ -216,17 +217,16 @@ pub async fn df(
 
     // TODONOW PAGINATION!
 
-    // TODONOW: resource with commit?
-    let compare = api::local::compare::compare_files(
-        &repository,
-        resource_1,
-        commit_1,
-        resource_2,
-        commit_2,
-        keys,
-        targets,
-        opts,
-    )?;
+    let cpath_1 = CommitPath {
+        commit: commit_1,
+        path: resource_1,
+    };
+    let cpath_2 = CommitPath {
+        commit: commit_2,
+        path: resource_2,
+    };
+    let compare =
+        api::local::compare::compare_files(&repository, cpath_1, cpath_2, keys, targets, opts)?;
 
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),

@@ -5,7 +5,8 @@ use crate::error::OxenError;
 use crate::model::compare::tabular_compare::TabularCompare;
 use crate::model::compare::tabular_compare_summary::TabularCompareSummary;
 
-use crate::model::{Commit, LocalRepository, Schema};
+use crate::model::entry::commit_entry::CommitPath;
+use crate::model::{LocalRepository, Schema};
 use crate::opts::DFOpts;
 
 use crate::view::schema::SchemaWithPath;
@@ -14,19 +15,23 @@ use crate::{api, util};
 
 use polars::prelude::ChunkCompare;
 use polars::prelude::{DataFrame, DataFrameJoinOps};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 pub fn compare_files(
     // TODONOW split this function up!!!
     repo: &LocalRepository,
-    file_1: PathBuf, // TODONOW: make these resources? Option<CommitEntry> or CommitENtry
-    commit_1: Commit,
-    file_2: PathBuf,
-    commit_2: Commit,
+    cpath_1: CommitPath,
+    cpath_2: CommitPath,
     keys: Vec<String>,
     targets: Vec<String>,
     opts: DFOpts, // TODONOW: custom return type
 ) -> Result<TabularCompare, OxenError> {
+    // Get the commits
+    let commit_1 = cpath_1.commit;
+    let commit_2 = cpath_2.commit;
+    // Get the files
+    let file_1 = cpath_1.path;
+    let file_2 = cpath_2.path;
     // Assert that the files exist in their respective commits and are tabular.
     let version_file_1 = api::local::diff::get_version_file_from_commit(repo, &commit_1, &file_1)?;
     let version_file_2 = api::local::diff::get_version_file_from_commit(repo, &commit_2, &file_2)?;
