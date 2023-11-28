@@ -1072,6 +1072,7 @@ pub async fn migrate(sub_matches: &ArgMatches) {
                             run_migration(&PropagateSchemasMigration, direction, sub_matches)
                         {
                             eprintln!("Error running migration: {}", err);
+                            std::process::exit(1);
                         }
                     } else {
                         eprintln!("Invalid migration: {}", migration);
