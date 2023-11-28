@@ -1,5 +1,5 @@
 use crate::constants::VERSION_FILE_NAME;
-use crate::model::{ContentHashable, LocalRepository, RemoteEntry};
+use crate::model::{Commit, ContentHashable, LocalRepository, RemoteEntry};
 use crate::util;
 
 use filetime::FileTime;
@@ -7,6 +7,12 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CommitPath {
+    pub commit: Commit,
+    pub path: PathBuf,
+}
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
