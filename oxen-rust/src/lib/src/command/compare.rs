@@ -1,5 +1,6 @@
 use crate::api;
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::CommitPath;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
 use std::path::PathBuf;
@@ -25,13 +26,19 @@ pub fn compare(
     let commit_2 = api::local::revisions::get(repo, revision_2)?
         .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
 
+    let cpath_1 = CommitPath {
+        commit: commit_1,
+        path: file_1,
+    };
+    let cpath_2 = CommitPath {
+        commit: commit_2,
+        path: file_2,
+    };
     // TODONOW: assert and parse tabular
     api::local::compare::compare_files(
         repo,
-        file_1,
-        commit_1,
-        file_2,
-        commit_2,
+        cpath_1,
+        cpath_2,
         keys,
         targets,
         DFOpts::empty(), // TODONOW: is this going to affect anything?
