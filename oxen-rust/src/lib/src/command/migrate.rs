@@ -271,25 +271,33 @@ pub fn propagate_schemas_for_all_repos_up(path: &Path) -> Result<(), OxenError> 
 
 pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
-    let mut commits = api::local::commits::list(repo)?;
-    commits.reverse();
+    match api::local::commits::list(repo) {
+        Ok(mut commits) => {
+            commits.reverse();
 
-    for (i, commit) in commits.iter().enumerate() {
-        for newer_commit in &commits[i + 1..commits.len()] {
-            let schemas = api::local::schemas::list(repo, Some(&commit.id))?;
-            let schema_writer = SchemaWriter::new(repo, &newer_commit.id)?;
+            for (i, commit) in commits.iter().enumerate() {
+                for newer_commit in &commits[i + 1..commits.len()] {
+                    let schemas = api::local::schemas::list(repo, Some(&commit.id))?;
+                    let schema_writer = SchemaWriter::new(repo, &newer_commit.id)?;
 
-            for (path, schema) in schemas {
-                if !schema_writer.has_schema(&schema) {
-                    schema_writer.put_schema(&schema)?;
+                    for (path, schema) in schemas {
+                        if !schema_writer.has_schema(&schema) {
+                            schema_writer.put_schema(&schema)?;
+                        }
+
+                        schema_writer.put_schema_for_file(&path, &schema)?;
+                    }
                 }
-
-                schema_writer.put_schema_for_file(&path, &schema)?;
             }
-        }
-    }
 
-    Ok(())
+            Ok(())
+        }
+        Err(OxenError::HeadNotFound(_)) => {
+            println!("No HEAD found, skipping repo.");
+            Ok(())
+        }
+        Err(err) => Err(err),
+    }
 }
 
 pub fn propagate_schemas_down(_repo: &LocalRepository) -> Result<(), OxenError> {
