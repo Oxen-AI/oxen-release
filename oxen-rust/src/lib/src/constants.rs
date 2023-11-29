@@ -37,7 +37,7 @@ pub const FILES_DIR: &str = "files";
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
-/// prefix for cached compare dfs 
+/// prefix for cached compare dfs
 pub const COMPARES_DIR: &str = "compares";
 /// prefix for the left commit pointer in cached compares
 pub const LEFT_COMPARE_COMMIT: &str = "LEFT";
@@ -131,4 +131,4 @@ pub const TABULAR: &str = "tabular";
 pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
 
-// DF processing for compares 
+// DF processing for compares

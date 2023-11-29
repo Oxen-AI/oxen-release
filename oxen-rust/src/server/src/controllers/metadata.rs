@@ -7,6 +7,7 @@ use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::DFOpts;
 use liboxen::view::entry::ResourceVersion;
+use liboxen::view::json_data_frame::JsonDataFrameOrSlice;
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
 };
@@ -84,17 +85,30 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         core::index::commit_metadata_db::select(&repo, &latest_commit, &directory, offset, limit)?;
     let (num_rows, num_cols) =
         core::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
+
+    let full_size = DataFrameSize {
+        width: num_cols,
+        height: num_rows,
+    };
+
+    let df = JsonDataFrame::from_df(&mut sliced_df);
+
+    let full_df = JsonDataFrameOrSlice {
+        data: None,
+        schema: df.schema.clone(),
+        size: full_size,
+    };
+
+    let slice_df = JsonDataFrameOrSlice {
+        data: Some(df.data),
+        schema: df.slice_schema.clone(),
+        size: df.slice_size.clone(),
+    };
+
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
-        full_size: DataFrameSize {
-            width: num_cols,
-            height: num_rows,
-        },
-        slice_size: DataFrameSize {
-            width: num_cols,
-            height: num_rows,
-        },
-        df: JsonDataFrame::from_df(&mut sliced_df),
+        df: full_df,
+        slice: slice_df,
         commit: Some(resource.commit.clone()),
         resource: Some(resource_version),
         page_number: 0,
@@ -155,23 +169,32 @@ pub async fn agg_dir(
             version: resource.version().to_owned(),
         };
 
+        let df = JsonDataFrame::from_df(&mut df);
+        log::debug!("Here's the df we're getting, {:?}", df);
+        let full_df = JsonDataFrameOrSlice {
+            data: None,
+            schema: df.schema.clone(),
+            size: df.full_size.clone(),
+        };
+
+        let slice_df = JsonDataFrameOrSlice {
+            data: Some(df.data),
+            schema: df.slice_schema.clone(),
+            size: df.slice_size.clone(),
+        };
+
+        let full_size = full_df.size.clone();
+
         let response = JsonDataFrameSliceResponse {
             status: StatusMessage::resource_found(),
-            full_size: DataFrameSize {
-                width: df.width(),
-                height: df.height(),
-            },
-            slice_size: DataFrameSize {
-                width: df.width(),
-                height: df.height(),
-            },
-            df: JsonDataFrame::from_df(&mut df),
+            df: full_df,
+            slice: slice_df,
             commit: Some(resource.commit.clone()),
             resource: Some(resource_version),
             page_number: 1,
-            page_size: df.height(),
+            page_size: full_size.height,
             total_pages: 1,
-            total_entries: df.height(),
+            total_entries: full_size.height,
         };
         Ok(HttpResponse::Ok().json(response))
     } else {

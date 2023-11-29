@@ -7,6 +7,7 @@ use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
 use liboxen::view::entry::ResourceVersion;
+use liboxen::view::json_data_frame::JsonDataFrameOrSlice;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -98,19 +99,32 @@ pub async fn get(
                 version: resource.version().to_owned(),
             };
 
-            let response = JsonDataFrameSliceResponse {
-                status: StatusMessage::resource_found(),
-                full_size: full_size.to_owned(),
-                slice_size: DataFrameSize {
+            let df = JsonDataFrame::from_slice(
+                &mut paginated_df,
+                og_schema.clone(),
+                full_size.clone(),
+                slice_schema.clone(),
+            );
+
+            let full_df = JsonDataFrameOrSlice {
+                schema: og_schema,
+                size: full_size,
+                data: None,
+            };
+
+            let slice_df = JsonDataFrameOrSlice {
+                schema: slice_schema,
+                size: DataFrameSize {
                     width: sliced_width,
                     height: sliced_height,
                 },
-                df: JsonDataFrame::from_slice(
-                    &mut paginated_df,
-                    og_schema,
-                    full_size,
-                    slice_schema,
-                ),
+                data: Some(df.data),
+            };
+
+            let response = JsonDataFrameSliceResponse {
+                status: StatusMessage::resource_found(),
+                df: full_df,
+                slice: slice_df,
                 commit: Some(resource.commit.clone()),
                 resource: Some(resource_version),
                 page_number: page,

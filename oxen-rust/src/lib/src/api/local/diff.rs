@@ -1,4 +1,3 @@
-use approx::assert_relative_eq;
 use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
@@ -72,7 +71,7 @@ pub fn get_version_file_from_commit(
 }
 
 pub fn get_version_file_from_commit_id(
-    repo: &LocalRepository, 
+    repo: &LocalRepository,
     commit_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
