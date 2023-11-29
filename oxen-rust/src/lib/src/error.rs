@@ -50,6 +50,7 @@ pub enum OxenError {
     RevisionNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
     NothingToCommit(StringError),
+    HeadNotFound(StringError),
 
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
@@ -205,7 +206,7 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str(HEAD_NOT_FOUND)
+        OxenError::HeadNotFound(StringError::from(HEAD_NOT_FOUND))
     }
 
     pub fn home_dir_not_found() -> OxenError {

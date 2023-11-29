@@ -4,13 +4,11 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{
-    ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, MIGRATE_VERSION_FILES, RESTORE, RM, STATUS,
-};
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
-use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;
+use liboxen::command::migrate::{Migrate, PropagateSchemasMigration};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
@@ -1064,17 +1062,21 @@ pub async fn migrate(sub_matches: &ArgMatches) {
         match direction {
             "up" | "down" => {
                 if let Some((migration, sub_matches)) = sub_matches.subcommand() {
-                    match migration {
-                        MIGRATE_VERSION_FILES => {
-                            if let Err(err) =
-                                run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
-                            {
-                                eprintln!("Error running migration: {}", err);
-                            }
+                    if migration == UpdateVersionFilesMigration.name() {
+                        if let Err(err) =
+                            run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
+                        {
+                            eprintln!("Error running migration: {}", err);
                         }
-                        command => {
-                            eprintln!("Invalid migration: {}", command);
+                    } else if migration == PropagateSchemasMigration.name() {
+                        if let Err(err) =
+                            run_migration(&PropagateSchemasMigration, direction, sub_matches)
+                        {
+                            eprintln!("Error running migration: {}", err);
+                            std::process::exit(1);
                         }
+                    } else {
+                        eprintln!("Invalid migration: {}", migration);
                     }
                 }
             }
