@@ -5,6 +5,7 @@ use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::model::entry::commit_entry::CommitPath;
 use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
@@ -467,23 +468,34 @@ pub fn compare(
     file_1: PathBuf,
     revision_1: Option<&str>,
     file_2: PathBuf,
-    reivision_2: Option<&str>,
+    revision_2: Option<&str>,
     keys: Vec<String>,
     targets: Vec<String>,
     output: Option<PathBuf>,
 ) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::compare(
-        &repository,
-        file_1,
-        revision_1,
-        file_2,
-        reivision_2,
-        keys,
-        targets,
-        output,
-    )?;
+
+    let current_commit = api::local::commits::head_commit(&repository)?;
+    // For revision_1 and revision_2, if none, set to current_commit
+    let revision_1 = revision_1.unwrap_or(current_commit.id.as_str());
+    let revision_2 = revision_2.unwrap_or(current_commit.id.as_str());
+
+    let commit_1 = api::local::revisions::get(&repository, revision_1)?
+        .ok_or_else(|| OxenError::revision_not_found(revision_1.into()))?;
+    let commit_2 = api::local::revisions::get(&repository, revision_2)?
+        .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
+
+    let cpath_1 = CommitPath {
+        commit: commit_1,
+        path: file_1,
+    };
+    let cpath_2 = CommitPath {
+        commit: commit_2,
+        path: file_2,
+    };
+
+    command::compare(&repository, cpath_1, cpath_2, keys, targets, output)?;
     Ok(())
 }
 

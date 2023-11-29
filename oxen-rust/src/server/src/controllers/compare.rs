@@ -7,12 +7,7 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::compare::tabular_compare::TabularCompareBody;
-<<<<<<< HEAD
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
-=======
-use liboxen::model::entry::commit_entry::CommitPath;
-use liboxen::model::{Commit, LocalRepository};
->>>>>>> main
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
