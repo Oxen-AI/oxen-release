@@ -572,7 +572,6 @@ pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, Ox
     Ok(df.collect().expect(COLLECT_ERROR))
 }
 
-
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts.slice);
     if opts.page.is_some() || opts.page_size.is_some() {
@@ -687,7 +686,11 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 }
 
 // Maybe pass in fields here?
-pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>, out_col_name: &str) -> Result<DataFrame, OxenError> {
+pub fn df_hash_rows_on_cols(
+    df: DataFrame,
+    hash_fields: Vec<&str>,
+    out_col_name: &str,
+) -> Result<DataFrame, OxenError> {
     let num_rows = df.height() as i64;
 
     // Create a vector to store columns to be hashed

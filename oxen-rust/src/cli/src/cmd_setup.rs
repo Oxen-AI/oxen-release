@@ -825,12 +825,11 @@ pub fn compare() -> Command {
             .use_value_delimiter(true)
             .action(clap::ArgAction::Set))
         .arg(Arg::new("output")
-            .required(true)
+            .required(false)
             .long("output")
             .short('o')
             .help("Output directory path to write the results of the comparison. Will write both match.csv (rows with same keys and targets) and diff.csv (rows with different targets between files")
             .action(clap::ArgAction::Set))
-        
 }
 
 pub fn commit_cache() -> Command {

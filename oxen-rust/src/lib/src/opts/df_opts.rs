@@ -36,12 +36,12 @@ pub struct DFOpts {
     pub host: Option<String>,
     pub output: Option<PathBuf>,
     pub page_size: Option<usize>, // Relevant
-    pub page: Option<usize>, // Relevant
+    pub page: Option<usize>,      // Relevant
     pub row: Option<usize>,
     pub should_randomize: bool,
-    pub should_reverse: bool, // Relevant 
+    pub should_reverse: bool, // Relevant
     pub slice: Option<String>,
-    pub sort_by: Option<String>, // Relevant 
+    pub sort_by: Option<String>, // Relevant
     pub sql: Option<String>,
     pub text2sql: Option<String>,
     pub tail: Option<usize>,

@@ -946,16 +946,15 @@ where
     Ok(())
 }
 
-pub fn run_compare_data_repo_test_fully_commited<T>(test: T) -> Result<(), OxenError> 
-where 
+pub fn run_compare_data_repo_test_fully_commited<T>(test: T) -> Result<(), OxenError>
+where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
-    
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
 
-    // Has 6 match observations in both keys, 5 diffs, 
+    // Has 6 match observations in both keys, 5 diffs,
     // 2 key sets left only, 1 keyset right only.
     write_txt_file_to_path(
         repo.path.join("compare_left.csv"),
@@ -973,7 +972,7 @@ where
         70,240,M,1,yes
         71,241,F,1,no
         71,242,F,1,no
-        "
+        ",
     )?;
 
     write_txt_file_to_path(
@@ -990,7 +989,7 @@ where
 64,190,M,1,yes
 65,200,M,0,yes
 70,240,M,0,no
-71,241,M,1,no"
+71,241,M,1,no",
     )?;
 
     command::add(&repo, &repo.path)?;
@@ -1008,7 +1007,6 @@ where
 
     assert!(result);
     Ok(())
-
 }
 
 /// Run a test on a repo with a bunch of files

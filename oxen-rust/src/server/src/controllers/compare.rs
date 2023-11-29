@@ -3,21 +3,25 @@ use std::path::PathBuf;
 use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
+use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
-use liboxen::model::compare::tabular_compare::{TabularCompareQuery, TabularCompareBody};
-use liboxen::model::{Commit, LocalRepository};
+use liboxen::model::compare::tabular_compare::TabularCompareBody;
+use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
     CompareTabularResponse,
 };
-use liboxen::view::{CompareEntriesResponse, StatusMessage};
+use liboxen::view::json_data_frame::JsonDataFrameOrSlice;
+use liboxen::view::{
+    CompareEntriesResponse, JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage,
+};
 use liboxen::{api, constants, util};
 
 use crate::helpers::get_repo;
 use crate::params::{
-    self, app_data, df_opts_query, parse_base_head, path_param, path_param_to_vec, resolve_base_head, DFOptsQuery,
+    self, app_data, df_opts_query, parse_base_head, path_param, resolve_base_head, DFOptsQuery,
     PageNumQuery,
 };
 
@@ -203,12 +207,15 @@ pub async fn create_df_compare(
         .ok_or_else(|| OxenError::revision_not_found(commit_2.into()))?;
 
     let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
-        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into()))?;
+        .ok_or_else(|| {
+            OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
+        })?;
     let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
-        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into()))?;
+        .ok_or_else(|| {
+            OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
+        })?;
 
-    
-    // Not currently accepting opts from the query string on create, 
+    // Not currently accepting opts from the query string on create,
     // but set up a minimal return of 100 to avoid sending a ton of data on create payload.
 
     opts.page_size = Some(100);
@@ -216,25 +223,24 @@ pub async fn create_df_compare(
 
     let compare = api::local::compare::compare_files(
         &repository,
-        &compare_id,
-        entry_1, 
+        Some(&compare_id),
+        entry_1,
         entry_2,
         keys,
         targets,
-        opts,
+        None,
     )?;
 
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),
-        compare: compare,
+        dfs: compare,
     };
 
     Ok(HttpResponse::Ok().json(view))
 }
 
 pub async fn get_df_compare(
-    req: HttpRequest, 
-    query: web::Query<DFOptsQuery>,
+    req: HttpRequest,
     body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -252,51 +258,171 @@ pub async fn get_df_compare(
     let left_commit = left_commit.ok_or(OxenError::revision_not_found(left.into()))?;
     let right_commit = right_commit.ok_or(OxenError::revision_not_found(right.into()))?;
 
-    let left_entry = api::local::entries::get_commit_entry(&repository, &left_commit, &PathBuf::from(data.left_resource.clone()))?
-        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", data.left_resource, left_commit).into()))?;
-
-    let right_entry = api::local::entries::get_commit_entry(&repository, &right_commit, &PathBuf::from(data.right_resource.clone()))?
-        .ok_or_else(|| OxenError::ResourceNotFound(format!("{}@{}", data.right_resource, right_commit).into()))?;
-
-    let mut opts = DFOpts::empty();
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-    log::debug!("opts immediately after parsing are: {:?}", opts);
+    let left_entry = api::local::entries::get_commit_entry(
+        &repository,
+        &left_commit,
+        &PathBuf::from(data.left_resource.clone()),
+    )?
+    .ok_or_else(|| {
+        OxenError::ResourceNotFound(format!("{}@{}", data.left_resource, left_commit).into())
+    })?;
+    let right_entry = api::local::entries::get_commit_entry(
+        &repository,
+        &right_commit,
+        &PathBuf::from(data.right_resource.clone()),
+    )?
+    .ok_or_else(|| {
+        OxenError::ResourceNotFound(format!("{}@{}", data.right_resource, right_commit).into())
+    })?;
 
     let maybe_cached_compare = api::local::compare::get_cached_compare(
         &repository,
         &compare_id,
         &left_entry,
         &right_entry,
-        &opts
     )?;
 
-    // If cache hit, use cached compare, else recalculate
-    let compare = match maybe_cached_compare {
+    let view = match maybe_cached_compare {
         Some(compare) => {
             log::debug!("cache hit!");
-            compare
+            CompareTabularResponse {
+                status: StatusMessage::resource_found(),
+                dfs: compare,
+            }
         }
         None => {
             log::debug!("cache miss");
-            api::local::compare::compare_files(
+            let compare = api::local::compare::compare_files(
                 &repository,
-                &compare_id,
+                Some(&compare_id),
                 left_entry,
                 right_entry,
                 data.keys,
                 data.targets,
-                opts,
-            )?
+                None,
+            )?;
+            CompareTabularResponse {
+                status: StatusMessage::resource_found(),
+                dfs: compare,
+            }
         }
     };
-
-
-    let view = CompareTabularResponse {
-        status: StatusMessage::resource_found(),
-        compare: compare,
-    };
-
     Ok(HttpResponse::Ok().json(view))
+}
+
+pub async fn get_derived_df(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let compare_id = path_param(&req, "compare_id")?;
+    let path = path_param(&req, "path")?;
+
+    // TODONOW clean this up...
+    let compare_dir = api::local::compare::get_compare_dir(&repo, &compare_id);
+
+    let derived_df_path = compare_dir.join(format!("{}.parquet", path));
+
+    // TODO: If this structure holds for diff + query, there is some amt of reusability with
+    // controllers::df::get logic
+
+    let df = tabular::read_df(derived_df_path, DFOpts::empty())?;
+    let og_schema = Schema::from_polars(&df.schema());
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+    // Clear these for the first transform
+    opts.page = None;
+    opts.page_size = None;
+
+    log::debug!("Full df {:?}", df);
+
+    let full_height = df.height();
+    let full_width = df.width();
+
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+    let start = if page == 0 { 0 } else { page_size * (page - 1) };
+    let end = page_size * page;
+
+    // We have to run the query param transforms, then paginate separately
+    match tabular::transform(df, opts) {
+        Ok(sliced_df) => {
+            log::debug!("Sliced df {:?}", sliced_df);
+
+            let sliced_width = sliced_df.width();
+            let sliced_height = sliced_df.height();
+
+            // Paginate after transform
+            let mut paginate_opts = DFOpts::empty();
+            paginate_opts.slice = Some(format!("{}..{}", start, end));
+            let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
+
+            let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
+            let full_size = DataFrameSize {
+                width: full_width,
+                height: full_height,
+            };
+
+            // Merge the metadata from the original schema
+            let mut slice_schema = Schema::from_polars(&paginated_df.schema());
+            log::debug!("OG schema {:?}", og_schema);
+            log::debug!("Pre-Slice schema {:?}", slice_schema);
+            slice_schema.update_metadata_from_schema(&og_schema);
+
+            log::debug!("Slice schema {:?}", slice_schema);
+
+            // TODONOW
+            // let resource_version = None;
+
+            let df = JsonDataFrame::from_slice(
+                &mut paginated_df,
+                og_schema.clone(),
+                full_size.clone(),
+                slice_schema.clone(),
+            );
+
+            let full_df = JsonDataFrameOrSlice {
+                data: None,
+                schema: og_schema,
+                size: full_size,
+            };
+
+            let slice_df = JsonDataFrameOrSlice {
+                data: Some(df.data),
+                schema: slice_schema,
+                size: DataFrameSize {
+                    width: sliced_width,
+                    height: sliced_height,
+                },
+            };
+
+            let response = JsonDataFrameSliceResponse {
+                status: StatusMessage::resource_found(),
+                df: full_df,
+                slice: slice_df,
+                commit: None,
+                resource: None,
+                page_number: page,
+                page_size,
+                total_pages,
+                total_entries: sliced_height,
+            };
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Err(OxenError::SQLParseError(sql)) => {
+            log::error!("Error parsing SQL: {}", sql);
+            Err(OxenHttpError::SQLParseError(sql))
+        }
+        Err(e) => {
+            log::error!("Error transforming df: {}", e);
+            Err(OxenHttpError::InternalServerError)
+        }
+    }
 }
 
 fn parse_base_head_resource(

@@ -134,10 +134,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/compare/file/{base_head:.*}",
             web::get().to(controllers::compare::file),
         )
-        // TODONOW: Tesla doesn't let us have get bodies, POST-ing on a get for now...
+        .route(
+            "/{namespace}/{repo_name}/compare/df/{compare_id}/{path}/{base_head:.*}",
+            web::get().to(controllers::compare::get_derived_df),
+        )
+        // TODONOW: This should be a GET, but tesla in elixir does not allow for a body in a GET request
         .route(
             "/{namespace}/{repo_name}/compare/df/{compare_id}/{base_head:.*}",
-                web::post().to(controllers::compare::get_df_compare),
+            web::post().to(controllers::compare::get_df_compare),
         )
         .route(
             "/{namespace}/{repo_name}/compare/df/{base_head:.*}",

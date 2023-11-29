@@ -36,5 +36,3 @@ pub struct TabularCompareQuery {
     pub targets: Vec<String>,
     pub randomize: bool,
 }
-
-

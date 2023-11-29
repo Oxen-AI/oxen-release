@@ -25,18 +25,85 @@ pub struct JsonDataFrame {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JsonDataFrameOrSlice {
+    pub data: Option<serde_json::Value>,
+    pub schema: Schema,
+    pub size: DataFrameSize,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrameSliceResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub df: JsonDataFrame,
-    pub full_size: DataFrameSize,
-    pub slice_size: DataFrameSize,
+    pub df: JsonDataFrameOrSlice,
+    pub slice: JsonDataFrameOrSlice,
     pub commit: Option<Commit>,
     pub resource: Option<ResourceVersion>,
     pub page_number: usize,
     pub page_size: usize,
     pub total_pages: usize,
     pub total_entries: usize,
+}
+
+impl JsonDataFrameOrSlice {
+    pub fn to_df(&self) -> DataFrame {
+        if let Some(data) = &self.data {
+            let columns = self.schema.fields_names();
+            log::debug!("Got columns: {:?}", columns);
+
+            match data {
+                serde_json::Value::Array(arr) => {
+                    if !arr.is_empty() {
+                        let data = data.to_string();
+                        let content = Cursor::new(data.as_bytes());
+                        log::debug!("Deserializing df: [{}]", data);
+                        let df = JsonReader::new(content).finish().unwrap();
+
+                        let opts = DFOpts::from_column_names(columns);
+                        tabular::transform(df, opts).unwrap()
+                    } else {
+                        let cols = columns
+                            .iter()
+                            .map(|name| Series::new(name, Vec::<&str>::new()))
+                            .collect::<Vec<Series>>();
+                        DataFrame::new(cols).unwrap()
+                    }
+                }
+                _ => {
+                    log::error!("Could not parse non-array json data: {:?}", self.data);
+                    DataFrame::empty()
+                }
+            }
+        } else {
+            DataFrame::empty()
+        }
+    }
+}
+
+impl JsonDataFrameSliceResponse {
+    pub fn from_json_dataframe(json_df: JsonDataFrame) -> JsonDataFrameSliceResponse {
+        let df = JsonDataFrameOrSlice {
+            data: None,
+            schema: json_df.schema.clone(),
+            size: json_df.full_size.clone(),
+        };
+        let slice = JsonDataFrameOrSlice {
+            data: Some(json_df.data),
+            schema: json_df.slice_schema.clone(),
+            size: json_df.slice_size.clone(),
+        };
+        JsonDataFrameSliceResponse {
+            status: StatusMessage::resource_found(),
+            df,
+            slice,
+            commit: None,
+            resource: None,
+            page_number: 1,
+            page_size: json_df.slice_size.height,
+            total_pages: 1,
+            total_entries: json_df.slice_size.height,
+        }
+    }
 }
 
 impl JsonDataFrame {

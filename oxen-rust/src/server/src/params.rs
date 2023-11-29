@@ -32,7 +32,10 @@ pub fn path_param(req: &HttpRequest, param: &str) -> Result<String, OxenHttpErro
         .to_string())
 }
 
-pub fn path_param_to_vec(req: &HttpRequest, param_name: &str) -> Result<Vec<String>, OxenHttpError> {
+pub fn path_param_to_vec(
+    req: &HttpRequest,
+    param_name: &str,
+) -> Result<Vec<String>, OxenHttpError> {
     let param_value = path_param(req, param_name)?;
     let values: Vec<String> = param_value.split(',').map(|s| s.to_string()).collect();
     Ok(values)

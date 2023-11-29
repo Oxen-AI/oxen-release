@@ -144,8 +144,11 @@ mod tests {
             let df = meta.df.to_df();
             println!("df: {:?}", df);
 
-            assert_eq!(meta.full_size.width, 10);
-            assert_eq!(meta.full_size.height, 5);
+            // assert_eq!(meta.full_size.width, 10);
+            // assert_eq!(meta.full_size.height, 5);
+
+            assert_eq!(meta.df.size.width, 10);
+            assert_eq!(meta.df.size.height, 5);
 
             Ok(remote_repo)
         })
@@ -179,8 +182,8 @@ mod tests {
             └───────────┴───────┘
             */
 
-            assert_eq!(meta.full_size.width, 2);
-            assert_eq!(meta.full_size.height, 3);
+            assert_eq!(meta.df.size.width, 2);
+            assert_eq!(meta.df.size.height, 3);
 
             Ok(remote_repo)
         })
@@ -198,7 +201,7 @@ mod tests {
                     .await?;
             println!("meta: {:?}", meta);
 
-            let df = meta.df.to_df();
+            let df = meta.slice.to_df();
             println!("df: {:?}", df);
 
             /*
@@ -212,8 +215,8 @@ mod tests {
             └───────────┴───────┘
             */
 
-            assert_eq!(meta.full_size.width, 2);
-            assert_eq!(meta.full_size.height, 1);
+            assert_eq!(meta.df.size.width, 2);
+            assert_eq!(meta.df.size.height, 1);
 
             // make sure that there are 5 images in the polars dataframe
             let df_str = format!("{:?}", df);
