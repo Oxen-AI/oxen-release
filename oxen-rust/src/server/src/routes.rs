@@ -138,7 +138,9 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/compare/df/{compare_id}/{path}/{base_head:.*}",
             web::get().to(controllers::compare::get_derived_df),
         )
-        // TODONOW: This should be a GET, but tesla in elixir does not allow for a body in a GET request
+        // The below is a POST rather than a GET for two reasons: 1) tesla doesn't allow GET requests to have a body,
+        // and 2) for branch revisions (main..staging), this DOES create resources (updating compare cache) if
+        // commit heads have changed since last cache
         .route(
             "/{namespace}/{repo_name}/compare/df/{compare_id}/{base_head:.*}",
             web::post().to(controllers::compare::get_df_compare),

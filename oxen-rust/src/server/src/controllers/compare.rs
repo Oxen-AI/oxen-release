@@ -164,11 +164,9 @@ pub async fn file(
     Ok(HttpResponse::Ok().json(view))
 }
 
-// TODONOW, naming - since `compare` namespae already eaten up by diff
-
 pub async fn create_df_compare(
     req: HttpRequest,
-    query: web::Query<DFOptsQuery>, // todonow needed?
+    _query: web::Query<DFOptsQuery>,
     body: String,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -190,10 +188,6 @@ pub async fn create_df_compare(
         }
     };
 
-    let mut opts = DFOpts::empty();
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-
-    // TODONOW cleanup
     let resource_1 = PathBuf::from(data.left_resource);
     let resource_2 = PathBuf::from(data.right_resource);
     let keys = data.keys;
@@ -214,12 +208,6 @@ pub async fn create_df_compare(
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
-
-    // Not currently accepting opts from the query string on create,
-    // but set up a minimal return of 100 to avoid sending a ton of data on create payload.
-
-    opts.page_size = Some(100);
-    opts.page = Some(1);
 
     let compare = api::local::compare::compare_files(
         &repository,
@@ -321,7 +309,6 @@ pub async fn get_derived_df(
     let compare_id = path_param(&req, "compare_id")?;
     let path = path_param(&req, "path")?;
 
-    // TODONOW clean this up...
     let compare_dir = api::local::compare::get_compare_dir(&repo, &compare_id);
 
     let derived_df_path = compare_dir.join(format!("{}.parquet", path));
@@ -375,9 +362,6 @@ pub async fn get_derived_df(
             slice_schema.update_metadata_from_schema(&og_schema);
 
             log::debug!("Slice schema {:?}", slice_schema);
-
-            // TODONOW
-            // let resource_version = None;
 
             let df = JsonDataFrame::from_slice(
                 &mut paginated_df,

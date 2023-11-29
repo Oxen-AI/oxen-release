@@ -719,13 +719,10 @@ pub fn df_hash_rows_on_cols(
                                 pb.inc(1);
                                 let mut buffer: Vec<u8> = vec![];
                                 for elem in row.iter() {
-                                    log::debug!("adding elem {:?} to buffer", elem);
                                     let mut elem: Vec<u8> = any_val_to_bytes(elem);
                                     buffer.append(&mut elem);
                                 }
-                                log::debug!("about to hash buffer {:?}", buffer);
                                 let result = hasher::hash_buffer(&buffer);
-                                log::debug!("got hashed result {} for buffer {:?}", result, buffer);
                                 Some(result)
                             })
                             .collect();

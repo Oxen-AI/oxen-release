@@ -3,15 +3,11 @@ use crate::constants::{
 };
 use crate::core::df::tabular::{self};
 use crate::error::OxenError;
-use crate::model::compare::tabular_compare::TabularCompare;
-use crate::model::compare::tabular_compare_summary::TabularCompareSummary;
-
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository, Schema};
 use crate::opts::DFOpts;
 
 use crate::view::compare::{CompareDerivedDF, CompareSourceDF, CompareTabular};
 use crate::view::schema::SchemaWithPath;
-use crate::view::JsonDataFrame;
 use crate::{api, util};
 
 use polars::prelude::ChunkCompare;
@@ -85,7 +81,6 @@ pub fn compare_files(
     Ok(compare)
 }
 
-// TODONOW, naming of the various "parents"
 pub fn get_cached_compare(
     repo: &LocalRepository,
     compare_id: &str,
@@ -204,90 +199,6 @@ pub fn get_cached_compare(
 
     Ok(Some(compare_results))
 }
-
-// TODONOW: update or delete
-pub fn get_cached_compare_old(
-    repo: &LocalRepository,
-    compare_id: &str,
-    left_entry: &CommitEntry,
-    right_entry: &CommitEntry,
-    opts: &DFOpts,
-) -> Result<Option<TabularCompare>, OxenError> {
-    // Check if commits have changed since LEFT and RIGHT files were cached
-    // TODONOW: need tests for this big time
-
-    let (cached_left_id, cached_right_id) = get_compare_commit_ids(repo, compare_id)?;
-
-    // If commits cache files do not exist or have changed since last hash (via branch name) then return None to recompute
-    if cached_left_id.is_none() || cached_right_id.is_none() {
-        return Ok(None);
-    }
-
-    if cached_left_id.unwrap() != left_entry.commit_id
-        || cached_right_id.unwrap() != right_entry.commit_id
-    {
-        return Ok(None);
-    }
-
-    // Get schemas - TODO: after schema population migration, can get these directly from
-    // schemas dbs to avoid loading these into memory
-    let left_full_df = tabular::read_df(
-        api::local::diff::get_version_file_from_commit_id(
-            repo,
-            &left_entry.commit_id,
-            &left_entry.path,
-        )?,
-        DFOpts::empty(),
-    )?;
-    let right_full_df = tabular::read_df(
-        api::local::diff::get_version_file_from_commit_id(
-            repo,
-            &right_entry.commit_id,
-            &right_entry.path,
-        )?,
-        DFOpts::empty(),
-    )?;
-
-    let left_schema = SchemaWithPath {
-        schema: Schema::from_polars(&left_full_df.schema()),
-        path: left_entry.path.to_str().map(|s| s.to_owned()).unwrap(),
-    };
-
-    let right_schema = SchemaWithPath {
-        schema: Schema::from_polars(&right_full_df.schema()),
-        path: right_entry.path.to_str().map(|s| s.to_owned()).unwrap(),
-    };
-
-    let match_df = tabular::read_df(get_compare_match_path(repo, compare_id), DFOpts::empty())?;
-    let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
-    let left_df = tabular::read_df(get_compare_left_path(repo, compare_id), DFOpts::empty())?;
-    let right_df = tabular::read_df(get_compare_right_path(repo, compare_id), DFOpts::empty())?;
-
-    let match_height = match_df.height();
-    let diff_height = diff_df.height();
-
-    let match_rows = JsonDataFrame::from_df_opts(match_df, opts.clone());
-    let diff_rows = JsonDataFrame::from_df_opts(diff_df, opts.clone());
-
-    let compare = TabularCompare {
-        summary: TabularCompareSummary {
-            num_left_only_rows: left_df.height(),
-            num_right_only_rows: right_df.height(),
-            num_diff_rows: diff_height,
-            num_match_rows: match_height,
-        },
-        schema_left: Some(left_schema),
-        schema_right: Some(right_schema),
-        keys: vec![],
-        targets: vec![],
-        match_rows: Some(match_rows),
-        diff_rows: Some(diff_rows),
-    };
-
-    Ok(Some(compare))
-}
-
-// TODONOW: Somewhere to relocate this?
 
 pub fn get_compare_dir(repo: &LocalRepository, compare_id: &str) -> PathBuf {
     util::fs::oxen_hidden_dir(&repo.path)
@@ -673,7 +584,7 @@ mod tests {
 
             let result = api::local::compare::compare_files(
                 &repo,
-                None, // TODONOW
+                None,
                 entry_left,
                 entry_right,
                 keys,
@@ -693,7 +604,7 @@ mod tests {
             let head_commit = api::local::commits::head_commit(&repo)?;
             let compare = api::local::compare::compare_files(
                 &repo,
-                None, // TODONOW
+                None,
                 api::local::entries::get_commit_entry(
                     &repo,
                     &head_commit,

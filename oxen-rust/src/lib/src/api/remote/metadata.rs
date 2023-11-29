@@ -144,9 +144,6 @@ mod tests {
             let df = meta.df.to_df();
             println!("df: {:?}", df);
 
-            // assert_eq!(meta.full_size.width, 10);
-            // assert_eq!(meta.full_size.height, 5);
-
             assert_eq!(meta.df.size.width, 10);
             assert_eq!(meta.df.size.height, 5);
 
