@@ -6,7 +6,12 @@ use crate::error::OxenError;
 use crate::model::compare::tabular_compare::TabularCompare;
 use crate::model::compare::tabular_compare_summary::TabularCompareSummary;
 
+<<<<<<< HEAD
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository, Schema};
+=======
+use crate::model::entry::commit_entry::CommitPath;
+use crate::model::{LocalRepository, Schema};
+>>>>>>> main
 use crate::opts::DFOpts;
 
 use crate::view::compare::{CompareDerivedDF, CompareSourceDF, CompareTabular};
@@ -16,6 +21,7 @@ use crate::{api, util};
 
 use polars::prelude::ChunkCompare;
 use polars::prelude::{DataFrame, DataFrameJoinOps};
+<<<<<<< HEAD
 use std::collections::HashMap;
 use std::path::PathBuf;
 
@@ -25,9 +31,13 @@ pub const MATCH: &str = "match";
 pub const DIFF: &str = "diff";
 pub const LEFT_ONLY: &str = "left_only";
 pub const RIGHT_ONLY: &str = "right_only";
+=======
+use std::path::Path;
+>>>>>>> main
 
 pub fn compare_files(
     repo: &LocalRepository,
+<<<<<<< HEAD
     compare_id: Option<&str>,
     entry_1: CommitEntry,
     entry_2: CommitEntry,
@@ -35,6 +45,20 @@ pub fn compare_files(
     targets: Vec<String>,
     output: Option<PathBuf>,
 ) -> Result<CompareTabular, OxenError> {
+=======
+    cpath_1: CommitPath,
+    cpath_2: CommitPath,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    opts: DFOpts, // TODONOW: custom return type
+) -> Result<TabularCompare, OxenError> {
+    // Get the commits
+    let commit_1 = cpath_1.commit;
+    let commit_2 = cpath_2.commit;
+    // Get the files
+    let file_1 = cpath_1.path;
+    let file_2 = cpath_2.path;
+>>>>>>> main
     // Assert that the files exist in their respective commits and are tabular.
     let version_file_1 =
         api::local::diff::get_version_file_from_commit_id(repo, &entry_1.commit_id, &entry_1.path)?;
@@ -60,7 +84,7 @@ pub fn compare_files(
     let required_fields = keys
         .iter()
         .chain(targets.iter())
-        .map(|field| field.clone())
+        .cloned()
         .collect::<Vec<String>>();
 
     // Make sure both dataframes have all required fields
@@ -428,15 +452,20 @@ fn compute_row_comparison(
             .is_null(),
     )?;
 
+<<<<<<< HEAD
     let mut right_only = joined_df.filter(
         &joined_df
             .column(format!("{}.left", targets[0]).as_str())?
             .is_null(),
     )?;
+=======
+    let mut joined_df = df_1.outer_join(df_2, keys.clone(), keys.clone())?;
+>>>>>>> main
 
     let mut diff_df = calculate_diff_df(&joined_df, targets.clone(), keys.clone())?;
     let mut match_df = calculate_match_df(&joined_df, targets.clone(), keys.clone())?;
 
+<<<<<<< HEAD
     // let diff_size = diff_df.height();
     // let match_size = match_df.height();
 
@@ -575,6 +604,10 @@ fn hash_and_join_dfs(
     cols_to_rename.push(TARGETS_HASH_COL);
 
     for target in cols_to_rename.iter() {
+=======
+    // TODONOW: ew
+    for target in targets.iter() {
+>>>>>>> main
         let left_before = target.to_string();
         let left_after = format!("{}.left", target);
         let right_before = format!("{}_right", target);
