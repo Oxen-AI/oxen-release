@@ -13,7 +13,7 @@ use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
     CompareTabularResponse,
 };
-use liboxen::view::json_data_frame::JsonDataFrameOrSlice;
+use liboxen::view::json_data_frame::JsonChildDataFrame;
 use liboxen::view::{
     CompareEntriesResponse, JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage,
 };
@@ -338,63 +338,63 @@ pub async fn get_derived_df(
 
     // We have to run the query param transforms, then paginate separately
     match tabular::transform(df, opts) {
-        Ok(sliced_df) => {
-            log::debug!("Sliced df {:?}", sliced_df);
+        Ok(view_df) => {
+            log::debug!("View df {:?}", view_df);
 
-            let sliced_width = sliced_df.width();
-            let sliced_height = sliced_df.height();
+            let view_width = view_df.width();
+            let view_height = view_df.height();
 
             // Paginate after transform
             let mut paginate_opts = DFOpts::empty();
             paginate_opts.slice = Some(format!("{}..{}", start, end));
-            let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
+            let mut paginated_df = tabular::transform(view_df, paginate_opts)?;
 
-            let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
+            let total_pages = (view_height as f64 / page_size as f64).ceil() as usize;
             let full_size = DataFrameSize {
                 width: full_width,
                 height: full_height,
             };
 
             // Merge the metadata from the original schema
-            let mut slice_schema = Schema::from_polars(&paginated_df.schema());
+            let mut view_schema = Schema::from_polars(&paginated_df.schema());
             log::debug!("OG schema {:?}", og_schema);
-            log::debug!("Pre-Slice schema {:?}", slice_schema);
-            slice_schema.update_metadata_from_schema(&og_schema);
+            log::debug!("Pre-Slice schema {:?}", view_schema);
+            view_schema.update_metadata_from_schema(&og_schema);
 
-            log::debug!("Slice schema {:?}", slice_schema);
+            log::debug!("View schema {:?}", view_schema);
 
             let df = JsonDataFrame::from_slice(
                 &mut paginated_df,
                 og_schema.clone(),
                 full_size.clone(),
-                slice_schema.clone(),
+                view_schema.clone(),
             );
 
-            let full_df = JsonDataFrameOrSlice {
+            let full_df = JsonChildDataFrame {
                 data: None,
                 schema: og_schema,
                 size: full_size,
             };
 
-            let slice_df = JsonDataFrameOrSlice {
+            let view_df = JsonChildDataFrame {
                 data: Some(df.data),
-                schema: slice_schema,
+                schema: view_schema,
                 size: DataFrameSize {
-                    width: sliced_width,
-                    height: sliced_height,
+                    width: view_width,
+                    height: view_height,
                 },
             };
 
             let response = JsonDataFrameSliceResponse {
                 status: StatusMessage::resource_found(),
                 df: full_df,
-                slice: slice_df,
+                view: view_df,
                 commit: None,
                 resource: None,
                 page_number: page,
                 page_size,
                 total_pages,
-                total_entries: sliced_height,
+                total_entries: view_height,
             };
             Ok(HttpResponse::Ok().json(response))
         }

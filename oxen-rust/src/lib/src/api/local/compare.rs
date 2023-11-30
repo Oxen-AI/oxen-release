@@ -134,6 +134,11 @@ pub fn get_cached_compare(
     let right_only_df =
         tabular::read_df(get_compare_right_path(repo, compare_id), DFOpts::empty())?;
 
+    let match_schema = Schema::from_polars(&match_df.schema());
+    let diff_schema = Schema::from_polars(&diff_df.schema());
+    let left_only_schema = Schema::from_polars(&left_only_df.schema());
+    let right_only_schema = Schema::from_polars(&right_only_df.schema());
+
     let source_df_left = CompareSourceDF::from_name_df_entry_schema(
         LEFT,
         left_full_df,
@@ -153,7 +158,7 @@ pub fn get_cached_compare(
         &left_entry.commit_id,
         &right_entry.commit_id,
         match_df,
-        left_schema.schema.clone(),
+        match_schema,
     );
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
@@ -161,7 +166,7 @@ pub fn get_cached_compare(
         &left_entry.commit_id,
         &right_entry.commit_id,
         diff_df,
-        left_schema.schema.clone(),
+        diff_schema,
     );
     let derived_df_left_only = CompareDerivedDF::from_compare_info(
         LEFT_ONLY,
@@ -169,7 +174,7 @@ pub fn get_cached_compare(
         &left_entry.commit_id,
         &right_entry.commit_id,
         left_only_df,
-        left_schema.schema.clone(),
+        left_only_schema,
     );
     let derived_df_right_only = CompareDerivedDF::from_compare_info(
         RIGHT_ONLY,
@@ -177,7 +182,7 @@ pub fn get_cached_compare(
         &left_entry.commit_id,
         &right_entry.commit_id,
         right_only_df,
-        left_schema.schema.clone(),
+        right_only_schema,
     );
 
     let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
@@ -328,25 +333,24 @@ fn compute_row_comparison(
         schema: Schema::from_polars(&df_2.schema()),
     };
 
+    // Output cols for match, left_only, right_only
+    let mut keys_and_targets = keys.clone();
+    keys_and_targets.extend(targets.clone());
+
     let df_1_size = DataFrameSize::from_df(&df_1);
     let df_2_size = DataFrameSize::from_df(&df_2);
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let joined_df = hash_and_join_dfs(df_1, df_2, keys.clone(), targets.clone())?;
 
-    let mut left_only = joined_df.filter(
-        &joined_df
-            .column(format!("{}.right", targets[0]).as_str())?
-            .is_null(),
-    )?;
-
-    let mut right_only = joined_df.filter(
-        &joined_df
-            .column(format!("{}.left", targets[0]).as_str())?
-            .is_null(),
-    )?;
-
     let mut diff_df = calculate_diff_df(&joined_df, targets.clone(), keys.clone())?;
     let mut match_df = calculate_match_df(&joined_df, targets.clone(), keys.clone())?;
+    let mut left_only_df = calculate_left_df(&joined_df, targets.clone(), keys.clone())?;
+    let mut right_only_df = calculate_right_df(&joined_df, targets.clone(), keys.clone())?;
+
+    let diff_schema = Schema::from_polars(&diff_df.schema());
+    let match_schema = Schema::from_polars(&match_df.schema());
+    let left_only_schema = Schema::from_polars(&left_only_df.schema());
+    let right_only_schema = Schema::from_polars(&right_only_df.schema());
 
     // Cache if we have a compare_id - i.e., if called from server
     if let Some(compare_id) = compare_id {
@@ -354,8 +358,8 @@ fn compute_row_comparison(
         write_compare_dfs(
             repo,
             compare_id,
-            &mut left_only,
-            &mut right_only,
+            &mut left_only_df,
+            &mut right_only_df,
             &mut match_df,
             &mut diff_df,
         )?;
@@ -367,10 +371,8 @@ fn compute_row_comparison(
         let match_path = output.join("match.csv");
         let diff_path = output.join("diff.csv");
         tabular::write_df(&mut match_df, match_path.clone())?;
-        println!("Wrote compare match rows to {}", match_path.display());
         tabular::write_df(&mut diff_df, diff_path.clone())?;
-        println!("Wrote compare diff rows to {}", diff_path.display());
-    }
+    };
 
     println!("Rows with matching keys and DIFFERENT targets");
     println!("{:?}", diff_df);
@@ -379,10 +381,10 @@ fn compute_row_comparison(
     println!("{:?}", match_df);
 
     println!("Rows with keys only in LEFT DataFrame");
-    println!("{:?}", left_only);
+    println!("{:?}", left_only_df);
 
     println!("Rows with keys only in RIGHT DataFrame");
-    println!("{:?}", right_only);
+    println!("{:?}", right_only_df);
 
     let derived_df_match = CompareDerivedDF::from_compare_info(
         MATCH,
@@ -390,7 +392,7 @@ fn compute_row_comparison(
         &entry_1.commit_id,
         &entry_2.commit_id,
         match_df,
-        og_schema_1.schema.clone(),
+        match_schema,
     );
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
@@ -398,23 +400,23 @@ fn compute_row_comparison(
         &entry_1.commit_id,
         &entry_2.commit_id,
         diff_df,
-        og_schema_1.schema.clone(),
+        diff_schema,
     );
     let derived_df_left_only = CompareDerivedDF::from_compare_info(
         LEFT_ONLY,
         compare_id,
         &entry_1.commit_id,
         &entry_2.commit_id,
-        left_only,
-        og_schema_1.schema.clone(),
+        left_only_df,
+        left_only_schema,
     );
     let derived_df_right_only = CompareDerivedDF::from_compare_info(
         RIGHT_ONLY,
         compare_id,
         &entry_1.commit_id,
         &entry_2.commit_id,
-        right_only,
-        og_schema_1.schema.clone(),
+        right_only_df,
+        right_only_schema,
     );
 
     let source_df_left = CompareSourceDF {
@@ -537,6 +539,56 @@ fn calculate_match_df(
     let cols_to_keep = keys.iter().chain(targets.iter()).copied();
 
     Ok(match_df.select(cols_to_keep)?)
+}
+
+fn calculate_left_df(
+    df: &DataFrame,
+    targets: Vec<&str>,
+    keys: Vec<&str>,
+) -> Result<DataFrame, OxenError> {
+    let keys_and_targets = keys
+        .iter()
+        .chain(targets.iter())
+        .copied()
+        .collect::<Vec<&str>>();
+
+    let mut left_only = df.filter(
+        &df.column(format!("{}.right", targets[0]).as_str())?
+            .is_null(),
+    )?;
+
+    for target in targets.iter() {
+        let left_before = format!("{}.left", target);
+        let left_after = target.to_string();
+        left_only.rename(&left_before, &left_after)?;
+    }
+
+    Ok(left_only.select(keys_and_targets.clone())?)
+}
+
+fn calculate_right_df(
+    df: &DataFrame,
+    targets: Vec<&str>,
+    keys: Vec<&str>,
+) -> Result<DataFrame, OxenError> {
+    let keys_and_targets = keys
+        .iter()
+        .chain(targets.iter())
+        .copied()
+        .collect::<Vec<&str>>();
+
+    let mut right_only = df.filter(
+        &df.column(format!("{}.left", targets[0]).as_str())?
+            .is_null(),
+    )?;
+
+    for target in targets.iter() {
+        let right_before = format!("{}.right", target);
+        let right_after = target.to_string();
+        right_only.rename(&right_before, &right_after)?;
+    }
+
+    Ok(right_only.select(keys_and_targets.clone())?)
 }
 
 #[cfg(test)]
@@ -666,8 +718,6 @@ mod tests {
                 None,
             )?;
 
-            log::debug!("Here is the original compare {:?}", created_compare);
-
             // Check getting via cache
             let compare = api::local::compare::get_cached_compare(
                 &repo,
@@ -677,7 +727,6 @@ mod tests {
             )?
             .unwrap();
 
-            log::debug!("here is the cached compare {:?}", compare);
             assert_eq!(compare.derived["left_only"].size.height, 2);
             assert_eq!(compare.derived["right_only"].size.height, 1);
             assert_eq!(compare.derived["match"].size.height, 6);
