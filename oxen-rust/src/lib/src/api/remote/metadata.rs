@@ -198,7 +198,7 @@ mod tests {
                     .await?;
             println!("meta: {:?}", meta);
 
-            let df = meta.slice.to_df();
+            let df = meta.view.to_df();
             println!("df: {:?}", df);
 
             /*

@@ -92,7 +92,6 @@ pub struct CompareDerivedDF {
     pub name: String,
     pub size: DataFrameSize,
     pub schema: Schema,
-    pub version: String,
     pub resource: Option<CompareVirtualResource>, // None for direct CLI compare creation
 }
 
@@ -126,10 +125,13 @@ impl CompareDerivedDF {
         schema: Schema,
     ) -> CompareDerivedDF {
         let resource = compare_id.map(|compare_id| CompareVirtualResource {
-            url: format!("/compare/{}/", compare_id),
+            url: format!(
+                "/compare/df/{}/{}/{}..{}",
+                compare_id, name, left_commit_id, right_commit_id
+            ),
             base: left_commit_id.to_owned(),
             head: right_commit_id.to_owned(),
-            path: name.to_owned(),
+            path: format!("{}/{}", compare_id, name),
         });
 
         CompareDerivedDF {
@@ -139,7 +141,6 @@ impl CompareDerivedDF {
                 width: df.width(),
             },
             schema,
-            version: "derived".to_owned(),
             resource,
         }
     }

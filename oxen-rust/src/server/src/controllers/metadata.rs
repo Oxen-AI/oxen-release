@@ -7,7 +7,7 @@ use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::DFOpts;
 use liboxen::view::entry::ResourceVersion;
-use liboxen::view::json_data_frame::JsonDataFrameOrSlice;
+use liboxen::view::json_data_frame::JsonChildDataFrame;
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
 };
@@ -93,22 +93,22 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
 
     let df = JsonDataFrame::from_df(&mut sliced_df);
 
-    let full_df = JsonDataFrameOrSlice {
+    let full_df = JsonChildDataFrame {
         data: None,
         schema: df.schema.clone(),
         size: full_size,
     };
 
-    let slice_df = JsonDataFrameOrSlice {
+    let view_df = JsonChildDataFrame {
         data: Some(df.data),
-        schema: df.slice_schema.clone(),
-        size: df.slice_size.clone(),
+        schema: df.view_schema.clone(),
+        size: df.view_size.clone(),
     };
 
     let response = JsonDataFrameSliceResponse {
         status: StatusMessage::resource_found(),
         df: full_df,
-        slice: slice_df,
+        view: view_df,
         commit: Some(resource.commit.clone()),
         resource: Some(resource_version),
         page_number: 0,
@@ -171,16 +171,16 @@ pub async fn agg_dir(
 
         let df = JsonDataFrame::from_df(&mut df);
         log::debug!("Here's the df we're getting, {:?}", df);
-        let full_df = JsonDataFrameOrSlice {
+        let full_df = JsonChildDataFrame {
             data: None,
             schema: df.schema.clone(),
             size: df.full_size.clone(),
         };
 
-        let slice_df = JsonDataFrameOrSlice {
+        let view_df = JsonChildDataFrame {
             data: Some(df.data),
-            schema: df.slice_schema.clone(),
-            size: df.slice_size.clone(),
+            schema: df.view_schema.clone(),
+            size: df.view_size.clone(),
         };
 
         let full_size = full_df.size.clone();
@@ -188,7 +188,7 @@ pub async fn agg_dir(
         let response = JsonDataFrameSliceResponse {
             status: StatusMessage::resource_found(),
             df: full_df,
-            slice: slice_df,
+            view: view_df,
             commit: Some(resource.commit.clone()),
             resource: Some(resource_version),
             page_number: 1,
