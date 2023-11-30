@@ -65,6 +65,7 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
+    IncompatibleSchemas(StringError),
     InvalidFileType(StringError),
 
     // Generic
@@ -403,6 +404,15 @@ impl OxenError {
     pub fn invalid_file_type<S: AsRef<str>>(file_type: S) -> OxenError {
         let err = format!("Invalid file type: {:?}", file_type.as_ref());
         OxenError::InvalidFileType(StringError::from(err))
+    }
+
+    pub fn incompatible_schemas(cols: Vec<String>, schema: Schema) -> OxenError {
+        let err = format!(
+            "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
+            cols, 
+            schema
+        );
+        OxenError::IncompatibleSchemas(StringError::from(err))
     }
 
     pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {

@@ -60,13 +60,15 @@ pub fn compare_files(
         .collect::<Vec<String>>();
 
     // Make sure both dataframes have all required fields
+
+
     if !schema_1.has_field_names(&required_fields) {
-        return Err(OxenError::InvalidSchema(Box::new(schema_1)));
-    }
+        return Err(OxenError::incompatible_schemas(required_fields, schema_1))
+    };
 
     if !schema_2.has_field_names(&required_fields) {
-        return Err(OxenError::InvalidSchema(Box::new(schema_2)));
-    }
+        return Err(OxenError::incompatible_schemas(required_fields, schema_2))
+    };
 
     let keys = keys.iter().map(|key| key.as_str()).collect::<Vec<&str>>();
     let targets = targets
