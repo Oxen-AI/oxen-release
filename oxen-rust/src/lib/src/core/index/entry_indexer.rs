@@ -85,11 +85,15 @@ impl EntryIndexer {
         };
 
         // For pulling after the initial clone, save status to avoid overwriting local untracked changes
-        let status = if let Some(head_commit) = &head_commit {
+        let mut status = StagedData::empty();
+
+        // TODO: revisit after updating shallow clone
+        if head_commit.is_some() && !self.repository.is_shallow_clone() {
             let stager = Stager::new(&self.repository)?;
-            stager.status(&CommitEntryReader::new(&self.repository, head_commit)?)?
-        } else {
-            StagedData::empty()
+            status = stager.status(&CommitEntryReader::new(
+                &self.repository,
+                &head_commit.clone().unwrap(),
+            )?)?
         };
 
         // If our local branch is currently completely synced (from a clone or pull --all), we should
@@ -125,8 +129,10 @@ impl EntryIndexer {
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
-
-        self.cleanup_removed_entries(&commit, status)?;
+        // TODO: Revisit after revising shallow logic
+        if !&self.repository.is_shallow_clone() {
+            self.cleanup_removed_entries(&commit, status)?;
+        }
 
         Ok(())
     }
@@ -775,13 +781,12 @@ impl EntryIndexer {
                             );
 
                             if !dir_entry.file_type.is_dir() {
-                                log::debug!("Checking file path {:?}", short_path);
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
                                 // (unless it's in untracked files or parent in untracked dirs)
                                 if !commit_entry_reader.has_file(path)
-                                    && !untracked_files.contains(&short_path)
-                                    && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
+                                // && !untracked_files.contains(&short_path)
+                                // && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
                                 {
                                     log::debug!(
                                         "{} commit reader does not have file {:?}",
@@ -800,8 +805,8 @@ impl EntryIndexer {
                                 // unless it or a parent is in untracked dirs
                                 if !commit_reader.has_dir(&short_path)
                                     && short_path != Path::new("")
-                                    && !untracked_dirs.contains(&short_path)
-                                    && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
+                                // && !untracked_dirs.contains(&short_path)
+                                // && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
                                 {
                                     log::debug!(
                                         "{} commit reader does not have dir {:?}",
