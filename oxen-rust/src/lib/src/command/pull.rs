@@ -219,4 +219,115 @@ mod tests {
         })
         .await
     }
+    #[tokio::test]
+    async fn test_pull_does_not_remove_untracked_files() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_empty_sync_repo_test(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
+                let user_a_repo =
+                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+                // Clone Repo to User B
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
+                    let user_b_repo =
+                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+
+                    // Add file_1 and file_2 to user A repo
+                    let file_1 = "file_1.txt";
+                    test::write_txt_file_to_path(user_a_repo.path.join(file_1), "File 1")?;
+                    let file_2 = "file_2.txt";
+                    test::write_txt_file_to_path(user_a_repo.path.join(file_2), "File 2")?;
+
+                    command::add(&user_a_repo, user_a_repo.path.join(file_1))?;
+                    command::add(&user_a_repo, user_a_repo.path.join(file_2))?;
+
+                    command::commit(&user_a_repo, "Adding file_1 and file_2")?;
+
+                    // Push
+                    command::push(&user_a_repo).await?;
+
+                    let local_file_2 = "file_2.txt";
+                    test::write_txt_file_to_path(
+                        user_b_repo.path.join(local_file_2),
+                        "wrong not correct content",
+                    )?;
+
+                    // Add file_3 to user B repo
+                    let file_3 = "file_3.txt";
+                    test::write_txt_file_to_path(user_b_repo.path.join(file_3), "File 3")?;
+
+                    // Make a dir
+                    let dir_1 = "dir_1";
+                    std::fs::create_dir(user_b_repo.path.join(dir_1))?;
+
+                    // Make another dir
+                    let dir_2 = "dir_2";
+                    std::fs::create_dir(user_b_repo.path.join(dir_2))?;
+
+                    // Add files in dir_2
+                    let file_4 = "file_4.txt";
+                    test::write_txt_file_to_path(
+                        user_b_repo.path.join(dir_2).join(file_4),
+                        "File 4",
+                    )?;
+                    let file_5 = "file_5.txt";
+                    test::write_txt_file_to_path(
+                        user_b_repo.path.join(dir_2).join(file_5),
+                        "File 5",
+                    )?;
+
+                    let dir_3 = "dir_3";
+                    let subdir = "subdir";
+                    std::fs::create_dir_all(user_b_repo.path.join(dir_3).join(subdir))?;
+
+                    let subfile = "subfile.txt";
+                    test::write_txt_file_to_path(
+                        user_b_repo.path.join(dir_3).join(subdir).join(subfile),
+                        "Subfile",
+                    )?;
+
+                    // Pull changes
+                    command::pull(&user_b_repo).await?;
+
+                    // Files from the other commit successfully pulled
+                    assert!(user_b_repo.path.join(file_1).exists());
+                    assert!(user_b_repo.path.join(file_2).exists());
+
+                    // Bad local data successfully overwritten on pull (should we flag conflict here?)
+                    let local_file_2_contents =
+                        std::fs::read_to_string(user_b_repo.path.join(local_file_2))?;
+                    assert_eq!(local_file_2_contents, "File 2");
+
+                    // Untracked files not removed
+                    assert!(user_b_repo.path.join(file_3).exists());
+                    assert!(user_b_repo.path.join(dir_1).exists());
+                    assert!(user_b_repo.path.join(dir_2).exists());
+                    assert!(user_b_repo.path.join(dir_2).join(file_4).exists());
+                    assert!(user_b_repo.path.join(dir_2).join(file_5).exists());
+                    assert!(user_b_repo.path.join(dir_3).exists());
+                    assert!(user_b_repo.path.join(dir_3).join(subdir).exists());
+                    assert!(user_b_repo
+                        .path
+                        .join(dir_3)
+                        .join(subdir)
+                        .join(subfile)
+                        .exists());
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
 }
