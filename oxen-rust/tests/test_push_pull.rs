@@ -226,6 +226,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
 
         // Push it
         command::push(&repo).await?;
+        let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
 
         // run another test with a new repo dir that we are going to sync to
         test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -257,9 +258,9 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
             // Pull it on the OG side
             command::pull_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name, true)
                 .await?;
-            let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
-            // Now there should be 7 train files
-            assert_eq!(7, og_num_files);
+            let num_new_files = util::fs::rcount_files_in_dir(&repo.path);
+            // Now there should be a new hotdog file
+            assert_eq!(og_num_files+1, num_new_files);
 
             // Add another file on the OG side, and push it back
             let hotdog_path = Path::new("data/test/images/hotdog_2.jpg");
