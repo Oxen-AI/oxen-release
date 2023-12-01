@@ -352,13 +352,6 @@ where
     command::rm(&local_repo, &rm_opts).await?;
     command::commit(&local_repo, "Removing test/")?;
 
-    // Check if the test directory is there....
-    // TODONOW remove
-    let test_dir = local_repo.path.join("test");
-    if test_dir.exists() {
-        return Err(OxenError::basic_str("Test dir should not exist"));
-    }
-
     // Add all the files
     command::add(&local_repo, &local_repo.path)?;
     // Commit all the data locally
