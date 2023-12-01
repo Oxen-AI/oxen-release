@@ -755,7 +755,7 @@ mod tests {
             )?
             .unwrap();
             // Create compare on this commit
-            let created_compare = api::local::compare::compare_files(
+            api::local::compare::compare_files(
                 &repo,
                 Some("a_compare_id"),
                 left_entry.clone(),
@@ -792,7 +792,7 @@ mod tests {
 
             // Commit the new modification
             command::add(&repo, &repo.path)?;
-            let status = command::status(&repo)?;
+            command::status(&repo)?;
             command::commit(&repo, "updating compare_left.csv")?;
 
             // Get new entries and check the cached compare
