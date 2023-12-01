@@ -193,6 +193,12 @@ pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, 
     Ok(df)
 }
 
+pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
+    let dupe_mask = df.select(cols)?.is_duplicated()?;
+    let n_dupes = dupe_mask.sum().unwrap() as u64; // Can unwrap - sum implemented for boolean
+    Ok(n_dupes)
+}
+
 pub fn parse_data_into_df(
     data: &str,
     schema: &crate::model::Schema,

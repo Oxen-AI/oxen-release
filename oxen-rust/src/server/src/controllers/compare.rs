@@ -6,16 +6,19 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
+use liboxen::message::OxenMessage;
 use liboxen::model::compare::tabular_compare::TabularCompareBody;
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
+use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
     CompareTabularResponse,
 };
-use liboxen::view::json_data_frame::JsonChildDataFrame;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::{
-    CompareEntriesResponse, JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage,
+    CompareEntriesResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
+    JsonDataFrameViews, Pagination, StatusMessage,
 };
 use liboxen::{api, constants, util};
 
@@ -219,9 +222,16 @@ pub async fn create_df_compare(
         None,
     )?;
 
+    let mut messages: Vec<OxenMessage> = vec![];
+
+    if compare.dupes.left > 0 || compare.dupes.right > 0 {
+        messages.push(compare.dupes.clone().to_message());
+    }
+
     let view = CompareTabularResponse {
         status: StatusMessage::resource_found(),
         dfs: compare,
+        messages,
     };
 
     Ok(HttpResponse::Ok().json(view))
@@ -272,10 +282,17 @@ pub async fn get_df_compare(
 
     let view = match maybe_cached_compare {
         Some(compare) => {
+            let mut messages: Vec<OxenMessage> = vec![];
+
+            if compare.dupes.left > 0 || compare.dupes.right > 0 {
+                messages.push(compare.dupes.clone().to_message());
+            }
+
             log::debug!("cache hit!");
             CompareTabularResponse {
                 status: StatusMessage::resource_found(),
                 dfs: compare,
+                messages,
             }
         }
         None => {
@@ -289,9 +306,17 @@ pub async fn get_df_compare(
                 data.targets,
                 None,
             )?;
+
+            let mut messages: Vec<OxenMessage> = vec![];
+
+            if compare.dupes.left > 0 || compare.dupes.right > 0 {
+                messages.push(compare.dupes.clone().to_message());
+            }
+
             CompareTabularResponse {
                 status: StatusMessage::resource_found(),
                 dfs: compare,
+                messages,
             }
         }
     };
@@ -347,10 +372,11 @@ pub async fn get_derived_df(
             // Paginate after transform
             let mut paginate_opts = DFOpts::empty();
             paginate_opts.slice = Some(format!("{}..{}", start, end));
+            let opts_view = DFOptsView::from_df_opts(&paginate_opts);
             let mut paginated_df = tabular::transform(view_df, paginate_opts)?;
 
             let total_pages = (view_height as f64 / page_size as f64).ceil() as usize;
-            let full_size = DataFrameSize {
+            let source_size = DataFrameSize {
                 width: full_width,
                 height: full_height,
             };
@@ -366,36 +392,43 @@ pub async fn get_derived_df(
             let df = JsonDataFrame::from_slice(
                 &mut paginated_df,
                 og_schema.clone(),
-                full_size.clone(),
+                source_size.clone(),
                 view_schema.clone(),
             );
 
-            let full_df = JsonChildDataFrame {
-                data: None,
+            let source_df = JsonDataFrameSource {
                 schema: og_schema,
-                size: full_size,
+                size: source_size,
             };
 
-            let view_df = JsonChildDataFrame {
-                data: Some(df.data),
+            let view_df = JsonDataFrameView {
+                data: df.data,
                 schema: view_schema,
                 size: DataFrameSize {
                     width: view_width,
                     height: view_height,
                 },
+                pagination: {
+                    Pagination {
+                        page_number: page,
+                        page_size,
+                        total_pages,
+                        total_entries: view_height,
+                    }
+                },
+                opts: opts_view,
             };
 
-            let response = JsonDataFrameSliceResponse {
+            let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_found(),
-                df: full_df,
-                view: view_df,
+                data_frame: JsonDataFrameViews {
+                    source: source_df,
+                    view: view_df,
+                },
                 commit: None,
                 resource: None,
-                page_number: page,
-                page_size,
-                total_pages,
-                total_entries: view_height,
             };
+
             Ok(HttpResponse::Ok().json(response))
         }
         Err(OxenError::SQLParseError(sql)) => {

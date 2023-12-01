@@ -1,4 +1,4 @@
-// TODO: We are depreciating this format in favor of the new JSON format
+// This format is deprecated favor of the new JSON format
 
 use std::io::BufWriter;
 use std::str;
@@ -7,12 +7,9 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
-use super::StatusMessage;
 use crate::core::df::tabular;
-use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::PaginateOpts;
-use crate::view::entry::ResourceVersion;
 use crate::{model::Schema, opts::DFOpts};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -22,88 +19,6 @@ pub struct JsonDataFrame {
     pub view_size: DataFrameSize,
     pub full_size: DataFrameSize,
     pub data: serde_json::Value,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JsonChildDataFrame {
-    pub data: Option<serde_json::Value>,
-    pub schema: Schema,
-    pub size: DataFrameSize,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JsonDataFrameSliceResponse {
-    #[serde(flatten)]
-    pub status: StatusMessage,
-    pub df: JsonChildDataFrame,
-    pub view: JsonChildDataFrame,
-    pub commit: Option<Commit>,
-    pub resource: Option<ResourceVersion>,
-    pub page_number: usize,
-    pub page_size: usize,
-    pub total_pages: usize,
-    pub total_entries: usize,
-}
-
-impl JsonChildDataFrame {
-    pub fn to_df(&self) -> DataFrame {
-        if let Some(data) = &self.data {
-            let columns = self.schema.fields_names();
-            log::debug!("Got columns: {:?}", columns);
-
-            match data {
-                serde_json::Value::Array(arr) => {
-                    if !arr.is_empty() {
-                        let data = data.to_string();
-                        let content = Cursor::new(data.as_bytes());
-                        log::debug!("Deserializing df: [{}]", data);
-                        let df = JsonReader::new(content).finish().unwrap();
-
-                        let opts = DFOpts::from_column_names(columns);
-                        tabular::transform(df, opts).unwrap()
-                    } else {
-                        let cols = columns
-                            .iter()
-                            .map(|name| Series::new(name, Vec::<&str>::new()))
-                            .collect::<Vec<Series>>();
-                        DataFrame::new(cols).unwrap()
-                    }
-                }
-                _ => {
-                    log::error!("Could not parse non-array json data: {:?}", self.data);
-                    DataFrame::empty()
-                }
-            }
-        } else {
-            DataFrame::empty()
-        }
-    }
-}
-
-impl JsonDataFrameSliceResponse {
-    pub fn from_json_dataframe(json_df: JsonDataFrame) -> JsonDataFrameSliceResponse {
-        let df = JsonChildDataFrame {
-            data: None,
-            schema: json_df.schema.clone(),
-            size: json_df.full_size.clone(),
-        };
-        let view = JsonChildDataFrame {
-            data: Some(json_df.data),
-            schema: json_df.view_schema.clone(),
-            size: json_df.view_size.clone(),
-        };
-        JsonDataFrameSliceResponse {
-            status: StatusMessage::resource_found(),
-            df,
-            view,
-            commit: None,
-            resource: None,
-            page_number: 1,
-            page_size: json_df.view_size.height,
-            total_pages: 1,
-            total_entries: json_df.view_size.height,
-        }
-    }
 }
 
 impl JsonDataFrame {

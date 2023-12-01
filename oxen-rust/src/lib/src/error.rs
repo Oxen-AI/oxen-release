@@ -6,6 +6,7 @@
 use derive_more::{Display, Error};
 use std::fmt::Debug;
 use std::io;
+use std::num::ParseIntError;
 use std::path::Path;
 
 use crate::model::Schema;
@@ -99,6 +100,7 @@ pub enum OxenError {
     PatternError(glob::PatternError),
     GlobError(glob::GlobError),
     PolarsError(polars::prelude::PolarsError),
+    ParseIntError(ParseIntError),
 
     // Fallback
     Basic(StringError),
@@ -409,8 +411,7 @@ impl OxenError {
     pub fn incompatible_schemas(cols: Vec<String>, schema: Schema) -> OxenError {
         let err = format!(
             "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
-            cols, 
-            schema
+            cols, schema
         );
         OxenError::IncompatibleSchemas(StringError::from(err))
     }
@@ -549,5 +550,11 @@ impl From<duckdb::Error> for OxenError {
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {
         OxenError::ENV(error)
+    }
+}
+
+impl From<ParseIntError> for OxenError {
+    fn from(error: ParseIntError) -> Self {
+        OxenError::basic_str(error.to_string())
     }
 }

@@ -1,12 +1,10 @@
-use crate::constants::{
-    CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT, TARGETS_HASH_COL,
-};
+use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT};
 use crate::core::df::tabular::{self};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository, Schema};
 use crate::opts::DFOpts;
 
-use crate::view::compare::{CompareDerivedDF, CompareSourceDF, CompareTabular};
+use crate::view::compare::{CompareDerivedDF, CompareDupes, CompareSourceDF, CompareTabular};
 use crate::view::schema::SchemaWithPath;
 use crate::{api, util};
 
@@ -15,12 +13,15 @@ use polars::prelude::{DataFrame, DataFrameJoinOps};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-pub const LEFT: &str = "left";
-pub const RIGHT: &str = "right";
-pub const MATCH: &str = "match";
-pub const DIFF: &str = "diff";
-pub const LEFT_ONLY: &str = "left_only";
-pub const RIGHT_ONLY: &str = "right_only";
+const LEFT: &str = "left";
+const RIGHT: &str = "right";
+const MATCH: &str = "match";
+const DIFF: &str = "diff";
+const LEFT_ONLY: &str = "left_only";
+const RIGHT_ONLY: &str = "right_only";
+const TARGETS_HASH_COL: &str = "_targets_hash";
+const KEYS_HASH_COL: &str = "_keys_hash";
+const DUPES_PATH: &str = "dupes.json";
 
 pub fn compare_files(
     repo: &LocalRepository,
@@ -61,13 +62,12 @@ pub fn compare_files(
 
     // Make sure both dataframes have all required fields
 
-
     if !schema_1.has_field_names(&required_fields) {
-        return Err(OxenError::incompatible_schemas(required_fields, schema_1))
+        return Err(OxenError::incompatible_schemas(required_fields, schema_1));
     };
 
     if !schema_2.has_field_names(&required_fields) {
-        return Err(OxenError::incompatible_schemas(required_fields, schema_2))
+        return Err(OxenError::incompatible_schemas(required_fields, schema_2));
     };
 
     let keys = keys.iter().map(|key| key.as_str()).collect::<Vec<&str>>();
@@ -202,6 +202,7 @@ pub fn get_cached_compare(
     let compare_results = CompareTabular {
         source: source_dfs,
         derived: derived_dfs,
+        dupes: read_dupes(repo, compare_id)?,
     };
 
     Ok(Some(compare_results))
@@ -232,6 +233,37 @@ pub fn get_compare_left_path(repo: &LocalRepository, compare_id: &str) -> PathBu
 pub fn get_compare_right_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
     let compare_dir = get_compare_dir(repo, compare_id);
     compare_dir.join("right_only.parquet")
+}
+
+fn maybe_write_dupes(
+    repo: &LocalRepository,
+    compare_id: &str,
+    dupes: &CompareDupes,
+) -> Result<(), OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        std::fs::create_dir_all(&compare_dir)?;
+    }
+
+    let dupes_path = compare_dir.join(DUPES_PATH);
+
+    std::fs::write(dupes_path, serde_json::to_string(&dupes)?)?;
+
+    Ok(())
+}
+
+fn read_dupes(repo: &LocalRepository, compare_id: &str) -> Result<CompareDupes, OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+    let dupes_path = compare_dir.join(DUPES_PATH);
+
+    if !dupes_path.exists() {
+        return Ok(CompareDupes::empty());
+    }
+
+    let dupes: CompareDupes = serde_json::from_str(&std::fs::read_to_string(dupes_path)?)?;
+
+    Ok(dupes)
 }
 
 fn write_compare_dfs(
@@ -341,8 +373,19 @@ fn compute_row_comparison(
 
     let df_1_size = DataFrameSize::from_df(&df_1);
     let df_2_size = DataFrameSize::from_df(&df_2);
+
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
-    let joined_df = hash_and_join_dfs(df_1, df_2, keys.clone(), targets.clone())?;
+    let (df_1, df_2) = hash_dfs(df_1, df_2, keys.clone(), targets.clone())?;
+
+    let n_dupes_1 = tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?;
+    let n_dupes_2 = tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?;
+
+    let dupes = CompareDupes {
+        left: n_dupes_1,
+        right: n_dupes_2,
+    };
+
+    let joined_df = join_hashed_dfs(df_1, df_2, targets.clone())?;
 
     let mut diff_df = calculate_diff_df(&joined_df, targets.clone(), keys.clone())?;
     let mut match_df = calculate_match_df(&joined_df, targets.clone(), keys.clone())?;
@@ -365,6 +408,7 @@ fn compute_row_comparison(
             &mut match_df,
             &mut diff_df,
         )?;
+        maybe_write_dupes(repo, compare_id, &dupes)?;
     }
 
     // Save to disk if we have an output - i.e., if called from CLI
@@ -452,20 +496,18 @@ fn compute_row_comparison(
     let compare_results = CompareTabular {
         source: source_dfs,
         derived: derived_dfs,
+        dupes,
     };
 
     Ok(compare_results)
 }
 
-fn hash_and_join_dfs(
+fn hash_dfs(
     mut left_df: DataFrame,
     mut right_df: DataFrame,
     keys: Vec<&str>,
     targets: Vec<&str>,
-) -> Result<DataFrame, OxenError> {
-    const TARGETS_HASH_COL: &str = "_targets_hash";
-    const KEYS_HASH_COL: &str = "_keys_hash";
-
+) -> Result<(DataFrame, DataFrame), OxenError> {
     // Subset to only targets and keys - also checks that these are present
     let out_fields = keys.iter().chain(targets.iter()).copied();
 
@@ -479,14 +521,21 @@ fn hash_and_join_dfs(
     left_df = tabular::df_hash_rows_on_cols(left_df, keys.clone(), KEYS_HASH_COL)?;
     right_df = tabular::df_hash_rows_on_cols(right_df, keys.clone(), KEYS_HASH_COL)?;
 
-    let mut joined_df = left_df.outer_join(&right_df, keys.clone(), keys.clone())?;
+    Ok((left_df, right_df))
+}
 
-    // Rename columns to .left and .right suffixes.
+fn join_hashed_dfs(
+    left_df: DataFrame,
+    right_df: DataFrame,
+    targets: Vec<&str>,
+) -> Result<DataFrame, OxenError> {
+    let mut joined_df = left_df.outer_join(&right_df, [KEYS_HASH_COL], [KEYS_HASH_COL])?;
 
     let mut cols_to_rename = targets.clone();
     cols_to_rename.push(TARGETS_HASH_COL);
 
     for target in cols_to_rename.iter() {
+        log::debug!("trying to rename col: {}", target);
         let left_before = target.to_string();
         let left_after = format!("{}.left", target);
         let right_before = format!("{}_right", target);
@@ -744,7 +793,6 @@ mod tests {
             // Commit the new modification
             command::add(&repo, &repo.path)?;
             let status = command::status(&repo)?;
-            log::debug!("Here's our status after adding the file {:?}", status);
             command::commit(&repo, "updating compare_left.csv")?;
 
             // Get new entries and check the cached compare

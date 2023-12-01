@@ -4,6 +4,7 @@ use std::path::PathBuf;
 use polars::frame::DataFrame;
 use serde::{Deserialize, Serialize};
 
+use crate::message::{MessageLevel, OxenMessage};
 use crate::model::{Commit, CommitEntry, DataFrameSize, DiffEntry, Schema};
 use crate::view::Pagination;
 
@@ -61,12 +62,20 @@ pub struct CompareEntriesResponse {
 pub struct CompareTabularResponse {
     pub dfs: CompareTabular,
     pub status: StatusMessage,
+    pub messages: Vec<OxenMessage>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareTabular {
     pub source: HashMap<String, CompareSourceDF>,
     pub derived: HashMap<String, CompareDerivedDF>,
+    pub dupes: CompareDupes,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CompareDupes {
+    pub left: u64,
+    pub right: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -93,6 +102,19 @@ pub struct CompareDerivedDF {
     pub size: DataFrameSize,
     pub schema: Schema,
     pub resource: Option<CompareVirtualResource>, // None for direct CLI compare creation
+}
+
+impl CompareDupes {
+    pub fn empty() -> CompareDupes {
+        CompareDupes { left: 0, right: 0 }
+    }
+
+    pub fn to_message(&self) -> OxenMessage {
+        OxenMessage {
+            level: MessageLevel::Warning,
+            message: format!("This compare contains rows with duplicate keys. Results may be unexpected if keys are intended to be unique.\nLeft df duplicates: {}\nRight df duplicates: {}\n", self.left, self.right),
+        }
+    }
 }
 
 impl CompareSourceDF {
