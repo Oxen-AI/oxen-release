@@ -593,7 +593,7 @@ async fn test_checkout_remote_does_not_remove_untracked_files() -> Result<(), Ox
 
 #[tokio::test]
 async fn test_checkout_old_commit_does_not_overwrite_untracked_files() -> Result<(), OxenError> {
-    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+    test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
         // Create additional branch on remote repo before clone
         let branch_name = "test-branch";
         api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME)
