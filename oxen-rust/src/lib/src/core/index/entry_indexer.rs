@@ -780,8 +780,8 @@ impl EntryIndexer {
                                 // If we don't have the file in the commit, remove it
                                 // (unless it's in untracked files or parent in untracked dirs)
                                 if !commit_entry_reader.has_file(path)
-                                // && !untracked_files.contains(&short_path)
-                                // && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
+                                    && !untracked_files.contains(&short_path)
+                                    && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
                                 {
                                     log::debug!(
                                         "{} commit reader does not have file {:?}",
@@ -800,8 +800,8 @@ impl EntryIndexer {
                                 // unless it or a parent is in untracked dirs
                                 if !commit_reader.has_dir(&short_path)
                                     && short_path != Path::new("")
-                                // && !untracked_dirs.contains(&short_path)
-                                // && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
+                                    && !untracked_dirs.contains(&short_path)
+                                    && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
                                 {
                                     log::debug!(
                                         "{} commit reader does not have dir {:?}",
