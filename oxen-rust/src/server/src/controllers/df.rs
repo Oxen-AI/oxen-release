@@ -6,14 +6,18 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
+use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
-use liboxen::view::json_data_frame::JsonChildDataFrame;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
 use liboxen::opts::DFOpts;
-use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
+use liboxen::view::{
+    JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, Pagination,
+    StatusMessage,
+};
 
 use liboxen::util;
 
@@ -55,6 +59,8 @@ pub async fn get(
     // Clear these for the first transform
     opts.page = None;
     opts.page_size = None;
+
+    let opts_view = DFOptsView::from_df_opts(&opts);
 
     log::debug!("Full df {:?}", df);
 
@@ -106,31 +112,35 @@ pub async fn get(
                 view_schema.clone(),
             );
 
-            let full_df = JsonChildDataFrame {
+            let source_df = JsonDataFrameSource {
                 schema: og_schema,
                 size: full_size,
-                data: None,
             };
 
-            let view_df = JsonChildDataFrame {
+            let view_df = JsonDataFrameView {
                 schema: view_schema,
                 size: DataFrameSize {
                     width: view_width,
                     height: view_height,
                 },
-                data: Some(df.data),
+                data: df.data,
+                pagination: Pagination {
+                    page_number: page,
+                    page_size,
+                    total_pages,
+                    total_entries: view_height,
+                },
+                opts: opts_view,
             };
 
-            let response = JsonDataFrameSliceResponse {
+            let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_found(),
-                df: full_df,
-                view: view_df,
+                data_frame: JsonDataFrameViews {
+                    source: source_df,
+                    view: view_df,
+                },
                 commit: Some(resource.commit.clone()),
                 resource: Some(resource_version),
-                page_number: page,
-                page_size,
-                total_pages,
-                total_entries: view_height,
             };
             Ok(HttpResponse::Ok().json(response))
         }

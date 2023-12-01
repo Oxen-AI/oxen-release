@@ -1,5 +1,8 @@
 use std::path::PathBuf;
 
+use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
+
 use crate::constants::{DEFAULT_HOST, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
 use crate::core::df::agg::{self, DFAggregation};
 use crate::error::OxenError;
@@ -35,19 +38,29 @@ pub struct DFOpts {
     pub head: Option<usize>,
     pub host: Option<String>,
     pub output: Option<PathBuf>,
-    pub page_size: Option<usize>, 
-    pub page: Option<usize>,      
+    pub page_size: Option<usize>,
+    pub page: Option<usize>,
     pub row: Option<usize>,
     pub should_randomize: bool,
-    pub should_reverse: bool, 
+    pub should_reverse: bool,
     pub slice: Option<String>,
-    pub sort_by: Option<String>, 
+    pub sort_by: Option<String>,
     pub sql: Option<String>,
     pub text2sql: Option<String>,
     pub tail: Option<usize>,
     pub take: Option<String>,
     pub unique: Option<String>,
     pub vstack: Option<Vec<PathBuf>>,
+}
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DFOptsView {
+    pub opts: Vec<DFOptView>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DFOptView {
+    pub name: String,
+    pub value: serde_json::Value,
 }
 
 impl DFOpts {
@@ -314,6 +327,49 @@ impl DFOpts {
             }
         }
         query
+    }
+}
+
+impl DFOptView {
+    pub fn from_opt<T: serde::Serialize>(name: &str, opt: &Option<T>) -> Self {
+        let value = match opt {
+            Some(ref v) => serde_json::to_value(v).unwrap_or(Value::Null),
+            None => Value::Null,
+        };
+
+        DFOptView {
+            name: name.to_string(),
+            value,
+        }
+    }
+}
+// Eventually want to make this configurable and accept user input - deterministic for now
+impl DFOptsView {
+    pub fn empty() -> DFOptsView {
+        DFOptsView { opts: vec![] }
+    }
+    pub fn from_df_opts(opts: &DFOpts) -> DFOptsView {
+        let ordered_opts: Vec<DFOptView> = [
+            DFOptView::from_opt("text2sql", &opts.text2sql),
+            DFOptView::from_opt("sql", &opts.sql),
+            DFOptView::from_opt("unique", &opts.unique),
+            DFOptView::from_opt(
+                "should_randomize",
+                &Some(serde_json::to_value(opts.should_randomize).unwrap()),
+            ),
+            DFOptView::from_opt("sort_by", &opts.sort_by),
+            DFOptView::from_opt(
+                "should_reverse",
+                &Some(serde_json::to_value(opts.should_reverse).unwrap()),
+            ),
+            DFOptView::from_opt("take", &opts.take),
+            DFOptView::from_opt("slice", &opts.slice),
+            DFOptView::from_opt("head", &opts.head),
+            DFOptView::from_opt("tail", &opts.tail),
+        ]
+        .to_vec();
+
+        DFOptsView { opts: ordered_opts }
     }
 }
 

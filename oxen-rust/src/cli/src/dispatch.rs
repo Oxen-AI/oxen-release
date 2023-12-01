@@ -342,7 +342,7 @@ pub async fn remote_metadata_list_dir(path: impl AsRef<Path>) -> Result<(), Oxen
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
 
     let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.df.to_df();
+    let df = response.data_frame.view.to_df();
 
     println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 
@@ -362,7 +362,7 @@ pub async fn remote_metadata_aggregate_dir(
 
     let response =
         api::remote::metadata::agg_dir(&remote_repo, &head_commit.id, path, column).await?;
-    let df = response.df.to_df();
+    let df = response.data_frame.view.to_df();
 
     println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 
@@ -378,7 +378,7 @@ pub async fn remote_metadata_list_image(path: impl AsRef<Path>) -> Result<(), Ox
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
 
     let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.df.to_df();
+    let df = response.data_frame.view.to_df();
 
     println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 

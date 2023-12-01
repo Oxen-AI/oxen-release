@@ -31,7 +31,7 @@ pub use crate::view::status_message::{
     IsValidStatusMessage, StatusMessage, StatusMessageDescription,
 };
 
-pub use crate::view::json_data_frame::{JsonDataFrame, JsonDataFrameSliceResponse};
+pub use crate::view::json_data_frame::JsonDataFrame;
 pub use crate::view::json_data_frame_view::{
     JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,
 };

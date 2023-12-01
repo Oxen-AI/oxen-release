@@ -5,11 +5,13 @@ use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 use liboxen::core;
 use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
+use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::entry::ResourceVersion;
-use liboxen::view::json_data_frame::JsonChildDataFrame;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::{
-    JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
+    JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,
+    MetadataEntryResponse, Pagination, StatusMessage,
 };
 use liboxen::{api, current_function};
 
@@ -93,28 +95,34 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
 
     let df = JsonDataFrame::from_df(&mut sliced_df);
 
-    let full_df = JsonChildDataFrame {
-        data: None,
+    let source_df = JsonDataFrameSource {
         schema: df.schema.clone(),
         size: full_size,
     };
 
-    let view_df = JsonChildDataFrame {
-        data: Some(df.data),
+    let view_df = JsonDataFrameView {
+        data: df.data,
         schema: df.view_schema.clone(),
         size: df.view_size.clone(),
+        pagination: Pagination {
+            page_number: 1,
+            page_size: 100,
+            total_pages: 1,
+            total_entries: df.view_size.height,
+        },
+        opts: DFOptsView::empty(),
     };
 
-    let response = JsonDataFrameSliceResponse {
+    let response = JsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
-        df: full_df,
-        view: view_df,
+        data_frame: {
+            JsonDataFrameViews {
+                source: source_df,
+                view: view_df,
+            }
+        },
         commit: Some(resource.commit.clone()),
         resource: Some(resource_version),
-        page_number: 0,
-        page_size: limit,
-        total_pages: 0,
-        total_entries: limit,
     };
     Ok(HttpResponse::Ok().json(response))
 }
@@ -170,31 +178,34 @@ pub async fn agg_dir(
         };
 
         let df = JsonDataFrame::from_df(&mut df);
-        log::debug!("Here's the df we're getting, {:?}", df);
-        let full_df = JsonChildDataFrame {
-            data: None,
+        let full_df = JsonDataFrameSource {
             schema: df.schema.clone(),
             size: df.full_size.clone(),
         };
 
-        let view_df = JsonChildDataFrame {
-            data: Some(df.data),
+        let view_df = JsonDataFrameView {
+            data: df.data,
             schema: df.view_schema.clone(),
             size: df.view_size.clone(),
+            pagination: Pagination {
+                page_number: 1,
+                page_size: df.full_size.height,
+                total_pages: 1,
+                total_entries: df.full_size.height,
+            },
+            opts: DFOptsView::empty(),
         };
 
-        let full_size = full_df.size.clone();
-
-        let response = JsonDataFrameSliceResponse {
+        let response = JsonDataFrameViewResponse {
             status: StatusMessage::resource_found(),
-            df: full_df,
-            view: view_df,
+            data_frame: {
+                JsonDataFrameViews {
+                    source: full_df,
+                    view: view_df,
+                }
+            },
             commit: Some(resource.commit.clone()),
             resource: Some(resource_version),
-            page_number: 1,
-            page_size: full_size.height,
-            total_pages: 1,
-            total_entries: full_size.height,
         };
         Ok(HttpResponse::Ok().json(response))
     } else {
