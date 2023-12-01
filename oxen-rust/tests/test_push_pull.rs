@@ -260,7 +260,7 @@ async fn test_push_pull_push_pull_on_branch() -> Result<(), OxenError> {
                 .await?;
             let num_new_files = util::fs::rcount_files_in_dir(&repo.path);
             // Now there should be a new hotdog file
-            assert_eq!(og_num_files+1, num_new_files);
+            assert_eq!(og_num_files + 1, num_new_files);
 
             // Add another file on the OG side, and push it back
             let hotdog_path = Path::new("data/test/images/hotdog_2.jpg");
