@@ -22,6 +22,7 @@ pub mod repository;
 pub mod schema;
 pub mod sql_parse_error;
 pub mod status_message;
+pub mod version;
 
 pub use crate::view::compare::CompareEntriesResponse;
 pub use crate::view::data_type_count::DataTypeCount;
