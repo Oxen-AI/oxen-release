@@ -1,11 +1,21 @@
 use crate::app_data::OxenAppData;
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::api;
+use liboxen::constants::MIN_CLI_VERSION;
+use liboxen::view::version::VersionResponse;
 use liboxen::view::StatusMessage;
 use serde::Serialize;
 
 pub async fn index(_req: HttpRequest) -> HttpResponse {
     let response = StatusMessage::resource_found();
+    HttpResponse::Ok().json(response)
+}
+
+pub async fn min_version(_req: HttpRequest) -> HttpResponse {
+    let response = VersionResponse {
+        status: StatusMessage::resource_found(),
+        version: MIN_CLI_VERSION.to_string(),
+    };
     HttpResponse::Ok().json(response)
 }
 

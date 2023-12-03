@@ -519,7 +519,8 @@ fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
 pub async fn fetch() -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::fetch(&repository).await?;
@@ -529,7 +530,8 @@ pub async fn fetch() -> Result<(), OxenError> {
 pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let commits = api::local::commits::list_with_opts(&repository, &opts).await?;
@@ -569,7 +571,8 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
 
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let directory = directory.unwrap_or(current_dir);
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -596,7 +599,8 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
 pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let metadata = command::info(&repository, opts.to_owned())?;
 
@@ -633,7 +637,8 @@ pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
 async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let host = get_host_from_repo(&repository)?;
@@ -696,7 +701,8 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
     } else {
         // Look up from the current dir for .oxen directory
         let current_dir = env::current_dir().unwrap();
-        let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+        let repo_dir = util::fs::get_repo_root(&current_dir)
+            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
         let repository = LocalRepository::from_dir(&repo_dir)?;
 
@@ -1032,7 +1038,8 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
 
 pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
     let repo_path = Path::new(repo_path);
-    let repo_dir = util::fs::get_repo_root(repo_path).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(repo_path).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     command::save(&repo, output_path)?;
