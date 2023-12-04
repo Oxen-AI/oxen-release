@@ -185,7 +185,7 @@ pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
         branch_lock_file.display()
     );
 
-    if branch_lock_file.exists() {
+    if branch_lock_file.exists() || api::local::repositories::is_locked(repo) {
         return Err(OxenError::remote_branch_locked());
     }
 

@@ -138,6 +138,10 @@ pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> 
 }
 
 pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError> {
+    // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
     // Hash map of entry hash (string) to path to write (commit id + extension)
     // (hash, extension) -> Vec<CommitId>
 
@@ -271,6 +275,9 @@ pub fn propagate_schemas_for_all_repos_up(path: &Path) -> Result<(), OxenError> 
 
 pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
     match api::local::commits::list(repo) {
         Ok(mut commits) => {
             commits.reverse();
