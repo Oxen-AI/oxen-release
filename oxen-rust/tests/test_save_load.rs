@@ -22,6 +22,9 @@ fn test_command_save_repo() -> Result<(), OxenError> {
 
         assert!(save_path.exists());
 
+        // Cleanup tarball
+        util::fs::remove_file(save_path)?;
+
         Ok(())
     })
 }
@@ -47,6 +50,9 @@ fn test_command_save_load_repo_with_working_dir() -> Result<(), OxenError> {
 
             let hydrated_repo = LocalRepository::from_dir(&loaded_repo_path)?;
             assert!(hydrated_repo.path.join("hello.txt").exists());
+
+            // Cleanup tarball
+            util::fs::remove_file(save_path)?;
 
             Ok(())
         })
@@ -80,6 +86,9 @@ fn test_command_save_load_repo_no_working_dir() -> Result<(), OxenError> {
             let status = command::status(&hydrated_repo)?;
 
             assert_eq!(status.removed_files.len(), 1);
+
+            // Cleanup tarball
+            util::fs::remove_file(save_path)?;
 
             Ok(())
         })
@@ -134,6 +143,9 @@ fn test_command_save_load_moved_and_removed() -> Result<(), OxenError> {
             assert!(hydrated_repo.path.join("hello_dir/hello.txt").exists());
             assert!(!hydrated_repo.path.join("hello.txt").exists());
             assert!(!hydrated_repo.path.join("goodbye.txt").exists());
+
+            // Cleanup tarball
+            util::fs::remove_file(save_path)?;
 
             Ok(())
         })
