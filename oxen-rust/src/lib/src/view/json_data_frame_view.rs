@@ -30,6 +30,7 @@ pub struct JsonDataFrameView {
     pub size: DataFrameSize,
     pub data: serde_json::Value,
     pub pagination: Pagination,
+    #[serde(flatten)]
     pub opts: DFOptsView,
 }
 
