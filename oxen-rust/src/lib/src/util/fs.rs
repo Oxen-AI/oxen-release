@@ -186,6 +186,13 @@ pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
         .join(subdir)
 }
 
+pub fn object_dir_suffix_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
+    let topdir = &hash[..2];
+    let subdir = &hash[2..];
+
+    PathBuf::from(topdir).join(subdir)
+}
+
 pub fn read_from_path(path: impl AsRef<Path>) -> Result<String, OxenError> {
     let path = path.as_ref();
     match std::fs::read_to_string(path) {

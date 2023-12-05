@@ -55,6 +55,16 @@ pub const INDICES_DIR: &str = "indices";
 pub const FIELDS_DIR: &str = "fields";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
+/// objects/ stores pointers to data files and sub-tree structures for efficient commit representations
+pub const OBJECTS_DIR: &str = "objects";
+/// Storage of file node representations in objects dir
+pub const OBJECT_FILES_DIR: &str = "files";
+/// Storage of dir node representations in objects dir 
+pub const OBJECT_DIRS_DIR: &str = "dirs";
+/// Storage of hash-bucketed vnode representations in objects dir
+pub const OBJECT_VNODES_DIR: &str = "vnodes";
+/// Storage of schema node representations in objects dir
+pub const OBJECT_SCHEMAS_DIR: &str = "schemas";
 /// File name for files stored in versions directory (>0.8.4). (Was commit id <= 0.8.4)
 pub const VERSION_FILE_NAME: &str = "data";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
