@@ -234,11 +234,9 @@ pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
 pub fn read_lines_file(file: &File) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let reader = BufReader::new(file);
+    // read all the lines of the file into a Vec<String>
     for line in reader.lines().map_while(Result::ok) {
-        let trimmed = line.trim();
-        if !trimmed.is_empty() {
-            lines.push(String::from(trimmed));
-        }
+        lines.push(line);
     }
     lines
 }
@@ -1003,6 +1001,20 @@ pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
         free_gb,
         percent_used,
     })
+}
+pub fn is_any_parent_in_set(file_path: &Path, path_set: &HashSet<PathBuf>) -> bool {
+    let mut current_path = file_path.to_path_buf();
+    // Iterate through parent directories
+    log::debug!("checking if {:?} is in {:?}", current_path, path_set);
+    while let Some(parent) = current_path.parent() {
+        log::debug!("checking if {:?} is in {:?}", current_path, path_set);
+        if path_set.contains(parent) {
+            return true;
+        }
+        current_path = parent.to_path_buf()
+    }
+
+    false
 }
 
 #[cfg(test)]
