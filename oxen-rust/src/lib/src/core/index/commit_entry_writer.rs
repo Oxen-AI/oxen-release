@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, VERSIONS_DIR};
 use crate::core::db;
-use crate::core::db::tree_db::{TreeChild, TreeNode};
+use crate::core::db::tree_db::{TreeChild, TreeNode, TreeObject};
 use crate::core::db::{kv_db, path_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
 use crate::error::OxenError;
@@ -31,6 +31,10 @@ pub struct CommitEntryWriter {
 impl CommitEntryWriter {
     pub fn versions_dir(path: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(path).join(Path::new(VERSIONS_DIR))
+    }
+
+    pub fn objects_dir(path: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(path).join(Path::new(constants::OBJECTS_DIR))
     }
 
     pub fn commit_dir(path: &Path, commit_id: &str) -> PathBuf {
@@ -296,7 +300,14 @@ impl CommitEntryWriter {
             // Merge commit, initial commit, or no previous tree
             self.construct_merkle_tree_new()?;
         }
+        self.new_construct_merkle_tree_new()?;
         self.temp_print_tree_db();
+        Ok(())
+    }
+
+    fn new_construct_commit_merkle_tree(&self, staged_data: &StagedData) -> Result<(), OxenError> {
+        self.new_construct_merkle_tree_new()?;
+        // self.new_temp_print_tree_db();
         Ok(())
     }
 
@@ -428,6 +439,22 @@ impl CommitEntryWriter {
         self.create_tree_nodes_from_dirs(&mut dir_paths, dir_map)
     }
 
+    pub fn new_construct_merkle_tree_new(&self) -> Result<(), OxenError> {
+        // Operate on all dirs to make the tree from scratch...
+        let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
+
+        // Build a map of dir to children
+        let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+        for dir in &dir_paths {
+            let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
+            dir_map.entry(dir.to_path_buf()).or_default();
+            if &parent != dir {
+                dir_map.entry(parent).or_default().push(dir.to_path_buf());
+            }
+        }
+        self.new_create_tree_nodes_from_dirs(&mut dir_paths, dir_map)
+    }
+
     fn entry_to_treechild(entry: &CommitEntry) -> TreeChild {
         TreeChild::File {
             path: entry.path.clone(),
@@ -556,6 +583,50 @@ impl CommitEntryWriter {
             path_db::put(&self.tree_db, PathBuf::from(""), &empty_root)?;
         }
 
+        Ok(())
+    }
+
+    fn new_create_tree_nodes_from_dirs(
+        &self, 
+        dirs: &mut Vec<PathBuf>,
+        dir_map: HashMap<PathBuf, Vec<PathBuf>>,
+    ) -> Result<(), OxenError> {
+        // Sort dirs by descending component count to work bottom up 
+        dirs.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
+
+        let schema_reader = SchemaReader::new(&self.repository, &self.commit.id)?;
+        let schemas = schema_reader.list_schemas()?;
+
+        // Map parent dirs to schemas
+        let mut schema_map: HashMap<PathBuf, Vec<TreeChild>> = HashMap::new();
+        for (path, schema) in schemas {
+            let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+            let schema_child = TreeChild::Schema {
+                path: PathBuf::from(SCHEMAS_TREE_PREFIX).join(path.clone()),
+                hash: schema.hash.clone(),
+            };
+            schema_map.entry(parent).or_default().push(schema_child);
+        }
+
+        // Starting with the lowest-down dirs...
+        for dir in dirs {
+            let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, dir)?;
+            // Get all file children 
+            let file_children = dir_entry_reader.list_entries()?;
+            let file_children_objects: Vec<TreeObject> = file_children
+                .iter()
+                .map(|entry| TreeObject::from_entry(entry))
+                .collect::<Vec<_>>();
+
+            // TEMP: Write file nodes to objects dir. 
+            for file_child in &file_children_objects {
+                file_child.write(&self.repository)?;
+            }
+        }
         Ok(())
     }
 

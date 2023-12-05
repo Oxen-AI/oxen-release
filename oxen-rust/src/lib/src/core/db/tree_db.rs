@@ -1,8 +1,10 @@
-use crate::core::db;
+use crate::model::LocalRepository;
+use crate::{core::db, model::CommitEntry};
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-
+use std::io::{Read, Write};
+use crate::constants::{OBJECTS_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, OXEN_HIDDEN_DIR};
 use crate::error::OxenError;
 
 pub struct TreeDB<T: ThreadMode> {
@@ -57,6 +59,71 @@ pub enum TreeNode {
         children: Vec<TreeChild>,
         hash: String,
     },
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TreeObject {
+    File { hash: String },
+    Schema { hash: String},
+    Dir { children: Vec<TreeObject>, hash: String },
+    VNode { children: Vec<TreeObject>, hash: String },
+}
+
+impl TreeObject {
+    pub fn hash(&self) -> &String {
+        match self {
+            TreeObject::File { hash } => hash,
+            TreeObject::Schema { hash } => hash,
+            TreeObject::Dir { hash, .. } => hash,
+            TreeObject::VNode { hash, .. } => hash,
+        }
+    }
+    pub fn from_entry(commit_entry: &CommitEntry) -> TreeObject {
+        TreeObject::File { 
+            hash: commit_entry.hash.clone()
+        }
+    }
+
+    pub fn object_path(&self, repo: &LocalRepository) -> PathBuf {
+        let objects_dir = repo.path.join(OXEN_HIDDEN_DIR).join(OBJECTS_DIR);
+        let top_hash = &self.hash()[..2];
+        let bottom_hash = &self.hash()[2..];
+        let base_path  = match self {
+            TreeObject::File { hash } => {
+                objects_dir.join(OBJECT_FILES_DIR)
+            }
+            TreeObject::Schema { hash } => {
+                objects_dir.join(OBJECT_SCHEMAS_DIR)
+            }
+            TreeObject::Dir { hash, .. } => {
+                objects_dir.join(OBJECT_DIRS_DIR)
+            }
+            TreeObject::VNode { hash, .. } => {
+                objects_dir.join(OBJECT_VNODES_DIR)
+            }
+        };
+        base_path.join(top_hash).join(bottom_hash)
+    }
+
+    pub fn write(&self, repo: &LocalRepository ) -> Result<(), OxenError> {
+        let path = self.object_path(repo);
+        std::fs::create_dir_all(path.parent().unwrap())?; // Will always have a parent 
+
+        let mut file = std::fs::File::create(path)?;
+
+        let bytes = serde_json::to_vec(self)?;
+        file.write_all(&bytes)?;
+        Ok(())
+    }
+
+    pub fn read(&self, repo: &LocalRepository) -> Result<(), OxenError> {
+        let path = self.object_path(repo);
+        let mut file = std::fs::File::open(path)?;
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes)?;
+        let tree_object: TreeObject = serde_json::from_slice(&bytes)?;
+        Ok(())
+    }
 }
 
 impl Default for TreeNode {
