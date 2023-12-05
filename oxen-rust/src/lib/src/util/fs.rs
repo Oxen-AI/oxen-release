@@ -234,7 +234,7 @@ pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
 pub fn read_lines_file(file: &File) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let reader = BufReader::new(file);
-    for line in reader.lines().flatten() {
+    for line in reader.lines().map_while(Result::ok) {
         let trimmed = line.trim();
         if !trimmed.is_empty() {
             lines.push(String::from(trimmed));

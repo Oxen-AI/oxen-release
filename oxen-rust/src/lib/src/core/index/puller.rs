@@ -19,7 +19,7 @@ type LargeEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<PathBuf>;
 
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
-    entries: &Vec<CommitEntry>,
+    entries: &[CommitEntry],
     dst: impl AsRef<Path>,
     get_small_entry_paths: &SmallEntryPathFn,
     get_large_entry_paths: &LargeEntryPathFn,
@@ -352,7 +352,7 @@ fn working_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> 
 
 pub async fn pull_entries_to_versions_dir(
     remote_repo: &RemoteRepository,
-    entries: &Vec<CommitEntry>,
+    entries: &[CommitEntry],
     dst: impl AsRef<Path>,
     on_complete: &dyn Fn(),
 ) -> Result<(), OxenError> {
@@ -370,7 +370,7 @@ pub async fn pull_entries_to_versions_dir(
 
 pub async fn pull_entries_to_working_dir(
     remote_repo: &RemoteRepository,
-    entries: &Vec<CommitEntry>,
+    entries: &[CommitEntry],
     dst: impl AsRef<Path>,
     on_complete: &dyn Fn(),
 ) -> Result<(), OxenError> {

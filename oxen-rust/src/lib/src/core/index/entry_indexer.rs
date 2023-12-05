@@ -634,7 +634,7 @@ impl EntryIndexer {
     fn backup_to_versions_dir(
         &self,
         commit: &Commit,
-        entries: &Vec<CommitEntry>,
+        entries: &[CommitEntry],
         // csv_writer: &mut Writer<File>,
     ) -> Result<(), OxenError> {
         if entries.is_empty() {
