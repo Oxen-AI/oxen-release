@@ -196,7 +196,7 @@ impl CommitWriter {
         &self,
         branch: &Branch,
         user_id: &str,
-        entries: &Vec<CommitEntry>,
+        entries: &[CommitEntry],
     ) -> Result<StagedData, OxenError> {
         let branch_staging_dir =
             remote_dir_stager::branch_staging_dir(&self.repository, branch, user_id);
