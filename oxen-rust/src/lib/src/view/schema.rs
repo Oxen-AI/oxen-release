@@ -5,7 +5,7 @@ use crate::model::{Commit, Schema};
 
 use super::StatusMessage;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SchemaWithPath {
     pub path: String,
     #[serde(flatten)]

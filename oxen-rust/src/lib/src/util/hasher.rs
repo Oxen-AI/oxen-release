@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::TreeChild;
+use crate::core::db::tree_db::{TreeChild, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
@@ -46,6 +46,18 @@ where
 
 // For subtrees with already-hashed children
 pub fn compute_subtree_hash(children: &Vec<TreeChild>) -> String {
+    let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
+    for child in children {
+        let hash = child.hash();
+        let input = hash.as_bytes();
+        subtree_hasher.update(input);
+    }
+    let val = subtree_hasher.digest();
+    format!("{val:x}")
+}
+
+// Assuming lexical sort
+pub fn compute_children_hash(children: &Vec<TreeObjectChild>) -> String {
     let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
     for child in children {
         let hash = child.hash();
