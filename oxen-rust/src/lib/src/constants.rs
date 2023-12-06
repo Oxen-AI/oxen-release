@@ -29,6 +29,8 @@ pub const COMMITS_DIR: &str = "commits";
 pub const SCHEMAS_DIR: &str = "schemas";
 // name of dir for locking branches during push
 pub const BRANCH_LOCKS_DIR: &str = "locks";
+// name of file for locking repository during push
+pub const REPOSITORY_LOCK_FILE: &str = "LOCK";
 /// prefix for the commit rows
 pub const ROWS_DIR: &str = "rows";
 /// prefix for the commit entry files

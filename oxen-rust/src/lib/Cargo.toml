@@ -37,6 +37,7 @@ dunce = "1"
 duckdb =  { version = "0.8.1", features = ["bundled"] }
 env_logger = "0.10.0"
 # ffmpeg-next = { version = "6.0.0", features = ["codec", "format"] }
+fd-lock = "4.0.1"
 filetime = "0.2.16"
 flate2 = "1.0.23"
 fs_extra = "1.2.0"
