@@ -6,13 +6,18 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
+use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
 use liboxen::opts::DFOpts;
-use liboxen::view::{JsonDataFrame, JsonDataFrameSliceResponse, StatusMessage};
+use liboxen::view::{
+    JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, Pagination,
+    StatusMessage,
+};
 
 use liboxen::util;
 
@@ -55,6 +60,8 @@ pub async fn get(
     opts.page = None;
     opts.page_size = None;
 
+    let opts_view = DFOptsView::from_df_opts(&opts);
+
     log::debug!("Full df {:?}", df);
 
     let full_height = df.height();
@@ -68,55 +75,72 @@ pub async fn get(
 
     // We have to run the query param transforms, then paginate separately
     match tabular::transform(df, opts) {
-        Ok(sliced_df) => {
-            log::debug!("Sliced df {:?}", sliced_df);
+        Ok(view_df) => {
+            log::debug!("View df {:?}", view_df);
 
-            let sliced_width = sliced_df.width();
-            let sliced_height = sliced_df.height();
+            let view_width = view_df.width();
+            let view_height = view_df.height();
 
             // Paginate after transform
             let mut paginate_opts = DFOpts::empty();
             paginate_opts.slice = Some(format!("{}..{}", start, end));
-            let mut paginated_df = tabular::transform(sliced_df, paginate_opts)?;
+            let mut paginated_df = tabular::transform(view_df, paginate_opts)?;
 
-            let total_pages = (sliced_height as f64 / page_size as f64).ceil() as usize;
+            let total_pages = (view_height as f64 / page_size as f64).ceil() as usize;
             let full_size = DataFrameSize {
                 width: full_width,
                 height: full_height,
             };
 
             // Merge the metadata from the original schema
-            let mut slice_schema = Schema::from_polars(&paginated_df.schema());
+            let mut view_schema = Schema::from_polars(&paginated_df.schema());
             log::debug!("OG schema {:?}", og_schema);
-            log::debug!("Pre-Slice schema {:?}", slice_schema);
-            slice_schema.update_metadata_from_schema(&og_schema);
+            log::debug!("Pre-Slice schema {:?}", view_schema);
+            view_schema.update_metadata_from_schema(&og_schema);
 
-            log::debug!("Slice schema {:?}", slice_schema);
+            log::debug!("View schema {:?}", view_schema);
 
             let resource_version = ResourceVersion {
                 path: resource.file_path.to_string_lossy().into(),
                 version: resource.version().to_owned(),
             };
 
-            let response = JsonDataFrameSliceResponse {
-                status: StatusMessage::resource_found(),
-                full_size: full_size.to_owned(),
-                slice_size: DataFrameSize {
-                    width: sliced_width,
-                    height: sliced_height,
+            let df = JsonDataFrame::from_slice(
+                &mut paginated_df,
+                og_schema.clone(),
+                full_size.clone(),
+                view_schema.clone(),
+            );
+
+            let source_df = JsonDataFrameSource {
+                schema: og_schema,
+                size: full_size,
+            };
+
+            let view_df = JsonDataFrameView {
+                schema: view_schema,
+                size: DataFrameSize {
+                    width: view_width,
+                    height: view_height,
                 },
-                df: JsonDataFrame::from_slice(
-                    &mut paginated_df,
-                    og_schema,
-                    full_size,
-                    slice_schema,
-                ),
+                data: df.data,
+                pagination: Pagination {
+                    page_number: page,
+                    page_size,
+                    total_pages,
+                    total_entries: view_height,
+                },
+                opts: opts_view,
+            };
+
+            let response = JsonDataFrameViewResponse {
+                status: StatusMessage::resource_found(),
+                data_frame: JsonDataFrameViews {
+                    source: source_df,
+                    view: view_df,
+                },
                 commit: Some(resource.commit.clone()),
                 resource: Some(resource_version),
-                page_number: page,
-                page_size,
-                total_pages,
-                total_entries: sliced_height,
             };
             Ok(HttpResponse::Ok().json(response))
         }

@@ -5,10 +5,13 @@ use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 use liboxen::core;
 use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
+use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::entry::ResourceVersion;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::{
-    JsonDataFrame, JsonDataFrameSliceResponse, MetadataEntryResponse, StatusMessage,
+    JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,
+    MetadataEntryResponse, Pagination, StatusMessage,
 };
 use liboxen::{api, current_function};
 
@@ -84,23 +87,42 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         core::index::commit_metadata_db::select(&repo, &latest_commit, &directory, offset, limit)?;
     let (num_rows, num_cols) =
         core::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
-    let response = JsonDataFrameSliceResponse {
+
+    let full_size = DataFrameSize {
+        width: num_cols,
+        height: num_rows,
+    };
+
+    let df = JsonDataFrame::from_df(&mut sliced_df);
+
+    let source_df = JsonDataFrameSource {
+        schema: df.schema.clone(),
+        size: full_size,
+    };
+
+    let view_df = JsonDataFrameView {
+        data: df.data,
+        schema: df.view_schema.clone(),
+        size: df.view_size.clone(),
+        pagination: Pagination {
+            page_number: 1,
+            page_size: 100,
+            total_pages: 1,
+            total_entries: df.view_size.height,
+        },
+        opts: DFOptsView::empty(),
+    };
+
+    let response = JsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
-        full_size: DataFrameSize {
-            width: num_cols,
-            height: num_rows,
+        data_frame: {
+            JsonDataFrameViews {
+                source: source_df,
+                view: view_df,
+            }
         },
-        slice_size: DataFrameSize {
-            width: num_cols,
-            height: num_rows,
-        },
-        df: JsonDataFrame::from_df(&mut sliced_df),
         commit: Some(resource.commit.clone()),
         resource: Some(resource_version),
-        page_number: 0,
-        page_size: limit,
-        total_pages: 0,
-        total_entries: limit,
     };
     Ok(HttpResponse::Ok().json(response))
 }
@@ -155,23 +177,35 @@ pub async fn agg_dir(
             version: resource.version().to_owned(),
         };
 
-        let response = JsonDataFrameSliceResponse {
+        let df = JsonDataFrame::from_df(&mut df);
+        let full_df = JsonDataFrameSource {
+            schema: df.schema.clone(),
+            size: df.full_size.clone(),
+        };
+
+        let view_df = JsonDataFrameView {
+            data: df.data,
+            schema: df.view_schema.clone(),
+            size: df.view_size.clone(),
+            pagination: Pagination {
+                page_number: 1,
+                page_size: df.full_size.height,
+                total_pages: 1,
+                total_entries: df.full_size.height,
+            },
+            opts: DFOptsView::empty(),
+        };
+
+        let response = JsonDataFrameViewResponse {
             status: StatusMessage::resource_found(),
-            full_size: DataFrameSize {
-                width: df.width(),
-                height: df.height(),
+            data_frame: {
+                JsonDataFrameViews {
+                    source: full_df,
+                    view: view_df,
+                }
             },
-            slice_size: DataFrameSize {
-                width: df.width(),
-                height: df.height(),
-            },
-            df: JsonDataFrame::from_df(&mut df),
             commit: Some(resource.commit.clone()),
             resource: Some(resource_version),
-            page_number: 1,
-            page_size: df.height(),
-            total_pages: 1,
-            total_entries: df.height(),
         };
         Ok(HttpResponse::Ok().json(response))
     } else {

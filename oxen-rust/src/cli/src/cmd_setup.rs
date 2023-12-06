@@ -802,7 +802,7 @@ pub fn diff() -> Command {
 
 pub fn compare() -> Command {
     Command::new(COMPARE)
-        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") // TODONOW more here
+        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.") 
         .arg(Arg::new("RESOURCE1")
             .required(true)
             .help("First resource, in format `file` or `file:revision`")
@@ -813,14 +813,22 @@ pub fn compare() -> Command {
             .help("Second resource, in format `file` or `file:revision`")
             .index(2))
         .arg(Arg::new("keys")
+            .required(true)
             .long("keys")
             .help("Comma-separated list of columns to compare on. If not specified, all columns are used for comparison.")
             .use_value_delimiter(true)
             .action(clap::ArgAction::Set))
         .arg(Arg::new("targets")
+            .required(true)
             .long("targets")
             .help("Comma-separated list of columns in which to view changes. If not specified, all columns are viewed")
             .use_value_delimiter(true)
+            .action(clap::ArgAction::Set))
+        .arg(Arg::new("output")
+            .required(false)
+            .long("output")
+            .short('o')
+            .help("Output directory path to write the results of the comparison. Will write both match.csv (rows with same keys and targets) and diff.csv (rows with different targets between files")
             .action(clap::ArgAction::Set))
 }
 

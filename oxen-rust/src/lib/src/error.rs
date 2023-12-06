@@ -6,6 +6,7 @@
 use derive_more::{Display, Error};
 use std::fmt::Debug;
 use std::io;
+use std::num::ParseIntError;
 use std::path::Path;
 
 use crate::model::Schema;
@@ -65,6 +66,7 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
+    IncompatibleSchemas(StringError),
     InvalidFileType(StringError),
 
     // Generic
@@ -98,6 +100,7 @@ pub enum OxenError {
     PatternError(glob::PatternError),
     GlobError(glob::GlobError),
     PolarsError(polars::prelude::PolarsError),
+    ParseIntError(ParseIntError),
 
     // Fallback
     Basic(StringError),
@@ -405,6 +408,14 @@ impl OxenError {
         OxenError::InvalidFileType(StringError::from(err))
     }
 
+    pub fn incompatible_schemas(cols: Vec<String>, schema: Schema) -> OxenError {
+        let err = format!(
+            "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
+            cols, schema
+        );
+        OxenError::IncompatibleSchemas(StringError::from(err))
+    }
+
     pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
         OxenError::basic_str(err)
@@ -539,5 +550,11 @@ impl From<duckdb::Error> for OxenError {
 impl From<std::env::VarError> for OxenError {
     fn from(error: std::env::VarError) -> Self {
         OxenError::ENV(error)
+    }
+}
+
+impl From<ParseIntError> for OxenError {
+    fn from(error: ParseIntError) -> Self {
+        OxenError::basic_str(error.to_string())
     }
 }

@@ -69,6 +69,7 @@ pub mod config;
 pub mod constants;
 pub mod core;
 pub mod error;
+pub mod message;
 pub mod model;
 pub mod opts;
 pub mod test;
