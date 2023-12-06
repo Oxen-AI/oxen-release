@@ -107,6 +107,9 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
 }
 
 pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> {
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let versions_dir = hidden_dir.join(VERSIONS_DIR);
 
@@ -278,33 +281,27 @@ pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let mut lock_file = api::local::repositories::get_lock_file(repo)?;
     let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
 
-    match api::local::commits::list(repo) {
-        Ok(mut commits) => {
-            commits.reverse();
+    let reader = CommitReader::new(repo)?;
+    let mut all_commits = reader.list_all()?;
+    // Sort by timestamp from oldest to newest
+    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
-            for (i, commit) in commits.iter().enumerate() {
-                for newer_commit in &commits[i + 1..commits.len()] {
-                    let schemas = api::local::schemas::list(repo, Some(&commit.id))?;
-                    let schema_writer = SchemaWriter::new(repo, &newer_commit.id)?;
+    for current_commit in &all_commits {
+        for parent_commit_id in &current_commit.parent_ids {
+            let schemas = api::local::schemas::list(repo, Some(parent_commit_id))?;
+            let schema_writer = SchemaWriter::new(repo, &current_commit.id)?;
 
-                    for (path, schema) in schemas {
-                        if !schema_writer.has_schema(&schema) {
-                            schema_writer.put_schema(&schema)?;
-                        }
-
-                        schema_writer.put_schema_for_file(&path, &schema)?;
-                    }
+            for (path, schema) in schemas {
+                if !schema_writer.has_schema(&schema) {
+                    schema_writer.put_schema(&schema)?;
                 }
-            }
 
-            Ok(())
+                schema_writer.put_schema_for_file(&path, &schema)?;
+            }
         }
-        Err(OxenError::HeadNotFound(_)) => {
-            println!("No HEAD found, skipping repo.");
-            Ok(())
-        }
-        Err(err) => Err(err),
     }
+
+    Ok(())
 }
 
 pub fn propagate_schemas_down(_repo: &LocalRepository) -> Result<(), OxenError> {
