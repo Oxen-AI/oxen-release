@@ -11,6 +11,8 @@ pub struct TreeDB<T: ThreadMode> {
     pub db: DBWithThreadMode<T>,
 }
 
+
+
 impl<T: ThreadMode> TreeDB<T> {
     pub fn new(db_path: &Path) -> Result<TreeDB<T>, OxenError> {
         let read_only = false;
@@ -60,13 +62,51 @@ pub enum TreeNode {
         hash: String,
     },
 }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum TreeObjectChild { 
+    File { path: PathBuf, hash: String },
+    Schema { path: PathBuf, hash: String },
+    Dir { path: PathBuf, hash: String },
+    VNode { path: PathBuf, hash: String },
+}
+
+
+impl TreeObjectChild { 
+    pub fn hash(&self) -> &String {
+        match self {
+            TreeObjectChild::File { hash, .. } => hash,
+            TreeObjectChild::Schema { hash, .. } => hash,
+            TreeObjectChild::Dir { hash, .. } => hash,
+            TreeObjectChild::VNode { hash, .. } => hash,
+        }
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        match self {
+            TreeObjectChild::File { path, .. } => path,
+            TreeObjectChild::Schema { path, .. } => path,
+            TreeObjectChild::Dir { path, .. } => path,
+            TreeObjectChild::VNode { path, .. } => path,
+        }
+    }
+
+    // TODONOW: unicode weirdness?
+    pub fn path_as_str(&self) -> &str {
+        match self {
+            TreeObjectChild::File { path, .. } => path.to_str().unwrap(),
+            TreeObjectChild::Schema { path, .. } => path.to_str().unwrap(),
+            TreeObjectChild::Dir { path, .. } => path.to_str().unwrap(),
+            TreeObjectChild::VNode { path, .. } => path.to_str().unwrap(),
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeObject {
     File { hash: String },
     Schema { hash: String},
-    Dir { children: Vec<TreeObject>, hash: String },
-    VNode { children: Vec<TreeObject>, hash: String },
+    Dir { children: Vec<TreeObjectChild>, hash: String },
+    VNode { children: Vec<TreeObjectChild>, hash: String, name: String },
 }
 
 impl TreeObject {
@@ -81,6 +121,16 @@ impl TreeObject {
     pub fn from_entry(commit_entry: &CommitEntry) -> TreeObject {
         TreeObject::File { 
             hash: commit_entry.hash.clone()
+        }
+    }
+
+    // TODONOW error handling and typing here 
+    pub fn name(&self) -> &String {
+        match self {
+            TreeObject::File {..}  => panic!("File does not have a name"),
+            TreeObject::Schema {..} => panic!("Schema does not have a name"),
+            TreeObject::Dir {..} => panic!("Dir does not have a name"),
+            TreeObject::VNode { name, .. } => name,
         }
     }
 

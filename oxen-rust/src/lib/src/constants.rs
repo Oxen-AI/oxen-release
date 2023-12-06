@@ -37,6 +37,8 @@ pub const ROWS_DIR: &str = "rows";
 pub const FILES_DIR: &str = "files";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
+/// prefix for a commit dir => hash maping 
+pub const DIR_HASHES_DIR: &str = "dir_hashes";
 /// prefix for the commit merkle tree db
 pub const TREE_DIR: &str = "tree";
 /// prefix for the cached stats dirs
