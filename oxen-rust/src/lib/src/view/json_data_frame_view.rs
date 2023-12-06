@@ -1,4 +1,4 @@
-// TODO: This is the new dataframe format, depreciate JsonDataFrameSliceResponse
+// This is the new dataframe format, depreciate JsonDataFrameSliceResponse
 
 use std::io::BufWriter;
 use std::str;
@@ -12,6 +12,7 @@ use crate::constants;
 use crate::core::df::tabular;
 use crate::model::Commit;
 use crate::model::DataFrameSize;
+use crate::opts::df_opts::DFOptsView;
 use crate::opts::PaginateOpts;
 use crate::view::entry::ResourceVersion;
 use crate::view::Pagination;
@@ -29,6 +30,8 @@ pub struct JsonDataFrameView {
     pub size: DataFrameSize,
     pub data: serde_json::Value,
     pub pagination: Pagination,
+    #[serde(flatten)]
+    pub opts: DFOptsView,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -77,6 +80,7 @@ impl JsonDataFrameView {
 
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
+        let opts_view = DFOptsView::from_df_opts(&opts);
         let mut sliced_df = tabular::transform(df, opts).unwrap();
 
         // Merge the metadata from the original schema
@@ -99,6 +103,7 @@ impl JsonDataFrameView {
                 total_pages,
                 total_entries: full_height,
             },
+            opts: opts_view,
         }
     }
 
@@ -116,6 +121,7 @@ impl JsonDataFrameView {
 
         let mut opts = opts.clone();
         opts.slice = Some(format!("{}..{}", start, end));
+        let opts_view = DFOptsView::from_df_opts(&opts);
         let mut sliced_df = tabular::transform(df, opts).unwrap();
 
         // Merge the metadata from the original schema
@@ -138,6 +144,7 @@ impl JsonDataFrameView {
                 total_pages,
                 total_entries: full_height,
             },
+            opts: opts_view,
         }
     }
 

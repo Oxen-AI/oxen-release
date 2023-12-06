@@ -2,46 +2,30 @@ use crate::api;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::CommitPath;
 use crate::model::LocalRepository;
-use crate::opts::DFOpts;
 use std::path::PathBuf;
-
-// TODONOW: Doc comments
 
 pub fn compare(
     repo: &LocalRepository,
-    file_1: PathBuf,
-    revision_1: Option<&str>,
-    file_2: PathBuf,
-    revision_2: Option<&str>,
+    cpath_1: CommitPath,
+    cpath_2: CommitPath,
     keys: Vec<String>,
     targets: Vec<String>,
-) -> Result<String, OxenError> {
-    let current_commit = api::local::commits::head_commit(repo)?;
-    // For revision_1 and revision_2, if none, set to current_commit
-    let revision_1 = revision_1.unwrap_or(current_commit.id.as_str());
-    let revision_2 = revision_2.unwrap_or(current_commit.id.as_str());
+    output: Option<PathBuf>,
+) -> Result<(), OxenError> {
+    let entry_1 = api::local::entries::get_commit_entry(repo, &cpath_1.commit, &cpath_1.path)?
+        .ok_or_else(|| {
+            OxenError::ResourceNotFound(
+                format!("{}@{}", cpath_1.path.display(), cpath_1.commit.id).into(),
+            )
+        })?;
+    let entry_2 = api::local::entries::get_commit_entry(repo, &cpath_2.commit, &cpath_2.path)?
+        .ok_or_else(|| {
+            OxenError::ResourceNotFound(
+                format!("{}@{}", cpath_2.path.display(), cpath_2.commit.id).into(),
+            )
+        })?;
 
-    let commit_1 = api::local::revisions::get(repo, revision_1)?
-        .ok_or_else(|| OxenError::revision_not_found(revision_1.into()))?;
-    let commit_2 = api::local::revisions::get(repo, revision_2)?
-        .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
-
-    let cpath_1 = CommitPath {
-        commit: commit_1,
-        path: file_1,
-    };
-    let cpath_2 = CommitPath {
-        commit: commit_2,
-        path: file_2,
-    };
-    // TODONOW: assert and parse tabular
-    api::local::compare::compare_files(
-        repo,
-        cpath_1,
-        cpath_2,
-        keys,
-        targets,
-        DFOpts::empty(), // TODONOW: is this going to affect anything?
-    )?;
-    Ok("".to_string())
+    let _compare: crate::view::compare::CompareTabular =
+        api::local::compare::compare_files(repo, None, entry_1, entry_2, keys, targets, output)?;
+    Ok(())
 }

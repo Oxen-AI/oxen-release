@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use super::tabular_compare::TabularCompare;
 use super::tabular_compare_summary::TabularCompareSummary;
 #[derive(Deserialize, Serialize, Debug)]
-// TODONOW naming
+
 pub struct CompareFiles {
     pub status: String,
     pub data_type: EntryDataType,

@@ -193,6 +193,12 @@ pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, 
     Ok(df)
 }
 
+pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
+    let dupe_mask = df.select(cols)?.is_duplicated()?;
+    let n_dupes = dupe_mask.sum().unwrap() as u64; // Can unwrap - sum implemented for boolean
+    Ok(n_dupes)
+}
+
 pub fn parse_data_into_df(
     data: &str,
     schema: &crate::model::Schema,
@@ -612,6 +618,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
         AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
         AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+        AnyValue::Boolean(val) => vec![if *val { 1 } else { 0 }],
         // TODO: handle rows with lists...
         // AnyValue::List(val) => {
         //     match val.dtype() {
@@ -685,7 +692,11 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 }
 
 // Maybe pass in fields here?
-pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<DataFrame, OxenError> {
+pub fn df_hash_rows_on_cols(
+    df: DataFrame,
+    hash_fields: Vec<&str>,
+    out_col_name: &str,
+) -> Result<DataFrame, OxenError> {
     let num_rows = df.height() as i64;
 
     // Create a vector to store columns to be hashed
@@ -726,7 +737,7 @@ pub fn df_hash_rows_on_cols(df: DataFrame, hash_fields: Vec<&str>) -> Result<Dat
                     },
                     GetOutput::from_type(polars::prelude::DataType::Utf8),
                 )
-                .alias(constants::ROW_HASH_COL_NAME),
+                .alias(out_col_name),
         ])
         .collect()
         .unwrap();

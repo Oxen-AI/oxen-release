@@ -937,8 +937,9 @@ pub async fn compare(sub_matches: &ArgMatches) {
         None => Vec::new(),
     };
 
-    match dispatch::compare(file1, revision1, file2, revision2, keys, targets) {
-        // TODONOW: restructure to file1, file2, revision1, revision2 ?
+    let output = sub_matches.get_one::<String>("output").map(PathBuf::from);
+
+    match dispatch::compare(file1, revision1, file2, revision2, keys, targets, output) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

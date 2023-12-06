@@ -357,7 +357,7 @@ mod tests {
             let diff = compare.diff.as_ref().unwrap();
             match diff {
                 GenericDiff::TabularDiff(diff) => {
-                    assert_eq!(diff.tabular.added_rows.as_ref().unwrap().slice_size.height, 2);
+                    assert_eq!(diff.tabular.added_rows.as_ref().unwrap().view_size.height, 2);
                     assert!(diff.tabular.added_cols.as_ref().is_none());
                     assert!(diff.tabular.removed_cols.as_ref().is_none());
                     assert!(diff.tabular.removed_rows.as_ref().is_none());
@@ -485,16 +485,11 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
             match diff {
                 GenericDiff::TabularDiff(diff) => {
                     assert_eq!(
-                        diff.tabular.added_rows.as_ref().unwrap().slice_size.height,
+                        diff.tabular.added_rows.as_ref().unwrap().view_size.height,
                         1
                     );
                     assert_eq!(
-                        diff.tabular
-                            .removed_rows
-                            .as_ref()
-                            .unwrap()
-                            .slice_size
-                            .height,
+                        diff.tabular.removed_rows.as_ref().unwrap().view_size.height,
                         2
                     );
                     assert!(diff.tabular.added_cols.as_ref().is_none());
@@ -624,16 +619,11 @@ who won the game?,The packers beat up on the bears,packers
             match diff {
                 GenericDiff::TabularDiff(diff) => {
                     assert_eq!(
-                        diff.tabular
-                            .removed_cols
-                            .as_ref()
-                            .unwrap()
-                            .slice_size
-                            .height,
+                        diff.tabular.removed_cols.as_ref().unwrap().view_size.height,
                         6
                     );
                     assert_eq!(
-                        diff.tabular.removed_cols.as_ref().unwrap().slice_size.width,
+                        diff.tabular.removed_cols.as_ref().unwrap().view_size.width,
                         1
                     );
                 }
