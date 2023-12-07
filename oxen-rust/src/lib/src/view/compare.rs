@@ -148,7 +148,7 @@ impl CompareDerivedDF {
     ) -> CompareDerivedDF {
         let resource = compare_id.map(|compare_id| CompareVirtualResource {
             url: format!(
-                "/compare/df/{}/{}/{}..{}",
+                "/compare/data_frame/{}/{}/{}..{}",
                 compare_id, name, left_commit_id, right_commit_id
             ),
             base: left_commit_id.to_owned(),
