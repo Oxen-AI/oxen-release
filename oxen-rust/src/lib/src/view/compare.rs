@@ -90,10 +90,10 @@ pub struct CompareSourceDF {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareVirtualResource {
     // TODO: Maybe this should be common to all v resource types - diffs, queries, etc.
-    pub url: String,
+    pub path: String,
     pub base: String,
     pub head: String,
-    pub path: String,
+    pub resource: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -147,13 +147,13 @@ impl CompareDerivedDF {
         schema: Schema,
     ) -> CompareDerivedDF {
         let resource = compare_id.map(|compare_id| CompareVirtualResource {
-            url: format!(
+            path: format!(
                 "/compare/data_frame/{}/{}/{}..{}",
                 compare_id, name, left_commit_id, right_commit_id
             ),
             base: left_commit_id.to_owned(),
             head: right_commit_id.to_owned(),
-            path: format!("{}/{}", compare_id, name),
+            resource: format!("{}/{}", compare_id, name),
         });
 
         CompareDerivedDF {
