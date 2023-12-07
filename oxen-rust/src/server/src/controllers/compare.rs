@@ -15,7 +15,7 @@ use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse,
     CompareTabularResponse,
 };
-use liboxen::view::json_data_frame_view::JsonDataFrameSource;
+use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
 use liboxen::view::{
     CompareEntriesResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
     JsonDataFrameViews, Pagination, StatusMessage,
@@ -333,6 +333,7 @@ pub async fn get_derived_df(
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let compare_id = path_param(&req, "compare_id")?;
     let path = path_param(&req, "path")?;
+    let base_head = path_param(&req, "base_head")?;
 
     let compare_dir = api::local::compare::get_compare_dir(&repo, &compare_id);
 
@@ -349,8 +350,6 @@ pub async fn get_derived_df(
     // Clear these for the first transform
     opts.page = None;
     opts.page_size = None;
-
-    log::debug!("Full df {:?}", df);
 
     let full_height = df.height();
     let full_width = df.width();
@@ -419,6 +418,13 @@ pub async fn get_derived_df(
                 opts: opts_view,
             };
 
+            let derived_resource = DerivedDFResource {
+                resource_type: DFResourceType::Compare,
+                name: path.clone(),
+                resource_id: compare_id.clone(),
+                path: format!("/compare/data_frame/{}/{}/{}", compare_id, path, base_head),
+            };
+
             let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_found(),
                 data_frame: JsonDataFrameViews {
@@ -427,6 +433,7 @@ pub async fn get_derived_df(
                 },
                 commit: None,
                 resource: None,
+                derived_resource: Some(derived_resource),
             };
 
             Ok(HttpResponse::Ok().json(response))

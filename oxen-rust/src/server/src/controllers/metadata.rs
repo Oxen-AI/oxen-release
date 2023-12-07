@@ -123,6 +123,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         },
         commit: Some(resource.commit.clone()),
         resource: Some(resource_version),
+        derived_resource: None,
     };
     Ok(HttpResponse::Ok().json(response))
 }
@@ -206,6 +207,7 @@ pub async fn agg_dir(
             },
             commit: Some(resource.commit.clone()),
             resource: Some(resource_version),
+            derived_resource: None,
         };
         Ok(HttpResponse::Ok().json(response))
     } else {
