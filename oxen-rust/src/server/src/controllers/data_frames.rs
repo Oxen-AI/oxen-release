@@ -87,6 +87,7 @@ pub async fn get(
                 },
                 commit: Some(resource.commit.clone()),
                 resource: Some(resource_version),
+                derived_resource: None,
             };
             Ok(HttpResponse::Ok().json(response))
         }

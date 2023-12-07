@@ -47,6 +47,23 @@ pub struct JsonDataFrameViewResponse {
     pub data_frame: JsonDataFrameViews,
     pub commit: Option<Commit>,
     pub resource: Option<ResourceVersion>,
+    pub derived_resource: Option<DerivedDFResource>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum DFResourceType {
+    Compare,
+    Diff,
+    Query,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DerivedDFResource {
+    pub resource_id: String,
+    pub path: String,
+    pub resource_type: DFResourceType,
+    pub name: String,
 }
 
 impl JsonDataFrameSource {
