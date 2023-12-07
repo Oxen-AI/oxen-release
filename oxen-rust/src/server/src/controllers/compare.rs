@@ -420,7 +420,7 @@ pub async fn get_derived_df(
 
             let derived_resource = DerivedDFResource {
                 resource_type: DFResourceType::Compare,
-                view: path.clone(),
+                name: path.clone(),
                 resource_id: compare_id.clone(),
                 path: format!("/compare/data_frame/{}/{}/{}", compare_id, path, base_head),
             };
