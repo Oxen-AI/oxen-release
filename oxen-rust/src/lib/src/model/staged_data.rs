@@ -61,7 +61,7 @@ impl fmt::Display for StagedData {
 pub struct StagedData {
     pub staged_dirs: SummarizedStagedDirStats,
     pub staged_files: HashMap<PathBuf, StagedEntry>, // All the staged entries will be in here
-    pub staged_schemas: HashMap<PathBuf, StagedSchema>, // All the staged entries will be in here
+    pub staged_schemas: HashMap<PathBuf, StagedSchema>, // All the staged entrisumes will be in here
     pub untracked_dirs: Vec<(PathBuf, usize)>,
     pub untracked_files: Vec<PathBuf>,
     pub modified_files: Vec<PathBuf>,
@@ -358,7 +358,7 @@ impl StagedData {
                 };
 
                 match staged_schema.status {
-                    StagedSchemaStatus::Removed => {
+                    StagedEntryStatus::Removed => {
                         vec![
                             "  removed schema: ".green(),
                             format!("{} {}\n", path.to_str().unwrap(), schema_ref)
@@ -366,7 +366,7 @@ impl StagedData {
                                 .bold(),
                         ]
                     }
-                    StagedSchemaStatus::Modified => {
+                    StagedEntryStatus::Modified => {
                         vec![
                             "  modified schema: ".green(),
                             format!("{} {}\n", path.to_str().unwrap(), schema_ref)
@@ -374,7 +374,7 @@ impl StagedData {
                                 .bold(),
                         ]
                     }
-                    StagedSchemaStatus::Added => {
+                    StagedEntryStatus::Added => {
                         vec![
                             "  new schema: ".green(),
                             format!("{} {}\n", path.to_str().unwrap(), schema_ref)

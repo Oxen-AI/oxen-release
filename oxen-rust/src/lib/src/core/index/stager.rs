@@ -567,7 +567,7 @@ impl Stager {
                 let schema = schema_reader.get_schema_for_file(path)?;
                 if let Some(schema) = schema {
                     let staged_schema = StagedSchema {
-                        status: StagedSchemaStatus::Removed,
+                        status: StagedEntryStatus::Removed,
                         schema,
                     };
                     path_db::put(&self.schemas_db, path, &staged_schema)?;
@@ -1093,7 +1093,7 @@ impl Stager {
 
         let staged_schema = StagedSchema {
             schema,
-            status: StagedSchemaStatus::Added,
+            status: StagedEntryStatus::Added,
         };
 
         path_db::put(&self.schemas_db, path, &staged_schema)?;
@@ -1142,7 +1142,7 @@ impl Stager {
 
             let staged_schema = StagedSchema {
                 schema: schema.to_owned(),
-                status: StagedSchemaStatus::Modified,
+                status: StagedEntryStatus::Modified,
             };
             // TODONOW: modified if nothing actually changes?
             path_db::put(&self.schemas_db, path, &staged_schema)?;
@@ -1159,7 +1159,7 @@ impl Stager {
             );
             let staged_schema = StagedSchema {
                 schema: new_schema.to_owned(),
-                status: StagedSchemaStatus::Added,
+                status: StagedEntryStatus::Added,
             };
             path_db::put(&self.schemas_db, path, &staged_schema)?;
         }
