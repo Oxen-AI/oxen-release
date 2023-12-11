@@ -1,10 +1,10 @@
-use crate::model::LocalRepository;
+use crate::model::{LocalRepository, StagedEntryStatus, StagedSchema, StagedEntry, StagedDirStats};
 use crate::{core::db, model::CommitEntry};
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
-use crate::constants::{OBJECTS_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, OXEN_HIDDEN_DIR};
+use crate::constants::{OBJECTS_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, OXEN_HIDDEN_DIR, SCHEMAS_TREE_PREFIX};
 use crate::error::OxenError;
 
 pub struct TreeDB<T: ThreadMode> {
@@ -63,6 +63,45 @@ pub enum TreeNode {
     },
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TreeObjectChildWithStatus {
+    pub child: TreeObjectChild,
+    pub status: StagedEntryStatus,
+}
+
+impl TreeObjectChildWithStatus {
+    pub fn from_staged_entry(path: PathBuf, entry: &StagedEntry) -> TreeObjectChildWithStatus {
+        TreeObjectChildWithStatus {
+            child: TreeObjectChild::File {
+                path,
+                hash: entry.hash.clone(),
+            },
+            status: entry.status.clone(),
+        }
+    }
+
+    pub fn from_staged_schema(path: PathBuf, staged_schema: &StagedSchema) -> TreeObjectChildWithStatus {
+        TreeObjectChildWithStatus {
+            child: TreeObjectChild::Schema {
+                path: PathBuf::from(SCHEMAS_TREE_PREFIX).join(path),
+                hash: staged_schema.schema.hash.clone(),
+            },
+            status: staged_schema.status.clone(),
+        }
+    }
+
+    // TODONOW: This is a little hacky given that we don't maintain a hash for directories at status-time
+    pub fn from_staged_dir(dir_stats: &StagedDirStats) -> TreeObjectChildWithStatus {
+        TreeObjectChildWithStatus {
+            child: TreeObjectChild::Dir {
+                path: dir_stats.path.clone(),
+                hash: "".to_string(),
+            },
+            status: dir_stats.status.clone(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeObjectChild { 
     File { path: PathBuf, hash: String },
     Schema { path: PathBuf, hash: String },
@@ -99,6 +138,7 @@ impl TreeObjectChild {
             TreeObjectChild::VNode { path, .. } => path.to_str().unwrap(),
         }
     }
+
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -121,6 +161,35 @@ impl TreeObject {
     pub fn from_entry(commit_entry: &CommitEntry) -> TreeObject {
         TreeObject::File { 
             hash: commit_entry.hash.clone()
+        }
+    }
+
+    pub fn children(&self) -> &Vec<TreeObjectChild> {
+        match self {
+            TreeObject::File { .. } => panic!("File does not have children"),
+            TreeObject::Schema { .. } => panic!("Schema does not have children"),
+            TreeObject::Dir { children, .. } => children,
+            TreeObject::VNode { children, .. } => children,
+
+        }
+    }
+
+
+    pub fn set_children(&mut self, new_children: Vec<TreeObjectChild>) {
+        match self {
+            TreeObject::File { .. } => panic!("File does not have children"),
+            TreeObject::Schema { .. } => panic!("Schema does not have children"),
+            TreeObject::Dir { children, .. } => *children = new_children,
+            TreeObject::VNode { children, .. } => *children = new_children,
+        }
+    }
+
+    pub fn set_hash(&mut self, new_hash: String) {
+        match self {
+            TreeObject::File { hash } => *hash = new_hash,
+            TreeObject::Schema { hash } => *hash = new_hash,
+            TreeObject::Dir { hash, .. } => *hash = new_hash,
+            TreeObject::VNode { hash, .. } => *hash = new_hash,
         }
     }
 

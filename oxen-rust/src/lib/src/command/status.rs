@@ -72,6 +72,7 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
     let stager = Stager::new(repository)?;
     log::debug!("status before stager.status");
     let status = stager.status(&reader)?;
+    log::debug!("status stageddata: {:?}", status);
     Ok(status)
 }
 
@@ -112,5 +113,6 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
     let stager = Stager::new(repository)?;
     log::debug!("status before stager.status");
     let status = stager.status_from_dir(&reader, dir)?;
+    log::debug!("status stageddata: {:?}", status);
     Ok(status)
 }

@@ -1,8 +1,9 @@
-use crate::model::ContentHashable;
+use crate::model::{ContentHashable, StagedEntryStatus};
 use serde::{Deserialize, Serialize};
 
 use super::Schema;
 
+// TODONOW: maybe come back to this 
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub enum StagedSchemaStatus {
     Added,
@@ -14,7 +15,7 @@ pub enum StagedSchemaStatus {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StagedSchema {
     pub schema: Schema,
-    pub status: StagedSchemaStatus,
+    pub status: StagedEntryStatus,
 }
 
 impl ContentHashable for StagedSchema {
