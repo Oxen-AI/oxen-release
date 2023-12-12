@@ -823,8 +823,9 @@ where
         "text_classification",
     )?;
 
+    log::debug!("about to commit this repo");
     command::commit(&repo, "adding all data baby")?;
-
+    log::debug!("successfully committed the repo");
     // Run test to see if it panic'd
     let result = match test(repo).await {
         Ok(_) => true,
