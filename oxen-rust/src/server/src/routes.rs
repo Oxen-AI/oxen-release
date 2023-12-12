@@ -69,6 +69,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::commits::can_push),
         )
         .route(
+            "/{namespace}/{repo_name}/commits/{commit_id}/new_can_push",
+            web::get().to(controllers::commits::new_can_push),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/complete",
             web::post().to(controllers::commits::complete),
         )

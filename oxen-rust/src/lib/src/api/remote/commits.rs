@@ -4,7 +4,7 @@ use crate::constants::{
 };
 use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{CommitDBReader, CommitReader, CommitWriter, Merger};
+use crate::core::index::{CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
@@ -343,6 +343,105 @@ pub async fn can_push(
         "/commits/{}/can_push?remote_head={}&lca={}",
         local_head.id, remote_head.id, lca.id
     );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+
+    if let Ok(res) = client.get(&url).send().await {
+        log::debug!("can_push() request successful");
+        let body = client::parse_json_body(&url, res).await?;
+        let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
+        Ok(response.can_merge)
+    } else {
+        Err(OxenError::basic_str("can_push() Request failed"))
+    }
+}
+
+pub async fn new_can_push(
+    remote_repo: &RemoteRepository,
+    remote_branch_name: &str,
+    local_repo: &LocalRepository,
+    local_head: &Commit,
+) -> Result<bool, OxenError> {
+    // Before we do this, need to ensure that we are working in the same repo
+    // If we don't, downloading the commits db in the next step
+    // will mess up the local commit history by merging two different repos
+    let local_root = api::local::commits::root_commit(local_repo)?;
+    let remote_root = api::remote::commits::root_commit(remote_repo).await?;
+
+    log::debug!("in the new can push endpoint");
+    if local_root.id != remote_root.id {
+        return Err(OxenError::basic_str(
+            "Cannot push to a different repository",
+        ));
+    }
+
+    // First need to download local history so we can get LCA
+    download_commits_db_to_repo(local_repo, remote_repo).await?;
+
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, remote_branch_name)
+        .await?
+        .ok_or(OxenError::remote_branch_not_found(remote_branch_name))?;
+
+    let remote_head_id = remote_branch.commit_id;
+    let remote_head = api::remote::commits::get_by_id(remote_repo, &remote_head_id)
+        .await?
+        .unwrap();
+
+    let merger = Merger::new(local_repo)?;
+    let reader = CommitReader::new(local_repo)?;
+    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
+
+    // let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
+    //     .join(HISTORY_DIR)
+    //     .join(local_head.id.clone());
+
+    // Create a temporary local tree representing the head commit
+    let local_head_writer = CommitEntryWriter::new(local_repo, local_head)?;
+    let tmp_tree_path = local_head_writer.save_temp_commit_tree()?;
+
+    let tar_base_dir = Path::new("tmp").join(&local_head.id); // Still want to save out in tmp, which is good
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    let tar_path = tar_base_dir.join(TREE_DIR); // TODONOW: endogenize this
+    log::debug!(
+        "taring data from {:?} into dir {:?}",
+        tmp_tree_path,
+        tar_path
+    );
+
+    if tmp_tree_path.exists() {
+        tar.append_dir_all(&tar_path, tmp_tree_path)?;
+    };
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let is_compressed = true;
+    let filename = None;
+
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    log::debug!("posting data to server...");
+
+    post_data_to_server(
+        remote_repo,
+        local_head,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await?;
+
+    let uri = format!(
+        "/commits/{}/new_can_push?remote_head={}&lca={}",
+        local_head.id, remote_head.id, lca.id
+    );
+
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;

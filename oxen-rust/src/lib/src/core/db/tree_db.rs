@@ -1,17 +1,18 @@
-use crate::model::{LocalRepository, StagedEntryStatus, StagedSchema, StagedEntry, StagedDirStats};
+use crate::constants::{
+    OBJECTS_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR,
+    OXEN_HIDDEN_DIR, SCHEMAS_TREE_PREFIX,
+};
+use crate::error::OxenError;
+use crate::model::{LocalRepository, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema};
 use crate::{core::db, model::CommitEntry};
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
 use std::io::{Read, Write};
-use crate::constants::{OBJECTS_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, OXEN_HIDDEN_DIR, SCHEMAS_TREE_PREFIX};
-use crate::error::OxenError;
+use std::path::{Path, PathBuf};
 
 pub struct TreeDB<T: ThreadMode> {
     pub db: DBWithThreadMode<T>,
 }
-
-
 
 impl<T: ThreadMode> TreeDB<T> {
     pub fn new(db_path: &Path) -> Result<TreeDB<T>, OxenError> {
@@ -79,7 +80,10 @@ impl TreeObjectChildWithStatus {
         }
     }
 
-    pub fn from_staged_schema(path: PathBuf, staged_schema: &StagedSchema) -> TreeObjectChildWithStatus {
+    pub fn from_staged_schema(
+        path: PathBuf,
+        staged_schema: &StagedSchema,
+    ) -> TreeObjectChildWithStatus {
         TreeObjectChildWithStatus {
             child: TreeObjectChild::Schema {
                 path: PathBuf::from(SCHEMAS_TREE_PREFIX).join(path),
@@ -102,15 +106,14 @@ impl TreeObjectChildWithStatus {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TreeObjectChild { 
+pub enum TreeObjectChild {
     File { path: PathBuf, hash: String },
     Schema { path: PathBuf, hash: String },
     Dir { path: PathBuf, hash: String },
     VNode { path: PathBuf, hash: String },
 }
 
-
-impl TreeObjectChild { 
+impl TreeObjectChild {
     pub fn hash(&self) -> &String {
         match self {
             TreeObjectChild::File { hash, .. } => hash,
@@ -138,15 +141,45 @@ impl TreeObjectChild {
             TreeObjectChild::VNode { path, .. } => path.to_str().unwrap(),
         }
     }
-
 }
+
+// impl Ord for TreeObjectChild {
+//     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+//         self.path().cmp(&other.path())
+//     }
+// }
+
+// impl PartialOrd for TreeObjectChild {
+//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+//         Some(self.cmp(other))
+//     }
+// }
+
+// impl Eq for TreeObjectChild {}
+
+// impl PartialEq for TreeObjectChild {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.path() == other.path()
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeObject {
-    File { hash: String },
-    Schema { hash: String},
-    Dir { children: Vec<TreeObjectChild>, hash: String },
-    VNode { children: Vec<TreeObjectChild>, hash: String, name: String },
+    File {
+        hash: String,
+    },
+    Schema {
+        hash: String,
+    },
+    Dir {
+        children: Vec<TreeObjectChild>,
+        hash: String,
+    },
+    VNode {
+        children: Vec<TreeObjectChild>,
+        hash: String,
+        name: String,
+    },
 }
 
 impl TreeObject {
@@ -159,8 +192,8 @@ impl TreeObject {
         }
     }
     pub fn from_entry(commit_entry: &CommitEntry) -> TreeObject {
-        TreeObject::File { 
-            hash: commit_entry.hash.clone()
+        TreeObject::File {
+            hash: commit_entry.hash.clone(),
         }
     }
 
@@ -170,10 +203,8 @@ impl TreeObject {
             TreeObject::Schema { .. } => panic!("Schema does not have children"),
             TreeObject::Dir { children, .. } => children,
             TreeObject::VNode { children, .. } => children,
-
         }
     }
-
 
     pub fn set_children(&mut self, new_children: Vec<TreeObjectChild>) {
         match self {
@@ -193,12 +224,12 @@ impl TreeObject {
         }
     }
 
-    // TODONOW error handling and typing here 
+    // TODONOW error handling and typing here
     pub fn name(&self) -> &String {
         match self {
-            TreeObject::File {..}  => panic!("File does not have a name"),
-            TreeObject::Schema {..} => panic!("Schema does not have a name"),
-            TreeObject::Dir {..} => panic!("Dir does not have a name"),
+            TreeObject::File { .. } => panic!("File does not have a name"),
+            TreeObject::Schema { .. } => panic!("Schema does not have a name"),
+            TreeObject::Dir { .. } => panic!("Dir does not have a name"),
             TreeObject::VNode { name, .. } => name,
         }
     }
@@ -207,26 +238,18 @@ impl TreeObject {
         let objects_dir = repo.path.join(OXEN_HIDDEN_DIR).join(OBJECTS_DIR);
         let top_hash = &self.hash()[..2];
         let bottom_hash = &self.hash()[2..];
-        let base_path  = match self {
-            TreeObject::File { hash } => {
-                objects_dir.join(OBJECT_FILES_DIR)
-            }
-            TreeObject::Schema { hash } => {
-                objects_dir.join(OBJECT_SCHEMAS_DIR)
-            }
-            TreeObject::Dir { hash, .. } => {
-                objects_dir.join(OBJECT_DIRS_DIR)
-            }
-            TreeObject::VNode { hash, .. } => {
-                objects_dir.join(OBJECT_VNODES_DIR)
-            }
+        let base_path = match self {
+            TreeObject::File { hash } => objects_dir.join(OBJECT_FILES_DIR),
+            TreeObject::Schema { hash } => objects_dir.join(OBJECT_SCHEMAS_DIR),
+            TreeObject::Dir { hash, .. } => objects_dir.join(OBJECT_DIRS_DIR),
+            TreeObject::VNode { hash, .. } => objects_dir.join(OBJECT_VNODES_DIR),
         };
         base_path.join(top_hash).join(bottom_hash)
     }
 
-    pub fn write(&self, repo: &LocalRepository ) -> Result<(), OxenError> {
+    pub fn write(&self, repo: &LocalRepository) -> Result<(), OxenError> {
         let path = self.object_path(repo);
-        std::fs::create_dir_all(path.parent().unwrap())?; // Will always have a parent 
+        std::fs::create_dir_all(path.parent().unwrap())?; // Will always have a parent
 
         let mut file = std::fs::File::create(path)?;
 
@@ -242,6 +265,39 @@ impl TreeObject {
         file.read_to_end(&mut bytes)?;
         let tree_object: TreeObject = serde_json::from_slice(&bytes)?;
         Ok(())
+    }
+
+    pub fn binary_search_on_path(
+        &self,
+        path: &PathBuf,
+    ) -> Result<Option<TreeObjectChild>, OxenError> {
+        match self {
+            // TODONOW: ERror handling
+            TreeObject::File { .. } => panic!("File does not have children"),
+            TreeObject::Schema { .. } => panic!("Schema does not have children"),
+            TreeObject::Dir { children, .. } => {
+                let result = children.binary_search_by(|probe| {
+                    let probe_path = probe.path();
+                    probe_path.cmp(path)
+                });
+
+                match result {
+                    Ok(index) => Ok(Some(children[index].clone())),
+                    Err(_) => Ok(None),
+                }
+            }
+            TreeObject::VNode { children, .. } => {
+                let result = children.binary_search_by(|probe| {
+                    let probe_path = probe.path();
+                    probe_path.cmp(path)
+                });
+
+                match result {
+                    Ok(index) => Ok(Some(children[index].clone())),
+                    Err(_) => Ok(None),
+                }
+            }
+        }
     }
 }
 

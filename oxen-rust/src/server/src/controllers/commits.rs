@@ -594,6 +594,7 @@ pub async fn upload_chunk(
     mut chunk: web::Payload,                   // the chunk of the file body,
     query: web::Query<ChunkedDataUploadQuery>, // gives the file
 ) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in upload chunk controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -825,6 +826,8 @@ pub async fn can_push(
     let server_head_id = query.get("remote_head").unwrap();
     let lca_id = query.get("lca").unwrap();
 
+    log::debug!("in the can_push endpoint");
+
     // Ensuring these commits exist on server
     let _server_head_commit = api::local::commits::get_by_id(&repo, server_head_id)?.ok_or(
         OxenError::revision_not_found(server_head_id.to_owned().into()),
@@ -861,6 +864,57 @@ pub async fn can_push(
     }
 }
 
+pub async fn new_can_push(
+    req: HttpRequest,
+    query: web::Query<HashMap<String, String>>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let client_head_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+    let server_head_id = query.get("remote_head").unwrap();
+    let lca_id = query.get("lca").unwrap();
+
+    log::debug!("in the new_can_push endpoint");
+
+    // Ensuring these commits exist on server
+    let _server_head_commit = api::local::commits::get_by_id(&repo, server_head_id)?.ok_or(
+        OxenError::revision_not_found(server_head_id.to_owned().into()),
+    )?;
+    let _lca_commit = api::local::commits::get_by_id(&repo, lca_id)?
+        .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
+
+    let can_merge = !api::local::commits::new_head_commits_have_conflicts(
+        &repo,
+        &client_head_id,
+        server_head_id,
+        lca_id,
+    )?;
+
+    // Clean up tmp tree files from client head commit
+    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path)
+        .join("tmp")
+        .join(client_head_id)
+        .join(TREE_DIR);
+
+    if tmp_tree_dir.exists() {
+        std::fs::remove_dir_all(tmp_tree_dir).unwrap();
+    }
+
+    if can_merge {
+        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
+            status: StatusMessage::resource_found(),
+            can_merge: true,
+        }))
+    } else {
+        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
+            status: StatusMessage::resource_found(),
+            can_merge: false,
+        }))
+    }
+}
+
 pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -880,6 +934,7 @@ pub async fn upload(
     req: HttpRequest,
     mut body: web::Payload, // the actual file body
 ) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in regular upload controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -1119,6 +1174,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                             .expect("Could not write hash file");
                     } else {
                         // For non-version files, use filename sent by client
+                        log::debug!("unpacking path {:?} to {:?}", path, hidden_dir);
                         file.unpack_in(hidden_dir).unwrap();
                     }
                 } else {
