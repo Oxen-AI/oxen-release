@@ -407,7 +407,52 @@ pub fn head_commits_have_conflicts(
     let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_db_path, lca_db_path)?;
 
     // Start at the top level of the client db
+    log::debug!("about to try to get the client root");
     let maybe_client_root = &tree_merger.client_reader.get_entry("")?;
+    log::debug!("successfully getting the client root");
+    let maybe_server_root = &tree_merger.server_reader.get_entry("")?;
+    let maybe_lca_root = &tree_merger.lca_reader.get_entry("")?;
+    // If lca_root is null, create a dummy node for traversal
+
+    tree_merger.r_tree_has_conflict(maybe_client_root, maybe_server_root, maybe_lca_root)
+}
+
+// TODONOW: way to simplify the interface such that we can view client and server/lca symmetrically
+pub fn new_head_commits_have_conflicts(
+    repo: &LocalRepository,
+    client_head_id: &str,
+    server_head_id: &str,
+    lca_id: &str,
+) -> Result<bool, OxenError> {
+    // Connect to the 3 commit merkle trees
+
+    // Get server head and lca commits
+    let server_head = api::local::commits::get_by_id(repo, server_head_id)?.unwrap();
+    let lca = api::local::commits::get_by_id(repo, lca_id)?.unwrap();
+
+    // Initialize commit entry writers for the server head and LCA - we have full db structures for them, where the client db is going to be kinda weird...
+    // TODONOW: can we do this through commit entry READERS
+    let server_writer = CommitEntryWriter::new(repo, &server_head)?;
+    let lca_writer = CommitEntryWriter::new(repo, &lca)?;
+
+    let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
+        .join("tmp")
+        .join(client_head_id)
+        .join(TREE_DIR);
+
+    let lca_db_path = CommitEntryWriter::commit_tree_db(&repo.path, lca_id);
+    let server_db_path = CommitEntryWriter::commit_tree_db(&repo.path, server_head_id);
+    let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
+        .join("tmp")
+        .join(client_head_id)
+        .join(TREE_DIR);
+
+    let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_db_path, lca_db_path)?;
+
+    // Start at the top level of the client db
+    log::debug!("about to try to get the client root");
+    let maybe_client_root = &tree_merger.client_reader.get_entry("")?;
+    log::debug!("successfully getting the client root");
     let maybe_server_root = &tree_merger.server_reader.get_entry("")?;
     let maybe_lca_root = &tree_merger.lca_reader.get_entry("")?;
     // If lca_root is null, create a dummy node for traversal

@@ -1,14 +1,19 @@
 use crate::api;
-use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, VERSIONS_DIR};
+use crate::constants::{
+    self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
+};
 use crate::core::db;
-use crate::core::db::tree_db::{TreeChild, TreeNode, TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
+use crate::core::db::tree_db::{
+    TreeChild, TreeNode, TreeObject, TreeObjectChild, TreeObjectChildWithStatus,
+};
 use crate::core::db::{kv_db, path_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff;
 use crate::model::schema::staged_schema::StagedSchemaStatus;
 use crate::model::{
-    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema, Schema,
+    Commit, CommitEntry, LocalRepository, Schema, StagedData, StagedEntry, StagedEntryStatus,
+    StagedSchema,
 };
 use crate::util;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -58,31 +63,41 @@ impl CommitEntryWriter {
     pub fn commit_tree_db(path: &Path, commit_id: &str) -> PathBuf {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::TREE_DIR)
     }
-    
-    // Let dir hash db 
+
+    // Let dir hash db
     pub fn commit_dir_hash_db(path: &Path, commit_id: &str) -> PathBuf {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIR_HASHES_DIR)
     }
 
     // TODONOW: These should probably be moved somewhere else
     pub fn files_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path).join(constants::OBJECTS_DIR).join(constants::OBJECT_FILES_DIR)
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(constants::OBJECTS_DIR)
+            .join(constants::OBJECT_FILES_DIR)
     }
 
     pub fn schemas_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path).join(constants::OBJECTS_DIR).join(constants::OBJECT_SCHEMAS_DIR)
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(constants::OBJECTS_DIR)
+            .join(constants::OBJECT_SCHEMAS_DIR)
     }
 
     pub fn dirs_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path).join(constants::OBJECTS_DIR).join(constants::OBJECT_DIRS_DIR)
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(constants::OBJECTS_DIR)
+            .join(constants::OBJECT_DIRS_DIR)
     }
 
     pub fn vnodes_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path).join(constants::OBJECTS_DIR).join(constants::OBJECT_VNODES_DIR)
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(constants::OBJECTS_DIR)
+            .join(constants::OBJECT_VNODES_DIR)
     }
 
     pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path).join(constants::OBJECTS_DIR).join("commit-hashes")
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(constants::OBJECTS_DIR)
+            .join("commit-hashes")
     }
 
     pub fn new(
@@ -96,10 +111,20 @@ impl CommitEntryWriter {
         let schemas_db_path = CommitEntryWriter::schemas_db_dir(&repository);
         let dirs_db_path = CommitEntryWriter::dirs_db_dir(&repository);
         let vnodes_db_path = CommitEntryWriter::vnodes_db_dir(&repository);
-        let dir_hashes_db_path = CommitEntryWriter::commit_dir_hash_db(&repository.path, &commit.id);
+        let dir_hashes_db_path =
+            CommitEntryWriter::commit_dir_hash_db(&repository.path, &commit.id);
         let temp_commit_hashes_db_path = CommitEntryWriter::temp_commit_hashes_db_dir(&repository);
 
-        for path in &[&db_path, &tree_db_path, &files_db_path, &schemas_db_path, &dirs_db_path, &vnodes_db_path, &dir_hashes_db_path, &temp_commit_hashes_db_path] {
+        for path in &[
+            &db_path,
+            &tree_db_path,
+            &files_db_path,
+            &schemas_db_path,
+            &dirs_db_path,
+            &vnodes_db_path,
+            &dir_hashes_db_path,
+            &temp_commit_hashes_db_path,
+        ] {
             if !path.exists() {
                 util::fs::create_dir_all(&path)?;
             }
@@ -115,7 +140,10 @@ impl CommitEntryWriter {
             dirs_db: DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?,
             vnodes_db: DBWithThreadMode::open(&opts, dunce::simplified(&vnodes_db_path))?,
             dir_hashes_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_hashes_db_path))?,
-            temp_commit_hashes_db: DBWithThreadMode::open(&opts, dunce::simplified(&temp_commit_hashes_db_path))?,
+            temp_commit_hashes_db: DBWithThreadMode::open(
+                &opts,
+                dunce::simplified(&temp_commit_hashes_db_path),
+            )?,
             commit: commit.to_owned(),
         })
     }
@@ -345,7 +373,8 @@ impl CommitEntryWriter {
                 self.construct_merkle_tree_from_parent(staged_data)?;
             }
 
-            let last_commit_hash: Option<String> = path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.parent_ids[0])?;
+            let last_commit_hash: Option<String> =
+                path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.parent_ids[0])?;
 
             if let Some(hash) = last_commit_hash {
                 log::debug!("Here is the last commit hash {:?}", hash);
@@ -361,7 +390,7 @@ impl CommitEntryWriter {
             self.construct_merkle_tree_new()?;
             self.new_construct_merkle_tree_new()?;
         }
-        
+
         log::debug!("\nPrinting old tree db\n");
         self.temp_print_tree_db();
         log::debug!("\nPrinting new tree db\n");
@@ -371,7 +400,8 @@ impl CommitEntryWriter {
 
     fn new_construct_commit_merkle_tree(&self, staged_data: &StagedData) -> Result<(), OxenError> {
         if self.commit.parent_ids.len() == 1 {
-            let last_commit_hash: Option<String> = path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.parent_ids[0])?;
+            let last_commit_hash: Option<String> =
+                path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.parent_ids[0])?;
             if let Some(hash) = last_commit_hash {
                 self.new_construct_merkle_tree_from_parent(staged_data)?;
             } else {
@@ -381,7 +411,7 @@ impl CommitEntryWriter {
         } else {
             self.new_construct_merkle_tree_new()?;
         }
-        // Print tree db 
+        // Print tree db
         log::debug!("\nPrinting new tree db\n");
         self.new_temp_print_tree_db()?;
         Ok(())
@@ -517,15 +547,17 @@ impl CommitEntryWriter {
         self.create_tree_nodes_from_dirs(&mut dir_paths, dir_map)
     }
 
+    pub fn new_construct_merkle_tree_from_parent(
+        &self,
+        staged_data: &StagedData,
+    ) -> Result<(), OxenError> {
+        // Get all dirs so we can find which changed
+        // TODONOW: want to consolidate the two dir dbs, probably. aka store hashes in the dir db
 
-    pub fn new_construct_merkle_tree_from_parent(&self, staged_data: &StagedData) -> Result<(), OxenError> {
-        // Get all dirs so we can find which changed 
-        // TODONOW: want to consolidate the two dir dbs, probably. aka store hashes in the dir db 
-
-        // Get last commit id 
+        // Get last commit id
         let parent_commit_id = &self.commit.parent_ids[0];
 
-        let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new(); 
+        let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
         let dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
 
         for dir in &dir_paths {
@@ -559,17 +591,23 @@ impl CommitEntryWriter {
             }
         }
 
-        // No more need for step 3. We're not deleting stuff because we're not copying our treedb anymore, 
+        // No more need for step 3. We're not deleting stuff because we're not copying our treedb anymore,
         // just building up a new reference head when needed.
 
-        // Always need to recompute the root dir, this case was getting missed 
+        // Always need to recompute the root dir, this case was getting missed
         dirs_to_recompute.insert(PathBuf::from(""));
         let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
 
-        self.new_create_tree_nodes_from_affected_dirs(&mut modified_dirs_vec, dir_map, staged_data, parent_commit_id.to_string())?;
+        self.new_create_tree_nodes_from_affected_dirs(
+            &mut modified_dirs_vec,
+            dir_map,
+            staged_data,
+            parent_commit_id.to_string(),
+        )?;
 
-        let root_hash: String = path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
-        // Insert into the commit hashes db 
+        let root_hash: String =
+            path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
+        // Insert into the commit hashes db
         path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
 
         Ok(())
@@ -580,17 +618,21 @@ impl CommitEntryWriter {
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
 
         if dir_paths.is_empty() {
-            // Initial commit - we want to create the root node as empty, then return 
-            // TODONOW: hash insertion definitely needed, is dirnode insertion? probably. 
+            // Initial commit - we want to create the root node as empty, then return
+            // TODONOW: hash insertion definitely needed, is dirnode insertion? probably.
             let root_node = TreeObject::Dir {
                 // path: PathBuf::from(""),
                 children: Vec::new(),
                 hash: util::hasher::compute_children_hash(&Vec::new()),
             };
-            // Do we need all three of these really? 
+            // Do we need all three of these really?
             path_db::put(&self.dirs_db, &root_node.hash(), &root_node)?;
             path_db::put(&self.dir_hashes_db, PathBuf::from(""), &root_node.hash())?;
-            path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_node.hash())?;
+            path_db::put(
+                &self.temp_commit_hashes_db,
+                &self.commit.id,
+                &root_node.hash(),
+            )?;
 
             return Ok(());
         }
@@ -605,14 +647,26 @@ impl CommitEntryWriter {
             }
         }
         self.new_create_tree_nodes_from_dirs(&mut dir_paths, dir_map)?;
-        
+
         // If dir path
-        let root_hash: String = path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
-        // Insert into the commit hashes db 
+        let root_hash: String =
+            path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
+        // Insert into the commit hashes db
         path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
 
         Ok(())
+    }
 
+    pub fn get_node_from_child(
+        &self,
+        child: &TreeObjectChild,
+    ) -> Result<Option<TreeObject>, OxenError> {
+        match child {
+            TreeObjectChild::File { hash, .. } => path_db::get_entry(&self.files_db, hash),
+            TreeObjectChild::Schema { hash, .. } => path_db::get_entry(&self.schemas_db, hash),
+            TreeObjectChild::Dir { hash, .. } => path_db::get_entry(&self.dirs_db, hash),
+            TreeObjectChild::VNode { hash, .. } => path_db::get_entry(&self.vnodes_db, hash),
+        }
     }
 
     fn entry_to_treechild(entry: &CommitEntry) -> TreeChild {
@@ -687,8 +741,6 @@ impl CommitEntryWriter {
                 }
             }
 
-            
-
             // Insert updated file nodes into the db
             for file_child in &child_tree_nodes {
                 let file_node = TreeNode::File {
@@ -748,27 +800,33 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    fn write_gather_vnode_children(&self, children: Vec<TreeObjectChild>) -> Result<Vec<TreeObjectChild>, OxenError> {
+    fn write_gather_vnode_children(
+        &self,
+        children: Vec<TreeObjectChild>,
+    ) -> Result<Vec<TreeObjectChild>, OxenError> {
         let mut groups: HashMap<String, Vec<TreeObjectChild>> = HashMap::new();
-    
+
         // Group by first two letters of hash
         for child in children {
             let hash_prefix = &util::hasher::hash_str(&child.path_as_str())[..2];
-            groups.entry(hash_prefix.to_string()).or_default().push(child);
+            groups
+                .entry(hash_prefix.to_string())
+                .or_default()
+                .push(child);
         }
-    
+
         // Sort each group and create VNodes
         let mut vnodes: Vec<TreeObjectChild> = Vec::new();
         for (name, mut group_children) in groups {
             group_children.sort_by(|a, b| a.path().cmp(&b.path()));
-            
+
             // Here you can compute a combined hash for the group if needed
-            let combined_hash = util::hasher::compute_children_hash(&group_children); 
-    
+            let combined_hash = util::hasher::compute_children_hash(&group_children);
+
             let vnode_object = TreeObject::VNode {
                 hash: combined_hash.to_string(),
                 children: group_children,
-                name: name.clone()
+                name: name.clone(),
             };
 
             path_db::put(&self.vnodes_db, &vnode_object.hash(), &vnode_object)?;
@@ -782,11 +840,11 @@ impl CommitEntryWriter {
     }
 
     fn new_create_tree_nodes_from_dirs(
-        &self, 
+        &self,
         dirs: &mut Vec<PathBuf>,
         dir_map: HashMap<PathBuf, Vec<PathBuf>>,
     ) -> Result<(), OxenError> {
-        // Sort dirs by descending component count to work bottom up 
+        // Sort dirs by descending component count to work bottom up
         dirs.sort_by(|a, b| {
             let a_count = a.components().count();
             let b_count = b.components().count();
@@ -801,16 +859,20 @@ impl CommitEntryWriter {
         for (path, schema) in schemas {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
             let schema_with_path = SchemaWithPath {
-                    path: PathBuf::from(SCHEMAS_TREE_PREFIX).join(path.clone()).to_string_lossy().to_string(),
-                    schema: schema,
-                };
-            schema_map.entry(parent).or_default().push(schema_with_path);
+                path: PathBuf::from(SCHEMAS_TREE_PREFIX)
+                    .join(path.clone())
+                    .to_string_lossy()
+                    .to_string(),
+                schema: schema,
             };
-            
+            schema_map.entry(parent).or_default().push(schema_with_path);
+        }
+
         // Starting with the lowest-down dirs...
         for dir in dirs {
             let file_child_objs = self.write_file_objects_for_dir(dir.to_path_buf())?;
-            let schema_child_objs = self.write_schema_objects_for_dir(dir.to_path_buf(), &schema_map)?;
+            let schema_child_objs =
+                self.write_schema_objects_for_dir(dir.to_path_buf(), &schema_map)?;
             let dir_child_objs = self.gather_dir_children_for_dir(dir.to_path_buf(), &dir_map)?;
 
             let mut all_children: Vec<TreeObjectChild> = file_child_objs;
@@ -821,19 +883,19 @@ impl CommitEntryWriter {
 
             let mut vnode_child_objs = self.write_gather_vnode_children(all_children)?;
 
-            // Lexically sort the vnode_child_objs by path 
+            // Lexically sort the vnode_child_objs by path
             vnode_child_objs.sort_by(|a, b| a.path().cmp(b.path()));
 
-            // Hash them 
+            // Hash them
             let dir_hash = util::hasher::compute_children_hash(&vnode_child_objs);
 
-            // Create a Dir TreeObject 
+            // Create a Dir TreeObject
             let dir_object = TreeObject::Dir {
                 hash: dir_hash.to_string(),
                 children: vnode_child_objs,
             };
 
-            // Insert the dir into both the dir objects db and the dir hashes db 
+            // Insert the dir into both the dir objects db and the dir hashes db
             path_db::put(&self.dirs_db, &dir_object.hash(), &dir_object)?;
             path_db::put(&self.dir_hashes_db, dir, &dir_object.hash().to_string())?;
         }
@@ -841,13 +903,13 @@ impl CommitEntryWriter {
     }
 
     fn new_create_tree_nodes_from_affected_dirs(
-        &self, 
+        &self,
         dirs: &mut Vec<PathBuf>,
         dir_map: HashMap<PathBuf, Vec<PathBuf>>,
         status: &StagedData,
         parent_commit_id: String,
     ) -> Result<(), OxenError> {
-        // Sort dirs by descending component count to work bottom up 
+        // Sort dirs by descending component count to work bottom up
         dirs.sort_by(|a, b| {
             let a_count = a.components().count();
             let b_count = b.components().count();
@@ -862,61 +924,75 @@ impl CommitEntryWriter {
         for (path, schema) in schemas {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
             let schema_with_path = SchemaWithPath {
-                    path: PathBuf::from(SCHEMAS_TREE_PREFIX).join(path.clone()).to_string_lossy().to_string(),
-                    schema: schema,
-                };
+                path: PathBuf::from(SCHEMAS_TREE_PREFIX)
+                    .join(path.clone())
+                    .to_string_lossy()
+                    .to_string(),
+                schema: schema,
+            };
             schema_map.entry(parent).or_default().push(schema_with_path);
-        };
-            
+        }
 
-        // TODONOW: endogenize this if possible? 
-        let parent_hash_db_dir = CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &parent_commit_id);
-        let parent_hash_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&rocksdb::Options::default(), dunce::simplified(&parent_hash_db_dir))?;
+        // TODONOW: endogenize this if possible?
+        let parent_hash_db_dir =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &parent_commit_id);
+        let parent_hash_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
+            &rocksdb::Options::default(),
+            dunce::simplified(&parent_hash_db_dir),
+        )?;
 
-
-        // TODONOW: streamline this - but for now, let's make a mapping of staged entries (as TreeObjects) to their parent directories 
-        let mut staged_entries_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>> = HashMap::new();
+        // TODONOW: streamline this - but for now, let's make a mapping of staged entries (as TreeObjects) to their parent directories
+        let mut staged_entries_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>> =
+            HashMap::new();
         for (path, entry) in status.staged_files.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
             let file_object = TreeObject::File {
                 hash: entry.hash.clone(),
             };
 
-            let file_child_with_status = TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
+            let file_child_with_status =
+                TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
 
             path_db::put(&self.files_db, &file_object.hash(), &file_object)?;
-            staged_entries_map.entry(parent).or_default().push(file_child_with_status);
+            staged_entries_map
+                .entry(parent)
+                .or_default()
+                .push(file_child_with_status);
         }
 
         for (path, staged_schema) in status.staged_schemas.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-            let schema_child_with_status = TreeObjectChildWithStatus::from_staged_schema(path.to_path_buf(), &staged_schema);
+            let schema_child_with_status =
+                TreeObjectChildWithStatus::from_staged_schema(path.to_path_buf(), &staged_schema);
 
             let schema_object = TreeObject::Schema {
                 hash: staged_schema.schema.hash.clone(),
             };
 
             path_db::put(&self.schemas_db, &schema_object.hash(), &schema_object)?;
-            staged_entries_map.entry(parent).or_default().push(schema_child_with_status);
+            staged_entries_map
+                .entry(parent)
+                .or_default()
+                .push(schema_child_with_status);
         }
 
-        
         for (path, staged_dirs) in status.staged_dirs.paths.iter() {
             for dir_stats in staged_dirs.iter() {
                 let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
                 let dir_child_with_status = TreeObjectChildWithStatus::from_staged_dir(dir_stats);
-                staged_entries_map.entry(parent).or_default().push(dir_child_with_status);
+                staged_entries_map
+                    .entry(parent)
+                    .or_default()
+                    .push(dir_child_with_status);
             }
         }
 
-
         // Starting with the lowest-down dirs...
         for dir in dirs {
-
             log::debug!("Checking dir {:?}", dir);
-            // STEP 1: If this dir has a hash in the previous commit, grab its node as the starting point 
+            // STEP 1: If this dir has a hash in the previous commit, grab its node as the starting point
             let prev_dir_hash: Option<String> = path_db::get_entry(&parent_hash_db, dir.clone())?;
-            let mut prev_dir_object: TreeObject = if let Some(prev_hash) = prev_dir_hash { 
+            let mut prev_dir_object: TreeObject = if let Some(prev_hash) = prev_dir_hash {
                 log::debug!("Found some prev_dir_hash");
                 path_db::get_entry(&self.dirs_db, &prev_hash)?.unwrap()
             } else {
@@ -929,65 +1005,73 @@ impl CommitEntryWriter {
 
             // STEP 2: Get all the new children from the staged data map for this dir
             let new_children: Vec<TreeObjectChildWithStatus> = staged_entries_map
-                    .get(dir)
-                    .unwrap_or(&Vec::new())
-                    .clone().to_vec();
-
+                .get(dir)
+                .unwrap_or(&Vec::new())
+                .clone()
+                .to_vec();
 
             log::debug!("Got new children for dir {:?} as {:?}", dir, new_children);
 
-
-            // For each child, hash its path and keep a list of the VNodes that are affected, where a vnode is affected if one of the new children's path's first two characters are the name of that vnode 
-            let mut affected_vnodes: HashMap<String, Vec<TreeObjectChildWithStatus>> = HashMap::new();
+            // For each child, hash its path and keep a list of the VNodes that are affected, where a vnode is affected if one of the new children's path's first two characters are the name of that vnode
+            let mut affected_vnodes: HashMap<String, Vec<TreeObjectChildWithStatus>> =
+                HashMap::new();
 
             for child in new_children {
-                // Here, we can now grab the dirs from the cache 
+                // Here, we can now grab the dirs from the cache
                 match &child.child {
                     TreeObjectChild::Dir { path, .. } => {
                         log::debug!("Found a dir child {:?} of dir {:?}", path, dir);
                         let dir_child_object = match child.status {
                             StagedEntryStatus::Added | StagedEntryStatus::Modified => {
-                                let dir_hash: String = path_db::get_entry(&self.dir_hashes_db, path.clone())?.unwrap();
+                                let dir_hash: String =
+                                    path_db::get_entry(&self.dir_hashes_db, path.clone())?.unwrap();
                                 TreeObjectChild::Dir {
                                     path: path.clone(),
                                     hash: dir_hash,
                                 }
-                            },
+                            }
                             StagedEntryStatus::Removed => {
                                 // Don't have access to hash in this commit, and also don't compare about it - we're removing the directory
                                 TreeObjectChild::Dir {
                                     path: path.clone(),
                                     hash: "".to_string(),
                                 }
-                            },
+                            }
                         };
                         let dir_child_with_status = TreeObjectChildWithStatus {
                             child: dir_child_object,
                             status: child.status,
                         };
-                        
-                        let dir_path_hash = &util::hasher::hash_str(path.to_string_lossy().to_string())[..2];
-                        affected_vnodes.entry(dir_path_hash.to_string()).or_default().push(dir_child_with_status.clone());
-                    }, 
-                    _ => {
 
+                        let dir_path_hash =
+                            &util::hasher::hash_str(path.to_string_lossy().to_string())[..2];
+                        affected_vnodes
+                            .entry(dir_path_hash.to_string())
+                            .or_default()
+                            .push(dir_child_with_status.clone());
+                    }
+                    _ => {
                         let hash_prefix = &util::hasher::hash_str(&child.child.path_as_str())[..2];
-                        affected_vnodes.entry(hash_prefix.to_string()).or_default().push(child.clone());
+                        affected_vnodes
+                            .entry(hash_prefix.to_string())
+                            .or_default()
+                            .push(child.clone());
                     }
                 }
             }
 
-
-
-            // Get the vnode children from the prev_dir object. 
+            // Get the vnode children from the prev_dir object.
             let prev_vnode_children = prev_dir_object.children();
 
-            // Get these as a hashset todonow this is stupid 
+            // Get these as a hashset todonow this is stupid
             let mut prev_vnode_hash_map: HashMap<String, String> = HashMap::new();
 
-            // Instead of the below, map vnode to its hash 
+            // Instead of the below, map vnode to its hash
             for vnode in prev_vnode_children {
-                prev_vnode_hash_map.insert(vnode.path().to_string_lossy().to_string(), vnode.hash().to_string());
+                prev_vnode_hash_map.insert(
+                    vnode.path().to_string_lossy().to_string(),
+                    vnode.hash().to_string(),
+                );
             }
 
             // Get a set of all unique vnode children (those in either the prev or new vnode children lists)
@@ -999,38 +1083,41 @@ impl CommitEntryWriter {
                 all_vnodes.insert(vnode.to_string());
             }
 
-
-
             let mut dir_vnode_children: Vec<TreeObjectChild> = Vec::new();
             for vnode in all_vnodes {
-                // Get the cached version 
-                // If the vnode is in affected_vnodes 
-                // TODONOW: better nesting logic here. 
+                // Get the cached version
+                // If the vnode is in affected_vnodes
+                // TODONOW: better nesting logic here.
 
                 // TODONOW: optimize via hash map!
                 if prev_vnode_hash_map.contains_key(&vnode) {
-                    let mut prev_vnode: TreeObject = path_db::get_entry(&self.vnodes_db, &prev_vnode_hash_map[&vnode])?.unwrap();
-                    // Get prev children 
+                    let mut prev_vnode: TreeObject =
+                        path_db::get_entry(&self.vnodes_db, &prev_vnode_hash_map[&vnode])?.unwrap();
+                    // Get prev children
                     let mut children = prev_vnode.children().clone();
-
 
                     // Create a hash set of the children on path - TODONOW this currently ignores schemas
                     let mut children_path_map: HashMap<String, TreeObjectChild> = HashMap::new();
                     for child in children {
                         children_path_map.insert(child.path().to_string_lossy().to_string(), child);
                     }
-                    
-                    let staged_children = affected_vnodes.get(&vnode).unwrap_or(&Vec::new()).clone();
+
+                    let staged_children =
+                        affected_vnodes.get(&vnode).unwrap_or(&Vec::new()).clone();
 
                     // For every child
                     for child_with_status in staged_children {
                         match child_with_status.status {
                             StagedEntryStatus::Added | StagedEntryStatus::Modified => {
-                                children_path_map.insert(child_with_status.child.path_as_str().to_string(), child_with_status.child.clone());
-                            },
+                                children_path_map.insert(
+                                    child_with_status.child.path_as_str().to_string(),
+                                    child_with_status.child.clone(),
+                                );
+                            }
                             StagedEntryStatus::Removed => {
-                                children_path_map.remove(&child_with_status.child.path_as_str().to_string());
-                            },
+                                children_path_map
+                                    .remove(&child_with_status.child.path_as_str().to_string());
+                            }
                         }
                     }
 
@@ -1038,20 +1125,19 @@ impl CommitEntryWriter {
                         // TODONOW: don't add this as a child?
                     }
 
-
-                    // Convert staged_children into a vector lexically ordered by path 
-                    let mut children: Vec<TreeObjectChild> = children_path_map.values().cloned().collect();
+                    // Convert staged_children into a vector lexically ordered by path
+                    let mut children: Vec<TreeObjectChild> =
+                        children_path_map.values().cloned().collect();
                     children.sort_by(|a, b| a.path().cmp(b.path()));
 
-
-                    // Set the new children on the vnode 
+                    // Set the new children on the vnode
                     prev_vnode.set_children(children);
 
-                    // TODONOW: can avoid hashing if make the logic nastier in the if statement here 
+                    // TODONOW: can avoid hashing if make the logic nastier in the if statement here
                     let updated_vnode = TreeObject::VNode {
                         children: prev_vnode.children().clone(),
                         hash: util::hasher::compute_children_hash(&prev_vnode.children().clone()),
-                        name: vnode.clone()
+                        name: vnode.clone(),
                     };
 
                     let updated_vnode_child = TreeObjectChild::VNode {
@@ -1064,55 +1150,55 @@ impl CommitEntryWriter {
                         dir_vnode_children.push(updated_vnode_child);
                     }
                 } else {
-                        // TODONOW :this in one step plz
-                        let children = affected_vnodes.get(&vnode).unwrap().clone();
+                    // TODONOW :this in one step plz
+                    let children = affected_vnodes.get(&vnode).unwrap().clone();
 
-                        // Map these children to just get the child property of each 
-                        let children: Vec<TreeObjectChild> = children.iter().map(|child| child.child.clone()).collect();
+                    // Map these children to just get the child property of each
+                    let children: Vec<TreeObjectChild> =
+                        children.iter().map(|child| child.child.clone()).collect();
 
-                        let children_hash = util::hasher::compute_children_hash(&children);
-                        let new_vnode = TreeObject::VNode {
-                            children: children,
-                            hash: children_hash,
-                            name: vnode.clone()
-                        };
+                    let children_hash = util::hasher::compute_children_hash(&children);
+                    let new_vnode = TreeObject::VNode {
+                        children: children,
+                        hash: children_hash,
+                        name: vnode.clone(),
+                    };
 
-                        let new_vnode_child = TreeObjectChild::VNode {
-                            path: PathBuf::from(vnode),
-                            hash: new_vnode.hash().to_string(),
-                        };
+                    let new_vnode_child = TreeObjectChild::VNode {
+                        path: PathBuf::from(vnode),
+                        hash: new_vnode.hash().to_string(),
+                    };
 
-                        path_db::put(&self.vnodes_db, &new_vnode.hash(), &new_vnode)?;
-                        dir_vnode_children.push(new_vnode_child);
-
-                    }
+                    path_db::put(&self.vnodes_db, &new_vnode.hash(), &new_vnode)?;
+                    dir_vnode_children.push(new_vnode_child);
+                }
             }
 
-            // Set the dir node's children 
+            // Set the dir node's children
             let dir_hash = util::hasher::compute_children_hash(&dir_vnode_children);
             prev_dir_object.set_children(dir_vnode_children);
             prev_dir_object.set_hash(dir_hash.to_string());
 
-            // Now insert the dir into both the dir objects db and the dir hashes db. 
+            // Now insert the dir into both the dir objects db and the dir hashes db.
             path_db::put(&self.dirs_db, &prev_dir_object.hash(), &prev_dir_object)?;
-            path_db::put(&self.dir_hashes_db, dir.clone(), &prev_dir_object.hash().to_string())?;
-
-            
+            path_db::put(
+                &self.dir_hashes_db,
+                dir.clone(),
+                &prev_dir_object.hash().to_string(),
+            )?;
 
             // Insert the dir into both the dir objects db and the dir hashes db
 
-            // Let's print out the entire stageddata object at this point. 
+            // Let's print out the entire stageddata object at this point.
             log::debug!("Here is the staged data {:?}", status);
             log::debug!("and we are working on dir {:?}", dir);
-
         }
         Ok(())
     }
-    
 
     fn write_file_objects_for_dir(&self, dir: PathBuf) -> Result<Vec<TreeObjectChild>, OxenError> {
         let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
-        // Get all file children 
+        // Get all file children
         let files = dir_entry_reader.list_entries()?;
 
         // let mut file_children_map: HashMap<PathBuf, TreeObject> = HashMap::new();
@@ -1135,7 +1221,11 @@ impl CommitEntryWriter {
         Ok(file_children)
     }
 
-    fn write_schema_objects_for_dir(&self, dir: PathBuf, schema_map: &HashMap<PathBuf, Vec<SchemaWithPath>>) -> Result<Vec<TreeObjectChild>, OxenError> {
+    fn write_schema_objects_for_dir(
+        &self,
+        dir: PathBuf,
+        schema_map: &HashMap<PathBuf, Vec<SchemaWithPath>>,
+    ) -> Result<Vec<TreeObjectChild>, OxenError> {
         let schema_nodes: Vec<SchemaWithPath> = match schema_map.get(&dir) {
             Some(nodes) => nodes.clone(),
             None => Vec::new(),
@@ -1146,7 +1236,7 @@ impl CommitEntryWriter {
             let schema_object = TreeObject::Schema {
                 hash: schema_node.schema.hash.clone(),
             };
-            path_db::put(&self.schemas_db, &schema_object.hash(), &schema_object)?; 
+            path_db::put(&self.schemas_db, &schema_object.hash(), &schema_object)?;
             // schema_object.write(&self.repository)?;
             schema_objects_map.insert(PathBuf::from(schema_node.path.clone()), schema_object);
         }
@@ -1163,17 +1253,21 @@ impl CommitEntryWriter {
         Ok(schema_children)
     }
 
-    fn gather_dir_children_for_dir(&self, dir: PathBuf, dir_map: &HashMap<PathBuf, Vec<PathBuf>>) -> Result<Vec<TreeObjectChild>, OxenError> {
+    fn gather_dir_children_for_dir(
+        &self,
+        dir: PathBuf,
+        dir_map: &HashMap<PathBuf, Vec<PathBuf>>,
+    ) -> Result<Vec<TreeObjectChild>, OxenError> {
         // Dir nodes have already been written to the dir objects and dir hashes dbs
-        let child_dirs = dir_map.get(&dir).unwrap(); 
+        let child_dirs = dir_map.get(&dir).unwrap();
         let mut dir_children: Vec<TreeObjectChild> = Vec::new();
 
-        for path in child_dirs { 
+        for path in child_dirs {
             let maybe_hash: Option<String> = path_db::get_entry(&self.dir_hashes_db, path)?;
             if let Some(hash) = maybe_hash {
                 let dir_child = TreeObjectChild::Dir {
                     path: path.clone(),
-                    hash
+                    hash,
                 };
                 dir_children.push(dir_child);
             }
@@ -1182,16 +1276,96 @@ impl CommitEntryWriter {
         Ok(dir_children)
     }
 
+    // Traverse the tree, saving it locally to a tmp path that will be deleted after transmission to the server
+    pub fn save_temp_commit_tree(&self) -> Result<PathBuf, OxenError> {
+        // Get hash of this commit
+        let temp_db_path = self
+            .repository
+            .path
+            .join(TMP_DIR)
+            .join("trees")
+            .join(&self.commit.id);
+        if !temp_db_path.exists() {
+            std::fs::create_dir_all(&temp_db_path)?;
+        }
 
+        // Print whether or not that exists
+        log::debug!(
+            "Does the temp db path exist? {:?}",
+            std::fs::metadata(&temp_db_path).is_ok()
+        );
 
+        log::debug!("about to open the db");
+        let opts = db::opts::default();
+        let temp_tree_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
+        log::debug!("successfully opened the db");
+        let commit_hash: String =
+            path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
 
-    pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> { 
-        // This is actually pretty good traversal practice. 
+        let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap(); // TODONOW: error handling here
 
-        // Get the hash of this commit 
-        let commit_hash: String = path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
-        
-        // Get the root dir node (this hash) 
+        // Plug the root hash in here at "" - TODONOW: this is a hack. we should add the root hash to the commit object
+        path_db::put(&temp_tree_db, PathBuf::from(""), &root_dir_node)?;
+
+        Ok(temp_db_path)
+        //
+    }
+
+    pub fn r_save_temp_commit_tree(
+        &self,
+        child_node: &TreeObjectChild,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        // Get parent node
+        let node: TreeObject = match child_node {
+            TreeObjectChild::Dir { .. } => {
+                path_db::get_entry(&self.dirs_db, &child_node.hash())?.unwrap()
+            }
+            TreeObjectChild::File { .. } => {
+                path_db::get_entry(&self.files_db, &child_node.hash())?.unwrap()
+            }
+            TreeObjectChild::Schema { .. } => {
+                path_db::get_entry(&self.schemas_db, &child_node.hash())?.unwrap()
+            }
+            TreeObjectChild::VNode { .. } => {
+                path_db::get_entry(&self.vnodes_db, &child_node.hash())?.unwrap()
+            }
+        };
+
+        match node.clone() {
+            TreeObject::Dir { children, hash, .. } => {
+                // Add parent to db
+                path_db::put(&db, &hash, &node)?;
+                for child in children {
+                    self.r_save_temp_commit_tree(&child, db)?;
+                }
+                Ok(())
+            }
+            TreeObject::VNode { children, hash, .. } => {
+                path_db::put(&db, &hash, &node)?;
+                // let vnode_node: TreeObject = path_db::get_entry(&self.vnodes_db, &node.hash())?.unwrap();
+                for child in children {
+                    self.r_save_temp_commit_tree(&child, db)?;
+                }
+                Ok(())
+            }
+            TreeObject::File { hash } | TreeObject::Schema { hash } => {
+                path_db::put(&db, &hash, &node)?;
+                // We're at a leaf node, so we're done
+                Ok(())
+            }
+        }
+    }
+
+    pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> {
+        // This is actually pretty good traversal practice.
+
+        // Get the hash of this commit
+        let commit_hash: String =
+            path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
+
+        // Get the root dir node (this hash)
         let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap();
 
         log::debug!("\n\nnew merkle root dir node is: {:?}", root_dir_node);
@@ -1205,49 +1379,53 @@ impl CommitEntryWriter {
     }
 
     pub fn r_temp_print_tree_db(&self, child_node: &TreeObjectChild) -> Result<(), OxenError> {
-        // Get parent node 
+        // Get parent node
         let node: TreeObject = match child_node {
-            TreeObjectChild::Dir {..} => {
+            TreeObjectChild::Dir { .. } => {
                 path_db::get_entry(&self.dirs_db, &child_node.hash())?.unwrap()
-            }, 
-            TreeObjectChild::File {..} => {
+            }
+            TreeObjectChild::File { .. } => {
                 path_db::get_entry(&self.files_db, &child_node.hash())?.unwrap()
-            },
-            TreeObjectChild::Schema {..} => {
+            }
+            TreeObjectChild::Schema { .. } => {
                 path_db::get_entry(&self.schemas_db, &child_node.hash())?.unwrap()
-            },
-            TreeObjectChild::VNode {..} => {
+            }
+            TreeObjectChild::VNode { .. } => {
                 path_db::get_entry(&self.vnodes_db, &child_node.hash())?.unwrap()
-            },
+            }
         };
 
         log::debug!("\n\nnew merkle node is: {:?}\n", node);
 
-        match node { 
-            TreeObject::Dir {children, hash, ..} => {
+        match node {
+            TreeObject::Dir { children, hash, .. } => {
                 // let dir_node: TreeObject = path_db::get_entry(&self.dirs_db, hash)?.unwrap();
                 for child in children {
                     self.r_temp_print_tree_db(&child)?;
                 }
                 Ok(())
-            },
-            TreeObject::VNode {children, ..} => {
+            }
+            TreeObject::VNode { children, .. } => {
                 // let vnode_node: TreeObject = path_db::get_entry(&self.vnodes_db, &node.hash())?.unwrap();
                 for child in children {
                     self.r_temp_print_tree_db(&child)?;
                 }
                 Ok(())
-            },
+            }
             _ => {
-                // We're at a leaf node, so we're done 
+                // We're at a leaf node, so we're done
                 Ok(())
+            }
         }
     }
-    }
-
 
     pub fn new_temp_print_tree_db_all(&self) {
-        for db in &[&self.files_db, &self.schemas_db, &self.dirs_db, &self.vnodes_db] {
+        for db in &[
+            &self.files_db,
+            &self.schemas_db,
+            &self.dirs_db,
+            &self.vnodes_db,
+        ] {
             let iter = db.iterator(rocksdb::IteratorMode::Start);
             for item in iter {
                 match item {
@@ -1550,10 +1728,9 @@ mod tests {
         .await
     }
 
-    // #[tokio::test] 
+    // #[tokio::test]
     // async fn test_merkle_tree_created_from_new() -> Result<(), OxenError> {
     //     test::run_empty_local_repo_test_async(|local_repo| async move {
-            
 
     //         Ok(())
     //     }).await
