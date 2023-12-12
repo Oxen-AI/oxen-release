@@ -6,7 +6,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use super::CommitEntryWriter;
+use super::{CommitEntryWriter, TreeObjectReader};
 pub struct TreeDBReader {
     pub db: DBWithThreadMode<MultiThreaded>,
 }
@@ -39,15 +39,67 @@ impl TreeDBReader {
 
 // Either a CommitEntryWriter (TODONOW: READER?) or a single rocksdb
 pub enum CommitTreeReader {
-    CommitEntryWriter(CommitEntryWriter),
+    TreeObjectReader(TreeObjectReader),
     DB(DBWithThreadMode<MultiThreaded>),
 }
 
 impl CommitTreeReader {
-    pub fn get_entry(&self, child: &TreeObjectChild) -> Result<Option<TreeObject>, OxenError> {
+    pub fn get_entry_from_child(
+        &self,
+        child: &TreeObjectChild,
+    ) -> Result<Option<TreeObject>, OxenError> {
         match self {
-            CommitTreeReader::CommitEntryWriter(writer) => writer.get_node_from_child(&child),
-            CommitTreeReader::DB(db) => path_db::get_entry(db, child.hash()),
+            CommitTreeReader::TreeObjectReader(reader) => reader.get_node_from_child(&child),
+            CommitTreeReader::DB(db) => {
+                // TODONOW get rid of this debug print
+                log::debug!("we're looking for child {:?}", child);
+                // Print every item in db
+                let iter = db.iterator(rocksdb::IteratorMode::Start);
+                for item in iter {
+                    match item {
+                        Ok((key_bytes, value_bytes)) => {
+                            match String::from_utf8(key_bytes.to_vec()) {
+                                Ok(key_str) => {
+                                    let key_path = PathBuf::from(key_str);
+
+                                    // Attempting to deserialize the value into TreeNode
+                                    let deserialized_value: Result<TreeObject, _> =
+                                        serde_json::from_slice(&value_bytes);
+                                    match deserialized_value {
+                                        Ok(tree_node) => {
+                                            log::debug!(
+                                                "\n\n client testing entry: {:?} -> {:?}\n\n",
+                                                key_path,
+                                                tree_node
+                                            );
+                                        }
+                                        Err(e) => {
+                                            log::error!(
+                                                "client error deserializing value: {:?}",
+                                                e
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(_) => {
+                                    log::error!("tree_db Could not decode key {:?}", key_bytes);
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            log::error!("tree_db error: {:?}", e);
+                        }
+                    }
+                }
+                path_db::get_entry(db, child.hash())
+            }
+        }
+    }
+
+    pub fn get_root_entry(&self) -> Result<Option<TreeObject>, OxenError> {
+        match self {
+            CommitTreeReader::TreeObjectReader(reader) => reader.get_root_node(),
+            CommitTreeReader::DB(db) => path_db::get_entry(db, ""),
         }
     }
 }
@@ -61,8 +113,8 @@ pub struct NewTreeDBMerger {
 impl NewTreeDBMerger {
     pub fn new(
         client_db_path: PathBuf,
-        server_writer: CommitEntryWriter,
-        lca_writer: CommitEntryWriter,
+        server_reader: TreeObjectReader,
+        lca_reader: TreeObjectReader,
     ) -> NewTreeDBMerger {
         let opts = db::opts::default();
         let client_db: DBWithThreadMode<MultiThreaded> =
@@ -70,8 +122,8 @@ impl NewTreeDBMerger {
 
         NewTreeDBMerger {
             client_reader: CommitTreeReader::DB(client_db),
-            server_reader: CommitTreeReader::CommitEntryWriter(server_writer),
-            lca_reader: CommitTreeReader::CommitEntryWriter(lca_writer),
+            server_reader: CommitTreeReader::TreeObjectReader(server_reader),
+            lca_reader: CommitTreeReader::TreeObjectReader(lca_reader),
         }
     }
 
@@ -81,6 +133,12 @@ impl NewTreeDBMerger {
         server_node: &Option<TreeObject>,
         lca_node: &Option<TreeObject>,
     ) -> Result<bool, OxenError> {
+        log::debug!(
+            "calling tree on client {:?} server {:?} lca {:?}",
+            client_node,
+            server_node,
+            lca_node
+        );
         // All 3 are present
         match (client_node, server_node, lca_node) {
             (Some(client_node), Some(server_node), Some(lca_node)) => {
@@ -96,7 +154,13 @@ impl NewTreeDBMerger {
                 // Node is new to one commit, doesn't exist in the other or LCA. No merge conflict.
                 Ok(false)
             }
-            _ => Ok(true),
+            _ => {
+                log::debug!("flagging conflict due to undefined pattern");
+                log::debug!("client node is {:?}", client_node);
+                log::debug!("server node is {:?}", server_node);
+                log::debug!("lca node is {:?}", lca_node);
+                Ok(true)
+            }
         }
     }
 
@@ -150,17 +214,18 @@ impl NewTreeDBMerger {
                     // Client child can be obtained directly from the node. Server and lca must first be binary searched on all children of that node
                     // since it is PATH comparisons that matter here, not hash comparisons.
 
-                    let client_child: Option<TreeObject> = self.client_reader.get_entry(child)?;
+                    let client_child: Option<TreeObject> =
+                        self.client_reader.get_entry_from_child(child)?;
 
                     let maybe_server_child = server_node.binary_search_on_path(child.path())?;
                     let maybe_lca_child = lca_node.binary_search_on_path(child.path())?;
 
                     let server_child: Option<TreeObject> = match maybe_server_child {
-                        Some(child) => self.server_reader.get_entry(&child)?,
+                        Some(child) => self.server_reader.get_entry_from_child(&child)?,
                         None => None,
                     };
                     let lca_child: Option<TreeObject> = match maybe_lca_child {
-                        Some(child) => self.lca_reader.get_entry(&child)?,
+                        Some(child) => self.lca_reader.get_entry_from_child(&child)?,
                         None => None,
                     };
 
@@ -176,13 +241,14 @@ impl NewTreeDBMerger {
                         // If it's not in the LCA OR client child, no conflict
                         let maybe_lca_child = lca_node.binary_search_on_path(child.path())?;
                         let maybe_lca_node = match maybe_lca_child {
-                            Some(child) => self.lca_reader.get_entry(&child)?,
+                            Some(child) => self.lca_reader.get_entry_from_child(&child)?,
                             None => None,
                         };
 
                         if let Some(lca_node) = maybe_lca_node {
                             // If the hashes differ here, then we have a CHANGE in server and DELETION in client. conflict.
                             if lca_node.hash() != child.hash() {
+                                log::debug!("flagging conflict due to deletion on client and modification on server");
                                 return Ok(true);
                             }
                         }
@@ -193,6 +259,7 @@ impl NewTreeDBMerger {
                 Ok(false)
             }
             (_, _, _) => {
+                log::debug!("flagging conflict due to different file type in all 3 nodes 1");
                 Ok(true) // If at least one of these is a file or schema, this is a merge conflict.
             }
         }
@@ -207,55 +274,52 @@ impl NewTreeDBMerger {
         if client_node.hash() == server_node.hash() {
             return Ok(false);
         }
-            // TODONOW: separate out vnodes from dirs to ensure are same
-            match (client_node, server_node) {
-                (
-                    TreeObject::Dir {
-                        children: client_children,
-                        ..
-                    }
-                    | TreeObject::VNode {
-                        children: client_children,
-                        ..
-                    },
-                    TreeObject::Dir {
-                        ..
-                    }
-                    | TreeObject::VNode {
-                        ..
-                    },
-                ) => {
-                    // TODONOW CHECKHERE
-                    // If different paths and are dir or vnode, recurse down on children
-                    let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
-                    for child in client_children {
-                        visited_paths.insert(child.path());
-                        let client_child: Option<TreeObject> =
-                            self.client_reader.get_entry(child)?;
-
-                        let maybe_server_child = server_node.binary_search_on_path(child.path())?;
-                        let server_child: Option<TreeObject> = match maybe_server_child {
-                            Some(child) => self.server_reader.get_entry(&child)?,
-                            None => None,
-                        };
-                        let lca_child: Option<TreeObject> = None;
-
-                        if self.r_tree_has_conflict(&client_child, &server_child, &lca_child)? {
-                            return Ok(true);
-                        }
-                        // TODONOW: Maybe additional pass for doesn't exist on client but does on server?
-                        // Oh well i guess that's prohbably fine..
-                    }
-                    Ok(false)
-                    
+        // TODONOW: separate out vnodes from dirs to ensure are same
+        match (client_node, server_node) {
+            (
+                TreeObject::Dir {
+                    children: client_children,
+                    ..
                 }
-                // One of the new files is a file or schema, and its hash does not match the other. == Merge conflict
-                (_, _) => Ok(true),
+                | TreeObject::VNode {
+                    children: client_children,
+                    ..
+                },
+                TreeObject::Dir { .. } | TreeObject::VNode { .. },
+            ) => {
+                // TODONOW CHECKHERE
+                // If different paths and are dir or vnode, recurse down on children
+                let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
+                for child in client_children {
+                    visited_paths.insert(child.path());
+                    let client_child: Option<TreeObject> =
+                        self.client_reader.get_entry_from_child(child)?;
+
+                    let maybe_server_child = server_node.binary_search_on_path(child.path())?;
+                    let server_child: Option<TreeObject> = match maybe_server_child {
+                        Some(child) => self.server_reader.get_entry_from_child(&child)?,
+                        None => None,
+                    };
+                    let lca_child: Option<TreeObject> = None;
+
+                    if self.r_tree_has_conflict(&client_child, &server_child, &lca_child)? {
+                        return Ok(true);
+                    }
+                    // TODONOW: Maybe additional pass for doesn't exist on client but does on server?
+                    // Oh well i guess that's prohbably fine..
+                }
+                Ok(false)
+            }
+            // One of the new files is a file or schema, and its hash does not match the other. == Merge conflict
+            (_, _) => {
+                log::debug!("flagging conflict due to different file type in all 3 nodes 2");
+                Ok(true)
             }
         }
+    }
 
     fn handle_missing_head(&self, head: &TreeObject, lca: &TreeObject) -> Result<bool, OxenError> {
-        // Missing one of the head nodes == node is deleted in one commit. Persist the deletion and merge 
+        // Missing one of the head nodes == node is deleted in one commit. Persist the deletion and merge
         if head.hash() == lca.hash() {
             return Ok(false);
         }
@@ -266,14 +330,16 @@ impl NewTreeDBMerger {
                 TreeObject::Dir {
                     children: head_children,
                     ..
-                } | TreeObject::VNode {
+                }
+                | TreeObject::VNode {
                     children: head_children,
                     ..
                 },
                 TreeObject::Dir {
                     children: _lca_children,
                     ..
-                } | TreeObject::VNode {
+                }
+                | TreeObject::VNode {
                     children: _lca_children,
                     ..
                 },
@@ -281,19 +347,20 @@ impl NewTreeDBMerger {
                 // TODONOW: We might not need these hashsets
                 // TODONOW: these could be broken out into a Some None Some vs. Nome Some Some
                 // architecture if worried about symmetry
-                // Recurse down on children 
+                // Recurse down on children
                 let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
 
                 for head_child in head_children {
                     visited_paths.insert(head_child.path());
                     // Client + server symmetric here
                     // TODONOW - think a bit more about this symmetricity
-                    let head_node: Option<TreeObject> = self.client_reader.get_entry(head_child)?;
+                    let head_node: Option<TreeObject> =
+                        self.client_reader.get_entry_from_child(head_child)?;
                     let other_head_node: Option<TreeObject> = None;
 
                     let maybe_lca_child = lca.binary_search_on_path(head_child.path())?;
                     let lca_node = match maybe_lca_child {
-                        Some(child) => self.lca_reader.get_entry(&child)?,
+                        Some(child) => self.lca_reader.get_entry_from_child(&child)?,
                         None => None,
                     };
 
@@ -304,12 +371,13 @@ impl NewTreeDBMerger {
                 Ok(false)
             }
             // One of the new files is a file or schema, and its hash does not match the other. == Merge conflict
-            (_, _) => Ok(true),
+            (_, _) => {
+                log::debug!("flagging conflict due to different file type in all 3 nodes 3");
+                Ok(true)
+            }
         }
-    
     }
-
-} 
+}
 
 pub struct TreeDBMerger {
     pub client_reader: TreeDBReader,

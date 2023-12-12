@@ -5,10 +5,10 @@
 
 use crate::constants::{HISTORY_DIR, TREE_DIR};
 use crate::core::cache::cachers::content_validator;
-use crate::core::index::tree_db_reader::TreeDBMerger;
+use crate::core::index::tree_db_reader::{NewTreeDBMerger, TreeDBMerger};
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
-    Stager,
+    Stager, TreeObjectReader,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -426,37 +426,36 @@ pub fn new_head_commits_have_conflicts(
 ) -> Result<bool, OxenError> {
     // Connect to the 3 commit merkle trees
 
+    log::debug!("checking new head commits have conflicts");
     // Get server head and lca commits
     let server_head = api::local::commits::get_by_id(repo, server_head_id)?.unwrap();
     let lca = api::local::commits::get_by_id(repo, lca_id)?.unwrap();
 
     // Initialize commit entry writers for the server head and LCA - we have full db structures for them, where the client db is going to be kinda weird...
     // TODONOW: can we do this through commit entry READERS
-    let server_writer = CommitEntryWriter::new(repo, &server_head)?;
-    let lca_writer = CommitEntryWriter::new(repo, &lca)?;
-
+    log::debug!("about to server writer");
+    let server_writer = TreeObjectReader::new(repo, &server_head)?;
+    log::debug!("about to lca writer");
+    let lca_writer = TreeObjectReader::new(repo, &lca)?;
+    log::debug!("successfully init writers");
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join("tmp")
         .join(client_head_id)
         .join(TREE_DIR);
 
-    let lca_db_path = CommitEntryWriter::commit_tree_db(&repo.path, lca_id);
-    let server_db_path = CommitEntryWriter::commit_tree_db(&repo.path, server_head_id);
-    let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join("tmp")
-        .join(client_head_id)
-        .join(TREE_DIR);
-
-    let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_db_path, lca_db_path)?;
-
+    log::debug!("about to merger");
+    let tree_merger = NewTreeDBMerger::new(client_db_path.clone(), server_writer, lca_writer);
     // Start at the top level of the client db
-    log::debug!("about to try to get the client root");
-    let maybe_client_root = &tree_merger.client_reader.get_entry("")?;
-    log::debug!("successfully getting the client root");
-    let maybe_server_root = &tree_merger.server_reader.get_entry("")?;
-    let maybe_lca_root = &tree_merger.lca_reader.get_entry("")?;
-    // If lca_root is null, create a dummy node for traversal
+    log::debug!("about to get the client root");
+    let maybe_client_root = &tree_merger.client_reader.get_root_entry()?;
+    log::debug!("about to get server root");
+    let maybe_server_root = &tree_merger.server_reader.get_root_entry()?;
+    log::debug!("about to get lca root");
+    let maybe_lca_root = &tree_merger.lca_reader.get_root_entry()?;
+    log::debug!("got lca root");
+    // If lca_root is null, create a dummy node for traversal?
 
+    log::debug!("about to enter r_tree_has_conflict");
     tree_merger.r_tree_has_conflict(maybe_client_root, maybe_server_root, maybe_lca_root)
 }
 
@@ -472,6 +471,15 @@ pub fn construct_commit_merkle_tree(
     let commit_writer = CommitEntryWriter::new(repo, commit)?;
     commit_writer.construct_merkle_tree_new()?;
     commit_writer.temp_print_tree_db(); // TODONOW delete after testing;
+    Ok(())
+}
+
+pub fn new_construct_commit_merkle_tree(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    let commit_writer = CommitEntryWriter::new(repo, commit)?;
+    commit_writer.new_construct_merkle_tree_new()?;
     Ok(())
 }
 

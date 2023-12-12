@@ -614,6 +614,7 @@ impl CommitEntryWriter {
     }
 
     pub fn new_construct_merkle_tree_new(&self) -> Result<(), OxenError> {
+        log::debug!("constructing new merkle tree");
         // Operate on all dirs to make the tree from scratch...
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
 
@@ -667,6 +668,12 @@ impl CommitEntryWriter {
             TreeObjectChild::Dir { hash, .. } => path_db::get_entry(&self.dirs_db, hash),
             TreeObjectChild::VNode { hash, .. } => path_db::get_entry(&self.vnodes_db, hash),
         }
+    }
+
+    pub fn get_root_node(&self) -> Result<Option<TreeObject>, OxenError> {
+        let root_hash: String =
+            path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
+        path_db::get_entry(&self.dirs_db, &root_hash)
     }
 
     fn entry_to_treechild(entry: &CommitEntry) -> TreeChild {
@@ -1305,6 +1312,10 @@ impl CommitEntryWriter {
 
         let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap(); // TODONOW: error handling here
 
+        for child in root_dir_node.children() {
+            self.r_save_temp_commit_tree(child, &temp_tree_db)?;
+        }
+
         // Plug the root hash in here at "" - TODONOW: this is a hack. we should add the root hash to the commit object
         path_db::put(&temp_tree_db, PathBuf::from(""), &root_dir_node)?;
 
@@ -1336,6 +1347,7 @@ impl CommitEntryWriter {
         match node.clone() {
             TreeObject::Dir { children, hash, .. } => {
                 // Add parent to db
+                log::debug!("yo adding dir {:?} to db", node);
                 path_db::put(&db, &hash, &node)?;
                 for child in children {
                     self.r_save_temp_commit_tree(&child, db)?;
@@ -1343,6 +1355,7 @@ impl CommitEntryWriter {
                 Ok(())
             }
             TreeObject::VNode { children, hash, .. } => {
+                log::debug!("yo adding vnode {:?} to db", node);
                 path_db::put(&db, &hash, &node)?;
                 // let vnode_node: TreeObject = path_db::get_entry(&self.vnodes_db, &node.hash())?.unwrap();
                 for child in children {
@@ -1351,6 +1364,7 @@ impl CommitEntryWriter {
                 Ok(())
             }
             TreeObject::File { hash } | TreeObject::Schema { hash } => {
+                log::debug!("yo adding leaf {:?} to db", node);
                 path_db::put(&db, &hash, &node)?;
                 // We're at a leaf node, so we're done
                 Ok(())
