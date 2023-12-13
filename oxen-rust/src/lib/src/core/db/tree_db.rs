@@ -7,6 +7,7 @@ use crate::model::{LocalRepository, StagedDirStats, StagedEntry, StagedEntryStat
 use crate::{core::db, model::CommitEntry};
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
+use core::panic;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -163,10 +164,15 @@ impl TreeObjectChild {
 //     }
 // }
 
+
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeObject {
     File {
         hash: String,
+        num_bytes: u64, 
+        last_modified_seconds: i64,
+        last_modified_nanoseconds: u32,
     },
     Schema {
         hash: String,
@@ -185,15 +191,19 @@ pub enum TreeObject {
 impl TreeObject {
     pub fn hash(&self) -> &String {
         match self {
-            TreeObject::File { hash } => hash,
+            TreeObject::File { hash, .. } => hash,
             TreeObject::Schema { hash } => hash,
             TreeObject::Dir { hash, .. } => hash,
             TreeObject::VNode { hash, .. } => hash,
         }
     }
+    // TODONOW: do we actually need this
     pub fn from_entry(commit_entry: &CommitEntry) -> TreeObject {
         TreeObject::File {
             hash: commit_entry.hash.clone(),
+            num_bytes: commit_entry.num_bytes,
+            last_modified_seconds: commit_entry.last_modified_seconds,
+            last_modified_nanoseconds: commit_entry.last_modified_nanoseconds,
         }
     }
 
@@ -217,7 +227,7 @@ impl TreeObject {
 
     pub fn set_hash(&mut self, new_hash: String) {
         match self {
-            TreeObject::File { hash } => *hash = new_hash,
+            TreeObject::File { hash, .. } => *hash = new_hash,
             TreeObject::Schema { hash } => *hash = new_hash,
             TreeObject::Dir { hash, .. } => *hash = new_hash,
             TreeObject::VNode { hash, .. } => *hash = new_hash,
@@ -239,7 +249,7 @@ impl TreeObject {
         let top_hash = &self.hash()[..2];
         let bottom_hash = &self.hash()[2..];
         let base_path = match self {
-            TreeObject::File { hash } => objects_dir.join(OBJECT_FILES_DIR),
+            TreeObject::File { hash, .. } => objects_dir.join(OBJECT_FILES_DIR),
             TreeObject::Schema { hash } => objects_dir.join(OBJECT_SCHEMAS_DIR),
             TreeObject::Dir { hash, .. } => objects_dir.join(OBJECT_DIRS_DIR),
             TreeObject::VNode { hash, .. } => objects_dir.join(OBJECT_VNODES_DIR),
@@ -297,6 +307,27 @@ impl TreeObject {
                     Err(_) => Ok(None),
                 }
             }
+        }
+    }
+
+    pub fn to_commit_entry(&self, path: &PathBuf, commit_id: &str) -> CommitEntry {
+        match self {
+            TreeObject::File {
+                hash, 
+                num_bytes,
+                last_modified_seconds,
+                last_modified_nanoseconds,
+            } => {
+                CommitEntry {
+                    commit_id: commit_id.to_string(),
+                    path: path.to_owned(),
+                    hash: hash.to_owned(),
+                    num_bytes: *num_bytes,
+                    last_modified_seconds: *last_modified_seconds,
+                    last_modified_nanoseconds: *last_modified_nanoseconds,
+                }
+            },
+            _ => panic!("Cannot convert non-file object to CommitEntry") // TODONOW error handling
         }
     }
 }

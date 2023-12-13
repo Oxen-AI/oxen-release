@@ -336,7 +336,7 @@ impl CommitEntryWriter {
         self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
         self.commit_schemas(commit, &staged_data.staged_schemas)?;
-        self.new_construct_commit_merkle_tree(staged_data)
+        self.new_construct_commit_merkle_tree(staged_data, origin_path)
     }
 
     fn commit_schemas(
@@ -363,54 +363,20 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    fn construct_commit_merkle_tree(&self, staged_data: &StagedData) -> Result<(), OxenError> {
-        if self.commit.parent_ids.len() == 1 {
-            let prev_tree_path = CommitEntryWriter::commit_tree_db(
-                &self.repository.path,
-                &self.commit.parent_ids[0],
-            );
-            if prev_tree_path.exists() {
-                self.construct_merkle_tree_from_parent(staged_data)?;
-            }
 
-            let last_commit_hash: Option<String> =
-                path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.parent_ids[0])?;
-
-            if let Some(hash) = last_commit_hash {
-                log::debug!("Here is the last commit hash {:?}", hash);
-                log::debug!("We are good to construct the tree from the previous tree.");
-                self.new_construct_merkle_tree_from_parent(staged_data)?;
-            } else {
-                // No previous tree, so construct from scratch
-                log::debug!("No previous tree, so we must construct one from scratch");
-                self.new_construct_merkle_tree_new()?;
-            }
-        } else {
-            // Merge commit, initial commit, or no previous tree
-            self.construct_merkle_tree_new()?;
-            self.new_construct_merkle_tree_new()?;
-        }
-
-        log::debug!("\nPrinting old tree db\n");
-        self.temp_print_tree_db();
-        log::debug!("\nPrinting new tree db\n");
-        self.new_temp_print_tree_db()?;
-        Ok(())
-    }
-
-    fn new_construct_commit_merkle_tree(&self, staged_data: &StagedData) -> Result<(), OxenError> {
+    fn new_construct_commit_merkle_tree(&self, staged_data: &StagedData, origin_path: &Path) -> Result<(), OxenError> {
         if self.commit.parent_ids.len() == 1 {
             log::debug!("one parent, creating merkle tree from parent");
             let last_commit_hash: Option<String> =
                 path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.parent_ids[0])?;
             if let Some(hash) = last_commit_hash {
-                self.new_construct_merkle_tree_from_parent(staged_data)?;
+                self.new_construct_merkle_tree_from_parent(staged_data, origin_path)?;
             } else {
                 // No previous tree, so construct from scratch
-                self.new_construct_merkle_tree_new()?;
+                self.new_construct_merkle_tree_new(origin_path)?;
             }
         } else {
-            self.new_construct_merkle_tree_new()?;
+            self.new_construct_merkle_tree_new(origin_path)?;
         }
         // Print tree db
         log::debug!("\nPrinting new tree db\n");
@@ -551,6 +517,7 @@ impl CommitEntryWriter {
     pub fn new_construct_merkle_tree_from_parent(
         &self,
         staged_data: &StagedData,
+        origin_path: &Path,
     ) -> Result<(), OxenError> {
         // Get all dirs so we can find which changed
         // TODONOW: want to consolidate the two dir dbs, probably. aka store hashes in the dir db
@@ -604,6 +571,7 @@ impl CommitEntryWriter {
             dir_map,
             staged_data,
             parent_commit_id.to_string(),
+            origin_path,
         )?;
 
         let root_hash: String =
@@ -614,7 +582,7 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    pub fn new_construct_merkle_tree_new(&self) -> Result<(), OxenError> {
+    pub fn new_construct_merkle_tree_new(&self, origin_path: &Path) -> Result<(), OxenError> {
         log::debug!("constructing new merkle tree");
         // Operate on all dirs to make the tree from scratch...
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
@@ -918,6 +886,7 @@ impl CommitEntryWriter {
         dir_map: HashMap<PathBuf, Vec<PathBuf>>,
         status: &StagedData,
         parent_commit_id: String,
+        origin_path: &Path,
     ) -> Result<(), OxenError> {
         // Sort dirs by descending component count to work bottom up
         dirs.sort_by(|a, b| {
@@ -954,14 +923,37 @@ impl CommitEntryWriter {
         // TODONOW: streamline this - but for now, let's make a mapping of staged entries (as TreeObjects) to their parent directories
         let mut staged_entries_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>> =
             HashMap::new();
+        
         for (path, entry) in status.staged_files.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-            let file_object = TreeObject::File {
-                hash: entry.hash.clone(),
+
+            let file_object = match entry.status {
+                StagedEntryStatus::Added | StagedEntryStatus::Modified => {
+                    let full_path = origin_path.join(path);
+                    let metadata = fs::metadata(&full_path).unwrap();
+                    let mtime = FileTime::from_last_modification_time(&metadata);    
+                    TreeObject::File {
+                        hash: entry.hash.clone(),
+                        num_bytes: metadata.len(),
+                        last_modified_seconds: mtime.unix_seconds(),
+                        last_modified_nanoseconds: mtime.nanoseconds(),
+                    }
+                }
+                StagedEntryStatus::Removed => {
+                    // None of this matters because it's all getting deleted anywa 
+                    TreeObject::File {
+                        hash: entry.hash.clone(),
+                        num_bytes: 0,
+                        last_modified_seconds: 0,
+                        last_modified_nanoseconds: 0,
+                }
+            }
             };
 
-            let file_child_with_status =
-                TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
+            let file_child_with_status = TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
+
+
+
 
             path_db::put(&self.files_db, &file_object.hash(), &file_object)?;
             staged_entries_map
@@ -1124,14 +1116,14 @@ impl CommitEntryWriter {
                         };
 
                         let dir_path_hash =
-                            &util::hasher::hash_str(path.to_string_lossy().to_string())[..2];
+                            &util::hasher::hash_pathbuf(path)[..2];
                         affected_vnodes
                             .entry(dir_path_hash.to_string())
                             .or_default()
                             .push(dir_child_with_status.clone());
                     }
                     _ => {
-                        let hash_prefix = &util::hasher::hash_str(&child.child.path_as_str())[..2];
+                        let hash_prefix = &util::hasher::hash_pathbuf(&child.child.path())[..2];
                         affected_vnodes
                             .entry(hash_prefix.to_string())
                             .or_default()
@@ -1287,6 +1279,9 @@ impl CommitEntryWriter {
         // Process into TreeChildObject for TreeO
         for file in &files {
             let file_object = TreeObject::File {
+                num_bytes: file.num_bytes,
+                last_modified_seconds: file.last_modified_seconds,
+                last_modified_nanoseconds: file.last_modified_nanoseconds,
                 hash: file.hash.clone(),
             };
             path_db::put(&self.files_db, &file_object.hash(), &file_object)?;
@@ -1437,7 +1432,7 @@ impl CommitEntryWriter {
                 }
                 Ok(())
             }
-            TreeObject::File { hash } | TreeObject::Schema { hash } => {
+            TreeObject::File { hash, .. } | TreeObject::Schema { hash } => {
                 log::debug!("yo adding leaf {:?} to db", node);
                 path_db::put(&db, &hash, &node)?;
                 // We're at a leaf node, so we're done
@@ -1681,7 +1676,9 @@ impl CommitEntryWriter {
             }
             StagedEntryStatus::Added => {
                 match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
-                    Ok(_) => {}
+                    Ok(_) => {
+                        log::debug!("in the status adder adding full path {:?}", origin_path.join(path));
+                    }
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
                         panic!("{}", err)

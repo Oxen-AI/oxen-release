@@ -14,6 +14,8 @@ pub mod merge_conflict_reader;
 pub mod merge_conflict_writer;
 pub mod merger;
 pub mod mod_stager;
+pub mod new_commit_entry_reader;
+pub mod new_commit_dir_entry_reader;
 pub mod oxenignore;
 pub mod puller;
 pub mod pusher;
@@ -32,6 +34,7 @@ pub mod stager;
 pub mod tree_db_reader;
 pub mod tree_object_reader;
 pub mod versioner;
+
 
 pub use crate::core::index::commit_db_reader::CommitDBReader;
 pub use crate::core::index::commit_dir_entry_reader::CommitDirEntryReader;
@@ -57,3 +60,5 @@ pub use crate::core::index::staged_dir_entry_reader::StagedDirEntryReader;
 pub use crate::core::index::stager::Stager;
 pub use crate::core::index::tree_db_reader::TreeDBReader;
 pub use crate::core::index::tree_object_reader::TreeObjectReader;
+pub use crate::core::index::new_commit_entry_reader::NewCommitEntryReader;
+pub use crate::core::index::new_commit_dir_entry_reader::NewCommitDirEntryReader;
