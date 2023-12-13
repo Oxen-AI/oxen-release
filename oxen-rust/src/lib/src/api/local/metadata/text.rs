@@ -3,37 +3,13 @@
 
 use crate::error::OxenError;
 use crate::model::metadata::MetadataText;
+use crate::util;
 
-use std::fs::File;
-use std::io::BufRead;
-use std::io::BufReader;
 use std::path::Path;
 
 /// Detects the text metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataText, OxenError> {
-    let path = path.as_ref();
-    let file = File::open(path)?;
-
-    let metadata = p_compute_metadata(file)?;
-    Ok(metadata)
-}
-
-fn p_compute_metadata<R: std::io::Read>(handle: R) -> Result<MetadataText, std::io::Error> {
-    let mut reader = BufReader::with_capacity(1024 * 32, handle);
-    let mut line_count = 1;
-    let mut char_count = 0;
-    loop {
-        let len = {
-            let buf = reader.fill_buf()?;
-            if buf.is_empty() {
-                break;
-            }
-            line_count += bytecount::count(buf, b'\n');
-            char_count += bytecount::num_chars(buf);
-            buf.len()
-        };
-        reader.consume(len);
-    }
+    let (line_count, char_count) = util::fs::count_lines_and_chars(path)?;
     Ok(MetadataText::new(line_count, char_count))
 }
 
