@@ -5,7 +5,7 @@ use crate::model::{ContentHashable, NewCommit};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use xxhash_rust::xxh3::xxh3_128;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
@@ -139,4 +139,13 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
             Err(OxenError::basic_str(err))
         }
     }
+}
+
+pub fn hash_path<P: AsRef<Path>>(path: P) -> String {
+    hash_str(path.as_ref().to_str().unwrap())
+}   
+
+// TODONOW idk...
+pub fn hash_pathbuf(path: &PathBuf) -> String {
+    hash_str(path.to_str().unwrap())
 }

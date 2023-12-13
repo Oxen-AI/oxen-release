@@ -479,7 +479,7 @@ pub fn new_construct_commit_merkle_tree(
     commit: &Commit,
 ) -> Result<(), OxenError> {
     let commit_writer = CommitEntryWriter::new(repo, commit)?;
-    commit_writer.new_construct_merkle_tree_new()?;
+    commit_writer.new_construct_merkle_tree_new(&repo.path)?; // TODONOW check this
     Ok(())
 }
 
