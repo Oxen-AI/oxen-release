@@ -231,6 +231,47 @@ pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
     }
 }
 
+pub fn count_lines(path: impl AsRef<Path>) -> Result<usize, OxenError> {
+    let path = path.as_ref();
+    let file = File::open(path)?;
+    let (line_count, _) = p_count_lines_and_chars(file, false)?;
+    Ok(line_count)
+}
+
+pub fn count_lines_and_chars(path: impl AsRef<Path>) -> Result<(usize, usize), OxenError> {
+    let path = path.as_ref();
+    let file = File::open(path)?;
+    p_count_lines_and_chars(file, true)
+}
+
+fn p_count_lines_and_chars<R: std::io::Read>(
+    handle: R,
+    with_chars: bool,
+) -> Result<(usize, usize), OxenError> {
+    let mut reader = BufReader::with_capacity(1024 * 32, handle);
+    let mut line_count = 1;
+    let mut char_count = 0;
+    loop {
+        let len = {
+            let buf = reader.fill_buf()?;
+
+            if buf.is_empty() {
+                break;
+            }
+
+            if with_chars {
+                char_count += bytecount::num_chars(buf);
+            }
+
+            line_count += bytecount::count(buf, b'\n');
+            buf.len()
+        };
+        reader.consume(len);
+    }
+
+    Ok((line_count, char_count))
+}
+
 pub fn read_lines_file(file: &File) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let reader = BufReader::new(file);

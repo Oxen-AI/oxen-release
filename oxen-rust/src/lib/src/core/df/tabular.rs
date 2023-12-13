@@ -1,12 +1,13 @@
 use polars::{lazy::dsl::Expr, prelude::*};
 use polars_sql::SQLContext;
+use std::fs::File;
 
 use crate::core::df::filter::DFLogicalOp;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::ContentType;
+use crate::model::{ContentType, DataFrameSize};
 use crate::opts::DFOpts;
-use crate::util::hasher;
+use crate::util::{fs, hasher};
 use crate::{api, constants};
 
 use colored::Colorize;
@@ -16,7 +17,6 @@ use qsv_sniffer;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
-use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -72,9 +72,12 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
 }
 
 pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    // TODO: The LazyCsvReader was acting funky here on certain csvs...
-    let df = read_df_csv(path, delimiter)?;
-    Ok(df.lazy())
+    Ok(LazyCsvReader::new(&path)
+        .with_delimiter(delimiter)
+        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .has_header(true)
+        .finish()
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
@@ -813,6 +816,42 @@ pub fn scan_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<LazyFrame, Oxen
             "tsv" => scan_df_csv(path, b'\t'),
             "parquet" => scan_df_parquet(path),
             "arrow" => scan_df_arrow(path),
+            _ => Err(OxenError::basic_str(err)),
+        },
+        None => Err(OxenError::basic_str(err)),
+    }
+}
+
+pub fn get_size<P: AsRef<Path>>(path: P) -> Result<DataFrameSize, OxenError> {
+    let lazy_df = scan_df(&path, &DFOpts::empty())?;
+    let schema = lazy_df.schema()?;
+    let width = schema.len();
+
+    let input_path = path.as_ref();
+    let extension = input_path.extension().and_then(OsStr::to_str);
+    let err = format!("Unknown file type get_size {input_path:?} {extension:?}");
+
+    match extension {
+        Some(extension) => match extension {
+            "csv" | "tsv" | "data" | "jsonl" | "ndjson" => {
+                // Remove one line to account for headers and one to account for trailing blank lines
+                // TODO: Find a way to efficiently detect blank lines on large files instead
+                // of always assuming there is one.
+                let height = fs::count_lines(path)? - 2;
+                Ok(DataFrameSize { width, height })
+            }
+            "parquet" => {
+                let file = File::open(input_path)?;
+                let mut reader = ParquetReader::new(file);
+                let height = reader.num_rows()?;
+                Ok(DataFrameSize { width, height })
+            }
+            "arrow" => {
+                let file = File::open(input_path)?;
+                let mut reader = IpcReader::new(file);
+                let height = reader._num_rows()?;
+                Ok(DataFrameSize { width, height })
+            }
             _ => Err(OxenError::basic_str(err)),
         },
         None => Err(OxenError::basic_str(err)),
