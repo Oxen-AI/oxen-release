@@ -23,6 +23,7 @@ use crate::constants::HISTORY_DIR;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
+use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
 use crate::{api, util};
 
@@ -231,26 +232,19 @@ pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
     }
 }
 
-pub fn count_lines(path: impl AsRef<Path>) -> Result<usize, OxenError> {
+pub fn count_lines(
+    path: impl AsRef<Path>,
+    opts: CountLinesOpts,
+) -> Result<(usize, Option<usize>), OxenError> {
     let path = path.as_ref();
     let file = File::open(path)?;
-    let (line_count, _) = p_count_lines_and_chars(file, false)?;
-    Ok(line_count)
-}
 
-pub fn count_lines_and_chars(path: impl AsRef<Path>) -> Result<(usize, usize), OxenError> {
-    let path = path.as_ref();
-    let file = File::open(path)?;
-    p_count_lines_and_chars(file, true)
-}
-
-fn p_count_lines_and_chars<R: std::io::Read>(
-    handle: R,
-    with_chars: bool,
-) -> Result<(usize, usize), OxenError> {
-    let mut reader = BufReader::with_capacity(1024 * 32, handle);
+    let mut reader = BufReader::with_capacity(1024 * 32, file);
     let mut line_count = 1;
     let mut char_count = 0;
+    let mut last_buf: Vec<u8> = Vec::new();
+    let mut char_option: Option<usize> = None;
+
     loop {
         let len = {
             let buf = reader.fill_buf()?;
@@ -259,7 +253,11 @@ fn p_count_lines_and_chars<R: std::io::Read>(
                 break;
             }
 
-            if with_chars {
+            if opts.remove_trailing_blank_line {
+                last_buf = buf.to_vec();
+            }
+
+            if opts.with_chars {
                 char_count += bytecount::num_chars(buf);
             }
 
@@ -269,7 +267,17 @@ fn p_count_lines_and_chars<R: std::io::Read>(
         reader.consume(len);
     }
 
-    Ok((line_count, char_count))
+    if let Some(last_byte) = last_buf.last() {
+        if last_byte == &b'\n' {
+            line_count -= 1;
+        }
+    }
+
+    if opts.with_chars {
+        char_option = Some(char_count);
+    }
+
+    Ok((line_count, char_option))
 }
 
 pub fn read_lines_file(file: &File) -> Vec<String> {

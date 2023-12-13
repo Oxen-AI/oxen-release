@@ -3,14 +3,20 @@
 
 use crate::error::OxenError;
 use crate::model::metadata::MetadataText;
+use crate::opts::CountLinesOpts;
 use crate::util;
 
 use std::path::Path;
 
 /// Detects the text metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataText, OxenError> {
-    let (line_count, char_count) = util::fs::count_lines_and_chars(path)?;
-    Ok(MetadataText::new(line_count, char_count))
+    let mut opts = CountLinesOpts::default();
+    opts.with_chars = true;
+
+    let (lines_count, chars_count) = util::fs::count_lines(path, opts)?;
+    let chars_count = chars_count.unwrap_or(0);
+
+    Ok(MetadataText::new(lines_count, chars_count))
 }
 
 #[cfg(test)]

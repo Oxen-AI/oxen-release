@@ -3,6 +3,7 @@
 
 pub mod add_opts;
 pub mod clone_opts;
+pub mod count_lines_opts;
 pub mod df_opts;
 pub mod download_opts;
 pub mod helpers;
@@ -16,6 +17,7 @@ pub mod rm_opts;
 
 pub use crate::opts::add_opts::AddOpts;
 pub use crate::opts::clone_opts::CloneOpts;
+pub use crate::opts::count_lines_opts::CountLinesOpts;
 pub use crate::opts::df_opts::DFOpts;
 pub use crate::opts::download_opts::DownloadOpts;
 pub use crate::opts::info_opts::InfoOpts;

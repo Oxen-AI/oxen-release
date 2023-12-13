@@ -6,7 +6,7 @@ use crate::core::df::filter::DFLogicalOp;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::{ContentType, DataFrameSize};
-use crate::opts::DFOpts;
+use crate::opts::{CountLinesOpts, DFOpts};
 use crate::util::{fs, hasher};
 use crate::{api, constants};
 
@@ -834,10 +834,13 @@ pub fn get_size<P: AsRef<Path>>(path: P) -> Result<DataFrameSize, OxenError> {
     match extension {
         Some(extension) => match extension {
             "csv" | "tsv" | "data" | "jsonl" | "ndjson" => {
-                // Remove one line to account for headers and one to account for trailing blank lines
-                // TODO: Find a way to efficiently detect blank lines on large files instead
-                // of always assuming there is one.
-                let height = fs::count_lines(path)? - 2;
+                let mut opts = CountLinesOpts::default();
+                opts.remove_trailing_blank_line = true;
+
+                // Remove one line to account for CSV headers
+                let (mut height, _) = fs::count_lines(path, opts)?;
+                height -= 1;
+
                 Ok(DataFrameSize { width, height })
             }
             "parquet" => {
