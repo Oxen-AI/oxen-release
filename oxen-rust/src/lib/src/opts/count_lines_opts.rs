@@ -5,7 +5,7 @@ pub struct CountLinesOpts {
 }
 
 impl CountLinesOpts {
-    pub fn default() -> CountLinesOpts {
+    pub fn empty() -> CountLinesOpts {
         CountLinesOpts {
             with_chars: false,
             remove_trailing_blank_line: false,
