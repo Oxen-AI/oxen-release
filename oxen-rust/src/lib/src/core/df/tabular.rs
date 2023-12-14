@@ -834,7 +834,7 @@ pub fn get_size<P: AsRef<Path>>(path: P) -> Result<DataFrameSize, OxenError> {
     match extension {
         Some(extension) => match extension {
             "csv" | "tsv" | "data" | "jsonl" | "ndjson" => {
-                let mut opts = CountLinesOpts::default();
+                let mut opts = CountLinesOpts::empty();
                 opts.remove_trailing_blank_line = true;
 
                 // Remove one line to account for CSV headers

@@ -10,7 +10,7 @@ use std::path::Path;
 
 /// Detects the text metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataText, OxenError> {
-    let mut opts = CountLinesOpts::default();
+    let mut opts = CountLinesOpts::empty();
     opts.with_chars = true;
 
     let (lines_count, chars_count) = util::fs::count_lines(path, opts)?;
