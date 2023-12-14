@@ -35,6 +35,8 @@ pub const REPOSITORY_LOCK_FILE: &str = "LOCK";
 pub const ROWS_DIR: &str = "rows";
 /// prefix for the commit entry files
 pub const FILES_DIR: &str = "files";
+/// prefix for the cached dataframes
+pub const DATA_FRAMES_DIR: &str = "data_frames";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for the cached stats dirs
