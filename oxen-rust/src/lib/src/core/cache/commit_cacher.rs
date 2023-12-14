@@ -8,7 +8,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
 
-use super::cachers::{content_stats, content_validator, repo_size};
+use super::cachers::{content_stats, content_validator, df_size, repo_size};
 use lazy_static::lazy_static;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::PathBuf;
@@ -22,6 +22,7 @@ lazy_static! {
         (String::from("COMMIT_CONTENT_IS_VALID"), content_validator::compute as CommitCacher),
         (String::from("REPO_SIZE"), repo_size::compute as CommitCacher),
         (String::from("COMMIT_STATS"), content_stats::compute as CommitCacher),
+        (String::from("DF_SIZE"), df_size::compute as CommitCacher),
         // (String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher),
     ];
 

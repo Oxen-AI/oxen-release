@@ -67,12 +67,12 @@ pub struct DerivedDFResource {
 }
 
 impl JsonDataFrameSource {
-    pub fn from_df(df: &DataFrame, schema: &Schema) -> JsonDataFrameSource {
+    pub fn from_df(data_frame_size: &DataFrameSize, schema: &Schema) -> JsonDataFrameSource {
         JsonDataFrameSource {
             schema: schema.to_owned(),
             size: DataFrameSize {
-                height: df.height(),
-                width: df.width(),
+                height: data_frame_size.height,
+                width: data_frame_size.width,
             },
         }
     }
@@ -82,18 +82,16 @@ impl JsonDataFrameView {
     pub fn view_from_pagination(
         df: DataFrame,
         og_schema: Schema,
+        data_frame_size: DataFrameSize,
         opts: &PaginateOpts,
     ) -> JsonDataFrameView {
-        let full_width = df.width();
-        let full_height = df.height();
-
         let page_size = opts.page_size;
         let page = opts.page_num;
 
         let start = if page == 0 { 0 } else { page_size * (page - 1) };
         let end = page_size * page;
 
-        let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
+        let total_pages = (data_frame_size.height as f64 / page_size as f64).ceil() as usize;
 
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
@@ -110,15 +108,15 @@ impl JsonDataFrameView {
         JsonDataFrameView {
             schema: slice_schema,
             size: DataFrameSize {
-                height: full_height,
-                width: full_width,
+                height: data_frame_size.height,
+                width: data_frame_size.width,
             },
             data: JsonDataFrameView::json_data(&mut sliced_df),
             pagination: Pagination {
                 page_number: page,
                 page_size,
                 total_pages,
-                total_entries: full_height,
+                total_entries: data_frame_size.height,
             },
             opts: opts_view,
         }
