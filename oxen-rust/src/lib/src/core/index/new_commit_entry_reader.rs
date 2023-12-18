@@ -13,6 +13,8 @@ use std::path::{Path, PathBuf};
 use crate::core::db::path_db;
 use crate::model::LocalRepository;
 
+use super::CommitDirEntryReader as NewCommitDirEntryReader;
+
 
 pub struct NewCommitEntryReader {
     base_path: PathBuf, 
@@ -119,155 +121,157 @@ impl NewCommitEntryReader {
         path_db::has_entry(&self.dir_db, path)
     }
 
-    // pub fn num_entries(&self) -> Result<usize, OxenError> {
-    //     let mut count = 0;
-    //     for dir in self.list_dirs()? {
-    //         let commit_entry_dir =
-    //             NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
-    //         count += commit_entry_dir.num_entries();
-    //     }
-    //     Ok(count)
-    // }
+    pub fn num_entries(&self) -> Result<usize, OxenError> {
+        let mut count = 0;
+        for dir in self.list_dirs()? {
+            let commit_entry_dir =
+                NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            count += commit_entry_dir.num_entries();
+        }
+        Ok(count)
+    }
 
-    // pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
-    //     let mut paths: Vec<PathBuf> = vec![];
-    //     for dir in self.list_dirs()? {
-    //         let commit_dir =
-    //             NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
-    //         let mut files = commit_dir.list_files()?;
-    //         paths.append(&mut files);
-    //     }
-    //     Ok(paths)
-    // }
+    pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
+        let mut paths: Vec<PathBuf> = vec![];
+        for dir in self.list_dirs()? {
+            log::debug!("listing files for dir {:?}", dir);
+            let commit_dir =
+                NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            let mut files = commit_dir.list_files()?;
+            paths.append(&mut files);
+        }
+        Ok(paths)
+    }
 
-    // pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
-    //     let mut paths: Vec<CommitEntry> = vec![];
-    //     for dir in self.list_dirs()? {
-    //         let commit_dir =
-    //             NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
-    //         let mut files = commit_dir.list_entries()?;
-    //         paths.append(&mut files);
-    //     }
-    //     Ok(paths)
-    // }
+    pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
+        let mut paths: Vec<CommitEntry> = vec![];
+        for dir in self.list_dirs()? {
+            log::debug!("listing entries for dir {:?}", dir);
+            let commit_dir =
+                NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            let mut files = commit_dir.list_entries()?;
+            paths.append(&mut files);
+        }
+        Ok(paths)
+    }
 
-    // pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
-    //     let mut paths: HashSet<CommitEntry> = HashSet::new();
-    //     for dir in self.list_dirs()? {
-    //         let commit_dir =
-    //             NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
-    //         let files = commit_dir.list_entries_set()?;
-    //         paths.extend(files);
-    //     }
-    //     Ok(paths)
-    // }
+    pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
+        let mut paths: HashSet<CommitEntry> = HashSet::new();
+        for dir in self.list_dirs()? {
+            let commit_dir =
+                NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            let files = commit_dir.list_entries_set()?;
+            paths.extend(files);
+        }
+        Ok(paths)
+    }
 
-    // pub fn list_entry_page(
-    //     &self,
-    //     page: usize,
-    //     page_size: usize,
-    // ) -> Result<Vec<CommitEntry>, OxenError> {
-    //     let entries = self.list_entries()?;
+    pub fn list_entry_page(
+        &self,
+        page: usize,
+        page_size: usize,
+    ) -> Result<Vec<CommitEntry>, OxenError> {
+        let entries = self.list_entries()?;
 
-    //     let start_page = if page == 0 { 0 } else { page - 1 };
-    //     let start_idx = start_page * page_size;
+        let start_page = if page == 0 { 0 } else { page - 1 };
+        let start_idx = start_page * page_size;
 
-    //     if (start_idx + page_size) < entries.len() {
-    //         let subset: Vec<CommitEntry> = entries[start_idx..(start_idx + page_size)].to_vec();
-    //         Ok(subset)
-    //     } else if (start_idx < entries.len()) && (start_idx + page_size) >= entries.len() {
-    //         let subset: Vec<CommitEntry> = entries[start_idx..entries.len()].to_vec();
-    //         Ok(subset)
-    //     } else {
-    //         Ok(vec![])
-    //     }
-    // }
+        if (start_idx + page_size) < entries.len() {
+            let subset: Vec<CommitEntry> = entries[start_idx..(start_idx + page_size)].to_vec();
+            Ok(subset)
+        } else if (start_idx < entries.len()) && (start_idx + page_size) >= entries.len() {
+            let subset: Vec<CommitEntry> = entries[start_idx..entries.len()].to_vec();
+            Ok(subset)
+        } else {
+            Ok(vec![])
+        }
+    }
 
-    // pub fn list_directory(&self, dir: &Path) -> Result<Vec<CommitEntry>, OxenError> {
-    //     log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
-    //     let mut entries = vec![];
-    //     // This lists all the committed dirs
-    //     let dirs = self.list_dirs()?;
-    //     for committed_dir in dirs {
-    //         // Have to make sure we are in a subset of the dir (not really a tree structure)
-    //         // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
-    //         if committed_dir.starts_with(dir) {
-    //             let entry_reader = NewCommitDirEntryReader::new_from_path(
-    //                 &self.base_path,
-    //                 &self.commit_id,
-    //                 &committed_dir,
-    //             )?;
-    //             let mut dir_entries = entry_reader.list_entries()?;
-    //             entries.append(&mut dir_entries);
-    //         }
-    //     }
-    //     Ok(entries)
-    // }
+    pub fn list_directory(&self, dir: &Path) -> Result<Vec<CommitEntry>, OxenError> {
+        log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
+        let mut entries = vec![];
+        // This lists all the committed dirs
+        let dirs = self.list_dirs()?;
+        for committed_dir in dirs {
+            // Have to make sure we are in a subset of the dir (not really a tree structure)
+            // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
+            if committed_dir.starts_with(dir) {
+                let entry_reader = NewCommitDirEntryReader::new_from_path(
+                    &self.base_path,
+                    &self.commit_id,
+                    &committed_dir,
+                )?;
+                let mut dir_entries = entry_reader.list_entries()?;
+                entries.append(&mut dir_entries);
+            }
+        }
+        Ok(entries)
+    }
 
-    // pub fn list_entries_per_directory(
-    //     &self,
-    //     dir: &Path,
-    // ) -> Result<HashMap<PathBuf, Vec<CommitEntry>>, OxenError> {
-    //     log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
-    //     let mut dir_entries: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
-    //     // This lists all the committed dirs
-    //     let dirs = self.list_dirs()?;
-    //     for committed_dir in dirs {
-    //         // Have to make sure we are in a subset of the dir (not really a tree structure)
-    //         // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
-    //         if committed_dir.starts_with(dir) {
-    //             let entry_reader = NewCommitDirEntryReader::new_from_path(
-    //                 &self.base_path,
-    //                 &self.commit_id,
-    //                 &committed_dir,
-    //             )?;
-    //             let entries = entry_reader.list_entries()?;
-    //             dir_entries.insert(committed_dir, entries);
-    //         }
-    //     }
-    //     Ok(dir_entries)
-    // }
+    pub fn list_entries_per_directory(
+        &self,
+        dir: &Path,
+    ) -> Result<HashMap<PathBuf, Vec<CommitEntry>>, OxenError> {
+        log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
+        let mut dir_entries: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
+        // This lists all the committed dirs
+        let dirs = self.list_dirs()?;
+        for committed_dir in dirs {
+            // Have to make sure we are in a subset of the dir (not really a tree structure)
+            // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
+            if committed_dir.starts_with(dir) {
+                let entry_reader = NewCommitDirEntryReader::new_from_path(
+                    &self.base_path,
+                    &self.commit_id,
+                    &committed_dir,
+                )?;
+                let entries = entry_reader.list_entries()?;
+                dir_entries.insert(committed_dir, entries);
+            }
+        }
+        Ok(dir_entries)
+    }
 
-    // pub fn has_file(&self, path: &Path) -> bool {
-    //     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-    //         if let Ok(dir) =
-    //             NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)
-    //         {
-    //             return dir.has_file(file_name);
-    //         }
-    //     }
-    //     false
-    // }
+    pub fn has_file(&self, path: &Path) -> bool {
+        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+            if let Ok(dir) =
+                NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)
+            {
+                return dir.has_file(file_name);
+            }
+        }
+        false
+    }
 
-    // pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
-    //     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-    //         let dir =
-    //             NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)?;
-    //         // log::debug!("CommitEntryReader::get_entry() get_entry: {:?}", path);
+    pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
+        if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+            let dir =
+                NewCommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)?;
+            // log::debug!("CommitEntryReader::get_entry() get_entry: {:?}", path);
 
-    //         // log::debug!("CommitEntryReader::get_entry() path: {:?} result: {:?}", path, result);
-    //         dir.get_entry(file_name)
-    //     } else {
-    //         Err(OxenError::file_has_no_parent(path))
-    //     }
-    // }
+            // log::debug!("CommitEntryReader::get_entry() path: {:?} result: {:?}", path, result);
+            dir.get_entry(file_name)
+        } else {
+            Err(OxenError::file_has_no_parent(path))
+        }
+    }
 
-    // pub fn glob_entry_paths(&self, pattern: &str) -> Result<HashSet<PathBuf>, OxenError> {
-    //     let pattern = Pattern::new(pattern)?;
-    //     let entries = self.list_entries()?;
-    //     let entry_paths: Vec<PathBuf> = entries.iter().map(|entry| entry.path.to_owned()).collect();
+    pub fn glob_entry_paths(&self, pattern: &str) -> Result<HashSet<PathBuf>, OxenError> {
+        let pattern = Pattern::new(pattern)?;
+        let entries = self.list_entries()?;
+        let entry_paths: Vec<PathBuf> = entries.iter().map(|entry| entry.path.to_owned()).collect();
 
-    //     let mut paths = HashSet::new();
-    //     for path in entry_paths
-    //         .iter()
-    //         .filter(|entry_path| pattern.matches_path(entry_path))
-    //         .map(|entry_path| entry_path.to_owned())
-    //     {
-    //         paths.insert(path);
-    //     }
+        let mut paths = HashSet::new();
+        for path in entry_paths
+            .iter()
+            .filter(|entry_path| pattern.matches_path(entry_path))
+            .map(|entry_path| entry_path.to_owned())
+        {
+            paths.insert(path);
+        }
 
-    //     Ok(paths)
-    // }
+        Ok(paths)
+    }
 
 
 }

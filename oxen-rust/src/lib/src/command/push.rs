@@ -98,6 +98,9 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
+    use crate::core::db::path_db;
+    use crate::core::db::tree_db::TreeObject;
+    use crate::core::index::CommitEntryWriter;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -254,7 +257,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_tree_cannot_push_when_remote_repo_is_many_commits_ahead_new_file(
+    async fn test_tree_can_push_when_remote_repo_is_many_commits_ahead_new_file(
     ) -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
@@ -311,18 +314,29 @@ mod tests {
                     command::commit(&user_b_repo, "User B adding second file path.")?;
 
                     // Push should succeed now! there are no conflicts
+                    log::debug!("pushing b...");
                     let result = command::push(&user_b_repo).await;
+                    log::debug!("done pushing b, here's result: {:?}", result);
                     assert!(result.is_ok());
+
+                    log::debug!("about to pull just a little bit");
 
                     command::pull(&user_b_repo).await?;
 
+                    log::debug!("done pulling just a little bit");
+
                     command::push(&user_b_repo).await?;
+                    log::debug!("not sure what we even pushed there");
 
                     // Full pull
                     command::pull_all(&user_b_repo).await?;
 
+                    log::debug!("pulled full");
+
                     // Push should now succeed
                     command::push(&user_b_repo).await?;
+
+                    log::debug!("pushed full but again not with anything at all");
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -605,19 +619,68 @@ mod tests {
                         .join("train")
                         .join("annotations.txt");
 
+                    let add_path_b = user_b_repo
+                        .path
+                        .join("annotations")
+                        .join("train")
+                        .join("averynewfile.txt");
+
+
+                    // print all files in annotations/train 
+                    let files = util::fs::rlist_paths_in_dir(&user_b_repo.path.join("annotations").join("train"));
+                    for item in files {
+                        log::debug!("\npre file or dir: {:?}\n", item)
+                    }
                     // User A modifies
                     test::write_txt_file_to_path(&modify_path_a, "fancy new file contents")?;
                     command::add(&user_a_repo, &modify_path_a)?;
-                    command::commit(&user_a_repo, "deleting first file path.")?;
+                    let commit_a = command::commit(&user_a_repo, "modifying first file path.")?;
                     command::push(&user_a_repo).await?;
 
+
+                    
                     // User B deletes at user a path A modified, causing conflicts.
                     util::fs::remove_file(&modify_path_b)?;
+                    let files = util::fs::rlist_paths_in_dir(&user_b_repo.path.join("annotations").join("train"));
+                    for item in files {
+                        log::debug!("\npost file or dir: {:?}\n", item)
+                    }
                     command::add(&user_b_repo, &modify_path_b)?;
-                    command::commit(&user_b_repo, "User B adding second file path.")?;
+                    // also add a file 
+                    test::write_txt_file_to_path(&add_path_b, "new file")?;
+                    // command::add(&user_b_repo, &add_path_b)?;
+                    let commit_b = command::commit(&user_b_repo, "user B deleting file path.")?;
+                    
+                    log::debug!("commit_a is {:?}", commit_a);
+                    log::debug!("commit_b is {:?}", commit_b);
+
+                    let commit_a = api::local::commits::get_by_id(&user_a_repo, &commit_a.id)?.unwrap();
+                    let commit_b = api::local::commits::get_by_id(&user_b_repo, &commit_b.id)?.unwrap();
+
+                    log::debug!("commit_a pre is {:?}", commit_a);
+                    log::debug!("commit_b pre is {:?}", commit_b);
+                    
+
+                    // // Get the root hash of each dir 
+                    // let root_hash_a: String = path_db::get_entry(&a_writer.dir_hashes_db, "")?.unwrap();
+                    // let root_hash_b: String = path_db::get_entry(&b_writer.dir_hashes_db, "")?.unwrap();
+
+                    // // Get the root node of each dir
+                    // let root_node_a: TreeObject = path_db::get_entry(&a_writer.dirs_db, &root_hash_a)?.unwrap();
+                    // let root_node_b: TreeObject = path_db::get_entry(&b_writer.dirs_db, &root_hash_b)?.unwrap();
+
+                    // log::debug!("root hash a is {:?}", root_hash_a);
+                    // log::debug!("root hash b is {:?}", root_hash_b);
+
+                    // log::debug!("root node a is {:?}", root_node_a);
+                    // log::debug!("root node b is {:?}", root_node_b);
+
+
 
                     // Push should fail
                     let res = command::push(&user_b_repo).await;
+
+                    log::debug!("here's the result and why it failed: {:?}", res);
 
                     assert!(res.is_err());
 

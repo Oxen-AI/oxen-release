@@ -1,5 +1,6 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
@@ -345,7 +346,25 @@ impl CommitWriter {
 
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-        self.add_commit_to_db(commit)?;
+
+        // TODONOW: THIS IS A BIG BAD HACK, FIX LATER 
+
+        let mut commit = commit.clone();
+        let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
+        let opts = db::opts::default();
+        let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only( &opts, temp_commit_hashes_db, false)?;
+
+        // Get the hash for this commit id 
+        let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
+        commit.update_root_hash(hash.clone());
+
+
+        log::debug!("commit we're on right now {:?}", commit);
+        log::debug!("got hash {} for commit {}", hash, commit.message);
+
+
+        self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         ref_writer.set_head_commit_id(&commit.id)?;
@@ -367,9 +386,21 @@ impl CommitWriter {
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
+        let mut commit = commit.clone();
+        let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
+        let opts = db::opts::default();
+        let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only( &opts, temp_commit_hashes_db, false)?;
+
+        // Get the hash for this commit id 
+        let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
+        commit.update_root_hash(hash.clone());
+
+        log::debug!("got hash {} for commit {}", hash, commit.id);
+
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-        self.add_commit_to_db(commit)?;
+        self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         log::debug!(
@@ -396,9 +427,22 @@ impl CommitWriter {
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
+
+        let mut commit = commit.clone();
+        let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
+        let opts = db::opts::default();
+        let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only( &opts, temp_commit_hashes_db, false)?;
+
+        // Get the hash for this commit id 
+        let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
+        commit.update_root_hash(hash.clone());
+
+        log::debug!("got hash {} for commit {}", hash, commit.id);
+
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-        self.add_commit_to_db(commit)?;
+        self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         log::debug!(

@@ -345,6 +345,8 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
+                //TODONOW uhhh
+                root_hash: "".to_string(),
                 timestamp,
             };
             let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
@@ -501,6 +503,7 @@ mod tests {
             // Create new namespace
             std::fs::create_dir_all(&new_namespace_dir)?;
 
+            // TODONOW fix
             let root_commit = Commit {
                 id: initial_commit_id,
                 parent_ids: vec![],
@@ -508,6 +511,7 @@ mod tests {
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
                 timestamp,
+                root_hash: "".to_string(),
             };
             let repo_new = RepoNew::from_root_commit(old_namespace, name, root_commit);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;

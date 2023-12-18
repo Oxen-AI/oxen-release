@@ -37,9 +37,9 @@ pub mod versioner;
 
 
 pub use crate::core::index::commit_db_reader::CommitDBReader;
-pub use crate::core::index::commit_dir_entry_reader::CommitDirEntryReader;
+// pub use crate::core::index::commit_dir_entry_reader::CommitDirEntryReader;
 pub use crate::core::index::commit_dir_entry_writer::CommitDirEntryWriter;
-pub use crate::core::index::commit_entry_reader::CommitEntryReader;
+// pub use crate::core::index::commit_entry_reader::CommitEntryReader;
 pub use crate::core::index::commit_entry_writer::CommitEntryWriter;
 pub use crate::core::index::commit_reader::CommitReader;
 pub use crate::core::index::commit_writer::CommitWriter;
@@ -60,5 +60,5 @@ pub use crate::core::index::staged_dir_entry_reader::StagedDirEntryReader;
 pub use crate::core::index::stager::Stager;
 pub use crate::core::index::tree_db_reader::TreeDBReader;
 pub use crate::core::index::tree_object_reader::TreeObjectReader;
-pub use crate::core::index::new_commit_entry_reader::NewCommitEntryReader;
-pub use crate::core::index::new_commit_dir_entry_reader::NewCommitDirEntryReader;
+pub use crate::core::index::new_commit_entry_reader::NewCommitEntryReader as CommitEntryReader;
+pub use crate::core::index::new_commit_dir_entry_reader::NewCommitDirEntryReader as CommitDirEntryReader;
