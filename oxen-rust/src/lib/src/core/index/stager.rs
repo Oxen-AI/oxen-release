@@ -363,7 +363,7 @@ impl Stager {
         );
 
         for relative in candidate_files.iter() {
-            // log::debug!("process_dir checking relative path {:?}", relative);
+            log::debug!("process_dir checking relative path {:?}", relative);
             if util::fs::is_in_oxen_hidden_dir(relative) {
                 continue;
             }
@@ -430,7 +430,7 @@ impl Stager {
         commit_dir_db: &CommitDirEntryReader,
     ) -> Option<FileStatus> {
         let file_name = path.file_name().unwrap();
-        // log::debug!("get_file_status check path in staging? {:?}", file_name);
+        log::debug!("get_file_status check path in staging? {:?}", file_name);
 
         // Have to check the file basename not the path, because basenames are stored in each dir
         if staged_dir_db.has_entry(file_name) {
@@ -447,6 +447,11 @@ impl Stager {
                         return Some(FileStatus::Modified);
                     }
                 } else {
+                    let all_entries = commit_dir_db.list_entries().unwrap();
+                    for entry in all_entries {
+                        log::debug!("deleteme entry: {:?}", entry);
+                    }
+                    let entry_2 = commit_dir_db.get_entry(file_name).unwrap();
                     return Some(FileStatus::Untracked);
                 }
             }
@@ -1346,7 +1351,7 @@ mod tests {
     use crate::core::index::{oxenignore, CommitEntryReader, CommitReader, CommitWriter, Stager};
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
-    use crate::test;
+    use crate::{test, command};
     use crate::util;
 
     use std::path::{Path, PathBuf};
@@ -1469,6 +1474,34 @@ mod tests {
 
             let status = stager.status(&entry_reader)?;
             assert_eq!(status.staged_files.len(), 1);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_stager_add_file2() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+
+            let hello_file = test::write_txt_file_to_path(&repo.path.join("heyyo.txt"), "Hello 1")?;
+            command::add(&repo, &hello_file)?;
+
+            // let status = command::status(&repo)?;
+
+            // // print status 
+            // status.print_stdout();
+
+            // assert_eq!(status.staged_files.len(), 1);
+
+            command::commit(&repo, "Add Hello 1")?;
+
+            let status = command::status(&repo)?;
+
+            // print status
+            status.print_stdout();
+
+            assert_eq!(status.staged_files.len(), 0);
+            assert_eq!(status.untracked_files.len(), 0);
 
             Ok(())
         })
@@ -1854,9 +1887,19 @@ mod tests {
     #[test]
     fn test_stager_remove_file_top_level() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
+            // Get head commit 
+            let head = CommitReader::new(&repo)?.head_commit()?;
+            log::debug!("head commit is {:?}", head);
+
+            // List all entries in that commit 
+            let entry_reader = CommitEntryReader::new(&repo, &head)?;
+            let entries = entry_reader.list_files()?;
+            log::debug!("entry_reader.list_files() is {:?}", entries);
+
             let stager = Stager::new(&repo)?;
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
+            log::debug!("head commit according to this loser is {:?}", commit);
             let entry_reader = CommitEntryReader::new(&repo, &commit)?;
 
             let repo_path = &stager.repository.path;

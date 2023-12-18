@@ -1,8 +1,9 @@
 use crate::api::remote::client;
 use crate::constants::{
-    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, TREE_DIR,
+    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, TREE_DIR, OBJECTS_DIR, DIR_HASHES_DIR, OBJECT_FILES_DIR, OBJECT_DIRS_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR,
 };
-use crate::core::db;
+use crate::core::db::tree_db::TreeObject;
+use crate::core::db::{self, path_db};
 use crate::core::index::pusher::UnsyncedCommitEntries;
 use crate::core::index::{CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger};
 use crate::error::OxenError;
@@ -450,6 +451,7 @@ pub async fn new_can_push(
         log::debug!("can_push() request successful");
         let body = client::parse_json_body(&url, res).await?;
         let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
+        log::debug!("can_merge response for commit {} is {}", local_head.message, response.can_merge);
         Ok(response.can_merge)
     } else {
         Err(OxenError::basic_str("can_push() Request failed"))
@@ -501,6 +503,134 @@ pub async fn download_commit_entries_db_to_repo(
 ) -> Result<PathBuf, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
     download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
+}
+
+
+// TODONOW FIX! THIS!
+pub async fn download_objects_db_to_path(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository, 
+    dst: impl AsRef<Path>,
+) ->  Result<PathBuf, OxenError> {
+    log::debug!("in the downloading objects db fn in remote commits");
+    let uri = format!("/objects_db");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("{} downloading from {}", current_function!(), url);
+
+    let client = client::new_for_url(&url)?;
+
+    match client.get(url).send().await {
+        Ok(res) => {
+            // TODO: make sure we're not accidentally nesting this
+            let path = util::fs::oxen_hidden_dir(&local_repo.path);
+            let reader = res
+                .bytes_stream()
+                .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+                .into_async_read();
+
+                let dst = dst.as_ref();
+            let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+            let archive = Archive::new(decoder);
+
+            let unpacked_path = dst.join(OBJECTS_DIR);
+
+            if unpacked_path.exists() {
+                log::debug!(
+                    "{} removing existing {:?}",
+                    current_function!(),
+                    unpacked_path
+                );
+                util::fs::remove_dir_all(&unpacked_path)?;
+            }
+
+            archive.unpack(&dst).await?;
+
+            log::debug!("{} writing to {:?}", current_function!(), path);
+
+            Ok(unpacked_path)
+
+        },
+        Err(err) => {
+            let error = format!("Error fetching commit objects: {}", err);
+            Err(OxenError::basic_str(error))
+        }
+    }
+}
+
+pub async fn download_objects_db_to_repo(
+    local_repo: &LocalRepository, 
+    remote_repo: &RemoteRepository,
+) -> Result<(), OxenError> {
+    let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
+    log::debug!("new path is {:?}", tmp_path);
+    let new_path = download_objects_db_to_path(local_repo, remote_repo, tmp_path).await?;
+    log::debug!("download_objects_db_to_repo downloaded db to {:?}", new_path);
+    let opts = db::opts::default();
+
+    let new_dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_DIRS_DIR), false)?;
+    let new_files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_FILES_DIR), false)?;
+    let new_schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_SCHEMAS_DIR), false)?;
+    let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_VNODES_DIR), false)?;
+
+    // Iterate over the new dirs db
+
+
+    let dir_entries: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
+    let file_entries: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
+    let schema_entries: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
+    let vnode_entries: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
+
+    // TODONOW: have this be a writer 
+
+    let head = api::local::commits::head_commit(local_repo)?;
+
+    {
+        let _writer = CommitEntryWriter::new(local_repo, &head)?;
+    };
+
+    let oxen_hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
+    let dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_DIRS_DIR))?;
+    let files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_FILES_DIR))?;
+    let schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_SCHEMAS_DIR))?;
+    let vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_VNODES_DIR))?;
+    
+
+    // Copy over from each of the new dbs to the old dbs
+    log::debug!("doing dirs");
+    for entry in dir_entries {
+        log::debug!("putting entry {:?} into dirs db", entry);
+        path_db::put(&dirs_db, &entry.hash().clone(), &entry)?;
+    }
+
+    log::debug!("doing files");
+    for entry in file_entries {
+        log::debug!("putting entry {:?} into files db", entry);
+        path_db::put(&files_db, &entry.hash().clone(), &entry)?;
+    }
+
+    log::debug!("doing schemas");
+    for entry in schema_entries {
+        log::debug!("putting entry {:?} into schemas db", entry);
+        path_db::put(&schemas_db, &entry.hash().clone(), &entry)?;
+    }
+
+    log::debug!("doing vnodes");
+    for entry in vnode_entries {
+        log::debug!("putting entry {:?} into vnodes db", entry);
+        path_db::put(&vnodes_db, &entry.hash().clone(), &entry)?;
+    }
+    
+
+    Ok(())
 }
 
 pub async fn download_commit_entries_db_to_path(
@@ -704,6 +834,44 @@ pub async fn post_commits_to_server(
     Ok(())
 }
 
+// TODONOW: should not post this whole thing
+pub async fn post_tree_objects_to_server(
+    local_repo: &LocalRepository, 
+    remote_repo: &RemoteRepository,
+    commit: &Commit
+) -> Result<(), OxenError> {
+    let objects_dir = util::fs::oxen_hidden_dir(local_repo.path.clone())
+        .join(OBJECTS_DIR);
+
+    let tar_subdir = Path::new(OBJECTS_DIR);
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    log::debug!("appending objects dir {:?} to tar at path {:?}", objects_dir, tar_subdir);
+    tar.append_dir_all(&tar_subdir, objects_dir)?;
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let is_compressed = true;
+
+    let filename = None;
+
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    post_data_to_server(
+        remote_repo,
+        commit,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    ).await
+
+}
+
 pub async fn post_commit_db_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -720,7 +888,8 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
+    // TODONOW: REMOVE THIS OBJECTS_DIR
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR, OBJECTS_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);

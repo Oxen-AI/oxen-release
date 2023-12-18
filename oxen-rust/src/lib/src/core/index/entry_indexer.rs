@@ -138,6 +138,9 @@ impl EntryIndexer {
         };
 
         self.pull_commit_entries_db(&remote_repo, commit).await?;
+        //todonow delete 
+        let commit_vec = vec![commit.clone()];
+        self.pull_tree_objects_for_commits(&remote_repo, &commit_vec).await?;
         self.pull_all_entries_for_commit(&remote_repo, commit)
             .await?;
 
@@ -169,9 +172,14 @@ impl EntryIndexer {
             }
         };
 
+        log::debug!("pulling all gathering commits");
+
         // Get entries between here and new head, get entries for any missing
         let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
         let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
+
+
+        log::debug!("Pulling all gathered commits");
 
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
         for c in &commits {
@@ -180,15 +188,27 @@ impl EntryIndexer {
             }
         }
 
+        log::debug!("pulling all gathered entry commits");
+
+        // TODONOW: don't pull `ALL objects`
+        self.pull_tree_objects_for_commits(remote_repo, &unsynced_entry_commits)
+            .await?;
+
+
+        log::debug!("pulling all downloaded tree objects");
+
         // Download all files to versions dir
         self.pull_entries_for_commits(remote_repo, unsynced_entry_commits)
             .await?;
+
+        log::debug!("pulling all pulled unsynced entries");
 
         // Mark commits as synced for future pulls
         for commit in commits {
             index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
         }
 
+        log::debug!("pulling all marked as synced");
         Ok(new_head)
     }
 
@@ -269,6 +289,12 @@ impl EntryIndexer {
 
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
+
+                // TODONOW: delete this 
+                let commits_vec = vec![commit.clone()];
+                log::debug!("about to pull tree objects");
+                self.pull_tree_objects_for_commits(remote_repo, &commits_vec).await?;
+                log::debug!("pulled tree objects");
 
                 // Sync the commit entries objects
                 self.pull_commit_entries_db(remote_repo, &commit).await?;
@@ -518,6 +544,17 @@ impl EntryIndexer {
             limit = entries.len();
         }
         Ok(entries[0..limit].to_vec())
+    }
+
+
+    pub async fn pull_tree_objects_for_commits(
+        &self, 
+        remote_repo: &RemoteRepository, 
+        commits: &Vec<Commit> 
+    ) -> Result<(), OxenError> {
+        log::debug!("🐂 pulling tree objects for {:?} commits", commits.len());
+        api::remote::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
+        Ok(())
     }
     pub async fn pull_entries_for_commits(
         &self,

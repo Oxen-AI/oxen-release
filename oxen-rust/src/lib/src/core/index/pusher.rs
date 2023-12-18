@@ -183,6 +183,9 @@ pub async fn try_push_remote_repo(
     let unsynced_db_commits =
         api::remote::commits::get_commits_with_unsynced_dbs(remote_repo, &branch).await?;
 
+    // TODONOW make this only push missing / necessary objects 
+    api::remote::commits::post_tree_objects_to_server(local_repo, remote_repo, &head_commit).await?;
+
     push_missing_commit_dbs(local_repo, remote_repo, unsynced_db_commits).await?;
 
     // Get commits with unsynced entries
@@ -486,6 +489,9 @@ async fn poll_until_synced(
         std::thread::sleep(std::time::Duration::from_millis(1000));
     }
 }
+
+
+
 
 async fn push_missing_commit_dbs(
     local_repo: &LocalRepository,
@@ -1266,6 +1272,8 @@ mod tests {
 
             // Push to the remote
             pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
+
+        
 
             // All commits should now have dbs
             let unsynced_db_commits =

@@ -35,6 +35,15 @@ pub fn get_meta_entry(
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
         let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent)?;
+
+        log::debug!("listing all files from the dir entry reader at parent path {:?}", parent);
+        for entry in dir_entry_reader.list_entries()? {
+            log::debug!("the thing has entry {:?}", entry);
+        }
+
+        log::debug!("searching for get entry under base name {:?}", base_name);
+
+
         let entry = dir_entry_reader
             .get_entry(base_name)?
             .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
@@ -228,9 +237,11 @@ pub fn list_directory(
 
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
+    log::debug!("LIST DIRECTORY about to list directories");
     for dir in entry_reader.list_dirs()? {
-        // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, directory);
+        log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, directory);
         if let Some(parent) = dir.parent() {
+            log::debug!("and got parent {:?}", parent);
             if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
                 dir_paths.push(meta_entry_from_dir(
                     repo,
@@ -596,6 +607,7 @@ mod tests {
     #[test]
     fn test_list_directories_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
+            log::debug!("are we making it here?");
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
@@ -655,6 +667,8 @@ mod tests {
                 2,
                 3,
             )?;
+
+
             let dir_entries = paginated.entries;
             let total_entries = paginated.total_entries;
 

@@ -53,6 +53,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::commits::download_commits_db),
         )
         .route(
+            "/{namespace}/{repo_name}/objects_db",
+            web::get().to(controllers::commits::download_objects_db),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/latest_synced",
             web::get().to(controllers::commits::latest_synced),
         )

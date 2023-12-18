@@ -3,6 +3,7 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 
 use liboxen::core;
+use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::DFOpts;
@@ -15,18 +16,32 @@ use liboxen::{api, current_function};
 use actix_web::{web, HttpRequest, HttpResponse};
 
 pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("deleteme metadata file controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-
+    
     log::debug!(
         "{} resource {}/{}",
         current_function!(),
         repo_name,
         resource
     );
+
+    // init a commit entry
+
+    // TODONOW remove all this 
+    let head = api::local::commits::head_commit(&repo)?;
+            
+    let commit_entry_reader = CommitEntryReader::new(&repo, &head)?;
+
+    // Try to get the entry from the local repo
+    log::debug!("on the remote repo trying to get file path {:?}", &resource.file_path);
+    let entry = commit_entry_reader.get_entry(&resource.file_path)?;
+
+    log::debug!("we got the entry from the remote repo: {:?}", entry);
 
     let latest_commit = api::local::commits::get_by_id(&repo, &resource.commit.id)?.ok_or(
         OxenError::revision_not_found(resource.commit.id.clone().into()),
@@ -38,6 +53,9 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         latest_commit.id,
         latest_commit.message
     );
+
+    // Check if annotations/README.md exists in this commit 
+    // init a commitentryreader 
 
     let entry = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let meta = MetadataEntryResponse {

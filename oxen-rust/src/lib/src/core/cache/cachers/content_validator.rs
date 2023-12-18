@@ -23,7 +23,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     // }
 
     // TODONOW: find a better way to do this - maybe unpack all the obejcts from the commit
-    api::local::commits::new_construct_commit_merkle_tree(repo, commit)?;
+    // api::local::commits::new_construct_commit_merkle_tree(repo, commit)?;
 
     let tree_is_valid = commit_validator::validate_tree_hash(repo, commit)?;
 

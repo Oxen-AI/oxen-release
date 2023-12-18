@@ -980,8 +980,13 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
+            log::debug!("about to list diff entries");
+
+
             let entries =
                 api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            
+            log::debug!("listed diff entries");
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);

@@ -167,6 +167,7 @@ impl LocalRepository {
     ) -> Result<LocalRepository, OxenError> {
         api::remote::repositories::pre_clone(&repo).await?;
 
+        log::debug!("in clone repo");
         // if directory already exists -> return Err
         let repo_path = &opts.dst;
         if repo_path.exists() {
@@ -191,14 +192,18 @@ impl LocalRepository {
         util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
+        log::debug!("grabbing remote branch");
         let rb = RemoteBranch::from_branch(&opts.branch);
+        log::debug!("about to init entry indexer");
         let indexer = EntryIndexer::new(&local_repo)?;
-
+        log::debug!("init-d entry indexer");
         local_repo
             .maybe_pull_entries(&repo, &indexer, &rb, opts)
             .await?;
+        log::debug!("pulled entries");
 
         if opts.all {
+            log::debug!("pulling all entries");
             let remote_branches = api::remote::branches::list(&repo).await?;
             if remote_branches.len() > 1 {
                 println!(
@@ -333,10 +338,15 @@ mod tests {
             // Create remote repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
-            test::run_empty_dir_test_async(|dir| async move {
-                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
-                let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
+            log::debug!("created the remote repo");
 
+            test::run_empty_dir_test_async(|dir| async move {
+                
+                let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
+                
+                log::debug!("about to clone the remote");
+                let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
+                log::debug!("succeeded");
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);
                 assert!(config_path.exists());

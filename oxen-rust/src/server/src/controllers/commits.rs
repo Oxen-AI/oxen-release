@@ -2,15 +2,24 @@ use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
 use liboxen::constants::DIRS_DIR;
+use liboxen::constants::DIR_HASHES_DIR;
 use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
+use liboxen::constants::OBJECTS_DIR;
+use liboxen::constants::OBJECT_DIRS_DIR;
+use liboxen::constants::OBJECT_FILES_DIR;
+use liboxen::constants::OBJECT_SCHEMAS_DIR;
+use liboxen::constants::OBJECT_VNODES_DIR;
 use liboxen::constants::SCHEMAS_DIR;
 use liboxen::constants::TREE_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
+use liboxen::core::db;
+use liboxen::core::db::path_db;
+use liboxen::core::db::tree_db::TreeObject;
 use liboxen::core::index::CommitReader;
 use liboxen::core::index::CommitWriter;
 
@@ -31,6 +40,8 @@ use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::PaginatedCommits;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
+use rocksdb::DBWithThreadMode;
+use rocksdb::MultiThreaded;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -435,6 +446,106 @@ fn compress_commits_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
     Ok(buffer)
 }
 
+// TODONOW: remove 
+pub fn temp_inspect_object_dirs(repo: &LocalRepository, 
+    tag: &str,) -> Result<(), OxenError> {
+    
+    log::debug!("{tag}");
+    
+    let objects_dir = util::fs::oxen_hidden_dir(&repo.path).join(OBJECTS_DIR);
+
+
+    // TODONOW: get rid of all this crap 
+    let dirs_dir = objects_dir.join(OBJECT_DIRS_DIR);
+    let files_dir = objects_dir.join(OBJECT_FILES_DIR);
+    let schemas_dir = objects_dir.join(OBJECT_SCHEMAS_DIR);
+    let vnodes_dir = objects_dir.join(OBJECT_VNODES_DIR);
+
+
+    // create all these dirs 
+    for dir in &[&dirs_dir, &files_dir, &schemas_dir, &vnodes_dir] {
+        if !dir.exists() {
+            std::fs::create_dir_all(&dir)?;
+        }
+    }
+
+
+    // open all the dbs
+    let opts = db::opts::default();
+    let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &dirs_dir, false)?;
+    let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &files_dir, false)?;
+    let schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &schemas_dir, false)?;
+    let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &vnodes_dir, false)?;
+
+
+    let dir_entries: Vec<TreeObject> = path_db::list_entries(&dirs_db)?;
+    let file_entries: Vec<TreeObject> = path_db::list_entries(&files_db)?;
+    let schema_entries: Vec<TreeObject> = path_db::list_entries(&schemas_db)?;
+    let vnode_entries: Vec<TreeObject> = path_db::list_entries(&vnodes_db)?;
+
+
+    log::debug!("{tag} doing dirs");
+    for entry in dir_entries {
+        log::debug!("putting entry {:?} into dirs db", entry);
+    }
+
+    log::debug!("{tag} doing files");
+    for entry in file_entries {
+        log::debug!("putting entry {:?} into files db", entry);
+    }
+
+    log::debug!("{tag} doing schemas");
+    for entry in schema_entries {
+        log::debug!("putting entry {:?} into schemas db", entry);
+    }
+
+    log::debug!("{tag} doing vnodes");
+    for entry in vnode_entries {
+        log::debug!("putting entry {:?} into vnodes db", entry);
+    }
+
+    Ok(())
+    }
+
+fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
+
+    temp_inspect_object_dirs(repository, "compression")?;
+
+    let object_dir = util::fs::oxen_hidden_dir(&repository.path).join(OBJECTS_DIR);
+
+
+    let tar_subdir = Path::new(OBJECTS_DIR);
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    tar.append_dir_all(tar_subdir, object_dir)?;
+
+
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+    log::debug!("Compressed objects dir size is {}", ByteSize::b(total_size));
+    Ok(buffer)
+}
+
+pub async fn download_objects_db(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("made it to the download objects db controller");
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    let buffer = compress_objects_db(&repository)?;
+    Ok(HttpResponse::Ok().body(buffer))
+}
+
+
 /// Download the database of all entries given a specific commit
 pub async fn download_commit_entries_db(
     req: HttpRequest,
@@ -452,6 +563,7 @@ pub async fn download_commit_entries_db(
     Ok(HttpResponse::Ok().body(buffer))
 }
 
+
 // Allow downloading of sub-dirs for efficiency
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
@@ -467,7 +579,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
 
     // Ignore cache and other dirs, only take what we need
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, OBJECTS_DIR, TREE_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -770,7 +882,7 @@ fn check_if_upload_complete_and_unpack(
         }
 
         // Cleanup tmp files
-        util::fs::remove_dir_all(tmp_dir).unwrap();
+        // util::fs::remove_dir_all(tmp_dir).unwrap();
         // });
     }
 }
@@ -1172,6 +1284,18 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                         let hash = util::hasher::hash_file_contents(&version_path).unwrap();
                         util::fs::write_to_path(&hash_file, &hash)
                             .expect("Could not write hash file");
+                    } else if path.starts_with("objects") {
+                        log::debug!("we ARE in the objects unpacking place");
+                        // TODONOW fix this up 
+                        let temp_objects_dir = hidden_dir.join("tmp").join("objects");
+                        // create dir all 
+                        if !temp_objects_dir.exists() {
+                            std::fs::create_dir_all(&temp_objects_dir).unwrap();
+                        }
+
+                        file.unpack_in(&temp_objects_dir).unwrap();
+
+
                     } else {
                         // For non-version files, use filename sent by client
                         log::debug!("unpacking path {:?} to {:?}", path, hidden_dir);
@@ -1187,7 +1311,98 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
             log::error!("Err: {:?}", err);
         }
     }
+    // TODONOW clean this functionality up and have it somewhere else 
+    let tmp_objects_dir = hidden_dir.join("tmp").join("objects");
+
+    // If this dir exists: 
+    if tmp_objects_dir.exists() {
+        log::debug!("tmp objects dir exists, let's do some stuff");
+
+        merge_objects_dbs(hidden_dir.to_path_buf()).unwrap();
+
+        std::fs::remove_dir_all(tmp_objects_dir.clone()).unwrap();
+
+    }
+
+
+
+    if tmp_objects_dir.exists() {
+        panic!("tmp objects dirshould've been removed but isn't");
+    }
+
+
     log::debug!("Done decompressing.");
+}
+
+fn merge_objects_dbs(hidden_dir: PathBuf) -> Result<(), OxenError> {
+    log::debug!("merging objects dbs");
+
+    let repo_objects_dir = hidden_dir.join(OBJECTS_DIR);
+
+    let tmp_objects_dir = hidden_dir.join("tmp").join("objects").join("objects");
+
+
+    let repo_dirs_dir = repo_objects_dir.join(OBJECT_DIRS_DIR);
+    let repo_files_dir = repo_objects_dir.join(OBJECT_FILES_DIR);
+    let repo_schemas_dir = repo_objects_dir.join(OBJECT_SCHEMAS_DIR);
+    let repo_vnodes_dir = repo_objects_dir.join(OBJECT_VNODES_DIR);
+
+    let new_dirs_dir = tmp_objects_dir.join(OBJECT_DIRS_DIR);
+    let new_files_dir = tmp_objects_dir.join(OBJECT_FILES_DIR);
+    let new_schemas_dir = tmp_objects_dir.join(OBJECT_SCHEMAS_DIR);
+    let new_vnodes_dir = tmp_objects_dir.join(OBJECT_VNODES_DIR);
+
+
+    log::debug!("opening temp dir dbs");
+    // Open read only multithreaded rocksdbs to all the new dir locations 
+    let opts = db::opts::default();
+    let new_dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_dirs_dir, false)?;
+    let new_files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_files_dir, false)?;
+    let new_schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_schemas_dir, false)?;
+    let new_vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_vnodes_dir, false)?;
+
+
+    log::debug!("opening repo object dbs");
+    // Simialrly, open read only databases to all the old dir locations
+    let repo_dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_dirs_dir)?;
+    let repo_files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_files_dir)?;
+    let repo_schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_schemas_dir)?;
+    let repo_vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_vnodes_dir)?;
+
+    let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
+    let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
+    let new_schemas: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
+    let new_vnodes: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
+
+
+
+    log::debug!("doing dirs reverse");
+    for dir in &new_dirs {
+        path_db::put(&repo_dirs_db, dir.hash(), dir)?;
+    }
+
+    log::debug!("doing files reverse");
+    for file in &new_files {
+        path_db::put(&repo_files_db, file.hash(), file)?;
+    }
+
+    log::debug!("doing schemas reverse");
+    for schema in &new_schemas {
+        path_db::put(&repo_schemas_db, schema.hash(), schema)?;
+    }
+
+    log::debug!("doing vnodes reverse");
+    for vnode in &new_vnodes {
+        path_db::put(&repo_vnodes_db, vnode.hash(), vnode)?;
+    }
+
+
+    log::debug!("allegedly finished merging here.");
+
+    // 
+    Ok(())
+
+
 }
 
 #[cfg(test)]
