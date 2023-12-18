@@ -398,17 +398,12 @@ impl NewCommitDirEntryReader {
     
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut entries = Vec::new();
-        log::debug!("entering list entries");
         for vnode_child in self.dir_object.children() {
-            log::debug!("in list entries got vnode child {:?}", vnode_child);
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
             let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
-            log::debug!("in list entries got vnode {:?}", vnode);
             for entry in vnode.children() {
-                log::debug!("in list entries got entry {:?}", entry);
                 match entry {
                     TreeObjectChild::File {path, ..} => {
-                        log::debug!("got file entry child {:?}", entry);
                         // Get file object by hash 
                         let file_object: TreeObject = path_db::get_entry(&self.files_db, entry.hash())?.unwrap();
                         // Get commit entry from file object

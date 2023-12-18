@@ -329,8 +329,19 @@ impl Stager {
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
         let staged_dir_db: StagedDirEntryDB<SingleThreaded> =
             StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+
+        // Get current timestamp at execution 
+        let start = std::time::Instant::now();
         let root_commit_entry_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir)?;
+        let elapsed = start.elapsed();
+
+        // get seconds and millis 
+        let secs = elapsed.as_secs();
+        let millis = elapsed.subsec_millis();
+
+        log::debug!("process_dir CommitDirEntryReader::new() took {:?}.{:?}", secs, millis);
+    
 
         // Create candidate files paths to look at
         let mut candidate_files: HashSet<PathBuf> = HashSet::new();
@@ -447,11 +458,6 @@ impl Stager {
                         return Some(FileStatus::Modified);
                     }
                 } else {
-                    let all_entries = commit_dir_db.list_entries().unwrap();
-                    for entry in all_entries {
-                        log::debug!("deleteme entry: {:?}", entry);
-                    }
-                    let entry_2 = commit_dir_db.get_entry(file_name).unwrap();
                     return Some(FileStatus::Untracked);
                 }
             }
