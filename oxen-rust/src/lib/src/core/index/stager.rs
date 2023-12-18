@@ -9,6 +9,7 @@ use crate::constants;
 use crate::core::db::path_db;
 use crate::core::db::{self, str_json_db};
 use crate::core::df::tabular;
+use crate::core::index::ObjectDBReader;
 use crate::core::index::oxenignore;
 use crate::core::index::SchemaReader;
 use crate::core::index::{
@@ -251,9 +252,12 @@ impl Stager {
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
         candidate_dirs.insert(dir.to_path_buf());
 
+        // TODONOw possibly endogenize this to the stager 
+        let object_reader = ObjectDBReader::new(&self.repository)?;
+
         for dir in candidate_dirs.iter() {
             log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
-            self.process_dir(dir, &mut staged_data, &ignore)?;
+            self.process_dir(dir, &mut staged_data, &ignore, &object_reader)?;
         }
 
         // Make pairs from Added + Removed stage entries with same hash, store in staged_data.moved_entries
@@ -320,6 +324,7 @@ impl Stager {
         full_dir: &Path,
         staged_data: &mut StagedData,
         ignore: &Option<Gitignore>,
+        object_reader: &ObjectDBReader,
     ) -> Result<(), OxenError> {
         // log::debug!("process_dir {:?}", full_dir);
         // Only check at level of this dir, no need to deep dive recursively
@@ -333,7 +338,7 @@ impl Stager {
         // Get current timestamp at execution 
         let start = std::time::Instant::now();
         let root_commit_entry_reader =
-            CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir)?;
+            CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, &object_reader)?;
         let elapsed = start.elapsed();
 
         // get seconds and millis 
@@ -801,12 +806,21 @@ impl Stager {
         dir_paths.iter().for_each(|(parent, paths)| {
             // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
 
+            // TODONOW: Get this out
+            let object_reader = match ObjectDBReader::new(&self.repository) {
+                Ok(reader) => reader,
+                Err(err) => {
+                    log::error!("Could not create ObjectDBReader: {}", err);
+                    return;
+                }
+            };
             let staged_db: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, parent).unwrap();
             let entry_reader = match CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,
                 parent,
+                &object_reader,
             ) {
                 Ok(reader) => reader,
                 Err(err) => {
@@ -950,10 +964,12 @@ impl Stager {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, &relative_parent)?;
+            let object_reader = ObjectDBReader::new(&self.repository)?;
             let entry_reader = CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,
                 &relative_parent,
+                &object_reader
             )?;
 
             self.add_staged_entry_in_dir_db(path, &entry_reader, &staged_db)

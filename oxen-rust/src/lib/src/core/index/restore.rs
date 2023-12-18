@@ -9,7 +9,7 @@ use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util;
 
-use super::CommitDirEntryReader;
+use super::{CommitDirEntryReader, ObjectDBReader};
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     if opts.staged {
@@ -57,9 +57,10 @@ fn restore_dir(
     dir_reader: &CommitEntryReader,
 ) -> Result<(), OxenError> {
     let dirs = dir_reader.list_dirs()?;
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         if dir.starts_with(path) {
-            let reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            let reader = CommitDirEntryReader::new(repo, &commit.id, &dir, &object_reader)?;
             let entries = reader.list_entries()?;
             let msg = format!("Restoring Directory: {:?}", dir);
             let bar = util::progress_bar::oxen_progress_bar_with_msg(entries.len() as u64, &msg);

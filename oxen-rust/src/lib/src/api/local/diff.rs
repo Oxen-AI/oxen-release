@@ -1,7 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
-use crate::core::index::CommitDirEntryReader;
+use crate::core::index::object_db_reader::ObjectDBReader;
+use crate::core::index::{CommitDirEntryReader, object_db_reader};
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::generic_diff::GenericDiff;
@@ -75,9 +76,11 @@ pub fn get_version_file_from_commit(
         None => return Err(OxenError::file_has_no_parent(path)),
     };
 
+    let object_reader = ObjectDBReader::new(repo)?;
+
     // Instantiate CommitDirEntryReader to fetch entry
     let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent)?;
+    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent, &object_reader)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
         None => return Err(OxenError::file_has_no_name(path)),
