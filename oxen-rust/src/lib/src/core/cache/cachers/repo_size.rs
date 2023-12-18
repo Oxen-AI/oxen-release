@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 use crate::constants::{CACHE_DIR, DIRS_DIR, HISTORY_DIR};
-use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
+use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
@@ -55,11 +55,12 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let commit_reader = CommitReader::new(repo)?;
     let dirs = reader.list_dirs()?;
     log::debug!("Computing size of {} dirs", dirs.len());
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
 
         // Start with the size of all the entries in this dir
-        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir).unwrap();
+        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, &object_reader).unwrap();
         let entries = dir_reader.list_entries().unwrap();
         let mut total_size = api::local::entries::compute_entries_size(&entries).unwrap();
 
@@ -102,10 +103,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // Recursively compute the size of the directory children
         let children = reader.list_dir_children(&dir)?;
+        let object_reader = ObjectDBReader::new(repo)?;
         for child in children {
             // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
 
-            let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &child).unwrap();
+            let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &child, &object_reader).unwrap();
 
             let entries = dir_reader.list_entries().unwrap();
             let size = api::local::entries::compute_entries_size(&entries).unwrap();

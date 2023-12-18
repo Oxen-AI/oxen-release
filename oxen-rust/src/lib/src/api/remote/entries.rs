@@ -1,6 +1,6 @@
 use crate::api::remote::client;
 use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
-use crate::core::index::{puller, CommitEntryReader};
+use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{MetadataEntry, RemoteRepository, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -111,9 +111,16 @@ pub async fn download_dir(
     // Read the entries from the cache commit db
     log::debug!("initializing a commit reader here");
 
-    // TODONOW get rid of all of this 
+    // TODONOW a lot going wrong here 
+    // get repo from the repo_dir 
 
-    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision)?;
+
+    // TODONOW UGH 
+    // Get the local repo from this base path 
+    let local_repo = LocalRepository::from_dir(&repo_dir)?;
+    let object_reader = ObjectDBReader::new(&local_repo)?;
+
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, &object_reader)?;
     log::debug!("initialized successfully");
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;

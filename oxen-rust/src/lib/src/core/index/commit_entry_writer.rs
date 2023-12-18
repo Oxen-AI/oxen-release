@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{CommitDirEntryReader, CommitEntryReader, TreeDBReader};
+use super::{CommitDirEntryReader, CommitEntryReader, TreeDBReader, ObjectDBReader};
 
 pub struct CommitEntryWriter {
     repository: LocalRepository,
@@ -715,9 +715,10 @@ impl CommitEntryWriter {
             schema_map.entry(parent).or_default().push(schema_child);
         }
 
+        let object_reader = ObjectDBReader::new(&self.repository)?;
         for dir in dirs {
             let dir_entry_reader =
-                CommitDirEntryReader::new(&self.repository, &self.commit.id, dir)?;
+                CommitDirEntryReader::new(&self.repository, &self.commit.id, dir, &object_reader)?;
 
             // Get all file children
             let children_entries = dir_entry_reader.list_entries()?;
@@ -1324,7 +1325,9 @@ impl CommitEntryWriter {
 
     fn write_file_objects_for_dir(&self, dir: PathBuf) -> Result<Vec<TreeObjectChild>, OxenError> {
         log::debug!("in write file objects from dir for dir {:?}", dir);
-        let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
+        // TODONOW take this out 
+        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir, &object_reader)?;
         
         // Get all file children
         let files = dir_entry_reader.list_entries()?;

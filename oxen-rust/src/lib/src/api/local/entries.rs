@@ -11,7 +11,7 @@ use crate::{api, util};
 use rayon::prelude::*;
 
 use crate::core;
-use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
+use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader};
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
@@ -34,7 +34,8 @@ pub fn get_meta_entry(
         log::debug!("get_meta_entry has file: {:?}", path);
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-        let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent)?;
+        let object_reader = ObjectDBReader::new(repo)?;
+        let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent, &object_reader)?;
 
         log::debug!("listing all files from the dir entry reader at parent path {:?}", parent);
         for entry in dir_entry_reader.list_entries()? {
@@ -110,10 +111,11 @@ fn compute_latest_commit(
     let mut latest_commit = Some(commit.to_owned());
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, &object_reader)?;
             for entry in entry_reader.list_entries()? {
                 let commit = if commits.contains_key(&entry.commit_id) {
                     Some(commits[&entry.commit_id].clone())
@@ -143,10 +145,11 @@ fn compute_dir_size(
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, &object_reader)?;
             for entry in entry_reader.list_entries()? {
                 total_size += entry.num_bytes;
             }
@@ -234,6 +237,7 @@ pub fn list_directory(
 
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
+    
 
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
@@ -254,10 +258,11 @@ pub fn list_directory(
         }
     }
     log::debug!("list_directory got dir_paths {}", dir_paths.len());
-
+    // TODONOW this opens duplicate objectreaders - can we just use the one in entry_Reader?
+    let object_reader = ObjectDBReader::new(repo)?;
     // Once we know how many directories we have we can calculate the offset for the files
     let mut file_paths: Vec<MetadataEntry> = vec![];
-    let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory)?;
+    let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory, &object_reader)?;
     log::debug!("list_directory counting entries...");
     let total = dir_entry_reader.num_entries() + dir_paths.len();
     let total_pages = (total as f64 / page_size as f64).ceil() as usize;
@@ -416,12 +421,15 @@ pub fn read_unsynced_entries(
         this_entries.len(),
         grouped.len()
     );
+    
+    let object_reader = ObjectDBReader::new(local_repo)?;
 
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
         log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
 
-        let last_entry_reader = CommitDirEntryReader::new(local_repo, &last_commit.id, dir)?;
+
+        let last_entry_reader = CommitDirEntryReader::new(local_repo, &last_commit.id, dir, &object_reader)?;
         let mut entries: Vec<CommitEntry> = dir_entries
             .into_par_iter()
             .filter(|entry| {

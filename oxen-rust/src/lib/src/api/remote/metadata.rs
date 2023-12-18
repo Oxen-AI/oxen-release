@@ -69,7 +69,7 @@ mod tests {
 
     use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::index::commit_entry_reader::CommitEntryReader;
+    use crate::core::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;

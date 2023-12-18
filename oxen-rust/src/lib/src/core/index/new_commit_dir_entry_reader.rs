@@ -13,25 +13,26 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use super::CommitEntryWriter;
+use super::{CommitEntryWriter, ObjectDBReader};
 
 /// # CommitDirEntryReader
 /// We could index files by path here for qui
-pub struct NewCommitDirEntryReader {
+pub struct NewCommitDirEntryReader<'a> {
     dir: PathBuf,
     dir_hash: String,
     dir_object: TreeObject,
     base_path: PathBuf,
-    vnodes_db: DBWithThreadMode<MultiThreaded>,
-    files_db: DBWithThreadMode<MultiThreaded>,
+    // vnodes_db: DBWithThreadMode<MultiThreaded>,
+    // files_db: DBWithThreadMode<MultiThreaded>,
     commit_id: String,
+    object_reader: &'a ObjectDBReader, // TODONOW: Will we have pariter problems here? use a ref with lifetimes if true.
 }
 
 // TODONOW: Is it worth indexing the vnodes up front? 
 // there will only ever be 700 or whatever of them
 
 // This was formerly for commit dir entry db, now it's just the dir hashes db
-impl NewCommitDirEntryReader {
+impl<'a> NewCommitDirEntryReader<'a> {
     pub fn dir_hash_db(base_path: &Path, commit_id: &str) -> PathBuf {
         CommitEntryWriter::commit_dir(base_path, commit_id)
             .join(constants::DIR_HASHES_DIR)
@@ -43,17 +44,17 @@ impl NewCommitDirEntryReader {
         db_path.join("CURRENT").exists()
     }
 
-    pub fn dir_db(base_path: &Path) -> PathBuf {
-        base_path.join(constants::OXEN_HIDDEN_DIR).join(OBJECTS_DIR).join(OBJECT_DIRS_DIR)
-    }
+    // pub fn dir_db(base_path: &Path) -> PathBuf {
+    //     base_path.join(constants::OXEN_HIDDEN_DIR).join(OBJECTS_DIR).join(OBJECT_DIRS_DIR)
+    // }
 
-    pub fn vnodes_db(base_path: &Path) -> PathBuf {
-        base_path.join(constants::OXEN_HIDDEN_DIR).join(constants::OBJECTS_DIR).join(constants::OBJECT_VNODES_DIR)
-    }
+    // pub fn vnodes_db(base_path: &Path) -> PathBuf {
+    //     base_path.join(constants::OXEN_HIDDEN_DIR).join(constants::OBJECTS_DIR).join(constants::OBJECT_VNODES_DIR)
+    // }
 
-    pub fn files_db(base_path: &Path) -> PathBuf {
-        base_path.join(constants::OXEN_HIDDEN_DIR).join(constants::OBJECTS_DIR).join(constants::OBJECT_FILES_DIR)
-    }
+    // pub fn files_db(base_path: &Path) -> PathBuf {
+    //     base_path.join(constants::OXEN_HIDDEN_DIR).join(constants::OBJECTS_DIR).join(constants::OBJECT_FILES_DIR)
+    // }
 
     // Probably don't need to do db_exists stuff - we're in 1 db now...
     // TODONOW: do we want to load the children of a dir into a hashset 
@@ -64,135 +65,87 @@ impl NewCommitDirEntryReader {
     pub fn new(
         repository: &LocalRepository, 
         commit_id: &str, 
-        dir: &Path
-    ) -> Result<NewCommitDirEntryReader, OxenError> {
-        NewCommitDirEntryReader::new_from_path(&repository.path, commit_id, dir)
+        dir: &Path,
+        object_reader: &'a ObjectDBReader,
+    ) -> Result<NewCommitDirEntryReader<'a>, OxenError> {
+        NewCommitDirEntryReader::new_from_path(&repository.path, commit_id, dir, object_reader)
     }
 
     // TODONOW: Error handling for when we can't find entries.
     pub fn new_from_path(
         base_path: &Path, 
         commit_id: &str, 
-        dir: &Path
-    ) -> Result<NewCommitDirEntryReader, OxenError> {
+        dir: &Path,
+        object_reader: &'a ObjectDBReader,
+    ) -> Result<NewCommitDirEntryReader<'a>, OxenError> {
         let db_path = NewCommitDirEntryReader::dir_hash_db(base_path, commit_id);
         log::debug!(
             "Creating new commit dir entry reader for path: {:?}",
             base_path.join(dir)
         );
-        // TODONOW: maybe not with create_if_missing here - this should probably already be getting created for this commit at commit time, but
-        // let's see what happens 
-
-        // Create the dir hashes db if it doesn't exist? 
 
         let opts = db::opts::default();
         if !NewCommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
             // log::debug!("dir hashes db not exists");
             if let Err(err) = std::fs::create_dir_all(&db_path) {
-                // log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
+                log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
             }
             // log::debug!("about to open");
             // open it then lose scope to close it
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
             // log::debug!("successfully opened");
-        } else {
-            // log::debug!("dir hashes db exists, allegedly");
-        }
+        } 
 
-        // DO the same with the dirs db  - TODONOW, this is not great 
-        let dirs_db_path = NewCommitDirEntryReader::dir_db(base_path);
-        if !dirs_db_path.join("CURRENT").exists() {
-            // log::debug!("dirs db not exists");
-            if let Err(err) = std::fs::create_dir_all(&dirs_db_path) {
-                log::error!("CommitDirEntryReader could not create dir {dirs_db_path:?}\nErr: {err:?}");
-            }
-            // log::debug!("about to open");
-            // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?;
-            // log::debug!("successfully opened");
-        } else {
-            // log::debug!("dirs db exists, allegedly");
-        }
+        // let start = std::time::Instant::now();
+        // let dirs_db_path = NewCommitDirEntryReader::dir_db(base_path);
+        // if !dirs_db_path.join("CURRENT").exists() {
+        //     // log::debug!("dirs db not exists");
+        //     if let Err(err) = std::fs::create_dir_all(&dirs_db_path) {
+        //         log::error!("CommitDirEntryReader could not create dir {dirs_db_path:?}\nErr: {err:?}");
+        //     }
+
+        //     let _db: DBWithThreadMode<MultiThreaded> =
+        //         DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?;
+        // } 
 
 
-        // TODONOW REALLY SERIOUSLY CONSOLIDATE THIS GUYS 
-        // do the same with vnodes and files dbs. 
+        // let vnodes_db_path = NewCommitDirEntryReader::vnodes_db(base_path);
+        // if !vnodes_db_path.join("CURRENT").exists() {
+        //     log::debug!("vnodes db not exists");
+        //     if let Err(err) = std::fs::create_dir_all(&vnodes_db_path) {
+        //         log::error!("CommitDirEntryReader could not create dir {vnodes_db_path:?}\nErr: {err:?}");
+        //     }
+        //     log::debug!("about to open");
+        //     // open it then lose scope to close it
+        //     let _db: DBWithThreadMode<MultiThreaded> =
+        //         DBWithThreadMode::open(&opts, dunce::simplified(&vnodes_db_path))?;
+        // }
 
-        let vnodes_db_path = NewCommitDirEntryReader::vnodes_db(base_path);
-        if !vnodes_db_path.join("CURRENT").exists() {
-            log::debug!("vnodes db not exists");
-            if let Err(err) = std::fs::create_dir_all(&vnodes_db_path) {
-                log::error!("CommitDirEntryReader could not create dir {vnodes_db_path:?}\nErr: {err:?}");
-            }
-            log::debug!("about to open");
-            // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&vnodes_db_path))?;
-            // log::debug!("successfully opened");
-        } else {
-            // log::debug!("vnodes db exists, allegedly");
-        }
+        // let files_db_path = NewCommitDirEntryReader::files_db(base_path);
+        // if !files_db_path.join("CURRENT").exists() {
+        //     log::debug!("files db not exists");
+        //     if let Err(err) = std::fs::create_dir_all(&files_db_path) {
+        //         log::error!("CommitDirEntryReader could not create dir {files_db_path:?}\nErr: {err:?}");
+        //     }
+        //     // open it then lose scope to close it
+        //     let _db: DBWithThreadMode<MultiThreaded> =
+        //         DBWithThreadMode::open(&opts, dunce::simplified(&files_db_path))?;
+        // } 
 
-        let files_db_path = NewCommitDirEntryReader::files_db(base_path);
-        if !files_db_path.join("CURRENT").exists() {
-            log::debug!("files db not exists");
-            if let Err(err) = std::fs::create_dir_all(&files_db_path) {
-                log::error!("CommitDirEntryReader could not create dir {files_db_path:?}\nErr: {err:?}");
-            }
-            log::debug!("about to open");
-            // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&files_db_path))?;
-            // log::debug!("successfully opened");
-        } else {
-            // log::debug!("files db exists, allegedly");
-        }
-
+        // let elapsed = start.elapsed();
+        // log::debug!("open-created thesse other dbs in {:?}", elapsed.as_millis());
 
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
-        let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::dir_db(base_path), false)?;
-        let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::vnodes_db(base_path), false)?;
-        let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::files_db(base_path), false)?;
+        // let time = std::time::Instant::now();
+        // let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::dir_db(base_path), false)?;
+        // let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::vnodes_db(base_path), false)?;
+        // let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::files_db(base_path), false)?;
+        // let elapsed = time.elapsed();
+        // log::debug!("opened all objects dbs in {:?}", elapsed.as_millis());
 
+        
 
-        // Same 
-        // TODONOW: buckle down functionality for opening a direntryreader when one doesn't exist. 
-        // slightly undefined, but seems like we could create a dummy node for the dir and save that off
-        // probably don't need to put a dummy entry in the dir hashes db 
-
-        // Get hash for dir 
-
-        // // Print all entries in the dir_hashes_db - each is a string 
-        // let iter = dir_hashes_db.iterator(IteratorMode::Start);
-        // for item in iter {
-        //     match item {
-        //         Ok((key, value)) => {
-        //             match str::from_utf8(&key) {
-        //                 Ok(key_str) => {
-        //                     match String::from_utf8(value.to_vec()) {
-        //                         Ok(value_str) => {
-        //                             // return full path
-        //                             log::debug!("hey dir_hashes_db key: {:?}, value: {}", key_str, value_str);
-        //                         }
-        //                         Err(_) => {
-        //                             log::error!("Could not decode value as UTF-8");
-        //                         }
-        //                     }
-        //                 }
-        //                 Err(_) => {
-        //                     log::error!("Could not decode key as UTF-8");
-        //                 }
-        //             }
-        //         }
-        //         _ => {
-        //             return Err(OxenError::basic_str(
-        //                 "Could not read iterate over db values",
-        //             ));
-        //         }
-        //     }
-        // }
         
 // 
         // log::debug!("Hey looking for dir {:?}", dir);
@@ -200,13 +153,9 @@ impl NewCommitDirEntryReader {
 
         let dir_object: TreeObject = match dir_hash {
             Some(dir_hash) => {
-                // log::debug!("Found dir hash {:?}", dir_hash);
-                // log::debug!("so here's the status of the dirs db");
-                // NewCommitDirEntryReader::print_all_entries_in_dirs_db(base_path)?;
-                path_db::get_entry(&dirs_db, dir_hash)?.unwrap()
+                object_reader.get_dir(&dir_hash)?.unwrap()
             },
             None => {
-                log::debug!("Did not find dir hash");
                 // Creating dummy dir object 
                 TreeObject::Dir {
                     children: Vec::new(),
@@ -215,9 +164,8 @@ impl NewCommitDirEntryReader {
             }
         };
 
-        // get commit by id 
 
-        log::debug!("got root hash {:?} at path {:?} for commit id {:?}", dir_object.hash().clone(), dir, commit_id);
+
 
 
         Ok(NewCommitDirEntryReader {
@@ -225,9 +173,10 @@ impl NewCommitDirEntryReader {
             dir: dir.to_path_buf(),
             base_path: base_path.to_path_buf(),
             dir_object: dir_object,
-            vnodes_db: vnodes_db,
-            files_db: files_db,
+            // vnodes_db: vnodes_db,
+            // files_db: files_db,
             commit_id: commit_id.to_string(),
+            object_reader: object_reader,
         })
     }
 
@@ -236,7 +185,7 @@ impl NewCommitDirEntryReader {
         let mut count = 0;
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
-            let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash()).unwrap().unwrap();
+            let vnode = self.object_reader.get_vnode(&vnode_child.hash()).unwrap().unwrap();
             for entry in vnode.children() {
                 match entry {
                     TreeObjectChild::File {..} => count += 1,
@@ -248,43 +197,42 @@ impl NewCommitDirEntryReader {
     }
 
 
-    pub fn print_all_entries_in_dirs_db(
-        base_path: &Path,
-    ) -> Result<(), OxenError> {
+    // pub fn print_all_entries_in_dirs_db(
+    //     base_path: &Path,
+    // ) -> Result<(), OxenError> {
 
-        let opts = db::opts::default();
-        log::debug!("looking in dirs db path {:?}", NewCommitDirEntryReader::dir_db(base_path));
-        let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::dir_db(&base_path), false)?;
-        let iter = dirs_db.iterator(IteratorMode::Start);
-        for item in iter {
-            match item {
-                Ok((key, value)) => {
-                    match str::from_utf8(&key) {
-                        Ok(key_str) => {
-                            match String::from_utf8(value.to_vec()) {
-                                Ok(value_str) => {
-                                    // return full path
-                                    log::debug!("PRINTING DIR_DB ENTRY key: {:?}, value: {}: base_path: {:?}", key_str, value_str, base_path);
-                                }
-                                Err(_) => {
-                                    log::error!("Could not decode value as UTF-8");
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            log::error!("Could not decode key as UTF-8");
-                        }
-                    }
-                }
-                _ => {
-                    return Err(OxenError::basic_str(
-                        "Could not read iterate over db values",
-                    ));
-                }
-            }
-        }
-        Ok(())
-    }
+    //     let opts = db::opts::default();
+    //     let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, NewCommitDirEntryReader::dir_db(&base_path), false)?;
+    //     let iter = dirs_db.iterator(IteratorMode::Start);
+    //     for item in iter {
+    //         match item {
+    //             Ok((key, value)) => {
+    //                 match str::from_utf8(&key) {
+    //                     Ok(key_str) => {
+    //                         match String::from_utf8(value.to_vec()) {
+    //                             Ok(value_str) => {
+    //                                 // return full path
+    //                                 log::debug!("PRINTING DIR_DB ENTRY key: {:?}, value: {}: base_path: {:?}", key_str, value_str, base_path);
+    //                             }
+    //                             Err(_) => {
+    //                                 log::error!("Could not decode value as UTF-8");
+    //                             }
+    //                         }
+    //                     }
+    //                     Err(_) => {
+    //                         log::error!("Could not decode key as UTF-8");
+    //                     }
+    //                 }
+    //             }
+    //             _ => {
+    //                 return Err(OxenError::basic_str(
+    //                     "Could not read iterate over db values",
+    //                 ));
+    //             }
+    //         }
+    //     }
+    //     Ok(())
+    // }
 
     pub fn has_file<P: AsRef<Path>>(&self, path: P) -> bool {
         let full_path = self.dir.join(path.as_ref());
@@ -306,7 +254,7 @@ impl NewCommitDirEntryReader {
         let vnode_child = vnode_child.unwrap();
         // Get the vnode object proper
         // TODONOW error handling 
-        let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash()).unwrap().unwrap();
+        let vnode = self.object_reader.get_vnode(&vnode_child.hash()).unwrap().unwrap();
 
         // Now binary search within the vnode for the appropriate file 
         let full_path = self.dir.join(path.as_ref());
@@ -354,7 +302,7 @@ impl NewCommitDirEntryReader {
         let vnode = vnode_child.unwrap();
 
         // Get parent vnode 
-        let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode.hash())?.unwrap();
+        let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
 
         // Now binary search within the vnode for the appropriate file 
         let full_path = self.dir.join(path.as_ref());
@@ -371,7 +319,7 @@ impl NewCommitDirEntryReader {
         match file.clone() {
             TreeObjectChild::File {hash, ..} => {
                 // Get file object by hash 
-                let file_object: TreeObject = path_db::get_entry(&self.files_db, hash)?.unwrap();
+                let file_object = self.object_reader.get_file(&hash)?.unwrap();
                 // Get commit entry from file object
                 let entry = file_object.to_commit_entry(file.path(), &self.commit_id); 
                 Ok(Some(entry))
@@ -384,7 +332,7 @@ impl NewCommitDirEntryReader {
         let mut files = Vec::new();
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
-            let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 match entry {
                     TreeObjectChild::File {path, ..} => files.push(path.to_owned()),
@@ -400,12 +348,12 @@ impl NewCommitDirEntryReader {
         let mut entries = Vec::new();
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
-            let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 match entry {
                     TreeObjectChild::File {path, ..} => {
                         // Get file object by hash 
-                        let file_object: TreeObject = path_db::get_entry(&self.files_db, entry.hash())?.unwrap();
+                        let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
                         // Get commit entry from file object
                         let entry = file_object.to_commit_entry(path, &self.commit_id); 
                         entries.push(entry);
@@ -421,12 +369,12 @@ impl NewCommitDirEntryReader {
         let mut entries = HashSet::new();
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
-            let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 match entry {
                     TreeObjectChild::File {path, ..} => {
                         // Get file object by hash 
-                        let file_object: TreeObject = path_db::get_entry(&self.files_db, entry.hash())?.unwrap();
+                        let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
                         // Get commit entry from file object
                         let entry = file_object.to_commit_entry(path, &self.commit_id); 
                         entries.insert(entry);
@@ -452,7 +400,7 @@ impl NewCommitDirEntryReader {
 
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
-            let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 match entry {
                     TreeObjectChild::File {path, ..} => {
@@ -461,7 +409,7 @@ impl NewCommitDirEntryReader {
                         }
                         if entry_i >= start_idx {
                             // Get file object by hash 
-                            let file_object: TreeObject = path_db::get_entry(&self.files_db, entry.hash())?.unwrap();
+                            let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
                             // Get commit entry from file object
                             let entry = file_object.to_commit_entry(path, &self.commit_id); 
                             entries.push(entry);
@@ -497,7 +445,7 @@ impl NewCommitDirEntryReader {
 
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
-            let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 match entry {
                     TreeObjectChild::File {path, ..} => {
@@ -510,7 +458,7 @@ impl NewCommitDirEntryReader {
 
                         if entry_i >= start_idx {
                             // Get file object by hash 
-                            let file_object: TreeObject = path_db::get_entry(&self.files_db, entry.hash())?.unwrap();
+                            let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
                             // Get commit entry from file object
                             let entry = file_object.to_commit_entry(path, &self.commit_id); 
                             log::debug!("adding entry to results");
