@@ -951,14 +951,18 @@ impl CommitEntryWriter {
                     let full_path = origin_path.join(path);
                     let metadata = fs::metadata(&full_path).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);    
-                    TreeObject::File {
+                    log::debug!("setting num_bytes to {:?} for file {:?} in commit with message {:?}", metadata.len(), path, self.commit.message);
+                    let file_res = TreeObject::File {
                         hash: entry.hash.clone(),
                         num_bytes: metadata.len(),
                         last_modified_seconds: mtime.unix_seconds(),
                         last_modified_nanoseconds: mtime.nanoseconds(),
-                    }
+                    };
+                    path_db::put(&self.files_db, &file_res.hash(), &file_res)?;
+                    file_res
                 }
                 StagedEntryStatus::Removed => {
+                    log::debug!("removed file {:?} in commit with message {:?}", path, self.commit.message);
                     // None of this matters because it's all getting deleted anywa 
                     TreeObject::File {
                         hash: entry.hash.clone(),
@@ -975,8 +979,7 @@ impl CommitEntryWriter {
             let file_child_with_status = TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
 
             log::debug!("and got file_child with status {:?} for path {:?} with entry {:?}", file_child_with_status, path, entry);
-
-            path_db::put(&self.files_db, &file_object.hash(), &file_object)?;
+            
             staged_entries_map
                 .entry(parent)
                 .or_default()

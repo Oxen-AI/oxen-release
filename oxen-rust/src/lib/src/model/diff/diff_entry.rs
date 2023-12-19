@@ -51,8 +51,14 @@ impl DiffEntry {
     pub fn has_changes(&self) -> bool {
         // TODO: do a deeper check than size, but this is good for MVP
         match (&self.head_entry, &self.base_entry) {
-            (Some(head), Some(base)) => head.size != base.size,
-            _ => false,
+            (Some(head), Some(base)) => {
+                log::debug!("got metadata entries for diff {:?} and {:?}", head, base);
+                head.size != base.size
+            }
+            _ => {
+                log::debug!("did not get metadata entries for diff");
+                false
+            }
         }
     }
 
