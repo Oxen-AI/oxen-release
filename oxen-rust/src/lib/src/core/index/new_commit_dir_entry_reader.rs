@@ -12,27 +12,26 @@ use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::sync::Arc;
 
 use super::{CommitEntryWriter, ObjectDBReader};
 
 /// # CommitDirEntryReader
 /// We could index files by path here for qui
-pub struct NewCommitDirEntryReader<'a> {
+pub struct NewCommitDirEntryReader {
     dir: PathBuf,
     dir_hash: String,
     dir_object: TreeObject,
     base_path: PathBuf,
-    // vnodes_db: DBWithThreadMode<MultiThreaded>,
-    // files_db: DBWithThreadMode<MultiThreaded>,
     commit_id: String,
-    object_reader: &'a ObjectDBReader, // TODONOW: Will we have pariter problems here? use a ref with lifetimes if true.
+    object_reader: Arc<ObjectDBReader>
 }
 
 // TODONOW: Is it worth indexing the vnodes up front? 
 // there will only ever be 700 or whatever of them
 
 // This was formerly for commit dir entry db, now it's just the dir hashes db
-impl<'a> NewCommitDirEntryReader<'a> {
+impl NewCommitDirEntryReader {
     pub fn dir_hash_db(base_path: &Path, commit_id: &str) -> PathBuf {
         CommitEntryWriter::commit_dir(base_path, commit_id)
             .join(constants::DIR_HASHES_DIR)
@@ -66,8 +65,8 @@ impl<'a> NewCommitDirEntryReader<'a> {
         repository: &LocalRepository, 
         commit_id: &str, 
         dir: &Path,
-        object_reader: &'a ObjectDBReader,
-    ) -> Result<NewCommitDirEntryReader<'a>, OxenError> {
+        object_reader: Arc<ObjectDBReader>,
+    ) -> Result<NewCommitDirEntryReader, OxenError> {
         NewCommitDirEntryReader::new_from_path(&repository.path, commit_id, dir, object_reader)
     }
 
@@ -76,8 +75,8 @@ impl<'a> NewCommitDirEntryReader<'a> {
         base_path: &Path, 
         commit_id: &str, 
         dir: &Path,
-        object_reader: &'a ObjectDBReader,
-    ) -> Result<NewCommitDirEntryReader<'a>, OxenError> {
+        object_reader: Arc<ObjectDBReader>,
+    ) -> Result<NewCommitDirEntryReader, OxenError> {
         let db_path = NewCommitDirEntryReader::dir_hash_db(base_path, commit_id);
         log::debug!(
             "Creating new commit dir entry reader for path: {:?}",
@@ -273,8 +272,9 @@ impl<'a> NewCommitDirEntryReader<'a> {
     }
 
     pub fn get_entry<P: AsRef<Path>>(&self, path: P) -> Result<Option<CommitEntry>, OxenError> {
+        log::debug!("checking in dir {:?} for path {:?}", self.dir, path.as_ref());
         let full_path = self.dir.join(path.as_ref());
-        // log::debug!("got the full_path {:?}, path {:?}", full_path, path.as_ref());
+        log::debug!("got_entry the full_path {:?}, path {:?}", full_path, path.as_ref());
         let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
         // log::debug!("we are looking for a vnode with path hash prefix {:?}", path_hash_prefix);
 
@@ -287,19 +287,27 @@ impl<'a> NewCommitDirEntryReader<'a> {
         // }
 
         // Binary search for the appropriate vnode 
-        let vnode_child = self.dir_object.binary_search_on_path(&PathBuf::from(path_hash_prefix))?;
+        let vnode_child = self.dir_object.binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
         
         // log::debug!("here's the vnode child... {:?}", vnode_child);
 
         // log::debug!("here are all children of our dir object {:?}", self.dir_object.children());
         // log::debug!("and our dir object specifically is {:?}", self.dir_object);
         // log::debug!("here is our dir object {:?}", self.dir_object);
+
+        log::debug!("looking for path_hash_prefix {:?}", path_hash_prefix);
+        log::debug!("path_hash_prefix of just the short path is {:?}", util::hasher::hash_path(path.as_ref())[0..2].to_string());
+        log::debug!("children of dir object {:?}", self.dir_object.children());
         
         if vnode_child.is_none() {
+            log::debug!("could not find vnode child for path {:?}", path.as_ref());
             return Ok(None);
         }
 
+
         let vnode = vnode_child.unwrap();
+
+        log::debug!("here is our vnode {:?}", vnode);
 
         // Get parent vnode 
         let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
@@ -311,6 +319,7 @@ impl<'a> NewCommitDirEntryReader<'a> {
         let file = vnode.binary_search_on_path(&full_path)?;
 
         if file.is_none() {
+            log::debug!("could not find file for path {:?}", path.as_ref());
             return Ok(None);
         }
 
@@ -324,7 +333,10 @@ impl<'a> NewCommitDirEntryReader<'a> {
                 let entry = file_object.to_commit_entry(file.path(), &self.commit_id); 
                 Ok(Some(entry))
             },
-            _ => Ok(None),
+            _ => {
+                log::debug!("wrong type of file node for path {:?}", path.as_ref());
+                Ok(None)
+            },
         }
     }
     

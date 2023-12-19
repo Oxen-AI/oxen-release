@@ -40,6 +40,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
+use std::sync::Arc;
 
 use super::StagedDirEntryReader;
 
@@ -255,9 +256,20 @@ impl Stager {
         // TODONOw possibly endogenize this to the stager 
         let object_reader = ObjectDBReader::new(&self.repository)?;
 
+        let committer = CommitReader::new(&self.repository)?;
+        let commit = committer.head_commit()?;
+
+        let entry_reader = CommitEntryReader::new(
+            &self.repository,
+            &commit,
+        )?;
+
+        let bar = oxen_progress_bar(candidate_dirs.len() as u64, ProgressBarType::Counter);
+
         for dir in candidate_dirs.iter() {
             log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
-            self.process_dir(dir, &mut staged_data, &ignore, &object_reader)?;
+            self.process_dir(dir, &mut staged_data, &ignore, &entry_reader, object_reader.clone())?;
+            bar.inc(1);
         }
 
         // Make pairs from Added + Removed stage entries with same hash, store in staged_data.moved_entries
@@ -324,21 +336,25 @@ impl Stager {
         full_dir: &Path,
         staged_data: &mut StagedData,
         ignore: &Option<Gitignore>,
-        object_reader: &ObjectDBReader,
+        commit_reader: &CommitEntryReader,
+        object_reader: Arc<ObjectDBReader>,
     ) -> Result<(), OxenError> {
         // log::debug!("process_dir {:?}", full_dir);
+        log::debug!("calling process_dir on {:?}", full_dir);
         // Only check at level of this dir, no need to deep dive recursively
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
-        let root_commit_dir_reader = CommitEntryReader::new(&self.repository, &commit)?;
+        let start = std::time::Instant::now();
+        let elapsed = start.elapsed();
+        log::debug!("process_dir CommitEntryReader::new() took {:?}", elapsed);
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
         let staged_dir_db: StagedDirEntryDB<SingleThreaded> =
             StagedDirEntryDB::new(&self.repository, &relative_dir)?;
 
         // Get current timestamp at execution 
         let start = std::time::Instant::now();
-        let root_commit_entry_reader =
-            CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, &object_reader)?;
+        let root_commit_dir_reader =
+            CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
         let elapsed = start.elapsed();
 
         // get seconds and millis 
@@ -366,7 +382,7 @@ impl Stager {
         }
 
         // and files that were in commit as candidates
-        for entry in root_commit_entry_reader.list_entries()? {
+        for entry in root_commit_dir_reader.list_entries()? {
             // log::debug!("adding candidate from commit {:?}", entry.path);
             if !self.should_ignore_path(ignore, &entry.path) {
                 candidate_files.insert(entry.path);
@@ -386,18 +402,18 @@ impl Stager {
 
             let fullpath = self.repository.path.join(relative);
 
-            // log::debug!(
-            //     "process_dir checking is_dir? {} {:?}",
-            //     fullpath.is_dir(),
-            //     fullpath
-            // );
+            log::debug!(
+                "process_dir checking is_dir? {} {:?}",
+                fullpath.is_dir(),
+                fullpath
+            );
 
             if fullpath.is_dir() {
                 if !self.has_staged_dir(relative)
                     && !staged_data.staged_dirs.contains_key(relative)
-                    && !root_commit_dir_reader.has_dir(relative)
+                    && !commit_reader.has_dir(relative)
                 {
-                    // log::debug!("process_dir adding untracked dir {:?}", relative);
+                    log::debug!("process_dir adding untracked dir {:?}", relative);
                     let count = util::fs::count_items_in_dir(&fullpath);
                     staged_data
                         .untracked_dirs
@@ -409,9 +425,9 @@ impl Stager {
                     &self.repository.path,
                     relative,
                     &staged_dir_db,
-                    &root_commit_entry_reader,
+                    &root_commit_dir_reader,
                 );
-                // log::debug!("process_dir got status {:?} {:?}", relative, file_status);
+                log::debug!("process_dir got status {:?} {:?}", relative, file_status);
                 if let Some(file_type) = file_status {
                     match file_type {
                         FileStatus::Added => {
@@ -453,7 +469,7 @@ impl Stager {
             return Some(FileStatus::Added);
         } else {
             // Not in the staged DB
-            // log::debug!("get_file_status check if commit db? {:?}", file_name);
+            log::debug!("get_file_status check if commit db? {:?}", file_name);
             // check if it is in the HEAD commit to see if it is modified or removed
             if let Some(file_name) = path.file_name() {
                 if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(file_name) {
@@ -820,7 +836,7 @@ impl Stager {
                 &self.repository,
                 &entry_reader.commit_id,
                 parent,
-                &object_reader,
+                object_reader,
             ) {
                 Ok(reader) => reader,
                 Err(err) => {
@@ -969,7 +985,7 @@ impl Stager {
                 &self.repository,
                 &entry_reader.commit_id,
                 &relative_parent,
-                &object_reader
+                object_reader
             )?;
 
             self.add_staged_entry_in_dir_db(path, &entry_reader, &staged_db)
@@ -1921,7 +1937,6 @@ mod tests {
             let stager = Stager::new(&repo)?;
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
-            log::debug!("head commit according to this loser is {:?}", commit);
             let entry_reader = CommitEntryReader::new(&repo, &commit)?;
 
             let repo_path = &stager.repository.path;

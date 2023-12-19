@@ -1428,6 +1428,11 @@ mod tests {
                 pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
 
             assert_eq!(commit_unsynced_commits.len(), 1);
+
+            for entry in commit_unsynced_commits[0].entries.clone().into_iter() {
+                log::debug!("Here is an unsynced entry we have {:?}", entry)
+            }
+
             assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
 
             command::push(&local_repo).await?;

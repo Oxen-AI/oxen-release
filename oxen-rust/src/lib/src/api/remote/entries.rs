@@ -120,7 +120,7 @@ pub async fn download_dir(
     let local_repo = LocalRepository::from_dir(&repo_dir)?;
     let object_reader = ObjectDBReader::new(&local_repo)?;
 
-    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, &object_reader)?;
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
     log::debug!("initialized successfully");
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;

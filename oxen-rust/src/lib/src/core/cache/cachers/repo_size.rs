@@ -60,7 +60,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         // log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
 
         // Start with the size of all the entries in this dir
-        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, &object_reader).unwrap();
+        let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone()).unwrap();
         let entries = dir_reader.list_entries().unwrap();
         let mut total_size = api::local::entries::compute_entries_size(&entries).unwrap();
 
@@ -107,7 +107,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         for child in children {
             // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
 
-            let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &child, &object_reader).unwrap();
+            let dir_reader = CommitDirEntryReader::new(repo, &commit.id, &child, object_reader.clone()).unwrap();
 
             let entries = dir_reader.list_entries().unwrap();
             let size = api::local::entries::compute_entries_size(&entries).unwrap();

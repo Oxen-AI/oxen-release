@@ -175,7 +175,7 @@ impl CommitWriter {
         let entries = mod_stager::list_mod_entries(&self.repository, branch, user_id)?;
         let object_reader = ObjectDBReader::new(&self.repository)?;
         let commit_entry_reader =
-            CommitEntryReader::new_from_commit_id(&self.repository, &branch.commit_id, &object_reader)?;
+            CommitEntryReader::new_from_commit_id(&self.repository, &branch.commit_id, object_reader)?;
         // TODO: this is not the most efficient, but easiest way right now
         //       might want to make helper for dir entry reader
         let entries: Vec<CommitEntry> = entries
@@ -663,7 +663,7 @@ impl CommitWriter {
         let object_reader = ObjectDBReader::new(&self.repository)?;
 
         for (dir, paths) in dirs_to_paths.iter() {
-            let entry_reader = CommitDirEntryReader::new(&self.repository, commit_id, dir, &object_reader)?;
+            let entry_reader = CommitDirEntryReader::new(&self.repository, commit_id, dir, object_reader.clone())?;
             for path in paths.iter() {
                 let full_path = self.repository.path.join(path);
                 log::debug!(

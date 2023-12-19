@@ -80,7 +80,7 @@ pub fn get_version_file_from_commit(
 
     // Instantiate CommitDirEntryReader to fetch entry
     let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent, &object_reader)?;
+    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent, object_reader)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
         None => return Err(OxenError::file_has_no_name(path)),
