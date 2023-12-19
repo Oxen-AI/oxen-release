@@ -72,11 +72,15 @@ pub fn meta_entry_from_dir(
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
     let total_size = match util::fs::read_from_path(total_size_path) {
-        Ok(total_size_str) => total_size_str
+        Ok(total_size_str) => {
+            log::debug!("got total size str {} for dir {:?}", total_size_str, path);
+            total_size_str
             .parse::<u64>()
-            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
+            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?
+        } 
         Err(_) => {
             // cache failed, go compute it
+            log::debug!("cache miss, computing dir size");
             compute_dir_size(repo, commit, path)?
         }
     };
@@ -145,12 +149,15 @@ fn compute_dir_size(
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
+    log::debug!("got committed dirs for path {:?} {:?}", path, dirs);
     let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
             let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
+            log::debug!("about to iterate over path {:?} for dir {:?}", path, dir);
             for entry in entry_reader.list_entries()? {
+                log::debug!("got committed entry {:?} for path {:?} in commit with message {:?}", entry, path, commit.message);
                 total_size += entry.num_bytes;
             }
         }

@@ -108,6 +108,7 @@ pub fn init_local_repo_staging_dir(
         constants::HISTORY_DIR,
         constants::REFS_DIR,
         constants::HEAD_FILE,
+        constants::OBJECTS_DIR
     ];
 
     for dir in dirs_to_copy {
@@ -146,9 +147,11 @@ pub fn stage_file(
     let stager = Stager::new(branch_repo)?;
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+    log::debug!("about to init cer");
     let reader = CommitEntryReader::new(repo, &commit)?;
+    log::debug!("init'd cer");
     stager.add_file(filepath.as_ref(), &reader)?;
-
+    log::debug!("added file");
     log::debug!("remote stager after add...");
 
     let relative_path = util::fs::path_relative_to_dir(filepath, &staging_dir)?;
