@@ -718,7 +718,7 @@ impl CommitEntryWriter {
         let object_reader = ObjectDBReader::new(&self.repository)?;
         for dir in dirs {
             let dir_entry_reader =
-                CommitDirEntryReader::new(&self.repository, &self.commit.id, dir, &object_reader)?;
+                CommitDirEntryReader::new(&self.repository, &self.commit.id, dir, object_reader.clone())?;
 
             // Get all file children
             let children_entries = dir_entry_reader.list_entries()?;
@@ -941,7 +941,9 @@ impl CommitEntryWriter {
             HashMap::new();
 
         
+        log::debug!("here are our staged files {:?}", status.staged_files);
         for (path, entry) in status.staged_files.iter() {
+            log::debug!("processing staged file path {:?} with entry {:?}", path, entry);
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
 
             let file_object = match entry.status {
@@ -967,8 +969,12 @@ impl CommitEntryWriter {
             }
             };
 
+            log::debug!("got file object {:?} for path {:?} with entry {:?}", file_object, path, entry);
+
 
             let file_child_with_status = TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
+
+            log::debug!("and got file_child with status {:?} for path {:?} with entry {:?}", file_child_with_status, path, entry);
 
             path_db::put(&self.files_db, &file_object.hash(), &file_object)?;
             staged_entries_map
@@ -1266,9 +1272,14 @@ impl CommitEntryWriter {
                     // TODONOW :this in one step plz
                     let children = affected_vnodes.get(&vnode).unwrap().clone();
 
+                    log::debug!("got these children to insert into new vnode {:?}", children);
+
                     // Map these children to just get the child property of each
                     let children: Vec<TreeObjectChild> =
                         children.iter().map(|child| child.child.clone()).collect();
+
+                    log::debug!("got these children after mapping {:?}", children);
+                    
 
                     let children_hash = util::hasher::compute_children_hash(&children);
                     let new_vnode = TreeObject::VNode {
@@ -1281,17 +1292,28 @@ impl CommitEntryWriter {
                         path: PathBuf::from(vnode),
                         hash: new_vnode.hash().to_string(),
                     };
-
+                    
                     path_db::put(&self.vnodes_db, &new_vnode.hash(), &new_vnode)?;
+                    log::debug!("about to insert vnode {:?} into dir_vnode_children for commit with message {:?}", new_vnode, self.commit.message);
                     dir_vnode_children.push(new_vnode_child);
                 }
             }
+
+
 
             // Set the dir node's children
 
             // lexically sort vnode children 
             log::debug!("dir_vnode_children pre sort {:?}", dir_vnode_children);
             dir_vnode_children.sort_by(|a, b| a.path().cmp(b.path()));
+
+
+            for dir_vnode_child in &dir_vnode_children {
+                // get the node 
+                let node: TreeObject = path_db::get_entry(&self.vnodes_db, &dir_vnode_child.hash())?.unwrap();
+                log::debug!("confirmed insert of vnode {:?}", node)
+            }
+
             log::debug!("dir_vnode_children post sort {:?}", dir_vnode_children);
             let dir_hash = util::hasher::compute_children_hash(&dir_vnode_children);
             prev_dir_object.set_children(dir_vnode_children.clone());
@@ -1327,7 +1349,7 @@ impl CommitEntryWriter {
         log::debug!("in write file objects from dir for dir {:?}", dir);
         // TODONOW take this out 
         let object_reader = ObjectDBReader::new(&self.repository)?;
-        let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir, &object_reader)?;
+        let dir_entry_reader = CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir, object_reader)?;
         
         // Get all file children
         let files = dir_entry_reader.list_entries()?;
@@ -1775,6 +1797,7 @@ impl CommitEntryWriter {
 mod tests {
     use crate::command;
     use crate::constants::SCHEMAS_TREE_PREFIX;
+    use crate::core::index::CommitEntryReader;
     use crate::core::index::TreeDBReader;
     use crate::error::OxenError;
     use crate::test;
@@ -1898,11 +1921,47 @@ mod tests {
     //     .await
     // }
 
-    // #[tokio::test]
-    // async fn test_merkle_tree_created_from_new() -> Result<(), OxenError> {
-    //     test::run_empty_local_repo_test_async(|local_repo| async move {
 
-    //         Ok(())
-    //     }).await
-    // }
+    #[tokio::test]
+    async fn test_merkle_two_files_same_hash() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let p1 = "hi.txt";
+            let p2 = "bye.txt";
+            let path_1 = local_repo.path.join(&p1);
+            let path_2 = local_repo.path.join(&p2);
+
+            let common_contents = "the same file";
+
+
+            test::write_txt_file_to_path(&path_1, common_contents)?;
+            test::write_txt_file_to_path(&path_2, common_contents)?;
+
+
+            command::add(&local_repo, &path_1)?;
+            command::add(&local_repo, &path_2)?;
+
+            let status = command::status(&local_repo)?;
+
+            log::debug!("staged files here are {:?}", status.staged_files);
+
+            assert_eq!(status.staged_files.len(), 2);
+
+            assert!(status.staged_files.contains_key(&PathBuf::from(p1)));
+            assert!(status.staged_files.contains_key(&PathBuf::from(p2)));
+            
+            let commit = command::commit(&local_repo, "add two files")?;
+
+            let commit_entry_reader = CommitEntryReader::new(&local_repo, &commit)?;
+
+
+            // List all the files 
+            let files = commit_entry_reader.list_entries()?;
+
+            assert!(commit_entry_reader.has_file(&PathBuf::from(p1)));
+            assert!(commit_entry_reader.has_file(&PathBuf::from(p2)));
+
+            Ok(())
+        })
+        .await
+    }
 }

@@ -60,7 +60,7 @@ fn restore_dir(
     let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         if dir.starts_with(path) {
-            let reader = CommitDirEntryReader::new(repo, &commit.id, &dir, &object_reader)?;
+            let reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
             let entries = reader.list_entries()?;
             let msg = format!("Restoring Directory: {:?}", dir);
             let bar = util::progress_bar::oxen_progress_bar_with_msg(entries.len() as u64, &msg);

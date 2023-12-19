@@ -56,13 +56,18 @@ pub fn compute_subtree_hash(children: &Vec<TreeChild>) -> String {
     format!("{val:x}")
 }
 
-// Assuming lexical sort
+// Need to hash on both path and hash - otherwise, vnode with same content under two different path hashes 
+// (and many other examples) would overwrite node in objects dir since is hash-indexed
 pub fn compute_children_hash(children: &Vec<TreeObjectChild>) -> String {
     let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
     for child in children {
         let hash = child.hash();
-        let input = hash.as_bytes();
-        subtree_hasher.update(input);
+        let path = child.path().to_str().unwrap();
+        let hash_input = hash.as_bytes();
+        let path_input = path.as_bytes();
+        subtree_hasher.update(hash_input);
+        subtree_hasher.update(path_input);
+
     }
     let val = subtree_hasher.digest();
     format!("{val:x}")

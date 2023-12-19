@@ -25,6 +25,7 @@ use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use super::{CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, TreeDBReader};
 
@@ -78,10 +79,10 @@ impl ObjectDBReader {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIR_HASHES_DIR)
     }
 
-    // TODONOW: probably make this commmitless
+    // TODONOW rename this as like new_arc or new_shared or something
     pub fn new(
-        repository: &LocalRepository,
-    ) -> Result<ObjectDBReader, OxenError> {
+        repository: &LocalRepository
+    ) -> Result<Arc<ObjectDBReader>, OxenError> {
         let files_db_path = ObjectDBReader::files_db_dir(&repository);
         let schemas_db_path = ObjectDBReader::schemas_db_dir(&repository);
         let dirs_db_path = ObjectDBReader::dirs_db_dir(&repository);
@@ -100,7 +101,7 @@ impl ObjectDBReader {
 
         let opts = db::opts::default();
 
-        Ok(ObjectDBReader {
+        Ok(Arc::new(ObjectDBReader {
             repository: repository.clone(),
             files_db: DBWithThreadMode::open_for_read_only(
                 &opts,
@@ -122,8 +123,56 @@ impl ObjectDBReader {
                 dunce::simplified(&vnodes_db_path),
                 false,
             )?,
-        })
+        }))
     }
+
+    // pub fn new(
+    //     repository: &LocalRepository,
+    // ) -> Result<ObjectDBReader, OxenError> {
+    //     let files_db_path = ObjectDBReader::files_db_dir(&repository);
+    //     let schemas_db_path = ObjectDBReader::schemas_db_dir(&repository);
+    //     let dirs_db_path = ObjectDBReader::dirs_db_dir(&repository);
+    //     let vnodes_db_path = ObjectDBReader::vnodes_db_dir(&repository);
+
+    //     for path in &[
+    //         &files_db_path,
+    //         &schemas_db_path,
+    //         &dirs_db_path,
+    //         &vnodes_db_path,
+    //     ] {
+    //         if !path.exists() {
+    //             util::fs::create_dir_all(&path)?;
+    //         }
+    //     }
+
+    //     let opts = db::opts::default();
+
+    //     Ok(ObjectDBReader {
+    //         repository: repository.clone(),
+    //         files_db: DBWithThreadMode::open_for_read_only(
+    //             &opts,
+    //             dunce::simplified(&files_db_path),
+    //             false,
+    //         )?,
+    //         schemas_db: DBWithThreadMode::open_for_read_only(
+    //             &opts,
+    //             dunce::simplified(&schemas_db_path),
+    //             false,
+    //         )?,
+    //         dirs_db: DBWithThreadMode::open_for_read_only(
+    //             &opts,
+    //             dunce::simplified(&dirs_db_path),
+    //             false,
+    //         )?,
+    //         vnodes_db: DBWithThreadMode::open_for_read_only(
+    //             &opts,
+    //             dunce::simplified(&vnodes_db_path),
+    //             false,
+    //         )?,
+    //     })
+    // }
+
+    
     pub fn get_node_from_child(
         &self,
         child: &TreeObjectChild,

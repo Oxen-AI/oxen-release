@@ -774,7 +774,7 @@ impl EntryIndexer {
 
 
                 let commit_entry_reader =
-                    CommitDirEntryReader::new(&repository, &commit.id, &parent, &object_reader).unwrap();
+                    CommitDirEntryReader::new(&repository, &commit.id, &parent, object_reader.clone()).unwrap();
 
                 dir_entry_results
                     .par_iter_mut()
