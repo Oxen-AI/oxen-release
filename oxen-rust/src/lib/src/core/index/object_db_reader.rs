@@ -32,7 +32,6 @@ use super::{CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, TreeDBRe
 
 // TODONOW: anyway we can merge this and ObjectsDbReader
 pub struct ObjectDBReader {
-    repository: LocalRepository,
     files_db: DBWithThreadMode<MultiThreaded>,
     schemas_db: DBWithThreadMode<MultiThreaded>,
     dirs_db: DBWithThreadMode<MultiThreaded>,
@@ -45,32 +44,32 @@ impl ObjectDBReader {
     }
 
     // TODONOW: These should probably be moved somewhere else
-    pub fn files_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
+    pub fn files_db_dir(path: PathBuf) -> PathBuf {
+        util::fs::oxen_hidden_dir(&path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_FILES_DIR)
     }
 
-    pub fn schemas_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
+    pub fn schemas_db_dir(path: PathBuf) -> PathBuf {
+        util::fs::oxen_hidden_dir(&path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_SCHEMAS_DIR)
     }
 
-    pub fn dirs_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
+    pub fn dirs_db_dir(path: PathBuf) -> PathBuf {
+        util::fs::oxen_hidden_dir(&path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_DIRS_DIR)
     }
 
-    pub fn vnodes_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
+    pub fn vnodes_db_dir(path: PathBuf) -> PathBuf {
+        util::fs::oxen_hidden_dir(&path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_VNODES_DIR)
     }
 
-    pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
+    pub fn temp_commit_hashes_db_dir(path: PathBuf) -> PathBuf {
+        util::fs::oxen_hidden_dir(&path)
             .join(constants::OBJECTS_DIR)
             .join("commit-hashes")
     }
@@ -80,13 +79,15 @@ impl ObjectDBReader {
     }
 
     // TODONOW rename this as like new_arc or new_shared or something
-    pub fn new(
-        repository: &LocalRepository
+
+    pub fn new_from_path(
+        path: PathBuf
     ) -> Result<Arc<ObjectDBReader>, OxenError> {
-        let files_db_path = ObjectDBReader::files_db_dir(&repository);
-        let schemas_db_path = ObjectDBReader::schemas_db_dir(&repository);
-        let dirs_db_path = ObjectDBReader::dirs_db_dir(&repository);
-        let vnodes_db_path = ObjectDBReader::vnodes_db_dir(&repository);
+
+        let files_db_path = ObjectDBReader::files_db_dir(path.clone());
+        let schemas_db_path = ObjectDBReader::schemas_db_dir(path.clone());
+        let dirs_db_path = ObjectDBReader::dirs_db_dir(path.clone());
+        let vnodes_db_path = ObjectDBReader::vnodes_db_dir(path.clone());
 
         for path in &[
             &files_db_path,
@@ -102,7 +103,6 @@ impl ObjectDBReader {
         let opts = db::opts::default();
 
         Ok(Arc::new(ObjectDBReader {
-            repository: repository.clone(),
             files_db: DBWithThreadMode::open_for_read_only(
                 &opts,
                 dunce::simplified(&files_db_path),
@@ -124,6 +124,13 @@ impl ObjectDBReader {
                 false,
             )?,
         }))
+
+    }
+
+    pub fn new(
+        repo: &LocalRepository
+    ) -> Result<Arc<ObjectDBReader>, OxenError> {
+        ObjectDBReader::new_from_path(repo.path.clone())
     }
 
     // pub fn new(

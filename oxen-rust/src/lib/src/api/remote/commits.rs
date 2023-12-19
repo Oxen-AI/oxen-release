@@ -508,9 +508,8 @@ pub async fn download_commit_entries_db_to_repo(
 
 // TODONOW FIX! THIS!
 pub async fn download_objects_db_to_path(
-    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository, 
-    dst: impl AsRef<Path>,
+    path: impl AsRef<Path>,
 ) ->  Result<PathBuf, OxenError> {
     log::debug!("in the downloading objects db fn in remote commits");
     let uri = format!("/objects_db");
@@ -523,13 +522,13 @@ pub async fn download_objects_db_to_path(
     match client.get(url).send().await {
         Ok(res) => {
             // TODO: make sure we're not accidentally nesting this
-            let path = util::fs::oxen_hidden_dir(&local_repo.path);
+            let path = util::fs::oxen_hidden_dir(path);
             let reader = res
                 .bytes_stream()
                 .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
                 .into_async_read();
 
-                let dst = dst.as_ref();
+                let dst: PathBuf = path.clone();
             let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
             let archive = Archive::new(decoder);
 
@@ -564,7 +563,7 @@ pub async fn download_objects_db_to_repo(
 ) -> Result<(), OxenError> {
     let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
     log::debug!("new path is {:?}", tmp_path);
-    let new_path = download_objects_db_to_path(local_repo, remote_repo, tmp_path).await?;
+    let new_path = download_objects_db_to_path(remote_repo, tmp_path).await?;
     log::debug!("download_objects_db_to_repo downloaded db to {:?}", new_path);
     let opts = db::opts::default();
 

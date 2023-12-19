@@ -117,14 +117,21 @@ pub async fn download_dir(
 
     // TODONOW UGH 
     // Get the local repo from this base path 
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let object_reader = ObjectDBReader::new(&local_repo)?;
+    // let local_repo = LocalRepository::from_dir(&repo_dir)?;
+    api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir)
+    .await?;
+
+    let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
+    log::debug!("successfully initialized object_reader at path {:?}", &repo_dir);
 
     let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
     log::debug!("initialized successfully");
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
     log::debug!("and here's the entries {:?}", entries);
+
+
+    // TODONOW: ADD COMMITS TO THIS
 
     // Pull all the entries
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
@@ -672,7 +679,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_download_dir_different_dir() -> Result<(), OxenError> {
+    async fn test_download_different_dir() -> Result<(), OxenError> {
         test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
             let remote_path = Path::new("annotations");
             let local_path = local_repo.path.join("data");
