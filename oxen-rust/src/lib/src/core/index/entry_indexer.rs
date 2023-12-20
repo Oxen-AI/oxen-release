@@ -106,6 +106,9 @@ impl EntryIndexer {
 
         // TODO Do we add a flag for if this pull is a merge somehow...?
         // If the branches have diverged, we need to merge the commit into the base
+
+        log::debug!("before checking merge commit,  commit is {:#?}", commit);
+
         if let Some(ref head_commit) = head_commit {
             if head_commit.id != commit.id {
                 let merger = Merger::new(&self.repository)?;
@@ -114,6 +117,8 @@ impl EntryIndexer {
                 }
             }
         }
+
+        log::debug!("after checking merge commit, commit is {:#?}", commit);
 
         // Mark the new commit (merged or pulled) as synced
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
@@ -545,6 +550,7 @@ impl EntryIndexer {
         }
         Ok(entries[0..limit].to_vec())
     }
+
 
 
     pub async fn pull_tree_objects_for_commits(
