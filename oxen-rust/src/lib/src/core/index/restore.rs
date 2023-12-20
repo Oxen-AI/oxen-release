@@ -108,7 +108,7 @@ pub fn restore_file_with_commit_writer(
     let working_path = repo.path.join(path);
     let metadata = util::fs::metadata(working_path).unwrap();
     let mtime = FileTime::from_last_modification_time(&metadata);
-    committer.set_file_timestamps(entry, &mtime).unwrap();
+    // committer.set_file_timestamps(entry, &mtime).unwrap();
 
     Ok(())
 }
@@ -125,7 +125,26 @@ fn restore_regular(
         util::fs::create_dir_all(parent)?;
     }
 
+    // list all filepaths in `parent` 
+    let mut paths = std::fs::read_dir(parent)?
+        .map(|res| res.map(|e| e.path()))
+        .collect::<Result<Vec<_>, std::io::Error>>()?;
+
+
     log::debug!("Restore file: {:?} from {:?}", entry.path, version_path);
-    util::fs::copy(version_path, working_path)?;
+    log::debug!("putting it to working path {:?}", working_path);
+
+    // Check if working path exists 
+    log::debug!("before copy, working_path exists? {:?}", working_path.exists());
+
+    util::fs::copy(version_path, working_path.clone())?;
+
+    let mut paths = std::fs::read_dir(parent)?
+    .map(|res| res.map(|e| e.path()))
+    .collect::<Result<Vec<_>, std::io::Error>>()?;
+
+
+
+    log::debug!("after copy, working_path exists? {:?}", working_path.exists());
     Ok(())
 }

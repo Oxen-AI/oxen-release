@@ -7,7 +7,7 @@ use crate::core::db::tree_db::{
     TreeChild, TreeNode, TreeObject, TreeObjectChild, TreeObjectChildWithStatus,
 };
 use crate::core::db::{kv_db, path_db};
-use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
+use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter, Merger, CommitReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff;
 use crate::model::schema::staged_schema::StagedSchemaStatus;
@@ -365,6 +365,7 @@ impl CommitEntryWriter {
 
 
     fn new_construct_commit_merkle_tree(&self, staged_data: &StagedData, origin_path: &Path) -> Result<(), OxenError> {
+        log::debug!("here's our status {:#?} for the commit with message {:?} and parent ids {:?}", staged_data, self.commit.message, self.commit.parent_ids);
         if self.commit.parent_ids.len() == 1 {
             log::debug!("one parent, creating merkle tree from parent");
             log::debug!("looking for parent id {:?}", self.commit.parent_ids[0]);
@@ -387,8 +388,17 @@ impl CommitEntryWriter {
             log::debug!("making adapted tree anyway on parent hash");
             self.new_construct_merkle_tree_from_parent(staged_data, origin_path)?;
 
-        } else {
+        } else if self.commit.parent_ids.len() == 0 { // TODONOW clean this up into a match
+            log::debug!("no parents, creating merkle tree from new");
             self.new_construct_merkle_tree_new(origin_path)?;
+        } else {
+            log::debug!("multiple parents, creating merkle tree via three-way merge");
+            log::debug!("staged data for the merge commit is {:#?}", staged_data);
+            // TODONOW: will we ever need to utilize stageddata in a merge commit? i don't think so, 
+            // it's only combining previous parents' entries, not staging new ones.
+            // self.new_construct_merkle_tree_merge(origin_path)?;
+            // self.new_construct_merkle_tree_new(origin_path)?;
+            self.new_construct_merkle_tree_from_parent(staged_data, origin_path)?;
         }
         // Print tree db
         log::debug!("\nPrinting new tree db\n");
@@ -526,6 +536,147 @@ impl CommitEntryWriter {
         self.create_tree_nodes_from_dirs(&mut dir_paths, dir_map)
     }
 
+    // pub fn new_construct_merkle_tree_merge(
+    //     &self, 
+    //     origin_path: &Path
+    // ) -> Result<(), OxenError> {
+    //     let commit = &self.commit;
+    //     let base_id = &commit.parent_ids[0];
+    //     let merge_id = &commit.parent_ids[1];
+    //     // TODONOW: factor out merger, this is inconvenient 
+    //     let merger = Merger::new(&self.repository)?;
+
+    //     let commit_reader = CommitReader::new(&self.repository)?;
+
+    //     let base = api::local::commits::get_by_id(&self.repository, &base_id)?.unwrap();
+    //     let merge = api::local::commits::get_by_id(&self.repository, &merge_id)?.unwrap();
+
+    //     let lca = merger.lowest_common_ancestor_from_commits(&commit_reader, &base, &merge)?;
+
+    //     log::debug!("new_construct_merkle_tree_merge got base commit {:#?} and merge commit {:#?}", base, merge);
+
+    //     // TODONOW: What's up with the dir_db here 
+    //     let base_dirs = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
+    //     let merge_dirs = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
+
+    //     log::debug!("base_dirs: {:?}", base_dirs.len());
+    //     log::debug!("merge_dirs: {:?}", merge_dirs.len());
+
+
+    //     let mut all_dirs: Vec<PathBuf> = Vec::new();
+    //     all_dirs.extend(base_dirs);
+    //     all_dirs.extend(merge_dirs);
+
+    //     // sort the paths lexically by descending component count 
+    //     all_dirs.sort_by(|a, b| {
+    //         let a_count = a.components().count();
+    //         let b_count = b.components().count();
+    //         b_count.cmp(&a_count)
+    //     });
+        
+    //     // build a map of dirs to their children 
+    //     let mut dir_map: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+    //     for dir in &all_dirs {
+    //         let parent = dir.parent().unwrap_or(Path::new("")).to_path_buf();
+    //         dir_map.entry(dir.to_path_buf()).or_default();
+    //         if &parent != dir {
+    //             dir_map.entry(parent).or_default().push(dir.to_path_buf());
+    //         }
+    //     }
+
+    //     for dir in all_dirs {
+    //         self.process_merge_commit_dir(
+    //             &dir,
+    //             &dir_map,
+    //         )?
+    //     }
+
+
+    //     Ok(())
+
+    // }
+
+    // fn process_merge_commit_dir(
+    //     &self, 
+    //     dir: &PathBuf,
+    //     dir_map: &HashMap<PathBuf, Vec<PathBuf>>,
+    //     base: &Commit,
+    //     merge: &Commit,
+    //     lca: &Commit,
+    // ) -> Result<(), OxenError> {
+
+    //     let base_dir_hashes_dir = CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &base.id);
+    //     let merge_dir_hashes_dir = CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &merge.id);
+    //     let lca_dir_hashes_dir = CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &lca.id);
+
+    //     let opts = db::opts::default();
+    //     let base_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&base_dir_hashes_dir), false)?;
+    //     let merge_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&merge_dir_hashes_dir), false)?;   
+    //     let lca_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&lca_dir_hashes_dir), false)?;
+
+    //     let base_hash: Option<String> = path_db::get_entry(&base_hashes_db, dir)?;
+    //     let merge_hash: Option<String> = path_db::get_entry(&merge_hashes_db, dir)?;
+    //     let lca_hash: Option<String> = path_db::get_entry(&lca_hashes_db, dir)?;
+
+    //     // TODONOW: these conditions can be collapsed if we're treating merge and base symmetically 
+    //     match (lca_hash, base_hash, merge_hash) {
+    //         (Some(lca_hash), Some(base_hash), Some(merge_hash)) => {
+    //             self.handle_merge_commit_all_dirs_exist(dir, dir_map, base_hash, merge_hash, lca_hash)?;
+    //         },
+    //         (None, Some(base_hash), Some(merge_hash)) => {
+    //             self.handle_merge_commit_both_dirs_new(dir, dir_map, base_hash, merge_hash)?;
+    //         },
+    //         (Some(lca_hash), Some(head_hash), None) | (Some(lca_hash), None, Some(head_hash)) => {
+    //             // If lca_hash == head_hash, dir is removed. do nothing.
+    //             if lca_hash != head_hash {
+    //                 // This should not be possible, flagging for now - this is a merge conflict 
+    //                 panic!("Merge conflict between a removed directory and a modified directory")
+    //             }
+                
+    //         },
+    //         (None, Some(head_hash), None) | (None, None, Some(head_hash)) => {
+    //             // Put that dir into the hashes db unchanged 
+    //             path_db::put(&self.dir_hashes_db, dir, &head_hash)?;
+    //         },
+    //         (Some(lca_hash), None, None) => {
+    //             // Do nothing - we don't want to include this directory in the tree.
+    //             log::debug!("found a directory removed in both commits, skipping.")
+    //         },
+    //         (None, None, None) => {
+    //             panic!("Looking up a dir that doesn't exist in any of the lca, base, or merge commits.");
+    //         }
+    //     }
+
+    //     Ok(())
+    // }
+
+    
+
+    // TODONOW: check this logic
+    fn handle_merge_commit_all_dirs_exist(
+        &self,
+        dir: &PathBuf,
+        dir_map: &HashMap<PathBuf, Vec<PathBuf>>,
+        base_hash: String, 
+        merge_hash: String,
+        lca_hash: String,
+    ) -> Result<(), OxenError> {
+        if base_hash == merge_hash && base_hash == lca_hash {
+            // No changes, just copy over the hash
+            path_db::put(&self.dir_hashes_db, dir, &base_hash)?;
+        } else if lca_hash == base_hash {
+            // No changes in base, but changes in merge. Copy over merge hash 
+            path_db::put(&self.dir_hashes_db, dir, &merge_hash)?;
+        } else if lca_hash == merge_hash {
+            // No changes in merge, but changes in base. Copy over base hash. 
+            path_db::put(&self.dir_hashes_db, dir, &base_hash)?;
+        } else {
+            // self.merge_dir(dir, dir_map, base_hash, merge_hash, lca_hash)?;
+        }
+        Ok(())
+    }
+
+
     pub fn new_construct_merkle_tree_from_parent(
         &self,
         staged_data: &StagedData,
@@ -535,7 +686,13 @@ impl CommitEntryWriter {
         // TODONOW: want to consolidate the two dir dbs, probably. aka store hashes in the dir db
 
         // Get last commit id
-        let parent_commit_id = &self.commit.parent_ids[0];
+
+        // TODONOW: this is a hack, separate out merge commit stuff
+        let parent_commit_id = match &self.commit.parent_ids.len() {
+            1 => &self.commit.parent_ids[0],
+            2 => &self.commit.parent_ids[1],
+            _ => panic!("Unexpected number of parent commit ids")
+        };
 
         log::debug!("writing tree for commit {:?} with parent {:?}", self.commit.message, parent_commit_id);
 
@@ -951,9 +1108,11 @@ impl CommitEntryWriter {
                     let full_path = origin_path.join(path);
                     let metadata = fs::metadata(&full_path).unwrap();
                     let mtime = FileTime::from_last_modification_time(&metadata);    
+                    // Re-hash in case file is modified after adding
+                    let hash = util::hasher::hash_file_contents(&full_path)?;
                     log::debug!("setting num_bytes to {:?} for file {:?} in commit with message {:?}", metadata.len(), path, self.commit.message);
                     let file_res = TreeObject::File {
-                        hash: entry.hash.clone(),
+                        hash,
                         num_bytes: metadata.len(),
                         last_modified_seconds: mtime.unix_seconds(),
                         last_modified_nanoseconds: mtime.nanoseconds(),
@@ -963,7 +1122,7 @@ impl CommitEntryWriter {
                 }
                 StagedEntryStatus::Removed => {
                     log::debug!("removed file {:?} in commit with message {:?}", path, self.commit.message);
-                    // None of this matters because it's all getting deleted anywa 
+                    // None of this matters because it's all getting deleted anyway
                     TreeObject::File {
                         hash: entry.hash.clone(),
                         num_bytes: 0,
@@ -976,7 +1135,13 @@ impl CommitEntryWriter {
             log::debug!("got file object {:?} for path {:?} with entry {:?}", file_object, path, entry);
 
 
-            let file_child_with_status = TreeObjectChildWithStatus::from_staged_entry(path.to_path_buf(), &entry);
+            let file_child_with_status = TreeObjectChildWithStatus {
+                child: TreeObjectChild::File {
+                    path: path.to_path_buf(),
+                    hash: file_object.hash().to_string(),
+                },
+                status: entry.status.clone(),
+            };
 
             log::debug!("and got file_child with status {:?} for path {:?} with entry {:?}", file_child_with_status, path, entry);
             
@@ -1685,7 +1850,7 @@ impl CommitEntryWriter {
             grouped.len()
         );
 
-        // Track entries in commit
+        // // Track entries in commit
         for (dir, files) in grouped.iter_mut() {
             // Write entries per dir
             let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;

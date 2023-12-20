@@ -342,6 +342,7 @@ impl CommitWriter {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
+
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 

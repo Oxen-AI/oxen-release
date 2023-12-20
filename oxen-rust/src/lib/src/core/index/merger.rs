@@ -311,6 +311,7 @@ impl Merger {
         // Stage changes
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
+        log::debug!("the local head that we're using for this reader is {:#?}", commit);
         let reader = CommitEntryReader::new(repo, &commit)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &ignore)?;
@@ -325,6 +326,7 @@ impl Merger {
         // Create a commit with both parents
         let reader = CommitEntryReader::new_from_head(repo)?;
         let status = stager.status(&reader)?;
+        log::debug!("merger got this status {:?}", status);
         let commit_writer = CommitWriter::new(repo)?;
         let parent_ids: Vec<String> = vec![
             merge_commits.base.id.to_owned(),
@@ -512,6 +514,8 @@ impl Merger {
         log::debug!("base_entries.len() {}", base_entries.len());
         log::debug!("merge_entries.len() {}", merge_entries.len());
 
+        log::debug!("write_to_disk is {}", write_to_disk);
+
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
             // log::debug!("Considering entry {}", merge_entries.len());
@@ -563,6 +567,7 @@ impl Merger {
     }
 
     fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
+        log::debug!("updating entry {:?} in merge commit", merge_entry.path);
         restore::restore_file(
             &self.repository,
             &merge_entry.path,

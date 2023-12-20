@@ -25,7 +25,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     // TODONOW: find a better way to do this - maybe unpack all the obejcts from the commit
     // api::local::commits::new_construct_commit_merkle_tree(repo, commit)?;
 
+    log::debug!("about to check tree is valid");
     let tree_is_valid = commit_validator::validate_tree_hash(repo, commit)?;
+    log::debug!("finished checking tree is valid");
 
     if tree_is_valid {
         log::debug!("writing commit is valid from tree {:?}", commit);
@@ -45,6 +47,7 @@ pub fn is_valid(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenErr
 }
 
 fn write_is_valid(repo: &LocalRepository, commit: &Commit, val: &str) -> Result<(), OxenError> {
+    log::debug!("writing is valid {:?} for {:?}", val, commit);
     let hash_file_path = util::fs::commit_content_is_valid_path(repo, commit);
     util::fs::write_to_path(hash_file_path, val)?;
     Ok(())
