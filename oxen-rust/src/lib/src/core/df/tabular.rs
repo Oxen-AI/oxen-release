@@ -119,7 +119,7 @@ pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> 
 
     let num_rows = reader.num_rows().unwrap_or(0);
 
-    println!("got {} rows", num_rows);
+    log::debug!("got {} rows", num_rows);
 
     match reader.finish() {
         Ok(df) => Ok(df),
