@@ -1347,7 +1347,9 @@ mod tests {
             command::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
             command::rm(&local_repo, &rm_opts).await?;
+            // log::debug!("about to commit here");
             let commit = command::commit(&local_repo, "Moved the readme")?;
+            // log::debug!("done committing here");
 
             // All remote entries should by synced
             let unsynced_entries_commits =

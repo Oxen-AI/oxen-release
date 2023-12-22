@@ -5,6 +5,7 @@ use crate::constants::{
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema};
 use crate::{core::db, model::CommitEntry};
+use filetime::FileTime;
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
 use core::panic;
@@ -71,16 +72,6 @@ pub struct TreeObjectChildWithStatus {
 }
 
 impl TreeObjectChildWithStatus {
-    pub fn from_staged_entry(path: PathBuf, entry: &StagedEntry) -> TreeObjectChildWithStatus {
-        TreeObjectChildWithStatus {
-            child: TreeObjectChild::File {
-                path,
-                hash: entry.hash.clone(),
-            },
-            status: entry.status.clone(),
-        }
-    }
-
     pub fn from_staged_schema(
         path: PathBuf,
         staged_schema: &StagedSchema,

@@ -181,6 +181,7 @@ impl NewCommitDirEntryReader {
 
     pub fn num_entries(&self) -> usize {
         // TODONOW: assuming we only care about `File` type entries here, not schemas. 
+        log::debug!("num_entries in dir {:?}", self.dir);
         let mut count = 0;
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo? 
@@ -289,7 +290,6 @@ impl NewCommitDirEntryReader {
         // Binary search for the appropriate vnode 
         let vnode_child = self.dir_object.binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
         
-        // log::debug!("here's the vnode child... {:?}", vnode_child);
 
         // log::debug!("here are all children of our dir object {:?}", self.dir_object.children());
         // log::debug!("and our dir object specifically is {:?}", self.dir_object);
@@ -316,7 +316,14 @@ impl NewCommitDirEntryReader {
         let full_path = self.dir.join(path.as_ref());
 
         // log::debug!("searching in path from root {:?}", full_path);
+
+        log::debug!("binary searching for path {:?} on these children {:?}", full_path, vnode.children());
+
         let file = vnode.binary_search_on_path(&full_path)?;
+
+
+        
+
 
         if file.is_none() {
             log::debug!("could not find file for path {:?}", path.as_ref());
