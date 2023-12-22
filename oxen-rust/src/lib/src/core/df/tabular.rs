@@ -39,7 +39,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
         .sample_size(DEFAULT_SAMPLE_SIZE)
         .with_ignore_errors(true)
         .has_header(true)
-        .with_delimiter(delimiter)
+        .with_separator(delimiter)
         .with_end_of_line_char(b'\n')
         .with_quote_char(Some(b'"'))
         .with_rechunk(true)
@@ -73,7 +73,7 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
 
 pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
     Ok(LazyCsvReader::new(&path)
-        .with_delimiter(delimiter)
+        .with_separator(delimiter)
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
         .has_header(true)
         .finish()
@@ -231,7 +231,7 @@ pub fn parse_data_into_df(
             let cursor = Cursor::new(data.as_bytes());
             let schema = schema.to_polars();
             match CsvReader::new(cursor)
-                .with_schema(Arc::new(schema))
+                .with_schema(Some(Arc::new(schema)))
                 .finish()
             {
                 Ok(df) => Ok(df),
@@ -375,7 +375,7 @@ fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame,
         .map(|f| agg_fn_to_expr(f).expect("Err:"))
         .collect();
 
-    Ok(df.groupby(group_by).agg(agg))
+    Ok(df.group_by(group_by).agg(agg))
 }
 
 fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
@@ -652,7 +652,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
         .lazy()
         .select([
             all(),
-            as_struct(&col_names)
+            as_struct(col_names)
                 .apply(
                     move |s| {
                         // log::debug!("s: {:?}", s);
@@ -717,7 +717,7 @@ pub fn df_hash_rows_on_cols(
         .lazy()
         .select([
             all(),
-            as_struct(&col_names)
+            as_struct(col_names)
                 .apply(
                     move |s| {
                         let pb = ProgressBar::new(num_rows as u64);
@@ -896,8 +896,8 @@ pub fn write_df_csv<P: AsRef<Path>>(
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     CsvWriter::new(f)
-        .has_header(true)
-        .with_delimiter(delimiter)
+        .include_header(true)
+        .with_separator(delimiter)
         .finish(df)
         .expect(&error_str);
     Ok(())
