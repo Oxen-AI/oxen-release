@@ -700,8 +700,10 @@ where
 
     // Add all the files
     command::add(&repo, &repo.path)?;
+    log::debug!("about to commit whole repo");
     // commit
     command::commit(&repo, "Adding all data")?;
+    log::debug!("committed whole repo");
 
     // Run test to see if it panic'd
     let result = match test(repo).await {

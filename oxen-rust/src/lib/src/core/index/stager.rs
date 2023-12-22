@@ -169,8 +169,27 @@ impl Stager {
 
     pub fn status(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
         log::debug!("-----status START-----");
+
+        // TODONOW delete
+        let all_entries = entry_reader.list_entries()?;
+        log::debug!("all_entries before status {:?}", all_entries);
+        log::debug!("n_entries before status {:?}", all_entries.len());
+
         let result = self.compute_staged_data(&self.repository.path, entry_reader);
         log::debug!("-----status END-----");
+        result
+    }
+
+    pub fn status_without_untracked(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
+        log::debug!("-----status_without_untracked START-----");
+
+        // TODONOW delete
+        let all_entries = entry_reader.list_entries()?;
+        log::debug!("all_entries before status {:?}", all_entries);
+        log::debug!("n_entries before status {:?}", all_entries.len());
+
+        let result = self.staged_data_without_untracked(&self.repository.path, entry_reader);
+        log::debug!("-----status_without_untracked END-----");
         result
     }
 
@@ -184,6 +203,9 @@ impl Stager {
         dir: &Path,
     ) -> Result<StagedData, OxenError> {
         log::debug!("-----status_from_dir START-----");
+        let all_entries = entry_reader.list_entries()?;
+        log::debug!("all_entries before status from dir {:?}", all_entries);
+        log::debug!("n_entries before status from dir {:?}", all_entries.len());
         let result = self.compute_staged_data(dir, entry_reader);
         log::debug!("-----status_from_dir END-----");
         result
@@ -192,6 +214,118 @@ impl Stager {
     fn list_merge_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
         let merger = MergeConflictReader::new(&self.repository)?;
         merger.list_conflicts()
+    }
+
+    // This should only be used for creating commits, when we want a faster way to get 
+    // staged data directly from the dbs without parsing untracked files 
+    pub fn staged_data_without_untracked(
+        &self, 
+        dir: &Path, 
+        entry_reader: &CommitEntryReader,
+    ) -> Result<StagedData, OxenError> {
+
+        let mut staged_data = StagedData::empty();
+        let ignore = oxenignore::create(&self.repository);
+
+        let mut staged_dirs = self.list_staged_dirs()?;
+        let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
+
+
+        for (dir, status) in &staged_dirs {
+            let full_path = self.repository.path.join(&dir);
+            let stats = self.compute_staged_dir_stats(&full_path, &status)?;
+            staged_data.staged_dirs.add_stats(&stats);
+            candidate_dirs.insert(self.repository.path.join(dir));
+        }
+
+        let committed_dirs = entry_reader.list_dirs()?;
+
+        for dir in committed_dirs {
+            if !self.should_ignore_path(&ignore, &dir) {
+                candidate_dirs.insert(self.repository.path.join(dir));
+            }
+        }
+
+        let object_reader = ObjectDBReader::new(&self.repository)?;
+        for dir in candidate_dirs.iter() {
+            self.process_dir_ignoring_untracked(dir, &mut staged_data, &ignore, entry_reader, object_reader.clone())?;
+        }
+
+        let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
+        for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
+            schemas.insert(path, schema);
+        }
+
+        staged_data.staged_schemas = schemas;
+
+
+
+
+        // for (dir_path, dir_status) in staged_dirs {
+        //     all_dirs.push(dir_path);
+        // }
+
+        // combine staged_dirs and committed_dirs to all_dirs
+
+
+
+        // for (dir, status) in &staged_dirs {
+        //     let full_path = self.repository.path.join(&dir);
+        //     let stats = self.compute_staged_dir_stats(&full_path, &status)?;
+        //     candidate_dirs.insert(self.repository.path.join(dir));
+        // };
+
+
+        // log::debug!("here are our all_dirs {:?}", all_dirs);
+
+        // TODONOW this can potentially hit directories twice, use hashset?
+
+        // for path in all_dirs {
+        //     let staged_entries = self.list_staged_files_in_dir(&path)?;
+        //     for entry in staged_entries {
+        //         log::debug!("got staged entry {:?} in dir {:?}", entry, path);
+        //     }
+        //     self.process_dir(&path, &mut staged_data, &ignore, entry_reader, ObjectDBReader::new(&self.repository)?)?;
+        // }
+
+        // let mut commited_dirs = entry_reader.list_dirs()?;
+
+        // for dir in commited_dirs.iter() {
+        //     if !self.should_ignore_path(&ignore, dir) {
+        //         candidate_dirs.insert(self.repository.path.join(dir));
+        //     }
+        // };
+
+        // let object_reader = ObjectDBReader::new(&self.repository)?;
+
+        // let committer = CommitReader::new(&self.repository)?;
+        // let commit = committer.head_commit()?;
+
+        // let entry_reader = CommitEntryReader::new(
+        //     &self.repository,
+        //     &commit,
+        // )?;
+
+        // let bar = oxen_progress_bar(candidate_dirs.len() as u64, ProgressBarType::Counter);
+
+
+        // for dir in candidate_dirs.iter() {
+        //     log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
+        //     self.process_dir(dir, &mut staged_data, &ignore, &entry_reader, object_reader.clone())?;
+        //     bar.inc(1);
+        // }
+
+        staged_data.merge_conflicts = self.list_merge_conflicts()?;
+
+        // let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
+        // for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
+        //     schemas.insert(path, schema);
+        // }
+
+        // staged_data.staged_schemas = schemas;
+        Ok(staged_data)
+
+
     }
 
     fn compute_staged_data(
@@ -331,6 +465,72 @@ impl Stager {
         Ok(())
     }
 
+
+    fn process_dir_ignoring_untracked(
+        &self, 
+        full_dir: &Path, 
+        staged_data: &mut StagedData, 
+        ignore: &Option<Gitignore>,
+        commit_reader: &CommitEntryReader,
+        object_reader: Arc<ObjectDBReader>,
+    ) -> Result<(), OxenError> {
+        let committer = CommitReader::new(&self.repository)?;
+        
+        let commit = committer.head_commit()?;
+
+        let dir_reader = CommitDirEntryReader::new(&self.repository, &commit.id, full_dir, object_reader)?;
+        let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
+
+        let staged_dir_db: StagedDirEntryDB<SingleThreaded> = StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+
+        // List the staged entries in this dir 
+        let staged_entries = self.list_staged_files_in_dir(&relative_dir)?;
+
+        for relative_path in &staged_entries {
+            if util::fs::is_in_oxen_hidden_dir(relative_path) {
+                continue;
+            }
+
+            let fullpath = self.repository.path.join(relative_path);
+
+            let file_status = Stager::get_file_status(
+                &self.repository.path,
+                relative_path,
+                &staged_dir_db,
+                &dir_reader,
+            );
+
+            if let Some(file_type) = file_status {
+                match file_type {
+                    FileStatus::Added => {
+                        let file_name = relative_path.file_name().unwrap();
+                        let result = staged_dir_db.get_entry(file_name);
+                        if let Ok(Some(entry)) = result {
+                            staged_data
+                                .staged_files
+                                .insert(relative_path.to_path_buf(), entry);
+                        }
+                    }
+                    FileStatus::Untracked => {
+                        staged_data.untracked_files.push(relative_path.to_path_buf());
+                    }
+                    FileStatus::Modified => {
+                        staged_data.modified_files.push(relative_path.to_path_buf());
+                    }
+                    FileStatus::Removed => {
+                        staged_data.removed_files.push(relative_path.to_path_buf());
+                    }
+                }
+            }
+
+
+        }
+        
+
+        Ok(())
+
+    }
+
     fn process_dir(
         &self,
         full_dir: &Path,
@@ -351,11 +551,8 @@ impl Stager {
         let staged_dir_db: StagedDirEntryDB<SingleThreaded> =
             StagedDirEntryDB::new(&self.repository, &relative_dir)?;
 
-        // Get current timestamp at execution 
-        let start = std::time::Instant::now();
         let root_commit_dir_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
-        let elapsed = start.elapsed();
 
         // get seconds and millis 
         let secs = elapsed.as_secs();

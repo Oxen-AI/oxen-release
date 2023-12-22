@@ -112,7 +112,20 @@ pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<Stage
     log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
     log::debug!("status before stager.status");
+    let quick_status = stager.staged_data_without_untracked(dir, &reader)?;
     let status = stager.status_from_dir(&reader, dir)?;
+    log::debug!("quickstatus stageddata {:#?}", quick_status);
+    log::debug!("status stageddata: {:#?}", status);
+    Ok(status)
+}
+
+pub fn status_without_untracked(repository: &LocalRepository) -> Result<StagedData, OxenError> {
+    log::debug!("status before new_from_head");
+    let reader = CommitEntryReader::new_from_head(repository)?;
+    log::debug!("status before Stager::new");
+    let stager = Stager::new(repository)?;
+    log::debug!("status before stager.status");
+    let status = stager.status_without_untracked(&reader)?;
     log::debug!("status stageddata: {:?}", status);
     Ok(status)
 }
