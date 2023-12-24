@@ -154,7 +154,6 @@ impl DFOpts {
             || self.row.is_some()
             || self.should_randomize
             || self.should_reverse
-            || self.slice.is_some()
             || self.sort_by.is_some()
             || self.sql.is_some()
             || self.tail.is_some()
