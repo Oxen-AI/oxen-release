@@ -111,7 +111,7 @@ impl JsonDataFrameView {
                 height: data_frame_size.height,
                 width: data_frame_size.width,
             },
-            data: JsonDataFrameView::json_data(&mut sliced_df),
+            data: JsonDataFrameView::from_df(&mut sliced_df),
             pagination: Pagination {
                 page_number: page,
                 page_size,
@@ -152,7 +152,7 @@ impl JsonDataFrameView {
                 height: full_height,
                 width: full_width,
             },
-            data: JsonDataFrameView::json_data(&mut sliced_df),
+            data: JsonDataFrameView::from_df(&mut sliced_df),
             pagination: Pagination {
                 page_number: page,
                 page_size,
@@ -197,7 +197,7 @@ impl JsonDataFrameView {
         }
     }
 
-    fn json_data(df: &mut DataFrame) -> serde_json::Value {
+    pub fn from_df(df: &mut DataFrame) -> serde_json::Value {
         log::debug!("Serializing df: [{}]", df);
 
         // TODO: catch errors

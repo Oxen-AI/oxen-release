@@ -714,46 +714,26 @@ fn check_if_upload_complete_and_unpack(
         // Get tar.gz bytes for history/COMMIT_ID data
         log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
 
-        let mut buffer: Vec<u8> = Vec::new();
-        for file in files.iter() {
-            log::debug!("Reading file bytes {:?}", file);
-            let mut f = std::fs::File::open(file).unwrap();
-
-            f.read_to_end(&mut buffer).unwrap();
-        }
-
-        // TODO: better error handling...
+        // TODO: Cleanup these if / else / match statements
         // Combine into actual file data
         if is_compressed {
-            // Unpack tarball to our hidden dir
-            let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
-            unpack_entry_tarball(&hidden_dir, &mut archive);
+            match unpack_compressed_data(&files, &hidden_dir) {
+                Ok(_) => {
+                    log::debug!("Unpacked {} files successfully", files.len());
+                }
+                Err(err) => {
+                    log::error!("Could not unpack compressed data {:?}", err);
+                }
+            }
         } else {
-            // just write buffer to disk
             match filename {
                 Some(filename) => {
-                    // TODO: better error handling...
-
-                    log::debug!("Got filename {}", filename);
-                    let mut full_path = hidden_dir.join(filename);
-                    full_path = util::fs::replace_file_name_keep_extension(
-                        &full_path,
-                        VERSION_FILE_NAME.to_owned(),
-                    );
-                    log::debug!("Unpack to {:?}", full_path);
-                    if let Some(parent) = full_path.parent() {
-                        if !parent.exists() {
-                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
-                        }
-                    }
-
-                    let mut f = std::fs::File::create(&full_path).expect("Could write file");
-                    match f.write_all(&buffer) {
+                    match unpack_to_file(&files, &hidden_dir, &filename) {
                         Ok(_) => {
-                            log::debug!("Unpack successful! {:?}", full_path);
+                            log::debug!("Unpacked {} files successfully", files.len());
                         }
                         Err(err) => {
-                            log::error!("Could not write all data to disk {:?}", err);
+                            log::error!("Could not unpack compressed data {:?}", err);
                         }
                     }
                 }
@@ -767,6 +747,75 @@ fn check_if_upload_complete_and_unpack(
         util::fs::remove_dir_all(tmp_dir).unwrap();
         // });
     }
+}
+
+fn unpack_compressed_data(
+    files: &[PathBuf],
+    hidden_dir: &Path,
+) -> Result<(), OxenError> {
+    let mut buffer: Vec<u8> = Vec::new();
+    for file in files.iter() {
+        log::debug!("Reading file bytes {:?}", file);
+        let mut f = std::fs::File::open(file)
+            .map_err(|e| OxenError::file_open_error(&file, e))?;
+
+        f.read_to_end(&mut buffer)
+            .map_err(|e| OxenError::file_read_error(&file, e))?;
+    }
+
+    // Unpack tarball to our hidden dir
+    let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
+    unpack_entry_tarball(&hidden_dir, &mut archive);
+
+    Ok(())
+}
+
+fn unpack_to_file(
+    files: &[PathBuf],
+    hidden_dir: &PathBuf,
+    filename: &str,
+) -> Result<(), OxenError> {
+    // Append each buffer to the end of the large file
+    // TODO: better error handling...
+    log::debug!("Got filename {}", filename);
+    let mut full_path = hidden_dir.join(filename);
+    full_path = util::fs::replace_file_name_keep_extension(
+        &full_path,
+        VERSION_FILE_NAME.to_owned(),
+    );
+    log::debug!("Unpack to {:?}", full_path);
+    if let Some(parent) = full_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent)
+                .map_err(|e| OxenError::dir_create_error(parent, e))?;
+        }
+    }
+
+    let mut outf = std::fs::File::create(&full_path)
+        .map_err(|e| OxenError::file_create_error(&full_path, e))?;
+
+    for file in files.iter() {
+        log::debug!("Reading file bytes {:?}", file);
+        let mut buffer: Vec<u8> = Vec::new();
+
+        let mut f = std::fs::File::open(file)
+            .map_err(|e| OxenError::file_open_error(&file, e))?;
+
+        f.read_to_end(&mut buffer)
+            .map_err(|e| OxenError::file_read_error(&file, e))?;
+
+        log::debug!("Read {} file bytes from file {:?}", buffer.len(), file);
+        
+        match outf.write_all(&buffer) {
+            Ok(_) => {
+                log::debug!("Unpack successful! {:?}", full_path);
+            }
+            Err(err) => {
+                log::error!("Could not write all data to disk {:?}", err);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Controller to upload the commit database

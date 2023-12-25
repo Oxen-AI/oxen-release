@@ -39,14 +39,72 @@ pub async fn get(
 
     let version_path =
         util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
-    log::debug!("Reading version file {:?}", version_path);
+    log::debug!("controllers::data_frames Reading version file {:?}", version_path);
 
-    let mut data_frame_size =
+    let data_frame_size =
         cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
+    log::debug!("controllers::data_frames got data frame size {:?}", data_frame_size);
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
-    let mut df = tabular::scan_df(&version_path, &DFOpts::empty())?;
+
+    // Clear these for the first transform
+    opts.page = None;
+    opts.page_size = None;
+
+    let mut page_opts = PaginateOpts {
+        page_num: constants::DEFAULT_PAGE_NUM,
+        page_size: constants::DEFAULT_PAGE_SIZE,
+    };
+
+    if let Some((start, end)) = opts.slice_indices() {
+        // let slice_size = end - start;
+        // page_opts.page_num = ((start / slice_size) + 1) as usize;
+        // page_opts.page_size = slice_size as usize;
+        log::debug!("controllers::data_frames Got slice params {}..{}", start, end);
+    } else {
+        let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+        let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+        page_opts.page_num = page;
+        page_opts.page_size = page_size;
+        // let start = if page == 0 { 0 } else { page_size * (page - 1) };
+        // let end = page_size * page;
+        // opts.slice = Some(format!("{}..{}", start, end));
+    }
+
+    // if let Some(page) = query.page {
+    //     opts.page = Some(page);
+    // }
+
+
+    let df = tabular::scan_df(&version_path, &opts)?;
+
+    // If there are no transforms, get a slice of the dataframe of size `page_size`
+    // for building the response more efficiently on large files. If there are more
+    // transforms ie. sorting, then we process on the whole df.
+    // let mut process_on_slice = false;
+
+    // let mut df = if !opts.has_transform() {
+    //     log::debug!("controllers::data_frames No transforms, processing on slice");
+    //     process_on_slice = true;
+    //     page_opts.page_num = 1;
+    //     page_opts.page_size = page_size;
+    //     opts.slice = None;
+
+    //     let page: i64 = page.try_into().unwrap();
+    //     let page_size: i64 = page_size.try_into().unwrap();
+    //     let page_size_u32: u32 = page_size.try_into().unwrap();
+
+    //     let slice_offset = (page - 1) * page_size;
+    //     let slice_len = page_size_u32;
+    //     // let mut df = tabular::scan_df(&version_path, &DFOpts::empty())?;
+    //     let df = tabular::scan_df_parquet_n_rows(&version_path, 300)?;
+    //     log::debug!("controllers::data_frames Done scanning df {:?}", version_path);
+    //     df
+    // } else {
+
+    // }
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
@@ -63,47 +121,21 @@ pub async fn get(
         }?
     };
 
-    // Clear these for the first transform
-    opts.page = None;
-    opts.page_size = None;
-
-    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-
+    log::debug!("controllers::data_frames Done getting schema {:?}", version_path);
+    
     // We have to run the query param transforms, then paginate separately
     let og_df_json = JsonDataFrameSource::from_df(&data_frame_size, &og_schema);
 
-    let mut page_opts = PaginateOpts {
-        page_num: page,
-        page_size,
-    };
-
-    // If there are no transforms, get a slice of the dataframe of size `page_size`
-    // for building the response more efficiently on large files. If there are more
-    // transforms ie. sorting, then we process on the whole df.
-    let mut process_on_slice = false;
-
-    if !opts.has_transform() {
-        process_on_slice = true;
-        page_opts.page_num = 1;
-        page_opts.page_size = page_size;
-
-        let page: i64 = page.try_into().unwrap();
-        let page_size: i64 = page_size.try_into().unwrap();
-        let page_size_u32: u32 = page_size.try_into().unwrap();
-
-        df = df.slice((page - 1) * page_size, page_size_u32);
-    }
-
+    log::debug!("controllers::data_frames BEFORE TRANSFORM LAZY {}", data_frame_size.height);
     match tabular::transform_lazy(df, data_frame_size.height, opts) {
         Ok(df_view) => {
-            log::debug!("DF view {:?}", df_view);
+            log::debug!("controllers::data_frames DF view {:?}", df_view);
 
             // If there were transforms such as a filter, the pagination total entries
             // must be from the filtered df, not the original df.
-            if !process_on_slice {
-                data_frame_size.height = df_view.height();
-            }
+            // if !process_on_slice {
+            //     data_frame_size.height = df_view.height();
+            // }
 
             let resource_version = ResourceVersion {
                 path: resource.file_path.to_string_lossy().into(),
