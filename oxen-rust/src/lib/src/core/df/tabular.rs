@@ -134,7 +134,10 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
 }
 
 pub fn scan_df_parquet(path: impl AsRef<Path>, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
-    let args = ScanArgsParquet { n_rows: get_max_rows_from_opts(opts), ..Default::default() };
+    let args = ScanArgsParquet {
+        n_rows: get_max_rows_from_opts(opts),
+        ..Default::default()
+    };
     log::debug!(
         "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
         path.as_ref(),
@@ -159,6 +162,12 @@ fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
 fn get_max_rows_from_opts(opts: &DFOpts) -> Option<usize> {
     if let Some((_, end)) = &opts.slice_indices() {
         return Some(*end as usize);
+    }
+
+    if let Some(page_size) = opts.page_size {
+        if let Some(page_num) = opts.page {
+            return Some(page_size * page_num);
+        }
     }
 
     None
@@ -1314,7 +1323,7 @@ mod tests {
         assert_eq!(df.width(), 3);
         assert_eq!(df.height(), 4);
 
-        let json = JsonDataFrameView::from_df(&mut df);
+        let json = JsonDataFrameView::json_from_df(&mut df);
         println!("{}", json[0]);
         assert_eq!(
             Some("Advanced Encryption Standard"),
@@ -1337,7 +1346,7 @@ mod tests {
         assert_eq!(df.width(), 3);
         assert_eq!(df.height(), 4);
 
-        let json = JsonDataFrameView::from_df(&mut df);
+        let json = JsonDataFrameView::json_from_df(&mut df);
         println!("{}", json[0]);
         assert_eq!(
             Some("Advanced Encryption Standard"),
