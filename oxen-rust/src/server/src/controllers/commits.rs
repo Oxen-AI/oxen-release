@@ -766,7 +766,7 @@ fn unpack_compressed_data(files: &[PathBuf], hidden_dir: &Path) -> Result<(), Ox
 
 fn unpack_to_file(
     files: &[PathBuf],
-    hidden_dir: &PathBuf,
+    hidden_dir: &Path,
     filename: &str,
 ) -> Result<(), OxenError> {
     // Append each buffer to the end of the large file
