@@ -134,8 +134,7 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
 }
 
 pub fn scan_df_parquet(path: impl AsRef<Path>, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
-    let mut args = ScanArgsParquet::default();
-    args.n_rows = get_max_rows_from_opts(opts);
+    let args = ScanArgsParquet { n_rows: get_max_rows_from_opts(opts), ..Default::default() };
     log::debug!(
         "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
         path.as_ref(),
