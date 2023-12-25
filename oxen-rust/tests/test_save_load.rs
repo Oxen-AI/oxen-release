@@ -17,8 +17,8 @@ fn test_command_save_repo() -> Result<(), OxenError> {
         command::commit(&repo, "Adding hello file")?;
 
         // Save to a path
-        let save_path = Path::new("backup.tar.gz");
-        command::save(&repo, save_path)?;
+        let save_path = repo.path.join(Path::new("backup.tar.gz"));
+        command::save(&repo, &save_path)?;
 
         assert!(save_path.exists());
 
@@ -71,12 +71,12 @@ fn test_command_save_load_repo_no_working_dir() -> Result<(), OxenError> {
             command::commit(&repo, "Adding hello file")?;
 
             // Save to a path
-            let save_path = Path::new("backup.tar.gz");
-            command::save(&repo, save_path)?;
+            let save_path = dir.join(Path::new("backup.tar.gz"));
+            command::save(&repo, &save_path)?;
 
             // Load from a path and hydrate
             let loaded_repo_path = dir.join(Path::new("loaded_repo"));
-            command::load(save_path, &loaded_repo_path, true)?;
+            command::load(&save_path, &loaded_repo_path, true)?;
 
             let hydrated_repo = LocalRepository::from_dir(&loaded_repo_path)?;
 
@@ -130,12 +130,12 @@ fn test_command_save_load_moved_and_removed() -> Result<(), OxenError> {
             command::commit(&repo, "Moving hello file")?;
 
             // Save to a path
-            let save_path = Path::new("backup.tar.gz");
-            command::save(&repo, save_path)?;
+            let save_path = dir.join(Path::new("backup.tar.gz"));
+            command::save(&repo, &save_path)?;
 
             // Load from a path and hydrate
             let loaded_repo_path = dir.join(Path::new("loaded_repo"));
-            command::load(save_path, &loaded_repo_path, false)?;
+            command::load(&save_path, &loaded_repo_path, false)?;
 
             let hydrated_repo = LocalRepository::from_dir(&loaded_repo_path)?;
 

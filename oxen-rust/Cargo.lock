@@ -63,7 +63,6 @@ dependencies = [
  "num_cpus",
  "pluralizer",
  "polars",
- "polars-io",
  "polars-sql",
  "qsv-sniffer",
  "r2d2",
@@ -2847,7 +2846,6 @@ dependencies = [
  "num_cpus",
  "pluralizer",
  "polars",
- "polars-io",
  "polars-sql",
  "qsv-sniffer",
  "r2d2",
@@ -3687,7 +3685,6 @@ dependencies = [
  "bytes",
  "chrono",
  "fast-float",
- "flate2",
  "futures",
  "home",
  "itoa",
@@ -3712,7 +3709,6 @@ dependencies = [
  "smartstring",
  "tokio",
  "tokio-util",
- "zstd 0.13.0",
 ]
 
 [[package]]
