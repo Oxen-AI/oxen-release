@@ -6,7 +6,7 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::api;
 use liboxen::core::cache::cachers;
 use liboxen::error::OxenError;
-use liboxen::model::{DataFrameSize, Schema};
+use liboxen::model::Schema;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::{constants, current_function};
@@ -54,10 +54,6 @@ pub async fn get(
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
-    // Clear these for the first transform
-    opts.page = None;
-    opts.page_size = None;
-
     let mut page_opts = PaginateOpts {
         page_num: constants::DEFAULT_PAGE_NUM,
         page_size: constants::DEFAULT_PAGE_SIZE,
@@ -77,6 +73,8 @@ pub async fn get(
 
         page_opts.page_num = page;
         page_opts.page_size = page_size;
+        opts.page = Some(page);
+        opts.page_size = Some(page_size);
     }
 
     let df = tabular::scan_df(&version_path, &opts)?;
@@ -117,17 +115,15 @@ pub async fn get(
                 version: resource.version().to_owned(),
             };
 
-            let size = DataFrameSize {
-                width: df_view.width(),
-                height: df_view.height(),
-            };
-
             let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_found(),
                 data_frame: JsonDataFrameViews {
                     source: og_df_json,
                     view: JsonDataFrameView::view_from_pagination(
-                        df_view, og_schema, size, &page_opts,
+                        df_view,
+                        og_schema,
+                        data_frame_size,
+                        &page_opts,
                     ),
                 },
                 commit: Some(resource.commit.clone()),

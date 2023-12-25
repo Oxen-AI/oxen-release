@@ -80,7 +80,7 @@ impl JsonDataFrameSource {
 
 impl JsonDataFrameView {
     pub fn view_from_pagination(
-        df: DataFrame,
+        mut df: DataFrame,
         og_schema: Schema,
         data_frame_size: DataFrameSize,
         opts: &PaginateOpts,
@@ -88,18 +88,18 @@ impl JsonDataFrameView {
         let page_size = opts.page_size;
         let page = opts.page_num;
 
-        let start = if page == 0 { 0 } else { page_size * (page - 1) };
-        let end = page_size * page;
+        // let start = if page == 0 { 0 } else { page_size * (page - 1) };
+        // let end = page_size * page;
 
         let total_pages = (data_frame_size.height as f64 / page_size as f64).ceil() as usize;
 
-        let mut opts = DFOpts::empty();
-        opts.slice = Some(format!("{}..{}", start, end));
+        let opts = DFOpts::empty();
+        // opts.slice = Some(format!("{}..{}", start, end));
         let opts_view = DFOptsView::from_df_opts(&opts);
-        let mut sliced_df = tabular::transform(df, opts).unwrap();
+        // let mut sliced_df = tabular::transform(df, opts).unwrap();
 
         // Merge the metadata from the original schema
-        let mut slice_schema = Schema::from_polars(&sliced_df.schema());
+        let mut slice_schema = Schema::from_polars(&df.schema());
         log::debug!("OG schema {:?}", og_schema);
         log::debug!("Pre-Slice schema {:?}", slice_schema);
         slice_schema.update_metadata_from_schema(&og_schema);
@@ -108,10 +108,10 @@ impl JsonDataFrameView {
         JsonDataFrameView {
             schema: slice_schema,
             size: DataFrameSize {
-                height: data_frame_size.height,
-                width: data_frame_size.width,
+                height: df.height(),
+                width: df.width(),
             },
-            data: JsonDataFrameView::from_df(&mut sliced_df),
+            data: JsonDataFrameView::json_from_df(&mut df),
             pagination: Pagination {
                 page_number: page,
                 page_size,
@@ -152,7 +152,7 @@ impl JsonDataFrameView {
                 height: full_height,
                 width: full_width,
             },
-            data: JsonDataFrameView::from_df(&mut sliced_df),
+            data: JsonDataFrameView::json_from_df(&mut sliced_df),
             pagination: Pagination {
                 page_number: page,
                 page_size,
@@ -197,7 +197,7 @@ impl JsonDataFrameView {
         }
     }
 
-    pub fn from_df(df: &mut DataFrame) -> serde_json::Value {
+    pub fn json_from_df(df: &mut DataFrame) -> serde_json::Value {
         log::debug!("Serializing df: [{}]", df);
 
         // TODO: catch errors
