@@ -71,7 +71,11 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
     }
 }
 
-pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_csv<P: AsRef<Path>>(
+    path: P,
+    delimiter: u8,
+    opts: &DFOpts,
+) -> Result<LazyFrame, OxenError> {
     Ok(LazyCsvReader::new(&path)
         .with_separator(delimiter)
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
@@ -132,7 +136,11 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
 pub fn scan_df_parquet(path: impl AsRef<Path>, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
     let mut args = ScanArgsParquet::default();
     args.n_rows = get_max_rows_from_opts(opts);
-    log::debug!("scan_df_parquet_n_rows path: {:?} n_rows: {:?}", path.as_ref(), args.n_rows);
+    log::debug!(
+        "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
+        path.as_ref(),
+        args.n_rows
+    );
     Ok(LazyFrame::scan_parquet(&path, args)
         .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
@@ -151,7 +159,7 @@ fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
 
 fn get_max_rows_from_opts(opts: &DFOpts) -> Option<usize> {
     if let Some((_, end)) = &opts.slice_indices() {
-        return Some(*end as usize)
+        return Some(*end as usize);
     }
 
     None
@@ -543,7 +551,7 @@ pub fn transform_lazy(
         Ok(df) => {
             log::debug!("transform_lazy collected {:?}", df);
             Ok(df)
-        },
+        }
         Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
     }
 }
@@ -965,13 +973,16 @@ pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenE
     }
 }
 
-pub fn copy_df<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
+pub fn copy_df(input: impl AsRef<Path>, output: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let mut df = read_df(input, DFOpts::empty())?;
     write_df_arrow(&mut df, output)?;
     Ok(df)
 }
 
-pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
+pub fn copy_df_add_row_num(
+    input: impl AsRef<Path>,
+    output: impl AsRef<Path>,
+) -> Result<DataFrame, OxenError> {
     let df = read_df(input, DFOpts::empty())?;
     let mut df = df
         .lazy()
@@ -982,7 +993,7 @@ pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFr
     Ok(df)
 }
 
-pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
     if opts.column_at().is_some() {
@@ -1293,7 +1304,7 @@ mod tests {
     }
 
     #[test]
-    fn test_slice_parquet() -> Result<(), OxenError> {
+    fn test_slice_parquet_lazy() -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         opts.slice = Some("329..333".to_string());
         let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", &opts)?;
@@ -1306,7 +1317,33 @@ mod tests {
 
         let json = JsonDataFrameView::from_df(&mut df);
         println!("{}", json[0]);
-        assert_eq!(Some("Advanced Encryption Standard"), json[0]["title"].as_str());
+        assert_eq!(
+            Some("Advanced Encryption Standard"),
+            json[0]["title"].as_str()
+        );
+        assert_eq!(Some("April 26"), json[1]["title"].as_str());
+        assert_eq!(Some("Anisotropy"), json[2]["title"].as_str());
+        assert_eq!(Some("Alpha decay"), json[3]["title"].as_str());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_slice_parquet_full_read() -> Result<(), OxenError> {
+        let mut opts = DFOpts::empty();
+        opts.slice = Some("329..333".to_string());
+        let mut df = tabular::read_df("data/test/parquet/wiki_1k.parquet", opts)?;
+        println!("{df:?}");
+
+        assert_eq!(df.width(), 3);
+        assert_eq!(df.height(), 4);
+
+        let json = JsonDataFrameView::from_df(&mut df);
+        println!("{}", json[0]);
+        assert_eq!(
+            Some("Advanced Encryption Standard"),
+            json[0]["title"].as_str()
+        );
         assert_eq!(Some("April 26"), json[1]["title"].as_str());
         assert_eq!(Some("Anisotropy"), json[2]["title"].as_str());
         assert_eq!(Some("Alpha decay"), json[3]["title"].as_str());

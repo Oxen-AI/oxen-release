@@ -312,20 +312,12 @@ impl OxenError {
     }
 
     pub fn file_open_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
-        let err = format!(
-            "Could not open file: {:?} error {:?}",
-            path.as_ref(),
-            error,
-        );
+        let err = format!("Could not open file: {:?} error {:?}", path.as_ref(), error,);
         OxenError::basic_str(err)
     }
 
     pub fn file_read_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
-        let err = format!(
-            "Could not read file: {:?} error {:?}",
-            path.as_ref(),
-            error,
-        );
+        let err = format!("Could not read file: {:?} error {:?}", path.as_ref(), error,);
         OxenError::basic_str(err)
     }
 

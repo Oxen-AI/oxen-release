@@ -1178,6 +1178,13 @@ pub fn test_200k_csv() -> PathBuf {
         .join("celeb_a_200k.csv")
 }
 
+pub fn test_10k_parquet() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("parquet")
+        .join("wiki_10k.parquet")
+}
+
 pub fn test_nlp_classification_csv() -> PathBuf {
     Path::new("nlp")
         .join("classification")

@@ -727,16 +727,14 @@ fn check_if_upload_complete_and_unpack(
             }
         } else {
             match filename {
-                Some(filename) => {
-                    match unpack_to_file(&files, &hidden_dir, &filename) {
-                        Ok(_) => {
-                            log::debug!("Unpacked {} files successfully", files.len());
-                        }
-                        Err(err) => {
-                            log::error!("Could not unpack compressed data {:?}", err);
-                        }
+                Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
+                    Ok(_) => {
+                        log::debug!("Unpacked {} files successfully", files.len());
                     }
-                }
+                    Err(err) => {
+                        log::error!("Could not unpack compressed data {:?}", err);
+                    }
+                },
                 None => {
                     log::error!("Must supply filename if !compressed");
                 }
@@ -749,23 +747,19 @@ fn check_if_upload_complete_and_unpack(
     }
 }
 
-fn unpack_compressed_data(
-    files: &[PathBuf],
-    hidden_dir: &Path,
-) -> Result<(), OxenError> {
+fn unpack_compressed_data(files: &[PathBuf], hidden_dir: &Path) -> Result<(), OxenError> {
     let mut buffer: Vec<u8> = Vec::new();
     for file in files.iter() {
         log::debug!("Reading file bytes {:?}", file);
-        let mut f = std::fs::File::open(file)
-            .map_err(|e| OxenError::file_open_error(&file, e))?;
+        let mut f = std::fs::File::open(file).map_err(|e| OxenError::file_open_error(file, e))?;
 
         f.read_to_end(&mut buffer)
-            .map_err(|e| OxenError::file_read_error(&file, e))?;
+            .map_err(|e| OxenError::file_read_error(file, e))?;
     }
 
     // Unpack tarball to our hidden dir
     let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
-    unpack_entry_tarball(&hidden_dir, &mut archive);
+    unpack_entry_tarball(hidden_dir, &mut archive);
 
     Ok(())
 }
@@ -779,15 +773,12 @@ fn unpack_to_file(
     // TODO: better error handling...
     log::debug!("Got filename {}", filename);
     let mut full_path = hidden_dir.join(filename);
-    full_path = util::fs::replace_file_name_keep_extension(
-        &full_path,
-        VERSION_FILE_NAME.to_owned(),
-    );
+    full_path =
+        util::fs::replace_file_name_keep_extension(&full_path, VERSION_FILE_NAME.to_owned());
     log::debug!("Unpack to {:?}", full_path);
     if let Some(parent) = full_path.parent() {
         if !parent.exists() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| OxenError::dir_create_error(parent, e))?;
+            std::fs::create_dir_all(parent).map_err(|e| OxenError::dir_create_error(parent, e))?;
         }
     }
 
@@ -798,14 +789,13 @@ fn unpack_to_file(
         log::debug!("Reading file bytes {:?}", file);
         let mut buffer: Vec<u8> = Vec::new();
 
-        let mut f = std::fs::File::open(file)
-            .map_err(|e| OxenError::file_open_error(&file, e))?;
+        let mut f = std::fs::File::open(file).map_err(|e| OxenError::file_open_error(file, e))?;
 
         f.read_to_end(&mut buffer)
-            .map_err(|e| OxenError::file_read_error(&file, e))?;
+            .map_err(|e| OxenError::file_read_error(file, e))?;
 
         log::debug!("Read {} file bytes from file {:?}", buffer.len(), file);
-        
+
         match outf.write_all(&buffer) {
             Ok(_) => {
                 log::debug!("Unpack successful! {:?}", full_path);
