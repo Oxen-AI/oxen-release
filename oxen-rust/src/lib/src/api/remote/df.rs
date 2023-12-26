@@ -252,7 +252,7 @@ mod tests {
             assert_eq!(df.data_frame.view.pagination.page_number, 1);
             assert_eq!(df.data_frame.view.pagination.page_size, 20);
             assert_eq!(df.data_frame.view.pagination.total_entries, 200_000);
-            assert_eq!(df.data_frame.view.pagination.total_pages, 1024);
+            assert_eq!(df.data_frame.view.pagination.total_pages, 10000);
 
             assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 20);
 
@@ -298,7 +298,7 @@ mod tests {
             assert_eq!(df.data_frame.source.size.height, 200_000);
             assert_eq!(df.data_frame.source.size.width, 11);
 
-            assert_eq!(df.data_frame.view.size.height, 37_291);
+            assert_eq!(df.data_frame.view.size.height, 100);
             assert_eq!(df.data_frame.view.size.width, 11);
 
             assert_eq!(df.data_frame.view.pagination.page_number, 1);

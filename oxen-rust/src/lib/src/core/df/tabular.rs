@@ -75,11 +75,12 @@ pub fn scan_df_csv<P: AsRef<Path>>(
     path: P,
     delimiter: u8,
     opts: &DFOpts,
+    total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
     Ok(LazyCsvReader::new(&path)
         .with_separator(delimiter)
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
-        .with_n_rows(get_max_rows_from_opts(opts))
+        .with_n_rows(get_max_rows_from_opts(opts, total_rows))
         .has_header(true)
         .finish()
         .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
@@ -107,11 +108,15 @@ pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn scan_df_jsonl<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_jsonl(
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
     Ok(
         LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
             .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
-            .with_n_rows(get_max_rows_from_opts(opts))
+            .with_n_rows(get_max_rows_from_opts(opts, total_rows))
             .finish()
             .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())),
     )
@@ -133,9 +138,13 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     }
 }
 
-pub fn scan_df_parquet(path: impl AsRef<Path>, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_parquet(
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
     let args = ScanArgsParquet {
-        n_rows: get_max_rows_from_opts(opts),
+        n_rows: get_max_rows_from_opts(opts, total_rows),
         ..Default::default()
     };
     log::debug!(
@@ -159,15 +168,20 @@ fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
         .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
-fn get_max_rows_from_opts(opts: &DFOpts) -> Option<usize> {
-    if let Some((_, end)) = &opts.slice_indices() {
-        return Some(*end as usize);
+fn get_max_rows_from_opts(opts: &DFOpts, total_rows: usize) -> Option<usize> {
+    log::debug!(
+        "get_max_rows_from_opts total_rows {} opts.has_filter_transform() {}",
+        total_rows,
+        opts.has_filter_transform()
+    );
+    if opts.has_filter_transform() {
+        return Some(total_rows);
     }
 
-    if let Some(page_size) = opts.page_size {
-        if let Some(page_num) = opts.page {
-            return Some(page_size * page_num);
-        }
+    log::debug!("get_max_rows_from_opts {:?}", opts);
+    if let Some((_, end)) = &opts.slice_indices() {
+        log::debug!("get_max_rows_from_opts end {}", end);
+        return Some(*end as usize);
     }
 
     None
@@ -522,6 +536,27 @@ pub fn transform_lazy(
         df = df.reverse();
     }
 
+    log::debug!("transform_lazy before collect");
+    match df.collect() {
+        Ok(df) => {
+            log::debug!("transform_lazy collected {:?}", df);
+            Ok(df)
+        }
+        Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
+    }
+}
+
+pub fn transform_slice(df: DataFrame, height: usize, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    transform_slice_lazy(df.lazy(), height, opts)
+}
+
+// Separate out slice transform because it needs to be done after other transforms
+pub fn transform_slice_lazy(
+    mut df: LazyFrame,
+    height: usize,
+    opts: DFOpts,
+) -> Result<DataFrame, OxenError> {
+    // These ops should be the last ops since they depends on order
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
             let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
@@ -529,7 +564,6 @@ pub fn transform_lazy(
         }
     }
 
-    // These ops should be the last ops since they depends on order
     if let Some(indices) = opts.take_indices() {
         match take(df.clone(), indices) {
             Ok(new_df) => {
@@ -545,7 +579,6 @@ pub fn transform_lazy(
     df = slice(df, &opts);
     df = head(df, &opts);
     df = tail(df, height, &opts);
-
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
         let value = full_df.column(&item.col).unwrap().get(item.index).unwrap();
@@ -554,7 +587,7 @@ pub fn transform_lazy(
         return Ok(df);
     }
 
-    log::debug!("transform_lazy before collect");
+    log::debug!("transform_slice_lazy before collect");
     match df.collect() {
         Ok(df) => {
             log::debug!("transform_lazy collected {:?}", df);
@@ -616,12 +649,7 @@ pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, Ox
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts.slice);
-    if opts.page.is_some() || opts.page_size.is_some() {
-        let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-        let start = (page - 1) * page_size;
-        df.slice(start as i64, page_size as u32)
-    } else if let Some((start, end)) = opts.slice_indices() {
+    if let Some((start, end)) = opts.slice_indices() {
         log::debug!("SLICE with indices {:?}..{:?}", start, end);
         if start >= end {
             panic!("Slice error: Start must be greater than end.");
@@ -833,21 +861,25 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 }
 
-pub fn scan_df(path: impl AsRef<Path>, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df(
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
 
     match extension {
         Some(extension) => match extension {
-            "ndjson" => scan_df_jsonl(path, opts),
-            "jsonl" => scan_df_jsonl(path, opts),
+            "ndjson" => scan_df_jsonl(path, opts, total_rows),
+            "jsonl" => scan_df_jsonl(path, opts, total_rows),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
-                scan_df_csv(path, delimiter, opts)
+                scan_df_csv(path, delimiter, opts, total_rows)
             }
-            "tsv" => scan_df_csv(path, b'\t', opts),
-            "parquet" => scan_df_parquet(path, opts),
+            "tsv" => scan_df_csv(path, b'\t', opts, total_rows),
+            "parquet" => scan_df_parquet(path, opts, total_rows),
             "arrow" => scan_df_arrow(path),
             _ => Err(OxenError::basic_str(err)),
         },
@@ -856,7 +888,9 @@ pub fn scan_df(path: impl AsRef<Path>, opts: &DFOpts) -> Result<LazyFrame, OxenE
 }
 
 pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
-    let lazy_df = scan_df(&path, &DFOpts::empty())?;
+    // Don't need that many rows to get the width
+    let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
+    let lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
     let schema = lazy_df.schema()?;
     let width = schema.len();
 
@@ -1025,7 +1059,9 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
 
 pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenError> {
     let opts = DFOpts::empty();
-    let df = scan_df(input, &opts)?;
+    // don't need many rows to get schema
+    let total_rows = constants::DEFAULT_PAGE_SIZE;
+    let df = scan_df(input, &opts, total_rows)?;
     let schema = df.schema().expect("Could not get schema");
 
     Ok(crate::model::Schema::from_polars(&schema))
@@ -1036,7 +1072,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
     flatten: bool,
     opts: &DFOpts,
 ) -> Result<String, OxenError> {
-    let df = scan_df(input, opts)?;
+    let df = scan_df(input, opts, constants::DEFAULT_PAGE_SIZE)?;
     let schema = df.schema().expect("Could not get schema");
 
     if flatten {
@@ -1315,7 +1351,7 @@ mod tests {
     fn test_slice_parquet_lazy() -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         opts.slice = Some("329..333".to_string());
-        let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", &opts)?;
+        let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", &opts, 333)?;
         let height = 4;
         let mut df = tabular::transform_lazy(df, height, opts)?;
         println!("{df:?}");

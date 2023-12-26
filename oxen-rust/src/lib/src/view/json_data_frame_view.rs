@@ -13,7 +13,7 @@ use crate::core::df::tabular;
 use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::df_opts::DFOptsView;
-use crate::opts::PaginateOpts;
+
 use crate::view::entry::ResourceVersion;
 use crate::view::Pagination;
 use crate::{model::Schema, opts::DFOpts};
@@ -79,7 +79,7 @@ impl JsonDataFrameSource {
 }
 
 impl JsonDataFrameView {
-    pub fn view_from_pagination(
+    /*pub fn view_from_pagination(
         mut df: DataFrame,
         og_schema: Schema,
         data_frame_size: DataFrameSize,
@@ -120,7 +120,7 @@ impl JsonDataFrameView {
             },
             opts: opts_view,
         }
-    }
+    }*/
 
     pub fn from_df_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameView {
         let full_width = df.width();
