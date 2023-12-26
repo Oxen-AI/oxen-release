@@ -141,6 +141,14 @@ impl DFOpts {
         opts
     }
 
+    pub fn has_filter_transform(&self) -> bool {
+        self.aggregate.is_some()
+            || self.filter.is_some()
+            || self.sql.is_some()
+            || self.text2sql.is_some()
+            || self.unique.is_some()
+    }
+
     pub fn has_transform(&self) -> bool {
         self.add_col.is_some()
             || self.add_row.is_some()
