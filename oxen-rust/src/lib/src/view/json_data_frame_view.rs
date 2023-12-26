@@ -79,49 +79,6 @@ impl JsonDataFrameSource {
 }
 
 impl JsonDataFrameView {
-    /*pub fn view_from_pagination(
-        mut df: DataFrame,
-        og_schema: Schema,
-        data_frame_size: DataFrameSize,
-        opts: &PaginateOpts,
-    ) -> JsonDataFrameView {
-        let page_size = opts.page_size;
-        let page = opts.page_num;
-
-        // let start = if page == 0 { 0 } else { page_size * (page - 1) };
-        // let end = page_size * page;
-
-        let total_pages = (data_frame_size.height as f64 / page_size as f64).ceil() as usize;
-
-        let opts = DFOpts::empty();
-        // opts.slice = Some(format!("{}..{}", start, end));
-        let opts_view = DFOptsView::from_df_opts(&opts);
-        // let mut sliced_df = tabular::transform(df, opts).unwrap();
-
-        // Merge the metadata from the original schema
-        let mut slice_schema = Schema::from_polars(&df.schema());
-        log::debug!("OG schema {:?}", og_schema);
-        log::debug!("Pre-Slice schema {:?}", slice_schema);
-        slice_schema.update_metadata_from_schema(&og_schema);
-        log::debug!("Slice schema {:?}", slice_schema);
-
-        JsonDataFrameView {
-            schema: slice_schema,
-            size: DataFrameSize {
-                height: df.height(),
-                width: df.width(),
-            },
-            data: JsonDataFrameView::json_from_df(&mut df),
-            pagination: Pagination {
-                page_number: page,
-                page_size,
-                total_pages,
-                total_entries: data_frame_size.height,
-            },
-            opts: opts_view,
-        }
-    }*/
-
     pub fn from_df_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameView {
         let full_width = df.width();
         let full_height = df.height();
