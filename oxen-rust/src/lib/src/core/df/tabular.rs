@@ -59,7 +59,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
     }
 }
 
-pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
+pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     log::debug!("read_df_csv path: {:?}", path);
     match CsvReader::from_path(path) {
@@ -428,7 +428,8 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
 
 pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let height = df.height();
-    transform_lazy(df.lazy(), height, opts)
+    let df = transform_lazy(df.lazy(), height, opts.clone())?;
+    transform_slice_lazy(df.lazy(), height, opts)
 }
 
 pub fn transform_lazy(
@@ -536,6 +537,25 @@ pub fn transform_lazy(
         df = df.reverse();
     }
 
+    if let Some(columns) = opts.columns_names() {
+        if !columns.is_empty() {
+            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+            df = df.select(&cols);
+        }
+    }
+
+    // These ops should be the last ops since they depends on order
+    if let Some(indices) = opts.take_indices() {
+        match take(df.clone(), indices) {
+            Ok(new_df) => {
+                df = new_df.lazy();
+            }
+            Err(err) => {
+                log::error!("error taking indices from df {err:?}")
+            }
+        }
+    }
+
     log::debug!("transform_lazy before collect");
     match df.collect() {
         Ok(df) => {
@@ -556,25 +576,6 @@ pub fn transform_slice_lazy(
     height: usize,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    // These ops should be the last ops since they depends on order
-    if let Some(columns) = opts.columns_names() {
-        if !columns.is_empty() {
-            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
-            df = df.select(&cols);
-        }
-    }
-
-    if let Some(indices) = opts.take_indices() {
-        match take(df.clone(), indices) {
-            Ok(new_df) => {
-                df = new_df.lazy();
-            }
-            Err(err) => {
-                log::error!("error taking indices from df {err:?}")
-            }
-        }
-    }
-
     // Maybe slice it up
     df = slice(df, &opts);
     df = head(df, &opts);
@@ -827,7 +828,7 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
     }
 }
 
-pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
@@ -1353,7 +1354,8 @@ mod tests {
         opts.slice = Some("329..333".to_string());
         let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", &opts, 333)?;
         let height = 4;
-        let mut df = tabular::transform_lazy(df, height, opts)?;
+        let df = tabular::transform_lazy(df, height, opts.clone())?;
+        let mut df = tabular::transform_slice_lazy(df.lazy(), height, opts)?;
         println!("{df:?}");
 
         assert_eq!(df.width(), 3);
