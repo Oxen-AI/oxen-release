@@ -1,40 +1,3 @@
-# Read up on data, dataset, and dataloader APIs in
-#   * pytorch
-#   * huggingface
-#   * tensorflow
-#
-# Others to consider:
-#   * keras
-#   * fastai
-#   * pytorch-lightning
-#   * jax
-#   * sklearn
-#   * pandas
-#   * numpy
-#   * scipy
-
-# Start going through tutorials for each of the above,
-# and write example code for each of the above
-# fit into a boilerplate similar to the ImageClassificationBoilerplate and
-# be sure that the Oxen data APIs can easily slot in,
-# with swapping out the model, training loop, eval loop, etc.
-
-# Design APIs to be easy to fetch random examples from remote data frames to serve up
-# to our "gradio chatbot labeling tool" (or any other labeling tool)
-
-# Design underlying Oxen APIs to easily conform to the above APIs
-#
-# Keith: How impossible would building a Python library that exposes a read-only
-# dataframe on top of an oxen repo be?
-
-# Read-only dataframe API:
-# 0) download a file to disk from repo (easy)
-# 1) load a dataframe into python, from downloaded file (easy)
-# 2) slice and stream a dataframe in current format (easy, already have apis,
-#    potentially slow to slice big CSVs)
-# 3) slice and stream a dataframe after converting for apache arrow for you on disk
-#    (way more efficient, can convert on disk, do we do out of the box?)
-
 from oxen import PyDataset
 
 import os
@@ -42,6 +5,24 @@ import polars as pl
 from typing import Sequence, Union
 from pathlib import Path
 from typing import Optional
+
+
+def load_dataset(repo, paths: Union[str, Sequence[str]], features=None):
+    """
+    Load a dataset from a repo.
+
+    Parameters
+    ----------
+    repo : Repo
+        The oxen repository you are loading data from
+        can be a local or a remote repo
+    features : Features | None
+        The features of the dataset, columns, dtypes, etc.
+    paths : str | Sequence[str]
+        The paths to the data files needed to load the dataset
+    """
+    dataset = Dataset(repo, paths, features)
+    return dataset
 
 
 class Dataset:
@@ -89,34 +70,79 @@ class Dataset:
 
         self._data_frames = []
         self._features = features
+        self.downloaded = False
 
         if download:
             self.download_all()
+        else:
+            self.sizes = [self._repo.get_df_size(path) for path in self._paths]
+            width = sum([size[0] for size in self.sizes])
+            height = sum([size[1] for size in self.sizes])
+            self.size = width, height
 
     # For iterating over the dataset
     def __len__(self):
-        return sum([df.height for df in self._data_frames])
+        if self.downloaded:
+            return sum([df.height for df in self._data_frames])
+        else:
+            return self.size[1]
 
     # For iterating over the dataset
     def __getitem__(self, idx):
-        # iterate over data frames to find the right one to index
-        df_offset = 0  # which row we are at
-        df_idx = 0  # which dataframe we are on
-        while df_offset < idx:
-            df_offset += self._data_frames[df_idx].height
-            df_idx += 1
+        # FInd which dataframes we are in
+        df_idx, df_offset = self._get_df_offsets(idx)
 
         # Offset is the row we are at in the data frame
         remainder = idx - df_offset
 
-        # extract the features from the data frame
         ret_features = []
-        for feature in self.features:
-            df = self._data_frames[df_idx]
-            val = df[feature.name][remainder]
-            ret_features.append(val)
+        if self.downloaded:
+            # extract the features from the data frame
+            for feature in self.features:
+                df = self._data_frames[df_idx]
+                val = df[feature.name][remainder]
+                ret_features.append(val)
+        else:
+            # Grab from the API
+            row = self._get_df_row(idx)
+            ret_features.append(row)
 
         return ret_features
+
+    def __iter__(self):
+        for i in range(len(self)):
+            yield self[i]
+
+    def __repr__(self):
+        return f"Dataset({self._repo}, {self._paths})"
+
+    def __str__(self):
+        return f"Dataset({self._repo}, {self._paths})"
+
+    def _get_df_row(self, idx):
+        df_idx, df_offset = self._get_df_offsets(idx)
+        path = self._paths[df_offset]
+        return self._repo.get_df_row(path, df_idx)
+
+    def _get_df_offsets(self, idx):
+        # iterate over data frames to find the right one to index
+        df_offset = 0  # which row we are at
+        df_idx = 0  # which dataframe we are on
+
+        # create a running sum of the heights of the data frames
+        heights = [size[1] for size in self.sizes]
+        summed_heights = [sum(heights[: i + 1]) for i in range(len(heights))]
+
+        # find which data frame we are in
+        for i, height in enumerate(summed_heights):
+            if idx > height:
+                df_offset = i
+
+        df_idx = idx
+        if df_idx > summed_heights[df_offset]:
+            df_idx = idx - summed_heights[df_offset]
+
+        return df_idx, df_offset
 
     @staticmethod
     def default_cache_dir(repo) -> str:
@@ -140,6 +166,7 @@ class Dataset:
     def df(self, path: str, base_dir: str = None) -> pl.DataFrame:
         """
         Returns a dataframe of the data from the repo, fully loaded into memory.
+        Only works if dataset has been downloaded to disk.
 
         Parameters
         ----------
@@ -176,6 +203,7 @@ class Dataset:
             os.makedirs(parent, exist_ok=True)
         if not os.path.exists(output_path):
             self._repo.download(remote_path, parent)
+        self.downloaded = True
         return output_path
 
     def download_all(self):
