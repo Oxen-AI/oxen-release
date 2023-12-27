@@ -2,6 +2,7 @@ from .oxen import user, util
 from typing import Optional
 import os
 
+
 def config_user(name: str, email: str, path: Optional[str] = None):
     """
     Configures user for a host.
