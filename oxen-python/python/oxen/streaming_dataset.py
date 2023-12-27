@@ -1,14 +1,22 @@
 from oxen.providers.dataset_path_provider import DatasetPathProvider
 from oxen.providers.oxen_data_frame_provider import OxenDataFrameProvider
+from oxen import RemoteRepo
 
-from typing import List, Union
-import threading
+from typing import List, Union, Optional
 from collections import deque
+from tqdm import tqdm
+
+import threading
 import time
+import os
 
 
 def load_dataset(
-    repo, paths: Union[str, List[str]], features: Union[List[str], None] = None
+    repo: Union[RemoteRepo, str],
+    paths: Optional[Union[str, List[str]]] = None,
+    directory: Optional[str] = None,
+    features: Optional[List[str]] = None,
+    host: Optional[str] = None,
 ):
     """
     Load a dataset from a repo.
@@ -18,13 +26,33 @@ def load_dataset(
     repo : Repo
         The oxen repository you are loading data from
         can be a local or a remote repo
+    paths : str | List[str] | None
+        A path or set of paths to the data files needed to load the dataset.
+        all paths must be data frames.
+    directory : str | None
+        The directory to stream the data from.
+        Must be a directory of files with type data frame.
+        Can be used instead of paths.
+        (default: None)
     features : List[str] | None
         The columns of the dataset (default: None)
-    paths : str | List[str]
-        The paths to the data files needed to load the dataset
     """
     if isinstance(paths, str):
         paths = [paths]
+
+    if isinstance(repo, str):
+        repo = RemoteRepo(repo, host=host)
+
+    # If they supplied a directory, list all the files in the directory to get paths
+    if directory is not None:
+        # list all the files in the directory
+        paths = repo.ls(directory)
+
+        # prepend the directory to the paths
+        paths = [os.path.join(directory, path.filename) for path in paths]
+
+    if paths is None:
+        raise ValueError("Must provide either paths or directory")
 
     provider = OxenDataFrameProvider(repo, paths, features)
     dataset = StreamingDataset(provider, features)
@@ -64,15 +92,15 @@ class StreamingDataset:
         self._paths = provider.paths
 
         # Compute overall size of the dataset
-        print("Computing dataset size...")
-        self._path_sizes = [self._provider.size(path) for path in self._paths]
-        print(f"path sizes... {self._path_sizes}")
+        print(f"Computing dataset size for {len(self._paths)} files...")
+        self._path_sizes = [self._provider.size(path) for path in tqdm(self._paths)]
+        # print(f"path sizes... {self._path_sizes}")
         # Culmulative sum of the path sizes
         self._culm_sizes = [
             sum([size[1] for size in self._path_sizes[: i + 1]])
             for i in range(len(self._path_sizes))
         ]
-        print(f"Culmulative: {self._culm_sizes}")
+        # print(f"Culmulative: {self._culm_sizes}")
 
         # Update width and height based on features
         if self._features is None:

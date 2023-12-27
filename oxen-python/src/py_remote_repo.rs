@@ -183,6 +183,9 @@ impl PyRemoteRepo {
 
     fn get_df_size(&self, path: PathBuf) -> Result<(usize, usize), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
+            let mut opts = DFOpts::empty();
+            opts.slice = Some("0..1".to_string());
+
             let response = api::remote::df::get(
                 &self.repo,
                 &self.revision,
