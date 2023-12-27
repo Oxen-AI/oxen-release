@@ -1,4 +1,3 @@
-from oxen import PyDataset
 from oxen.providers.dataset_path_provider import DatasetPathProvider
 from oxen.providers.oxen_data_frame_provider import OxenDataFrameProvider
 
@@ -134,23 +133,22 @@ class StreamingDataset:
 
     # For iterating over the dataset
     def __getitem__(self, idx):
-        # print(f"StreamingDataset.__getitem__ {idx} from buffer {self._buffer_idx} of {len(self._buffers)}")
+        # print(f"StreamingDataset.__getitem__ {idx}")
 
-        # Say we have a dataset of 3 files, each with 100 rows, and a buffer size of 25
-        # Then say we have 5 buffers, so we will fetch 5 chunks of 25 rows at a time
         if idx >= self._size[1]:
             raise IndexError(
                 f"Index {idx} out of range for dataset of size {self._size}"
             )
 
         # Make sure we have data in the first two buffers
-        # we want the second one to be filled in case we've exhausted the first one
+        # we want the second one to be filled in case
+        # we've exhausted the first one
         while len(self._buffers) < 1 or self._buffer_idx >= len(self._buffers[0]):
             # We will be filling this in a background thread
-            # print(f"Waiting for data to be fetched... {self._buffer_idx} >= {len(self._buffers)}")
             time.sleep(self._sleep_interval)
 
-            # If we have exhausted the first buffer, pop it, and reset the buffer index
+            # If we have exhausted the first buffer, pop it,
+            # and reset the buffer index
             if len(self._buffers) > 1 and self._buffer_idx >= len(self._buffers[0]):
                 self._buffers.popleft()
                 self._buffer_idx = 0
@@ -191,7 +189,6 @@ class StreamingDataset:
             if len(self._buffers) < self._n_buffers:
                 self._buffers.append(self._fetch_next_buffer())
             else:
-                # print(f"Sleeping for {self._sleep_interval} seconds...while waiting for buffer {len(self._buffers)} to be consumed")
                 time.sleep(self._sleep_interval)
 
     def _fetch_next_buffer(self):
@@ -208,7 +205,6 @@ class StreamingDataset:
             end = end - culm_size
 
         buffer = self._provider.slice(path, start, end)
-        # print(f"Fetched buffer self._fetch_idx: {self._fetch_idx} path[{path_idx}]: {path} start: {start} end: {end} len(buffer): {len(buffer)}")
         self._fetch_idx += len(buffer)
 
         # If we have exhausted the current path, move to the next one

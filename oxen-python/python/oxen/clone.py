@@ -35,7 +35,7 @@ def clone(
             A LocalRepo object that can be used to interact with the cloned repo.
     """
     # Verify repo_id format
-    if not "/" in repo_id:
+    if "/" not in repo_id:
         raise ValueError(f"Invalid repo_id format: {repo_id}")
     # Get repo name from repo_id
     repo_name = repo_id.split("/")[1]

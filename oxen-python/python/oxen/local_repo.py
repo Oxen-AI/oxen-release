@@ -110,7 +110,8 @@ class LocalRepo:
 
     def rm(self, path: str, recursive=False, staged=False, remote=False):
         """
-        Remove a file or directory from being tracked. This will not delete the file or directory.
+        Remove a file or directory from being tracked.
+        This will not delete the file or directory.
 
         Args:
             path: `str`
@@ -118,9 +119,11 @@ class LocalRepo:
             recursive: `bool`
                 Whether to remove the file or directory recursively. Default: False
             staged: `bool`
-                Whether to remove the file or directory from the staging area. Default: False
+                Whether to remove the file or directory from the staging area.
+                Default: False
             remote: `bool`
-                Whether to remove the file or directory from a remote workspace. Default: False
+                Whether to remove the file or directory from a remote workspace.
+                Default: False
         """
         self._repo.rm(path, recursive, staged, remote)
 
