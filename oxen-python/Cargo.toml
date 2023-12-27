@@ -1,6 +1,6 @@
 [package]
 name = "oxen"
-version = "0.3.2"
+version = "0.3.4"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -9,17 +9,18 @@ name = "oxen"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = "0.19"
-pyo3-asyncio = { git = "https://github.com/awestlake87/pyo3-asyncio.git", rev = "2cdf4d7ed932b6d0a3dc2756189bdd17a050e7f7", features = ["attributes", "tokio-runtime"] }
+pyo3 = "0.20.0"
+pyo3-asyncio = { version = "0.20.0", features = ["attributes", "tokio-runtime"] }
 log = "0.4.17"
-pyo3-log = "0.8.1"
+pyo3-log = "0.9.0"
 tokio = { version = "1", features = ["full"] }
-pyo3-polars = "0.6.0"
-liboxen = "0.9.8"
-# liboxen = { path = "../../rust/Oxen/src/lib" }
+pyo3-polars = "0.9.0"
+serde_json = "1.0.106"
+# liboxen = "0.9.15"
+liboxen = { path = "../../rust/Oxen/src/lib" }
 
 [build-dependencies]
 cc = { version = "1.0", features = ["parallel"] }
-bindgen = { version = "0.66.0", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.69.1", default-features = false, features = ["runtime"] }
 glob = "0.3"
 pkg-config = { version = "0.3", optional = true }
