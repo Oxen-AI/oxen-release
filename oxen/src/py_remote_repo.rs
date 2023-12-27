@@ -1,5 +1,7 @@
+use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::ModType;
 use liboxen::model::file::FileNew;
+use liboxen::opts::DFOpts;
 use pyo3::prelude::*;
 
 use liboxen::config::UserConfig;
@@ -177,6 +179,79 @@ impl PyRemoteRepo {
             api::remote::commits::list_commit_history(&self.repo, &self.revision).await
         })?;
         Ok(log.iter().map(|c| PyCommit { commit: c.clone() }).collect())
+    }
+
+    fn get_df_size(&self, path: PathBuf) -> Result<(usize, usize), PyOxenError> {
+        pyo3_asyncio::tokio::get_runtime().block_on(async {
+            let mut opts = DFOpts::empty();
+            opts.slice = Some("0..1".to_string());
+
+            let response = api::remote::df::get(
+                &self.repo,
+                &self.revision,
+                path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            Ok((response.data_frame.source.size.width, response.data_frame.source.size.height))
+        })
+    }
+
+    fn get_df_row(&self, path: PathBuf, row: usize) -> Result<String, PyOxenError> {
+        let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            let mut opts = DFOpts::empty();
+            opts.slice = Some(format!("{}..{}", row, row+1));
+
+            let response = api::remote::df::get(
+                &self.repo,
+                &self.revision,
+                path,
+                opts,
+            )
+            .await?;
+
+            // convert view to json string
+            match serde_json::to_string(&response.data_frame.view.data) {
+                Ok(json) => Ok(json),
+                Err(e) => Err(OxenError::basic_str(format!("Could not convert view to json: {}", e)))
+            }
+        })?;
+        Ok(data)
+    }
+
+    fn get_df_slice(
+        &self,
+        path: PathBuf,
+        start: usize,
+        end: usize,
+        columns: Vec<String>
+    ) -> Result<String, PyOxenError> {
+        let data = pyo3_asyncio::tokio::get_runtime().block_on(async {
+            let mut opts = DFOpts::empty();
+            opts.slice = Some(format!("{}..{}", start, end));
+
+            if columns.len() > 0 {
+                // turn columns into comma separated list
+                let columns = columns.join(",");
+                opts.columns = Some(columns);
+            }
+
+            let response = api::remote::df::get(
+                &self.repo,
+                &self.revision,
+                path,
+                opts,
+            )
+            .await?;
+
+            // convert view to json string
+            match serde_json::to_string(&response.data_frame.view.data) {
+                Ok(json) => Ok(json),
+                Err(e) => Err(OxenError::basic_str(format!("Could not convert view to json: {}", e)))
+            }
+        })?;
+        Ok(data)
     }
 
     fn add_df_row(&self, path: PathBuf, data: String) -> Result<(), PyOxenError> {
