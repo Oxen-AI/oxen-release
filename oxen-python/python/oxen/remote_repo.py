@@ -35,13 +35,16 @@ def create_repo(
         name: `str`
             Name of the repository in the format 'namespace/repo_name'.
         description: `str`
-            Description of the repository. Only applicable to [OxenHub](https://oxen.ai).
+            Description of the repository.
+            Only applicable to [OxenHub](https://oxen.ai).
         is_public: `bool`
-            Whether the repository is public or private. Only applicable to [OxenHub](https://oxen.ai).
+            Whether the repository is public or private.
+            Only applicable to [OxenHub](https://oxen.ai).
         host: `str`
             The host to connect to. Defaults to 'hub.oxen.ai'
         files: `List[Tuple[str, str]]`
-            A list of tuples containing the path to the file and the contents of the file that you would like to seed the repository with.
+            A list of tuples containing the path to the file and the contents
+            of the file that you would like to seed the repository with.
     Returns:
         [RemoteRepo](/python-api/remote_repo)
     """
@@ -50,7 +53,8 @@ def create_repo(
 
 class RemoteRepo:
     """
-    The RemoteRepo class allows you to interact with an Oxen repository without downloading the data locally.
+    The RemoteRepo class allows you to interact with an Oxen repository
+    without downloading the data locally.
 
     ## Examples
 
