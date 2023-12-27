@@ -92,7 +92,7 @@ class RemoteRepo:
     ```
     """
 
-    def __init__(self, path: str, host: str = "hub.oxen.ai", revision: str = "main"):
+    def __init__(self, path: str, host: Optional[str] = None, revision: str = "main"):
         """
         Create a new RemoteRepo object to interact with.
 
@@ -105,6 +105,9 @@ class RemoteRepo:
             revision: `str`
                 The branch name or commit id to checkout. Defaults to 'main'
         """
+        if host is None:
+            host = "hub.oxen.ai"
+
         self._repo = PyRemoteRepo(path, host, revision)
 
     def __repr__(self):
