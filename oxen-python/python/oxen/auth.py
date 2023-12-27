@@ -2,6 +2,7 @@ from .oxen import auth, util
 from typing import Optional
 import os
 
+
 def config_auth(token: str, host: str = "hub.oxen.ai", path: Optional[str] = None):
     """
     Configures authentication for a host.
