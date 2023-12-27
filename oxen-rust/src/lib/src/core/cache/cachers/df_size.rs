@@ -70,7 +70,11 @@ fn get_from_cache(
         return Ok(None);
     }
 
-    if let Ok(df) = tabular::scan_df(cache_path, &DFOpts::empty()) {
+    // Don't need that many rows to scan
+    let num_scan_rows = 10;
+    let mut opts = DFOpts::empty();
+    opts.slice = Some(format!("0..{}", num_scan_rows));
+    if let Ok(df) = tabular::scan_df(cache_path, &opts, num_scan_rows) {
         let df_for_path = df
             .select([
                 col(COL_PATH),
