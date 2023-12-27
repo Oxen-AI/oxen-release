@@ -35,13 +35,16 @@ def create_repo(
         name: `str`
             Name of the repository in the format 'namespace/repo_name'.
         description: `str`
-            Description of the repository. Only applicable to [OxenHub](https://oxen.ai).
+            Description of the repository.
+            Only applicable to [OxenHub](https://oxen.ai).
         is_public: `bool`
-            Whether the repository is public or private. Only applicable to [OxenHub](https://oxen.ai).
+            Whether the repository is public or private.
+            Only applicable to [OxenHub](https://oxen.ai).
         host: `str`
             The host to connect to. Defaults to 'hub.oxen.ai'
         files: `List[Tuple[str, str]]`
-            A list of tuples containing the path to the file and the contents of the file that you would like to seed the repository with.
+            A list of tuples containing the path to the file and the contents
+            of the file that you would like to seed the repository with.
     Returns:
         [RemoteRepo](/python-api/remote_repo)
     """
@@ -50,7 +53,8 @@ def create_repo(
 
 class RemoteRepo:
     """
-    The RemoteRepo class allows you to interact with an Oxen repository without downloading the data locally.
+    The RemoteRepo class allows you to interact with an Oxen repository
+    without downloading the data locally.
 
     ## Examples
 
@@ -88,7 +92,7 @@ class RemoteRepo:
     ```
     """
 
-    def __init__(self, path: str, host: str = "hub.oxen.ai", revision: str = "main"):
+    def __init__(self, path: str, host: Optional[str] = None, revision: str = "main"):
         """
         Create a new RemoteRepo object to interact with.
 
@@ -101,6 +105,9 @@ class RemoteRepo:
             revision: `str`
                 The branch name or commit id to checkout. Defaults to 'main'
         """
+        if host is None:
+            host = "hub.oxen.ai"
+
         self._repo = PyRemoteRepo(path, host, revision)
 
     def __repr__(self):
@@ -156,7 +163,7 @@ class RemoteRepo:
         if directory is None:
             return self._repo.ls("", page_num, page_size)
 
-        return self._repo.ls(directory, page_num, page_size)
+        return self._repo.ls(directory, page_num, page_size).entries
 
     def download(
         self, remote_path: str, local_path: Optional[str] = None, revision: str = ""
@@ -250,6 +257,49 @@ class RemoteRepo:
         List all branches for a remote repo
         """
         return self._repo.list_branches()
+
+    def get_df_size(self, path: str):
+        """
+        Get the size of a dataframe file on the remote repo
+
+        Args:
+            path: `str`
+                The path to the df on the remote
+        """
+        return self._repo.get_df_size(path)
+
+    def get_df_row(self, path: str, idx: int):
+        """
+        Fetches a row from the dataframe at the specified path on the remote repo
+
+        Args:
+            path: `str`
+                Path to the dataframe on the remote repo
+            idx: `int`
+                The index of the row to return
+        """
+        return self._repo.get_df_row(path, idx)
+
+    def get_df_slice(
+        self, path: str, start: int, end: int, columns: Optional[List[str]] = None
+    ):
+        """
+        Gets a slice of rows from the dataframe at the specified path on the remote repo
+
+        Args:
+            path: `str`
+                Path to the dataframe on the remote repo
+            start: `int`
+                The start index of the data frame to return
+            end: `int`
+                The end index of the data frame to return
+            columns: `List[str]`
+                A list of column names to return. If None, will return all columns.
+        """
+        if columns is None:
+            # rust interface expects an empty list, not None
+            columns = []
+        return self._repo.get_df_slice(path, start, end, columns)
 
     def add_df_row(self, path: str, row: dict):
         """
