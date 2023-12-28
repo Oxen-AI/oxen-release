@@ -154,6 +154,21 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/compare/file/{base_head:.*}",
             web::get().to(controllers::compare::file),
         )
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}/{path}/{base_head:.*}",
+            web::get().to(controllers::compare::get_derived_df),
+        )
+        // The below is a POST rather than a GET for two reasons: 1) tesla doesn't allow GET requests to have a body,
+        // and 2) for branch revisions (main..staging), this DOES create resources (updating compare cache) if
+        // commit heads have changed since last cache
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}/{base_head:.*}",
+            web::post().to(controllers::compare::get_df_compare),
+        )
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame/{base_head:.*}",
+            web::post().to(controllers::compare::create_df_compare),
+        )
         // ----- Merge ----- //
         // GET merge to test if merge is possible
         .route(
@@ -249,11 +264,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/data_frame/{resource:.*}",
             web::get().to(controllers::data_frames::get),
-        )
-        // ----- /df IS A DEPRECIATED FORMAT ----- //
-        .route(
-            "/{namespace}/{repo_name}/df/{resource:.*}",
-            web::get().to(controllers::df::get),
         )
         // ----- Lines ----- //
         .route(

@@ -1,5 +1,7 @@
 use clap::{arg, Arg, Command};
-use liboxen::command::migrate::{CreateMerkleTreesMigration, Migrate, UpdateVersionFilesMigration};
+use liboxen::command::migrate::{
+    CacheDataFrameSizeMigration, Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
+};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 pub const ADD: &str = "add";
@@ -8,6 +10,7 @@ pub const CHECKOUT: &str = "checkout";
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
 pub const COMMIT: &str = "commit";
+pub const COMPARE: &str = "compare";
 pub const CONFIG: &str = "config";
 pub const CREATE_REMOTE: &str = "create-remote";
 pub const DF: &str = "df";
@@ -799,6 +802,38 @@ pub fn diff() -> Command {
         .arg(Arg::new("PATH").required(false))
 }
 
+pub fn compare() -> Command {
+    Command::new(COMPARE)
+        .about("Compare two tabular files with some schematic overlap. The two resource paramaters can be specified by filepath or `file:revision` syntax.")
+        .arg(Arg::new("RESOURCE1")
+            .required(true)
+            .help("First resource, in format `file` or `file:revision`")
+            .index(1)
+        )
+        .arg(Arg::new("RESOURCE2")
+            .required(true)
+            .help("Second resource, in format `file` or `file:revision`")
+            .index(2))
+        .arg(Arg::new("keys")
+            .required(true)
+            .long("keys")
+            .help("Comma-separated list of columns to compare on. If not specified, all columns are used for comparison.")
+            .use_value_delimiter(true)
+            .action(clap::ArgAction::Set))
+        .arg(Arg::new("targets")
+            .required(true)
+            .long("targets")
+            .help("Comma-separated list of columns in which to view changes. If not specified, all columns are viewed")
+            .use_value_delimiter(true)
+            .action(clap::ArgAction::Set))
+        .arg(Arg::new("output")
+            .required(false)
+            .long("output")
+            .short('o')
+            .help("Output directory path to write the results of the comparison. Will write both match.csv (rows with same keys and targets) and diff.csv (rows with different targets between files")
+            .action(clap::ArgAction::Set))
+}
+
 pub fn commit_cache() -> Command {
     Command::new(COMMIT_CACHE)
         .about("Compute a commit cache a server repository or set of repositories")
@@ -849,8 +884,26 @@ pub fn migrate() -> Command {
                         ),
                 )
                 .subcommand(
-                    Command::new(CreateMerkleTreesMigration.name())
-                        .about("Create merkle tree representations for each commit to speed up merge conflict detection")
+                    Command::new(PropagateSchemasMigration.name())
+                        .about("Propagates schemas to the latest commit")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                )
+                .subcommand(
+                    Command::new(CacheDataFrameSizeMigration.name())
+                        .about("Caches size for existing data frames")
                         .arg(
                             Arg::new("PATH")
                                 .help("Directory in which to apply the migration")
@@ -872,8 +925,26 @@ pub fn migrate() -> Command {
                 .about("Apply a named migration backward.")
                 .subcommand_required(true)
                 .subcommand(
-                    Command::new(CreateMerkleTreesMigration.name())
-                        .about("Create merkle tree representations for each commit to speed up merge conflict detection")
+                    Command::new(CacheDataFrameSizeMigration.name())
+                        .about("Caches size for existing data frames")
+                        .arg(
+                            Arg::new("PATH")
+                                .help("Directory in which to apply the migration")
+                                .required(true),
+                        )
+                        .arg(
+                            Arg::new("all")
+                                .long("all")
+                                .short('a')
+                                .help(
+                                    "Run the migration for all oxen repositories in this directory",
+                                )
+                                .action(clap::ArgAction::SetTrue),
+                        ),
+                )
+                .subcommand(
+                    Command::new(PropagateSchemasMigration.name())
+                        .about("Propagates schemas to the latest commit")
                         .arg(
                             Arg::new("PATH")
                                 .help("Directory in which to apply the migration")

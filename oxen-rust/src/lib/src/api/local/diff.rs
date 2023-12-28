@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
-use crate::core::index::{CommitDirEntryReader, object_db_reader};
+use crate::core::index::{object_db_reader, CommitDirEntryReader};
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::generic_diff::GenericDiff;
@@ -68,9 +68,15 @@ pub fn get_version_file_from_commit(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
+    get_version_file_from_commit_id(repo, &commit.id, path)
+}
 
-    // Extract parent so we can use it to instantiate CommitDirEntryReader
+pub fn get_version_file_from_commit_id(
+    repo: &LocalRepository,
+    commit_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    let path = path.as_ref();
     let parent = match path.parent() {
         Some(parent) => parent,
         None => return Err(OxenError::file_has_no_parent(path)),
@@ -80,16 +86,16 @@ pub fn get_version_file_from_commit(
 
     // Instantiate CommitDirEntryReader to fetch entry
     let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader = CommitDirEntryReader::new(repo, &commit.id, &relative_parent, object_reader)?;
+    let commit_entry_reader =
+        CommitDirEntryReader::new(repo, &commit_id, &relative_parent, object_reader)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
         None => return Err(OxenError::file_has_no_name(path)),
     };
 
-    // Get entry from the reader
     let entry = match commit_entry_reader.get_entry(file_name) {
         Ok(Some(entry)) => entry,
-        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, &commit.id)),
+        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, commit_id)),
     };
 
     Ok(util::fs::version_path(repo, &entry))
@@ -748,10 +754,18 @@ fn collect_modified_directories(
             )?;
 
             if diff_entry.has_changes() {
-                log::debug!("head_dir {:?} has changes, pushing diff_entry {:?}", head_dir, diff_entry);
+                log::debug!(
+                    "head_dir {:?} has changes, pushing diff_entry {:?}",
+                    head_dir,
+                    diff_entry
+                );
                 diff_entries.push(diff_entry);
             } else {
-                log::debug!("head_dir {:?} no changes, here's diff entry {:?}", head_dir, diff_entry);
+                log::debug!(
+                    "head_dir {:?} no changes, here's diff entry {:?}",
+                    head_dir,
+                    diff_entry
+                );
             }
         } else {
             log::debug!("bypassing head_dir {:?} as it is not in base", head_dir);
@@ -787,7 +801,10 @@ fn collect_removed_directories(
     for base_dir in base_dirs {
         // HEAD entry is *not* in BASE
         if !head_dirs.contains(base_dir) {
-            log::debug!("collect_removed_directories REMOVED - base_dir {:?} not in head", base_dir);
+            log::debug!(
+                "collect_removed_directories REMOVED - base_dir {:?} not in head",
+                base_dir
+            );
             diff_entries.push(DiffEntry::from_dir(
                 repo,
                 Some(base_dir),
@@ -797,7 +814,10 @@ fn collect_removed_directories(
                 DiffEntryStatus::Removed,
             )?);
         } else {
-            log::debug!("collect_removed_directories bypassing base_dir {:?}, is in head", base_dir);
+            log::debug!(
+                "collect_removed_directories bypassing base_dir {:?}, is in head",
+                base_dir
+            );
         }
     }
     Ok(())
@@ -816,7 +836,10 @@ fn collect_added_entries(
     );
     let diff = head_entries.difference(base_entries);
     for head_entry in diff {
-        log::debug!("ADDED - collect_added_entries head_entry {:?} is not in base", head_entry);
+        log::debug!(
+            "ADDED - collect_added_entries head_entry {:?} is not in base",
+            head_entry
+        );
         // HEAD entry is *not* in BASE
         diff_entries.push(DiffCommitEntry {
             path: head_entry.path.to_owned(),
@@ -1007,10 +1030,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             log::debug!("about to list diff entries");
 
-
             let entries =
                 api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
-            
+
             log::debug!("listed diff entries");
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {

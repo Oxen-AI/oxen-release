@@ -8,6 +8,7 @@ pub mod checkout;
 pub mod clone;
 pub mod commit;
 pub mod commit_cache;
+pub mod compare;
 pub mod config;
 pub mod db_inspect;
 pub mod df;
@@ -34,6 +35,7 @@ pub use crate::command::checkout::{
 };
 pub use crate::command::clone::{clone, clone_url, deep_clone_url, shallow_clone_url};
 pub use crate::command::commit::commit;
+pub use crate::command::compare::compare;
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::diff;
 pub use crate::command::fetch::fetch;

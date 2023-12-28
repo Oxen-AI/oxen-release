@@ -4,9 +4,11 @@ use std::path::{Path, PathBuf};
 
 use jwalk::WalkDir;
 
-use crate::constants;
-use crate::constants::{HASH_FILE, HISTORY_DIR, TREE_DIR, VERSIONS_DIR, VERSION_FILE_NAME};
-use crate::core::index::{CommitEntryReader, CommitReader};
+use crate::constants::HISTORY_DIR;
+use crate::constants::TREE_DIR;
+use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
+use crate::core::cache::cachers;
+use crate::core::index::{CommitEntryReader, CommitReader, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util::fs::version_dir_from_hash;
@@ -16,56 +18,66 @@ use crate::{api, util};
 pub trait Migrate {
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError>;
     fn down(&self, path: &Path, all: bool) -> Result<(), OxenError>;
-    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError>;
-
     fn name(&self) -> &'static str;
 }
 
 pub struct UpdateVersionFilesMigration;
 impl UpdateVersionFilesMigration {}
-pub struct CreateMerkleTreesMigration;
-impl CreateMerkleTreesMigration {}
+pub struct PropagateSchemasMigration;
+impl PropagateSchemasMigration {}
 
-impl Migrate for CreateMerkleTreesMigration {
+pub struct CacheDataFrameSizeMigration;
+impl CacheDataFrameSizeMigration {}
+
+impl Migrate for CacheDataFrameSizeMigration {
     fn name(&self) -> &'static str {
-        "create_merkle_trees"
+        "cache_data_frame_size"
     }
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
-            create_merkle_trees_for_all_repos_up(path)?;
+            cache_data_frame_size_for_all_repos_up(path)?;
         } else {
             let repo = LocalRepository::new(path)?;
-            create_merkle_trees_up(&repo)?;
+            cache_data_frame_size_up(&repo)?;
         }
         Ok(())
     }
 
     fn down(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
-            create_merkle_trees_for_all_repos_down(path)?;
+            cache_data_frame_size_for_all_repos_down(path)?;
         } else {
+            println!("Running down migration");
             let repo = LocalRepository::new(path)?;
-            create_merkle_trees_down(&repo)?;
+            cache_data_frame_size_down(&repo)?;
         }
         Ok(())
     }
-    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
-        let history_dir = repo
-            .path
-            .join(constants::OXEN_HIDDEN_DIR)
-            .join(constants::HISTORY_DIR);
-        // Every top-level directory in history dir should have a subdirectory "tree"
-        for entry in WalkDir::new(history_dir).min_depth(1).max_depth(1) {
-            let entry = entry?;
-            if entry.file_type().is_dir() {
-                let path = entry.path();
-                let tree_dir = path.join(constants::TREE_DIR);
-                if !tree_dir.exists() {
-                    return Ok(true);
-                }
-            }
+}
+
+impl Migrate for PropagateSchemasMigration {
+    fn name(&self) -> &'static str {
+        "propagate_schemas"
+    }
+    fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
+        if all {
+            propagate_schemas_for_all_repos_up(path)?;
+        } else {
+            let repo = LocalRepository::new(path)?;
+            propagate_schemas_up(&repo)?;
         }
-        Ok(false)
+        Ok(())
+    }
+
+    fn down(&self, path: &Path, all: bool) -> Result<(), OxenError> {
+        if all {
+            propagate_schemas_for_all_repos_down(path)?;
+        } else {
+            println!("Running down migration");
+            let repo = LocalRepository::new(path)?;
+            propagate_schemas_down(&repo)?;
+        }
+        Ok(())
     }
 }
 
@@ -92,36 +104,6 @@ impl Migrate for UpdateVersionFilesMigration {
             update_version_files_down(&repo)?;
         }
         Ok(())
-    }
-
-    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
-        let versions_dir = repo
-            .path
-            .join(constants::OXEN_HIDDEN_DIR)
-            .join(constants::VERSIONS_DIR);
-        if !versions_dir.exists() {
-            return Ok(false);
-        }
-        for entry in WalkDir::new(&versions_dir) {
-            let entry = entry?;
-            if entry.file_type().is_file() {
-                let path = entry.path();
-                let filename = match path.file_name() {
-                    Some(filename) => filename.to_string_lossy().to_string(),
-                    None => continue,
-                };
-
-                if filename.starts_with(constants::HASH_FILE) {
-                    continue;
-                }
-
-                if filename.starts_with(constants::VERSION_FILE_NAME) {
-                    return Ok(false);
-                }
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 }
 
@@ -252,6 +234,9 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
 }
 
 pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> {
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let versions_dir = hidden_dir.join(VERSIONS_DIR);
 
@@ -283,6 +268,10 @@ pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> 
 }
 
 pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError> {
+    // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
     // Hash map of entry hash (string) to path to write (commit id + extension)
     // (hash, extension) -> Vec<CommitId>
 
@@ -380,5 +369,130 @@ pub fn update_version_files_for_all_repos_down(path: &Path) -> Result<(), OxenEr
         bar.inc(1);
     }
 
+    Ok(())
+}
+
+pub fn propagate_schemas_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
+    println!("🐂 Collecting namespaces to migrate...");
+    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
+    println!("🐂 Migrating {} namespaces", namespaces.len());
+    for namespace in namespaces {
+        let namespace_path = path.join(namespace);
+        // Show the canonical namespace path
+        log::debug!(
+            "This is the namespace path we're walking: {:?}",
+            namespace_path.canonicalize()?
+        );
+        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        for repo in repos {
+            match propagate_schemas_up(&repo) {
+                Ok(_) => {}
+                Err(err) => {
+                    log::error!(
+                        "Could not migrate version files for repo {:?}\nErr: {}",
+                        repo.path.canonicalize(),
+                        err
+                    )
+                }
+            }
+        }
+        bar.inc(1);
+    }
+
+    Ok(())
+}
+
+pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
+    // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
+    let reader = CommitReader::new(repo)?;
+    let mut all_commits = reader.list_all()?;
+    // Sort by timestamp from oldest to newest
+    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    for current_commit in &all_commits {
+        for parent_commit_id in &current_commit.parent_ids {
+            let schemas = api::local::schemas::list(repo, Some(parent_commit_id))?;
+            let schema_writer = SchemaWriter::new(repo, &current_commit.id)?;
+
+            for (path, schema) in schemas {
+                if !schema_writer.has_schema(&schema) {
+                    schema_writer.put_schema(&schema)?;
+                }
+
+                schema_writer.put_schema_for_file(&path, &schema)?;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+pub fn propagate_schemas_down(_repo: &LocalRepository) -> Result<(), OxenError> {
+    println!("There are no operations to be run");
+    Ok(())
+}
+pub fn propagate_schemas_for_all_repos_down(_path: &Path) -> Result<(), OxenError> {
+    println!("There are no operations to be run");
+    Ok(())
+}
+
+pub fn cache_data_frame_size_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
+    println!("🐂 Collecting namespaces to migrate...");
+    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
+    println!("🐂 Migrating {} namespaces", namespaces.len());
+    for namespace in namespaces {
+        let namespace_path = path.join(namespace);
+        // Show the canonical namespace path
+        log::debug!(
+            "This is the namespace path we're walking: {:?}",
+            namespace_path.canonicalize()?
+        );
+        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        for repo in repos {
+            match cache_data_frame_size_up(&repo) {
+                Ok(_) => {}
+                Err(err) => {
+                    log::error!(
+                        "Could not migrate version files for repo {:?}\nErr: {}",
+                        repo.path.canonicalize(),
+                        err
+                    )
+                }
+            }
+        }
+        bar.inc(1);
+    }
+
+    Ok(())
+}
+
+pub fn cache_data_frame_size_up(repo: &LocalRepository) -> Result<(), OxenError> {
+    // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
+    let reader = CommitReader::new(repo)?;
+    let mut all_commits = reader.list_all()?;
+    // Sort by timestamp from oldest to newest
+    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    for current_commit in &all_commits {
+        cachers::df_size::compute(repo, current_commit)?;
+    }
+
+    Ok(())
+}
+
+pub fn cache_data_frame_size_down(_repo: &LocalRepository) -> Result<(), OxenError> {
+    println!("There are no operations to be run");
+    Ok(())
+}
+pub fn cache_data_frame_size_for_all_repos_down(_path: &Path) -> Result<(), OxenError> {
+    println!("There are no operations to be run");
     Ok(())
 }

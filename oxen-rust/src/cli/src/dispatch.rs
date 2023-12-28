@@ -1,11 +1,12 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::command::migrate::Migrate;
-use liboxen::command::migrate::{CreateMerkleTreesMigration, UpdateVersionFilesMigration};
+use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::model::entry::commit_entry::CommitPath;
 use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
@@ -95,18 +96,15 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
 }
 
 pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
-    let migrations: Vec<Box<dyn Migrate>> = vec![
-        Box::new(UpdateVersionFilesMigration),
-        Box::new(CreateMerkleTreesMigration),
-    ];
+    let migrations: Vec<Box<dyn Migrate>> = vec![Box::new(UpdateVersionFilesMigration)];
 
     let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
 
-    for migration in migrations {
-        if migration.is_needed(repo)? {
-            migrations_needed.push(migration);
-        }
-    }
+    // for migration in migrations {
+    //     if migration.is_needed(repo)? {
+    //         migrations_needed.push(migration);
+    //     }
+    // }
 
     if migrations_needed.is_empty() {
         return Ok(());
@@ -354,7 +352,7 @@ pub async fn remote_metadata_list_dir(path: impl AsRef<Path>) -> Result<(), Oxen
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
 
     let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.df.to_df();
+    let df = response.data_frame.view.to_df();
 
     println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 
@@ -374,7 +372,7 @@ pub async fn remote_metadata_aggregate_dir(
 
     let response =
         api::remote::metadata::agg_dir(&remote_repo, &head_commit.id, path, column).await?;
-    let df = response.df.to_df();
+    let df = response.data_frame.view.to_df();
 
     println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 
@@ -390,7 +388,7 @@ pub async fn remote_metadata_list_image(path: impl AsRef<Path>) -> Result<(), Ox
     let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
 
     let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.df.to_df();
+    let df = response.data_frame.view.to_df();
 
     println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 
@@ -477,6 +475,41 @@ pub async fn diff(commit_id: Option<&str>, path: &str, remote: bool) -> Result<(
     Ok(())
 }
 
+pub fn compare(
+    file_1: PathBuf,
+    revision_1: Option<&str>,
+    file_2: PathBuf,
+    revision_2: Option<&str>,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    output: Option<PathBuf>,
+) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+
+    let current_commit = api::local::commits::head_commit(&repository)?;
+    // For revision_1 and revision_2, if none, set to current_commit
+    let revision_1 = revision_1.unwrap_or(current_commit.id.as_str());
+    let revision_2 = revision_2.unwrap_or(current_commit.id.as_str());
+
+    let commit_1 = api::local::revisions::get(&repository, revision_1)?
+        .ok_or_else(|| OxenError::revision_not_found(revision_1.into()))?;
+    let commit_2 = api::local::revisions::get(&repository, revision_2)?
+        .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
+
+    let cpath_1 = CommitPath {
+        commit: commit_1,
+        path: file_1,
+    };
+    let cpath_2 = CommitPath {
+        commit: commit_2,
+        path: file_2,
+    };
+
+    command::compare(&repository, cpath_1, cpath_2, keys, targets, output)?;
+    Ok(())
+}
+
 pub fn merge(branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -510,7 +543,8 @@ fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
 pub async fn fetch() -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::fetch(&repository).await?;
@@ -520,7 +554,8 @@ pub async fn fetch() -> Result<(), OxenError> {
 pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let commits = api::local::commits::list_with_opts(&repository, &opts).await?;
@@ -560,7 +595,8 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
 
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let directory = directory.unwrap_or(current_dir);
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -587,7 +623,8 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
 pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let metadata = command::info(&repository, opts.to_owned())?;
 
@@ -624,7 +661,8 @@ pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
 async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
-    let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let host = get_host_from_repo(&repository)?;
@@ -687,7 +725,8 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
     } else {
         // Look up from the current dir for .oxen directory
         let current_dir = env::current_dir().unwrap();
-        let repo_dir = util::fs::get_repo_root(&current_dir).expect(error::NO_REPO_FOUND);
+        let repo_dir = util::fs::get_repo_root(&current_dir)
+            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
         let repository = LocalRepository::from_dir(&repo_dir)?;
 
@@ -1023,7 +1062,8 @@ pub fn inspect(path: &Path) -> Result<(), OxenError> {
 
 pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
     let repo_path = Path::new(repo_path);
-    let repo_dir = util::fs::get_repo_root(repo_path).expect(error::NO_REPO_FOUND);
+    let repo_dir =
+        util::fs::get_repo_root(repo_path).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     command::save(&repo, output_path)?;

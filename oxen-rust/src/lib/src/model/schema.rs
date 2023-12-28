@@ -143,6 +143,10 @@ impl Schema {
             .any(|f| f.name == field.name && f.dtype == field.dtype)
     }
 
+    pub fn has_field_names(&self, fields: &[String]) -> bool {
+        fields.iter().all(|field| self.has_field_name(field))
+    }
+
     pub fn has_field_name(&self, name: &str) -> bool {
         self.fields.iter().any(|f| f.name == name)
     }

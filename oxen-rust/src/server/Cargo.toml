@@ -1,6 +1,6 @@
 [package]
 name = "oxen-server"
-version = "0.9.7"
+version = "0.9.17"
 edition = "2021"
 
 [dependencies]

@@ -5,7 +5,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::{JsonDataFrameSliceResponse, MetadataEntryResponse};
+use crate::view::{JsonDataFrameViewResponse, MetadataEntryResponse};
 
 use std::path::Path;
 
@@ -33,7 +33,7 @@ pub async fn list_dir(
     remote_repo: &RemoteRepository,
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
-) -> Result<JsonDataFrameSliceResponse, OxenError> {
+) -> Result<JsonDataFrameViewResponse, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
     let uri = format!("/meta/dir/{}/{}", revision, path);
@@ -51,7 +51,7 @@ pub async fn agg_dir(
     revision: impl AsRef<str>,
     path: impl AsRef<Path>,
     column: impl AsRef<str>,
-) -> Result<JsonDataFrameSliceResponse, OxenError> {
+) -> Result<JsonDataFrameViewResponse, OxenError> {
     let path = path.as_ref().to_string_lossy();
     let revision = revision.as_ref();
     let column = column.as_ref();
@@ -73,7 +73,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;
-    use crate::view::{JsonDataFrameSliceResponse, MetadataEntryResponse};
+    use crate::view::{JsonDataFrameViewResponse, MetadataEntryResponse};
 
     use std::path::Path;
 
@@ -160,15 +160,15 @@ mod tests {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("train");
 
-            let meta: JsonDataFrameSliceResponse =
+            let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::list_dir(&remote_repo, branch, directory).await?;
             println!("meta: {:?}", meta);
 
-            let df = meta.df.to_df();
+            let df = meta.data_frame.view.to_df();
             println!("df: {:?}", df);
 
-            assert_eq!(meta.full_size.width, 10);
-            assert_eq!(meta.full_size.height, 5);
+            assert_eq!(meta.data_frame.source.size.width, 10);
+            assert_eq!(meta.data_frame.source.size.height, 5);
 
             Ok(remote_repo)
         })
@@ -181,12 +181,12 @@ mod tests {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("");
 
-            let meta: JsonDataFrameSliceResponse =
+            let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
                     .await?;
             println!("meta: {:?}", meta);
 
-            let df = meta.df.to_df();
+            let df = meta.data_frame.view.to_df();
             println!("df: {:?}", df);
 
             /*
@@ -202,8 +202,8 @@ mod tests {
             └───────────┴───────┘
             */
 
-            assert_eq!(meta.full_size.width, 2);
-            assert_eq!(meta.full_size.height, 3);
+            assert_eq!(meta.data_frame.source.size.width, 2);
+            assert_eq!(meta.data_frame.source.size.height, 3);
 
             Ok(remote_repo)
         })
@@ -216,12 +216,12 @@ mod tests {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("train");
 
-            let meta: JsonDataFrameSliceResponse =
+            let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
                     .await?;
             println!("meta: {:?}", meta);
 
-            let df = meta.df.to_df();
+            let df = meta.data_frame.view.to_df();
             println!("df: {:?}", df);
 
             /*
@@ -235,8 +235,8 @@ mod tests {
             └───────────┴───────┘
             */
 
-            assert_eq!(meta.full_size.width, 2);
-            assert_eq!(meta.full_size.height, 1);
+            assert_eq!(meta.data_frame.source.size.width, 2);
+            assert_eq!(meta.data_frame.source.size.height, 1);
 
             // make sure that there are 5 images in the polars dataframe
             let df_str = format!("{:?}", df);

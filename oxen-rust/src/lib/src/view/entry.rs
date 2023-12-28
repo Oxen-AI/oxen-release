@@ -43,7 +43,7 @@ pub struct PaginatedEntries {
     pub total_entries: usize,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PaginatedDirEntries {
     pub entries: Vec<MetadataEntry>,
     pub resource: Option<ResourceVersion>,

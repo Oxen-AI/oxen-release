@@ -48,6 +48,7 @@ mod tests {
 
     use crate::api;
     use crate::command;
+    use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
@@ -251,7 +252,7 @@ mod tests {
             assert_eq!(df.data_frame.view.pagination.page_number, 1);
             assert_eq!(df.data_frame.view.pagination.page_size, 20);
             assert_eq!(df.data_frame.view.pagination.total_entries, 200_000);
-            assert_eq!(df.data_frame.view.pagination.total_pages, 10_000);
+            assert_eq!(df.data_frame.view.pagination.total_pages, 10000);
 
             assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 20);
 
@@ -297,8 +298,62 @@ mod tests {
             assert_eq!(df.data_frame.source.size.height, 200_000);
             assert_eq!(df.data_frame.source.size.width, 11);
 
-            assert_eq!(df.data_frame.view.size.height, 37_291);
+            assert_eq!(df.data_frame.view.size.height, 100);
             assert_eq!(df.data_frame.view.size.width, 11);
+
+            assert_eq!(df.data_frame.view.pagination.page_number, 1);
+            assert_eq!(df.data_frame.view.pagination.page_size, 100);
+            assert_eq!(df.data_frame.view.pagination.total_entries, 37_291);
+            assert_eq!(df.data_frame.view.pagination.total_pages, 373);
+
+            assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 100);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_paginate_df_after_sql() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+            let repo_dir = &local_repo.path;
+            let large_dir = repo_dir.join("large_files");
+            std::fs::create_dir_all(&large_dir)?;
+            let csv_file = large_dir.join("test.csv");
+            let from_file = test::test_200k_csv();
+            util::fs::copy(from_file, &csv_file)?;
+
+            command::add(&local_repo, &csv_file)?;
+            command::commit(&local_repo, "add test.csv")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Push the repo
+            command::push(&local_repo).await?;
+
+            // Get the df
+            let mut opts = DFOpts::empty();
+            opts.page_size = Some(100);
+            opts.sql = Some(
+                "SELECT image_id,lefteye_x,lefteye_y FROM df WHERE lefteye_x > 70".to_string(),
+            );
+            let df = api::remote::df::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "large_files/test.csv",
+                opts,
+            )
+            .await?;
+            assert_eq!(df.data_frame.source.size.height, 200_000);
+            assert_eq!(df.data_frame.source.size.width, 11);
+
+            assert_eq!(df.data_frame.view.size.height, 100);
+            assert_eq!(df.data_frame.view.size.width, 3);
 
             assert_eq!(df.data_frame.view.pagination.page_number, 1);
             assert_eq!(df.data_frame.view.pagination.page_size, 100);
@@ -408,6 +463,181 @@ mod tests {
             // Check the metadata
             assert_eq!(schema.metadata, Some(schema_metadata));
             assert_eq!(schema.fields[4].metadata, Some(column_metadata));
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Tests passing in no slice or page params for data/test/parquet/wiki_1k.parquet file
+    #[tokio::test]
+    async fn test_remote_parquet_no_params() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+            let repo_dir = &local_repo.path;
+            let large_dir = repo_dir.join("data");
+            std::fs::create_dir_all(&large_dir)?;
+            let test_file = large_dir.join("test.parquet");
+            let from_file = test::test_1k_parquet();
+            util::fs::copy(from_file, &test_file)?;
+
+            command::add(&local_repo, &test_file)?;
+            command::commit(&local_repo, "add test.parquet")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Push the repo
+            command::push(&local_repo).await?;
+
+            // Get the df
+            let mut opts = DFOpts::empty();
+            opts.columns = Some("id,title".to_string());
+            let df =
+                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, "data/test.parquet", opts)
+                    .await?;
+
+            let p_df = df.data_frame.view.to_df();
+            println!("{:?}", p_df);
+
+            // Original DF
+            assert_eq!(df.data_frame.source.size.height, 1024);
+            assert_eq!(df.data_frame.source.size.width, 3);
+
+            // View DF
+            assert_eq!(df.data_frame.view.size.height, constants::DEFAULT_PAGE_SIZE);
+            assert_eq!(df.data_frame.view.size.width, 2);
+
+            assert_eq!(df.data_frame.view.pagination.page_number, 1);
+            assert_eq!(
+                df.data_frame.view.pagination.page_size,
+                constants::DEFAULT_PAGE_SIZE
+            );
+            assert_eq!(df.data_frame.view.pagination.total_entries, 1024);
+            assert_eq!(df.data_frame.view.pagination.total_pages, 11);
+
+            assert_eq!(
+                df.data_frame.view.data.as_array().unwrap().len(),
+                constants::DEFAULT_PAGE_SIZE
+            );
+
+            println!("{}", df.data_frame.view.data[0]["title"]);
+            assert_eq!(df.data_frame.view.data[0]["title"], "Anarchism");
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Tests page=4 page_size=6 for data/test/parquet/wiki_1k.parquet file
+    #[tokio::test]
+    async fn test_paginate_remote_parquet() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+            let repo_dir = &local_repo.path;
+            let large_dir = repo_dir.join("data");
+            std::fs::create_dir_all(&large_dir)?;
+            let test_file = large_dir.join("test.parquet");
+            let from_file = test::test_1k_parquet();
+            util::fs::copy(from_file, &test_file)?;
+
+            command::add(&local_repo, &test_file)?;
+            command::commit(&local_repo, "add test.parquet")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Push the repo
+            command::push(&local_repo).await?;
+
+            // Get the df
+            let mut opts = DFOpts::empty();
+            opts.page = Some(4);
+            opts.page_size = Some(5);
+            opts.columns = Some("id,title".to_string());
+            let df =
+                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, "data/test.parquet", opts)
+                    .await?;
+
+            let p_df = df.data_frame.view.to_df();
+            println!("{:?}", p_df);
+
+            // Original DF
+            assert_eq!(df.data_frame.source.size.height, 1024);
+            assert_eq!(df.data_frame.source.size.width, 3);
+
+            // View DF
+            assert_eq!(df.data_frame.view.size.height, 5);
+            assert_eq!(df.data_frame.view.size.width, 2);
+
+            assert_eq!(df.data_frame.view.pagination.page_number, 4);
+            assert_eq!(df.data_frame.view.pagination.page_size, 5);
+            assert_eq!(df.data_frame.view.pagination.total_entries, 1024);
+            assert_eq!(df.data_frame.view.pagination.total_pages, 205);
+
+            assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 5);
+
+            println!("{}", df.data_frame.view.data[0]["title"]);
+            assert_eq!(df.data_frame.view.data[0]["title"], "Ayn Rand");
+
+            Ok(())
+        })
+        .await
+    }
+
+    // Test slice=330..333 for data/test/parquet/wiki_1k.parquet file
+    #[tokio::test]
+    async fn test_slice_remote_parquet() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|mut local_repo| async move {
+            let repo_dir = &local_repo.path;
+            let large_dir = repo_dir.join("data");
+            std::fs::create_dir_all(&large_dir)?;
+            let test_file = large_dir.join("test.parquet");
+            let from_file = test::test_1k_parquet();
+            util::fs::copy(from_file, &test_file)?;
+
+            command::add(&local_repo, &test_file)?;
+            command::commit(&local_repo, "add test.parquet")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&local_repo.dirname());
+            command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Push the repo
+            command::push(&local_repo).await?;
+
+            // Get the df
+            let mut opts = DFOpts::empty();
+            opts.slice = Some("330..333".to_string());
+            opts.columns = Some("id,title".to_string());
+            let df =
+                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, "data/test.parquet", opts)
+                    .await?;
+
+            let p_df = df.data_frame.view.to_df();
+            println!("{:?}", p_df);
+
+            // Original DF
+            assert_eq!(df.data_frame.source.size.height, 1024);
+            assert_eq!(df.data_frame.source.size.width, 3);
+
+            // View DF
+            assert_eq!(df.data_frame.view.size.height, 3);
+            assert_eq!(df.data_frame.view.size.width, 2);
+
+            assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 3);
+
+            println!("{}", df.data_frame.view.data[0]["title"]);
+            assert_eq!(df.data_frame.view.data[0]["title"], "April 26");
 
             Ok(())
         })
