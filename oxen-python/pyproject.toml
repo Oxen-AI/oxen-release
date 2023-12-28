@@ -19,6 +19,7 @@ dependencies = [
     "numpy==1.24.3",
     "tqdm==4.65.0",
     "toml==0.10.2",
+    "requests==2.31.0",
 ]
 
 
