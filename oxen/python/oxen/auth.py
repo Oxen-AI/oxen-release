@@ -1,6 +1,8 @@
 from .oxen import auth, util
+from oxen.user import config_user
 from typing import Optional
 import os
+import requests
 
 
 def config_auth(token: str, host: str = "hub.oxen.ai", path: Optional[str] = None):
@@ -21,3 +23,18 @@ def config_auth(token: str, host: str = "hub.oxen.ai", path: Optional[str] = Non
     if not path.endswith(".toml"):
         raise ValueError("Path must end with .toml")
     auth.config_auth(host, token, path)
+
+    # Only fetch user if the host is the hub
+    if "hub.oxen.ai" == host:
+        # Fetch the user from the hub and save it to the config
+        url = f"https://{host}/api/authorize"
+        # make request with token
+        headers = {"Authorization": f"Bearer {token}"}
+        r = requests.get(url, headers=headers)
+        if r.status_code != 200:
+            raise Exception(f"Failed to fetch user from {host}.")
+        user = r.json()["user"]
+        name = user["name"]
+        email = user["email"]
+        # save user to config
+        config_user(name, email)
