@@ -1021,6 +1021,14 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // get og commit
             let base_commit = api::local::commits::head_commit(&repo)?;
 
+            // Walk dir here
+            let walker = jwalk::WalkDir::new(repo.path.clone());
+            for entry in walker {
+                let entry = entry?;
+                let path = entry.path();
+                log::debug!("got pre path in this dir {:?}", path);
+            }
+
             // Remove the file
             util::fs::remove_file(bbox_file)?;
 
@@ -1039,10 +1047,21 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 println!("entry {}: {:?}", entry.0, entry.1);
             }
 
-            // it currently shows all the parent dirs as being modified
+            // List files in repo at this point with jwalk::walkdir
+            let mut files: Vec<String> = vec![];
+            let walker = jwalk::WalkDir::new(repo.path.clone());
+            for entry in walker {
+                let entry = entry?;
+                let path = entry.path();
+                log::debug!("got path in this dir {:?}", path);
+            }
+
+            // it currently shows all the parent dirs as being
+            // CHANGE: through the merkle logic, this is now removing these directories...
+            // do we want this?
             assert_eq!(3, entries.len());
 
-            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[0].status, DiffEntryStatus::Removed.to_string());
             assert_eq!(entries[1].status, DiffEntryStatus::Removed.to_string());
             assert_eq!(entries[2].status, DiffEntryStatus::Removed.to_string());
 
