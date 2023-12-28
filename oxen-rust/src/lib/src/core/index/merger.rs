@@ -311,7 +311,10 @@ impl Merger {
         // Stage changes
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
-        log::debug!("the local head that we're using for this reader is {:#?}", commit);
+        log::debug!(
+            "the local head that we're using for this reader is {:#?}",
+            commit
+        );
         let reader = CommitEntryReader::new(repo, &commit)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &ignore)?;
@@ -735,12 +738,15 @@ mod tests {
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
+            log::debug!("first add");
 
             // Write and add world file
             let world_file = repo.path.join("world.txt");
             let og_contents = "World";
             util::fs::write_to_path(&world_file, og_contents)?;
+            log::debug!("second add");
             command::add(&repo, &world_file)?;
+            log::debug!("first commit");
 
             // Commit two files
             command::commit(&repo, "Adding hello & world files")?;
@@ -754,18 +760,26 @@ mod tests {
             let world_file = test::modify_txt_file(world_file, new_contents)?;
 
             // Commit the removal
+            log::debug!("third add");
             command::add(&repo, &world_file)?;
+            log::debug!("second commit");
             command::commit(&repo, "Modifying world file")?;
 
+            log::debug!("checkout");
             // Checkout and merge additions
             command::checkout(&repo, &og_branch.name).await?;
+            log::debug!("post checkout");
 
             // Make sure world file exists in it's original form
+            log::debug!("reading from path");
             let contents = util::fs::read_from_path(&world_file)?;
+            log::debug!("read from path");
             assert_eq!(contents, og_contents);
 
             let merger = Merger::new(&repo)?;
+            log::debug!("pre merge");
             merger.merge(branch_name)?.unwrap();
+            log::debug!("post merge");
 
             // Now that we've merged in, world file should be new content
             let contents = util::fs::read_from_path(&world_file)?;

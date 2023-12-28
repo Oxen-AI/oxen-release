@@ -8,7 +8,7 @@ use crate::core::index::StagedDirEntryDB;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedEntry};
 
-use rocksdb::SingleThreaded;
+use rocksdb::{MultiThreaded, SingleThreaded};
 use std::path::{Path, PathBuf};
 
 pub struct StagedDirEntryReader {
@@ -17,7 +17,7 @@ pub struct StagedDirEntryReader {
     // Even with SingleThreaded, almost all of RocksDB operations is
     // multi-threaded unless the underlying RocksDB
     // instance is specifically configured otherwise
-    db: StagedDirEntryDB<SingleThreaded>,
+    db: StagedDirEntryDB<MultiThreaded>,
 }
 
 impl StagedDirEntryReader {
@@ -44,6 +44,7 @@ impl StagedDirEntryReader {
     /// # List the file paths in the staged dir
     /// More efficient than list_added_path_entries since it does not deserialize the entries
     pub fn list_added_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
+        log::debug!("trying to list added paths");
         self.db.list_added_paths()
     }
 
