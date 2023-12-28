@@ -40,6 +40,11 @@ pub fn oxen_tmp_dir() -> Result<PathBuf, OxenError> {
 }
 
 pub fn oxen_config_dir() -> Result<PathBuf, OxenError> {
+    // Override the home dir with the OXEN_CONFIG_DIR env var if it is set
+    if let Ok(config_dir) = std::env::var("OXEN_CONFIG_DIR") {
+        return Ok(PathBuf::from(config_dir));
+    }
+
     match dirs::home_dir() {
         Some(home_dir) => Ok(home_dir.join(constants::CONFIG_DIR).join(constants::OXEN)),
         None => Err(OxenError::home_dir_not_found()),
