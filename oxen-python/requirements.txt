@@ -10,3 +10,4 @@ tqdm==4.65.0
 toml==0.10.2
 tensorflow==2.13.0rc1
 torch==2.0.1
+requests==2.31.0
