@@ -196,10 +196,16 @@ pub fn commit(
     status: &StagedData,
     message: &str,
 ) -> Result<Commit, OxenError> {
+    log::debug!("pre stager");
     let stager = Stager::new(repo)?;
+    log::debug!("pre commit writer");
     let commit_writer = CommitWriter::new(repo)?;
+    log::debug!("post commit writer");
     let commit = commit_writer.commit(status, message)?;
+    log::debug!("post commit");
     stager.unstage()?;
+    log::debug!("post unstage");
+    log::debug!("returning this commit: {}", commit);
     Ok(commit)
 }
 
