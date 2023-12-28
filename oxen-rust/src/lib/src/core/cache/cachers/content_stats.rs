@@ -51,6 +51,5 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             tabular::write_df(&mut df, &path)?;
         }
     }
-
     Ok(())
 }

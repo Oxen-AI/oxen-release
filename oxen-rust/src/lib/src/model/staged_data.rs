@@ -501,7 +501,7 @@ impl StagedData {
 
     fn __collapse_outputs<T, F>(
         &self,
-        inputs: &Vec<T>,
+        inputs: &[T],
         to_components: F,
         outputs: &mut Vec<ColoredString>,
         opts: &StagedDataOpts,

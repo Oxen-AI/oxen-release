@@ -7,17 +7,19 @@ use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use std::collections::HashSet;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader};
+use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader, Stager};
 use crate::core::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
 };
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{
+    Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
+};
 use crate::opts::PullOpts;
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
 use crate::util::{self, concurrency};
@@ -88,6 +90,18 @@ impl EntryIndexer {
             None
         };
 
+        // For pulling after the initial clone, save status to avoid overwriting local untracked changes
+        let mut status = StagedData::empty();
+
+        // TODO: revisit after updating shallow clone
+        if head_commit.is_some() && !self.repository.is_shallow_clone() {
+            let stager = Stager::new(&self.repository)?;
+            status = stager.status(&CommitEntryReader::new(
+                &self.repository,
+                &head_commit.clone().unwrap(),
+            )?)?
+        };
+
         // If our local branch is currently completely synced (from a clone or pull --all), we should
         // override the opts and pull all commits
         if let Some(ref commit) = head_commit {
@@ -124,8 +138,10 @@ impl EntryIndexer {
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
 
         // Cleanup files that shouldn't be there
-
-        self.cleanup_removed_entries(&commit)?;
+        // TODO: Revisit after revising shallow logic
+        if !&self.repository.is_shallow_clone() {
+            self.cleanup_removed_entries(&commit, status)?;
+        }
 
         Ok(())
     }
@@ -143,9 +159,10 @@ impl EntryIndexer {
         };
 
         self.pull_commit_entries_db(&remote_repo, commit).await?;
-        //todonow delete 
+        //todonow delete
         let commit_vec = vec![commit.clone()];
-        self.pull_tree_objects_for_commits(&remote_repo, &commit_vec).await?;
+        self.pull_tree_objects_for_commits(&remote_repo, &commit_vec)
+            .await?;
         self.pull_all_entries_for_commit(&remote_repo, commit)
             .await?;
 
@@ -183,7 +200,6 @@ impl EntryIndexer {
         let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
         let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
 
-
         log::debug!("Pulling all gathered commits");
 
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
@@ -198,7 +214,6 @@ impl EntryIndexer {
         // TODONOW: don't pull `ALL objects`
         self.pull_tree_objects_for_commits(remote_repo, &unsynced_entry_commits)
             .await?;
-
 
         log::debug!("pulling all downloaded tree objects");
 
@@ -295,10 +310,11 @@ impl EntryIndexer {
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
-                // TODONOW: delete this 
+                // TODONOW: delete this
                 let commits_vec = vec![commit.clone()];
                 log::debug!("about to pull tree objects");
-                self.pull_tree_objects_for_commits(remote_repo, &commits_vec).await?;
+                self.pull_tree_objects_for_commits(remote_repo, &commits_vec)
+                    .await?;
                 log::debug!("pulled tree objects");
 
                 // Sync the commit entries objects
@@ -551,12 +567,10 @@ impl EntryIndexer {
         Ok(entries[0..limit].to_vec())
     }
 
-
-
     pub async fn pull_tree_objects_for_commits(
-        &self, 
-        remote_repo: &RemoteRepository, 
-        commits: &Vec<Commit> 
+        &self,
+        remote_repo: &RemoteRepository,
+        commits: &Vec<Commit>,
     ) -> Result<(), OxenError> {
         log::debug!("🐂 pulling tree objects for {:?} commits", commits.len());
         api::remote::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
@@ -681,7 +695,7 @@ impl EntryIndexer {
     fn backup_to_versions_dir(
         &self,
         commit: &Commit,
-        entries: &Vec<CommitEntry>,
+        entries: &[CommitEntry],
         // csv_writer: &mut Writer<File>,
     ) -> Result<(), OxenError> {
         if entries.is_empty() {
@@ -752,8 +766,21 @@ impl EntryIndexer {
         Ok(())
     }
 
-    fn cleanup_removed_entries(&self, commit: &Commit) -> Result<(), OxenError> {
+    fn cleanup_removed_entries(
+        &self,
+        commit: &Commit,
+        status: StagedData,
+    ) -> Result<(), OxenError> {
         log::debug!("CLEANUP_REMOVED_ENTRIES commit {}", commit);
+        let untracked_files: HashSet<PathBuf> = status.untracked_files.into_iter().collect();
+        let untracked_dirs: HashSet<PathBuf> = status
+            .untracked_dirs
+            .iter()
+            .map(|(path, _)| path.clone())
+            .collect();
+        log::debug!("untracked_files {:?}", untracked_files);
+        log::debug!("untracked_dirs {:?}", untracked_dirs);
+        // Get status to avoid removing untracked files
         let repository = self.repository.clone();
         let commit = commit.clone();
         let commit_reader = CommitEntryReader::new(&repository, &commit)?;
@@ -778,9 +805,13 @@ impl EntryIndexer {
                     commit.message
                 );
 
-
-                let commit_entry_reader =
-                    CommitDirEntryReader::new(&repository, &commit.id, &parent, object_reader.clone()).unwrap();
+                let commit_entry_reader = CommitDirEntryReader::new(
+                    &repository,
+                    &commit.id,
+                    &parent,
+                    object_reader.clone(),
+                )
+                .unwrap();
 
                 dir_entry_results
                     .par_iter_mut()
@@ -805,7 +836,11 @@ impl EntryIndexer {
                             if !dir_entry.file_type.is_dir() {
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
-                                if !commit_entry_reader.has_file(path) {
+                                // (unless it's in untracked files or parent in untracked dirs)
+                                if !commit_entry_reader.has_file(path)
+                                    && !untracked_files.contains(&short_path)
+                                    && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
+                                {
                                     log::debug!(
                                         "{} commit reader does not have file {:?}",
                                         current_function!(),
@@ -820,8 +855,11 @@ impl EntryIndexer {
                             } else {
                                 // is dir
                                 // make sure we have the dir in the commit and it is a subdir (!= "")
+                                // unless it or a parent is in untracked dirs
                                 if !commit_reader.has_dir(&short_path)
                                     && short_path != Path::new("")
+                                    && !untracked_dirs.contains(&short_path)
+                                    && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
                                 {
                                     log::debug!(
                                         "{} commit reader does not have dir {:?}",

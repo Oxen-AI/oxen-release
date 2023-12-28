@@ -1,12 +1,13 @@
 use polars::{lazy::dsl::Expr, prelude::*};
 use polars_sql::SQLContext;
+use std::fs::File;
 
 use crate::core::df::filter::DFLogicalOp;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::ContentType;
-use crate::opts::DFOpts;
-use crate::util::hasher;
+use crate::model::{ContentType, DataFrameSize};
+use crate::opts::{CountLinesOpts, DFOpts};
+use crate::util::{fs, hasher};
 use crate::{api, constants};
 
 use colored::Colorize;
@@ -16,7 +17,6 @@ use qsv_sniffer;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
-use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -39,7 +39,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
         .sample_size(DEFAULT_SAMPLE_SIZE)
         .with_ignore_errors(true)
         .has_header(true)
-        .with_delimiter(delimiter)
+        .with_separator(delimiter)
         .with_end_of_line_char(b'\n')
         .with_quote_char(Some(b'"'))
         .with_rechunk(true)
@@ -59,7 +59,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
     }
 }
 
-pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, OxenError> {
+pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     log::debug!("read_df_csv path: {:?}", path);
     match CsvReader::from_path(path) {
@@ -71,13 +71,22 @@ pub fn read_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<DataFrame, 
     }
 }
 
-pub fn scan_df_csv<P: AsRef<Path>>(path: P, delimiter: u8) -> Result<LazyFrame, OxenError> {
-    // TODO: The LazyCsvReader was acting funky here on certain csvs...
-    let df = read_df_csv(path, delimiter)?;
-    Ok(df.lazy())
+pub fn scan_df_csv<P: AsRef<Path>>(
+    path: P,
+    delimiter: u8,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
+    Ok(LazyCsvReader::new(&path)
+        .with_separator(delimiter)
+        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .with_n_rows(get_max_rows_from_opts(opts, total_rows))
+        .has_header(true)
+        .finish()
+        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
-pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
+pub fn read_df_json(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let error_str = format!("Could not read json data from path {path:?}");
     let file = File::open(path)?;
@@ -88,7 +97,7 @@ pub fn read_df_json<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn read_df_jsonl<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
+pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let error_str = format!("Could not read line delimited data from path {path:?}");
     let file = File::open(path)?;
@@ -99,16 +108,21 @@ pub fn read_df_jsonl<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn scan_df_jsonl<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_jsonl(
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
     Ok(
         LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
             .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+            .with_n_rows(get_max_rows_from_opts(opts, total_rows))
             .finish()
             .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())),
     )
 }
 
-pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
+pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let error_str = format!("Could not read tabular data from path {path:?}");
     let file = File::open(path)?;
@@ -116,7 +130,7 @@ pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> 
 
     let num_rows = reader.num_rows().unwrap_or(0);
 
-    println!("got {} rows", num_rows);
+    log::debug!("got {} rows", num_rows);
 
     match reader.finish() {
         Ok(df) => Ok(df),
@@ -124,21 +138,53 @@ pub fn read_df_parquet<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> 
     }
 }
 
-pub fn scan_df_parquet<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
-    Ok(LazyFrame::scan_parquet(&path, ScanArgsParquet::default())
+pub fn scan_df_parquet(
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
+    let args = ScanArgsParquet {
+        n_rows: get_max_rows_from_opts(opts, total_rows),
+        ..Default::default()
+    };
+    log::debug!(
+        "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
+        path.as_ref(),
+        args.n_rows
+    );
+    Ok(LazyFrame::scan_parquet(&path, args)
         .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
-fn read_df_arrow<P: AsRef<Path>>(path: P) -> Result<DataFrame, OxenError> {
+fn read_df_arrow(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let file = File::open(path.as_ref())?;
     Ok(IpcReader::new(file)
         .finish()
         .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
-fn scan_df_arrow<P: AsRef<Path>>(path: P) -> Result<LazyFrame, OxenError> {
+fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     Ok(LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
         .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
+}
+
+fn get_max_rows_from_opts(opts: &DFOpts, total_rows: usize) -> Option<usize> {
+    log::debug!(
+        "get_max_rows_from_opts total_rows {} opts.has_filter_transform() {}",
+        total_rows,
+        opts.has_filter_transform()
+    );
+    if opts.has_filter_transform() {
+        return Some(total_rows);
+    }
+
+    log::debug!("get_max_rows_from_opts {:?}", opts);
+    if let Some((_, end)) = &opts.slice_indices() {
+        log::debug!("get_max_rows_from_opts end {}", end);
+        return Some(*end as usize);
+    }
+
+    None
 }
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
@@ -193,6 +239,12 @@ pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, 
     Ok(df)
 }
 
+pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
+    let dupe_mask = df.select(cols)?.is_duplicated()?;
+    let n_dupes = dupe_mask.sum().unwrap() as u64; // Can unwrap - sum implemented for boolean
+    Ok(n_dupes)
+}
+
 pub fn parse_data_into_df(
     data: &str,
     schema: &crate::model::Schema,
@@ -222,7 +274,7 @@ pub fn parse_data_into_df(
             let cursor = Cursor::new(data.as_bytes());
             let schema = schema.to_polars();
             match CsvReader::new(cursor)
-                .with_schema(Arc::new(schema))
+                .with_schema(Some(Arc::new(schema)))
                 .finish()
             {
                 Ok(df) => Ok(df),
@@ -366,7 +418,7 @@ fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame,
         .map(|f| agg_fn_to_expr(f).expect("Err:"))
         .collect();
 
-    Ok(df.groupby(group_by).agg(agg))
+    Ok(df.group_by(group_by).agg(agg))
 }
 
 fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
@@ -376,7 +428,8 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
 
 pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let height = df.height();
-    transform_lazy(df.lazy(), height, opts)
+    let df = transform_lazy(df.lazy(), height, opts.clone())?;
+    transform_slice_lazy(df.lazy(), height, opts)
 }
 
 pub fn transform_lazy(
@@ -384,9 +437,9 @@ pub fn transform_lazy(
     height: usize,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    log::debug!("Got transform ops {:?}", opts);
+    log::debug!("transform_lazy Got transform ops {:?}", opts);
     if let Some(vstack) = &opts.vstack {
-        log::debug!("Got files to stack {:?}", vstack);
+        log::debug!("transform_lazy Got files to stack {:?}", vstack);
         for path in vstack.iter() {
             let opts = DFOpts::empty();
             let new_df = read_df(path, opts).expect(READ_ERROR);
@@ -458,15 +511,15 @@ pub fn transform_lazy(
     }
 
     // Sort aggregations by first column because they return in a non-deterministic order
-    log::debug!("Should sort by first column? {should_sort_by_first_column}");
+    log::debug!("transform_lazy Should sort by first column? {should_sort_by_first_column}");
     if should_sort_by_first_column {
-        log::debug!("Sorting by first column");
+        log::debug!("transform_lazy Sorting by first column");
         let schema = df.schema().expect("Unable to get schema from data frame");
         let first_column = schema
             .get_at_index(0)
             .expect("Unable to get first column")
             .0;
-        log::debug!("First column name: {first_column}");
+        log::debug!("transform_lazy First column name: {first_column}");
         df = df.sort(first_column, SortOptions::default());
     }
 
@@ -503,11 +556,30 @@ pub fn transform_lazy(
         }
     }
 
+    log::debug!("transform_lazy before collect");
+    match df.collect() {
+        Ok(df) => {
+            log::debug!("transform_lazy collected {:?}", df);
+            Ok(df)
+        }
+        Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
+    }
+}
+
+pub fn transform_slice(df: DataFrame, height: usize, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    transform_slice_lazy(df.lazy(), height, opts)
+}
+
+// Separate out slice transform because it needs to be done after other transforms
+pub fn transform_slice_lazy(
+    mut df: LazyFrame,
+    height: usize,
+    opts: DFOpts,
+) -> Result<DataFrame, OxenError> {
     // Maybe slice it up
     df = slice(df, &opts);
     df = head(df, &opts);
     df = tail(df, height, &opts);
-
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
         let value = full_df.column(&item.col).unwrap().get(item.index).unwrap();
@@ -516,8 +588,12 @@ pub fn transform_lazy(
         return Ok(df);
     }
 
+    log::debug!("transform_slice_lazy before collect");
     match df.collect() {
-        Ok(df) => Ok(df),
+        Ok(df) => {
+            log::debug!("transform_lazy collected {:?}", df);
+            Ok(df)
+        }
         Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
     }
 }
@@ -574,12 +650,7 @@ pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, Ox
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     log::debug!("SLICE {:?}", opts.slice);
-    if opts.page.is_some() || opts.page_size.is_some() {
-        let page = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-        let start = (page - 1) * page_size;
-        df.slice(start as i64, page_size as u32)
-    } else if let Some((start, end)) = opts.slice_indices() {
+    if let Some((start, end)) = opts.slice_indices() {
         log::debug!("SLICE with indices {:?}..{:?}", start, end);
         if start >= end {
             panic!("Slice error: Start must be greater than end.");
@@ -612,6 +683,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
         AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
         AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+        AnyValue::Boolean(val) => vec![if *val { 1 } else { 0 }],
         // TODO: handle rows with lists...
         // AnyValue::List(val) => {
         //     match val.dtype() {
@@ -642,7 +714,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
         .lazy()
         .select([
             all(),
-            as_struct(&col_names)
+            as_struct(col_names)
                 .apply(
                     move |s| {
                         // log::debug!("s: {:?}", s);
@@ -684,6 +756,60 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
+// Maybe pass in fields here?
+pub fn df_hash_rows_on_cols(
+    df: DataFrame,
+    hash_fields: Vec<&str>,
+    out_col_name: &str,
+) -> Result<DataFrame, OxenError> {
+    let num_rows = df.height() as i64;
+
+    // Create a vector to store columns to be hashed
+    let mut col_names = vec![];
+    let schema = df.schema();
+    for field in schema.iter_fields() {
+        let field_name = field.name().as_str();
+        if hash_fields.contains(&field_name) {
+            col_names.push(col(field.name()));
+        }
+    }
+
+    // Continue as before
+    let df = df
+        .lazy()
+        .select([
+            all(),
+            as_struct(col_names)
+                .apply(
+                    move |s| {
+                        let pb = ProgressBar::new(num_rows as u64);
+                        let ca = s.struct_()?;
+                        let out: Utf8Chunked = ca
+                            .into_iter()
+                            .map(|row| {
+                                pb.inc(1);
+                                let mut buffer: Vec<u8> = vec![];
+                                for elem in row.iter() {
+                                    let mut elem: Vec<u8> = any_val_to_bytes(elem);
+                                    buffer.append(&mut elem);
+                                }
+                                let result = hasher::hash_buffer(&buffer);
+                                Some(result)
+                            })
+                            .collect();
+
+                        Ok(Some(out.into_series()))
+                    },
+                    GetOutput::from_type(polars::prelude::DataType::Utf8),
+                )
+                .alias(out_col_name),
+        ])
+        .collect()
+        .unwrap();
+    log::debug!("Hashed rows: {}", df);
+    Ok(df)
+}
+
 fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, OxenError> {
     if let Some(delimiter) = &opts.delimiter {
         if delimiter.len() != 1 {
@@ -702,7 +828,7 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
     }
 }
 
-pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
@@ -736,22 +862,67 @@ pub fn read_df<P: AsRef<Path>>(path: P, opts: DFOpts) -> Result<DataFrame, OxenE
     }
 }
 
-pub fn scan_df<P: AsRef<Path>>(path: P, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn scan_df(
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+    total_rows: usize,
+) -> Result<LazyFrame, OxenError> {
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
 
     match extension {
         Some(extension) => match extension {
-            "ndjson" => scan_df_jsonl(path),
-            "jsonl" => scan_df_jsonl(path),
+            "ndjson" => scan_df_jsonl(path, opts, total_rows),
+            "jsonl" => scan_df_jsonl(path, opts, total_rows),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
-                scan_df_csv(path, delimiter)
+                scan_df_csv(path, delimiter, opts, total_rows)
             }
-            "tsv" => scan_df_csv(path, b'\t'),
-            "parquet" => scan_df_parquet(path),
+            "tsv" => scan_df_csv(path, b'\t', opts, total_rows),
+            "parquet" => scan_df_parquet(path, opts, total_rows),
             "arrow" => scan_df_arrow(path),
+            _ => Err(OxenError::basic_str(err)),
+        },
+        None => Err(OxenError::basic_str(err)),
+    }
+}
+
+pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
+    // Don't need that many rows to get the width
+    let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
+    let lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
+    let schema = lazy_df.schema()?;
+    let width = schema.len();
+
+    let input_path = path.as_ref();
+    let extension = input_path.extension().and_then(OsStr::to_str);
+    let err = format!("Unknown file type get_size {input_path:?} {extension:?}");
+
+    match extension {
+        Some(extension) => match extension {
+            "csv" | "tsv" | "data" | "jsonl" | "ndjson" => {
+                let mut opts = CountLinesOpts::empty();
+                opts.remove_trailing_blank_line = true;
+
+                // Remove one line to account for CSV headers
+                let (mut height, _) = fs::count_lines(path, opts)?;
+                height -= 1;
+
+                Ok(DataFrameSize { width, height })
+            }
+            "parquet" => {
+                let file = File::open(input_path)?;
+                let mut reader = ParquetReader::new(file);
+                let height = reader.num_rows()?;
+                Ok(DataFrameSize { width, height })
+            }
+            "arrow" => {
+                let file = File::open(input_path)?;
+                let mut reader = IpcReader::new(file);
+                let height = reader._num_rows()?;
+                Ok(DataFrameSize { width, height })
+            }
             _ => Err(OxenError::basic_str(err)),
         },
         None => Err(OxenError::basic_str(err)),
@@ -793,8 +964,8 @@ pub fn write_df_csv<P: AsRef<Path>>(
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
     CsvWriter::new(f)
-        .has_header(true)
-        .with_delimiter(delimiter)
+        .include_header(true)
+        .with_separator(delimiter)
         .finish(df)
         .expect(&error_str);
     Ok(())
@@ -845,13 +1016,16 @@ pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenE
     }
 }
 
-pub fn copy_df<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
+pub fn copy_df(input: impl AsRef<Path>, output: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let mut df = read_df(input, DFOpts::empty())?;
     write_df_arrow(&mut df, output)?;
     Ok(df)
 }
 
-pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFrame, OxenError> {
+pub fn copy_df_add_row_num(
+    input: impl AsRef<Path>,
+    output: impl AsRef<Path>,
+) -> Result<DataFrame, OxenError> {
     let df = read_df(input, DFOpts::empty())?;
     let mut df = df
         .lazy()
@@ -862,7 +1036,7 @@ pub fn copy_df_add_row_num<P: AsRef<Path>>(input: P, output: P) -> Result<DataFr
     Ok(df)
 }
 
-pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, OxenError> {
+pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
     if opts.column_at().is_some() {
@@ -886,7 +1060,9 @@ pub fn show_path<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<DataFrame, Ox
 
 pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenError> {
     let opts = DFOpts::empty();
-    let df = scan_df(input, &opts)?;
+    // don't need many rows to get schema
+    let total_rows = constants::DEFAULT_PAGE_SIZE;
+    let df = scan_df(input, &opts, total_rows)?;
     let schema = df.schema().expect("Could not get schema");
 
     Ok(crate::model::Schema::from_polars(&schema))
@@ -897,7 +1073,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
     flatten: bool,
     opts: &DFOpts,
 ) -> Result<String, OxenError> {
-    let df = scan_df(input, opts)?;
+    let df = scan_df(input, opts, constants::DEFAULT_PAGE_SIZE)?;
     let schema = df.schema().expect("Could not get schema");
 
     if flatten {
@@ -937,6 +1113,7 @@ fn schema_to_flat_str(schema: &Schema) -> String {
 #[cfg(test)]
 mod tests {
     use crate::core::df::{filter, tabular};
+    use crate::view::JsonDataFrameView;
     use crate::{error::OxenError, opts::DFOpts};
     use polars::prelude::*;
 
@@ -1168,6 +1345,55 @@ mod tests {
         let opts = DFOpts::empty();
         let df = tabular::read_df("data/test/csvs/emojis.csv", opts)?;
         assert_eq!(df.width(), 2);
+        Ok(())
+    }
+
+    #[test]
+    fn test_slice_parquet_lazy() -> Result<(), OxenError> {
+        let mut opts = DFOpts::empty();
+        opts.slice = Some("329..333".to_string());
+        let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", &opts, 333)?;
+        let height = 4;
+        let df = tabular::transform_lazy(df, height, opts.clone())?;
+        let mut df = tabular::transform_slice_lazy(df.lazy(), height, opts)?;
+        println!("{df:?}");
+
+        assert_eq!(df.width(), 3);
+        assert_eq!(df.height(), 4);
+
+        let json = JsonDataFrameView::json_from_df(&mut df);
+        println!("{}", json[0]);
+        assert_eq!(
+            Some("Advanced Encryption Standard"),
+            json[0]["title"].as_str()
+        );
+        assert_eq!(Some("April 26"), json[1]["title"].as_str());
+        assert_eq!(Some("Anisotropy"), json[2]["title"].as_str());
+        assert_eq!(Some("Alpha decay"), json[3]["title"].as_str());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_slice_parquet_full_read() -> Result<(), OxenError> {
+        let mut opts = DFOpts::empty();
+        opts.slice = Some("329..333".to_string());
+        let mut df = tabular::read_df("data/test/parquet/wiki_1k.parquet", opts)?;
+        println!("{df:?}");
+
+        assert_eq!(df.width(), 3);
+        assert_eq!(df.height(), 4);
+
+        let json = JsonDataFrameView::json_from_df(&mut df);
+        println!("{}", json[0]);
+        assert_eq!(
+            Some("Advanced Encryption Standard"),
+            json[0]["title"].as_str()
+        );
+        assert_eq!(Some("April 26"), json[1]["title"].as_str());
+        assert_eq!(Some("Anisotropy"), json[2]["title"].as_str());
+        assert_eq!(Some("Alpha decay"), json[3]["title"].as_str());
+
         Ok(())
     }
 }

@@ -952,6 +952,69 @@ where
     Ok(())
 }
 
+pub fn run_compare_data_repo_test_fully_commited<T>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+{
+    init_test_env();
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = command::init(&repo_dir)?;
+
+    // Has 6 match observations in both keys, 5 diffs,
+    // 2 key sets left only, 1 keyset right only.
+    write_txt_file_to_path(
+        repo.path.join("compare_left.csv"),
+        r"height,weight,gender,target,other_target
+        57,150,M,1,yes
+        57,160,M,0,yes
+        58,160,M,1,no
+        59,170,F,1,no
+        60,170,F,0,yes
+        61,180,F,0,yes
+        62,180,F,0,no
+        63,190,M,1,no
+        64,190,M,0,yes
+        65,200,M,0,no
+        70,240,M,1,yes
+        71,241,F,1,no
+        71,242,F,1,no
+        ",
+    )?;
+
+    write_txt_file_to_path(
+        repo.path.join("compare_right.csv"),
+        r"height,weight,gender,target,other_target
+57,150,M,1,yes
+57,160,M,0,yes
+58,160,M,1,no
+59,170,F,1,no
+60,170,F,0,yes
+61,180,F,0,yes
+62,180,F,1,no
+63,190,M,0,no
+64,190,M,1,yes
+65,200,M,0,yes
+70,240,M,0,no
+71,241,M,1,no",
+    )?;
+
+    command::add(&repo, &repo.path)?;
+    command::commit(&repo, "adding both csvs for compare")?;
+
+    let result = match test(repo) {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    util::fs::remove_dir_all(&repo_dir)?;
+
+    assert!(result);
+    Ok(())
+}
+
 /// Run a test on a repo with a bunch of files
 pub fn run_training_data_repo_test_fully_committed<T>(test: T) -> Result<(), OxenError>
 where
@@ -1124,6 +1187,13 @@ pub fn test_200k_csv() -> PathBuf {
         .join("test")
         .join("text")
         .join("celeb_a_200k.csv")
+}
+
+pub fn test_1k_parquet() -> PathBuf {
+    Path::new("data")
+        .join("test")
+        .join("parquet")
+        .join("wiki_1k.parquet")
 }
 
 pub fn test_nlp_classification_csv() -> PathBuf {

@@ -446,43 +446,40 @@ fn compress_commits_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
     Ok(buffer)
 }
 
-// TODONOW: remove 
-pub fn temp_inspect_object_dirs(repo: &LocalRepository, 
-    tag: &str,) -> Result<(), OxenError> {
-    
+// TODONOW: remove
+pub fn temp_inspect_object_dirs(repo: &LocalRepository, tag: &str) -> Result<(), OxenError> {
     log::debug!("{tag}");
-    
+
     let objects_dir = util::fs::oxen_hidden_dir(&repo.path).join(OBJECTS_DIR);
 
-
-    // TODONOW: get rid of all this crap 
+    // TODONOW: get rid of all this crap
     let dirs_dir = objects_dir.join(OBJECT_DIRS_DIR);
     let files_dir = objects_dir.join(OBJECT_FILES_DIR);
     let schemas_dir = objects_dir.join(OBJECT_SCHEMAS_DIR);
     let vnodes_dir = objects_dir.join(OBJECT_VNODES_DIR);
 
-
-    // create all these dirs 
+    // create all these dirs
     for dir in &[&dirs_dir, &files_dir, &schemas_dir, &vnodes_dir] {
         if !dir.exists() {
             std::fs::create_dir_all(&dir)?;
         }
     }
 
-
     // open all the dbs
     let opts = db::opts::default();
-    let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &dirs_dir, false)?;
-    let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &files_dir, false)?;
-    let schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &schemas_dir, false)?;
-    let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &vnodes_dir, false)?;
-
+    let dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &dirs_dir, false)?;
+    let files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &files_dir, false)?;
+    let schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &schemas_dir, false)?;
+    let vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &vnodes_dir, false)?;
 
     let dir_entries: Vec<TreeObject> = path_db::list_entries(&dirs_db)?;
     let file_entries: Vec<TreeObject> = path_db::list_entries(&files_db)?;
     let schema_entries: Vec<TreeObject> = path_db::list_entries(&schemas_db)?;
     let vnode_entries: Vec<TreeObject> = path_db::list_entries(&vnodes_db)?;
-
 
     log::debug!("{tag} doing dirs");
     for entry in dir_entries {
@@ -505,14 +502,12 @@ pub fn temp_inspect_object_dirs(repo: &LocalRepository,
     }
 
     Ok(())
-    }
+}
 
 fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
-
     temp_inspect_object_dirs(repository, "compression")?;
 
     let object_dir = util::fs::oxen_hidden_dir(&repository.path).join(OBJECTS_DIR);
-
 
     let tar_subdir = Path::new(OBJECTS_DIR);
 
@@ -520,8 +515,6 @@ fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
     let mut tar = tar::Builder::new(enc);
 
     tar.append_dir_all(tar_subdir, object_dir)?;
-
-
 
     tar.finish()?;
 
@@ -545,7 +538,6 @@ pub async fn download_objects_db(
     Ok(HttpResponse::Ok().body(buffer))
 }
 
-
 /// Download the database of all entries given a specific commit
 pub async fn download_commit_entries_db(
     req: HttpRequest,
@@ -563,7 +555,6 @@ pub async fn download_commit_entries_db(
     Ok(HttpResponse::Ok().body(buffer))
 }
 
-
 // Allow downloading of sub-dirs for efficiency
 fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<u8>, OxenError> {
     // Tar and gzip the commit db directory
@@ -579,7 +570,14 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
 
     // Ignore cache and other dirs, only take what we need
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, OBJECTS_DIR, TREE_DIR, DIR_HASHES_DIR];
+    let dirs_to_compress = vec![
+        DIRS_DIR,
+        FILES_DIR,
+        SCHEMAS_DIR,
+        OBJECTS_DIR,
+        TREE_DIR,
+        DIR_HASHES_DIR,
+    ];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -832,49 +830,27 @@ fn check_if_upload_complete_and_unpack(
         // Get tar.gz bytes for history/COMMIT_ID data
         log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
 
-        let mut buffer: Vec<u8> = Vec::new();
-        for file in files.iter() {
-            log::debug!("Reading file bytes {:?}", file);
-            let mut f = std::fs::File::open(file).unwrap();
-
-            f.read_to_end(&mut buffer).unwrap();
-        }
-
-        // TODO: better error handling...
+        // TODO: Cleanup these if / else / match statements
         // Combine into actual file data
         if is_compressed {
-            // Unpack tarball to our hidden dir
-            let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
-            unpack_entry_tarball(&hidden_dir, &mut archive);
-        } else {
-            // just write buffer to disk
-            match filename {
-                Some(filename) => {
-                    // TODO: better error handling...
-
-                    log::debug!("Got filename {}", filename);
-                    let mut full_path = hidden_dir.join(filename);
-                    full_path = util::fs::replace_file_name_keep_extension(
-                        &full_path,
-                        VERSION_FILE_NAME.to_owned(),
-                    );
-                    log::debug!("Unpack to {:?}", full_path);
-                    if let Some(parent) = full_path.parent() {
-                        if !parent.exists() {
-                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
-                        }
-                    }
-
-                    let mut f = std::fs::File::create(&full_path).expect("Could write file");
-                    match f.write_all(&buffer) {
-                        Ok(_) => {
-                            log::debug!("Unpack successful! {:?}", full_path);
-                        }
-                        Err(err) => {
-                            log::error!("Could not write all data to disk {:?}", err);
-                        }
-                    }
+            match unpack_compressed_data(&files, &hidden_dir) {
+                Ok(_) => {
+                    log::debug!("Unpacked {} files successfully", files.len());
                 }
+                Err(err) => {
+                    log::error!("Could not unpack compressed data {:?}", err);
+                }
+            }
+        } else {
+            match filename {
+                Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
+                    Ok(_) => {
+                        log::debug!("Unpacked {} files successfully", files.len());
+                    }
+                    Err(err) => {
+                        log::error!("Could not unpack compressed data {:?}", err);
+                    }
+                },
                 None => {
                     log::error!("Must supply filename if !compressed");
                 }
@@ -1039,6 +1015,63 @@ pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
         status: StatusMessage::resource_found(),
         commit: root,
     }))
+}
+
+fn unpack_compressed_data(files: &[PathBuf], hidden_dir: &Path) -> Result<(), OxenError> {
+    let mut buffer: Vec<u8> = Vec::new();
+    for file in files.iter() {
+        log::debug!("Reading file bytes {:?}", file);
+        let mut f = std::fs::File::open(file).map_err(|e| OxenError::file_open_error(file, e))?;
+
+        f.read_to_end(&mut buffer)
+            .map_err(|e| OxenError::file_read_error(file, e))?;
+    }
+
+    // Unpack tarball to our hidden dir
+    let mut archive = Archive::new(GzDecoder::new(&buffer[..]));
+    unpack_entry_tarball(hidden_dir, &mut archive);
+
+    Ok(())
+}
+
+fn unpack_to_file(files: &[PathBuf], hidden_dir: &Path, filename: &str) -> Result<(), OxenError> {
+    // Append each buffer to the end of the large file
+    // TODO: better error handling...
+    log::debug!("Got filename {}", filename);
+    let mut full_path = hidden_dir.join(filename);
+    full_path =
+        util::fs::replace_file_name_keep_extension(&full_path, VERSION_FILE_NAME.to_owned());
+    log::debug!("Unpack to {:?}", full_path);
+    if let Some(parent) = full_path.parent() {
+        if !parent.exists() {
+            std::fs::create_dir_all(parent).map_err(|e| OxenError::dir_create_error(parent, e))?;
+        }
+    }
+
+    let mut outf = std::fs::File::create(&full_path)
+        .map_err(|e| OxenError::file_create_error(&full_path, e))?;
+
+    for file in files.iter() {
+        log::debug!("Reading file bytes {:?}", file);
+        let mut buffer: Vec<u8> = Vec::new();
+
+        let mut f = std::fs::File::open(file).map_err(|e| OxenError::file_open_error(file, e))?;
+
+        f.read_to_end(&mut buffer)
+            .map_err(|e| OxenError::file_read_error(file, e))?;
+
+        log::debug!("Read {} file bytes from file {:?}", buffer.len(), file);
+
+        match outf.write_all(&buffer) {
+            Ok(_) => {
+                log::debug!("Unpack successful! {:?}", full_path);
+            }
+            Err(err) => {
+                log::error!("Could not write all data to disk {:?}", err);
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Controller to upload the commit database
@@ -1286,16 +1319,14 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                             .expect("Could not write hash file");
                     } else if path.starts_with("objects") {
                         log::debug!("we ARE in the objects unpacking place");
-                        // TODONOW fix this up 
+                        // TODONOW fix this up
                         let temp_objects_dir = hidden_dir.join("tmp").join("objects");
-                        // create dir all 
+                        // create dir all
                         if !temp_objects_dir.exists() {
                             std::fs::create_dir_all(&temp_objects_dir).unwrap();
                         }
 
                         file.unpack_in(&temp_objects_dir).unwrap();
-
-
                     } else {
                         // For non-version files, use filename sent by client
                         log::debug!("unpacking path {:?} to {:?}", path, hidden_dir);
@@ -1311,25 +1342,21 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
             log::error!("Err: {:?}", err);
         }
     }
-    // TODONOW clean this functionality up and have it somewhere else 
+    // TODONOW clean this functionality up and have it somewhere else
     let tmp_objects_dir = hidden_dir.join("tmp").join("objects");
 
-    // If this dir exists: 
+    // If this dir exists:
     if tmp_objects_dir.exists() {
         log::debug!("tmp objects dir exists, let's do some stuff");
 
         merge_objects_dbs(hidden_dir.to_path_buf()).unwrap();
 
         std::fs::remove_dir_all(tmp_objects_dir.clone()).unwrap();
-
     }
-
-
 
     if tmp_objects_dir.exists() {
         panic!("tmp objects dirshould've been removed but isn't");
     }
-
 
     log::debug!("Done decompressing.");
 }
@@ -1341,7 +1368,6 @@ fn merge_objects_dbs(hidden_dir: PathBuf) -> Result<(), OxenError> {
 
     let tmp_objects_dir = hidden_dir.join("tmp").join("objects").join("objects");
 
-
     let repo_dirs_dir = repo_objects_dir.join(OBJECT_DIRS_DIR);
     let repo_files_dir = repo_objects_dir.join(OBJECT_FILES_DIR);
     let repo_schemas_dir = repo_objects_dir.join(OBJECT_SCHEMAS_DIR);
@@ -1352,29 +1378,33 @@ fn merge_objects_dbs(hidden_dir: PathBuf) -> Result<(), OxenError> {
     let new_schemas_dir = tmp_objects_dir.join(OBJECT_SCHEMAS_DIR);
     let new_vnodes_dir = tmp_objects_dir.join(OBJECT_VNODES_DIR);
 
-
     log::debug!("opening temp dir dbs");
-    // Open read only multithreaded rocksdbs to all the new dir locations 
+    // Open read only multithreaded rocksdbs to all the new dir locations
     let opts = db::opts::default();
-    let new_dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_dirs_dir, false)?;
-    let new_files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_files_dir, false)?;
-    let new_schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_schemas_dir, false)?;
-    let new_vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, &new_vnodes_dir, false)?;
-
+    let new_dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_dirs_dir, false)?;
+    let new_files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_files_dir, false)?;
+    let new_schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_schemas_dir, false)?;
+    let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &new_vnodes_dir, false)?;
 
     log::debug!("opening repo object dbs");
     // Simialrly, open read only databases to all the old dir locations
-    let repo_dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_dirs_dir)?;
-    let repo_files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_files_dir)?;
-    let repo_schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_schemas_dir)?;
-    let repo_vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &repo_vnodes_dir)?;
+    let repo_dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, &repo_dirs_dir)?;
+    let repo_files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, &repo_files_dir)?;
+    let repo_schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, &repo_schemas_dir)?;
+    let repo_vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, &repo_vnodes_dir)?;
 
     let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
     let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
     let new_schemas: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
     let new_vnodes: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
-
-
 
     log::debug!("doing dirs reverse");
     for dir in &new_dirs {
@@ -1396,13 +1426,10 @@ fn merge_objects_dbs(hidden_dir: PathBuf) -> Result<(), OxenError> {
         path_db::put(&repo_vnodes_db, vnode.hash(), vnode)?;
     }
 
-
     log::debug!("allegedly finished merging here.");
 
-    // 
+    //
     Ok(())
-
-
 }
 
 #[cfg(test)]

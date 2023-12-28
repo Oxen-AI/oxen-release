@@ -31,10 +31,14 @@ pub const SCHEMAS_DIR: &str = "schemas";
 pub const SCHEMAS_TREE_PREFIX: &str = ".oxen";
 // name of dir for locking branches during push
 pub const BRANCH_LOCKS_DIR: &str = "locks";
+// name of file for locking repository during push
+pub const REPOSITORY_LOCK_FILE: &str = "LOCK";
 /// prefix for the commit rows
 pub const ROWS_DIR: &str = "rows";
 /// prefix for the commit entry files
 pub const FILES_DIR: &str = "files";
+/// prefix for the cached dataframes
+pub const DATA_FRAMES_DIR: &str = "data_frames";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for a commit dir => hash maping
@@ -43,6 +47,12 @@ pub const DIR_HASHES_DIR: &str = "dir_hashes";
 pub const TREE_DIR: &str = "tree";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
+/// prefix for cached compare dfs
+pub const COMPARES_DIR: &str = "compares";
+/// prefix for the left commit pointer in cached compares
+pub const LEFT_COMPARE_COMMIT: &str = "LEFT";
+/// prefix for the right commit pointer in cached compares
+pub const RIGHT_COMPARE_COMMIT: &str = "RIGHT";
 /// prefix for the stats dir
 pub const STATS_DIR: &str = "stats";
 /// prefix for the staged dirs
@@ -107,6 +117,10 @@ pub const ROW_NUM_COL_NAME: &str = "_row_num";
 pub const ROW_HASH_COL_NAME: &str = "_row_hash";
 /// Internal Name When Performing Computation
 pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
+// Internal Name When Performing Computation
+pub const TARGETS_HASH_COL: &str = "_targets_hash";
+// Internal Name When Performing Computation
+pub const KEYS_HASH_COL: &str = "_keys_hash";
 
 // Data transfer
 // Average chunk size of ~4mb

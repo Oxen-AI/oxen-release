@@ -24,6 +24,7 @@ use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
+use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
 use crate::{api, util};
 
@@ -252,14 +253,60 @@ pub fn append_to_file(path: &Path, value: &str) -> Result<(), OxenError> {
     }
 }
 
+pub fn count_lines(
+    path: impl AsRef<Path>,
+    opts: CountLinesOpts,
+) -> Result<(usize, Option<usize>), OxenError> {
+    let path = path.as_ref();
+    let file = File::open(path)?;
+
+    let mut reader = BufReader::with_capacity(1024 * 32, file);
+    let mut line_count = 1;
+    let mut char_count = 0;
+    let mut last_buf: Vec<u8> = Vec::new();
+    let mut char_option: Option<usize> = None;
+
+    loop {
+        let len = {
+            let buf = reader.fill_buf()?;
+
+            if buf.is_empty() {
+                break;
+            }
+
+            if opts.remove_trailing_blank_line {
+                last_buf = buf.to_vec();
+            }
+
+            if opts.with_chars {
+                char_count += bytecount::num_chars(buf);
+            }
+
+            line_count += bytecount::count(buf, b'\n');
+            buf.len()
+        };
+        reader.consume(len);
+    }
+
+    if let Some(last_byte) = last_buf.last() {
+        if last_byte == &b'\n' {
+            line_count -= 1;
+        }
+    }
+
+    if opts.with_chars {
+        char_option = Some(char_count);
+    }
+
+    Ok((line_count, char_option))
+}
+
 pub fn read_lines_file(file: &File) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     let reader = BufReader::new(file);
-    for line in reader.lines().flatten() {
-        let trimmed = line.trim();
-        if !trimmed.is_empty() {
-            lines.push(String::from(trimmed));
-        }
+    // read all the lines of the file into a Vec<String>
+    for line in reader.lines().map_while(Result::ok) {
+        lines.push(line);
     }
     lines
 }
@@ -1024,6 +1071,20 @@ pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
         free_gb,
         percent_used,
     })
+}
+pub fn is_any_parent_in_set(file_path: &Path, path_set: &HashSet<PathBuf>) -> bool {
+    let mut current_path = file_path.to_path_buf();
+    // Iterate through parent directories
+    log::debug!("checking if {:?} is in {:?}", current_path, path_set);
+    while let Some(parent) = current_path.parent() {
+        log::debug!("checking if {:?} is in {:?}", current_path, path_set);
+        if path_set.contains(parent) {
+            return true;
+        }
+        current_path = parent.to_path_buf()
+    }
+
+    false
 }
 
 #[cfg(test)]

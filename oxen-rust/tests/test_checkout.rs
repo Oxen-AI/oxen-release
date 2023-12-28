@@ -1,5 +1,6 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::test;
 use liboxen::util;
@@ -471,6 +472,178 @@ async fn test_clone_checkout_old_commit_checkout_new_commit() -> Result<(), Oxen
         .await?;
 
         Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_checkout_local_does_not_remove_untracked_files() -> Result<(), OxenError> {
+    // Push the Remote Repo
+    test::run_empty_sync_repo_test(|_, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+
+        // Clone Repo to User A
+        test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+            let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
+            let user_a_repo =
+                command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+
+            // Create a new branch
+            let branch_name = "test-branch";
+            api::local::branches::create_checkout(&user_a_repo, branch_name)?;
+
+            // Back to main
+            command::checkout(&user_a_repo, DEFAULT_BRANCH_NAME).await?;
+
+            // Create some untracked files...
+            let file_1 = user_a_repo.path.join("file_1.txt");
+            let dir_1 = user_a_repo.path.join("dir_1");
+            let file_in_dir_1 = dir_1.join("file_in_dir_1.txt");
+            let dir_2 = user_a_repo.path.join("dir_2");
+            let subdir_2 = dir_2.join("subdir_2");
+            let file_in_dir_2 = subdir_2.join("file_in_dir_2.txt");
+            let file_in_subdir_2 = subdir_2.join("file_in_subdir_2.txt");
+
+            // Create the files and dirs
+            std::fs::create_dir(&dir_1)?;
+            std::fs::create_dir(&dir_2)?;
+            std::fs::create_dir(&subdir_2)?;
+
+            test::write_txt_file_to_path(&file_1, "this is file 1")?;
+            test::write_txt_file_to_path(&file_in_dir_1, "this is file in dir 1")?;
+            test::write_txt_file_to_path(&file_in_dir_2, "this is file in dir 2")?;
+            test::write_txt_file_to_path(&file_in_subdir_2, "this is file in subdir 2")?;
+
+            // Switch back over to the other branch
+            command::checkout(&user_a_repo, branch_name).await?;
+
+            // Files should exist
+            assert!(file_1.exists());
+            assert!(file_in_dir_1.exists());
+            assert!(file_in_dir_2.exists());
+            assert!(file_in_subdir_2.exists());
+
+            Ok(user_a_repo_dir_copy)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_checkout_remote_does_not_remove_untracked_files() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        // Create additional branch on remote repo before clone
+
+        let cloned_remote = remote_repo.clone();
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo =
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    .await?;
+
+            // Create untracked files
+            let file_1 = cloned_repo.path.join("file_1.txt");
+            let dir_1 = cloned_repo.path.join("dir_1");
+            let file_in_dir_1 = dir_1.join("file_in_dir_1.txt");
+            let dir_2 = cloned_repo.path.join("dir_2");
+            let subdir_2 = dir_2.join("subdir_2");
+            let file_in_dir_2 = subdir_2.join("file_in_dir_2.txt");
+
+            // Create the files and dirs
+            std::fs::create_dir(&dir_1)?;
+            std::fs::create_dir(&dir_2)?;
+            std::fs::create_dir(&subdir_2)?;
+
+            test::write_txt_file_to_path(&file_1, "this is file 1")?;
+            test::write_txt_file_to_path(&file_in_dir_1, "this is file in dir 1")?;
+            test::write_txt_file_to_path(&file_in_dir_2, "this is file in dir 2")?;
+
+            // Create a new branch after cloning (so we have to fetch the new commit from the remote)
+
+            let branch_name = "test-branch";
+            api::remote::branches::create_from_or_get(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+
+            command::fetch(&cloned_repo).await?;
+
+            // Checkout the new branch
+            command::checkout(&cloned_repo, branch_name).await?;
+
+            // Files should exist
+            assert!(file_1.exists());
+            assert!(file_in_dir_1.exists());
+            assert!(file_in_dir_2.exists());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_checkout_old_commit_does_not_overwrite_untracked_files() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        // Create additional branch on remote repo before clone
+        let branch_name = "test-branch";
+        api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME)
+            .await?;
+
+        let cloned_remote = remote_repo.clone();
+
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let cloned_repo =
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    .await?;
+
+            let test_dir_path = cloned_repo.path.join("test");
+            let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+
+            // Create untracked files
+            let file_1 = cloned_repo.path.join("file_1.txt");
+            let dir_1 = cloned_repo.path.join("dir_1");
+            let file_in_dir_1 = dir_1.join("file_in_dir_1.txt");
+            let dir_2 = cloned_repo.path.join("dir_2");
+            let subdir_2 = dir_2.join("subdir_2");
+            let file_in_dir_2 = subdir_2.join("file_in_dir_2.txt");
+
+            // Create the files and dirs
+            std::fs::create_dir(&dir_1)?;
+            std::fs::create_dir(&dir_2)?;
+            std::fs::create_dir(&subdir_2)?;
+
+            test::write_txt_file_to_path(&file_1, "this is file 1")?;
+            test::write_txt_file_to_path(&file_in_dir_1, "this is file in dir 1")?;
+            test::write_txt_file_to_path(&file_in_dir_2, "this is file in dir 2")?;
+
+            assert!(commit.is_some());
+            assert!(!test_dir_path.exists());
+
+            // checkout the commit
+            command::checkout(&cloned_repo, &commit.unwrap().id).await?;
+            // Make sure we restored the directory
+            assert!(test_dir_path.exists());
+            // Make sure the untracked files are still there
+            assert!(file_1.exists());
+            assert!(file_in_dir_1.exists());
+            assert!(file_in_dir_2.exists());
+
+            Ok(new_repo_dir)
+        })
+        .await?;
+
+        Ok(cloned_remote)
     })
     .await
 }

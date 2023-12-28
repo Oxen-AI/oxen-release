@@ -6,6 +6,7 @@
 use derive_more::{Display, Error};
 use std::fmt::Debug;
 use std::io;
+use std::num::ParseIntError;
 use std::path::Path;
 use std::path::StripPrefixError;
 
@@ -18,6 +19,7 @@ pub mod string_error;
 
 pub use crate::error::path_buf_error::PathBufError;
 pub use crate::error::string_error::StringError;
+use polars::prelude::PolarsError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
 
@@ -51,6 +53,7 @@ pub enum OxenError {
     RevisionNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
     NothingToCommit(StringError),
+    HeadNotFound(StringError),
 
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
@@ -66,6 +69,8 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
+    IncompatibleSchemas(StringError),
+    InvalidFileType(StringError),
 
     // Generic
     ParsingError(Box<StringError>),
@@ -100,6 +105,8 @@ pub enum OxenError {
     JwalkError(jwalk::Error),
     PatternError(glob::PatternError),
     GlobError(glob::GlobError),
+    PolarsError(polars::prelude::PolarsError),
+    ParseIntError(ParseIntError),
 
     // Fallback
     Basic(StringError),
@@ -218,7 +225,7 @@ impl OxenError {
     }
 
     pub fn head_not_found() -> OxenError {
-        OxenError::basic_str(HEAD_NOT_FOUND)
+        OxenError::HeadNotFound(StringError::from(HEAD_NOT_FOUND))
     }
 
     pub fn home_dir_not_found() -> OxenError {
@@ -308,6 +315,25 @@ impl OxenError {
             path.as_ref(),
             error
         );
+        OxenError::basic_str(err)
+    }
+
+    pub fn dir_create_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!(
+            "Could not create directory: {:?} error {:?}",
+            path.as_ref(),
+            error
+        );
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_open_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!("Could not open file: {:?} error {:?}", path.as_ref(), error,);
+        OxenError::basic_str(err)
+    }
+
+    pub fn file_read_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+        let err = format!("Could not read file: {:?} error {:?}", path.as_ref(), error,);
         OxenError::basic_str(err)
     }
 
@@ -412,6 +438,19 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
+    pub fn invalid_file_type<S: AsRef<str>>(file_type: S) -> OxenError {
+        let err = format!("Invalid file type: {:?}", file_type.as_ref());
+        OxenError::InvalidFileType(StringError::from(err))
+    }
+
+    pub fn incompatible_schemas(cols: Vec<String>, schema: Schema) -> OxenError {
+        let err = format!(
+            "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
+            cols, schema
+        );
+        OxenError::IncompatibleSchemas(StringError::from(err))
+    }
+
     pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
         OxenError::basic_str(err)
@@ -513,6 +552,12 @@ impl From<glob::PatternError> for OxenError {
     }
 }
 
+impl From<PolarsError> for OxenError {
+    fn from(err: PolarsError) -> Self {
+        OxenError::PolarsError(err)
+    }
+}
+
 impl From<glob::GlobError> for OxenError {
     fn from(error: glob::GlobError) -> Self {
         OxenError::GlobError(error)
@@ -543,14 +588,13 @@ impl From<std::env::VarError> for OxenError {
     }
 }
 
-impl From<std::num::ParseIntError> for OxenError {
-    fn from(_: std::num::ParseIntError) -> Self {
-        OxenError::basic_str("Failed to parse version component")
-    }
-}
-
 impl From<StripPrefixError> for OxenError {
     fn from(error: StripPrefixError) -> Self {
         OxenError::basic_str(format!("Error stripping prefix: {}", error))
+    }
+}
+impl From<ParseIntError> for OxenError {
+    fn from(error: ParseIntError) -> Self {
+        OxenError::basic_str(error.to_string())
     }
 }

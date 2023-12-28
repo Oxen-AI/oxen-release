@@ -1,4 +1,4 @@
-// TODO: We are depreciating this format in favor of the new JSON format
+// This format is deprecated favor of the new JSON format
 
 use std::io::BufWriter;
 use std::str;
@@ -7,44 +7,26 @@ use polars::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
-use super::StatusMessage;
 use crate::core::df::tabular;
-use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::PaginateOpts;
-use crate::view::entry::ResourceVersion;
 use crate::{model::Schema, opts::DFOpts};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrame {
     pub schema: Schema,
-    pub slice_schema: Schema,
-    pub slice_size: DataFrameSize,
+    pub view_schema: Schema,
+    pub view_size: DataFrameSize,
     pub full_size: DataFrameSize,
     pub data: serde_json::Value,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct JsonDataFrameSliceResponse {
-    #[serde(flatten)]
-    pub status: StatusMessage,
-    pub df: JsonDataFrame,
-    pub full_size: DataFrameSize,
-    pub slice_size: DataFrameSize,
-    pub commit: Option<Commit>,
-    pub resource: Option<ResourceVersion>,
-    pub page_number: usize,
-    pub page_size: usize,
-    pub total_pages: usize,
-    pub total_entries: usize,
 }
 
 impl JsonDataFrame {
     pub fn empty(schema: &Schema) -> JsonDataFrame {
         JsonDataFrame {
             schema: schema.to_owned(),
-            slice_schema: schema.to_owned(),
-            slice_size: DataFrameSize {
+            view_schema: schema.to_owned(),
+            view_size: DataFrameSize {
                 height: 0,
                 width: 0,
             },
@@ -60,8 +42,8 @@ impl JsonDataFrame {
         let schema = Schema::from_polars(&df.schema());
         JsonDataFrame {
             schema: schema.to_owned(),
-            slice_schema: schema.to_owned(),
-            slice_size: DataFrameSize {
+            view_schema: schema.to_owned(),
+            view_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },
@@ -86,21 +68,21 @@ impl JsonDataFrame {
         let schema = Schema::from_polars(&df.schema());
         let mut opts = DFOpts::empty();
         opts.slice = Some(format!("{}..{}", start, end));
-        let mut sliced_df = tabular::transform(df, opts).unwrap();
-        let slice_schema = Schema::from_polars(&sliced_df.schema());
+        let mut view_df = tabular::transform(df, opts).unwrap();
+        let view_schema = Schema::from_polars(&view_df.schema());
 
         JsonDataFrame {
             schema,
-            slice_schema,
-            slice_size: DataFrameSize {
-                height: sliced_df.height(),
-                width: sliced_df.width(),
+            view_schema,
+            view_size: DataFrameSize {
+                height: view_df.height(),
+                width: view_df.width(),
             },
             full_size: DataFrameSize {
                 height: full_height,
                 width: full_width,
             },
-            data: JsonDataFrame::json_data(&mut sliced_df),
+            data: JsonDataFrame::json_data(&mut view_df),
         }
     }
 
@@ -109,21 +91,21 @@ impl JsonDataFrame {
         let full_width = df.width();
 
         let schema = Schema::from_polars(&df.schema());
-        let mut sliced_df = tabular::transform(df, opts).unwrap();
-        let slice_schema = Schema::from_polars(&sliced_df.schema());
+        let mut view_df = tabular::transform(df, opts).unwrap();
+        let view_schema = Schema::from_polars(&view_df.schema());
 
         JsonDataFrame {
             schema,
-            slice_schema,
-            slice_size: DataFrameSize {
-                height: sliced_df.height(),
-                width: sliced_df.width(),
+            view_schema,
+            view_size: DataFrameSize {
+                height: view_df.height(),
+                width: view_df.width(),
             },
             full_size: DataFrameSize {
                 height: full_height,
                 width: full_width,
             },
-            data: JsonDataFrame::json_data(&mut sliced_df),
+            data: JsonDataFrame::json_data(&mut view_df),
         }
     }
 
@@ -165,12 +147,12 @@ impl JsonDataFrame {
         df: &mut DataFrame,
         og_schema: Schema,
         og_size: DataFrameSize,
-        slice_schema: Schema,
+        view_schema: Schema,
     ) -> JsonDataFrame {
         JsonDataFrame {
             schema: og_schema,
-            slice_schema,
-            slice_size: DataFrameSize {
+            view_schema,
+            view_size: DataFrameSize {
                 height: df.height(),
                 width: df.width(),
             },
