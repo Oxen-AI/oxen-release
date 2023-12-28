@@ -170,11 +170,6 @@ impl Stager {
     pub fn status(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
         log::debug!("-----status START-----");
 
-        // TODONOW delete
-        let all_entries = entry_reader.list_entries()?;
-        log::debug!("all_entries before status {:?}", all_entries);
-        log::debug!("n_entries before status {:?}", all_entries.len());
-
         let result = self.compute_staged_data(&self.repository.path, entry_reader);
         log::debug!("-----status END-----");
         result
@@ -182,12 +177,6 @@ impl Stager {
 
     pub fn status_without_untracked(&self, entry_reader: &CommitEntryReader) -> Result<StagedData, OxenError> {
         log::debug!("-----status_without_untracked START-----");
-
-        // TODONOW delete
-        let all_entries = entry_reader.list_entries()?;
-        log::debug!("all_entries before status {:?}", all_entries);
-        log::debug!("n_entries before status {:?}", all_entries.len());
-
         let result = self.staged_data_without_untracked(&self.repository.path, entry_reader);
         log::debug!("-----status_without_untracked END-----");
         result
@@ -203,9 +192,6 @@ impl Stager {
         dir: &Path,
     ) -> Result<StagedData, OxenError> {
         log::debug!("-----status_from_dir START-----");
-        let all_entries = entry_reader.list_entries()?;
-        log::debug!("all_entries before status from dir {:?}", all_entries);
-        log::debug!("n_entries before status from dir {:?}", all_entries.len());
         let result = self.compute_staged_data(dir, entry_reader);
         log::debug!("-----status_from_dir END-----");
         result
@@ -238,13 +224,13 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        let committed_dirs = entry_reader.list_dirs()?;
+        // // let committed_dirs = entry_reader.list_dirs()?;
 
-        for dir in committed_dirs {
-            if !self.should_ignore_path(&ignore, &dir) {
-                candidate_dirs.insert(self.repository.path.join(dir));
-            }
-        }
+        // for dir in committed_dirs {
+        //     if !self.should_ignore_path(&ignore, &dir) {
+        //         candidate_dirs.insert(self.repository.path.join(dir));
+        //     }
+        // }
 
         let object_reader = ObjectDBReader::new(&self.repository)?;
         for dir in candidate_dirs.iter() {
@@ -499,6 +485,10 @@ impl Stager {
                 &staged_dir_db,
                 &dir_reader,
             );
+
+            if fullpath.is_dir() {
+                continue;
+            }
 
             if let Some(file_type) = file_status {
                 match file_type {
