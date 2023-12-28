@@ -4,7 +4,7 @@ ruff==0.0.263
 pandas==2.0.1
 polars==0.17.11
 pyarrow==12.0.0
-opencv-python==4.7.0.72
+opencv-python-headless==4.7.0.72
 numpy==1.24.3
 tqdm==4.65.0
 toml==0.10.2
