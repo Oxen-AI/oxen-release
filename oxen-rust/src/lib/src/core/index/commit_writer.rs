@@ -4,7 +4,8 @@ use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
-    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter, ObjectDBReader,
+    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, EntryIndexer, ObjectDBReader,
+    RefReader, RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -157,7 +158,7 @@ impl CommitWriter {
             commit.message
         );
 
-        self.add_commit_from_status(&commit, status, origin_path)?;
+        let commit = self.add_commit_from_status(&commit, status, origin_path)?;
 
         Ok(commit)
     }
@@ -174,8 +175,11 @@ impl CommitWriter {
 
         let entries = mod_stager::list_mod_entries(&self.repository, branch, user_id)?;
         let object_reader = ObjectDBReader::new(&self.repository)?;
-        let commit_entry_reader =
-            CommitEntryReader::new_from_commit_id(&self.repository, &branch.commit_id, object_reader)?;
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(
+            &self.repository,
+            &branch.commit_id,
+            object_reader,
+        )?;
         // TODO: this is not the most efficient, but easiest way right now
         //       might want to make helper for dir entry reader
         let entries: Vec<CommitEntry> = entries
@@ -330,7 +334,8 @@ impl CommitWriter {
     pub fn add_commit_from_empty_status(&self, commit: &Commit) -> Result<(), OxenError> {
         // Empty Status
         let status = StagedData::empty();
-        self.add_commit_from_status(commit, &status, &self.repository.path)
+        let _commit = self.add_commit_from_status(commit, &status, &self.repository.path)?;
+        Ok(())
     }
 
     pub fn add_commit_from_status(
@@ -338,10 +343,9 @@ impl CommitWriter {
         commit: &Commit,
         status: &StagedData,
         origin_path: &Path,
-    ) -> Result<(), OxenError> {
+    ) -> Result<Commit, OxenError> {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-
 
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
@@ -349,29 +353,33 @@ impl CommitWriter {
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
 
-        // TODONOW: THIS IS A BIG BAD HACK, FIX LATER 
+        // TODONOW: THIS IS A BIG BAD HACK, FIX LATER
 
         let mut commit = commit.clone();
-        let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
+
+        let dir_hashes_db =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
         let opts = db::opts::default();
-        let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only( &opts, temp_commit_hashes_db, false)?;
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
 
-        // Get the hash for this commit id 
-        let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
+        // Get the hash for this commit id
+        let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
+
+        log::debug!("commit before setting root hash {:#?}", commit);
+        log::debug!("setting root hash to {}", hash);
         commit.update_root_hash(hash.clone());
-
+        log::debug!("commit after setting root hash {:#?}", commit);
 
         log::debug!("commit we're on right now {:?}", commit);
         log::debug!("got hash {} for commit {}", hash, commit.message);
-
 
         self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         ref_writer.set_head_commit_id(&commit.id)?;
 
-        Ok(())
+        Ok(commit)
     }
 
     pub fn add_commit_from_status_on_remote_branch(
@@ -392,9 +400,9 @@ impl CommitWriter {
         let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
         let opts = db::opts::default();
         let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only( &opts, temp_commit_hashes_db, false)?;
+            DBWithThreadMode::open_for_read_only(&opts, temp_commit_hashes_db, false)?;
 
-        // Get the hash for this commit id 
+        // Get the hash for this commit id
         let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
         commit.update_root_hash(hash.clone());
 
@@ -429,14 +437,13 @@ impl CommitWriter {
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
-
         let mut commit = commit.clone();
         let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
         let opts = db::opts::default();
         let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only( &opts, temp_commit_hashes_db, false)?;
+            DBWithThreadMode::open_for_read_only(&opts, temp_commit_hashes_db, false)?;
 
-        // Get the hash for this commit id 
+        // Get the hash for this commit id
         let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
         commit.update_root_hash(hash.clone());
 
@@ -664,7 +671,8 @@ impl CommitWriter {
         let object_reader = ObjectDBReader::new(&self.repository)?;
 
         for (dir, paths) in dirs_to_paths.iter() {
-            let entry_reader = CommitDirEntryReader::new(&self.repository, commit_id, dir, object_reader.clone())?;
+            let entry_reader =
+                CommitDirEntryReader::new(&self.repository, commit_id, dir, object_reader.clone())?;
             for path in paths.iter() {
                 let full_path = self.repository.path.join(path);
                 log::debug!(
