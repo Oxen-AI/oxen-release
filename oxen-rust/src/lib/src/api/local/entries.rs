@@ -37,13 +37,15 @@ pub fn get_meta_entry(
         let object_reader = ObjectDBReader::new(repo)?;
         let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader)?;
 
-        log::debug!("listing all files from the dir entry reader at parent path {:?}", parent);
+        log::debug!(
+            "listing all files from the dir entry reader at parent path {:?}",
+            parent
+        );
         for entry in dir_entry_reader.list_entries()? {
             log::debug!("the thing has entry {:?}", entry);
         }
 
         log::debug!("searching for get entry under base name {:?}", base_name);
-
 
         let entry = dir_entry_reader
             .get_entry(base_name)?
@@ -75,9 +77,9 @@ pub fn meta_entry_from_dir(
         Ok(total_size_str) => {
             log::debug!("got total size str {} for dir {:?}", total_size_str, path);
             total_size_str
-            .parse::<u64>()
-            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?
-        } 
+                .parse::<u64>()
+                .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?
+        }
         Err(_) => {
             // cache failed, go compute it
             log::debug!("cache miss, computing dir size");
@@ -119,7 +121,8 @@ fn compute_latest_commit(
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
+            let entry_reader =
+                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
             for entry in entry_reader.list_entries()? {
                 let commit = if commits.contains_key(&entry.commit_id) {
                     Some(commits[&entry.commit_id].clone())
@@ -154,10 +157,16 @@ fn compute_dir_size(
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
+            let entry_reader =
+                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
             log::debug!("about to iterate over path {:?} for dir {:?}", path, dir);
             for entry in entry_reader.list_entries()? {
-                log::debug!("got committed entry {:?} for path {:?} in commit with message {:?}", entry, path, commit.message);
+                log::debug!(
+                    "got committed entry {:?} for path {:?} in commit with message {:?}",
+                    entry,
+                    path,
+                    commit.message
+                );
                 total_size += entry.num_bytes;
             }
         }
@@ -244,13 +253,16 @@ pub fn list_directory(
 
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
-    
 
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
     log::debug!("LIST DIRECTORY about to list directories");
     for dir in entry_reader.list_dirs()? {
-        log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, directory);
+        log::debug!(
+            "LIST DIRECTORY considering committed dir: {:?} for search {:?}",
+            dir,
+            directory
+        );
         if let Some(parent) = dir.parent() {
             log::debug!("and got parent {:?}", parent);
             if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
@@ -428,15 +440,15 @@ pub fn read_unsynced_entries(
         this_entries.len(),
         grouped.len()
     );
-    
+
     let object_reader = ObjectDBReader::new(local_repo)?;
 
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
         log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
 
-
-        let last_entry_reader = CommitDirEntryReader::new(local_repo, &last_commit.id, dir, object_reader.clone())?;
+        let last_entry_reader =
+            CommitDirEntryReader::new(local_repo, &last_commit.id, dir, object_reader.clone())?;
         let mut entries: Vec<CommitEntry> = dir_entries
             .into_par_iter()
             .filter(|entry| {
@@ -683,7 +695,6 @@ mod tests {
                 3,
             )?;
 
-
             let dir_entries = paginated.entries;
             let total_entries = paginated.total_entries;
 
@@ -722,6 +733,8 @@ mod tests {
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
+
+            log::debug!("here's our commit from the test {:?}", commit);
 
             // Run the compute cache
             let force = true;

@@ -339,10 +339,13 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
+        log::debug!("here's the status for commit {:#?}", staged_data);
         self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
         self.commit_schemas(commit, &staged_data.staged_schemas)?;
-        self.new_construct_commit_merkle_tree(staged_data, origin_path)
+        self.new_construct_commit_merkle_tree(staged_data, origin_path)?;
+        self.new_temp_print_tree_db()?;
+        Ok(())
     }
 
     fn commit_schemas(
@@ -993,6 +996,202 @@ impl CommitEntryWriter {
         Ok(())
     }
 
+    fn process_affected_dir(
+        &self,
+        dir: PathBuf,
+        parent_hash_db: &DBWithThreadMode<MultiThreaded>,
+        staged_entries_map: &HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>,
+    ) -> Result<(), OxenError> {
+        log::debug!("processing affected dir... {:?}", dir);
+        // STEP 1: If this dir has a hash in the previous commit, grab its node as the starting point
+        let prev_dir_hash: Option<String> = path_db::get_entry(&parent_hash_db, dir.clone())?;
+        let mut prev_dir_object: TreeObject = if let Some(prev_hash) = prev_dir_hash {
+            path_db::get_entry(&self.dirs_db, &prev_hash)?.unwrap()
+        } else {
+            TreeObject::Dir {
+                children: Vec::new(),
+                hash: util::hasher::compute_children_hash(&Vec::new()),
+            }
+        };
+
+        // STEP 2: Get all the new children from the staged data map for this dir
+        let new_children: Vec<TreeObjectChildWithStatus> = staged_entries_map
+            .get(&dir)
+            .unwrap_or(&Vec::new())
+            .clone()
+            .to_vec();
+
+        // STEP 3: Get vnodes for this dir, including new ones (not on the previous dir object's child attr)
+        let affected_vnodes = self.get_affected_vnodes(&new_children)?;
+        let prev_vnode_children = prev_dir_object.children();
+        let mut prev_vnode_map: HashMap<String, String> = HashMap::new();
+        for vnode in prev_vnode_children {
+            prev_vnode_map.insert(
+                vnode.path().to_string_lossy().to_string(),
+                vnode.hash().to_string(),
+            );
+        }
+
+        // Get a set of all unique vnode children (those in either the prev or new vnode children lists)
+        let mut all_vnodes: HashSet<String> = HashSet::new();
+        for vnode in prev_vnode_children {
+            all_vnodes.insert(vnode.path().to_string_lossy().to_string());
+        }
+
+        log::debug!(
+            "affected_vnodes for commit with message {:?} and dir {:?} are {:?}",
+            self.commit.message,
+            dir,
+            affected_vnodes
+        );
+        for vnode in affected_vnodes.keys() {
+            all_vnodes.insert(vnode.to_string());
+        }
+
+        log::debug!(
+            "vnodes we're processing here are {:?} for heya commit with message {:?}",
+            all_vnodes,
+            self.commit.message
+        );
+
+        log::debug!(
+            "prev_vnode_children are {:?} for commit with message {:?}",
+            prev_vnode_children,
+            self.commit.message
+        );
+
+        let updated_dir_children =
+            self.update_dir_vnode_children(all_vnodes, &prev_vnode_map, &affected_vnodes)?;
+
+        // Set the dir node's children
+
+        // lexically sort vnode children
+        if updated_dir_children.len() == 0 {
+            path_db::delete(&self.dir_db, dir.clone())?;
+            path_db::delete(&self.dir_hashes_db, dir.clone())?;
+        }
+
+        // for dir_vnode_child in &updated_dir_children {
+        //     // get the node
+        //     let node: TreeObject =
+        //         path_db::get_entry(&self.vnodes_db, &dir_vnode_child.hash())?.unwrap();
+        // }
+
+        // log::debug!("dir_vnode_children post sort {:?}", updated_dir_children);
+
+        let dir_hash = util::hasher::compute_children_hash(&updated_dir_children);
+        let updated_dir_object = TreeObject::Dir {
+            children: updated_dir_children,
+            hash: dir_hash,
+        };
+
+        path_db::put(
+            &self.dirs_db,
+            &updated_dir_object.hash(),
+            &updated_dir_object,
+        )?;
+
+        path_db::put(
+            &self.dir_hashes_db,
+            dir.clone(),
+            &updated_dir_object.hash().to_string(),
+        )?;
+
+        Ok(())
+    }
+
+    fn update_dir_vnode_children(
+        &self,
+        all_vnodes: HashSet<String>,
+        prev_vnode_map: &HashMap<String, String>,
+        affected_vnode_map: &HashMap<String, Vec<TreeObjectChildWithStatus>>,
+    ) -> Result<Vec<TreeObjectChild>, OxenError> {
+        let mut result: Vec<TreeObjectChild> = Vec::new();
+        for vnode_name in all_vnodes {
+            let prev_vnode: TreeObject = if prev_vnode_map.contains_key(&vnode_name) {
+                path_db::get_entry(&self.vnodes_db, &prev_vnode_map[&vnode_name])?.unwrap()
+            } else {
+                TreeObject::VNode {
+                    children: Vec::new(),
+                    hash: util::hasher::compute_children_hash(&Vec::new()),
+                    name: vnode_name.clone(),
+                }
+            };
+
+            let children = prev_vnode.children().clone();
+
+            // Step 2: Map the children by path to avoid duplicates when merging old with new
+            let mut old_children_map = HashMap::new();
+            for child in children {
+                old_children_map.insert(child.path().to_string_lossy().to_string(), child);
+            }
+
+            // Step 3: Get the new children from the staged data map for this vnode
+            let new_children = affected_vnode_map
+                .get(&vnode_name)
+                .unwrap_or(&Vec::new())
+                .clone();
+
+            let merged_children =
+                self.update_vnode_children(&mut old_children_map, new_children)?;
+
+            // These are now the merged and sorted children we want to hash and insert
+
+            let updated_vnode_hash = util::hasher::compute_children_hash(&merged_children);
+
+            let updated_vnode = TreeObject::VNode {
+                children: merged_children,
+                hash: updated_vnode_hash,
+                name: vnode_name.clone(),
+            };
+
+            let updated_vnode_child = TreeObjectChild::VNode {
+                path: PathBuf::from(vnode_name),
+                hash: updated_vnode.hash().to_string(),
+            };
+
+            // TODONOW: if broken, "&& !children_path_map.is_empty()"
+            if !updated_vnode.children().is_empty() {
+                path_db::put(&self.vnodes_db, &updated_vnode.hash(), &updated_vnode)?;
+                // Add the vnode
+                result.push(updated_vnode_child);
+            }
+        }
+
+        // Lexically sort result by path to allow later binary searching + consistent hashing
+        result.sort_by(|a, b| a.path().cmp(b.path()));
+        Ok(result)
+    }
+
+    // Merges the vnode children in the last commit with the children in this commit
+    // according to stagedentry status, sorts, and returns.
+    fn update_vnode_children(
+        &self,
+        prev_children_map: &mut HashMap<String, TreeObjectChild>,
+        new_children: Vec<TreeObjectChildWithStatus>,
+    ) -> Result<Vec<TreeObjectChild>, OxenError> {
+        for child_with_status in new_children {
+            match child_with_status.status {
+                StagedEntryStatus::Added | StagedEntryStatus::Modified => {
+                    // Add or replace the child in the map
+                    prev_children_map.insert(
+                        child_with_status.child.path_as_str().to_string(),
+                        child_with_status.child.clone(),
+                    );
+                }
+                StagedEntryStatus::Removed => {
+                    // Remove the child from the map
+                    prev_children_map.remove(&child_with_status.child.path_as_str().to_string());
+                }
+            }
+        }
+        let mut updated_children: Vec<TreeObjectChild> =
+            prev_children_map.values().cloned().collect();
+        // Sort lexically
+        updated_children.sort_by(|a, b| a.path().cmp(b.path()));
+        Ok(updated_children)
+    }
+
     fn write_gather_vnode_children(
         &self,
         children: Vec<TreeObjectChild>,
@@ -1022,6 +1221,10 @@ impl CommitEntryWriter {
                 name: name.clone(),
             };
 
+            log::debug!(
+                "putting vnode {:#?} into vnodes_db write gather",
+                vnode_object
+            );
             path_db::put(&self.vnodes_db, &vnode_object.hash(), &vnode_object)?;
 
             vnodes.push(TreeObjectChild::VNode {
@@ -1133,6 +1336,8 @@ impl CommitEntryWriter {
         staged_entries_map =
             self.group_staged_dirs_to_dirs_with_status(staged_entries_map, status)?;
 
+        log::debug!("schemas map is {:#?}", schemas_map);
+        log::debug!("staged entries map is {:#?}", staged_entries_map);
         // TODONOW clean this up
         // Get affected dirs as a set
         let mut affected_dirs: HashSet<PathBuf> = HashSet::new();
@@ -1163,321 +1368,7 @@ impl CommitEntryWriter {
 
         // These dirs are sorted by descending component count, so we can work bottom up
         for dir in dirs {
-            log::debug!("processing affected dir... {:?}", dir);
-            // STEP 1: If this dir has a hash in the previous commit, grab its node as the starting point
-            let prev_dir_hash: Option<String> = path_db::get_entry(&parent_hash_db, dir.clone())?;
-            let mut prev_dir_object: TreeObject = if let Some(prev_hash) = prev_dir_hash {
-                path_db::get_entry(&self.dirs_db, &prev_hash)?.unwrap()
-            } else {
-                TreeObject::Dir {
-                    children: Vec::new(),
-                    hash: util::hasher::compute_children_hash(&Vec::new()),
-                }
-            };
-
-            // STEP 2: Get all the new children from the staged data map for this dir
-            let mut new_children: Vec<TreeObjectChildWithStatus> = staged_entries_map
-                .get(dir)
-                .unwrap_or(&Vec::new())
-                .clone()
-                .to_vec();
-
-            // TODONOW: streamline this in and out of set stuff
-            // Convert new_children to a hashmap by path
-            let mut new_children_path_map: HashMap<String, TreeObjectChildWithStatus> =
-                HashMap::new();
-            for child in &new_children {
-                new_children_path_map.insert(child.child.path_as_str().to_string(), child.clone());
-            }
-
-            // We add all implicated dirs IF they are not already inserted above
-            // for dir in dir_map.get(dir).unwrap_or(&Vec::new()) {
-            //     if new_children_path_map.contains_key(&dir.to_string_lossy().to_string()) {
-            //         continue;
-            //     }
-
-            //     let dir_hash: String =
-            //         path_db::get_entry(&self.dir_hashes_db, dir.clone())?.unwrap();
-            //     let dir = TreeObjectChild::Dir {
-            //         path: dir.clone(),
-            //         hash: dir_hash.clone(),
-            //     };
-
-            //     new_children.push(TreeObjectChildWithStatus {
-            //         child: dir.clone(),
-            //         status: StagedEntryStatus::Modified,
-            //     });
-            // }
-
-            // log::debug!(
-            //     "Got new children for dir {:?} as {:?} in commit with message {:?}",
-            //     dir,
-            //     new_children,
-            //     self.commit.message
-            // );
-
-            let mut affected_vnodes = self.get_affected_vnodes(&new_children)?;
-
-            // Get the vnode children from the prev_dir object.
-            let prev_vnode_children = prev_dir_object.children();
-
-            // Get these as a hashset todonow this is stupid
-            let mut prev_vnode_hash_map: HashMap<String, String> = HashMap::new();
-
-            // Instead of the below, map vnode to its hash
-            for vnode in prev_vnode_children {
-                prev_vnode_hash_map.insert(
-                    vnode.path().to_string_lossy().to_string(),
-                    vnode.hash().to_string(),
-                );
-            }
-
-            // Get a set of all unique vnode children (those in either the prev or new vnode children lists)
-            let mut all_vnodes: HashSet<String> = HashSet::new();
-            for vnode in prev_vnode_children {
-                all_vnodes.insert(vnode.path().to_string_lossy().to_string());
-            }
-
-            log::debug!(
-                "affected_vnodes for commit with message {:?} and dir {:?} are {:?}",
-                self.commit.message,
-                dir,
-                affected_vnodes
-            );
-            for vnode in affected_vnodes.keys() {
-                all_vnodes.insert(vnode.to_string());
-            }
-
-            log::debug!(
-                "vnodes we're processing here are {:?} for heya commit with message {:?}",
-                all_vnodes,
-                self.commit.message
-            );
-
-            log::debug!(
-                "prev_vnode_children are {:?} for commit with message {:?}",
-                prev_vnode_children,
-                self.commit.message
-            );
-
-            let mut dir_vnode_children: Vec<TreeObjectChild> = Vec::new();
-            for vnode in all_vnodes {
-                // Get the cached version
-                // If the vnode is in affected_vnodes
-                // TODONOW: better nesting logic here.
-
-                // TODONOW: optimize via hash map!
-                if prev_vnode_hash_map.contains_key(&vnode) {
-                    let mut prev_vnode: TreeObject =
-                        path_db::get_entry(&self.vnodes_db, &prev_vnode_hash_map[&vnode])?.unwrap();
-                    // Get prev children
-                    let mut children = prev_vnode.children().clone();
-
-                    // Create a hash set of the children on path - TODONOW this currently ignores schemas
-                    let mut children_path_map: HashMap<String, TreeObjectChild> = HashMap::new();
-                    for child in children {
-                        children_path_map.insert(child.path().to_string_lossy().to_string(), child);
-                    }
-
-                    let staged_children =
-                        affected_vnodes.get(&vnode).unwrap_or(&Vec::new()).clone();
-
-                    // For every child
-                    log::debug!("here are the staged_children for commit with message {:?} and dir {:?} and vnode {:?}: {:#?}", self.commit.message, dir, vnode, staged_children);
-
-                    log::debug!(
-                        "step 2 for commit with message {:?} pre children_path_map {:?}",
-                        self.commit.message,
-                        children_path_map
-                    );
-
-                    log::debug!("Here is the status {:#?}", status.staged_dirs);
-
-                    for child_with_status in staged_children {
-                        match child_with_status.status {
-                            StagedEntryStatus::Added | StagedEntryStatus::Modified => {
-                                children_path_map.insert(
-                                    child_with_status.child.path_as_str().to_string(),
-                                    child_with_status.child.clone(),
-                                );
-                                log::debug!(
-                                    "just added and now children_path_map is {:?}",
-                                    children_path_map
-                                );
-                            }
-                            StagedEntryStatus::Removed => {
-                                log::debug!("removing child {:?} from children_path_map in commit with message {:?}", child_with_status.child.path_as_str(), self.commit.message);
-                                children_path_map
-                                    .remove(&child_with_status.child.path_as_str().to_string());
-                                log::debug!(
-                                    "just removed and now children_path_map is {:?}",
-                                    children_path_map
-                                );
-                            }
-                        }
-                    }
-
-                    log::debug!(
-                        "step 2 for commit with message {:?} post children_path_map {:?}",
-                        self.commit.message,
-                        children_path_map
-                    );
-
-                    if children_path_map.is_empty() {
-                        // TODONOW: don't add this as a child?
-                    }
-
-                    // Convert staged_children into a vector lexically ordered by path
-                    let mut children: Vec<TreeObjectChild> =
-                        children_path_map.values().cloned().collect();
-                    children.sort_by(|a, b| a.path().cmp(b.path()));
-
-                    // Set the new children on the vnode
-                    if children_path_map.is_empty() {
-                        log::debug!("for the case we want, setting children to {:?}", children);
-                    }
-                    prev_vnode.set_children(children);
-                    if children_path_map.is_empty() {
-                        log::debug!("which leaves the children as {:?}", prev_vnode.children());
-                    }
-
-                    log::debug!(
-                        "children_path_map is {:#?} for dir {:?} in commit with message {:?}",
-                        children_path_map,
-                        dir,
-                        self.commit.message
-                    );
-
-                    // TODONOW: can avoid hashing if make the logic nastier in the if statement here
-                    let updated_vnode = TreeObject::VNode {
-                        children: prev_vnode.children().clone(),
-                        hash: util::hasher::compute_children_hash(&prev_vnode.children().clone()),
-                        name: vnode.clone(),
-                    };
-
-                    let updated_vnode_child = TreeObjectChild::VNode {
-                        path: PathBuf::from(vnode),
-                        hash: updated_vnode.hash().to_string(),
-                    };
-
-                    // TODONOW children_path_map logic
-                    if !updated_vnode.children().is_empty() && !children_path_map.is_empty() {
-                        path_db::put(&self.vnodes_db, &updated_vnode.hash(), &updated_vnode)?;
-                        log::debug!(
-                            "we ARE pushing for dir {:?}, here are the vnode children {:#?}",
-                            dir,
-                            updated_vnode.children()
-                        );
-                        dir_vnode_children.push(updated_vnode_child);
-                    } else {
-                        log::debug!("top not pushing the new vnode for path with dir {:?}", dir);
-                    }
-                } else {
-                    // TODONOW :this in one step plz
-                    let children = affected_vnodes.get(&vnode).unwrap().clone();
-
-                    log::debug!("got these children to insert into new vnode {:?}", children);
-
-                    // Map these children to just get the child property of each
-                    let mut children: Vec<TreeObjectChild> =
-                        children.iter().map(|child| child.child.clone()).collect();
-
-                    // Sort them lexically by path
-                    children.sort_by(|a, b| a.path().cmp(b.path()));
-
-                    log::debug!("got these children after mapping {:?}", children);
-
-                    let children_hash = util::hasher::compute_children_hash(&children);
-                    let new_vnode = TreeObject::VNode {
-                        children: children,
-                        hash: children_hash,
-                        name: vnode.clone(),
-                    };
-
-                    let new_vnode_child = TreeObjectChild::VNode {
-                        path: PathBuf::from(vnode),
-                        hash: new_vnode.hash().to_string(),
-                    };
-
-                    path_db::put(&self.vnodes_db, &new_vnode.hash(), &new_vnode)?;
-                    log::debug!("about to insert vnode {:?} into dir_vnode_children for commit with message {:?}", new_vnode, self.commit.message);
-                    if !new_vnode.children().is_empty() {
-                        dir_vnode_children.push(new_vnode_child)
-                    } else {
-                        log::debug!("bottom not pushing the new vnode to path for dir {:?}", dir);
-                    }
-                }
-            }
-
-            // Set the dir node's children
-
-            // lexically sort vnode children
-            log::debug!("dir_vnode_children pre sort {:?}", dir_vnode_children);
-            dir_vnode_children.sort_by(|a, b| a.path().cmp(b.path()));
-
-            log::debug!("hey dir {:?} has children {:?}", dir, dir_vnode_children);
-            if dir_vnode_children.len() == 0 {
-                log::debug!(
-                    "dir_vnode_children is empty for commit with message {:?}",
-                    self.commit.message
-                );
-                log::debug!(
-                    "so deleting dir {:?} from dir_hashes_db for commit with message {:?}",
-                    dir,
-                    self.commit.message
-                );
-                path_db::delete(&self.dir_db, dir.clone())?;
-                path_db::delete(&self.dir_hashes_db, dir.clone())?;
-            }
-
-            for dir_vnode_child in &dir_vnode_children {
-                // get the node
-                let node: TreeObject =
-                    path_db::get_entry(&self.vnodes_db, &dir_vnode_child.hash())?.unwrap();
-                log::debug!("confirmed insert of vnode {:?}", node)
-            }
-
-            log::debug!("dir_vnode_children post sort {:?}", dir_vnode_children);
-            let dir_hash = util::hasher::compute_children_hash(&dir_vnode_children);
-            prev_dir_object.set_children(dir_vnode_children.clone());
-            prev_dir_object.set_hash(dir_hash.to_string());
-
-            // Now insert the dir into both the dir objects db and the dir hashes db.
-            log::debug!(
-                "in commit with message {:?} putting dir {:?} into dir_hashes_db with hash {:?}",
-                self.commit.message,
-                dir,
-                dir_hash
-            );
-            path_db::put(&self.dirs_db, &prev_dir_object.hash(), &prev_dir_object)?;
-            log::debug!(
-                "putting dir {:?} into dir_hashes_db from affected for commit with message {:?}",
-                dir,
-                self.commit.message
-            );
-            log::debug!(
-                "dir {:?} has children {:?}",
-                dir,
-                prev_dir_object.children()
-            );
-            log::debug!("dir {:?} has hash {:?}", dir, prev_dir_object.hash());
-
-            log::debug!("we hashed these children {:?}", dir_vnode_children);
-            log::debug!("and got this hash {:?}", dir_hash);
-
-            path_db::put(
-                &self.dir_hashes_db,
-                dir.clone(),
-                &prev_dir_object.hash().to_string(),
-            )?;
-
-            // TODONOW clean this up and exit eary probably
-
-            // Insert the dir into both the dir objects db and the dir hashes db
-
-            // Let's print out the entire stageddata object at this point.
-            log::debug!("Here is the staged data {:?}", status);
-            log::debug!("and we are working on dir {:?}", dir);
+            self.process_affected_dir(dir.to_path_buf(), &parent_hash_db, &staged_entries_map)?;
         }
         Ok(())
     }
@@ -1659,23 +1550,23 @@ impl CommitEntryWriter {
         }
     }
 
-    // pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> {
-    //     // Get the hash of this commit
-    //     let commit_hash: String =
-    //         path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
+    pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> {
+        // Get the hash of this commit
+        let commit_hash: String =
+            path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
 
-    //     // Get the root dir node (this hash)
-    //     let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap();
+        // Get the root dir node (this hash)
+        let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap();
 
-    //     log::debug!("\n\nnew merkle root dir node is: {:?}", root_dir_node);
+        log::debug!("\n\nnew merkle root dir node is: {:?}", root_dir_node);
 
-    //     // Get the children of the root dir node
-    //     let root_dir_children: &Vec<TreeObjectChild> = root_dir_node.children();
-    //     for child in root_dir_children {
-    //         self.r_temp_print_tree_db(child)?;
-    //     }
-    //     Ok(())
-    // }
+        // Get the children of the root dir node
+        let root_dir_children: &Vec<TreeObjectChild> = root_dir_node.children();
+        for child in root_dir_children {
+            self.r_temp_print_tree_db(child)?;
+        }
+        Ok(())
+    }
 
     pub fn r_temp_print_tree_db(&self, child_node: &TreeObjectChild) -> Result<(), OxenError> {
         // Get parent node
@@ -2017,6 +1908,7 @@ impl CommitEntryWriter {
                 hash: staged_schema.schema.hash.clone(),
             };
 
+            log::debug!("putting schema {:?} into schemas_db", schema_object);
             path_db::put(&self.schemas_db, &schema_object.hash(), &schema_object)?;
             staged_map
                 .entry(parent)
