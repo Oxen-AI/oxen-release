@@ -1,10 +1,13 @@
 use crate::constants::{self, HASH_FILE};
-use crate::core::db::tree_db::TreeNode;
+use crate::core::db::tree_db::{TreeNode, TreeObject};
 use crate::core::index::{CommitEntryReader, CommitEntryWriter, TreeDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::{api, util};
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use super::ObjectDBReader;
 
 #[derive(Debug)]
 struct SimpleHash {
@@ -22,14 +25,14 @@ pub fn validate_tree_hash(
     commit: &Commit,
 ) -> Result<bool, OxenError> {
     // Validate more efficiently if we have a commit parent tree
-    // if commit.parent_ids.is_empty() {
-    //     return validate_complete_merkle_tree(repository, commit);
-    // }
+    if commit.parent_ids.is_empty() {
+        return validate_complete_merkle_tree(repository, commit);
+    }
 
     // TODONOW DELETE AND REPLACE WITH ABOVE
-    if commit.parent_ids.is_empty() {
-        return Ok(true);
-    }
+    // if commit.parent_ids.is_empty() {
+    //     return Ok(true);
+    // }
 
     let parent_id = &commit.parent_ids[0];
     let parent_tree_path =
@@ -278,4 +281,66 @@ fn r_validate_changed_parts_of_merkle_node(
         }
     }
     Ok(true)
+}
+
+fn new_validate_complete_merkle_tree(
+    repository: &LocalRepository,
+    commit: &Commit,
+) -> Result<bool, OxenError> {
+    let object_reader = ObjectDBReader::new(repository)?;
+    let root_hash = commit.root_hash.clone();
+    let root_node = object_reader.get_dir(&root_hash)?;
+    new_r_validate_complete_merkle_node(repository, commit, object_reader, root_node)
+}
+
+fn new_r_validate_complete_merkle_node(
+    repository: &LocalRepository,
+    commit: &Commit,
+    object_reader: Arc<ObjectDBReader>,
+    node: Option<TreeObject>,
+) -> Result<bool, OxenError> {
+    // Any missing node in the objects dir = invalid commit, we don't have the data
+    if node.is_none() {
+        return (Ok(false));
+    }
+
+    let node = node.unwrap();
+
+    // We don't recurse all the way down to files and schemas,
+    // we check them as children. File and Schema nodes don't have the associated paths,
+    // but their child versions do
+
+    match node {
+        TreeObject::Directory { children, .. } => {
+            for child in children {
+                // Get the full object node for this child
+                let child_node = object_reader.get_dir(&child.hash)?;
+                // Recurse
+                if !new_r_validate_complete_merkle_node(
+                    repository,
+                    commit,
+                    object_reader.clone(),
+                    child_node,
+                )? {
+                    return Ok(false);
+                }
+            }
+        },
+        TreeObject::VNode { children, .. } => {
+            for child in children {
+                // Get the full object node for this child
+                let child_node = object_reader.get_dir(&child.hash)?;
+                // Recurse
+                if !new_r_validate_complete_merkle_node(
+                    repository,
+                    commit,
+                    object_reader.clone(),
+                    child_node,
+                )? {
+                    return Ok(false);
+                }
+            }
+        },
+        }
+    }
 }
