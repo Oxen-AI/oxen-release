@@ -414,3 +414,44 @@ fn new_r_validate_complete_merkle_node(
         }
     }
 }
+
+fn new_validate_changed_parts_of_merkle_tree(
+    repository: &LocalRepository,
+    commit: &Commit,
+    parent: &Commit,
+) -> Result<bool, OxenError> {
+    let object_reader = ObjectDBReader::new(repository)?;
+    let root_hash = commit.root_hash.clone();
+    let parent_root_hash = parent.root_hash.clone();
+
+    let root_node = object_reader.get_dir(&root_hash)?.unwrap();
+    let parent_root_node = object_reader.get_dir(&parent_root_hash)?.unwrap();
+
+    for child in root_node.children() {
+        if !new_r_validate_changed_parts_of_merkle_node(
+            repository,
+            commit,
+            &parent_commit,
+            &object_reader,
+            child,
+        )? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+fn new_r_validate_changed_parts_of_merkle_node(
+    repository: &LocalRepository,
+    commit: &Commit,
+    parent_commit: &Commit,
+    object_reader: &ObjectDBReader,
+    child_node: &TreeObjectChild,
+) -> Result<bool, OxenError> {
+    match child_node {
+        TreeObjectChild::File { path, hash } => {}
+        TreeObjectChild::Schema { path, hash } => {}
+        TreeObjectChild::Dir { path, hash } => {}
+        TreeObjectChild::VNode { path, hash } => {}
+    }
+}

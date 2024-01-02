@@ -1340,6 +1340,21 @@ impl Stager {
             None => schema,
         };
 
+        // We should be tracking changes to this parent dir too
+        let path_parent = path.parent();
+        if let Some(parent) = path_parent {
+            let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
+            log::debug!("add_schema_for_tabular got parent {:?}", relative_parent);
+            if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
+                log::debug!(
+                    "add_schema_for_tabular({:?}) adding parent {:?}",
+                    path,
+                    relative_parent
+                );
+                path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Added)?;
+            }
+        }
+
         let staged_schema = StagedSchema {
             schema,
             status: StagedEntryStatus::Added,
@@ -1385,6 +1400,18 @@ impl Stager {
 
             if let Some(metadata) = &new_schema.metadata {
                 schema.metadata = Some(metadata.clone());
+            }
+
+            // We should be tracking changes to this parent dir too
+            let path_parent = path.parent();
+            if let Some(parent) = path_parent {
+                let relative_parent =
+                    util::fs::path_relative_to_dir(parent, &self.repository.path)?;
+                log::debug!("add_file got parent {:?}", relative_parent);
+                if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
+                    log::debug!("add_file({:?}) adding parent {:?}", path, relative_parent);
+                    path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Modified)?;
+                }
             }
 
             schema.update_metadata_from_schema(new_schema);

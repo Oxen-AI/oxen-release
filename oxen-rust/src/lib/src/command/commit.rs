@@ -43,6 +43,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError
     // TODONOW this shouldn't be a command, call the stager directly
     log::debug!("pre status w/o untracked");
     let status = command::status::status_without_untracked(repo)?;
+    // let status = command::status::status(repo)?;
     log::debug!("post status w/o untracked");
 
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
