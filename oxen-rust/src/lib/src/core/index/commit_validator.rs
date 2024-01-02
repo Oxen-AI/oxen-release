@@ -24,12 +24,16 @@ pub fn validate_tree_hash(
     repository: &LocalRepository,
     commit: &Commit,
 ) -> Result<bool, OxenError> {
-    // Validate more efficiently if we have a commit parent tree
-    // if commit.parent_ids.is_empty() {
-    //     return validate_complete_merkle_tree(repository, commit);
-    // }
+    let is_valid: Result<bool, OxenError>;
+    if commit.parent_ids.is_empty() {
+        is_valid = new_validate_complete_merkle_tree(repository, commit);
+        log::debug!("complete merkle tree validation is {:?}", is_valid);
+    } else {
+        let parent = api::local::commits::get_by_id(repository, &commit.parent_ids[0])?.unwrap();
+        is_valid = new_validate_changed_parts_of_merkle_tree(repository, commit, &parent);
+        log::debug!("changed parts merkle tree validation is {:?}", is_valid);
+    }
 
-    let is_valid = new_validate_complete_merkle_tree(repository, commit);
     match is_valid {
         Ok(is_valid) => {
             log::debug!("got is_valid {:?} for commit {:?}", is_valid, commit);
@@ -40,22 +44,6 @@ pub fn validate_tree_hash(
             Err(e)
         }
     }
-
-    // TODONOW DELETE AND REPLACE WITH ABOVE
-    // if commit.parent_ids.is_empty() {
-    //     return Ok(true);
-    // }
-
-    // let parent_id = &commit.parent_ids[0];
-    // let parent_tree_path =
-    //     CommitEntryWriter::commit_tree_db(&repository.path.to_path_buf(), &commit.parent_ids[0]);
-    // if !parent_tree_path.exists() {
-    //     return validate_complete_merkle_tree(repository, commit);
-    // }
-
-    // validate_changed_parts_of_merkle_tree(repository, commit, parent_id)
-    // TODONOW: undo this - bypassing to test data transmission
-    // Ok(true)
 }
 
 pub fn compute_commit_content_hash(
@@ -428,14 +416,24 @@ fn new_validate_changed_parts_of_merkle_tree(
     let parent_root_node = object_reader.get_dir(&parent_root_hash)?.unwrap();
 
     for child in root_node.children() {
-        if !new_r_validate_changed_parts_of_merkle_node(
-            repository,
-            commit,
-            &parent_commit,
-            &object_reader,
-            child,
-        )? {
-            return Ok(false);
+        // Search in the parent root node for the same child
+        let parent_child = parent_root_node.binary_search_on_path(child.path())?;
+
+        if let Some(parent_child) = parent_child {
+            if parent_child.hash() == child.hash() {
+                continue;
+            } else {
+                if !new_r_validate_changed_parts_of_merkle_node(
+                    repository,
+                    commit,
+                    parent,
+                    &object_reader,
+                    child,
+                    &Some(parent_child),
+                )? {
+                    return Ok(false);
+                }
+            }
         }
     }
     Ok(true)
@@ -447,11 +445,146 @@ fn new_r_validate_changed_parts_of_merkle_node(
     parent_commit: &Commit,
     object_reader: &ObjectDBReader,
     child_node: &TreeObjectChild,
+    maybe_parent_node: &Option<TreeObjectChild>,
 ) -> Result<bool, OxenError> {
     match child_node {
-        TreeObjectChild::File { path, hash } => {}
-        TreeObjectChild::Schema { path, hash } => {}
-        TreeObjectChild::Dir { path, hash } => {}
-        TreeObjectChild::VNode { path, hash } => {}
+        TreeObjectChild::Dir { path, hash } => {
+            let node = object_reader.get_dir(&hash)?;
+            if maybe_parent_node.is_none() {
+                for child in node.unwrap().children() {
+                    if !new_r_validate_changed_parts_of_merkle_node(
+                        repository,
+                        commit,
+                        parent_commit,
+                        object_reader,
+                        child,
+                        &None,
+                    )? {
+                        return Ok(false);
+                    }
+                }
+            } else {
+                let parent_node = object_reader
+                    .get_dir(maybe_parent_node.clone().unwrap().hash())?
+                    .unwrap();
+                for child in node.unwrap().children() {
+                    let maybe_parent_child = parent_node.binary_search_on_path(child.path())?;
+
+                    if let Some(parent_child) = maybe_parent_child {
+                        if parent_child.hash() == child.hash() {
+                            continue;
+                        } else {
+                            if !new_r_validate_changed_parts_of_merkle_node(
+                                repository,
+                                commit,
+                                parent_commit,
+                                object_reader,
+                                child,
+                                &Some(parent_child),
+                            )? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(true)
+        }
+        TreeObjectChild::VNode { path, hash } => {
+            let node = object_reader.get_vnode(&hash)?;
+            if maybe_parent_node.is_none() {
+                for child in node.unwrap().children() {
+                    if !new_r_validate_changed_parts_of_merkle_node(
+                        repository,
+                        commit,
+                        parent_commit,
+                        object_reader,
+                        child,
+                        &None,
+                    )? {
+                        return Ok(false);
+                    }
+                }
+            } else {
+                let parent_node = object_reader
+                    .get_vnode(maybe_parent_node.clone().unwrap().hash())?
+                    .unwrap();
+                for child in node.unwrap().children() {
+                    let maybe_parent_child = parent_node.binary_search_on_path(child.path())?;
+                    if let Some(parent_child) = maybe_parent_child {
+                        if parent_child.hash() == child.hash() {
+                            continue;
+                        } else {
+                            if !new_r_validate_changed_parts_of_merkle_node(
+                                repository,
+                                commit,
+                                parent_commit,
+                                object_reader,
+                                child,
+                                &Some(parent_child),
+                            )? {
+                                return Ok(false);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(true)
+        }
+        TreeObjectChild::File { path, hash } => {
+            let version_path = util::fs::version_path_from_hash_and_file(
+                &repository.path,
+                hash.clone(),
+                path.clone(),
+            );
+
+            let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
+            if maybe_hash_file.exists() {
+                let disk_hash = util::fs::read_from_path(&maybe_hash_file)?;
+                if &disk_hash != hash {
+                    return Ok(false);
+                }
+                Ok(true)
+            } else {
+                let disk_hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
+                if hash != &disk_hash {
+                    log::debug!("found file issue for file {:?}", path);
+                    Ok(false)
+                } else {
+                    Ok(true)
+                }
+            }
+        }
+        TreeObjectChild::Schema { path, hash } => {
+            let schema_path = path
+                .strip_prefix(constants::SCHEMAS_TREE_PREFIX)?
+                .to_path_buf();
+
+            let maybe_schema = api::local::schemas::get_by_path_from_ref(
+                repository,
+                &commit.id,
+                schema_path.clone(),
+            )?;
+
+            log::debug!(
+                "got maybe_schema {:#?} for path {:?} with provided hash {:?}",
+                maybe_schema,
+                path,
+                hash,
+            );
+
+            match maybe_schema {
+                Some(schema) => {
+                    if &schema.hash != hash {
+                        log::debug!("found schema issue for schema {:?}", schema_path);
+                        return Ok(false);
+                    }
+                }
+                None => {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
     }
 }
