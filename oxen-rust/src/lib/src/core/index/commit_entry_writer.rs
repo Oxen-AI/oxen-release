@@ -756,6 +756,12 @@ impl CommitEntryWriter {
         dirs_to_recompute.insert(PathBuf::from(""));
         let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
 
+        log::debug!(
+            "affected dirs are {:#?} for commit {:?}",
+            modified_dirs_vec,
+            self.commit
+        );
+
         self.new_create_tree_nodes_from_affected_dirs(
             &mut modified_dirs_vec,
             dir_map,
@@ -1022,7 +1028,19 @@ impl CommitEntryWriter {
             .to_vec();
 
         // STEP 3: Get vnodes for this dir, including new ones (not on the previous dir object's child attr)
+        log::debug!(
+            "here's the new children for dir {:?}: {:#?} and commit {:#?}",
+            dir,
+            new_children,
+            self.commit
+        );
         let affected_vnodes = self.get_affected_vnodes(&new_children)?;
+        log::debug!(
+            "here affected_vnodes are {:#?} for commit {:#?} and dir {:#?}",
+            affected_vnodes,
+            self.commit,
+            dir
+        );
         let prev_vnode_children = prev_dir_object.children();
         let mut prev_vnode_map: HashMap<String, String> = HashMap::new();
         for vnode in prev_vnode_children {
@@ -1899,8 +1917,14 @@ impl CommitEntryWriter {
         mut staged_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>,
         staged_data: &StagedData,
     ) -> Result<HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>, OxenError> {
+        log::debug!(
+            "staged schemas for commit {:#?} are {:#?}",
+            self.commit,
+            staged_data
+        );
         for (path, staged_schema) in staged_data.staged_schemas.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+            log::debug!("parent dir for schema {:?} is {:?}", path, parent);
             let schema_child_with_status =
                 TreeObjectChildWithStatus::from_staged_schema(path.to_path_buf(), &staged_schema);
 
@@ -1915,6 +1939,7 @@ impl CommitEntryWriter {
                 .or_default()
                 .push(schema_child_with_status);
         }
+        log::debug!("...giving us schema staged map {:#?}", staged_map);
         Ok(staged_map)
     }
 
@@ -1923,6 +1948,11 @@ impl CommitEntryWriter {
         mut staged_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>,
         staged_data: &StagedData,
     ) -> Result<HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>, OxenError> {
+        log::debug!(
+            "staged_dirs are {:#?} for commit {:#?}",
+            staged_data.staged_dirs,
+            self.commit
+        );
         for (path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for dir_stats in staged_dirs.iter() {
                 let parent = dir_stats

@@ -279,17 +279,12 @@ pub fn list_directory(
     log::debug!("list_directory got dir_paths {}", dir_paths.len());
     // TODONOW this opens duplicate objectreaders - can we just use the one in entry_Reader?
     let object_reader = ObjectDBReader::new(repo)?;
-    // Once we know how many directories we have we can calculate the offset for the files
     let mut file_paths: Vec<MetadataEntry> = vec![];
     let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory, object_reader)?;
-    log::debug!("list_directory counting entries...");
     let total = dir_entry_reader.num_entries() + dir_paths.len();
     let total_pages = (total as f64 / page_size as f64).ceil() as usize;
 
-    log::debug!("list_directory got {} total entries", total);
     let offset = dir_paths.len();
-
-    log::debug!("list_directory offset {}", offset,);
 
     for entry in dir_entry_reader.list_entry_page_with_offset(page, page_size, offset)? {
         file_paths.push(meta_entry_from_commit_entry(
@@ -299,7 +294,6 @@ pub fn list_directory(
             revision,
         )?)
     }
-    log::debug!("list_directory got file_paths {}", file_paths.len());
 
     // Combine all paths, starting with dirs if there are enough, else just files
     let start_page = if page == 0 { 0 } else { page - 1 };
