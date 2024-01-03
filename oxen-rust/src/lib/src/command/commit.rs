@@ -41,11 +41,7 @@ use crate::model::{Commit, LocalRepository};
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     // let status = command::status(repo)?;
     // TODONOW this shouldn't be a command, call the stager directly
-    log::debug!("pre status w/o untracked");
-    let status = command::status::status(repo)?;
-    // let status = command::status::status_without_untracked(repo)?;
-
-    log::debug!("post status w/o untracked");
+    let status = command::status::status_without_untracked(repo)?;
 
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
         return Err(OxenError::NothingToCommit(

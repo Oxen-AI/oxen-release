@@ -95,11 +95,14 @@ pub async fn push_remote_repo_branch_name(
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use crate::api;
     use crate::command;
     use crate::constants;
     use crate::core::db::path_db;
     use crate::core::db::tree_db::TreeObject;
+    use crate::core::index::CommitEntryReader;
     use crate::core::index::CommitEntryWriter;
     use crate::error::OxenError;
     use crate::test;
@@ -648,9 +651,33 @@ mod tests {
                     }
                     command::add(&user_b_repo, &modify_path_b)?;
                     // also add a file
-                    test::write_txt_file_to_path(&add_path_b, "new file")?;
+                    // test::write_txt_file_to_path(&add_path_b, "new file")?;
                     // command::add(&user_b_repo, &add_path_b)?;
+
+                    // Before this commit, init a reader at b's head
+                    let pre_b = CommitEntryReader::new_from_head(&user_b_repo)?;
+                    // get head commit
+                    let head = api::local::commits::head_commit(&user_b_repo)?;
+                    log::debug!("b head before is {:?}", head);
+
+                    let maybe_b_entry = pre_b.get_entry(
+                        &PathBuf::from("annotations")
+                            .join("train")
+                            .join("annotations.txt"),
+                    )?;
+
+                    log::debug!("maybe_b_entry before commit is {:?}", maybe_b_entry);
+
                     let commit_b = command::commit(&user_b_repo, "user B deleting file path.")?;
+
+                    let post_b = CommitEntryReader::new_from_head(&user_b_repo)?;
+                    let maybe_b_entry = post_b.get_entry(
+                        &PathBuf::from("annotations")
+                            .join("train")
+                            .join("annotations.txt"),
+                    )?;
+
+                    log::debug!("maybe_b_entry after commitis {:?}", maybe_b_entry);
 
                     log::debug!("commit_a is {:?}", commit_a);
                     log::debug!("commit_b is {:?}", commit_b);

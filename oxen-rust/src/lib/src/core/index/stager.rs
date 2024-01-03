@@ -233,14 +233,6 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        // // let committed_dirs = entry_reader.list_dirs()?;
-
-        // for dir in committed_dirs {
-        //     if !self.should_ignore_path(&ignore, &dir) {
-        //         candidate_dirs.insert(self.repository.path.join(dir));
-        //     }
-        // }
-
         let object_reader = ObjectDBReader::new(&self.repository)?;
         log::debug!(
             "about to call process_dir untracked on dirs {:?}",
@@ -263,64 +255,8 @@ impl Stager {
 
         staged_data.staged_schemas = schemas;
 
-        // for (dir_path, dir_status) in staged_dirs {
-        //     all_dirs.push(dir_path);
-        // }
-
-        // combine staged_dirs and committed_dirs to all_dirs
-
-        // for (dir, status) in &staged_dirs {
-        //     let full_path = self.repository.path.join(&dir);
-        //     let stats = self.compute_staged_dir_stats(&full_path, &status)?;
-        //     candidate_dirs.insert(self.repository.path.join(dir));
-        // };
-
-        // log::debug!("here are our all_dirs {:?}", all_dirs);
-
-        // TODONOW this can potentially hit directories twice, use hashset?
-
-        // for path in all_dirs {
-        //     let staged_entries = self.list_staged_files_in_dir(&path)?;
-        //     for entry in staged_entries {
-        //         log::debug!("got staged entry {:?} in dir {:?}", entry, path);
-        //     }
-        //     self.process_dir(&path, &mut staged_data, &ignore, entry_reader, ObjectDBReader::new(&self.repository)?)?;
-        // }
-
-        // let mut commited_dirs = entry_reader.list_dirs()?;
-
-        // for dir in commited_dirs.iter() {
-        //     if !self.should_ignore_path(&ignore, dir) {
-        //         candidate_dirs.insert(self.repository.path.join(dir));
-        //     }
-        // };
-
-        // let object_reader = ObjectDBReader::new(&self.repository)?;
-
-        // let committer = CommitReader::new(&self.repository)?;
-        // let commit = committer.head_commit()?;
-
-        // let entry_reader = CommitEntryReader::new(
-        //     &self.repository,
-        //     &commit,
-        // )?;
-
-        // let bar = oxen_progress_bar(candidate_dirs.len() as u64, ProgressBarType::Counter);
-
-        // for dir in candidate_dirs.iter() {
-        //     log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
-        //     self.process_dir(dir, &mut staged_data, &ignore, &entry_reader, object_reader.clone())?;
-        //     bar.inc(1);
-        // }
-
         staged_data.merge_conflicts = self.list_merge_conflicts()?;
 
-        // let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
-        // for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
-        //     schemas.insert(path, schema);
-        // }
-
-        // staged_data.staged_schemas = schemas;
         Ok(staged_data)
     }
 
@@ -783,6 +719,7 @@ impl Stager {
         Ok(())
     }
 
+    // TODO: can this parent-tracing logic be combined with the one in add_staged_entry_to_db?
     fn add_removed_file(
         &self,
         path: &Path,
@@ -790,6 +727,22 @@ impl Stager {
         staged_dir_db: &StagedDirEntryDB<MultiThreaded>,
     ) -> Result<StagedEntry, OxenError> {
         log::debug!("add_removed_file {:?}", path);
+
+        let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+        if let Some(file_name) = relative.file_name() {
+            // add all parents up to root
+            let mut components = path.components().collect::<Vec<_>>();
+            log::debug!("add_staged_entry_to_db got components {}", components.len());
+            while !components.is_empty() {
+                if let Some(_component) = components.pop() {
+                    let parent: PathBuf = components.iter().collect();
+                    log::debug!("add_staged_entry_to_db got parent {:?}", parent);
+                    log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
+                    path_db::put(&self.dir_db, parent, &StagedEntryStatus::Added)?;
+                }
+            }
+        }
+
         if let (Some(parent), Some(filename)) = (path.parent(), path.file_name()) {
             log::debug!(
                 "add_removed_file got filename {:?} and parent {:?}",
@@ -819,6 +772,9 @@ impl Stager {
                 );
             }
 
+            // Also track parent
+
+            // TODONOW: should we check the size of the remaining items in the dir and add it as removed if empty else modified?
             staged_dir_db.add_removed_file(filename, entry)
         } else {
             Err(OxenError::file_has_no_parent(path))
