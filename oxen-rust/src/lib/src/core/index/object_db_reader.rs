@@ -29,7 +29,6 @@ use std::sync::Arc;
 
 use super::{CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, TreeDBReader};
 
-
 // TODONOW: anyway we can merge this and ObjectsDbReader
 pub struct ObjectDBReader {
     files_db: DBWithThreadMode<MultiThreaded>,
@@ -68,11 +67,11 @@ impl ObjectDBReader {
             .join(constants::OBJECT_VNODES_DIR)
     }
 
-    pub fn temp_commit_hashes_db_dir(path: PathBuf) -> PathBuf {
-        util::fs::oxen_hidden_dir(&path)
-            .join(constants::OBJECTS_DIR)
-            .join("commit-hashes")
-    }
+    // pub fn temp_commit_hashes_db_dir(path: PathBuf) -> PathBuf {
+    //     util::fs::oxen_hidden_dir(&path)
+    //         .join(constants::OBJECTS_DIR)
+    //         .join("commit-hashes")
+    // }
 
     pub fn commit_dir_hash_db(path: &Path, commit_id: &str) -> PathBuf {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIR_HASHES_DIR)
@@ -80,10 +79,7 @@ impl ObjectDBReader {
 
     // TODONOW rename this as like new_arc or new_shared or something
 
-    pub fn new_from_path(
-        path: PathBuf
-    ) -> Result<Arc<ObjectDBReader>, OxenError> {
-
+    pub fn new_from_path(path: PathBuf) -> Result<Arc<ObjectDBReader>, OxenError> {
         let files_db_path = ObjectDBReader::files_db_dir(path.clone());
         let schemas_db_path = ObjectDBReader::schemas_db_dir(path.clone());
         let dirs_db_path = ObjectDBReader::dirs_db_dir(path.clone());
@@ -124,12 +120,9 @@ impl ObjectDBReader {
                 false,
             )?,
         }))
-
     }
 
-    pub fn new(
-        repo: &LocalRepository
-    ) -> Result<Arc<ObjectDBReader>, OxenError> {
+    pub fn new(repo: &LocalRepository) -> Result<Arc<ObjectDBReader>, OxenError> {
         ObjectDBReader::new_from_path(repo.path.clone())
     }
 
@@ -179,7 +172,6 @@ impl ObjectDBReader {
     //     })
     // }
 
-    
     pub fn get_node_from_child(
         &self,
         child: &TreeObjectChild,
@@ -192,32 +184,19 @@ impl ObjectDBReader {
         }
     }
 
-    pub fn get_dir(
-        &self,
-        hash: &str,
-    ) -> Result<Option<TreeObject>, OxenError> {
+    pub fn get_dir(&self, hash: &str) -> Result<Option<TreeObject>, OxenError> {
         path_db::get_entry(&self.dirs_db, hash)
     }
 
-    pub fn get_file(
-        &self,
-        hash: &str,
-    ) -> Result<Option<TreeObject>, OxenError> {
+    pub fn get_file(&self, hash: &str) -> Result<Option<TreeObject>, OxenError> {
         path_db::get_entry(&self.files_db, hash)
     }
 
-    pub fn get_vnode(
-        &self,
-        hash: &str,
-    ) -> Result<Option<TreeObject>, OxenError> {
+    pub fn get_vnode(&self, hash: &str) -> Result<Option<TreeObject>, OxenError> {
         path_db::get_entry(&self.vnodes_db, hash)
     }
 
-    pub fn get_schema(
-        &self,
-        hash: &str,
-    ) -> Result<Option<TreeObject>, OxenError> {
+    pub fn get_schema(&self, hash: &str) -> Result<Option<TreeObject>, OxenError> {
         path_db::get_entry(&self.schemas_db, hash)
     }
-
 }
