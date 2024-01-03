@@ -287,11 +287,8 @@ impl NewTreeDBMerger {
                 },
                 TreeObject::Dir { .. } | TreeObject::VNode { .. },
             ) => {
-                // TODONOW CHECKHERE
-                // If different paths and are dir or vnode, recurse down on children
-                let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
                 for child in client_children {
-                    visited_paths.insert(child.path());
+                    // visited_paths.insert(child.path());
                     let client_child: Option<TreeObject> =
                         self.client_reader.get_entry_from_child(child)?;
 
@@ -305,8 +302,6 @@ impl NewTreeDBMerger {
                     if self.r_tree_has_conflict(&client_child, &server_child, &lca_child)? {
                         return Ok(true);
                     }
-                    // TODONOW: Maybe additional pass for doesn't exist on client but does on server?
-                    // Oh well i guess that's prohbably fine..
                 }
                 Ok(false)
             }

@@ -395,7 +395,6 @@ pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit) -> bo
     true
 }
 
-// For merkle-tree driven conflict detection between local and remote heads
 pub fn head_commits_have_conflicts(
     repo: &LocalRepository,
     client_head_id: &str,
@@ -403,35 +402,6 @@ pub fn head_commits_have_conflicts(
     lca_id: &str,
 ) -> Result<bool, OxenError> {
     // Connect to the 3 commit merkle trees
-    let lca_db_path = CommitEntryWriter::commit_tree_db(&repo.path, lca_id);
-    let server_db_path = CommitEntryWriter::commit_tree_db(&repo.path, server_head_id);
-    let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join("tmp")
-        .join(client_head_id)
-        .join(TREE_DIR);
-
-    let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_db_path, lca_db_path)?;
-
-    // Start at the top level of the client db
-    log::debug!("about to try to get the client root");
-    let maybe_client_root = &tree_merger.client_reader.get_entry("")?;
-    log::debug!("successfully getting the client root");
-    let maybe_server_root = &tree_merger.server_reader.get_entry("")?;
-    let maybe_lca_root = &tree_merger.lca_reader.get_entry("")?;
-    // If lca_root is null, create a dummy node for traversal
-
-    tree_merger.r_tree_has_conflict(maybe_client_root, maybe_server_root, maybe_lca_root)
-}
-
-// TODONOW: way to simplify the interface such that we can view client and server/lca symmetrically
-pub fn new_head_commits_have_conflicts(
-    repo: &LocalRepository,
-    client_head_id: &str,
-    server_head_id: &str,
-    lca_id: &str,
-) -> Result<bool, OxenError> {
-    // Connect to the 3 commit merkle trees
-
     log::debug!("checking new head commits have conflicts");
     // Get server head and lca commits
     let server_head = api::local::commits::get_by_id(repo, server_head_id)?.unwrap();
@@ -475,17 +445,7 @@ pub fn construct_commit_merkle_tree(
     commit: &Commit,
 ) -> Result<(), OxenError> {
     let commit_writer = CommitEntryWriter::new(repo, commit)?;
-    commit_writer.construct_merkle_tree_new()?;
-    commit_writer.temp_print_tree_db(); // TODONOW delete after testing;
-    Ok(())
-}
-
-pub fn new_construct_commit_merkle_tree(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<(), OxenError> {
-    let commit_writer = CommitEntryWriter::new(repo, commit)?;
-    commit_writer.new_construct_merkle_tree_new(&repo.path)?; // TODONOW check this
+    commit_writer.construct_merkle_tree_new(&repo.path)?;
     Ok(())
 }
 

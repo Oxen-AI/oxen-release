@@ -973,7 +973,7 @@ pub async fn new_can_push(
     let _lca_commit = api::local::commits::get_by_id(&repo, lca_id)?
         .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
 
-    let can_merge = !api::local::commits::new_head_commits_have_conflicts(
+    let can_merge = !api::local::commits::head_commits_have_conflicts(
         &repo,
         &client_head_id,
         server_head_id,
