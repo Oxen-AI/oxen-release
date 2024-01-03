@@ -297,6 +297,32 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     Ok(())
 }
 
+/// Download allows the user to download a file or files without cloning the repo
+pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
+    let paths = &opts.paths;
+    if paths.is_empty() {
+        return Err(OxenError::basic_str("Must supply a path to download."));
+    }
+
+    // Check if the first path is a valid remote repo
+    let name = paths[0].to_string_lossy();
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
+            .await?
+    {
+        // Download from the remote without having to have a local repo directory
+        let remote_paths = paths[1..].to_vec();
+        let commit_id = opts.remote_commit_id(&remote_repo).await?;
+        for path in remote_paths {
+            command::remote::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
+        }
+    } else {
+        eprintln!("Repository does not exist {}", name);
+    }
+
+    Ok(())
+}
+
 pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
     let paths = &opts.paths;
     if paths.is_empty() {

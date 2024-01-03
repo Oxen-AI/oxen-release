@@ -186,6 +186,38 @@ pub async fn remote(sub_matches: &ArgMatches) {
     }
 }
 
+pub async fn download(sub_matches: &ArgMatches) {
+    let opts = DownloadOpts {
+        paths: sub_matches
+            .get_many::<String>("paths")
+            .expect("Must supply paths")
+            .map(PathBuf::from)
+            .collect(),
+        dst: sub_matches
+            .get_one::<String>("output")
+            .map(PathBuf::from)
+            .unwrap_or(PathBuf::from(".")),
+        remote: sub_matches
+            .get_one::<String>("remote")
+            .map(String::from)
+            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
+        host: sub_matches
+            .get_one::<String>("host")
+            .map(String::from)
+            .unwrap_or(DEFAULT_HOST.to_string()),
+        branch: sub_matches.get_one::<String>("branch").map(String::from),
+        commit_id: sub_matches.get_one::<String>("commit-id").map(String::from),
+    };
+
+    // `oxen download $namespace/$repo_name $path`
+    match dispatch::download(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
+        }
+    }
+}
+
 async fn remote_download(sub_matches: &ArgMatches) {
     let opts = DownloadOpts {
         paths: sub_matches
