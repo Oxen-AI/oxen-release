@@ -63,6 +63,7 @@ async fn main() {
         }
         Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
+        Some((cmd_setup::DOWNLOAD, sub_matches)) => parse_and_run::download(sub_matches).await,
         Some((cmd_setup::INIT, sub_matches)) => parse_and_run::init(sub_matches).await,
         Some((cmd_setup::INFO, sub_matches)) => parse_and_run::info(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
