@@ -84,7 +84,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let all_commits = reader.list_all()?;
     let bar = oxen_progress_bar(all_commits.len() as u64, ProgressBarType::Counter);
     for commit in all_commits {
-        match api::local::commits::new_construct_commit_merkle_tree(repo, &commit) {
+        match api::local::commits::construct_commit_merkle_tree(repo, &commit) {
             Ok(_) => {}
             Err(err) => {
                 log::error!(

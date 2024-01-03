@@ -625,9 +625,10 @@ mod tests {
                         .join("train")
                         .join("averynewfile.txt");
 
-
-                    // print all files in annotations/train 
-                    let files = util::fs::rlist_paths_in_dir(&user_b_repo.path.join("annotations").join("train"));
+                    // print all files in annotations/train
+                    let files = util::fs::rlist_paths_in_dir(
+                        &user_b_repo.path.join("annotations").join("train"),
+                    );
                     for item in files {
                         log::debug!("\npre file or dir: {:?}\n", item)
                     }
@@ -637,45 +638,30 @@ mod tests {
                     let commit_a = command::commit(&user_a_repo, "modifying first file path.")?;
                     command::push(&user_a_repo).await?;
 
-
-                    
                     // User B deletes at user a path A modified, causing conflicts.
                     util::fs::remove_file(&modify_path_b)?;
-                    let files = util::fs::rlist_paths_in_dir(&user_b_repo.path.join("annotations").join("train"));
+                    let files = util::fs::rlist_paths_in_dir(
+                        &user_b_repo.path.join("annotations").join("train"),
+                    );
                     for item in files {
                         log::debug!("\npost file or dir: {:?}\n", item)
                     }
                     command::add(&user_b_repo, &modify_path_b)?;
-                    // also add a file 
+                    // also add a file
                     test::write_txt_file_to_path(&add_path_b, "new file")?;
                     // command::add(&user_b_repo, &add_path_b)?;
                     let commit_b = command::commit(&user_b_repo, "user B deleting file path.")?;
-                    
+
                     log::debug!("commit_a is {:?}", commit_a);
                     log::debug!("commit_b is {:?}", commit_b);
 
-                    let commit_a = api::local::commits::get_by_id(&user_a_repo, &commit_a.id)?.unwrap();
-                    let commit_b = api::local::commits::get_by_id(&user_b_repo, &commit_b.id)?.unwrap();
+                    let commit_a =
+                        api::local::commits::get_by_id(&user_a_repo, &commit_a.id)?.unwrap();
+                    let commit_b =
+                        api::local::commits::get_by_id(&user_b_repo, &commit_b.id)?.unwrap();
 
                     log::debug!("commit_a pre is {:?}", commit_a);
                     log::debug!("commit_b pre is {:?}", commit_b);
-                    
-
-                    // // Get the root hash of each dir 
-                    // let root_hash_a: String = path_db::get_entry(&a_writer.dir_hashes_db, "")?.unwrap();
-                    // let root_hash_b: String = path_db::get_entry(&b_writer.dir_hashes_db, "")?.unwrap();
-
-                    // // Get the root node of each dir
-                    // let root_node_a: TreeObject = path_db::get_entry(&a_writer.dirs_db, &root_hash_a)?.unwrap();
-                    // let root_node_b: TreeObject = path_db::get_entry(&b_writer.dirs_db, &root_hash_b)?.unwrap();
-
-                    // log::debug!("root hash a is {:?}", root_hash_a);
-                    // log::debug!("root hash b is {:?}", root_hash_b);
-
-                    // log::debug!("root node a is {:?}", root_node_a);
-                    // log::debug!("root node b is {:?}", root_node_b);
-
-
 
                     // Push should fail
                     let res = command::push(&user_b_repo).await;

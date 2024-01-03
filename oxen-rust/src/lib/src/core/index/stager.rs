@@ -226,7 +226,9 @@ impl Stager {
 
         for (dir, status) in &staged_dirs {
             let full_path = self.repository.path.join(&dir);
+            log::debug!("in the staged dir stats loop");
             let stats = self.compute_staged_dir_stats(&full_path, &status)?;
+            log::debug!("done the staged dir stats loop");
             staged_data.staged_dirs.add_stats(&stats);
             candidate_dirs.insert(self.repository.path.join(dir));
         }
@@ -245,7 +247,6 @@ impl Stager {
             candidate_dirs
         );
         for dir in candidate_dirs.iter() {
-            log::debug!("processing dir {:?}", dir);
             self.process_dir_ignoring_untracked(
                 dir,
                 &mut staged_data,
@@ -253,7 +254,6 @@ impl Stager {
                 entry_reader,
                 object_reader.clone(),
             )?;
-            log::debug!("processed dir");
         }
 
         let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
@@ -394,7 +394,8 @@ impl Stager {
         let bar = oxen_progress_bar(candidate_dirs.len() as u64, ProgressBarType::Counter);
 
         for dir in candidate_dirs.iter() {
-            log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
+            // log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
+            log::debug!("processing dir {:?}", dir);
             self.process_dir(
                 dir,
                 &mut staged_data,
@@ -402,6 +403,7 @@ impl Stager {
                 &entry_reader,
                 object_reader.clone(),
             )?;
+            log::debug!("processed dir");
             bar.inc(1);
         }
 
@@ -476,16 +478,15 @@ impl Stager {
 
         let commit = committer.head_commit()?;
 
-        let dir_reader =
-            CommitDirEntryReader::new(&self.repository, &commit.id, full_dir, object_reader)?;
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
-
         let staged_dir_db: StagedDirEntryDB<MultiThreaded> =
             StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+        let dir_reader =
+            CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
 
         // List the staged entries in this dir
         log::debug!("listing staged entries for dir {:?}", relative_dir);
-        let staged_entries = self.list_staged_files_in_dir(&full_dir)?;
+        let staged_entries = self.list_staged_files_in_dir(&relative_dir)?;
         log::debug!("got staged entries for dir {:?}", relative_dir);
 
         for relative_path in &staged_entries {
@@ -625,6 +626,7 @@ impl Stager {
                         .untracked_dirs
                         .push((relative.to_path_buf(), count));
                 }
+                continue;
             } else {
                 // is file
                 let file_status = Stager::get_file_status(
