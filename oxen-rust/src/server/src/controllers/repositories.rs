@@ -371,7 +371,6 @@ mod tests {
             author: String::from("Ox"),
             email: String::from("ox@oxen.ai"),
             timestamp,
-            // TODONOW fix 
             root_hash: String::from(""),
         };
         let repo_new = RepoNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);

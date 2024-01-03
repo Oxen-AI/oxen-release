@@ -5,10 +5,10 @@ use crate::constants::{
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema};
 use crate::{core::db, model::CommitEntry};
+use core::panic;
 use filetime::FileTime;
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
-use core::panic;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
@@ -85,7 +85,6 @@ impl TreeObjectChildWithStatus {
         }
     }
 
-    // TODONOW: This is a little hacky given that we don't maintain a hash for directories at status-time
     pub fn from_staged_dir(dir_stats: &StagedDirStats) -> TreeObjectChildWithStatus {
         TreeObjectChildWithStatus {
             child: TreeObjectChild::Dir {
@@ -124,7 +123,6 @@ impl TreeObjectChild {
         }
     }
 
-    // TODONOW: unicode weirdness?
     pub fn path_as_str(&self) -> &str {
         match self {
             TreeObjectChild::File { path, .. } => path.to_str().unwrap(),
@@ -155,13 +153,11 @@ impl TreeObjectChild {
 //     }
 // }
 
-
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeObject {
     File {
         hash: String,
-        num_bytes: u64, 
+        num_bytes: u64,
         last_modified_seconds: i64,
         last_modified_nanoseconds: u32,
     },
@@ -304,21 +300,19 @@ impl TreeObject {
     pub fn to_commit_entry(&self, path: &PathBuf, commit_id: &str) -> CommitEntry {
         match self {
             TreeObject::File {
-                hash, 
+                hash,
                 num_bytes,
                 last_modified_seconds,
                 last_modified_nanoseconds,
-            } => {
-                CommitEntry {
-                    commit_id: commit_id.to_string(),
-                    path: path.to_owned(),
-                    hash: hash.to_owned(),
-                    num_bytes: *num_bytes,
-                    last_modified_seconds: *last_modified_seconds,
-                    last_modified_nanoseconds: *last_modified_nanoseconds,
-                }
+            } => CommitEntry {
+                commit_id: commit_id.to_string(),
+                path: path.to_owned(),
+                hash: hash.to_owned(),
+                num_bytes: *num_bytes,
+                last_modified_seconds: *last_modified_seconds,
+                last_modified_nanoseconds: *last_modified_nanoseconds,
             },
-            _ => panic!("Cannot convert non-file object to CommitEntry") // TODONOW error handling
+            _ => panic!("Cannot convert non-file object to CommitEntry"), // TODONOW error handling
         }
     }
 }

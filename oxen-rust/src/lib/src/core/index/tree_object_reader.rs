@@ -34,7 +34,6 @@ pub struct TreeObjectReader {
     schemas_db: DBWithThreadMode<MultiThreaded>,
     dirs_db: DBWithThreadMode<MultiThreaded>,
     vnodes_db: DBWithThreadMode<MultiThreaded>,
-    temp_commit_hashes_db: DBWithThreadMode<MultiThreaded>,
     dir_hashes_db: DBWithThreadMode<MultiThreaded>,
 }
 
@@ -43,7 +42,6 @@ impl TreeObjectReader {
         util::fs::oxen_hidden_dir(path).join(Path::new(constants::OBJECTS_DIR))
     }
 
-    // TODONOW: These should probably be moved somewhere else
     pub fn files_db_dir(repo: &LocalRepository) -> PathBuf {
         util::fs::oxen_hidden_dir(&repo.path)
             .join(constants::OBJECTS_DIR)
@@ -123,11 +121,6 @@ impl TreeObjectReader {
             vnodes_db: DBWithThreadMode::open_for_read_only(
                 &opts,
                 dunce::simplified(&vnodes_db_path),
-                false,
-            )?,
-            temp_commit_hashes_db: DBWithThreadMode::open_for_read_only(
-                &opts,
-                dunce::simplified(&temp_commit_hashes_db_path),
                 false,
             )?,
             dir_hashes_db: DBWithThreadMode::open_for_read_only(

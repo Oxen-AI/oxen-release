@@ -2,7 +2,7 @@ use crate::api::remote::client;
 use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
-use crate::model::{MetadataEntry, RemoteRepository, LocalRepository};
+use crate::model::{LocalRepository, MetadataEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -75,14 +75,6 @@ pub async fn download_entry(
         }
     }
 
-    // TODONOW - get this out of here 
-    log::debug!("downloading an entry {:?}", entry);
-
-
-    log::debug!("download and merge objects db");
-
-    log::debug!("downloading the entries {:?}", entry);
-
     if entry.is_dir {
         download_dir(remote_repo, &entry, local_path).await
     } else {
@@ -111,18 +103,13 @@ pub async fn download_dir(
     // Read the entries from the cache commit db
     log::debug!("initializing a commit reader here");
 
-    // TODONOW a lot going wrong here 
-    // get repo from the repo_dir 
-
-
-    // TODONOW UGH 
-    // Get the local repo from this base path 
-    // let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir)
-    .await?;
+    api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir).await?;
 
     let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
-    log::debug!("successfully initialized object_reader at path {:?}", &repo_dir);
+    log::debug!(
+        "successfully initialized object_reader at path {:?}",
+        &repo_dir
+    );
 
     let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
     log::debug!("initialized successfully");
@@ -130,15 +117,10 @@ pub async fn download_dir(
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
     log::debug!("and here's the entries {:?}", entries);
 
-
-    // TODONOW: ADD COMMITS TO THIS
-
     // Pull all the entries
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
         log::debug!("Pull entries complete.")
     })
-
-
     .await?;
 
     Ok(())

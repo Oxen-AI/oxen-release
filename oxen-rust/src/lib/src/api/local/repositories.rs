@@ -380,7 +380,6 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
-                //TODONOW uhhh
                 root_hash: "".to_string(),
                 timestamp,
             };
