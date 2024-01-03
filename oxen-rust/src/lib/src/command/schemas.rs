@@ -408,7 +408,6 @@ mod tests {
             let schema_ref = bbox_file.to_string_lossy();
             command::add(&repo, &bbox_path)?;
 
-            let status = command::status(&repo)?;
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);

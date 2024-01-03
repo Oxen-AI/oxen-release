@@ -71,7 +71,6 @@ impl CommitEntryWriter {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIR_HASHES_DIR)
     }
 
-    // TODONOW: These should probably be moved somewhere else
     pub fn files_db_dir(repo: &LocalRepository) -> PathBuf {
         util::fs::oxen_hidden_dir(&repo.path)
             .join(constants::OBJECTS_DIR)
@@ -401,42 +400,13 @@ impl CommitEntryWriter {
 
         results
     }
-
-    // TODONOW: check this logic
-    fn handle_merge_commit_all_dirs_exist(
-        &self,
-        dir: &PathBuf,
-        dir_map: &HashMap<PathBuf, Vec<PathBuf>>,
-        base_hash: String,
-        merge_hash: String,
-        lca_hash: String,
-    ) -> Result<(), OxenError> {
-        if base_hash == merge_hash && base_hash == lca_hash {
-            // No changes, just copy over the hash
-            path_db::put(&self.dir_hashes_db, dir, &base_hash)?;
-        } else if lca_hash == base_hash {
-            // No changes in base, but changes in merge. Copy over merge hash
-            path_db::put(&self.dir_hashes_db, dir, &merge_hash)?;
-        } else if lca_hash == merge_hash {
-            // No changes in merge, but changes in base. Copy over base hash.
-            path_db::put(&self.dir_hashes_db, dir, &base_hash)?;
-        } else {
-            // self.merge_dir(dir, dir_map, base_hash, merge_hash, lca_hash)?;
-        }
-        Ok(())
-    }
-
     pub fn construct_merkle_tree_from_parent(
         &self,
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
         // Get all dirs so we can find which changed
-        // TODONOW: want to consolidate the two dir dbs, probably. aka store hashes in the dir db
-
         // Get last commit id
-
-        // TODONOW: this is a hack, separate out merge commit stuff
         let parent_commit_id = match &self.commit.parent_ids.len() {
             1 => &self.commit.parent_ids[0],
             2 => &self.commit.parent_ids[1],
@@ -532,7 +502,6 @@ impl CommitEntryWriter {
 
         if dir_paths.is_empty() {
             // Initial commit - we want to create the root node as empty, then return
-            // TODONOW: hash insertion definitely needed, is dirnode insertion? probably.
             let root_node = TreeObject::Dir {
                 // path: PathBuf::from(""),
                 children: Vec::new(),
@@ -540,7 +509,6 @@ impl CommitEntryWriter {
             };
             // Do we need all three of these really?
             path_db::put(&self.dirs_db, &root_node.hash(), &root_node)?;
-            log::debug!("putting root node into dir_hashes_db from new");
             path_db::put(&self.dir_hashes_db, PathBuf::from(""), &root_node.hash())?;
             path_db::put(
                 &self.temp_commit_hashes_db,
@@ -561,23 +529,11 @@ impl CommitEntryWriter {
             }
         }
 
-        log::debug!("server created dir map {:?}", dir_map);
         self.create_tree_nodes_from_dirs(&mut dir_paths, dir_map)?;
 
         // If dir path
         let root_hash: String =
             path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
-
-        log::debug!(
-            "server got root hash {:?} for commit with message {:?} and id {:?}",
-            root_hash,
-            self.commit.message,
-            self.commit.id
-        );
-        log::debug!(
-            "and the commit itself has root hash {:?}",
-            self.commit.root_hash
-        );
 
         // Insert into the commit hashes db
         path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
@@ -854,7 +810,7 @@ impl CommitEntryWriter {
 
             vnodes.push(TreeObjectChild::VNode {
                 hash: combined_hash,
-                path: PathBuf::from(name), // TODONOW Probably / maybe handle this as just a string
+                path: PathBuf::from(name),
             });
         }
         Ok(vnodes)
@@ -961,9 +917,6 @@ impl CommitEntryWriter {
         staged_entries_map =
             self.group_staged_dirs_to_dirs_with_status(staged_entries_map, status)?;
 
-        log::debug!("schemas map is {:#?}", schemas_map);
-        log::debug!("staged entries map is {:#?}", staged_entries_map);
-        // TODONOW clean this up
         // Get affected dirs as a set
         let mut affected_dirs: HashSet<PathBuf> = HashSet::new();
         for dir in dirs.clone() {
@@ -1001,7 +954,6 @@ impl CommitEntryWriter {
 
     fn write_file_objects_for_dir(&self, dir: PathBuf) -> Result<Vec<TreeObjectChild>, OxenError> {
         log::debug!("in write file objects from dir for dir {:?}", dir);
-        // TODONOW take this out
         let object_reader = ObjectDBReader::new(&self.repository)?;
         let dir_entry_reader =
             CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir, object_reader)?;
@@ -1120,11 +1072,11 @@ impl CommitEntryWriter {
             self.r_save_temp_commit_tree(child, &temp_tree_db)?;
         }
 
-        // Plug the root hash in here at "" - TODONOW: this is a hack. we should add the root hash to the commit object
+        // Plug the root hash in here at "" to give the server a starting point for traversal.
+        // Safe because an empty hash will not collide w/ any in xxhash
         path_db::put(&temp_tree_db, PathBuf::from(""), &root_dir_node)?;
 
         Ok(temp_db_path)
-        //
     }
 
     pub fn r_save_temp_commit_tree(

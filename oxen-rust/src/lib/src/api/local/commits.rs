@@ -196,16 +196,10 @@ pub fn commit(
     status: &StagedData,
     message: &str,
 ) -> Result<Commit, OxenError> {
-    log::debug!("pre stager");
     let stager = Stager::new(repo)?;
-    log::debug!("pre commit writer");
     let commit_writer = CommitWriter::new(repo)?;
-    log::debug!("post commit writer");
     let commit = commit_writer.commit(status, message)?;
-    log::debug!("post commit");
     stager.unstage()?;
-    log::debug!("post unstage");
-    log::debug!("returning this commit: {}", commit);
     Ok(commit)
 }
 
@@ -408,29 +402,20 @@ pub fn head_commits_have_conflicts(
     let lca = api::local::commits::get_by_id(repo, lca_id)?.unwrap();
 
     // Initialize commit entry readers for the server head and LCA - we have full db structures for them, where the client db is going to be kinda weird...
-    log::debug!("about to server writer");
     let server_reader = TreeObjectReader::new(repo, &server_head)?;
-    log::debug!("about to lca writer");
     let lca_reader = TreeObjectReader::new(repo, &lca)?;
-    log::debug!("successfully init writers");
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join("tmp")
         .join(client_head_id)
         .join(TREE_DIR);
 
-    log::debug!("about to merger");
     let tree_merger = NewTreeDBMerger::new(client_db_path.clone(), server_reader, lca_reader);
     // Start at the top level of the client db
-    log::debug!("about to get the client root");
     let maybe_client_root = &tree_merger.client_reader.get_root_entry()?;
-    log::debug!("about to get server root");
     let maybe_server_root = &tree_merger.server_reader.get_root_entry()?;
-    log::debug!("about to get lca root");
     let maybe_lca_root = &tree_merger.lca_reader.get_root_entry()?;
-    log::debug!("got lca root");
     // If lca_root is null, create a dummy node for traversal?
 
-    log::debug!("about to enter r_tree_has_conflict");
     tree_merger.r_tree_has_conflict(maybe_client_root, maybe_server_root, maybe_lca_root)
 }
 
@@ -463,10 +448,8 @@ mod tests {
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
-                log::debug!("new_repo_dir: {:?}", new_repo_dir);
                 let deep_clone =
                     command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                log::debug!("successfully deep cloned");
                 // Get head commit of deep_clone repo
                 let head_commit = api::local::commits::head_commit(&deep_clone)?;
                 assert!(api::local::commits::commit_history_is_complete(
@@ -485,7 +468,6 @@ mod tests {
     #[tokio::test]
     async fn test_commit_history_is_not_complete_standard_repo() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            log::debug!("we do indeed make it in here!");
             let cloned_remote = remote_repo.clone();
 
             // Clone with the --all flag

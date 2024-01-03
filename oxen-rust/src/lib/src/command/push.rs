@@ -315,31 +315,19 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "newer file")?;
                     command::add(&user_b_repo, &new_file_path)?;
                     command::commit(&user_b_repo, "User B adding second file path.")?;
-
-                    // Push should succeed now! there are no conflicts
                     log::debug!("pushing b...");
                     let result = command::push(&user_b_repo).await;
-                    log::debug!("done pushing b, here's result: {:?}", result);
                     assert!(result.is_ok());
-
-                    log::debug!("about to pull just a little bit");
 
                     command::pull(&user_b_repo).await?;
 
-                    log::debug!("done pulling just a little bit");
-
                     command::push(&user_b_repo).await?;
-                    log::debug!("not sure what we even pushed there");
 
                     // Full pull
                     command::pull_all(&user_b_repo).await?;
 
-                    log::debug!("pulled full");
-
                     // Push should now succeed
                     command::push(&user_b_repo).await?;
-
-                    log::debug!("pushed full but again not with anything at all");
 
                     Ok(user_b_repo_dir_copy)
                 })

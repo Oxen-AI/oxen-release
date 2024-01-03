@@ -308,7 +308,7 @@ pub async fn can_push(
         .join(HISTORY_DIR)
         .join(local_head.id.clone());
 
-    let tar_base_dir = Path::new("tmp").join(&local_head.id); // TODONOW
+    let tar_base_dir = Path::new("tmp").join(&local_head.id);
 
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
@@ -842,7 +842,6 @@ pub async fn post_commits_to_server(
     Ok(())
 }
 
-// TODONOW: should not post this whole thing
 pub async fn post_tree_objects_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -899,7 +898,6 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    // TODONOW: REMOVE THIS OBJECTS_DIR
     let dirs_to_compress = vec![
         DIRS_DIR,
         FILES_DIR,

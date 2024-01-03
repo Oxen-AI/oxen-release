@@ -133,26 +133,6 @@ impl TreeObjectChild {
     }
 }
 
-// impl Ord for TreeObjectChild {
-//     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-//         self.path().cmp(&other.path())
-//     }
-// }
-
-// impl PartialOrd for TreeObjectChild {
-//     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-//         Some(self.cmp(other))
-//     }
-// }
-
-// impl Eq for TreeObjectChild {}
-
-// impl PartialEq for TreeObjectChild {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.path() == other.path()
-//     }
-// }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TreeObject {
     File {
@@ -184,7 +164,6 @@ impl TreeObject {
             TreeObject::VNode { hash, .. } => hash,
         }
     }
-    // TODONOW: do we actually need this
     pub fn from_entry(commit_entry: &CommitEntry) -> TreeObject {
         TreeObject::File {
             hash: commit_entry.hash.clone(),

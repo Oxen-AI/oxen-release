@@ -79,9 +79,9 @@ pub async fn pull_remote_branch(
 #[cfg(test)]
 mod tests {
     use crate::core::index::CommitEntryReader;
-    use crate::{command, api};
     use crate::error::OxenError;
     use crate::test;
+    use crate::{api, command};
 
     // Deal with merge conflicts on pull
     // 1) Clone repo to user A
@@ -200,26 +200,11 @@ mod tests {
                     // Pull changes without pushing first - fine since no conflict
                     command::pull(&user_b_repo).await?;
 
-                    // Get new  head commit of the pulled repo 
+                    // Get new  head commit of the pulled repo
                     let head_commit = api::local::commits::head_commit(&user_b_repo)?;
                     log::debug!("a commit is {:#?}", a_commit);
                     log::debug!("b commit is {:#?}", b_commit);
                     log::debug!("head commit is {:#?}", head_commit);
-
-                    // commit entry reader here 
-                    let commit_entry_reader = CommitEntryReader::new(&user_b_repo, &head_commit)?;
-
-                    // list entries
-                    let entries = commit_entry_reader.list_entries()?;
-
-
-                    // UHHH THERE ARE NO ENTRIES IN THE HEAD COMMIT FOR REPO B LOL 
-
-                    log::debug!("entries in repo b are {:#?}", entries);
-                    for entry in entries {
-                        log::debug!("entry in repo b is {:#?}", entry);
-                    }
-
 
                     // Make sure we now have all three files
                     assert!(user_b_repo.path.join(file_1).exists());

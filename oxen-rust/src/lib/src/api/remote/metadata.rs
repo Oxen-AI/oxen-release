@@ -21,9 +21,7 @@ pub async fn get_file(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    log::debug!("about to get response from url: {:?}", url);
     let response = client.get(&url).send().await?;
-    log::debug!("got response from url: {:?}", url);
     let body = client::parse_json_body(&url, response).await?;
     Ok(serde_json::from_str(&body)?)
 }
@@ -83,29 +81,18 @@ mod tests {
             let path = Path::new("annotations").join("README.md");
             let revision = DEFAULT_BRANCH_NAME;
 
-            log::debug!("about to grab entry from client");
-
             let head = api::local::commits::head_commit(&local_repo)?;
-            
+
             let commit_entry_reader = CommitEntryReader::new(&local_repo, &head)?;
 
             // Try to get the entry from the local repo
             let entry = commit_entry_reader.get_entry(&path)?;
-
-            log::debug!("we got the entry from the local repo: {:?}", entry);
-
             assert!(entry.is_some());
-
-        
-
-
-
-
 
             let entry = api::remote::metadata::get_file(&remote_repo, revision, path)
                 .await?
                 .entry;
- 
+
             assert_eq!(entry.filename, "README.md");
             assert!(!entry.is_dir);
             assert_eq!(entry.data_type, EntryDataType::Text);

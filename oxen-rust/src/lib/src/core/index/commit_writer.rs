@@ -366,13 +366,7 @@ impl CommitWriter {
         // Get the hash for this commit id
         let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
 
-        log::debug!("commit before setting root hash {:#?}", commit);
-        log::debug!("setting root hash to {}", hash);
         commit.update_root_hash(hash.clone());
-        log::debug!("commit after setting root hash {:#?}", commit);
-
-        log::debug!("commit we're on right now {:?}", commit);
-        log::debug!("got hash {} for commit {}", hash, commit.message);
 
         self.add_commit_to_db(&commit)?;
 
@@ -392,7 +386,6 @@ impl CommitWriter {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
-        log::debug!("add_commit_from_status about to commit staged entries...");
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
@@ -406,10 +399,7 @@ impl CommitWriter {
         let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
         commit.update_root_hash(hash.clone());
 
-        log::debug!("got hash {} for commit {}", hash, commit.id);
-
         // Add to commits db id -> commit_json
-        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
         self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;

@@ -9,23 +9,13 @@ use indicatif::ProgressBar;
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, RemoteRepository, Commit};
+use crate::model::{Commit, CommitEntry, RemoteRepository};
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
 type SmallEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<(String, PathBuf)>;
 type LargeEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<PathBuf>;
-
-pub async fn pull_missing_tree_objects(
-    remote_repo: &RemoteRepository,
-    commits: Vec<Commit>
-) -> Result<(), OxenError> {
-
-    // TODONOW_ don't just pull all the
-
-    Ok(())
-}
 
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
@@ -78,7 +68,6 @@ pub async fn pull_entries(
     let small_entries_sync =
         pull_small_entries(remote_repo, smaller_entries, &dst, small_entry_paths, &bar);
 
-        
     match tokio::join!(large_entries_sync, small_entries_sync) {
         (Ok(_), Ok(_)) => {
             log::debug!("Successfully synced entries!");

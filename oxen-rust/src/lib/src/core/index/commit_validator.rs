@@ -27,11 +27,10 @@ pub fn validate_tree_hash(
     let is_valid: Result<bool, OxenError>;
     if commit.parent_ids.is_empty() {
         is_valid = new_validate_complete_merkle_tree(repository, commit);
-        log::debug!("complete merkle tree validation is {:?}", is_valid);
     } else {
         let parent = api::local::commits::get_by_id(repository, &commit.parent_ids[0])?.unwrap();
+
         is_valid = new_validate_changed_parts_of_merkle_tree(repository, commit, &parent);
-        log::debug!("changed parts merkle tree validation is {:?}", is_valid);
     }
 
     match is_valid {
@@ -124,8 +123,6 @@ fn r_validate_complete_merkle_node(
                 }
                 Ok(true)
             } else {
-                // TODO: Not sure why we're occasionally missing hash files, should be generated on
-                // posting commit entries
                 let disk_hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
                 if hash != disk_hash {
                     // log::debug!("validation failing on re-hash complete for file {:?}", path);
@@ -332,8 +329,6 @@ fn new_r_validate_complete_merkle_node(
             }
         }
         TreeObjectChild::Schema { path, hash } => {
-            // TODONOW check path here
-
             let schema_path = path
                 .strip_prefix(constants::SCHEMAS_TREE_PREFIX)?
                 .to_path_buf();

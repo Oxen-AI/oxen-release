@@ -537,7 +537,6 @@ mod tests {
             // Create new namespace
             std::fs::create_dir_all(&new_namespace_dir)?;
 
-            // TODONOW fix
             let root_commit = Commit {
                 id: initial_commit_id,
                 parent_ids: vec![],
