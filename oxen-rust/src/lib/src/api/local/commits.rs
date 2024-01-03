@@ -407,12 +407,11 @@ pub fn head_commits_have_conflicts(
     let server_head = api::local::commits::get_by_id(repo, server_head_id)?.unwrap();
     let lca = api::local::commits::get_by_id(repo, lca_id)?.unwrap();
 
-    // Initialize commit entry writers for the server head and LCA - we have full db structures for them, where the client db is going to be kinda weird...
-    // TODONOW: can we do this through commit entry READERS
+    // Initialize commit entry readers for the server head and LCA - we have full db structures for them, where the client db is going to be kinda weird...
     log::debug!("about to server writer");
-    let server_writer = TreeObjectReader::new(repo, &server_head)?;
+    let server_reader = TreeObjectReader::new(repo, &server_head)?;
     log::debug!("about to lca writer");
-    let lca_writer = TreeObjectReader::new(repo, &lca)?;
+    let lca_reader = TreeObjectReader::new(repo, &lca)?;
     log::debug!("successfully init writers");
     let client_db_path = util::fs::oxen_hidden_dir(&repo.path)
         .join("tmp")
@@ -420,7 +419,7 @@ pub fn head_commits_have_conflicts(
         .join(TREE_DIR);
 
     log::debug!("about to merger");
-    let tree_merger = NewTreeDBMerger::new(client_db_path.clone(), server_writer, lca_writer);
+    let tree_merger = NewTreeDBMerger::new(client_db_path.clone(), server_reader, lca_reader);
     // Start at the top level of the client db
     log::debug!("about to get the client root");
     let maybe_client_root = &tree_merger.client_reader.get_root_entry()?;

@@ -1342,7 +1342,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
             log::error!("Err: {:?}", err);
         }
     }
-    // TODONOW clean this functionality up and have it somewhere else
     let tmp_objects_dir = hidden_dir.join("tmp").join("objects");
 
     // If this dir exists:
@@ -1352,10 +1351,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
         merge_objects_dbs(hidden_dir.to_path_buf()).unwrap();
 
         std::fs::remove_dir_all(tmp_objects_dir.clone()).unwrap();
-    }
-
-    if tmp_objects_dir.exists() {
-        panic!("tmp objects dirshould've been removed but isn't");
     }
 
     log::debug!("Done decompressing.");

@@ -13,21 +13,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     //     "test_remote_ls_return_data_types_just_top_level_dir"
     std::thread::sleep(std::time::Duration::from_millis(100));
 
-    // Construct commit merkle tree if not sent by client
-    // if !api::local::commits::has_merkle_tree(repo, commit)? {
-    //     log::debug!(
-    //         "Merkle tree for commit {} not provided by client, creating",
-    //         commit.id
-    //     );
-    //     api::local::commits::construct_commit_merkle_tree(repo, commit)?;
-    // }
-
-    // TODONOW: find a better way to do this - maybe unpack all the obejcts from the commit
-    // api::local::commits::new_construct_commit_merkle_tree(repo, commit)?;
-
-    log::debug!("about to check tree is valid");
     let tree_is_valid = commit_validator::validate_tree_hash(repo, commit)?;
-    log::debug!("finished checking tree is valid");
 
     if tree_is_valid {
         log::debug!("writing commit is valid from tree {:?}", commit);
