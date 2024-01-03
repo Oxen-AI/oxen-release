@@ -390,13 +390,14 @@ impl CommitWriter {
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
         let mut commit = commit.clone();
-        let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
-        let opts = db::opts::default();
-        let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, temp_commit_hashes_db, false)?;
 
-        // Get the hash for this commit id
-        let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
+        let opts = db::opts::default();
+        let dir_hashes_db_dir =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db_dir, false)?;
+
+        let hash: String = path_db::get_entry(&dir_hashes_db, "")?.unwrap();
         commit.update_root_hash(hash.clone());
 
         // Add to commits db id -> commit_json
@@ -428,15 +429,14 @@ impl CommitWriter {
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
         let mut commit = commit.clone();
-        let temp_commit_hashes_db = CommitEntryWriter::temp_commit_hashes_db_dir(&self.repository);
         let opts = db::opts::default();
-        let temp_commit_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, temp_commit_hashes_db, false)?;
+        let dir_hashes_db_dir =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db_dir, false)?;
 
-        // Get the hash for this commit id
-        let hash: String = path_db::get_entry(&temp_commit_hashes_db, &commit.id)?.unwrap();
+        let hash: String = path_db::get_entry(&dir_hashes_db, "")?.unwrap();
         commit.update_root_hash(hash.clone());
-
         log::debug!("got hash {} for commit {}", hash, commit.id);
 
         // Add to commits db id -> commit_json

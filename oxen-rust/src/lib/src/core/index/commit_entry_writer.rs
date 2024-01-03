@@ -39,7 +39,7 @@ pub struct CommitEntryWriter {
     schemas_db: DBWithThreadMode<MultiThreaded>,
     pub dirs_db: DBWithThreadMode<MultiThreaded>,
     vnodes_db: DBWithThreadMode<MultiThreaded>,
-    temp_commit_hashes_db: DBWithThreadMode<MultiThreaded>,
+    // temp_commit_hashes_db: DBWithThreadMode<MultiThreaded>,
     commit: Commit,
 }
 
@@ -95,11 +95,11 @@ impl CommitEntryWriter {
             .join(constants::OBJECT_VNODES_DIR)
     }
 
-    pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
-            .join(constants::OBJECTS_DIR)
-            .join("commit-hashes")
-    }
+    // pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
+    //     util::fs::oxen_hidden_dir(&repo.path)
+    //         .join(constants::OBJECTS_DIR)
+    //         .join("commit-hashes")
+    // }
 
     pub fn new(
         repository: &LocalRepository,
@@ -114,7 +114,7 @@ impl CommitEntryWriter {
         let vnodes_db_path = CommitEntryWriter::vnodes_db_dir(&repository);
         let dir_hashes_db_path =
             CommitEntryWriter::commit_dir_hash_db(&repository.path, &commit.id);
-        let temp_commit_hashes_db_path = CommitEntryWriter::temp_commit_hashes_db_dir(&repository);
+        // let temp_commit_hashes_db_path = CommitEntryWriter::temp_commit_hashes_db_dir(&repository);
 
         for path in &[
             &db_path,
@@ -124,7 +124,7 @@ impl CommitEntryWriter {
             &dirs_db_path,
             &vnodes_db_path,
             &dir_hashes_db_path,
-            &temp_commit_hashes_db_path,
+            // &temp_commit_hashes_db_path,
         ] {
             if !path.exists() {
                 util::fs::create_dir_all(&path)?;
@@ -141,10 +141,10 @@ impl CommitEntryWriter {
             dirs_db: DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?,
             vnodes_db: DBWithThreadMode::open(&opts, dunce::simplified(&vnodes_db_path))?,
             dir_hashes_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_hashes_db_path))?,
-            temp_commit_hashes_db: DBWithThreadMode::open(
-                &opts,
-                dunce::simplified(&temp_commit_hashes_db_path),
-            )?,
+            // temp_commit_hashes_db: DBWithThreadMode::open(
+            //     &opts,
+            //     dunce::simplified(&temp_commit_hashes_db_path),
+            // )?,
             commit: commit.to_owned(),
         })
     }
@@ -198,38 +198,6 @@ impl CommitEntryWriter {
 
         Ok(())
     }
-
-    // fn write_entries_from_reader(&self, reader: &CommitEntryReader) -> Result<(), OxenError> {
-    // let dirs = reader.list_dirs()?;
-    // for dir in dirs {
-    // Write entries per dir
-    // let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, &dir)?;
-    // path_db::put(&self.dir_db, &dir, &0)?;
-
-    // let dir_reader = CommitDirEntryReader::new(&self.repository, &reader.commit_id, &dir)?;
-    // let entries = dir_reader.list_entries()?;
-    // log::debug!(
-    //     "write_entries_from_reader got {} entries for dir {:?}",
-    //     entries.len(),
-    //     dir
-    // );
-
-    // // Commit entries data
-    // entries.par_iter().for_each(|entry| {
-    //     log::debug!("copy entry {:?} -> {:?}", dir, entry.path);
-
-    //     // Write to db
-    //     match writer.add_commit_entry(entry) {
-    //         Ok(_) => {}
-    //         Err(err) => {
-    //             log::error!("write_entries_from_reader {err:?}");
-    //         }
-    //     }
-    // });
-    // }
-
-    // Ok(())
-    // }
 
     pub fn set_file_timestamps(
         &self,
@@ -488,7 +456,7 @@ impl CommitEntryWriter {
         );
 
         // Insert into the commit hashes db
-        path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
+        // path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
         Ok(())
     }
 
@@ -510,11 +478,11 @@ impl CommitEntryWriter {
             // Do we need all three of these really?
             path_db::put(&self.dirs_db, &root_node.hash(), &root_node)?;
             path_db::put(&self.dir_hashes_db, PathBuf::from(""), &root_node.hash())?;
-            path_db::put(
-                &self.temp_commit_hashes_db,
-                &self.commit.id,
-                &root_node.hash(),
-            )?;
+            // path_db::put(
+            //     &self.temp_commit_hashes_db,
+            //     &self.commit.id,
+            //     &root_node.hash(),
+            // )?;
 
             return Ok(());
         }
@@ -536,7 +504,7 @@ impl CommitEntryWriter {
             path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
 
         // Insert into the commit hashes db
-        path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
+        // path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
 
         Ok(())
     }
@@ -1063,8 +1031,7 @@ impl CommitEntryWriter {
         let temp_tree_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
         log::debug!("successfully opened the db");
-        let commit_hash: String =
-            path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
+        let commit_hash: &String = &self.commit.root_hash;
 
         let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap(); // TODONOW: error handling here
 
@@ -1130,12 +1097,17 @@ impl CommitEntryWriter {
 
     pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> {
         // Get the hash of this commit
-        let commit_hash: String =
-            path_db::get_entry(&self.temp_commit_hashes_db, &self.commit.id)?.unwrap();
+        let commit_hash = &self.commit.root_hash;
+        // let commit_hash: String = path_db::get_entry(&self.dirs_, &self.commit.id)?.unwrap();
 
         // Get the root dir node (this hash)
         let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, &commit_hash)?.unwrap();
 
+        log::debug!(
+            "\n\nPRINTING TREE DB FOR COMMIT WITH ID {:?} MESSAGE {:?}",
+            self.commit.id,
+            self.commit.message
+        );
         log::debug!("\n\nnew merkle root dir node is: {:?}", root_dir_node);
 
         // Get the children of the root dir node
@@ -1143,6 +1115,20 @@ impl CommitEntryWriter {
         for child in root_dir_children {
             self.r_temp_print_tree_db(child)?;
         }
+
+        log::debug!("and here's the entries");
+        let commit_reader = CommitEntryReader::new(&self.repository, &self.commit)?;
+        let entries = commit_reader.list_entries()?;
+
+        log::debug!(
+            "\n\nPRINTING ENTRIES FOR COMMIT WITH ID {:?} MESSAGE {:?}",
+            self.commit.id,
+            self.commit.message
+        );
+        for entry in entries {
+            log::debug!("entry is {:?}", entry);
+        }
+
         Ok(())
     }
 
@@ -1589,120 +1575,6 @@ mod tests {
     use crate::util;
     use serde_json::json;
     use std::path::PathBuf;
-
-    // TODONOW: Change this test, si now out of date
-    // #[tokio::test]
-    // async fn test_merkle_tree_tracks_schemas() -> Result<(), OxenError> {
-    //     test::run_empty_local_repo_test_async(|local_repo| async move {
-    //         let repo_dir = &local_repo.path;
-    //         let large_dir = repo_dir.join("large_files");
-    //         std::fs::create_dir_all(&large_dir)?;
-    //         let csv_file = large_dir.join("test.csv");
-    //         let from_file = test::test_200k_csv();
-    //         util::fs::copy(from_file, &csv_file)?;
-
-    //         command::add(&local_repo, &csv_file)?;
-    //         let first_commit = command::commit(&local_repo, "add test.csv")?;
-
-    //         // Get commit merkle hash for root level of repo for the most recent commit
-
-    //         // Add a schema for the csv file
-    //         let schema_ref = "large_files/test.csv";
-    //         let schema_metadata = json!({
-    //             "description": "A dataset of faces",
-    //             "task": "gen_faces"
-    //         });
-
-    //         let column_name = "image_id".to_string();
-    //         let column_metadata = json!({
-    //             "root": "images"
-    //         });
-    //         command::schemas::add_column_metadata(
-    //             &local_repo,
-    //             schema_ref,
-    //             &column_name,
-    //             &column_metadata,
-    //         )?;
-
-    //         command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
-    //         let second_commit = command::commit(&local_repo, "add test.csv schema metadata")?;
-
-    //         // Add column-level schema details
-
-    //         // Get merkle root hashes for all 3 commits and compare. All should be different
-
-    //         let db = TreeDBReader::new(&local_repo, &first_commit.id)?;
-    //         let root_node = db.get_entry(&PathBuf::from(""))?.unwrap();
-    //         let first_root_hash = root_node.hash().to_string();
-
-    //         let db = TreeDBReader::new(&local_repo, &second_commit.id)?;
-    //         let root_node = db.get_entry(&PathBuf::from(""))?.unwrap();
-    //         let second_root_hash = root_node.hash().to_string();
-    //         assert_ne!(first_root_hash, second_root_hash);
-
-    //         Ok(())
-    //     })
-    //     .await
-    // }
-
-    // #[tokio::test]
-    // async fn test_merkle_tree_deletes_schemas() -> Result<(), OxenError> {
-    //     test::run_empty_local_repo_test_async(|local_repo| async move {
-    //         let repo_dir = &local_repo.path;
-    //         let large_dir = repo_dir.join("large_files");
-    //         std::fs::create_dir_all(&large_dir)?;
-    //         let csv_file = large_dir.join("test.csv");
-    //         let from_file = test::test_200k_csv();
-    //         util::fs::copy(from_file, &csv_file)?;
-
-    //         command::add(&local_repo, &csv_file)?;
-
-    //         // Get commit merkle hash for root level of repo for the most recent commit
-
-    //         // Add a schema for the csv file
-    //         let schema_ref = "large_files/test.csv";
-    //         let schema_metadata = json!({
-    //             "description": "A dataset of faces",
-    //             "task": "gen_faces"
-    //         });
-
-    //         let column_name = "image_id".to_string();
-    //         let column_metadata = json!({
-    //             "root": "images"
-    //         });
-    //         command::schemas::add_column_metadata(
-    //             &local_repo,
-    //             schema_ref,
-    //             &column_name,
-    //             &column_metadata,
-    //         )?;
-
-    //         command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
-    //         let second_commit = command::commit(&local_repo, "add test.csv schema metadata")?;
-
-    //         // Second commit merkle db
-    //         let second_merkle_reader = TreeDBReader::new(&local_repo, &second_commit.id)?;
-    //         let merkle_schema_path = PathBuf::from(SCHEMAS_TREE_PREFIX).join(schema_ref);
-
-    //         // The schema should be in the merkle tree
-    //         let schema_node = second_merkle_reader.get_entry(&merkle_schema_path)?;
-    //         assert!(schema_node.is_some());
-
-    //         // Delete the file for the schema, add, recommit.
-    //         // TODONOW: add a status checker here on commit
-    //         std::fs::remove_file(&csv_file)?;
-    //         command::add(&local_repo, &csv_file)?;
-    //         let third_commit = command::commit(&local_repo, "delete test.csv")?;
-
-    //         let merkle_schema_path = PathBuf::from(SCHEMAS_TREE_PREFIX).join(schema_ref);
-    //         let third_merkle_reader = TreeDBReader::new(&local_repo, &third_commit.id)?;
-    //         let schema_node = third_merkle_reader.get_entry(&merkle_schema_path)?;
-    //         assert!(schema_node.is_none());
-
-    //         Ok(())
-    //     })
-    //     .await
-    // }
 
     #[tokio::test]
     async fn test_merkle_two_files_same_hash() -> Result<(), OxenError> {

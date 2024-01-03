@@ -66,17 +66,16 @@ impl TreeObjectReader {
             .join(constants::OBJECT_VNODES_DIR)
     }
 
-    pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
-        util::fs::oxen_hidden_dir(&repo.path)
-            .join(constants::OBJECTS_DIR)
-            .join("commit-hashes")
-    }
+    // pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
+    //     util::fs::oxen_hidden_dir(&repo.path)
+    //         .join(constants::OBJECTS_DIR)
+    //         .join("commit-hashes")
+    // }
 
     pub fn commit_dir_hash_db(path: &Path, commit_id: &str) -> PathBuf {
         CommitEntryWriter::commit_dir(path, commit_id).join(constants::DIR_HASHES_DIR)
     }
 
-    // TODONOW: probably make this commmitless
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
@@ -85,14 +84,14 @@ impl TreeObjectReader {
         let schemas_db_path = TreeObjectReader::schemas_db_dir(&repository);
         let dirs_db_path = TreeObjectReader::dirs_db_dir(&repository);
         let vnodes_db_path = TreeObjectReader::vnodes_db_dir(&repository);
-        let temp_commit_hashes_db_path = TreeObjectReader::temp_commit_hashes_db_dir(&repository);
+        // let temp_commit_hashes_db_path = TreeObjectReader::temp_commit_hashes_db_dir(&repository);
 
         for path in &[
             &files_db_path,
             &schemas_db_path,
             &dirs_db_path,
             &vnodes_db_path,
-            &temp_commit_hashes_db_path,
+            // &temp_commit_hashes_db_path,
         ] {
             if !path.exists() {
                 util::fs::create_dir_all(&path)?;
