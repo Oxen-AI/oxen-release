@@ -78,12 +78,6 @@ impl EntryIndexer {
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = api::local::commits::head_commit(&self.repository);
 
-        log::debug!("Here's maybe_head_commit {:?}", maybe_head_commit);
-        let maybe_list_commits = api::local::commits::head_commit(&self.repository);
-        log::debug!("Here's maybe_list_commits {:?}", maybe_list_commits);
-        let maybe_list_all = api::local::commits::head_commit(&self.repository);
-        log::debug!("Here's maybe_list_all {:?}", maybe_list_all);
-
         let head_commit = if let Ok(commit) = maybe_head_commit {
             Some(commit)
         } else {
@@ -121,8 +115,6 @@ impl EntryIndexer {
         // TODO Do we add a flag for if this pull is a merge somehow...?
         // If the branches have diverged, we need to merge the commit into the base
 
-        log::debug!("before checking merge commit,  commit is {:#?}", commit);
-
         if let Some(ref head_commit) = head_commit {
             if head_commit.id != commit.id {
                 let merger = Merger::new(&self.repository)?;
@@ -131,8 +123,6 @@ impl EntryIndexer {
                 }
             }
         }
-
-        log::debug!("after checking merge commit, commit is {:#?}", commit);
 
         // Mark the new commit (merged or pulled) as synced
         index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
@@ -159,7 +149,7 @@ impl EntryIndexer {
         };
 
         self.pull_commit_entries_db(&remote_repo, commit).await?;
-        //todonow delete
+        //just pull the whole thing
         let commit_vec = vec![commit.clone()];
         self.pull_tree_objects_for_commits(&remote_repo, &commit_vec)
             .await?;
@@ -194,13 +184,9 @@ impl EntryIndexer {
             }
         };
 
-        log::debug!("pulling all gathering commits");
-
         // Get entries between here and new head, get entries for any missing
         let commits = api::local::commits::list_from(&self.repository, &new_head.id)?;
         let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
-
-        log::debug!("Pulling all gathered commits");
 
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
         for c in &commits {
@@ -209,26 +195,18 @@ impl EntryIndexer {
             }
         }
 
-        log::debug!("pulling all gathered entry commits");
-
-        // TODONOW: don't pull `ALL objects`
         self.pull_tree_objects_for_commits(remote_repo, &unsynced_entry_commits)
             .await?;
-
-        log::debug!("pulling all downloaded tree objects");
 
         // Download all files to versions dir
         self.pull_entries_for_commits(remote_repo, unsynced_entry_commits)
             .await?;
-
-        log::debug!("pulling all pulled unsynced entries");
 
         // Mark commits as synced for future pulls
         for commit in commits {
             index::commit_sync_status::mark_commit_as_synced(&self.repository, &commit)?;
         }
 
-        log::debug!("pulling all marked as synced");
         Ok(new_head)
     }
 
@@ -310,12 +288,9 @@ impl EntryIndexer {
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
 
-                // TODONOW: delete this
                 let commits_vec = vec![commit.clone()];
-                log::debug!("about to pull tree objects");
                 self.pull_tree_objects_for_commits(remote_repo, &commits_vec)
                     .await?;
-                log::debug!("pulled tree objects");
 
                 // Sync the commit entries objects
                 self.pull_commit_entries_db(remote_repo, &commit).await?;

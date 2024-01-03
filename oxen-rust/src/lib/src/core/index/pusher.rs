@@ -11,6 +11,7 @@ use flate2::Compression;
 use futures::prelude::*;
 use indicatif::ProgressBar;
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::io::{BufReader, Read};
 use std::sync::Arc;
 
@@ -24,7 +25,9 @@ use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, R
 
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
+use derive_more::Display;
 
+#[derive(Debug)]
 pub struct UnsyncedCommitEntries {
     pub commit: Commit,
     pub entries: Vec<CommitEntry>,
@@ -102,7 +105,7 @@ pub async fn push_remote_repo(
     // Lock successfully acquired
     api::remote::repositories::pre_push(&remote_repo, &branch, &head_commit.id).await?;
 
-    #[allow(unused_assignments)]
+    // #[allow(unused_assignments)]
     let mut requires_merge = false;
     match validate_repo_is_pushable(
         local_repo,
@@ -183,8 +186,8 @@ pub async fn try_push_remote_repo(
     let unsynced_db_commits =
         api::remote::commits::get_commits_with_unsynced_dbs(remote_repo, &branch).await?;
 
-    // TODONOW make this only push missing / necessary objects 
-    api::remote::commits::post_tree_objects_to_server(local_repo, remote_repo, &head_commit).await?;
+    api::remote::commits::post_tree_objects_to_server(local_repo, remote_repo, &head_commit)
+        .await?;
 
     push_missing_commit_dbs(local_repo, remote_repo, unsynced_db_commits).await?;
 
@@ -219,12 +222,18 @@ pub async fn try_push_remote_repo(
         )
         .await?;
 
-        log::debug!("got new merge head commit {:?}", head_commit);
+        log::debug!(
+            "try_push_remote_repo found new merge head commit {:?}",
+            head_commit
+        );
         unsynced_entries_commits.push(merge_commit.clone());
 
         head_commit = merge_commit;
     } else {
-        log::debug!("didn't get new merge head, old head is {:?}", head_commit);
+        log::debug!(
+            "try_push_remote_repo didn't find new merge head, old head is {:?}",
+            head_commit
+        );
     }
 
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
@@ -325,6 +334,12 @@ fn get_unsynced_entries_for_commit(
         let entries =
             api::local::entries::read_unsynced_entries(local_repo, &local_parent, commit)?;
 
+        log::debug!(
+            "got unsynced entries for commit {:#?}: {:#?}",
+            commit,
+            entries
+        );
+
         // Get size of these entries
         let entries_size = api::local::entries::compute_entries_size(&entries)?;
         total_size += entries_size;
@@ -354,8 +369,14 @@ async fn push_missing_commit_objects(
     let mut total_size: u64 = 0;
 
     for commit in commits {
+        log::debug!("objects checker checking commit {:#?}", commit);
         let (commit_unsynced_commits, commit_size) =
             get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+        log::debug!(
+            "objects checker got entries for commit {:#?} as {:?}",
+            commit,
+            commit_unsynced_commits
+        );
         total_size += commit_size;
         unsynced_commits.extend(commit_unsynced_commits);
     }
@@ -490,9 +511,6 @@ async fn poll_until_synced(
     }
 }
 
-
-
-
 async fn push_missing_commit_dbs(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -617,9 +635,19 @@ async fn push_missing_commit_entries(
     for commit in commits {
         // Only if the commit is not already accounted for in unsynced entries - avoid double counting
         if !unsynced_entries.iter().any(|u| u.commit.id == commit.id) {
+            log::debug!("processing commit {:?}", commit);
             let (commit_unsynced_commits, _commit_size) =
                 get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+
+            log::debug!(
+                "got entries for commit {:#?} {:?}",
+                commit,
+                commit_unsynced_commits
+            );
+
             unsynced_entries.extend(commit_unsynced_commits);
+        } else {
+            log::debug!("Skipping commit {:?}", commit);
         }
     }
 
@@ -627,6 +655,11 @@ async fn push_missing_commit_entries(
         .iter()
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
+
+    log::debug!(
+        "pushing and we've collected these entries: {:#?}",
+        unsynced_entries
+    );
 
     spinner.finish_and_clear();
 
@@ -1273,8 +1306,6 @@ mod tests {
             // Push to the remote
             pusher::push_missing_commit_dbs(&repo, &remote_repo, unsynced_db_commits).await?;
 
-        
-
             // All commits should now have dbs
             let unsynced_db_commits =
                 api::remote::commits::get_commits_with_unsynced_dbs(&remote_repo, &branch).await?;
@@ -1347,9 +1378,7 @@ mod tests {
             command::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
             command::rm(&local_repo, &rm_opts).await?;
-            // log::debug!("about to commit here");
             let commit = command::commit(&local_repo, "Moved the readme")?;
-            // log::debug!("done committing here");
 
             // All remote entries should by synced
             let unsynced_entries_commits =
@@ -1431,9 +1460,7 @@ mod tests {
 
             assert_eq!(commit_unsynced_commits.len(), 1);
 
-            for entry in commit_unsynced_commits[0].entries.clone().into_iter() {
-                log::debug!("Here is an unsynced entry we have {:?}", entry)
-            }
+            for entry in commit_unsynced_commits[0].entries.clone().into_iter() {}
 
             assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
 

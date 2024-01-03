@@ -2,7 +2,7 @@ use crate::api::remote::client;
 use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
-use crate::model::{LocalRepository, MetadataEntry, RemoteRepository};
+use crate::model::{MetadataEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -47,7 +47,6 @@ pub async fn download_entry(
     let mut local_path = local_path.as_ref().to_path_buf();
 
     // Following the similar logic as cp or scp
-    log::debug!("downloading an entry {:?}", entry);
 
     // * if the dst parent is a file, we error because cannot copy to a file subdirectory
     if let Some(parent) = local_path.parent() {
@@ -100,22 +99,14 @@ pub async fn download_dir(
         &repo_cache_dir,
     )
     .await?;
-    // Read the entries from the cache commit db
-    log::debug!("initializing a commit reader here");
 
     api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir).await?;
 
     let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
-    log::debug!(
-        "successfully initialized object_reader at path {:?}",
-        &repo_dir
-    );
 
     let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
-    log::debug!("initialized successfully");
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
-    log::debug!("and here's the entries {:?}", entries);
 
     // Pull all the entries
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {

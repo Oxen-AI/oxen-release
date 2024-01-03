@@ -37,16 +37,6 @@ pub fn get_meta_entry(
         let object_reader = ObjectDBReader::new(repo)?;
         let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader)?;
 
-        log::debug!(
-            "listing all files from the dir entry reader at parent path {:?}",
-            parent
-        );
-        for entry in dir_entry_reader.list_entries()? {
-            log::debug!("the thing has entry {:?}", entry);
-        }
-
-        log::debug!("searching for get entry under base name {:?}", base_name);
-
         let entry = dir_entry_reader
             .get_entry(base_name)?
             .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
@@ -74,15 +64,11 @@ pub fn meta_entry_from_dir(
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
     let total_size = match util::fs::read_from_path(total_size_path) {
-        Ok(total_size_str) => {
-            log::debug!("got total size str {} for dir {:?}", total_size_str, path);
-            total_size_str
-                .parse::<u64>()
-                .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?
-        }
+        Ok(total_size_str) => total_size_str
+            .parse::<u64>()
+            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
         Err(_) => {
             // cache failed, go compute it
-            log::debug!("cache miss, computing dir size");
             compute_dir_size(repo, commit, path)?
         }
     };
@@ -152,21 +138,13 @@ fn compute_dir_size(
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
-    log::debug!("got committed dirs for path {:?} {:?}", path, dirs);
     let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
             let entry_reader =
                 CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
-            log::debug!("about to iterate over path {:?} for dir {:?}", path, dir);
             for entry in entry_reader.list_entries()? {
-                log::debug!(
-                    "got committed entry {:?} for path {:?} in commit with message {:?}",
-                    entry,
-                    path,
-                    commit.message
-                );
                 total_size += entry.num_bytes;
             }
         }
@@ -256,7 +234,6 @@ pub fn list_directory(
 
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
-    log::debug!("LIST DIRECTORY about to list directories");
     for dir in entry_reader.list_dirs()? {
         log::debug!(
             "LIST DIRECTORY considering committed dir: {:?} for search {:?}",
@@ -264,7 +241,6 @@ pub fn list_directory(
             directory
         );
         if let Some(parent) = dir.parent() {
-            log::debug!("and got parent {:?}", parent);
             if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
                 dir_paths.push(meta_entry_from_dir(
                     repo,
@@ -276,8 +252,6 @@ pub fn list_directory(
             }
         }
     }
-    log::debug!("list_directory got dir_paths {}", dir_paths.len());
-    // TODONOW this opens duplicate objectreaders - can we just use the one in entry_Reader?
     let object_reader = ObjectDBReader::new(repo)?;
     let mut file_paths: Vec<MetadataEntry> = vec![];
     let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory, object_reader)?;
@@ -428,6 +402,11 @@ pub fn read_unsynced_entries(
     let this_entry_reader = CommitEntryReader::new(local_repo, this_commit)?;
 
     let this_entries = this_entry_reader.list_entries()?;
+    log::debug!(
+        "entries for commit {:#?} are {:#?}",
+        this_commit,
+        this_entries
+    );
     let grouped = api::local::entries::group_entries_to_parent_dirs(&this_entries);
     log::debug!(
         "Checking {} entries in {} groups",
@@ -436,6 +415,12 @@ pub fn read_unsynced_entries(
     );
 
     let object_reader = ObjectDBReader::new(local_repo)?;
+
+    log::debug!(
+        "checking last commit {:#?} against this commit {:#?}",
+        last_commit,
+        this_commit
+    );
 
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
@@ -628,7 +613,6 @@ mod tests {
     #[test]
     fn test_list_directories_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            log::debug!("are we making it here?");
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
@@ -727,8 +711,6 @@ mod tests {
             // Add and commit all the dirs and files
             command::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
-
-            log::debug!("here's our commit from the test {:?}", commit);
 
             // Run the compute cache
             let force = true;

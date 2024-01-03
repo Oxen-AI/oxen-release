@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
-use crate::core::index::{object_db_reader, CommitDirEntryReader};
+use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::generic_diff::GenericDiff;
@@ -712,10 +712,8 @@ fn collect_added_directories(
     diff_entries: &mut Vec<DiffEntry>,
 ) -> Result<(), OxenError> {
     for head_dir in head_dirs {
-        log::debug!("checking head_dir {:?}", head_dir);
         // HEAD entry is *not* in BASE
         if !base_dirs.contains(head_dir) {
-            log::debug!("ADDED - head_dir {:?} not in base", head_dir);
             diff_entries.push(DiffEntry::from_dir(
                 repo,
                 None,
@@ -724,8 +722,6 @@ fn collect_added_directories(
                 head_commit,
                 DiffEntryStatus::Added,
             )?);
-        } else {
-            log::debug!("bypassing head_dir {:?}, is in base", head_dir)
         }
     }
     Ok(())
@@ -741,9 +737,7 @@ fn collect_modified_directories(
     diff_entries: &mut Vec<DiffEntry>,
 ) -> Result<(), OxenError> {
     for head_dir in head_dirs {
-        log::debug!("checking head_dir {:?}", head_dir);
         if base_dirs.contains(head_dir) {
-            log::debug!("head_dir {:?} is in base, potential modification", head_dir);
             let diff_entry = DiffEntry::from_dir(
                 repo,
                 Some(head_dir),
@@ -760,15 +754,7 @@ fn collect_modified_directories(
                     diff_entry
                 );
                 diff_entries.push(diff_entry);
-            } else {
-                log::debug!(
-                    "head_dir {:?} no changes, here's diff entry {:?}",
-                    head_dir,
-                    diff_entry
-                );
             }
-        } else {
-            log::debug!("bypassing head_dir {:?} as it is not in base", head_dir);
         }
     }
     Ok(())
@@ -801,10 +787,6 @@ fn collect_removed_directories(
     for base_dir in base_dirs {
         // HEAD entry is *not* in BASE
         if !head_dirs.contains(base_dir) {
-            log::debug!(
-                "collect_removed_directories REMOVED - base_dir {:?} not in head",
-                base_dir
-            );
             diff_entries.push(DiffEntry::from_dir(
                 repo,
                 Some(base_dir),
@@ -813,11 +795,6 @@ fn collect_removed_directories(
                 head_commit,
                 DiffEntryStatus::Removed,
             )?);
-        } else {
-            log::debug!(
-                "collect_removed_directories bypassing base_dir {:?}, is in head",
-                base_dir
-            );
         }
     }
     Ok(())
@@ -836,10 +813,6 @@ fn collect_added_entries(
     );
     let diff = head_entries.difference(base_entries);
     for head_entry in diff {
-        log::debug!(
-            "ADDED - collect_added_entries head_entry {:?} is not in base",
-            head_entry
-        );
         // HEAD entry is *not* in BASE
         diff_entries.push(DiffCommitEntry {
             path: head_entry.path.to_owned(),
@@ -885,28 +858,20 @@ fn collect_modified_entries(
     for head_entry in head_entries {
         // HEAD entry *is* in BASE
         if let Some(base_entry) = base_entries.get(head_entry) {
-            log::debug!(
-                "collect_modified_entries found in base! {} != {}",
-                head_entry.hash,
-                base_entry.hash
-            );
+            // log::debug!(
+            //     "collect_modified_entries found in base! {} != {}",
+            //     head_entry.hash,
+            //     base_entry.hash
+            // );
             // HEAD entry has a different hash than BASE entry
             if head_entry.hash != base_entry.hash {
-                log::debug!("collect_modified_entries head_entry {:?} has a different hash than base_entry {:?}, pushing diff_entry", head_entry, base_entry);
                 diff_entries.push(DiffCommitEntry {
                     path: base_entry.path.to_owned(),
                     base_entry: Some(base_entry.to_owned()),
                     head_entry: Some(head_entry.to_owned()),
                     status: DiffEntryStatus::Modified,
                 });
-            } else {
-                log::debug!("collect_modified_entries head_entry {:?} has the same hash as base_entry {:?}, not pushing diff_entry", head_entry, base_entry);
             }
-        } else {
-            log::debug!(
-                "collect_modified_entries head_entry {:?} not in base_entries",
-                head_entry
-            );
         }
     }
     Ok(())
@@ -918,7 +883,6 @@ fn read_dirs_from_commit(
 ) -> Result<HashSet<PathBuf>, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     let entries = reader.list_dirs()?;
-    log::debug!("here are the dirs from read_dirs_from_commit {:?}", entries);
     Ok(HashSet::from_iter(
         entries.into_iter().filter(|p| p != Path::new("")),
     ))
@@ -1021,39 +985,18 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // get og commit
             let base_commit = api::local::commits::head_commit(&repo)?;
 
-            // Walk dir here
-            let walker = jwalk::WalkDir::new(repo.path.clone());
-            for entry in walker {
-                let entry = entry?;
-                let path = entry.path();
-                log::debug!("got pre path in this dir {:?}", path);
-            }
-
             // Remove the file
             util::fs::remove_file(bbox_file)?;
 
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
-
-            log::debug!("about to list diff entries");
-
             let entries =
                 api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
 
-            log::debug!("listed diff entries");
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
-            }
-
-            // List files in repo at this point with jwalk::walkdir
-            let mut files: Vec<String> = vec![];
-            let walker = jwalk::WalkDir::new(repo.path.clone());
-            for entry in walker {
-                let entry = entry?;
-                let path = entry.path();
-                log::debug!("got path in this dir {:?}", path);
             }
 
             // it currently shows all the parent dirs as being

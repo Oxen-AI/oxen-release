@@ -858,7 +858,7 @@ fn check_if_upload_complete_and_unpack(
         }
 
         // Cleanup tmp files
-        // util::fs::remove_dir_all(tmp_dir).unwrap();
+        util::fs::remove_dir_all(tmp_dir).unwrap();
         // });
     }
 }

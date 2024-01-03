@@ -93,7 +93,6 @@ mod tests {
     use crate::test;
     use crate::util;
     use image::imageops;
-    use jwalk::WalkDir;
 
     // Test diff add image
     #[tokio::test]
@@ -987,8 +986,6 @@ who won the game?,The packers beat up on the bears,packers
             command::rm(&repo, &rm_opts).await?;
             command::commit(&repo, "Remove and modify some cats")?;
 
-            // return all files in the repo directory using walkdir
-
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
@@ -1006,8 +1003,6 @@ who won the game?,The packers beat up on the bears,packers
             .await?;
 
             println!("COMPARE: {:#?}", compare);
-
-            log::debug!("HERE IS COMPARE {:#?}", compare);
 
             // Added 4 dogs, modified 1 cat, removed 1 cat, three dirs
             assert_eq!(compare.entries.len(), 9);
@@ -1079,14 +1074,6 @@ who won the game?,The packers beat up on the bears,packers
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            // list all paths with jwalk
-            let mut paths = jwalk::WalkDir::new(&repo.path).into_iter();
-            let walker = jwalk::WalkDir::new(repo.path.clone());
-            for entry in walker {
-                let entry = entry?;
-                let path = entry.path();
-                log::debug!("got before path in this dir {:?}", path);
-            }
             command::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial cat images")?;
 

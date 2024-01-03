@@ -230,7 +230,7 @@ impl Merger {
         let lca =
             self.lowest_common_ancestor_from_commits(&commit_reader, base_commit, merge_commit)?;
         log::debug!(
-            "got lca {:?} for merge commit {:?} and base {:?}",
+            "merge_commit_into_base has lca {:?} for merge commit {:?} and base {:?}",
             lca,
             merge_commit,
             base_commit
@@ -311,10 +311,6 @@ impl Merger {
         // Stage changes
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
-        log::debug!(
-            "the local head that we're using for this reader is {:#?}",
-            commit
-        );
         let reader = CommitEntryReader::new(repo, &commit)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &ignore)?;
@@ -329,7 +325,6 @@ impl Merger {
         // Create a commit with both parents
         let reader = CommitEntryReader::new_from_head(repo)?;
         let status = stager.status(&reader)?;
-        log::debug!("merger got this status {:?}", status);
         let commit_writer = CommitWriter::new(repo)?;
         let parent_ids: Vec<String> = vec![
             merge_commits.base.id.to_owned(),
@@ -517,8 +512,6 @@ impl Merger {
         log::debug!("base_entries.len() {}", base_entries.len());
         log::debug!("merge_entries.len() {}", merge_entries.len());
 
-        log::debug!("write_to_disk is {}", write_to_disk);
-
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
             // log::debug!("Considering entry {}", merge_entries.len());
@@ -570,7 +563,6 @@ impl Merger {
     }
 
     fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
-        log::debug!("updating entry {:?} in merge commit", merge_entry.path);
         restore::restore_file(
             &self.repository,
             &merge_entry.path,
@@ -738,15 +730,12 @@ mod tests {
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
             command::add(&repo, hello_file)?;
-            log::debug!("first add");
 
             // Write and add world file
             let world_file = repo.path.join("world.txt");
             let og_contents = "World";
             util::fs::write_to_path(&world_file, og_contents)?;
-            log::debug!("second add");
             command::add(&repo, &world_file)?;
-            log::debug!("first commit");
 
             // Commit two files
             command::commit(&repo, "Adding hello & world files")?;
@@ -760,26 +749,18 @@ mod tests {
             let world_file = test::modify_txt_file(world_file, new_contents)?;
 
             // Commit the removal
-            log::debug!("third add");
             command::add(&repo, &world_file)?;
-            log::debug!("second commit");
             command::commit(&repo, "Modifying world file")?;
 
-            log::debug!("checkout");
             // Checkout and merge additions
             command::checkout(&repo, &og_branch.name).await?;
-            log::debug!("post checkout");
 
             // Make sure world file exists in it's original form
-            log::debug!("reading from path");
             let contents = util::fs::read_from_path(&world_file)?;
-            log::debug!("read from path");
             assert_eq!(contents, og_contents);
 
             let merger = Merger::new(&repo)?;
-            log::debug!("pre merge");
             merger.merge(branch_name)?.unwrap();
-            log::debug!("post merge");
 
             // Now that we've merged in, world file should be new content
             let contents = util::fs::read_from_path(&world_file)?;
