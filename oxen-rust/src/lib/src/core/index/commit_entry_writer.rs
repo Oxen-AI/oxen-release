@@ -969,6 +969,7 @@ impl CommitEntryWriter {
         for dir in dirs.clone() {
             affected_dirs.insert(dir.clone());
         }
+        log::debug!("affected_dirs are {:#?}", affected_dirs);
 
         // Now get the unaffected dirs: aka, iterate over dirs_map, and if the dir isn't in affected_dirs, add it to unaffected_dirs
         let mut unaffected_dirs: Vec<PathBuf> = Vec::new();
