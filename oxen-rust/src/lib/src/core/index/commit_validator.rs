@@ -1,10 +1,9 @@
 use crate::constants::{self, HASH_FILE};
-use crate::core::db::tree_db::{TreeNode, TreeObject, TreeObjectChild};
-use crate::core::index::{CommitEntryReader, CommitEntryWriter, TreeDBReader};
+use crate::core::db::tree_db::TreeObjectChild;
+use crate::core::index::CommitEntryReader;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
 use crate::{api, util};
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use super::ObjectDBReader;
@@ -24,14 +23,12 @@ pub fn validate_tree_hash(
     repository: &LocalRepository,
     commit: &Commit,
 ) -> Result<bool, OxenError> {
-    let is_valid: Result<bool, OxenError>;
-    if commit.parent_ids.is_empty() {
-        is_valid = new_validate_complete_merkle_tree(repository, commit);
+    let is_valid: Result<bool, OxenError> = if commit.parent_ids.is_empty() {
+        validate_complete_merkle_tree(repository, commit)
     } else {
         let parent = api::local::commits::get_by_id(repository, &commit.parent_ids[0])?.unwrap();
-
-        is_valid = new_validate_changed_parts_of_merkle_tree(repository, commit, &parent);
-    }
+        validate_changed_parts_of_merkle_tree(repository, commit, &parent)
+    };
 
     match is_valid {
         Ok(is_valid) => {
@@ -90,197 +87,7 @@ fn compute_versions_hash(
     Ok(content_id)
 }
 
-// For when we don't have parent to compare to
 fn validate_complete_merkle_tree(
-    repository: &LocalRepository,
-    commit: &Commit,
-) -> Result<bool, OxenError> {
-    let tree_db_reader = TreeDBReader::new(repository, &commit.id)?;
-    r_validate_complete_merkle_node(repository, commit, &tree_db_reader, PathBuf::from(""))
-}
-
-fn r_validate_complete_merkle_node(
-    repository: &LocalRepository,
-    commit: &Commit,
-    tree_reader: &TreeDBReader,
-    node_path: PathBuf,
-) -> Result<bool, OxenError> {
-    let node = tree_reader.get_entry(node_path)?.unwrap();
-    match node {
-        // Base case: if the node is a file, check the hash
-        TreeNode::File { path, hash } => {
-            let version_path = util::fs::version_path_from_hash_and_file(
-                &repository.path,
-                hash.clone(),
-                path.clone(),
-            );
-            let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
-            if maybe_hash_file.exists() {
-                let disk_hash = util::fs::read_from_path(&maybe_hash_file)?;
-                if disk_hash != hash {
-                    // log::debug!("validation failing on hash mismatch complete for file {:?}", path);
-                    return Ok(false);
-                }
-                Ok(true)
-            } else {
-                let disk_hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
-                if hash != disk_hash {
-                    // log::debug!("validation failing on re-hash complete for file {:?}", path);
-                    Ok(false)
-                } else {
-                    Ok(true)
-                }
-            }
-        }
-        TreeNode::Schema { path, hash } => {
-            // Get schema from db
-            let schema_path = path
-                .strip_prefix(constants::SCHEMAS_TREE_PREFIX)?
-                .to_path_buf();
-            log::debug!("commit_validator getting schema at path {:?}", schema_path);
-            let maybe_schema =
-                api::local::schemas::get_by_path_from_ref(repository, &commit.id, schema_path)?;
-
-            match maybe_schema {
-                Some(schema) => {
-                    if schema.hash != hash {
-                        return Ok(false);
-                    }
-                }
-                None => {
-                    return Ok(false);
-                }
-            }
-
-            Ok(true)
-        }
-        TreeNode::Directory { children, .. } => {
-            for child in children {
-                let child_path = child.path();
-                if !r_validate_complete_merkle_node(
-                    repository,
-                    commit,
-                    tree_reader,
-                    child_path.to_path_buf(),
-                )? {
-                    return Ok(false);
-                }
-            }
-            Ok(true)
-        }
-    }
-}
-
-// More efficient, only check the hashes of paths that have changed
-fn validate_changed_parts_of_merkle_tree(
-    repository: &LocalRepository,
-    commit: &Commit,
-    parent_id: &str,
-) -> Result<bool, OxenError> {
-    let this_tree_reader = TreeDBReader::new(repository, &commit.id)?;
-    let parent_tree_db_path =
-        CommitEntryWriter::commit_tree_db(&repository.path.to_path_buf(), parent_id);
-    let parent_tree_reader = TreeDBReader::new_from_path(parent_tree_db_path)?;
-    r_validate_changed_parts_of_merkle_node(
-        repository,
-        commit,
-        &this_tree_reader,
-        &parent_tree_reader,
-        PathBuf::from(""),
-    )
-}
-
-fn r_validate_changed_parts_of_merkle_node(
-    repository: &LocalRepository,
-    commit: &Commit,
-    this_tree_reader: &TreeDBReader,
-    parent_tree_reader: &TreeDBReader,
-    node_path: PathBuf,
-) -> Result<bool, OxenError> {
-    let node: TreeNode = this_tree_reader.get_entry(node_path.clone())?.unwrap();
-    match node {
-        // Base case: if the node is a file, check the hash
-        TreeNode::File { path, hash } => {
-            let maybe_parent_node = parent_tree_reader.get_entry(path.clone())?;
-            if let Some(parent_node) = maybe_parent_node {
-                if parent_node.hash() == &hash {
-                    return Ok(true);
-                }
-            }
-            let version_path = util::fs::version_path_from_hash_and_file(
-                &repository.path,
-                hash.clone(),
-                path.clone(),
-            );
-            let maybe_hash_file = version_path.parent().unwrap().join(HASH_FILE);
-            if maybe_hash_file.exists() {
-                let disk_hash = util::fs::read_from_path(&maybe_hash_file)?;
-                if disk_hash != hash {
-                    // log::debug!("validation failing on hash mismatch changed for file {:?}", path);
-                    return Ok(false);
-                }
-                return Ok(true);
-            } else {
-                let disk_hash = util::hasher::hash_file_contents_with_retry(&version_path)?;
-                if hash != disk_hash {
-                    // log::debug!("validation failing on hash rehash changed for file {:?}", path);
-                    return Ok(false);
-                } else {
-                    return Ok(true);
-                }
-            }
-        }
-        TreeNode::Schema { hash, path } => {
-            // Get schema from db
-            let schema_path = path
-                .strip_prefix(constants::SCHEMAS_TREE_PREFIX)?
-                .to_path_buf();
-            log::debug!("commit_validator getting schema at path {:?}", schema_path);
-            let maybe_schema =
-                api::local::schemas::get_by_path_from_ref(repository, &commit.id, schema_path)?;
-
-            match maybe_schema {
-                Some(schema) => {
-                    if schema.hash != hash {
-                        return Ok(false);
-                    }
-                }
-                None => {
-                    return Ok(false);
-                }
-            }
-
-            return Ok(true);
-        }
-        TreeNode::Directory {
-            children,
-            hash,
-            path,
-        } => {
-            let maybe_parent_node = parent_tree_reader.get_entry(path)?;
-            if let Some(parent_node) = maybe_parent_node {
-                if parent_node.hash() == &hash {
-                    return Ok(true);
-                }
-            }
-            for child in children {
-                let child_path = child.path();
-                if !r_validate_changed_parts_of_merkle_node(
-                    repository,
-                    commit,
-                    this_tree_reader,
-                    parent_tree_reader,
-                    child_path.to_path_buf(),
-                )? {
-                    return Ok(false);
-                }
-            }
-        }
-    }
-    Ok(true)
-}
-
-fn new_validate_complete_merkle_tree(
     repository: &LocalRepository,
     commit: &Commit,
 ) -> Result<bool, OxenError> {
@@ -359,8 +166,8 @@ fn new_r_validate_complete_merkle_node(
             }
             Ok(true)
         }
-        TreeObjectChild::Dir { path, hash } => {
-            let node = object_reader.get_dir(&hash)?;
+        TreeObjectChild::Dir { path: _, hash } => {
+            let node = object_reader.get_dir(hash)?;
             if node.is_none() {
                 return Ok(false);
             }
@@ -377,8 +184,8 @@ fn new_r_validate_complete_merkle_node(
             }
             Ok(true)
         }
-        TreeObjectChild::VNode { path, hash } => {
-            let node = object_reader.get_vnode(&hash)?;
+        TreeObjectChild::VNode { path: _, hash } => {
+            let node = object_reader.get_vnode(hash)?;
             if node.is_none() {
                 return Ok(false);
             }
@@ -398,7 +205,7 @@ fn new_r_validate_complete_merkle_node(
     }
 }
 
-fn new_validate_changed_parts_of_merkle_tree(
+fn validate_changed_parts_of_merkle_tree(
     repository: &LocalRepository,
     commit: &Commit,
     parent: &Commit,
@@ -417,40 +224,38 @@ fn new_validate_changed_parts_of_merkle_tree(
         if let Some(parent_child) = parent_child {
             if parent_child.hash() == child.hash() {
                 continue;
-            } else {
-                if !new_r_validate_changed_parts_of_merkle_node(
-                    repository,
-                    commit,
-                    parent,
-                    &object_reader,
-                    child,
-                    &Some(parent_child),
-                )? {
-                    return Ok(false);
-                }
+            } else if !r_validate_changed_parts_of_merkle_node(
+                repository,
+                commit,
+                // parent,
+                &object_reader,
+                child,
+                &Some(parent_child),
+            )? {
+                return Ok(false);
             }
         }
     }
     Ok(true)
 }
 
-fn new_r_validate_changed_parts_of_merkle_node(
+fn r_validate_changed_parts_of_merkle_node(
     repository: &LocalRepository,
     commit: &Commit,
-    parent_commit: &Commit,
+    // parent_commit: &Commit,
     object_reader: &ObjectDBReader,
     child_node: &TreeObjectChild,
     maybe_parent_node: &Option<TreeObjectChild>,
 ) -> Result<bool, OxenError> {
     match child_node {
-        TreeObjectChild::Dir { path, hash } => {
-            let node = object_reader.get_dir(&hash)?;
+        TreeObjectChild::Dir { path: _, hash } => {
+            let node = object_reader.get_dir(hash)?;
             if maybe_parent_node.is_none() {
                 for child in node.unwrap().children() {
-                    if !new_r_validate_changed_parts_of_merkle_node(
+                    if !r_validate_changed_parts_of_merkle_node(
                         repository,
                         commit,
-                        parent_commit,
+                        // parent_commit,
                         object_reader,
                         child,
                         &None,
@@ -468,31 +273,29 @@ fn new_r_validate_changed_parts_of_merkle_node(
                     if let Some(parent_child) = maybe_parent_child {
                         if parent_child.hash() == child.hash() {
                             continue;
-                        } else {
-                            if !new_r_validate_changed_parts_of_merkle_node(
-                                repository,
-                                commit,
-                                parent_commit,
-                                object_reader,
-                                child,
-                                &Some(parent_child),
-                            )? {
-                                return Ok(false);
-                            }
+                        } else if !r_validate_changed_parts_of_merkle_node(
+                            repository,
+                            commit,
+                            // parent_commit,
+                            object_reader,
+                            child,
+                            &Some(parent_child),
+                        )? {
+                            return Ok(false);
                         }
                     }
                 }
             }
             Ok(true)
         }
-        TreeObjectChild::VNode { path, hash } => {
-            let node = object_reader.get_vnode(&hash)?;
+        TreeObjectChild::VNode { path: _, hash } => {
+            let node = object_reader.get_vnode(hash)?;
             if maybe_parent_node.is_none() {
                 for child in node.unwrap().children() {
-                    if !new_r_validate_changed_parts_of_merkle_node(
+                    if !r_validate_changed_parts_of_merkle_node(
                         repository,
                         commit,
-                        parent_commit,
+                        // parent_commit,
                         object_reader,
                         child,
                         &None,
@@ -509,17 +312,15 @@ fn new_r_validate_changed_parts_of_merkle_node(
                     if let Some(parent_child) = maybe_parent_child {
                         if parent_child.hash() == child.hash() {
                             continue;
-                        } else {
-                            if !new_r_validate_changed_parts_of_merkle_node(
-                                repository,
-                                commit,
-                                parent_commit,
-                                object_reader,
-                                child,
-                                &Some(parent_child),
-                            )? {
-                                return Ok(false);
-                            }
+                        } else if !r_validate_changed_parts_of_merkle_node(
+                            repository,
+                            commit,
+                            // parent_commit,
+                            object_reader,
+                            child,
+                            &Some(parent_child),
+                        )? {
+                            return Ok(false);
                         }
                     }
                 }

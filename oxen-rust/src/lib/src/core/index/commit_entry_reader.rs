@@ -37,7 +37,7 @@ impl CommitEntryReader {
         commit: &Commit,
     ) -> Result<CommitEntryReader, OxenError> {
         log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
-        let object_reader = ObjectDBReader::new(&repository)?;
+        let object_reader = ObjectDBReader::new(repository)?;
         CommitEntryReader::new_from_commit_id(repository, &commit.id, object_reader)
     }
 

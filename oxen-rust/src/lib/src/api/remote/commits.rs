@@ -516,7 +516,7 @@ pub async fn download_objects_db_to_path(
     path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
     log::debug!("in the downloading objects db fn in remote commits");
-    let uri = format!("/objects_db");
+    let uri = "/objects_db".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     log::debug!("{} downloading from {}", current_function!(), url);
@@ -574,13 +574,13 @@ pub async fn download_objects_db_to_repo(
     let opts = db::opts::default();
 
     let new_dirs_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_DIRS_DIR), false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_DIRS_DIR), false)?;
     let new_files_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_FILES_DIR), false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_FILES_DIR), false)?;
     let new_schemas_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_SCHEMAS_DIR), false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_SCHEMAS_DIR), false)?;
     let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_path.join(OBJECT_VNODES_DIR), false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_VNODES_DIR), false)?;
 
     // Iterate over the new dirs db
 
@@ -859,7 +859,7 @@ pub async fn post_tree_objects_to_server(
         objects_dir,
         tar_subdir
     );
-    tar.append_dir_all(&tar_subdir, objects_dir)?;
+    tar.append_dir_all(tar_subdir, objects_dir)?;
 
     tar.finish()?;
 

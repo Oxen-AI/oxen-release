@@ -545,7 +545,7 @@ impl EntryIndexer {
     pub async fn pull_tree_objects_for_commits(
         &self,
         remote_repo: &RemoteRepository,
-        commits: &Vec<Commit>,
+        commits: &[Commit],
     ) -> Result<(), OxenError> {
         log::debug!("🐂 pulling tree objects for {:?} commits", commits.len());
         api::remote::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;

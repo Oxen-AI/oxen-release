@@ -49,7 +49,7 @@ impl CommitTreeReader {
         child: &TreeObjectChild,
     ) -> Result<Option<TreeObject>, OxenError> {
         match self {
-            CommitTreeReader::TreeObjectReader(reader) => reader.get_node_from_child(&child),
+            CommitTreeReader::TreeObjectReader(reader) => reader.get_node_from_child(child),
             CommitTreeReader::DB(db) => {
                 // TODONOW get rid of this debug print
                 log::debug!("we're looking for child {:?}", child);

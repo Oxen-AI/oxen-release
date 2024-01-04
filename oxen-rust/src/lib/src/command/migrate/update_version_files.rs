@@ -4,11 +4,9 @@ use std::path::{Path, PathBuf};
 
 use jwalk::WalkDir;
 
-use crate::constants::HISTORY_DIR;
-use crate::constants::TREE_DIR;
 use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
-use crate::core::cache::cachers;
-use crate::core::index::{CommitEntryReader, CommitReader, SchemaWriter};
+
+use crate::core::index::{CommitEntryReader, CommitReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util::fs::version_dir_from_hash;

@@ -112,7 +112,7 @@ fn file_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenEr
     let commit_reader = CommitEntryReader::new(repo, &commit)?;
 
     let all_files = commit_reader.list_files()?;
-    // Print out all the files 
+    // Print out all the files
     for file in all_files {
         log::debug!("list files found file file: {:?}", file);
     }
@@ -121,9 +121,9 @@ fn file_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenEr
 
     let has_file = commit_reader.has_file(path);
 
-    if has_file == false {
+    if !has_file {
         log::debug!("uh oh file {:?} not found", path);
-    } 
+    }
 
     Ok(commit_reader.has_file(path))
 }

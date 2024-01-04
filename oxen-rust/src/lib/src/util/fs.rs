@@ -187,7 +187,7 @@ pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
         .join(subdir)
 }
 
-pub fn object_dir_suffix_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
+pub fn object_dir_suffix_from_hash(_dst: impl AsRef<Path>, hash: String) -> PathBuf {
     let topdir = &hash[..2];
     let subdir = &hash[2..];
 

@@ -11,7 +11,7 @@ use flate2::Compression;
 use futures::prelude::*;
 use indicatif::ProgressBar;
 use std::collections::HashSet;
-use std::fmt::Display;
+
 use std::io::{BufReader, Read};
 use std::sync::Arc;
 
@@ -25,7 +25,6 @@ use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, R
 
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
-use derive_more::Display;
 
 #[derive(Debug)]
 pub struct UnsyncedCommitEntries {
@@ -105,7 +104,7 @@ pub async fn push_remote_repo(
     // Lock successfully acquired
     api::remote::repositories::pre_push(&remote_repo, &branch, &head_commit.id).await?;
 
-    // #[allow(unused_assignments)]
+    #[allow(unused_assignments)]
     let mut requires_merge = false;
     match validate_repo_is_pushable(
         local_repo,
