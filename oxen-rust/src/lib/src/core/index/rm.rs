@@ -30,8 +30,6 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     let path = &opts.path;
     let dir_exists = dir_is_staged_or_committed(repo, path)?;
 
-    log::debug!("got dir_exists: {:?} for path {:?}", dir_exists, path);
-
     if dir_exists && opts.recursive {
         return rm_dir(repo, opts).await;
     }
@@ -110,20 +108,6 @@ fn dir_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenErr
 fn file_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
     let commit = api::local::commits::head_commit(repo)?;
     let commit_reader = CommitEntryReader::new(repo, &commit)?;
-
-    let all_files = commit_reader.list_files()?;
-    // Print out all the files
-    for file in all_files {
-        log::debug!("list files found file file: {:?}", file);
-    }
-
-    log::debug!("looking to remove file {:?}", path);
-
-    let has_file = commit_reader.has_file(path);
-
-    if !has_file {
-        log::debug!("uh oh file {:?} not found", path);
-    }
 
     Ok(commit_reader.has_file(path))
 }

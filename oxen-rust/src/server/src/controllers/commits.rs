@@ -528,7 +528,6 @@ fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
 pub async fn download_objects_db(
     req: HttpRequest,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    log::debug!("made it to the download objects db controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -713,7 +712,6 @@ pub async fn upload_chunk(
 
     let commit_reader = CommitReader::new(&repo)?;
 
-    // TODONOW: this is just to enable getting commits that don't exist yet...better way?
     let commit = match commit_reader.get_commit_by_id(&commit_id)? {
         Some(commit) => commit,
         None => api::local::commits::head_commit(&repo)?,
@@ -903,56 +901,6 @@ pub async fn upload_tree(
 }
 
 pub async fn can_push(
-    req: HttpRequest,
-    query: web::Query<HashMap<String, String>>,
-) -> Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let name = path_param(&req, "repo_name")?;
-    let client_head_id = path_param(&req, "commit_id")?;
-    let repo = get_repo(&app_data.path, namespace, name)?;
-    let server_head_id = query.get("remote_head").unwrap();
-    let lca_id = query.get("lca").unwrap();
-
-    log::debug!("in the can_push endpoint");
-
-    // Ensuring these commits exist on server
-    let _server_head_commit = api::local::commits::get_by_id(&repo, server_head_id)?.ok_or(
-        OxenError::revision_not_found(server_head_id.to_owned().into()),
-    )?;
-    let _lca_commit = api::local::commits::get_by_id(&repo, lca_id)?
-        .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
-
-    let can_merge = !api::local::commits::head_commits_have_conflicts(
-        &repo,
-        &client_head_id,
-        server_head_id,
-        lca_id,
-    )?;
-
-    // Clean up tmp tree files from client head commit
-    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path)
-        .join("tmp")
-        .join(client_head_id)
-        .join(TREE_DIR);
-    if tmp_tree_dir.exists() {
-        std::fs::remove_dir_all(tmp_tree_dir).unwrap();
-    }
-
-    if can_merge {
-        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
-            status: StatusMessage::resource_found(),
-            can_merge: true,
-        }))
-    } else {
-        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
-            status: StatusMessage::resource_found(),
-            can_merge: false,
-        }))
-    }
-}
-
-pub async fn new_can_push(
     req: HttpRequest,
     query: web::Query<HashMap<String, String>>,
 ) -> Result<HttpResponse, OxenHttpError> {
@@ -1318,10 +1266,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                         util::fs::write_to_path(&hash_file, &hash)
                             .expect("Could not write hash file");
                     } else if path.starts_with("objects") {
-                        log::debug!("we ARE in the objects unpacking place");
-                        // TODONOW fix this up
                         let temp_objects_dir = hidden_dir.join("tmp").join("objects");
-                        // create dir all
                         if !temp_objects_dir.exists() {
                             std::fs::create_dir_all(&temp_objects_dir).unwrap();
                         }
@@ -1329,7 +1274,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                         file.unpack_in(&temp_objects_dir).unwrap();
                     } else {
                         // For non-version files, use filename sent by client
-                        log::debug!("unpacking path {:?} to {:?}", path, hidden_dir);
                         file.unpack_in(hidden_dir).unwrap();
                     }
                 } else {

@@ -185,7 +185,7 @@ mod tests {
                     command::add(&user_a_repo, user_a_repo.path.join(file_1))?;
                     command::add(&user_a_repo, user_a_repo.path.join(file_2))?;
 
-                    let a_commit = command::commit(&user_a_repo, "Adding file_1 and file_2")?;
+                    command::commit(&user_a_repo, "Adding file_1 and file_2")?;
 
                     // Push
                     command::push(&user_a_repo).await?;
@@ -195,16 +195,13 @@ mod tests {
                     test::write_txt_file_to_path(user_b_repo.path.join(file_3), "File 3")?;
 
                     command::add(&user_b_repo, user_b_repo.path.join(file_3))?;
-                    let b_commit = command::commit(&user_b_repo, "Adding file_3")?;
+                    command::commit(&user_b_repo, "Adding file_3")?;
 
                     // Pull changes without pushing first - fine since no conflict
                     command::pull(&user_b_repo).await?;
 
                     // Get new  head commit of the pulled repo
-                    let head_commit = api::local::commits::head_commit(&user_b_repo)?;
-                    log::debug!("a commit is {:#?}", a_commit);
-                    log::debug!("b commit is {:#?}", b_commit);
-                    log::debug!("head commit is {:#?}", head_commit);
+                    api::local::commits::head_commit(&user_b_repo)?;
 
                     // Make sure we now have all three files
                     assert!(user_b_repo.path.join(file_1).exists());

@@ -1021,16 +1021,13 @@ where
     T: FnOnce(LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
 {
     init_test_env();
-    log::debug!("checkpoint 1");
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
-    log::debug!("checkpoint 2");
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
 
     // Add all the files
     command::add(&repo, &repo.path)?;
-    log::debug!("checkpoint 3");
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schemas::set_name(
@@ -1039,11 +1036,8 @@ where
         "text_classification",
     )?;
 
-    log::debug!("checkpoint 4");
-
     command::commit(&repo, "adding all data baby")?;
 
-    log::debug!("checkpoint 5");
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
         Ok(_) => {}
@@ -1052,7 +1046,6 @@ where
         }
     });
 
-    log::debug!("checkpoint 6");
     // Remove repo dir
     util::fs::remove_dir_all(&repo_dir)?;
 

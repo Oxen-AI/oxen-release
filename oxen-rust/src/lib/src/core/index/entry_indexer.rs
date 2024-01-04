@@ -149,7 +149,6 @@ impl EntryIndexer {
         };
 
         self.pull_commit_entries_db(&remote_repo, commit).await?;
-        //just pull the whole thing
         let commit_vec = vec![commit.clone()];
         self.pull_tree_objects_for_commits(&remote_repo, &commit_vec)
             .await?;

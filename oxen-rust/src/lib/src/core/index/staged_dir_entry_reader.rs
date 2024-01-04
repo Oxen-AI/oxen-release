@@ -44,7 +44,6 @@ impl StagedDirEntryReader {
     /// # List the file paths in the staged dir
     /// More efficient than list_added_path_entries since it does not deserialize the entries
     pub fn list_added_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
-        log::debug!("trying to list added paths");
         self.db.list_added_paths()
     }
 

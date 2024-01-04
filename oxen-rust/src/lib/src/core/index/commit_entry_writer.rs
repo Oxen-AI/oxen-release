@@ -4,7 +4,7 @@ use crate::constants::{
 };
 use crate::core::db;
 use crate::core::db::path_db;
-use crate::core::db::tree_db::{TreeNode, TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
+use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
 use crate::error::OxenError;
 
@@ -28,7 +28,6 @@ pub struct CommitEntryWriter {
     repository: LocalRepository,
     pub dir_db: DBWithThreadMode<MultiThreaded>,
     pub dir_hashes_db: DBWithThreadMode<MultiThreaded>,
-    tree_db: DBWithThreadMode<MultiThreaded>,
     files_db: DBWithThreadMode<MultiThreaded>,
     schemas_db: DBWithThreadMode<MultiThreaded>,
     pub dirs_db: DBWithThreadMode<MultiThreaded>,
@@ -128,7 +127,6 @@ impl CommitEntryWriter {
         Ok(CommitEntryWriter {
             repository: repository.clone(),
             dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
-            tree_db: DBWithThreadMode::open(&opts, dunce::simplified(&tree_db_path))?,
             files_db: DBWithThreadMode::open(&opts, dunce::simplified(&files_db_path))?,
             schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
             dirs_db: DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?,
@@ -1196,44 +1194,6 @@ impl CommitEntryWriter {
         }
     }
 
-    // TODONOW delete after testing
-    pub fn temp_print_tree_db(&self) {
-        let iter = self.tree_db.iterator(rocksdb::IteratorMode::Start);
-        for item in iter {
-            match item {
-                Ok((key_bytes, value_bytes)) => {
-                    match String::from_utf8(key_bytes.to_vec()) {
-                        Ok(key_str) => {
-                            let key_path = PathBuf::from(key_str);
-
-                            // Attempting to deserialize the value into TreeNode
-                            let deserialized_value: Result<TreeNode, _> =
-                                serde_json::from_slice(&value_bytes);
-                            match deserialized_value {
-                                Ok(tree_node) => {
-                                    log::debug!(
-                                        "\n\ntree_db entry: {:?} -> {:?}\n\n",
-                                        key_path,
-                                        tree_node
-                                    );
-                                }
-                                Err(e) => {
-                                    log::error!("tree_db error deserializing value: {:?}", e);
-                                }
-                            }
-                        }
-                        Err(_) => {
-                            log::error!("tree_db Could not decode key {:?}", key_bytes);
-                        }
-                    }
-                }
-                Err(e) => {
-                    log::error!("tree_db error: {:?}", e);
-                }
-            }
-        }
-    }
-
     fn commit_staged_entries_with_prog(
         &self,
         commit: &Commit,
@@ -1546,13 +1506,9 @@ impl CommitEntryWriter {
 #[cfg(test)]
 mod tests {
     use crate::command;
-    use crate::constants::SCHEMAS_TREE_PREFIX;
     use crate::core::index::CommitEntryReader;
-    use crate::core::index::TreeDBReader;
     use crate::error::OxenError;
     use crate::test;
-    use crate::util;
-    use serde_json::json;
     use std::path::PathBuf;
 
     #[tokio::test]

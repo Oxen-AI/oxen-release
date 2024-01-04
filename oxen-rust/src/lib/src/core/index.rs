@@ -57,5 +57,4 @@ pub use crate::core::index::schema_writer::SchemaWriter;
 pub use crate::core::index::staged_dir_entry_db::StagedDirEntryDB;
 pub use crate::core::index::staged_dir_entry_reader::StagedDirEntryReader;
 pub use crate::core::index::stager::Stager;
-pub use crate::core::index::tree_db_reader::TreeDBReader;
 pub use crate::core::index::tree_object_reader::TreeObjectReader;

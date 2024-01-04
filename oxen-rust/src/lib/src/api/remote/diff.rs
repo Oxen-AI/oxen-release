@@ -1129,14 +1129,6 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(entry.status, "removed");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
-            // list all paths with jwalk
-            let walker = jwalk::WalkDir::new(repo.path.clone());
-            for entry in walker {
-                let entry = entry?;
-                let path = entry.path();
-                log::debug!("got after in this dir {:?}", path);
-            }
-
             let summary = entry.diff_summary.as_ref().unwrap();
             match summary {
                 GenericDiffSummary::DirDiffSummary(summary) => {

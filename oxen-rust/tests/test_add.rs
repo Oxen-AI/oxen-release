@@ -170,14 +170,7 @@ fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
 #[test]
 fn test_command_add_stage_with_wildcard() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        // Print full directory structure
-        log::debug!("THE TEST HAS STARTED");
-
-        // check if the .oxen/objects dir exists
         let objects_dir = repo.path.join(".oxen/objects");
-
-        assert!(objects_dir.exists());
-        log::debug!("THE TEST IS CONTINUING");
 
         // Modify and add the file deep in a sub dir
         let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
@@ -191,9 +184,7 @@ fn test_command_add_stage_with_wildcard() -> Result<(), OxenError> {
         let status = command::status(&repo)?;
         status.print_stdout();
         assert_eq!(status.staged_files.len(), 1);
-        log::debug!("about to commit down here ya");
         command::commit(&repo, "Changing one shot")?;
-        log::debug!("successfully committed");
         let status = command::status(&repo)?;
         assert!(status.is_clean());
 
