@@ -235,11 +235,11 @@ pub fn list_directory(
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
     for dir in entry_reader.list_dirs()? {
-        log::debug!(
-            "LIST DIRECTORY considering committed dir: {:?} for search {:?}",
-            dir,
-            directory
-        );
+        // log::debug!(
+        //     "LIST DIRECTORY considering committed dir: {:?} for search {:?}",
+        //     dir,
+        //     directory
+        // );
         if let Some(parent) = dir.parent() {
             if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
                 dir_paths.push(meta_entry_from_dir(

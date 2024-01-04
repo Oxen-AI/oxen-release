@@ -71,7 +71,7 @@ async fn validate_repo_is_pushable(
 ) -> Result<bool, OxenError> {
     // Make sure the remote branch is not ahead of the local branch
     if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
-        if api::remote::commits::new_can_push(remote_repo, &branch.name, local_repo, head_commit)
+        if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit)
             .await?
         {
             return Ok(true); // We need a merge commit

@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::{TreeChild, TreeObjectChild};
+use crate::core::db::tree_db::TreeObjectChild;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
@@ -41,18 +41,6 @@ where
     commit_hasher.update(commit_str.as_bytes());
 
     let val = commit_hasher.digest();
-    format!("{val:x}")
-}
-
-// For subtrees with already-hashed children
-pub fn compute_subtree_hash(children: &Vec<TreeChild>) -> String {
-    let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
-    for child in children {
-        let hash = child.hash();
-        let input = hash.as_bytes();
-        subtree_hasher.update(input);
-    }
-    let val = subtree_hasher.digest();
     format!("{val:x}")
 }
 

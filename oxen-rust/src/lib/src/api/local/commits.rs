@@ -5,7 +5,7 @@
 
 use crate::constants::{HISTORY_DIR, TREE_DIR};
 use crate::core::cache::cachers::content_validator;
-use crate::core::index::tree_db_reader::NewTreeDBMerger;
+use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
     Stager, TreeObjectReader,
@@ -409,12 +409,11 @@ pub fn head_commits_have_conflicts(
         .join(client_head_id)
         .join(TREE_DIR);
 
-    let tree_merger = NewTreeDBMerger::new(client_db_path.clone(), server_reader, lca_reader);
+    let tree_merger = TreeDBMerger::new(client_db_path.clone(), server_reader, lca_reader);
     // Start at the top level of the client db
     let maybe_client_root = &tree_merger.client_reader.get_root_entry()?;
     let maybe_server_root = &tree_merger.server_reader.get_root_entry()?;
     let maybe_lca_root = &tree_merger.lca_reader.get_root_entry()?;
-    // If lca_root is null, create a dummy node for traversal?
 
     tree_merger.r_tree_has_conflict(maybe_client_root, maybe_server_root, maybe_lca_root)
 }

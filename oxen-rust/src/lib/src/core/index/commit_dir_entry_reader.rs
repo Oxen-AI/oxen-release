@@ -17,17 +17,12 @@ use std::sync::Arc;
 use super::{CommitEntryWriter, ObjectDBReader};
 
 /// # CommitDirEntryReader
-/// We could index files by path here for qui
 pub struct CommitDirEntryReader {
     dir: PathBuf,
     dir_object: TreeObject,
     commit_id: String,
     object_reader: Arc<ObjectDBReader>,
 }
-
-// TODONOW: Is it worth indexing the vnodes up front?
-// there will only ever be 700 or whatever of them
-
 // This was formerly for commit dir entry db, now it's just the dir hashes db
 impl CommitDirEntryReader {
     pub fn dir_hash_db(base_path: &Path, commit_id: &str) -> PathBuf {
@@ -38,23 +33,6 @@ impl CommitDirEntryReader {
         let db_path = CommitDirEntryReader::dir_hash_db(base_path, commit_id);
         db_path.join("CURRENT").exists()
     }
-
-    // pub fn dir_db(base_path: &Path) -> PathBuf {
-    //     base_path.join(constants::OXEN_HIDDEN_DIR).join(OBJECTS_DIR).join(OBJECT_DIRS_DIR)
-    // }
-
-    // pub fn vnodes_db(base_path: &Path) -> PathBuf {
-    //     base_path.join(constants::OXEN_HIDDEN_DIR).join(constants::OBJECTS_DIR).join(constants::OBJECT_VNODES_DIR)
-    // }
-
-    // pub fn files_db(base_path: &Path) -> PathBuf {
-    //     base_path.join(constants::OXEN_HIDDEN_DIR).join(constants::OBJECTS_DIR).join(constants::OBJECT_FILES_DIR)
-    // }
-
-    // Probably don't need to do db_exists stuff - we're in 1 db now...
-    // TODONOW: do we want to load the children of a dir into a hashset
-    // on load? how much is this reused - O(n) loading + O(1) lookup vs
-    // O(1) loading + O(log(n)) lookup...
 
     // Maybe offer both options
     pub fn new(
@@ -85,62 +63,14 @@ impl CommitDirEntryReader {
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
             }
-            // log::debug!("about to open");
-            // open it then lose scope to close it
+
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-            // log::debug!("successfully opened");
         }
-
-        // let start = std::time::Instant::now();
-        // let dirs_db_path = CommitDirEntryReader::dir_db(base_path);
-        // if !dirs_db_path.join("CURRENT").exists() {
-        //     // log::debug!("dirs db not exists");
-        //     if let Err(err) = std::fs::create_dir_all(&dirs_db_path) {
-        //         log::error!("CommitDirEntryReader could not create dir {dirs_db_path:?}\nErr: {err:?}");
-        //     }
-
-        //     let _db: DBWithThreadMode<MultiThreaded> =
-        //         DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?;
-        // }
-
-        // let vnodes_db_path = CommitDirEntryReader::vnodes_db(base_path);
-        // if !vnodes_db_path.join("CURRENT").exists() {
-        //     log::debug!("vnodes db not exists");
-        //     if let Err(err) = std::fs::create_dir_all(&vnodes_db_path) {
-        //         log::error!("CommitDirEntryReader could not create dir {vnodes_db_path:?}\nErr: {err:?}");
-        //     }
-        //     log::debug!("about to open");
-        //     // open it then lose scope to close it
-        //     let _db: DBWithThreadMode<MultiThreaded> =
-        //         DBWithThreadMode::open(&opts, dunce::simplified(&vnodes_db_path))?;
-        // }
-
-        // let files_db_path = CommitDirEntryReader::files_db(base_path);
-        // if !files_db_path.join("CURRENT").exists() {
-        //     log::debug!("files db not exists");
-        //     if let Err(err) = std::fs::create_dir_all(&files_db_path) {
-        //         log::error!("CommitDirEntryReader could not create dir {files_db_path:?}\nErr: {err:?}");
-        //     }
-        //     // open it then lose scope to close it
-        //     let _db: DBWithThreadMode<MultiThreaded> =
-        //         DBWithThreadMode::open(&opts, dunce::simplified(&files_db_path))?;
-        // }
-
-        // let elapsed = start.elapsed();
-        // log::debug!("open-created thesse other dbs in {:?}", elapsed.as_millis());
 
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
-        // let time = std::time::Instant::now();
-        // let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, CommitDirEntryReader::dir_db(base_path), false)?;
-        // let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, CommitDirEntryReader::vnodes_db(base_path), false)?;
-        // let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, CommitDirEntryReader::files_db(base_path), false)?;
-        // let elapsed = time.elapsed();
-        // log::debug!("opened all objects dbs in {:?}", elapsed.as_millis());
 
-        //
-        // log::debug!("Hey looking for dir {:?}", dir);
         let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
 
         let dir_object: TreeObject = match dir_hash {
@@ -163,11 +93,9 @@ impl CommitDirEntryReader {
     }
 
     pub fn num_entries(&self) -> usize {
-        // TODONOW: assuming we only care about `File` type entries here, not schemas.
         log::debug!("num_entries in dir {:?}", self.dir);
         let mut count = 0;
         for vnode_child in self.dir_object.children() {
-            // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
             let vnode = self
                 .object_reader
                 .get_vnode(vnode_child.hash())
@@ -188,7 +116,6 @@ impl CommitDirEntryReader {
 
         log::debug!("looking for this path hash prefix {:?}", path_hash_prefix);
 
-        // TODONOW: maybe make binary search not return a result?
         // Binary search for the appropriate vnode
         let vnode_child = self
             .dir_object
@@ -233,42 +160,21 @@ impl CommitDirEntryReader {
             path.as_ref()
         );
         let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
-        // log::debug!("we are looking for a vnode with path hash prefix {:?}", path_hash_prefix);
-
-        // for vnode_child in self.dir_object.children() {
-        //     // log::debug!("vnode child {:?}", vnode_child);
-        //     // Get the parent vnode entry
-        //     let vnode: TreeObject = path_db::get_entry(&self.vnodes_db, vnode_child.hash())?.unwrap();
-        //     // log::debug!("vnode yoyo {:?}", vnode);
-        // }
 
         // Binary search for the appropriate vnode
         let vnode_child = self
             .dir_object
             .binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
 
-        // log::debug!("here are all children of our dir object {:?}", self.dir_object.children());
-        // log::debug!("and our dir object specifically is {:?}", self.dir_object);
-        // log::debug!("here is our dir object {:?}", self.dir_object);
-
-        log::debug!("looking for path_hash_prefix {:?}", path_hash_prefix);
-        log::debug!(
-            "path_hash_prefix of just the short path is {:?}",
-            util::hasher::hash_path(path.as_ref())[0..2].to_string()
-        );
-        log::debug!("children of dir object {:?}", self.dir_object.children());
-
         if vnode_child.is_none() {
             log::debug!("could not find vnode child for path {:?}", path.as_ref());
             return Ok(None);
         }
 
-        let vnode = vnode_child.unwrap();
-
-        log::debug!("here is our vnode {:?}", vnode);
+        let vnode_child = vnode_child.unwrap();
 
         // Get parent vnode
-        let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
+        let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());

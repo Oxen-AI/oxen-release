@@ -319,7 +319,6 @@ impl Stager {
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
         candidate_dirs.insert(dir.to_path_buf());
 
-        // TODONOw possibly endogenize this to the stager
         let object_reader = ObjectDBReader::new(&self.repository)?;
 
         let committer = CommitReader::new(&self.repository)?;
@@ -606,14 +605,14 @@ impl Stager {
         commit_dir_db: &CommitDirEntryReader,
     ) -> Option<FileStatus> {
         let file_name = path.file_name().unwrap();
-        log::debug!("get_file_status check path in staging? {:?}", file_name);
+        // log::debug!("get_file_status check path in staging? {:?}", file_name);
 
         // Have to check the file basename not the path, because basenames are stored in each dir
         if staged_dir_db.has_entry(file_name) {
             return Some(FileStatus::Added);
         } else {
             // Not in the staged DB
-            log::debug!("get_file_status check if commit db? {:?}", file_name);
+            // log::debug!("get_file_status check if commit db? {:?}", file_name);
             // check if it is in the HEAD commit to see if it is modified or removed
             if let Some(file_name) = path.file_name() {
                 if let Ok(Some(commit_entry)) = commit_dir_db.get_entry(file_name) {
@@ -772,9 +771,7 @@ impl Stager {
                 );
             }
 
-            // Also track parent
-
-            // TODONOW: should we check the size of the remaining items in the dir and add it as removed if empty else modified?
+            // TODO: should we check the size of the remaining items in the dir and add it as removed if empty else modified?
             staged_dir_db.add_removed_file(filename, entry)
         } else {
             Err(OxenError::file_has_no_parent(path))
@@ -983,24 +980,21 @@ impl Stager {
         let size: u64 = unsafe { std::mem::transmute(total) };
         let msg = format!("Adding directory {short_path:?}");
         let bar = oxen_progress_bar_with_msg(size, msg);
+        let object_reader = match ObjectDBReader::new(&self.repository) {
+            Ok(reader) => reader,
+            Err(err) => {
+                log::error!("Could not create ObjectDBReader: {}", err);
+                return Err(err);
+            }
+        };
         dir_paths.iter().for_each(|(parent, paths)| {
-            // log::debug!("dir_paths.par_iter().foreach {:?} -> {:?}", parent, paths.len());
-
-            // TODONOW: Get this out
-            let object_reader = match ObjectDBReader::new(&self.repository) {
-                Ok(reader) => reader,
-                Err(err) => {
-                    log::error!("Could not create ObjectDBReader: {}", err);
-                    return;
-                }
-            };
             let staged_db: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, parent).unwrap();
             let entry_reader = match CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,
                 parent,
-                object_reader,
+                object_reader.clone(),
             ) {
                 Ok(reader) => reader,
                 Err(err) => {

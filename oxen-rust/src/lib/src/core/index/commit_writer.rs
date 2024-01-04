@@ -353,8 +353,6 @@ impl CommitWriter {
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
 
-        // TODONOW: THIS IS A BIG BAD HACK, FIX LATER
-
         let mut commit = commit.clone();
 
         let dir_hashes_db =

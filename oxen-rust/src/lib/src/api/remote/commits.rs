@@ -282,96 +282,6 @@ pub async fn can_push(
     let local_root = api::local::commits::root_commit(local_repo)?;
     let remote_root = api::remote::commits::root_commit(remote_repo).await?;
 
-    if local_root.id != remote_root.id {
-        return Err(OxenError::basic_str(
-            "Cannot push to a different repository",
-        ));
-    }
-
-    // First need to download local history so we can get LCA
-    download_commits_db_to_repo(local_repo, remote_repo).await?;
-
-    let remote_branch = api::remote::branches::get_by_name(remote_repo, remote_branch_name)
-        .await?
-        .ok_or(OxenError::remote_branch_not_found(remote_branch_name))?;
-
-    let remote_head_id = remote_branch.commit_id;
-    let remote_head = api::remote::commits::get_by_id(remote_repo, &remote_head_id)
-        .await?
-        .unwrap();
-
-    let merger = Merger::new(local_repo)?;
-    let reader = CommitReader::new(local_repo)?;
-    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
-
-    let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
-        .join(HISTORY_DIR)
-        .join(local_head.id.clone());
-
-    let tar_base_dir = Path::new("tmp").join(&local_head.id);
-
-    let enc = GzEncoder::new(Vec::new(), Compression::default());
-    let mut tar = tar::Builder::new(enc);
-
-    let dirs_to_compress = vec![TREE_DIR];
-
-    for dir in &dirs_to_compress {
-        let full_path = head_commit_dir.join(dir);
-        let tar_path = tar_base_dir.join(dir);
-        if full_path.exists() {
-            tar.append_dir_all(&tar_path, full_path)?;
-        }
-    }
-
-    tar.finish()?;
-
-    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
-
-    let is_compressed = true;
-    let filename = None;
-
-    let quiet_bar = Arc::new(ProgressBar::hidden());
-
-    post_data_to_server(
-        remote_repo,
-        local_head,
-        buffer,
-        is_compressed,
-        &filename,
-        quiet_bar,
-    )
-    .await?;
-
-    let uri = format!(
-        "/commits/{}/can_push?remote_head={}&lca={}",
-        local_head.id, remote_head.id, lca.id
-    );
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let client = client::new_for_url(&url)?;
-
-    if let Ok(res) = client.get(&url).send().await {
-        log::debug!("can_push() request successful");
-        let body = client::parse_json_body(&url, res).await?;
-        let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
-        Ok(response.can_merge)
-    } else {
-        Err(OxenError::basic_str("can_push() Request failed"))
-    }
-}
-
-pub async fn new_can_push(
-    remote_repo: &RemoteRepository,
-    remote_branch_name: &str,
-    local_repo: &LocalRepository,
-    local_head: &Commit,
-) -> Result<bool, OxenError> {
-    // Before we do this, need to ensure that we are working in the same repo
-    // If we don't, downloading the commits db in the next step
-    // will mess up the local commit history by merging two different repos
-    let local_root = api::local::commits::root_commit(local_repo)?;
-    let remote_root = api::remote::commits::root_commit(remote_repo).await?;
-
     log::debug!("in the new can push endpoint");
     if local_root.id != remote_root.id {
         return Err(OxenError::basic_str(
@@ -441,7 +351,7 @@ pub async fn new_can_push(
     .await?;
 
     let uri = format!(
-        "/commits/{}/new_can_push?remote_head={}&lca={}",
+        "/commits/{}/can_push?remote_head={}&lca={}",
         local_head.id, remote_head.id, lca.id
     );
 
@@ -898,14 +808,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![
-        DIRS_DIR,
-        FILES_DIR,
-        SCHEMAS_DIR,
-        TREE_DIR,
-        OBJECTS_DIR,
-        DIR_HASHES_DIR,
-    ];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
