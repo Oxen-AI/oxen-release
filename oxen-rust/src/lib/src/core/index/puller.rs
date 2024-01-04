@@ -9,7 +9,7 @@ use indicatif::ProgressBar;
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, RemoteRepository};
+use crate::model::{CommitEntry, RemoteRepository};
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};

@@ -57,7 +57,6 @@ pub async fn get(
 
         let mut cache = app_data.cder_lru.write().unwrap();
 
-
         if let Some(cder) = cache.get(&key) {
             log::debug!("found in LRU");
             entry = cder.get_entry(file_name)?;
@@ -69,7 +68,6 @@ pub async fn get(
                 &resource.commit.id,
                 parent,
                 object_reader.clone(),
-
             )?;
             log::debug!("looking up entry {}", key);
             entry = cder.get_entry(file_name)?;

@@ -461,7 +461,7 @@ pub fn temp_inspect_object_dirs(repo: &LocalRepository, tag: &str) -> Result<(),
     // create all these dirs
     for dir in &[&dirs_dir, &files_dir, &schemas_dir, &vnodes_dir] {
         if !dir.exists() {
-            std::fs::create_dir_all(&dir)?;
+            std::fs::create_dir_all(dir)?;
         }
     }
 
@@ -1377,24 +1377,24 @@ fn merge_objects_dbs(hidden_dir: PathBuf) -> Result<(), OxenError> {
     // Open read only multithreaded rocksdbs to all the new dir locations
     let opts = db::opts::default();
     let new_dirs_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_dirs_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_dirs_dir, false)?;
     let new_files_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_files_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_files_dir, false)?;
     let new_schemas_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_schemas_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_schemas_dir, false)?;
     let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &new_vnodes_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&opts, new_vnodes_dir, false)?;
 
     log::debug!("opening repo object dbs");
     // Simialrly, open read only databases to all the old dir locations
     let repo_dirs_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, &repo_dirs_dir)?;
+        DBWithThreadMode::open(&opts, repo_dirs_dir)?;
     let repo_files_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, &repo_files_dir)?;
+        DBWithThreadMode::open(&opts, repo_files_dir)?;
     let repo_schemas_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, &repo_schemas_dir)?;
+        DBWithThreadMode::open(&opts, repo_schemas_dir)?;
     let repo_vnodes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, &repo_vnodes_dir)?;
+        DBWithThreadMode::open(&opts, repo_vnodes_dir)?;
 
     let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
     let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;

@@ -1,21 +1,12 @@
 use super::Migrate;
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use jwalk::WalkDir;
-
-use crate::constants::HISTORY_DIR;
-use crate::constants::OBJECTS_DIR;
-use crate::constants::TREE_DIR;
-use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
-use crate::core::cache::cachers;
-use crate::core::index::{CommitEntryReader, CommitReader, SchemaWriter};
+use crate::api;
+use crate::core::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, util};
 pub struct CreateMerkleTreesMigration {}
 impl Migrate for CreateMerkleTreesMigration {
     fn name(&self) -> &'static str {
@@ -73,7 +64,7 @@ pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError
     Ok(())
 }
 
-pub fn create_merkle_trees_for_all_repos_down(path: &Path) -> Result<(), OxenError> {
+pub fn create_merkle_trees_for_all_repos_down(_path: &Path) -> Result<(), OxenError> {
     println!("There are no operations to be run");
     Ok(())
 }
@@ -99,7 +90,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn create_merkle_trees_down(repo: &LocalRepository) -> Result<(), OxenError> {
+pub fn create_merkle_trees_down(_repo: &LocalRepository) -> Result<(), OxenError> {
     println!("There are no operations to be run");
     Ok(())
 }

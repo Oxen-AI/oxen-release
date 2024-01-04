@@ -5,7 +5,7 @@
 
 use crate::constants::{HISTORY_DIR, TREE_DIR};
 use crate::core::cache::cachers::content_validator;
-use crate::core::index::tree_db_reader::{NewTreeDBMerger, TreeDBMerger};
+use crate::core::index::tree_db_reader::NewTreeDBMerger;
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
     Stager, TreeObjectReader,

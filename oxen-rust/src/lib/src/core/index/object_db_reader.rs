@@ -1,33 +1,19 @@
-use crate::api;
-use crate::constants::{
-    self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
-};
+use crate::constants::{self};
 use crate::core::db;
-use crate::core::db::tree_db::{
-    TreeChild, TreeNode, TreeObject, TreeObjectChild, TreeObjectChildWithStatus,
-};
-use crate::core::db::{kv_db, path_db};
-use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
-use crate::error::OxenError;
-use crate::model::diff::dir_diff;
-use crate::model::schema::staged_schema::StagedSchemaStatus;
-use crate::model::{
-    Commit, CommitEntry, LocalRepository, Schema, StagedData, StagedEntry, StagedEntryStatus,
-    StagedSchema,
-};
-use crate::util;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::view::schema::SchemaWithPath;
+use crate::core::db::path_db;
+use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 
-use filetime::FileTime;
-use rayon::prelude::*;
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
-use std::collections::{HashMap, HashSet};
-use std::fs;
+use crate::error::OxenError;
+
+use crate::model::LocalRepository;
+use crate::util;
+
+use rocksdb::{DBWithThreadMode, MultiThreaded};
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use super::{CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, TreeDBReader};
+use super::CommitEntryWriter;
 
 // TODONOW: anyway we can merge this and ObjectsDbReader
 pub struct ObjectDBReader {
@@ -44,25 +30,25 @@ impl ObjectDBReader {
 
     // TODONOW: These should probably be moved somewhere else
     pub fn files_db_dir(path: PathBuf) -> PathBuf {
-        util::fs::oxen_hidden_dir(&path)
+        util::fs::oxen_hidden_dir(path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_FILES_DIR)
     }
 
     pub fn schemas_db_dir(path: PathBuf) -> PathBuf {
-        util::fs::oxen_hidden_dir(&path)
+        util::fs::oxen_hidden_dir(path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_SCHEMAS_DIR)
     }
 
     pub fn dirs_db_dir(path: PathBuf) -> PathBuf {
-        util::fs::oxen_hidden_dir(&path)
+        util::fs::oxen_hidden_dir(path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_DIRS_DIR)
     }
 
     pub fn vnodes_db_dir(path: PathBuf) -> PathBuf {
-        util::fs::oxen_hidden_dir(&path)
+        util::fs::oxen_hidden_dir(path)
             .join(constants::OBJECTS_DIR)
             .join(constants::OBJECT_VNODES_DIR)
     }
@@ -92,7 +78,7 @@ impl ObjectDBReader {
             &vnodes_db_path,
         ] {
             if !path.exists() {
-                util::fs::create_dir_all(&path)?;
+                util::fs::create_dir_all(path)?;
             }
         }
 

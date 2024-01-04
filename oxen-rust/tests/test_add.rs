@@ -170,11 +170,10 @@ fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
 #[test]
 fn test_command_add_stage_with_wildcard() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-
-        // Print full directory structure 
+        // Print full directory structure
         log::debug!("THE TEST HAS STARTED");
 
-        // check if the .oxen/objects dir exists 
+        // check if the .oxen/objects dir exists
         let objects_dir = repo.path.join(".oxen/objects");
 
         assert!(objects_dir.exists());

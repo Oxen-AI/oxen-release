@@ -7,8 +7,6 @@ use crate::model::{
     MergeConflict, StagedEntry, StagedEntryStatus, StagedSchema, SummarizedStagedDirStats,
 };
 
-use super::schema::staged_schema::StagedSchemaStatus;
-
 pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
 pub const MSG_OXEN_ADD_FILE_EXAMPLE: &str =
     "  (use \"oxen add <file>...\" to update what will be committed)\n";

@@ -18,7 +18,7 @@ use crate::core::index::{
 };
 use crate::error::OxenError;
 use crate::model::schema::staged_schema::StagedSchema;
-use crate::model::schema::staged_schema::StagedSchemaStatus;
+
 use crate::opts::DFOpts;
 
 use crate::model::schema;
@@ -225,9 +225,9 @@ impl Stager {
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
 
         for (dir, status) in &staged_dirs {
-            let full_path = self.repository.path.join(&dir);
+            let full_path = self.repository.path.join(dir);
             log::debug!("in the staged dir stats loop");
-            let stats = self.compute_staged_dir_stats(&full_path, &status)?;
+            let stats = self.compute_staged_dir_stats(&full_path, status)?;
             log::debug!("done the staged dir stats loop");
             staged_data.staged_dirs.add_stats(&stats);
             candidate_dirs.insert(self.repository.path.join(dir));
@@ -407,7 +407,7 @@ impl Stager {
         full_dir: &Path,
         staged_data: &mut StagedData,
         ignore: &Option<Gitignore>,
-        commit_reader: &CommitEntryReader,
+        _commit_reader: &CommitEntryReader,
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<(), OxenError> {
         let committer = CommitReader::new(&self.repository)?;
@@ -427,7 +427,7 @@ impl Stager {
 
         for relative_path in &staged_entries {
             log::debug!("processing relative_path {:?}", relative_path);
-            if self.should_ignore_path(ignore, &relative_path) {
+            if self.should_ignore_path(ignore, relative_path) {
                 continue;
             } // TODONOW: probably unnecessary
 
@@ -729,7 +729,7 @@ impl Stager {
         log::debug!("add_removed_file {:?}", path);
 
         let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
-        if let Some(file_name) = relative.file_name() {
+        if let Some(_file_name) = relative.file_name() {
             // add all parents up to root
             let mut components = path.components().collect::<Vec<_>>();
             log::debug!("add_staged_entry_to_db got components {}", components.len());

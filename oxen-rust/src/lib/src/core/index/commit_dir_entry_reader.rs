@@ -1,14 +1,14 @@
 //!
 
-use crate::constants::{self, FILES_DIR, HISTORY_DIR, OBJECTS_DIR, OBJECT_DIRS_DIR};
+use crate::constants::{self};
 use crate::core::db;
 use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
-use crate::{api, util};
+use crate::util;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -20,9 +20,7 @@ use super::{CommitEntryWriter, ObjectDBReader};
 /// We could index files by path here for qui
 pub struct CommitDirEntryReader {
     dir: PathBuf,
-    dir_hash: String,
     dir_object: TreeObject,
-    base_path: PathBuf,
     commit_id: String,
     object_reader: Arc<ObjectDBReader>,
 }
@@ -157,14 +155,10 @@ impl CommitDirEntryReader {
         };
 
         Ok(CommitDirEntryReader {
-            dir_hash: dir_object.hash().to_string(),
             dir: dir.to_path_buf(),
-            base_path: base_path.to_path_buf(),
-            dir_object: dir_object,
-            // vnodes_db: vnodes_db,
-            // files_db: files_db,
+            dir_object,
             commit_id: commit_id.to_string(),
-            object_reader: object_reader,
+            object_reader,
         })
     }
 
@@ -176,55 +170,17 @@ impl CommitDirEntryReader {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
             let vnode = self
                 .object_reader
-                .get_vnode(&vnode_child.hash())
+                .get_vnode(vnode_child.hash())
                 .unwrap()
                 .unwrap();
             for entry in vnode.children() {
-                match entry {
-                    TreeObjectChild::File { .. } => count += 1,
-                    _ => (),
+                if let TreeObjectChild::File { .. } = entry {
+                    count += 1
                 }
             }
         }
         count
     }
-
-    // pub fn print_all_entries_in_dirs_db(
-    //     base_path: &Path,
-    // ) -> Result<(), OxenError> {
-
-    //     let opts = db::opts::default();
-    //     let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, CommitDirEntryReader::dir_db(&base_path), false)?;
-    //     let iter = dirs_db.iterator(IteratorMode::Start);
-    //     for item in iter {
-    //         match item {
-    //             Ok((key, value)) => {
-    //                 match str::from_utf8(&key) {
-    //                     Ok(key_str) => {
-    //                         match String::from_utf8(value.to_vec()) {
-    //                             Ok(value_str) => {
-    //                                 // return full path
-    //                                 log::debug!("PRINTING DIR_DB ENTRY key: {:?}, value: {}: base_path: {:?}", key_str, value_str, base_path);
-    //                             }
-    //                             Err(_) => {
-    //                                 log::error!("Could not decode value as UTF-8");
-    //                             }
-    //                         }
-    //                     }
-    //                     Err(_) => {
-    //                         log::error!("Could not decode key as UTF-8");
-    //                     }
-    //                 }
-    //             }
-    //             _ => {
-    //                 return Err(OxenError::basic_str(
-    //                     "Could not read iterate over db values",
-    //                 ));
-    //             }
-    //         }
-    //     }
-    //     Ok(())
-    // }
 
     pub fn has_file<P: AsRef<Path>>(&self, path: P) -> bool {
         let full_path = self.dir.join(path.as_ref());
@@ -239,8 +195,6 @@ impl CommitDirEntryReader {
             .binary_search_on_path(&PathBuf::from(path_hash_prefix))
             .unwrap();
 
-        // log::debug!("got this vnode ")
-
         if vnode_child.is_none() {
             return false;
         }
@@ -250,25 +204,20 @@ impl CommitDirEntryReader {
         // TODONOW error handling
         let vnode = self
             .object_reader
-            .get_vnode(&vnode_child.hash())
+            .get_vnode(vnode_child.hash())
             .unwrap()
             .unwrap();
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
-        log::debug!("checking has_file at path {:?}", full_path);
         let file = vnode
             .binary_search_on_path(&full_path.to_path_buf())
             .unwrap();
-        log::debug!("got file {:?}", file);
         if file.is_none() {
             return false;
         }
 
-        match file.unwrap() {
-            TreeObjectChild::File { .. } => true,
-            _ => false,
-        }
+        matches!(file.unwrap(), TreeObjectChild::File { .. })
     }
 
     pub fn get_entry<P: AsRef<Path>>(&self, path: P) -> Result<Option<CommitEntry>, OxenError> {
@@ -319,7 +268,7 @@ impl CommitDirEntryReader {
         log::debug!("here is our vnode {:?}", vnode);
 
         // Get parent vnode
-        let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
+        let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
@@ -360,11 +309,10 @@ impl CommitDirEntryReader {
         let mut files = Vec::new();
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
-                match entry {
-                    TreeObjectChild::File { path, .. } => files.push(path.to_owned()),
-                    _ => (),
+                if let TreeObjectChild::File { path, .. } = entry {
+                    files.push(path.to_owned())
                 }
             }
         }
@@ -375,17 +323,14 @@ impl CommitDirEntryReader {
         let mut entries = Vec::new();
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
-                match entry {
-                    TreeObjectChild::File { path, .. } => {
-                        // Get file object by hash
-                        let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
-                        // Get commit entry from file object
-                        let entry = file_object.to_commit_entry(path, &self.commit_id);
-                        entries.push(entry);
-                    }
-                    _ => (),
+                if let TreeObjectChild::File { path, .. } = entry {
+                    // Get file object by hash
+                    let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
+                    // Get commit entry from file object
+                    let entry = file_object.to_commit_entry(path, &self.commit_id);
+                    entries.push(entry);
                 }
             }
         }
@@ -396,17 +341,14 @@ impl CommitDirEntryReader {
         let mut entries = HashSet::new();
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
-                match entry {
-                    TreeObjectChild::File { path, .. } => {
-                        // Get file object by hash
-                        let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
-                        // Get commit entry from file object
-                        let entry = file_object.to_commit_entry(path, &self.commit_id);
-                        entries.insert(entry);
-                    }
-                    _ => (),
+                if let TreeObjectChild::File { path, .. } = entry {
+                    // Get file object by hash
+                    let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
+                    // Get commit entry from file object
+                    let entry = file_object.to_commit_entry(path, &self.commit_id);
+                    entries.insert(entry);
                 }
             }
         }
@@ -427,23 +369,29 @@ impl CommitDirEntryReader {
 
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
-                match entry {
-                    TreeObjectChild::File { path, .. } => {
-                        if entries.len() >= page_size {
-                            break;
-                        }
-                        if entry_i >= start_idx {
-                            // Get file object by hash
-                            let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
-                            // Get commit entry from file object
-                            let entry = file_object.to_commit_entry(path, &self.commit_id);
-                            entries.push(entry);
-                        }
-                        entry_i += 1;
+                if let TreeObjectChild::File { path, .. } = entry {
+                    if entries.len() >= page_size {
+                        break;
                     }
-                    _ => (),
+
+                    log::debug!(
+                        "considering entry {:?} with entry_i {:?} and start_idx {:?}",
+                        entry,
+                        entry_i,
+                        start_idx
+                    );
+
+                    if entry_i >= start_idx {
+                        // Get file object by hash
+                        let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
+                        // Get commit entry from file object
+                        let entry = file_object.to_commit_entry(path, &self.commit_id);
+                        log::debug!("adding entry to results");
+                        entries.push(entry);
+                    }
+                    entry_i += 1;
                 }
             }
         }
@@ -470,32 +418,29 @@ impl CommitDirEntryReader {
 
         for vnode_child in self.dir_object.children() {
             // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-            let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
-                match entry {
-                    TreeObjectChild::File { path, .. } => {
-                        if entries.len() >= page_size {
-                            break;
-                        }
-
-                        log::debug!(
-                            "considering entry {:?} with entry_i {:?} and start_idx {:?}",
-                            entry,
-                            entry_i,
-                            start_idx
-                        );
-
-                        if entry_i >= start_idx {
-                            // Get file object by hash
-                            let file_object = self.object_reader.get_file(&entry.hash())?.unwrap();
-                            // Get commit entry from file object
-                            let entry = file_object.to_commit_entry(path, &self.commit_id);
-                            log::debug!("adding entry to results");
-                            entries.push(entry);
-                        }
-                        entry_i += 1;
+                if let TreeObjectChild::File { path, .. } = entry {
+                    if entries.len() >= page_size {
+                        break;
                     }
-                    _ => {}
+
+                    log::debug!(
+                        "considering entry {:?} with entry_i {:?} and start_idx {:?}",
+                        entry,
+                        entry_i,
+                        start_idx
+                    );
+
+                    if entry_i >= start_idx {
+                        // Get file object by hash
+                        let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
+                        // Get commit entry from file object
+                        let entry = file_object.to_commit_entry(path, &self.commit_id);
+                        log::debug!("adding entry to results");
+                        entries.push(entry);
+                    }
+                    entry_i += 1;
                 }
             }
         }

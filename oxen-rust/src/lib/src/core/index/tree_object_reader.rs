@@ -1,35 +1,20 @@
-use crate::api;
-use crate::constants::{
-    self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
-};
+use crate::constants::{self};
 use crate::core::db;
-use crate::core::db::tree_db::{
-    TreeChild, TreeNode, TreeObject, TreeObjectChild, TreeObjectChildWithStatus,
-};
-use crate::core::db::{kv_db, path_db};
-use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
-use crate::error::OxenError;
-use crate::model::diff::dir_diff;
-use crate::model::schema::staged_schema::StagedSchemaStatus;
-use crate::model::{
-    Commit, CommitEntry, LocalRepository, Schema, StagedData, StagedEntry, StagedEntryStatus,
-    StagedSchema,
-};
-use crate::util;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::view::schema::SchemaWithPath;
+use crate::core::db::path_db;
+use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 
-use filetime::FileTime;
-use rayon::prelude::*;
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
-use std::collections::{HashMap, HashSet};
-use std::fs;
+use crate::error::OxenError;
+
+use crate::model::{Commit, LocalRepository};
+use crate::util;
+
+use rocksdb::{DBWithThreadMode, MultiThreaded};
+
 use std::path::{Path, PathBuf};
 
-use super::{CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, TreeDBReader};
+use super::CommitEntryWriter;
 
 pub struct TreeObjectReader {
-    repository: LocalRepository,
     files_db: DBWithThreadMode<MultiThreaded>,
     schemas_db: DBWithThreadMode<MultiThreaded>,
     dirs_db: DBWithThreadMode<MultiThreaded>,
@@ -80,10 +65,10 @@ impl TreeObjectReader {
         repository: &LocalRepository,
         commit: &Commit,
     ) -> Result<TreeObjectReader, OxenError> {
-        let files_db_path = TreeObjectReader::files_db_dir(&repository);
-        let schemas_db_path = TreeObjectReader::schemas_db_dir(&repository);
-        let dirs_db_path = TreeObjectReader::dirs_db_dir(&repository);
-        let vnodes_db_path = TreeObjectReader::vnodes_db_dir(&repository);
+        let files_db_path = TreeObjectReader::files_db_dir(repository);
+        let schemas_db_path = TreeObjectReader::schemas_db_dir(repository);
+        let dirs_db_path = TreeObjectReader::dirs_db_dir(repository);
+        let vnodes_db_path = TreeObjectReader::vnodes_db_dir(repository);
         // let temp_commit_hashes_db_path = TreeObjectReader::temp_commit_hashes_db_dir(&repository);
 
         for path in &[
@@ -94,14 +79,13 @@ impl TreeObjectReader {
             // &temp_commit_hashes_db_path,
         ] {
             if !path.exists() {
-                util::fs::create_dir_all(&path)?;
+                util::fs::create_dir_all(path)?;
             }
         }
 
         let opts = db::opts::default();
 
         Ok(TreeObjectReader {
-            repository: repository.clone(),
             files_db: DBWithThreadMode::open_for_read_only(
                 &opts,
                 dunce::simplified(&files_db_path),
@@ -148,6 +132,6 @@ impl TreeObjectReader {
     // commit out of the objectreader struct
     pub fn get_root_node(&self) -> Result<Option<TreeObject>, OxenError> {
         let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
-        path_db::get_entry(&self.dirs_db, &root_hash)
+        path_db::get_entry(&self.dirs_db, root_hash)
     }
 }

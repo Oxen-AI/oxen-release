@@ -341,9 +341,8 @@ mod tests {
             log::debug!("created the remote repo");
 
             test::run_empty_dir_test_async(|dir| async move {
-                
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
-                
+
                 log::debug!("about to clone the remote");
                 let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
                 log::debug!("succeeded");

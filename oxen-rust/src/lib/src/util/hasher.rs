@@ -5,7 +5,7 @@ use crate::model::{ContentHashable, NewCommit};
 use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use xxhash_rust::xxh3::xxh3_128;
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
@@ -56,7 +56,7 @@ pub fn compute_subtree_hash(children: &Vec<TreeChild>) -> String {
     format!("{val:x}")
 }
 
-// Need to hash on both path and hash - otherwise, vnode with same content under two different path hashes 
+// Need to hash on both path and hash - otherwise, vnode with same content under two different path hashes
 // (and many other examples) would overwrite node in objects dir since is hash-indexed
 pub fn compute_children_hash(children: &Vec<TreeObjectChild>) -> String {
     let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
@@ -67,7 +67,6 @@ pub fn compute_children_hash(children: &Vec<TreeObjectChild>) -> String {
         let path_input = path.as_bytes();
         subtree_hasher.update(hash_input);
         subtree_hasher.update(path_input);
-
     }
     let val = subtree_hasher.digest();
     format!("{val:x}")
@@ -148,9 +147,9 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
 
 pub fn hash_path<P: AsRef<Path>>(path: P) -> String {
     hash_str(path.as_ref().to_str().unwrap())
-}   
+}
 
 // TODONOW idk...
-pub fn hash_pathbuf(path: &PathBuf) -> String {
+pub fn hash_pathbuf(path: &Path) -> String {
     hash_str(path.to_str().unwrap())
 }

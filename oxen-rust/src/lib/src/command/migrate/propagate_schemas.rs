@@ -1,21 +1,13 @@
 use super::Migrate;
 
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use jwalk::WalkDir;
-
-use crate::constants::HISTORY_DIR;
-use crate::constants::TREE_DIR;
-use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
-use crate::core::cache::cachers;
-use crate::core::index::{CommitEntryReader, CommitReader, SchemaWriter};
+use crate::core::index::{CommitReader, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::util::fs::version_dir_from_hash;
+
+use crate::api;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, util};
 
 pub struct PropagateSchemasMigration;
 impl Migrate for PropagateSchemasMigration {

@@ -3,7 +3,7 @@
 use crate::core::index::commit_validator;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
-use crate::{api, util};
+use crate::util;
 
 pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
     log::debug!("Running compute_and_write_hash");

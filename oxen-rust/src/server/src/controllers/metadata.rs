@@ -25,7 +25,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    
+
     log::debug!(
         "{} resource {}/{}",
         current_function!(),
@@ -35,13 +35,16 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     // init a commit entry
 
-    // TODONOW remove all this 
+    // TODONOW remove all this
     let head = api::local::commits::head_commit(&repo)?;
-            
+
     let commit_entry_reader = CommitEntryReader::new(&repo, &head)?;
 
     // Try to get the entry from the local repo
-    log::debug!("on the remote repo trying to get file path {:?}", &resource.file_path);
+    log::debug!(
+        "on the remote repo trying to get file path {:?}",
+        &resource.file_path
+    );
     let entry = commit_entry_reader.get_entry(&resource.file_path)?;
 
     log::debug!("we got the entry from the remote repo: {:?}", entry);
@@ -57,8 +60,8 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         latest_commit.message
     );
 
-    // Check if annotations/README.md exists in this commit 
-    // init a commitentryreader 
+    // Check if annotations/README.md exists in this commit
+    // init a commitentryreader
 
     let entry = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let meta = MetadataEntryResponse {

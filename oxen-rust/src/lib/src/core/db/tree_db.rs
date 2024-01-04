@@ -3,10 +3,10 @@ use crate::constants::{
     OXEN_HIDDEN_DIR, SCHEMAS_TREE_PREFIX,
 };
 use crate::error::OxenError;
-use crate::model::{LocalRepository, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema};
+use crate::model::{LocalRepository, StagedDirStats, StagedEntryStatus, StagedSchema};
 use crate::{core::db, model::CommitEntry};
 use core::panic;
-use filetime::FileTime;
+
 use rocksdb::{DBWithThreadMode, ThreadMode};
 use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
@@ -215,10 +215,10 @@ impl TreeObject {
         let top_hash = &self.hash()[..2];
         let bottom_hash = &self.hash()[2..];
         let base_path = match self {
-            TreeObject::File { hash, .. } => objects_dir.join(OBJECT_FILES_DIR),
-            TreeObject::Schema { hash } => objects_dir.join(OBJECT_SCHEMAS_DIR),
-            TreeObject::Dir { hash, .. } => objects_dir.join(OBJECT_DIRS_DIR),
-            TreeObject::VNode { hash, .. } => objects_dir.join(OBJECT_VNODES_DIR),
+            TreeObject::File { .. } => objects_dir.join(OBJECT_FILES_DIR),
+            TreeObject::Schema { hash: _ } => objects_dir.join(OBJECT_SCHEMAS_DIR),
+            TreeObject::Dir { .. } => objects_dir.join(OBJECT_DIRS_DIR),
+            TreeObject::VNode { .. } => objects_dir.join(OBJECT_VNODES_DIR),
         };
         base_path.join(top_hash).join(bottom_hash)
     }
@@ -239,7 +239,7 @@ impl TreeObject {
         let mut file = std::fs::File::open(path)?;
         let mut bytes = Vec::new();
         file.read_to_end(&mut bytes)?;
-        let tree_object: TreeObject = serde_json::from_slice(&bytes)?;
+        let _tree_object: TreeObject = serde_json::from_slice(&bytes)?;
         Ok(())
     }
 
