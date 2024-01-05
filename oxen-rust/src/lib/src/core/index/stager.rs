@@ -1402,10 +1402,14 @@ impl Stager {
         &self,
         path: impl AsRef<Path>,
     ) -> Result<Option<schema::Schema>, OxenError> {
+        log::debug!("looking for staged schema for path {:?}", path.as_ref());
         let maybe_schema: Option<StagedSchema> = path_db::get_entry(&self.schemas_db, &path)?;
         if let Some(staged_schema) = maybe_schema {
+            log::debug!("found staged schema for path {:?}", path.as_ref());
             return Ok(Some(staged_schema.schema));
         }
+        log::debug!("couldn't find, calling get_by_path");
+
         api::local::schemas::get_by_path(&self.repository, path)
     }
 
@@ -2113,7 +2117,9 @@ mod tests {
 
     #[test]
     fn test_stager_remove_file_top_level() -> Result<(), OxenError> {
+        log::debug!("starting the test");
         test::run_training_data_repo_test_fully_committed(|repo| {
+            log::debug!("made it into the fixture");
             // Get head commit
             let head = CommitReader::new(&repo)?.head_commit()?;
             log::debug!("head commit is {:?}", head);

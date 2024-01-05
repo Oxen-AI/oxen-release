@@ -10,9 +10,12 @@ use std::str;
 use crate::core::index::SchemaReader;
 use crate::model::LocalRepository;
 
+use super::versioner;
+
 pub struct SchemaWriter {
     db: DBWithThreadMode<MultiThreaded>,
     files_db: DBWithThreadMode<MultiThreaded>,
+    repository: LocalRepository,
 }
 
 impl SchemaWriter {
@@ -37,34 +40,66 @@ impl SchemaWriter {
         Ok(SchemaWriter {
             db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
             files_db: DBWithThreadMode::open(&opts, dunce::simplified(&schema_files_db_path))?,
+            repository: repository.clone(),
         })
     }
 
-    pub fn put_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
-        str_val_db::put(&self.files_db, path.to_string_lossy(), &schema.hash)?;
-        str_json_db::put(&self.db, &schema.hash, schema)
+    // pub fn put_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
+    //     str_val_db::put(&self.files_db, path.to_string_lossy(), &schema.hash)?;
+    //     str_json_db::put(&self.db, &schema.hash, schema)
+    // }
+
+    pub fn put_schema_for_file(&self, _path: &Path, schema: &Schema) -> Result<(), OxenError> {
+        // All we want to do is make sure the schema is inserted into the versions directory by hash.
+        versioner::backup_schema(&self.repository, schema)?;
+        Ok(())
     }
 
-    pub fn delete_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
-        str_val_db::delete(&self.files_db, path.to_string_lossy())?;
-        str_json_db::delete(&self.db, &schema.hash)
+    // pub fn delete_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
+    //     str_val_db::delete(&self.files_db, path.to_string_lossy())?;
+    //     str_json_db::delete(&self.db, &schema.hash)
+    // }
+
+    pub fn delete_schema_for_file(&self, _path: &Path, schema: &Schema) -> Result<(), OxenError> {
+        // We don't need this at all
+
+        Ok(())
     }
 
+    // TODONOW:: ??
     pub fn has_schema(&self, schema: &Schema) -> bool {
         str_json_db::has_key(&self.db, &schema.hash)
     }
 
+    // pub fn put_schema(&self, schema: &Schema) -> Result<(), OxenError> {
+    //     str_json_db::put(&self.db, &schema.hash, schema)
+    // }
+
     pub fn put_schema(&self, schema: &Schema) -> Result<(), OxenError> {
-        str_json_db::put(&self.db, &schema.hash, schema)
+        // All we want to do is make sure the schema is inserted into the versions directory by hash.
+        versioner::backup_schema(&self.repository, schema)?;
+        Ok(())
     }
+
+    // pub fn update_schema(&self, schema: &Schema) -> Result<Schema, OxenError> {
+    //     str_json_db::put(&self.db, &schema.hash, schema)?;
+    //     Ok(str_json_db::get(&self.db, &schema.hash)?.unwrap())
+    // }
 
     pub fn update_schema(&self, schema: &Schema) -> Result<Schema, OxenError> {
-        str_json_db::put(&self.db, &schema.hash, schema)?;
-        Ok(str_json_db::get(&self.db, &schema.hash)?.unwrap())
+        // All we want to do is make sure the schema is inserted into the versions directory by hash.
+        versioner::backup_schema(&self.repository, schema)?;
+        Ok(schema.clone())
     }
 
+    // pub fn delete_schema(&self, schema: &Schema) -> Result<(), OxenError> {
+    //     str_json_db::delete(&self.db, &schema.hash)?;
+    //     Ok(())
+    // }
+
     pub fn delete_schema(&self, schema: &Schema) -> Result<(), OxenError> {
-        str_json_db::delete(&self.db, &schema.hash)?;
+        // We don't need this at all
+
         Ok(())
     }
 }

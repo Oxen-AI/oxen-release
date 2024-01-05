@@ -179,14 +179,14 @@ impl CommitEntryWriter {
             }
 
             // Copy parent schemas
-            let schemas = {
-                let schema_reader = SchemaReader::new(repo, &parent_commit.id)?;
-                schema_reader.list_schemas()?
-            };
-            let schema_writer = SchemaWriter::new(repo, &self.commit.id)?;
-            for (path, schema) in schemas {
-                schema_writer.put_schema_for_file(&path, &schema)?;
-            }
+            // let schemas = {
+            //     let schema_reader = SchemaReader::new(repo, &parent_commit.id)?;
+            //     schema_reader.list_schemas()?
+            // };
+            // let schema_writer = SchemaWriter::new(repo, &self.commit.id)?;
+            // for (path, schema) in schemas {
+            //     schema_writer.put_schema_for_file(&path, &schema)?;
+            // }
         }
 
         Ok(())
@@ -854,7 +854,7 @@ impl CommitEntryWriter {
             b_count.cmp(&a_count)
         });
 
-        let _schemas_map = self.map_schemas_to_parent_dirs()?;
+        // let _schemas_map = self.map_schemas_to_parent_dirs()?;
 
         let parent_hash_db_dir =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &parent_commit_id);

@@ -23,6 +23,7 @@ use crate::constants::HISTORY_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::Commit;
+use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
@@ -167,6 +168,17 @@ pub fn version_path_from_hash_and_file(
     } else {
         version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
     }
+}
+
+pub fn version_path_from_schema(dst: impl AsRef<Path>, schema: &Schema) -> PathBuf {
+    // Save schemas as path with no extension
+    version_path_from_schema_hash(dst, schema.hash.clone())
+}
+
+pub fn version_path_from_schema_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
+    // Save schemas as path with no extension
+    let version_dir = version_dir_from_hash(dst, hash);
+    version_dir.join(VERSION_FILE_NAME)
 }
 
 pub fn extension_from_path(path: &Path) -> String {
