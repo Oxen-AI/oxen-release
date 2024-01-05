@@ -1,5 +1,6 @@
 use liboxen::api;
 use liboxen::command;
+use liboxen::command::migrate::CreateMerkleTreesMigration;
 use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::{AuthConfig, UserConfig};
@@ -95,16 +96,19 @@ pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), 
     Ok(())
 }
 
-pub fn check_repo_migration_needed(_repo: &LocalRepository) -> Result<(), OxenError> {
-    let _migrations: Vec<Box<dyn Migrate>> = vec![Box::new(UpdateVersionFilesMigration)];
+pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
+    let migrations: Vec<Box<dyn Migrate>> = vec![
+        Box::new(UpdateVersionFilesMigration),
+        Box::new(CreateMerkleTreesMigration),
+    ];
 
-    let migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
+    let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
 
-    // for migration in migrations {
-    //     if migration.is_needed(repo)? {
-    //         migrations_needed.push(migration);
-    //     }
-    // }
+    for migration in migrations {
+        if migration.is_needed(repo)? {
+            migrations_needed.push(migration);
+        }
+    }
 
     if migrations_needed.is_empty() {
         return Ok(());

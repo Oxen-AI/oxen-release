@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use jwalk::WalkDir;
 
+use crate::constants;
 use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
 
 use crate::core::index::{CommitEntryReader, CommitReader};
@@ -41,6 +42,36 @@ impl Migrate for UpdateVersionFilesMigration {
             update_version_files_down(&repo)?;
         }
         Ok(())
+    }
+
+    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+        let versions_dir = repo
+            .path
+            .join(constants::OXEN_HIDDEN_DIR)
+            .join(constants::VERSIONS_DIR);
+        if !versions_dir.exists() {
+            return Ok(false);
+        }
+        for entry in WalkDir::new(&versions_dir) {
+            let entry = entry?;
+            if entry.file_type().is_file() {
+                let path = entry.path();
+                let filename = match path.file_name() {
+                    Some(filename) => filename.to_string_lossy().to_string(),
+                    None => continue,
+                };
+
+                if filename.starts_with(constants::HASH_FILE) {
+                    continue;
+                }
+
+                if filename.starts_with(constants::VERSION_FILE_NAME) {
+                    return Ok(false);
+                }
+                return Ok(true);
+            }
+        }
+        Ok(false)
     }
 }
 

@@ -34,6 +34,11 @@ impl Migrate for PropagateSchemasMigration {
         }
         Ok(())
     }
+
+    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+        // Server-side migration, not necessary for autodetection on client
+        Ok(false)
+    }
 }
 
 pub fn propagate_schemas_for_all_repos_up(path: &Path) -> Result<(), OxenError> {

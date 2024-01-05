@@ -192,7 +192,10 @@ impl CommitEntryReader {
         page: usize,
         page_size: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        let entries = self.list_entries()?;
+        let mut entries = self.list_entries()?;
+
+        // Entries not automatically path-sorted due to tree structure
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
 
         let start_page = if page == 0 { 0 } else { page - 1 };
         let start_idx = start_page * page_size;
@@ -212,7 +215,9 @@ impl CommitEntryReader {
         log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
         let mut entries = vec![];
         // This lists all the committed dirs
-        let dirs = self.list_dirs()?;
+        let mut dirs = self.list_dirs()?;
+        dirs.sort();
+
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
             // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
