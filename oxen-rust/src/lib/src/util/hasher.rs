@@ -47,16 +47,16 @@ where
 // Need to hash on both path and hash - otherwise, vnode with same content under two different path hashes
 // (and many other examples) would overwrite node in objects dir since is hash-indexed
 pub fn compute_children_hash(children: &Vec<TreeObjectChild>) -> String {
-    let mut subtree_hasher = xxhash_rust::xxh3::Xxh3::new();
+    let mut buffer = Vec::new();
     for child in children {
         let hash = child.hash();
         let path = child.path().to_str().unwrap();
         let hash_input = hash.as_bytes();
         let path_input = path.as_bytes();
-        subtree_hasher.update(hash_input);
-        subtree_hasher.update(path_input);
+        buffer.extend_from_slice(hash_input);
+        buffer.extend_from_slice(path_input);
     }
-    let val = subtree_hasher.digest();
+    let val = hash_buffer_128bit(&buffer);
     format!("{val:x}")
 }
 
