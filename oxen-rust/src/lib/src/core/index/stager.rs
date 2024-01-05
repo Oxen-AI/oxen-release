@@ -1120,12 +1120,15 @@ impl Stager {
     }
 
     pub fn list_staged_schemas(&self) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
-        Ok(
-            str_json_db::hash_map::<MultiThreaded, schema::Schema>(&self.schemas_db)?
-                .into_iter()
-                .map(|(p, v)| (PathBuf::from(p), v))
-                .collect::<HashMap<PathBuf, schema::Schema>>(),
-        )
+        log::debug!("listing staged schemas");
+        // Ok(
+        let results = str_json_db::hash_map::<MultiThreaded, schema::Schema>(&self.schemas_db)?
+            .into_iter()
+            .map(|(p, v)| (PathBuf::from(p), v))
+            .collect::<HashMap<PathBuf, schema::Schema>>();
+        log::debug!("got results {:?}", results);
+        Ok(results)
+        // )
     }
 
     fn add_staged_entry(
