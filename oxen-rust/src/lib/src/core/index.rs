@@ -9,6 +9,8 @@ pub mod commit_sync_status;
 pub mod commit_validator;
 pub mod commit_writer;
 pub mod entry_indexer;
+pub mod legacy_commit_dir_entry_reader;
+pub mod legacy_commit_entry_reader;
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;
 pub mod merge_conflict_writer;
@@ -43,6 +45,8 @@ pub use crate::core::index::entry_indexer::EntryIndexer;
 
 pub use crate::core::index::commit_dir_entry_reader::CommitDirEntryReader;
 pub use crate::core::index::commit_entry_reader::CommitEntryReader;
+pub use crate::core::index::legacy_commit_dir_entry_reader::LegacyCommitDirEntryReader;
+pub use crate::core::index::legacy_commit_entry_reader::LegacyCommitEntryReader;
 pub use crate::core::index::merge_conflict_db_reader::MergeConflictDBReader;
 pub use crate::core::index::merge_conflict_reader::MergeConflictReader;
 pub use crate::core::index::merger::Merger;

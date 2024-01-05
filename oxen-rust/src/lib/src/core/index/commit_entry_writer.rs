@@ -5,7 +5,9 @@ use crate::constants::{
 use crate::core::db;
 use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
-use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
+use crate::core::index::{
+    CommitDirEntryWriter, LegacyCommitDirEntryReader, RefWriter, SchemaReader, SchemaWriter,
+};
 use crate::error::OxenError;
 
 use crate::model::{
@@ -336,7 +338,7 @@ impl CommitEntryWriter {
         origin_path: &Path,
     ) -> Result<(), OxenError> {
         if self.commit.parent_ids.is_empty() {
-            self.construct_merkle_tree_new(origin_path)
+            self.construct_merkle_tree_empty(origin_path)
         } else {
             self.construct_merkle_tree_from_parent(staged_data, origin_path)
         }
@@ -451,7 +453,10 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    pub fn construct_merkle_tree_new(&self, _origin_path: &Path) -> Result<(), OxenError> {
+    pub fn construct_merkle_tree_from_legacy_commit(
+        &self,
+        _origin_path: &Path,
+    ) -> Result<(), OxenError> {
         log::debug!("constructing new merkle tree");
         // Operate on all dirs to make the tree from scratch...
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
@@ -466,14 +471,8 @@ impl CommitEntryWriter {
                 children: Vec::new(),
                 hash: util::hasher::compute_children_hash(&Vec::new()),
             };
-            // Do we need all three of these really?
             path_db::put(&self.dirs_db, root_node.hash(), &root_node)?;
             path_db::put(&self.dir_hashes_db, PathBuf::from(""), &root_node.hash())?;
-            // path_db::put(
-            //     &self.temp_commit_hashes_db,
-            //     &self.commit.id,
-            //     &root_node.hash(),
-            // )?;
 
             return Ok(());
         }
@@ -494,8 +493,19 @@ impl CommitEntryWriter {
         let _root_hash: String =
             path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
 
-        // Insert into the commit hashes db
-        // path_db::put(&self.temp_commit_hashes_db, &self.commit.id, &root_hash)?;
+        Ok(())
+    }
+
+    pub fn construct_merkle_tree_empty(&self, _origin_path: &Path) -> Result<(), OxenError> {
+        // Initial commits will never have entries - just need to populate the root node
+
+        let empty_root = TreeObject::Dir {
+            children: Vec::new(),
+            hash: util::hasher::compute_children_hash(&Vec::new()),
+        };
+
+        path_db::put(&self.dirs_db, empty_root.hash(), &empty_root)?;
+        path_db::put(&self.dir_hashes_db, PathBuf::from(""), &empty_root.hash())?;
 
         Ok(())
     }
@@ -794,9 +804,12 @@ impl CommitEntryWriter {
         for dir in dirs {
             log::debug!("new merkle constructor processing dir {:?}", dir);
             let file_child_objs = self.write_file_objects_for_dir(dir.to_path_buf())?;
+            log::debug!("got file_child_objs {:?}", file_child_objs);
             let schema_child_objs =
                 self.write_schema_objects_for_dir(dir.to_path_buf(), &schema_map)?;
+            log::debug!("got schema_child_objs {:?}", schema_child_objs);
             let dir_child_objs = self.gather_dir_children_for_dir(dir.to_path_buf(), &dir_map)?;
+            log::debug!("got dir_child_objs {:?}", dir_child_objs);
 
             let mut all_children: Vec<TreeObjectChild> = file_child_objs;
             all_children.extend(schema_child_objs);
@@ -899,9 +912,8 @@ impl CommitEntryWriter {
 
     fn write_file_objects_for_dir(&self, dir: PathBuf) -> Result<Vec<TreeObjectChild>, OxenError> {
         log::debug!("in write file objects from dir for dir {:?}", dir);
-        let object_reader = ObjectDBReader::new(&self.repository)?;
         let dir_entry_reader =
-            CommitDirEntryReader::new(&self.repository, &self.commit.id, &dir, object_reader)?;
+            LegacyCommitDirEntryReader::new(&self.repository, &self.commit.id, &dir)?;
 
         // Get all file children
         let files = dir_entry_reader.list_entries()?;
@@ -1003,12 +1015,10 @@ impl CommitEntryWriter {
             std::fs::metadata(&temp_db_path).is_ok()
         );
 
-        log::debug!("about to open the db");
         let opts = db::opts::default();
         let temp_tree_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
-        log::debug!("successfully opened the db");
-        let commit_hash: &String = &self.commit.root_hash;
+        let commit_hash: &String = &self.commit.root_hash.clone().unwrap();
 
         let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, commit_hash)?.unwrap(); // TODONOW: error handling here
 
@@ -1074,7 +1084,7 @@ impl CommitEntryWriter {
 
     pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> {
         // Get the hash of this commit
-        let commit_hash = &self.commit.root_hash;
+        let commit_hash = &self.commit.root_hash.clone().unwrap();
         // let commit_hash: String = path_db::get_entry(&self.dirs_, &self.commit.id)?.unwrap();
 
         // Get the root dir node (this hash)

@@ -428,7 +428,7 @@ pub fn construct_commit_merkle_tree(
     commit: &Commit,
 ) -> Result<(), OxenError> {
     let commit_writer = CommitEntryWriter::new(repo, commit)?;
-    commit_writer.construct_merkle_tree_new(&repo.path)?;
+    commit_writer.construct_merkle_tree_from_legacy_commit(&repo.path)?;
     Ok(())
 }
 

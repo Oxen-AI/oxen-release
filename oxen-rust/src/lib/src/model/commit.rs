@@ -46,7 +46,7 @@ pub struct Commit {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: String,
+    pub root_hash: Option<String>, // Option for now to facilciate migration from older stored commits
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
 }
@@ -65,7 +65,7 @@ pub struct CommitWithSize {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: String,
+    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
@@ -79,7 +79,7 @@ pub struct CommitWithBranchName {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: String,
+    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
@@ -110,14 +110,14 @@ impl Commit {
             author: new_commit.author.to_owned(),
             email: new_commit.email.to_owned(),
             timestamp: new_commit.timestamp.to_owned(),
-            root_hash: "".to_string(),
+            root_hash: None,
         }
     }
 
     // TODONOW - change the above initialization - should be a param - etc.
 
     pub fn update_root_hash(&mut self, root_hash: String) {
-        self.root_hash = root_hash;
+        self.root_hash = Some(root_hash);
     }
 
     pub fn from_with_size(commit: &CommitWithSize) -> Commit {
