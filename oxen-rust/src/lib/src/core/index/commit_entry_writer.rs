@@ -1084,8 +1084,8 @@ impl CommitEntryWriter {
 
     pub fn new_temp_print_tree_db(&self) -> Result<(), OxenError> {
         // Get the hash of this commit
-        let commit_hash = &self.commit.root_hash.clone().unwrap();
-        // let commit_hash: String = path_db::get_entry(&self.dirs_, &self.commit.id)?.unwrap();
+        let commit_hash: String =
+            path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
 
         // Get the root dir node (this hash)
         let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, commit_hash)?.unwrap();

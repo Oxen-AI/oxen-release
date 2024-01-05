@@ -3,8 +3,13 @@
 //! Interact with local commits.
 //!
 
-use crate::constants::{HISTORY_DIR, TREE_DIR};
+use crate::constants::{
+    HISTORY_DIR, OBJECTS_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR,
+    OBJECT_VNODES_DIR, TREE_DIR,
+};
 use crate::core::cache::cachers::content_validator;
+use crate::core::db::tree_db::TreeObject;
+use crate::core::db::{self, path_db};
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
@@ -17,6 +22,7 @@ use crate::util::fs::commit_content_is_valid_path;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{api, util};
 use rayon::prelude::*;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -423,7 +429,7 @@ pub fn has_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<bool, 
     Ok(path.exists())
 }
 
-pub fn construct_commit_merkle_tree(
+pub fn construct_commit_merkle_tree_from_legacy(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<(), OxenError> {
@@ -432,6 +438,58 @@ pub fn construct_commit_merkle_tree(
     Ok(())
 }
 
+pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Result<(), OxenError> {
+    let repo_dirs_dir = repo_objects_dir.join(OBJECT_DIRS_DIR);
+    let repo_files_dir = repo_objects_dir.join(OBJECT_FILES_DIR);
+    let repo_schemas_dir = repo_objects_dir.join(OBJECT_SCHEMAS_DIR);
+    let repo_vnodes_dir = repo_objects_dir.join(OBJECT_VNODES_DIR);
+
+    let new_dirs_dir = tmp_objects_dir.join(OBJECT_DIRS_DIR);
+    let new_files_dir = tmp_objects_dir.join(OBJECT_FILES_DIR);
+    let new_schemas_dir = tmp_objects_dir.join(OBJECT_SCHEMAS_DIR);
+    let new_vnodes_dir = tmp_objects_dir.join(OBJECT_VNODES_DIR);
+
+    let opts = db::opts::default();
+    let new_dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, new_dirs_dir, false)?;
+    let new_files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, new_files_dir, false)?;
+    let new_schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, new_schemas_dir, false)?;
+    let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, new_vnodes_dir, false)?;
+
+    let repo_dirs_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, repo_dirs_dir)?;
+    let repo_files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, repo_files_dir)?;
+    let repo_schemas_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, repo_schemas_dir)?;
+    let repo_vnodes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, repo_vnodes_dir)?;
+
+    let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
+    for dir in new_dirs {
+        path_db::put(&repo_dirs_db, dir.hash(), &dir)?;
+    }
+
+    let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
+    for file in new_files {
+        path_db::put(&repo_files_db, file.hash(), &file)?;
+    }
+
+    let new_schemas: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
+    for schema in new_schemas {
+        path_db::put(&repo_schemas_db, schema.hash(), &schema)?;
+    }
+
+    let new_vnodes: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
+    for vnode in new_vnodes {
+        path_db::put(&repo_vnodes_db, vnode.hash(), &vnode)?;
+    }
+
+    Ok(())
+}
 #[cfg(test)]
 mod tests {
     use crate::api;

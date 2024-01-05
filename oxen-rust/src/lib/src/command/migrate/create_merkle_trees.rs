@@ -97,7 +97,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
     for commit in all_commits {
         // Create the merkle tree for each commit
-        match api::local::commits::construct_commit_merkle_tree(repo, &commit) {
+        match api::local::commits::construct_commit_merkle_tree_from_legacy(repo, &commit) {
             Ok(_) => {}
             Err(err) => {
                 log::error!(

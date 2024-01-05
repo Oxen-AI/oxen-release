@@ -12,6 +12,7 @@ use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
+use crate::util::fs::oxen_hidden_dir;
 use crate::util::hasher::hash_buffer;
 use crate::util::progress_bar::{oxify_bar, ProgressBarType};
 use crate::view::commit::{CommitSyncStatusResponse, CommitTreeValidationResponse};
@@ -475,78 +476,78 @@ pub async fn download_objects_db_to_repo(
     remote_repo: &RemoteRepository,
 ) -> Result<(), OxenError> {
     let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
-    log::debug!("new path is {:?}", tmp_path);
-    let new_path = download_objects_db_to_path(remote_repo, tmp_path).await?;
-    log::debug!(
-        "download_objects_db_to_repo downloaded db to {:?}",
-        new_path
-    );
-    let opts = db::opts::default();
+    let tmp_objects_dir = download_objects_db_to_path(remote_repo, tmp_path).await?;
 
-    let new_dirs_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_DIRS_DIR), false)?;
-    let new_files_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_FILES_DIR), false)?;
-    let new_schemas_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_SCHEMAS_DIR), false)?;
-    let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_VNODES_DIR), false)?;
+    let local_objects_dir = oxen_hidden_dir(local_repo.path.clone()).join(OBJECTS_DIR);
 
-    // Iterate over the new dirs db
+    // Merge with existing objects db
+    api::local::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+    // let opts = db::opts::default();
 
-    let dir_entries: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
-    let file_entries: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
-    let schema_entries: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
-    let vnode_entries: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
+    // let new_dirs_db: DBWithThreadMode<MultiThreaded> =
+    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_DIRS_DIR), false)?;
+    // let new_files_db: DBWithThreadMode<MultiThreaded> =
+    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_FILES_DIR), false)?;
+    // let new_schemas_db: DBWithThreadMode<MultiThreaded> =
+    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_SCHEMAS_DIR), false)?;
+    // let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
+    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_VNODES_DIR), false)?;
 
-    let head = api::local::commits::head_commit(local_repo)?;
+    // // Iterate over the new dirs db
 
-    {
-        let _writer = CommitEntryWriter::new(local_repo, &head)?;
-    };
+    // let dir_entries: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
+    // let file_entries: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
+    // let schema_entries: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
+    // let vnode_entries: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
 
-    let oxen_hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-        &opts,
-        oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_DIRS_DIR),
-    )?;
-    let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-        &opts,
-        oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_FILES_DIR),
-    )?;
-    let schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-        &opts,
-        oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_SCHEMAS_DIR),
-    )?;
-    let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-        &opts,
-        oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_VNODES_DIR),
-    )?;
+    // let head = api::local::commits::head_commit(local_repo)?;
 
-    // Copy over from each of the new dbs to the old dbs
-    log::debug!("doing dirs");
-    for entry in dir_entries {
-        log::debug!("putting entry {:?} into dirs db", entry);
-        path_db::put(&dirs_db, &entry.hash().clone(), &entry)?;
-    }
+    // {
+    //     let _writer = CommitEntryWriter::new(local_repo, &head)?;
+    // };
 
-    log::debug!("doing files");
-    for entry in file_entries {
-        log::debug!("putting entry {:?} into files db", entry);
-        path_db::put(&files_db, &entry.hash().clone(), &entry)?;
-    }
+    // let oxen_hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
+    // let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
+    //     &opts,
+    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_DIRS_DIR),
+    // )?;
+    // let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
+    //     &opts,
+    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_FILES_DIR),
+    // )?;
+    // let schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
+    //     &opts,
+    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_SCHEMAS_DIR),
+    // )?;
+    // let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
+    //     &opts,
+    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_VNODES_DIR),
+    // )?;
 
-    log::debug!("doing schemas");
-    for entry in schema_entries {
-        log::debug!("putting entry {:?} into schemas db", entry);
-        path_db::put(&schemas_db, &entry.hash().clone(), &entry)?;
-    }
+    // // Copy over from each of the new dbs to the old dbs
+    // log::debug!("doing dirs");
+    // for entry in dir_entries {
+    //     log::debug!("putting entry {:?} into dirs db", entry);
+    //     path_db::put(&dirs_db, &entry.hash().clone(), &entry)?;
+    // }
 
-    log::debug!("doing vnodes");
-    for entry in vnode_entries {
-        log::debug!("putting entry {:?} into vnodes db", entry);
-        path_db::put(&vnodes_db, &entry.hash().clone(), &entry)?;
-    }
+    // log::debug!("doing files");
+    // for entry in file_entries {
+    //     log::debug!("putting entry {:?} into files db", entry);
+    //     path_db::put(&files_db, &entry.hash().clone(), &entry)?;
+    // }
+
+    // log::debug!("doing schemas");
+    // for entry in schema_entries {
+    //     log::debug!("putting entry {:?} into schemas db", entry);
+    //     path_db::put(&schemas_db, &entry.hash().clone(), &entry)?;
+    // }
+
+    // log::debug!("doing vnodes");
+    // for entry in vnode_entries {
+    //     log::debug!("putting entry {:?} into vnodes db", entry);
+    //     path_db::put(&vnodes_db, &entry.hash().clone(), &entry)?;
+    // }
 
     Ok(())
 }
