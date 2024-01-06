@@ -406,8 +406,25 @@ pub fn compute_schemas_size(schemas: &[SchemaEntry]) -> Result<u64, OxenError> {
 //     results
 // }
 
-pub fn group_entries_to_parent_dirs(entries: &[Entry]) -> HashMap<PathBuf, Vec<Entry>> {
+pub fn group_commit_entries_to_parent_dirs(
+    entries: &[CommitEntry],
+) -> HashMap<PathBuf, Vec<CommitEntry>> {
     let mut results: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
+
+    for entry in entries.iter() {
+        if let Some(parent) = entry.path.parent() {
+            results
+                .entry(parent.to_path_buf())
+                .or_default()
+                .push(entry.clone().into());
+        }
+    }
+
+    results
+}
+
+pub fn group_entries_to_parent_dirs(entries: &[Entry]) -> HashMap<PathBuf, Vec<Entry>> {
+    let mut results: HashMap<PathBuf, Vec<Entry>> = HashMap::new();
 
     for entry in entries.iter() {
         if let Some(parent) = entry.path().parent() {
@@ -452,7 +469,7 @@ pub fn read_unsynced_entries(
         this_commit,
         this_entries
     );
-    let grouped = api::local::entries::group_entries_to_parent_dirs(&this_entries);
+    let grouped = api::local::entries::group_commit_entries_to_parent_dirs(&this_entries);
     log::debug!(
         "Checking {} entries in {} groups",
         this_entries.len(),

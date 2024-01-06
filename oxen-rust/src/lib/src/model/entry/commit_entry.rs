@@ -17,22 +17,22 @@ pub enum Entry {
 impl Entry {
     pub fn commit_id(&self) -> String {
         match self {
-            Entry::CommitEntry(entry) => entry.commit_id,
-            Entry::SchemaEntry(entry) => entry.commit_id,
+            Entry::CommitEntry(entry) => entry.commit_id.clone(),
+            Entry::SchemaEntry(entry) => entry.commit_id.clone(),
         }
     }
 
     pub fn path(&self) -> PathBuf {
         match self {
-            Entry::CommitEntry(entry) => entry.path,
-            Entry::SchemaEntry(entry) => entry.path,
+            Entry::CommitEntry(entry) => entry.path.clone(),
+            Entry::SchemaEntry(entry) => entry.path.clone(),
         }
     }
 
     pub fn hash(&self) -> String {
         match self {
-            Entry::CommitEntry(entry) => entry.hash,
-            Entry::SchemaEntry(entry) => entry.hash,
+            Entry::CommitEntry(entry) => entry.hash.clone(),
+            Entry::SchemaEntry(entry) => entry.hash.clone(),
         }
     }
 
@@ -60,6 +60,15 @@ impl From<CommitEntry> for Entry {
 impl From<SchemaEntry> for Entry {
     fn from(entry: SchemaEntry) -> Self {
         Entry::SchemaEntry(entry)
+    }
+}
+
+impl From<Entry> for CommitEntry {
+    fn from(entry: Entry) -> Self {
+        match entry {
+            Entry::CommitEntry(entry) => entry,
+            _ => panic!("Cannot convert Entry to CommitEntry"),
+        }
     }
 }
 

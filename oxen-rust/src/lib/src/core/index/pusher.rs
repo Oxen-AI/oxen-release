@@ -346,20 +346,20 @@ fn get_unsynced_entries_for_commit(
 
         // Get the entries and schemas into one Vec<Entry>
         let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
-        let schemas: Vec<Entry> = schemas.into_iter().map(|e| Entry::from(e)).collect();
-        entries.extend(schemas);
 
         log::debug!(
             "got unsynced entries for commit {:#?}: {:#?}",
             commit,
             entries
         );
-
+        let schemas: Vec<Entry> = schemas.into_iter().map(|e| Entry::from(e)).collect();
         log::debug!(
             "got unsynced schemas for commit {:#?}: {:#?}",
             commit,
             schemas
         );
+
+        entries.extend(schemas);
 
         // Get size of these entries
         let entries_size = api::local::entries::compute_generic_entries_size(&entries)?;

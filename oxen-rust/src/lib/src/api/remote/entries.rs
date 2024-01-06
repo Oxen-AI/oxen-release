@@ -2,6 +2,7 @@ use crate::api::remote::client;
 use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{MetadataEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
@@ -107,6 +108,14 @@ pub async fn download_dir(
     let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
+
+    // TODONOW - schemas handling here?
+
+    // Convert entries to [Entry]
+    let entries: Vec<Entry> = entries
+        .into_iter()
+        .map(|entry| Entry::from(entry))
+        .collect();
 
     // Pull all the entries
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
