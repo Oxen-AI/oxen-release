@@ -437,17 +437,25 @@ pub async fn download_objects_db_to_path(
     match client.get(url).send().await {
         Ok(res) => {
             // TODO: make sure we're not accidentally nesting this
+            log::debug!("got ok response...");
+            // TODONOW: WE SHOULD NOT ADD EXTRA HIDDEN DIR PATH HERE FYI
             let path = util::fs::oxen_hidden_dir(path);
             let reader = res
                 .bytes_stream()
                 .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
                 .into_async_read();
+            log::debug!("init'd the reader");
 
             let dst: PathBuf = path.clone();
             let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+            log::debug!("init'd the decoder");
             let archive = Archive::new(decoder);
-
+            log::debug!("got the archive");
             let unpacked_path = dst.join(OBJECTS_DIR);
+            log::debug!("gonna unpack to {:?}", unpacked_path);
+
+            log::debug!("here's the archive");
+            // iterate over archive entries
 
             if unpacked_path.exists() {
                 log::debug!(
@@ -476,12 +484,15 @@ pub async fn download_objects_db_to_repo(
     remote_repo: &RemoteRepository,
 ) -> Result<(), OxenError> {
     let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
+    log::debug!("downloading objects db...");
     let tmp_objects_dir = download_objects_db_to_path(remote_repo, tmp_path).await?;
-
+    log::debug!("downloaded objects db");
     let local_objects_dir = oxen_hidden_dir(local_repo.path.clone()).join(OBJECTS_DIR);
 
+    log::debug!("merging objects db...");
     // Merge with existing objects db
     api::local::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+    log::debug!("merged objects db");
     // let opts = db::opts::default();
 
     // let new_dirs_db: DBWithThreadMode<MultiThreaded> =
@@ -730,7 +741,8 @@ pub async fn post_commits_to_server(
         let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
             .join(HISTORY_DIR)
             .join(&commit_with_entries.commit.id);
-        let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
+        let entries_size =
+            api::local::entries::compute_generic_entries_size(&commit_with_entries.entries)?;
 
         let size = match fs_extra::dir::get_size(&commit_history_dir) {
             Ok(size) => size + entries_size,
@@ -1126,6 +1138,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::CommitEntry;
 
+    use crate::model::entry::commit_entry::Entry;
     use crate::test;
     use rocksdb::{DBWithThreadMode, MultiThreaded};
 
@@ -1159,11 +1172,11 @@ mod tests {
             let unsynced_commits = vec![
                 UnsyncedCommitEntries {
                     commit: commit1,
-                    entries: Vec::<CommitEntry>::new(),
+                    entries: Vec::<Entry>::new(),
                 },
                 UnsyncedCommitEntries {
                     commit: commit2,
-                    entries: Vec::<CommitEntry>::new(),
+                    entries: Vec::<Entry>::new(),
                 },
             ];
 
@@ -1234,7 +1247,7 @@ mod tests {
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Dummy entries, not checking this
-            let entries = Vec::<CommitEntry>::new();
+            let entries = Vec::<Entry>::new();
 
             let unsynced_commits = vec![UnsyncedCommitEntries {
                 commit: commit.clone(),
@@ -1383,7 +1396,7 @@ mod tests {
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Post commit but not the actual files
-            let entries = Vec::<CommitEntry>::new(); // actual entries doesn't matter, since we aren't verifying size in tests
+            let entries = Vec::<Entry>::new(); // actual entries doesn't matter, since we aren't verifying size in tests
             api::remote::commits::post_commits_to_server(
                 &local_repo,
                 &remote_repo,

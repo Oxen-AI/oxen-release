@@ -17,9 +17,9 @@ use crate::core::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
 };
 use crate::error::OxenError;
-use crate::model::entry::commit_entry::Entry;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{
-    Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
+    schema, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
 use crate::opts::PullOpts;
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
@@ -27,7 +27,7 @@ use crate::util::{self, concurrency};
 use crate::view::repository::RepositoryDataTypesView;
 use crate::{api, current_function};
 
-use super::{pusher, CommitReader};
+use super::{pusher, CommitReader, SchemaReader};
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -165,6 +165,7 @@ impl EntryIndexer {
         rb: &RemoteBranch,
         should_update_head: bool,
     ) -> Result<Commit, OxenError> {
+        log::debug!("pulling all");
         let new_head = match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
@@ -198,6 +199,7 @@ impl EntryIndexer {
         self.pull_tree_objects_for_commits(remote_repo, &unsynced_entry_commits)
             .await?;
 
+        log::debug!("about to pull entries for commits");
         // Download all files to versions dir
         self.pull_entries_for_commits(remote_repo, unsynced_entry_commits)
             .await?;
@@ -542,6 +544,32 @@ impl EntryIndexer {
         Ok(entries[0..limit].to_vec())
     }
 
+    fn read_pulled_schema_entries(
+        &self,
+        commit: &Commit,
+        mut limit: usize,
+    ) -> Result<Vec<SchemaEntry>, OxenError> {
+        let schema_reader = SchemaReader::new(&self.repository, &commit.id)?;
+        let schemas = schema_reader.list_schemas()?;
+
+        // Convert to vec
+        let schemas: Vec<SchemaEntry> = schemas
+            .into_iter()
+            .map(|(path, schema)| SchemaEntry {
+                commit_id: commit.id.clone(),
+                path,
+                hash: schema.hash.clone(),
+                schema,
+                num_bytes: 1,
+            })
+            .collect();
+
+        if limit == 0 {
+            limit = schemas.len();
+        }
+        Ok(schemas[0..limit].to_vec())
+    }
+
     pub async fn pull_tree_objects_for_commits(
         &self,
         remote_repo: &RemoteRepository,
@@ -664,6 +692,11 @@ impl EntryIndexer {
             entries.len()
         );
 
+        let schema_entries = self.read_pulled_schema_entries(&commit, limit)?;
+
+        let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
+        entries.extend(schema_entries.into_iter().map(|e| Entry::from(e)));
+
         // Pull all the entries and unpack them to the versions dir
         puller::pull_entries_to_working_dir(remote_repo, &entries, &self.repository.path, &|| {
             self.backup_to_versions_dir(&commit, &entries).unwrap();
@@ -681,7 +714,7 @@ impl EntryIndexer {
     fn backup_to_versions_dir(
         &self,
         commit: &Commit,
-        entries: &[CommitEntry],
+        entries: &[Entry],
         // csv_writer: &mut Writer<File>,
     ) -> Result<(), OxenError> {
         if entries.is_empty() {
@@ -693,9 +726,9 @@ impl EntryIndexer {
         dir_entries.par_iter().for_each(|(dir, entries)| {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path);
+                let filepath = self.repository.path.join(&entry.path());
 
-                versioner::backup_file(&self.repository, &committer, entry, filepath).unwrap();
+                versioner::backup_entry(&self.repository, &committer, entry, filepath).unwrap();
             });
         });
 
@@ -716,7 +749,7 @@ impl EntryIndexer {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path());
-                if versioner::should_copy_entry(entry, &filepath) {
+                if versioner::should_copy_generic_entry(entry, &filepath) {
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
                     let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
@@ -727,15 +760,16 @@ impl EntryIndexer {
                     }
                 }
                 match entry {
-                    Entry::File(file) => match util::fs::metadata(&filepath) {
+                    Entry::CommitEntry(file) => match util::fs::metadata(&filepath) {
                         Ok(metadata) => {
-                            let mtime = FileTime::from_unix_time(file.modified_at, 0);
-                            committer.set_file_timestamps(entry, &mtime).unwrap();
+                            let mtime = FileTime::from_last_modification_time(&metadata);
+                            committer.set_file_timestamps(file, &mtime).unwrap();
                         }
                         Err(err) => {
                             log::error!("Could not update timestamp for {:?}: {}", filepath, err)
                         }
                     },
+                    _ => {}
                 }
                 bar.inc(1);
             });

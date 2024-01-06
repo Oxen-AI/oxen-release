@@ -73,6 +73,18 @@ pub fn backup_schema(repository: &LocalRepository, schema: &Schema) -> Result<()
     Ok(())
 }
 
+pub fn backup_entry(
+    repository: &LocalRepository,
+    committer: &CommitDirEntryWriter,
+    entry: &Entry,
+    filepath: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    match entry {
+        Entry::CommitEntry(entry) => backup_file(repository, committer, entry, filepath),
+        Entry::SchemaEntry(schema) => backup_schema(repository, &schema.schema),
+    }
+}
+
 pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
 }
