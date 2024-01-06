@@ -149,8 +149,9 @@ mod tests {
         .await
     }
 
+    // TODONOW change this to schema
     #[tokio::test]
-    async fn test_remote_get_schema() -> Result<(), OxenError> {
+    async fn test_remote_get_schema2() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("csvs");
@@ -159,6 +160,7 @@ mod tests {
             let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
             util::fs::copy(from_file, &csv_file)?;
 
+            log::debug!("add commit");
             // Add the file
             command::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
@@ -180,6 +182,7 @@ mod tests {
                     "values": [0, 1, 2]
                 }
             );
+            log::debug!("metadata stuff");
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
             command::schemas::add_column_metadata(
                 &local_repo,
@@ -195,18 +198,22 @@ mod tests {
             command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
 
             // Create the repo
+            log::debug!("remote create");
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Cannot get schema that does not exist
+            log::debug!("get when not exist");
             let result =
                 api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv")
                     .await?;
             assert!(result.is_none());
 
+            log::debug!("push");
             // Push the repo
             command::push(&local_repo).await?;
 
             // List the one schema
+            log::debug!("get when exist");
             let schema =
                 api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv")
                     .await?;

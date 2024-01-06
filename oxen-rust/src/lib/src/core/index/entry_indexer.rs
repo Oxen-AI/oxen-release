@@ -17,6 +17,7 @@ use crate::core::index::{
     CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
 };
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
@@ -573,6 +574,17 @@ impl EntryIndexer {
                     &local_parent,
                     commit,
                 )?;
+
+                let schemas = api::local::entries::read_unsynced_schemas(
+                    &self.repository,
+                    &local_parent,
+                    commit,
+                )?;
+
+                // Collec these both together as Entry
+                let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
+                entries.extend(schemas.into_iter().map(|e| Entry::from(e)));
+
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
                     entries,
@@ -582,7 +594,7 @@ impl EntryIndexer {
 
         // Pull flattened entries
         // Flatten unsynced_entries
-        let mut all_entries: Vec<CommitEntry> = Vec::new();
+        let mut all_entries: Vec<Entry> = Vec::new();
         for commit_with_entries in &unsynced_entries {
             all_entries.extend(commit_with_entries.entries.clone());
         }
@@ -590,7 +602,7 @@ impl EntryIndexer {
         // Only pull entries with unique hashes to save storage and data transfe for duplicate and/or moved files.
         let mut seen_entries: HashSet<String> = HashSet::new();
         all_entries.retain(|entry| {
-            let key = format!("{}{}", entry.hash, entry.extension());
+            let key = format!("{}{}", entry.hash(), entry.extension());
             seen_entries.insert(key)
         });
 
@@ -695,7 +707,7 @@ impl EntryIndexer {
     pub fn unpack_version_files_to_working_dir(
         &self,
         commit: &Commit,
-        entries: &[CommitEntry],
+        entries: &[Entry],
         bar: &Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
         //TODOFIX: Is this the same logic as the previous `self.group` in commit
@@ -703,10 +715,10 @@ impl EntryIndexer {
         dir_entries.par_iter().for_each(|(dir, entries)| {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path);
+                let filepath = self.repository.path.join(&entry.path());
                 if versioner::should_copy_entry(entry, &filepath) {
-                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
-                    let version_path = util::fs::version_path(&self.repository, entry);
+                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
+                    let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
                         Ok(_) => {}
                         Err(err) => {
@@ -714,14 +726,16 @@ impl EntryIndexer {
                         }
                     }
                 }
-                match util::fs::metadata(&filepath) {
-                    Ok(metadata) => {
-                        let mtime = FileTime::from_last_modification_time(&metadata);
-                        committer.set_file_timestamps(entry, &mtime).unwrap();
-                    }
-                    Err(err) => {
-                        log::error!("Could not update timestamp for {:?}: {}", filepath, err);
-                    }
+                match entry {
+                    Entry::File(file) => match util::fs::metadata(&filepath) {
+                        Ok(metadata) => {
+                            let mtime = FileTime::from_unix_time(file.modified_at, 0);
+                            committer.set_file_timestamps(entry, &mtime).unwrap();
+                        }
+                        Err(err) => {
+                            log::error!("Could not update timestamp for {:?}: {}", filepath, err)
+                        }
+                    },
                 }
                 bar.inc(1);
             });

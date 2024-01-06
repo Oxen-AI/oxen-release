@@ -120,9 +120,14 @@ impl SchemaReader {
         let path_parent = path.as_ref().parent().unwrap_or(Path::new(""));
 
         // Get the parent dir hash in which the schema is stored
-        log::debug!("getting parent dir hash for path {:?}", path_parent);
-        let parent_dir_hash: String =
-            path_db::get_entry(&self.dir_hashes_db, path_parent.to_str().unwrap())?.unwrap();
+        let parent_dir_hash: Option<String> =
+            path_db::get_entry(&self.dir_hashes_db, path_parent.to_str().unwrap())?;
+
+        if parent_dir_hash.is_none() {
+            return Ok(None);
+        }
+
+        let parent_dir_hash = parent_dir_hash.unwrap();
 
         let parent_dir_obj: TreeObject = self.object_reader.get_dir(&parent_dir_hash)?.unwrap();
 
@@ -169,8 +174,9 @@ impl SchemaReader {
     pub fn list_schemas(&self) -> Result<HashMap<PathBuf, Schema>, OxenError> {
         log::debug!("calling list schemas");
         let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
+        log::debug!("list_schemas got root hash {:?}", root_hash);
         let root_node: TreeObject = self.object_reader.get_dir(&root_hash)?.unwrap();
-
+        log::debug!("list_schemas got root node {:?}", root_node);
         let mut path_vals: HashMap<PathBuf, Schema> = HashMap::new();
 
         self.r_list_schemas(root_node, &mut path_vals)?;
@@ -183,6 +189,7 @@ impl SchemaReader {
         dir_node: TreeObject,
         path_vals: &mut HashMap<PathBuf, Schema>,
     ) -> Result<(), OxenError> {
+        log::debug!("calling r_list_schemas on dir_node {:?}", dir_node);
         for vnode in dir_node.children() {
             let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
             for child in vnode.children() {
@@ -193,7 +200,9 @@ impl SchemaReader {
                     }
                     TreeObjectChild::Schema { path, hash, .. } => {
                         let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
+                        log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
                         let found_schema = self.get_schema_by_hash(&hash)?;
+                        log::debug!("got found schema {:?}", found_schema);
                         path_vals.insert(stripped_path.to_path_buf(), found_schema);
                     }
                     _ => {}
@@ -207,26 +216,44 @@ impl SchemaReader {
         &self,
         schema_ref: impl AsRef<str>,
     ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-        let schema_ref = schema_ref.as_ref();
-        // This is a map of paths to schema hashes
-        let paths_to_hashes: HashMap<String, String> = str_val_db::hash_map(&self.schema_files_db)?;
+        let all_schemas = self.list_schemas()?;
 
-        // This is a map of hashes to schemas
-        let hash_to_schemas: HashMap<String, Schema> = str_json_db::hash_map(&self.schema_db)?;
+        let mut found_schemas: HashMap<PathBuf, Schema> = HashMap::new();
 
-        // For each path, get the schema
-        let path_vals: HashMap<PathBuf, Schema> = paths_to_hashes
-            .iter()
-            .map(|(k, v)| (PathBuf::from(k), hash_to_schemas.get(v).unwrap().clone()))
-            .filter(|(k, v)| {
-                k.to_string_lossy() == schema_ref
-                    || v.hash == schema_ref
-                    || v.name == Some(schema_ref.to_string())
-            })
-            .collect();
-
-        Ok(path_vals)
+        for (path, schema) in all_schemas.iter() {
+            if path.to_string_lossy() == schema_ref.as_ref()
+                || schema.hash == schema_ref.as_ref()
+                || schema.name == Some(schema_ref.as_ref().to_string())
+            {
+                found_schemas.insert(path.clone(), schema.clone());
+            }
+        }
+        Ok(found_schemas)
     }
+    // pub fn list_schemas_for_ref(
+    //     &self,
+    //     schema_ref: impl AsRef<str>,
+    // ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
+    //     let schema_ref = schema_ref.as_ref();
+    //     // This is a map of paths to schema hashes
+    //     let paths_to_hashes: HashMap<String, String> = str_val_db::hash_map(&self.schema_files_db)?;
+
+    //     // This is a map of hashes to schemas
+    //     let hash_to_schemas: HashMap<String, Schema> = str_json_db::hash_map(&self.schema_db)?;
+
+    //     // For each path, get the schema
+    //     let path_vals: HashMap<PathBuf, Schema> = paths_to_hashes
+    //         .iter()
+    //         .map(|(k, v)| (PathBuf::from(k), hash_to_schemas.get(v).unwrap().clone()))
+    //         .filter(|(k, v)| {
+    //             k.to_string_lossy() == schema_ref
+    //                 || v.hash == schema_ref
+    //                 || v.name == Some(schema_ref.to_string())
+    //         })
+    //         .collect();
+
+    //     Ok(path_vals)
+    // }
 
     fn get_schema_by_hash(&self, hash: &str) -> Result<Schema, OxenError> {
         let version_path =

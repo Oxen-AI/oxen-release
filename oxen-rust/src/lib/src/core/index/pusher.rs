@@ -1,8 +1,9 @@
 //! Pushes commits and entries to the remote repository
 //!
 
-use crate::api::local::entries::compute_entries_size;
+use crate::api::local::entries::{compute_entries_size, compute_generic_entries_size};
 use crate::api::remote::commits::ChunkParams;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
 
@@ -21,7 +22,9 @@ use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
 use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{
+    Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, Schema,
+};
 
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
@@ -29,8 +32,13 @@ use crate::{api, util};
 #[derive(Debug)]
 pub struct UnsyncedCommitEntries {
     pub commit: Commit,
-    pub entries: Vec<CommitEntry>,
+    pub entries: Vec<Entry>,
 }
+
+// pub struct UnsyncedCommitSchemas {
+//     pub commit: Commit,
+//     pub schemas: Vec<Schema>,
+// }
 pub async fn push(
     repo: &LocalRepository,
     rb: &RemoteBranch,
@@ -333,14 +341,28 @@ fn get_unsynced_entries_for_commit(
         let entries =
             api::local::entries::read_unsynced_entries(local_repo, &local_parent, commit)?;
 
+        let schemas: Vec<SchemaEntry> =
+            api::local::entries::read_unsynced_schemas(local_repo, &local_parent, commit)?;
+
+        // Get the entries and schemas into one Vec<Entry>
+        let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
+        let schemas: Vec<Entry> = schemas.into_iter().map(|e| Entry::from(e)).collect();
+        entries.extend(schemas);
+
         log::debug!(
             "got unsynced entries for commit {:#?}: {:#?}",
             commit,
             entries
         );
 
+        log::debug!(
+            "got unsynced schemas for commit {:#?}: {:#?}",
+            commit,
+            schemas
+        );
+
         // Get size of these entries
-        let entries_size = api::local::entries::compute_entries_size(&entries)?;
+        let entries_size = api::local::entries::compute_generic_entries_size(&entries)?;
         total_size += entries_size;
 
         unsynced_commits.push(UnsyncedCommitEntries {
@@ -650,7 +672,7 @@ async fn push_missing_commit_entries(
         }
     }
 
-    let mut unsynced_entries: Vec<CommitEntry> = unsynced_entries
+    let mut unsynced_entries: Vec<Entry> = unsynced_entries
         .iter()
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
@@ -665,11 +687,11 @@ async fn push_missing_commit_entries(
     // Dedupe unsynced_entries on hash and file extension to form unique version path names
     let mut seen_entries: HashSet<String> = HashSet::new();
     unsynced_entries.retain(|e| {
-        let key = format!("{}{}", e.hash.clone(), e.extension());
+        let key = format!("{}{}", e.hash().clone(), e.extension());
         seen_entries.insert(key)
     });
 
-    let total_size = compute_entries_size(&unsynced_entries)?;
+    let total_size = compute_generic_entries_size(&unsynced_entries)?;
 
     println!("🐂 Pushing {}", bytesize::ByteSize::b(total_size));
 
@@ -701,7 +723,7 @@ async fn push_missing_commit_entries(
 async fn push_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    entries: &[CommitEntry],
+    entries: &[Entry],
     commit: &Commit,
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
@@ -715,16 +737,16 @@ async fn push_entries(
     // since bodies will be too big. Hence we chunk and send the big ones, and bundle and send the small ones
 
     // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
-    let smaller_entries: Vec<CommitEntry> = entries
+    let smaller_entries: Vec<Entry> = entries
         .iter()
-        .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() < AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
     // For files larger than AVG_CHUNK_SIZE, we are going break them into chunks and send the chunks in parallel
-    let larger_entries: Vec<CommitEntry> = entries
+    let larger_entries: Vec<Entry> = entries
         .iter()
-        .filter(|e| e.num_bytes > AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() > AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
@@ -765,7 +787,7 @@ async fn push_entries(
 async fn chunk_and_send_large_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
+    entries: Vec<Entry>,
     commit: &Commit,
     chunk_size: u64,
     bar: &Arc<ProgressBar>,
@@ -776,7 +798,7 @@ async fn chunk_and_send_large_entries(
 
     use tokio::time::sleep;
     type PieceOfWork = (
-        CommitEntry,
+        Entry,
         LocalRepository,
         Commit,
         RemoteRepository,
@@ -798,18 +820,6 @@ async fn chunk_and_send_large_entries(
             )
         })
         .collect();
-
-    // for entry in entries {
-    //     let (entry, repo, commit, remote_repo, bar) = entry;
-    //     upload_large_file_chunks(
-    //         entry,
-    //         repo,
-    //         commit,
-    //         remote_repo,
-    //         chunk_size,
-    //         &bar
-    //     ).await;
-    // }
 
     let queue = Arc::new(TaskQueue::new(entries.len()));
     let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
@@ -853,7 +863,7 @@ async fn chunk_and_send_large_entries(
 
 /// Chunk and send large file in parallel
 async fn upload_large_file_chunks(
-    entry: CommitEntry,
+    entry: Entry,
     repo: LocalRepository,
     commit: Commit,
     remote_repo: RemoteRepository,
@@ -861,7 +871,7 @@ async fn upload_large_file_chunks(
     bar: &Arc<ProgressBar>,
 ) {
     // Open versioned file
-    let version_path = util::fs::version_path(&repo, &entry);
+    let version_path = util::fs::version_path_for_entry(&repo, &entry);
     let f = std::fs::File::open(&version_path).unwrap();
     let mut reader = BufReader::new(f);
 
@@ -872,7 +882,7 @@ async fn upload_large_file_chunks(
     let file_name = Some(String::from(path.to_str().unwrap()));
 
     // Calculate chunk sizes
-    let total_bytes = entry.num_bytes;
+    let total_bytes = entry.num_bytes();
     let total_chunks = ((total_bytes / chunk_size) + 1) as usize;
     let mut total_bytes_read = 0;
     let mut chunk_size = chunk_size;
@@ -904,7 +914,7 @@ async fn upload_large_file_chunks(
     let num_sub_chunks = (total_chunks / sub_chunk_size) + 1;
     log::debug!(
         "upload_large_file_chunks {:?} proccessing file in {} subchunks of size {} from total {} chunk size {} file size {}",
-        entry.path,
+        entry.path(),
         num_sub_chunks,
         sub_chunk_size,
         total_chunks,
@@ -936,7 +946,7 @@ async fn upload_large_file_chunks(
             match reader.read_exact(&mut buffer) {
                 Ok(_) => {}
                 Err(err) => {
-                    log::error!("upload_large_file_chunks Error reading file {:?} chunk {total_chunk_idx}/{total_chunks} chunk size {chunk_size} total_bytes_read: {total_bytes_read} total_bytes: {total_bytes} {:?}", entry.path, err);
+                    log::error!("upload_large_file_chunks Error reading file {:?} chunk {total_chunk_idx}/{total_chunks} chunk size {chunk_size} total_bytes_read: {total_bytes_read} total_bytes: {total_bytes} {:?}", entry.path(), err);
                     return;
                 }
             }
@@ -966,7 +976,7 @@ async fn upload_large_file_chunks(
                 total_chunks,
                 total_bytes,
                 remote_repo.to_owned(),
-                entry.hash.to_owned(),
+                entry.hash().to_owned(),
                 commit.to_owned(),
                 file_name.to_owned(),
             ));
@@ -1052,7 +1062,7 @@ async fn upload_large_file_chunks(
 async fn bundle_and_send_small_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
+    entries: Vec<Entry>,
     commit: &Commit,
     avg_chunk_size: u64,
     bar: &Arc<ProgressBar>,
@@ -1062,7 +1072,7 @@ async fn bundle_and_send_small_entries(
     }
 
     // Compute size for this subset of entries
-    let total_size = api::local::entries::compute_entries_size(&entries)?;
+    let total_size = api::local::entries::compute_generic_entries_size(&entries)?;
     let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
 
     let mut chunk_size = entries.len() / num_chunks;
@@ -1073,7 +1083,7 @@ async fn bundle_and_send_small_entries(
     // Split into chunks, zip up, and post to server
     use tokio::time::sleep;
     type PieceOfWork = (
-        Vec<CommitEntry>,
+        Vec<Entry>,
         LocalRepository,
         Commit,
         RemoteRepository,
@@ -1115,7 +1125,7 @@ async fn bundle_and_send_small_entries(
                 let enc = GzEncoder::new(Vec::new(), Compression::default());
                 let mut tar = tar::Builder::new(enc);
                 log::debug!("Chunk size {}", chunk.len());
-                let chunk_size = match compute_entries_size(&chunk) {
+                let chunk_size = match compute_generic_entries_size(&chunk) {
                     Ok(size) => size,
                     Err(e) => {
                         log::error!("Failed to compute entries size: {}", e);
@@ -1125,7 +1135,7 @@ async fn bundle_and_send_small_entries(
 
                 for entry in chunk.into_iter() {
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-                    let version_path = util::fs::version_path(&repo, &entry);
+                    let version_path = util::fs::version_path_for_entry(&repo, &entry);
                     let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                     tar.append_path_with_name(version_path, name).unwrap();

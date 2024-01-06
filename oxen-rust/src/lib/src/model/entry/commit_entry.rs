@@ -1,5 +1,5 @@
 use crate::constants::VERSION_FILE_NAME;
-use crate::model::{Commit, ContentHashable, LocalRepository, RemoteEntry};
+use crate::model::{Commit, ContentHashable, LocalRepository, RemoteEntry, Schema};
 use crate::util;
 
 use filetime::FileTime;
@@ -7,6 +7,61 @@ use serde::{Deserialize, Serialize};
 use std::env;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
+
+#[derive(Clone, Debug)]
+pub enum Entry {
+    CommitEntry(CommitEntry),
+    SchemaEntry(SchemaEntry),
+}
+
+impl Entry {
+    pub fn commit_id(&self) -> String {
+        match self {
+            Entry::CommitEntry(entry) => entry.commit_id,
+            Entry::SchemaEntry(entry) => entry.commit_id,
+        }
+    }
+
+    pub fn path(&self) -> PathBuf {
+        match self {
+            Entry::CommitEntry(entry) => entry.path,
+            Entry::SchemaEntry(entry) => entry.path,
+        }
+    }
+
+    pub fn hash(&self) -> String {
+        match self {
+            Entry::CommitEntry(entry) => entry.hash,
+            Entry::SchemaEntry(entry) => entry.hash,
+        }
+    }
+
+    pub fn num_bytes(&self) -> u64 {
+        match self {
+            Entry::CommitEntry(entry) => entry.num_bytes,
+            Entry::SchemaEntry(entry) => entry.num_bytes,
+        }
+    }
+    pub fn extension(&self) -> String {
+        match self {
+            Entry::CommitEntry(entry) => entry.extension(),
+            Entry::SchemaEntry(entry) => "".to_string(),
+        }
+    }
+}
+
+// get a From for entry
+impl From<CommitEntry> for Entry {
+    fn from(entry: CommitEntry) -> Self {
+        Entry::CommitEntry(entry)
+    }
+}
+
+impl From<SchemaEntry> for Entry {
+    fn from(entry: SchemaEntry) -> Self {
+        Entry::SchemaEntry(entry)
+    }
+}
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitPath {
@@ -22,6 +77,27 @@ pub struct CommitEntry {
     pub num_bytes: u64,
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct SchemaEntry {
+    pub commit_id: String,
+    pub path: PathBuf,
+    pub hash: String,
+    pub schema: Schema,
+    pub num_bytes: u64,
+}
+
+impl SchemaEntry {
+    pub fn new(commit_id: String, path: PathBuf, schema: Schema) -> SchemaEntry {
+        SchemaEntry {
+            commit_id,
+            path,
+            hash: schema.hash.clone(),
+            schema,
+            num_bytes: 1,
+        }
+    }
 }
 
 impl ContentHashable for CommitEntry {
