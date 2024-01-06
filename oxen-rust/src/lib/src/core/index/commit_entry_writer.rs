@@ -319,13 +319,13 @@ impl CommitEntryWriter {
         for (path, staged_schema) in staged_schemas.iter() {
             if staged_schema.status == StagedEntryStatus::Removed {
                 schema_writer.delete_schema(&staged_schema.schema)?;
-                schema_writer.delete_schema_for_file(path, &staged_schema.schema)?;
+                // schema_writer.delete_schema_for_file(path, &staged_schema.schema)?;
             } else {
                 if !schema_writer.has_schema(&staged_schema.schema) {
                     schema_writer.put_schema(&staged_schema.schema)?;
                 }
                 // Map the file to the schema
-                schema_writer.put_schema_for_file(path, &staged_schema.schema)?;
+                // schema_writer.put_schema_for_file(path, &staged_schema.schema)?;
             }
         }
 
@@ -955,6 +955,7 @@ impl CommitEntryWriter {
         for schema_node in schema_nodes {
             let schema_object = TreeObject::Schema {
                 hash: schema_node.schema.hash.clone(),
+                num_bytes: 1,
             };
             path_db::put(&self.schemas_db, schema_object.hash(), &schema_object)?;
             // schema_object.write(&self.repository)?;
@@ -1073,7 +1074,7 @@ impl CommitEntryWriter {
                 }
                 Ok(())
             }
-            TreeObject::File { hash, .. } | TreeObject::Schema { hash } => {
+            TreeObject::File { hash, .. } | TreeObject::Schema { hash, .. } => {
                 log::debug!("yo adding leaf {:?} to db", node);
                 path_db::put(db, hash, &node)?;
                 // We're at a leaf node, so we're done
@@ -1425,6 +1426,7 @@ impl CommitEntryWriter {
 
             let schema_object = TreeObject::Schema {
                 hash: staged_schema.schema.hash.clone(),
+                num_bytes: 1,
             };
 
             log::debug!("putting schema {:?} into schemas_db", schema_object);

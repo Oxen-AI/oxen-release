@@ -7,6 +7,7 @@ use std::path::Path;
 
 use crate::current_function;
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::util;
 
@@ -74,6 +75,13 @@ pub fn backup_schema(repository: &LocalRepository, schema: &Schema) -> Result<()
 
 pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
+}
+
+pub fn should_copy_generic_entry(entry: &Entry, path: &Path) -> bool {
+    match entry {
+        Entry::CommitEntry(entry) => should_copy_entry(entry, path),
+        Entry::SchemaEntry(schema) => should_copy_schema(&schema.schema, path),
+    }
 }
 
 pub fn should_copy_schema(schema: &Schema, path: &Path) -> bool {
