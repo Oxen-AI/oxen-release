@@ -446,64 +446,6 @@ fn compress_commits_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
     Ok(buffer)
 }
 
-// TODONOW: remove
-// pub fn temp_inspect_object_dirs(repo: &LocalRepository, tag: &str) -> Result<(), OxenError> {
-//     log::debug!("{tag}");
-
-//     let objects_dir = util::fs::oxen_hidden_dir(&repo.path).join(OBJECTS_DIR);
-
-//     // TODONOW: get rid of all this crap
-//     let dirs_dir = objects_dir.join(OBJECT_DIRS_DIR);
-//     let files_dir = objects_dir.join(OBJECT_FILES_DIR);
-//     let schemas_dir = objects_dir.join(OBJECT_SCHEMAS_DIR);
-//     let vnodes_dir = objects_dir.join(OBJECT_VNODES_DIR);
-
-//     // create all these dirs
-//     for dir in &[&dirs_dir, &files_dir, &schemas_dir, &vnodes_dir] {
-//         if !dir.exists() {
-//             std::fs::create_dir_all(dir)?;
-//         }
-//     }
-
-//     // open all the dbs
-//     let opts = db::opts::default();
-//     let dirs_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, &dirs_dir, false)?;
-//     let files_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, &files_dir, false)?;
-//     let schemas_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, &schemas_dir, false)?;
-//     let vnodes_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, &vnodes_dir, false)?;
-
-//     let dir_entries: Vec<TreeObject> = path_db::list_entries(&dirs_db)?;
-//     let file_entries: Vec<TreeObject> = path_db::list_entries(&files_db)?;
-//     let schema_entries: Vec<TreeObject> = path_db::list_entries(&schemas_db)?;
-//     let vnode_entries: Vec<TreeObject> = path_db::list_entries(&vnodes_db)?;
-
-//     log::debug!("{tag} doing dirs");
-//     for entry in dir_entries {
-//         log::debug!("putting entry {:?} into dirs db", entry);
-//     }
-
-//     log::debug!("{tag} doing files");
-//     for entry in file_entries {
-//         log::debug!("putting entry {:?} into files db", entry);
-//     }
-
-//     log::debug!("{tag} doing schemas");
-//     for entry in schema_entries {
-//         log::debug!("putting entry {:?} into schemas db", entry);
-//     }
-
-//     log::debug!("{tag} doing vnodes");
-//     for entry in vnode_entries {
-//         log::debug!("putting entry {:?} into vnodes db", entry);
-//     }
-
-//     Ok(())
-// }
-
 fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
     let object_dir = util::fs::oxen_hidden_dir(&repository.path).join(OBJECTS_DIR);
 

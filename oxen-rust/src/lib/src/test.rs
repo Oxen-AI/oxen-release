@@ -1027,9 +1027,7 @@ where
     populate_dir_with_training_data(&repo_dir)?;
 
     // Add all the files
-    log::debug!("fixture add");
     command::add(&repo, &repo.path)?;
-    log::debug!("fixture set name");
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schemas::set_name(
@@ -1038,9 +1036,7 @@ where
         "text_classification",
     )?;
 
-    log::debug!("fixture commit");
     command::commit(&repo, "adding all data baby")?;
-    log::debug!("fixture commit done");
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
         Ok(_) => {}
@@ -1050,7 +1046,8 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    // TODONOW reinstate
+    // util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());

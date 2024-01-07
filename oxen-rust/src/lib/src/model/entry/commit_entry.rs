@@ -93,7 +93,6 @@ pub struct SchemaEntry {
     pub commit_id: String,
     pub path: PathBuf,
     pub hash: String,
-    pub schema: Schema,
     pub num_bytes: u64,
 }
 
@@ -103,7 +102,6 @@ impl SchemaEntry {
             commit_id,
             path,
             hash: schema.hash.clone(),
-            schema,
             num_bytes: 1,
         }
     }

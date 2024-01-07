@@ -152,7 +152,7 @@ pub fn version_path_for_entry(repo: &LocalRepository, entry: &Entry) -> PathBuf 
     match entry {
         Entry::CommitEntry(commit_entry) => version_path(repo, commit_entry),
         Entry::SchemaEntry(schema_entry) => {
-            version_path_from_schema(repo.path.clone(), &schema_entry.schema)
+            version_path_from_schema_hash(repo.path.clone(), schema_entry.hash.clone())
         }
     }
 }
@@ -165,7 +165,7 @@ pub fn version_path_from_dst_generic(dst: impl AsRef<Path>, entry: &Entry) -> Pa
     match entry {
         Entry::CommitEntry(commit_entry) => version_path_from_dst(dst, commit_entry),
         Entry::SchemaEntry(schema_entry) => {
-            version_path_from_schema_hash(dst, schema_entry.schema.hash.clone())
+            version_path_from_schema_hash(dst, schema_entry.hash.clone())
         }
     }
 }

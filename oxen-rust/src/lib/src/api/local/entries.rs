@@ -528,19 +528,8 @@ pub fn read_unsynced_schemas(
     let this_schema_reader = SchemaReader::new(local_repo, &this_commit.id)?;
     let last_schema_reader = SchemaReader::new(local_repo, &last_commit.id)?;
 
-    let this_schemas = this_schema_reader.list_schemas()?;
-    let last_schemas = last_schema_reader.list_schemas()?;
-
-    // Get these as SchemaEntries
-    let this_schemas: Vec<SchemaEntry> = this_schemas
-        .into_iter()
-        .map(|(path, schema)| SchemaEntry::new(this_commit.id.to_string(), path, schema))
-        .collect();
-
-    let last_schemas: Vec<SchemaEntry> = last_schemas
-        .into_iter()
-        .map(|(path, schema)| SchemaEntry::new(last_commit.id.to_string(), path, schema))
-        .collect();
+    let this_schemas = this_schema_reader.list_schema_entries()?;
+    let last_schemas = last_schema_reader.list_schema_entries()?;
 
     let mut schemas_to_sync: Vec<SchemaEntry> = vec![];
 
@@ -564,7 +553,7 @@ pub fn read_unsynced_schemas(
             let last_schema = last_dir_schemas
                 .iter()
                 .find(|s| s.path.file_name().unwrap().to_str().unwrap() == filename);
-            if last_schema.is_none() || last_schema.unwrap().schema.hash != schema.schema.hash {
+            if last_schema.is_none() || last_schema.unwrap().hash != schema.hash {
                 schemas_to_sync.push(schema.clone());
             }
         }
