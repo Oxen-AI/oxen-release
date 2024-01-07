@@ -511,7 +511,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let dirs_to_compress = vec![
         DIRS_DIR,
         FILES_DIR,
-        SCHEMAS_DIR,
+        // SCHEMAS_DIR,
         OBJECTS_DIR,
         TREE_DIR,
         DIR_HASHES_DIR,

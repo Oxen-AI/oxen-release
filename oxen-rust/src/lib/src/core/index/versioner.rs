@@ -89,10 +89,11 @@ pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
 }
 
-pub fn should_copy_generic_entry(entry: &Entry, path: &Path) -> bool {
+// Don't unpack schema files to working dir
+pub fn should_unpack_entry(entry: &Entry, path: &Path) -> bool {
     match entry {
         Entry::CommitEntry(entry) => should_copy_entry(entry, path),
-        Entry::SchemaEntry(schema_entry) => should_copy_schema_entry(&schema_entry, path),
+        Entry::SchemaEntry(schema_entry) => false,
     }
 }
 

@@ -190,10 +190,15 @@ impl EntryIndexer {
         let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
 
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
+        log::debug!("checking if {} commits are synced", commits.len());
         for c in &commits {
             if !index::commit_sync_status::commit_is_synced(&self.repository, c) {
                 unsynced_entry_commits.push(c.clone());
             }
+        }
+
+        for commit in &unsynced_entry_commits {
+            log::debug!("unsynced_entry_commits: {:#?}", commit);
         }
 
         self.pull_tree_objects_for_commits(remote_repo, &unsynced_entry_commits)
@@ -704,6 +709,9 @@ impl EntryIndexer {
         // })
         // .await?;
 
+        let n_entries_to_pull = entries.len();
+        log::debug!("got {} entries to pull", n_entries_to_pull);
+
         // PUll all the entries to the versions dir and then hydrate them into the working dir
         puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path, &|| {
             log::debug!("Pulled entries to versions dir.")
@@ -759,7 +767,7 @@ impl EntryIndexer {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(&entry.path());
-                if versioner::should_copy_generic_entry(entry, &filepath) {
+                if versioner::should_unpack_entry(entry, &filepath) {
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
                     let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
@@ -1021,6 +1029,7 @@ mod tests {
                 let latest_commit = commits.first().unwrap();
                 let page_size = 2;
                 let limit = page_size;
+
                 indexer
                     .pull_entries_for_commit_with_limit(&remote_repo, latest_commit, limit)
                     .await?;
@@ -1029,6 +1038,7 @@ mod tests {
                 assert_eq!(num_files, limit);
 
                 // try to pull the full thing again even though we have only partially pulled some
+                log::debug!("second pull");
                 let rb = RemoteBranch::default();
                 indexer
                     .pull(
@@ -1039,6 +1049,8 @@ mod tests {
                         },
                     )
                     .await?;
+
+                log::debug!("second pull done");
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);
