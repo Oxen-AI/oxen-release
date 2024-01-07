@@ -449,7 +449,8 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
     let new_schemas_dir = tmp_objects_dir.join(OBJECT_SCHEMAS_DIR);
     let new_vnodes_dir = tmp_objects_dir.join(OBJECT_VNODES_DIR);
 
-    let opts = db::opts::default();
+    log::debug!("opening tmp dirs");
+    let mut opts = db::opts::default();
     let new_dirs_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, new_dirs_dir, false)?;
     let new_files_db: DBWithThreadMode<MultiThreaded> =
@@ -459,6 +460,9 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
     let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, new_vnodes_dir, false)?;
 
+    // Create if missing for the local repo dirs - useful in case of remote download to cache dir without full repo
+
+    log::debug!("opening repo dirs");
     let repo_dirs_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, repo_dirs_dir)?;
     let repo_files_db: DBWithThreadMode<MultiThreaded> =
@@ -467,6 +471,8 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
         DBWithThreadMode::open(&opts, repo_schemas_dir)?;
     let repo_vnodes_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, repo_vnodes_dir)?;
+
+    //
 
     let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
     for dir in new_dirs {

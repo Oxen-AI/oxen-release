@@ -1,5 +1,5 @@
 use crate::api::remote::client;
-use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
+use crate::constants::{AVG_CHUNK_SIZE, OBJECTS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
@@ -101,7 +101,17 @@ pub async fn download_dir(
     )
     .await?;
 
-    api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir).await?;
+    let local_objects_dir = repo_cache_dir.join(OBJECTS_DIR);
+    let tmp_objects_dir =
+        api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir).await?;
+    log::debug!(
+        "trying to merge tmp_objects_dir {:?} into local objects dir {:?}",
+        tmp_objects_dir,
+        local_objects_dir
+    );
+    api::local::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+
+    // Merge it in with the (probably not already extant) local objects db
 
     let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
 

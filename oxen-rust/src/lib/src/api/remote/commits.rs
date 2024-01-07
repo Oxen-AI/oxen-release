@@ -803,7 +803,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR, TREE_DIR, DIR_HASHES_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, TREE_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
