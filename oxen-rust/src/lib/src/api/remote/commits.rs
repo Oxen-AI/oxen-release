@@ -421,10 +421,9 @@ pub async fn download_commit_entries_db_to_repo(
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
     download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
 }
-
 pub async fn download_objects_db_to_path(
     remote_repo: &RemoteRepository,
-    path: impl AsRef<Path>,
+    dst: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
     log::debug!("in the downloading objects db fn in remote commits");
     let uri = "/objects_db".to_string();
@@ -433,50 +432,33 @@ pub async fn download_objects_db_to_path(
     log::debug!("{} downloading from {}", current_function!(), url);
 
     let client = client::new_for_url(&url)?;
+    let res = client.get(url).send().await?;
 
-    match client.get(url).send().await {
-        Ok(res) => {
-            // TODO: make sure we're not accidentally nesting this
-            log::debug!("got ok response...");
-            // TODONOW: WE SHOULD NOT ADD EXTRA HIDDEN DIR PATH HERE FYI
-            let path = util::fs::oxen_hidden_dir(path);
-            let reader = res
-                .bytes_stream()
-                .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
-                .into_async_read();
-            log::debug!("init'd the reader");
+    let dst = dst.as_ref();
 
-            let dst: PathBuf = path.clone();
-            let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
-            log::debug!("init'd the decoder");
-            let archive = Archive::new(decoder);
-            log::debug!("got the archive");
-            let unpacked_path = dst.join(OBJECTS_DIR);
-            log::debug!("gonna unpack to {:?}", unpacked_path);
+    // Get the size of the archive
+    let reader = res
+        .bytes_stream()
+        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+        .into_async_read();
+    let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+    let archive = Archive::new(decoder);
 
-            log::debug!("here's the archive");
-            // iterate over archive entries
-
-            if unpacked_path.exists() {
-                log::debug!(
-                    "{} removing existing {:?}",
-                    current_function!(),
-                    unpacked_path
-                );
-                util::fs::remove_dir_all(&unpacked_path)?;
-            }
-
-            archive.unpack(&dst).await?;
-
-            log::debug!("{} writing to {:?}", current_function!(), path);
-
-            Ok(unpacked_path)
-        }
-        Err(err) => {
-            let error = format!("Error fetching commit objects: {}", err);
-            Err(OxenError::basic_str(error))
-        }
+    let unpacked_path = dst.join(OBJECTS_DIR);
+    // If the directory already exists, remove it
+    if unpacked_path.exists() {
+        log::debug!(
+            "{} removing existing {:?}",
+            current_function!(),
+            unpacked_path
+        );
+        util::fs::remove_dir_all(&unpacked_path)?;
     }
+
+    log::debug!("{} writing to {:?}", current_function!(), dst);
+    archive.unpack(dst).await?;
+
+    Ok(unpacked_path)
 }
 
 pub async fn download_objects_db_to_repo(

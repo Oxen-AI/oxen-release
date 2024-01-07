@@ -550,19 +550,7 @@ impl EntryIndexer {
         mut limit: usize,
     ) -> Result<Vec<SchemaEntry>, OxenError> {
         let schema_reader = SchemaReader::new(&self.repository, &commit.id)?;
-        let schemas = schema_reader.list_schemas()?;
-
-        // Convert to vec
-        let schemas: Vec<SchemaEntry> = schemas
-            .into_iter()
-            .map(|(path, schema)| SchemaEntry {
-                commit_id: commit.id.clone(),
-                path,
-                hash: schema.hash.clone(),
-                schema,
-                num_bytes: 1,
-            })
-            .collect();
+        let schemas = schema_reader.list_schema_entries()?;
 
         if limit == 0 {
             limit = schemas.len();
@@ -591,6 +579,7 @@ impl EntryIndexer {
 
         let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
 
+        log::debug!("gathering entries");
         for commit in &commits {
             for parent_id in &commit.parent_ids {
                 let local_parent = commit_reader
@@ -603,11 +592,15 @@ impl EntryIndexer {
                     commit,
                 )?;
 
+                log::debug!("about to read unsynced schemas for commit {}", commit.id);
+
                 let schemas = api::local::entries::read_unsynced_schemas(
                     &self.repository,
                     &local_parent,
                     commit,
                 )?;
+
+                log::debug!("read unsynced schemas for commit {}", commit.id);
 
                 // Collec these both together as Entry
                 let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
@@ -620,6 +613,8 @@ impl EntryIndexer {
             }
         }
 
+        log::debug!("gathered entries");
+
         // Pull flattened entries
         // Flatten unsynced_entries
         let mut all_entries: Vec<Entry> = Vec::new();
@@ -627,13 +622,14 @@ impl EntryIndexer {
             all_entries.extend(commit_with_entries.entries.clone());
         }
 
-        // Only pull entries with unique hashes to save storage and data transfe for duplicate and/or moved files.
+        // Only pull entries with unique hashes to save storage and data transfer for duplicate and/or moved files.
         let mut seen_entries: HashSet<String> = HashSet::new();
         all_entries.retain(|entry| {
             let key = format!("{}{}", entry.hash(), entry.extension());
             seen_entries.insert(key)
         });
 
+        log::debug!("about to pull the entires to the versions dir");
         puller::pull_entries_to_versions_dir(
             remote_repo,
             &all_entries,
@@ -698,44 +694,58 @@ impl EntryIndexer {
         entries.extend(schema_entries.into_iter().map(|e| Entry::from(e)));
 
         // Pull all the entries and unpack them to the versions dir
-        puller::pull_entries_to_working_dir(remote_repo, &entries, &self.repository.path, &|| {
-            self.backup_to_versions_dir(&commit, &entries).unwrap();
+        // puller::pull_entries_to_working_dir(remote_repo, &entries, &self.repository.path, &|| {
+        //     self.backup_to_versions_dir(&commit, &entries).unwrap();
 
-            if limit == 0 {
-                // limit == 0 means we pulled everything, so mark it as complete
-                self.pull_complete(&commit).unwrap();
-            }
+        //     if limit == 0 {
+        //         // limit == 0 means we pulled everything, so mark it as complete
+        //         self.pull_complete(&commit).unwrap();
+        //     }
+        // })
+        // .await?;
+
+        // PUll all the entries to the versions dir and then hydrate them into the working dir
+        puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path, &|| {
+            log::debug!("Pulled entries to versions dir.")
         })
         .await?;
 
-        Ok(())
-    }
+        let entries_to_unpack = entries.len();
 
-    fn backup_to_versions_dir(
-        &self,
-        commit: &Commit,
-        entries: &[Entry],
-        // csv_writer: &mut Writer<File>,
-    ) -> Result<(), OxenError> {
-        if entries.is_empty() {
-            return Ok(());
-        }
+        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
 
-        let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
-
-        dir_entries.par_iter().for_each(|(dir, entries)| {
-            let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
-            entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path());
-
-                versioner::backup_entry(&self.repository, &committer, entry, filepath).unwrap();
-            });
-        });
-
-        log::debug!("Done Unpacking.");
+        println!("🐂 Unpacking files...");
+        self.unpack_version_files_to_working_dir(&commit, &entries, &bar)?;
+        self.pull_complete(&commit).unwrap();
 
         Ok(())
     }
+
+    // fn backup_to_versions_dir(
+    //     &self,
+    //     commit: &Commit,
+    //     entries: &[Entry],
+    //     // csv_writer: &mut Writer<File>,
+    // ) -> Result<(), OxenError> {
+    //     if entries.is_empty() {
+    //         return Ok(());
+    //     }
+
+    //     let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
+
+    //     dir_entries.par_iter().for_each(|(dir, entries)| {
+    //         let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
+    //         entries.par_iter().for_each(|entry| {
+    //             let filepath = self.repository.path.join(&entry.path());
+
+    //             versioner::backup_entry(&self.repository, &committer, entry, filepath).unwrap();
+    //         });
+    //     });
+
+    //     log::debug!("Done Unpacking.");
+
+    //     Ok(())
+    // }
 
     pub fn unpack_version_files_to_working_dir(
         &self,

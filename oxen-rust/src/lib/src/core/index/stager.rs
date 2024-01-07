@@ -1298,17 +1298,33 @@ impl Stager {
         };
 
         // We should be tracking changes to this parent dir too
-        let path_parent = path.parent();
-        if let Some(parent) = path_parent {
-            let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
-            log::debug!("add_schema_for_tabular got parent {:?}", relative_parent);
-            if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
-                log::debug!(
-                    "add_schema_for_tabular({:?}) adding parent {:?}",
-                    path,
-                    relative_parent
-                );
-                path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Added)?;
+        // let path_parent = path.parent();
+        // if let Some(parent) = path_parent {
+        //     let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
+        //     log::debug!("add_schema_for_tabular got parent {:?}", relative_parent);
+        //     if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
+        //         log::debug!(
+        //             "add_schema_for_tabular({:?}) adding parent {:?}",
+        //             path,
+        //             relative_parent
+        //         );
+        //         path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Added)?;
+        //     }
+        // }
+
+        // Need to also include all parents as staged
+        let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+        if let Some(_file_name) = relative.file_name() {
+            // add all parents up to root
+            let mut components = path.components().collect::<Vec<_>>();
+            log::debug!("add_staged_entry_to_db got components {}", components.len());
+            while !components.is_empty() {
+                if let Some(_component) = components.pop() {
+                    let parent: PathBuf = components.iter().collect();
+                    log::debug!("add_staged_entry_to_db got parent {:?}", parent);
+                    log::debug!("add_staged_entry_to_db adding parent {:?}", parent);
+                    path_db::put(&self.dir_db, parent, &StagedEntryStatus::Added)?;
+                }
             }
         }
 
@@ -1341,8 +1357,23 @@ impl Stager {
         path: impl AsRef<Path>,
         new_schema: &schema::Schema,
     ) -> Result<schema::Schema, OxenError> {
+        log::debug!("in update_schema_for_path {:?}", path.as_ref());
         let path = path.as_ref();
         let maybe_schema = self.maybe_get_existing_schema(path)?;
+        let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+        if let Some(_file_name) = relative.file_name() {
+            // add all parents up to root
+            let mut components = path.components().collect::<Vec<_>>();
+            log::debug!("update_schema_for_path got components {}", components.len());
+            while !components.is_empty() {
+                if let Some(_component) = components.pop() {
+                    let parent: PathBuf = components.iter().collect();
+                    log::debug!("update_schema_for_path got parent {:?}", parent);
+                    log::debug!("update_schema_for_path adding parent {:?}", parent);
+                    path_db::put(&self.dir_db, parent, &StagedEntryStatus::Added)?;
+                }
+            }
+        }
         if let Some(mut schema) = maybe_schema {
             log::debug!(
                 "update_schema_field_dtype_overrides found schema for path {:?}\n{}",
@@ -1357,18 +1388,6 @@ impl Stager {
 
             if let Some(metadata) = &new_schema.metadata {
                 schema.metadata = Some(metadata.clone());
-            }
-
-            // We should be tracking changes to this parent dir too
-            let path_parent = path.parent();
-            if let Some(parent) = path_parent {
-                let relative_parent =
-                    util::fs::path_relative_to_dir(parent, &self.repository.path)?;
-                log::debug!("add_file got parent {:?}", relative_parent);
-                if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
-                    log::debug!("add_file({:?}) adding parent {:?}", path, relative_parent);
-                    path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Modified)?;
-                }
             }
 
             schema.update_metadata_from_schema(new_schema);

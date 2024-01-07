@@ -424,7 +424,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cmd_schemas_add_column_to_committed_schema() -> Result<(), OxenError> {
+    async fn test_cmd_schemas_add_column_to_committed_schema2() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv
             let bbox_path = repo
@@ -449,6 +449,7 @@ mod tests {
             let metadata = json!({
                 "root": "images"
             });
+
             command::add(&repo, &bbox_path)?;
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
@@ -469,6 +470,7 @@ mod tests {
             assert_eq!(schemas.len(), 1);
             assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
             let schema = schemas.values().next().unwrap();
+            log::debug!("got schemas {:#?}", schemas);
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");

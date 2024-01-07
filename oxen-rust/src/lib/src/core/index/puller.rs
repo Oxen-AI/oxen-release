@@ -122,7 +122,7 @@ fn get_missing_schema_entries(schemas: &[SchemaEntry], dst: impl AsRef<Path>) ->
     let mut missing_entries: Vec<CommitEntry> = vec![];
 
     for schema in schemas {
-        let version_path = util::fs::version_path_from_schema(dst, &schema.schema);
+        let version_path = util::fs::version_path_from_schema_hash(dst, schema.hash.clone());
         if !version_path.exists() {
             missing_entries.push(CommitEntry::from_path(version_path))
         }

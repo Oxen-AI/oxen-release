@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::current_function;
 use crate::error::OxenError;
-use crate::model::entry::commit_entry::Entry;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::util;
 
@@ -73,17 +73,17 @@ pub fn backup_schema(repository: &LocalRepository, schema: &Schema) -> Result<()
     Ok(())
 }
 
-pub fn backup_entry(
-    repository: &LocalRepository,
-    committer: &CommitDirEntryWriter,
-    entry: &Entry,
-    filepath: impl AsRef<Path>,
-) -> Result<(), OxenError> {
-    match entry {
-        Entry::CommitEntry(entry) => backup_file(repository, committer, entry, filepath),
-        Entry::SchemaEntry(schema) => backup_schema(repository, &schema.schema),
-    }
-}
+// pub fn backup_entry(
+//     repository: &LocalRepository,
+//     committer: &CommitDirEntryWriter,
+//     entry: &Entry,
+//     filepath: impl AsRef<Path>,
+// ) -> Result<(), OxenError> {
+//     match entry {
+//         Entry::CommitEntry(entry) => backup_file(repository, committer, entry, filepath),
+//         Entry::SchemaEntry(schema_entry) => backup_schema(repository, &schema_entry),
+//     }
+// }
 
 pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
@@ -92,14 +92,17 @@ pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
 pub fn should_copy_generic_entry(entry: &Entry, path: &Path) -> bool {
     match entry {
         Entry::CommitEntry(entry) => should_copy_entry(entry, path),
-        Entry::SchemaEntry(schema) => should_copy_schema(&schema.schema, path),
+        Entry::SchemaEntry(schema_entry) => should_copy_schema_entry(&schema_entry, path),
     }
 }
 
-pub fn should_copy_schema(schema: &Schema, path: &Path) -> bool {
-    !path.exists() // TODONOW do we also need "path is different" here
+pub fn should_copy_schema_entry(schema: &SchemaEntry, path: &Path) -> bool {
+    !path.exists() // TODONOW do we also need "hash is different" here
 }
 
+pub fn should_copy_schema(schema: &Schema, path: &Path) -> bool {
+    !path.exists() // TODONOW do we also need "hash is different" here
+}
 fn path_hash_is_different(entry: &CommitEntry, path: &Path) -> bool {
     if let Ok(hash) = util::hasher::hash_file_contents(path) {
         return hash != entry.hash;

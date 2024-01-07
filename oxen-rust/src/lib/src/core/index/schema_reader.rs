@@ -4,6 +4,7 @@ use crate::core::db::{self, path_db};
 use crate::core::db::{str_json_db, str_val_db};
 use crate::core::index::CommitEntryWriter;
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::SchemaEntry;
 use crate::model::Schema;
 use crate::util;
 
@@ -104,12 +105,12 @@ impl SchemaReader {
     //     str_json_db::get(&self.schema_db, hash)
     // }
 
-    pub fn get_schema_hash_for_file<P: AsRef<Path>>(
-        &self,
-        path: P,
-    ) -> Result<Option<String>, OxenError> {
-        str_val_db::get(&self.schema_files_db, path.as_ref().to_str().unwrap())
-    }
+    // pub fn get_schema_hash_for_file<P: AsRef<Path>>(
+    //     &self,
+    //     path: P,
+    // ) -> Result<Option<String>, OxenError> {
+    //     str_val_db::get(&self.schema_files_db, path.as_ref().to_str().unwrap())
+    // }
 
     pub fn get_schema_for_file<P: AsRef<Path>>(
         &self,
@@ -146,21 +147,25 @@ impl SchemaReader {
         let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
 
         log::debug!("got vnode");
+        log::debug!("here's the vnode {:?}", vnode);
         // Binary search for the appropriate schema
         let schema_child: Option<TreeObjectChild> =
-            vnode.binary_search_on_path(&PathBuf::from(schema_path_hash_prefix.clone()))?;
+            vnode.binary_search_on_path(&PathBuf::from(SCHEMAS_TREE_PREFIX).join(path))?;
 
         if schema_child.is_none() {
             return Ok(None);
         }
 
         let schema_child = schema_child.unwrap();
+        log::debug!("got this schema child {:?}", schema_child);
 
         // Get the schema from the versions directory by hash
         let version_path = util::fs::version_path_from_schema_hash(
             &self.repository.path,
             schema_child.hash().to_string(),
         );
+
+        log::debug!("got version path {:?}", version_path);
 
         let schema: Result<Schema, serde_json::Error> =
             serde_json::from_reader(std::fs::File::open(version_path)?);
@@ -204,6 +209,51 @@ impl SchemaReader {
                         let found_schema = self.get_schema_by_hash(&hash)?;
                         log::debug!("got found schema {:?}", found_schema);
                         path_vals.insert(stripped_path.to_path_buf(), found_schema);
+                    }
+                    _ => {}
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn list_schema_entries(&self) -> Result<Vec<SchemaEntry>, OxenError> {
+        let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
+
+        let root_node: TreeObject = self.object_reader.get_dir(&root_hash)?.unwrap();
+
+        let mut entries: Vec<SchemaEntry> = Vec::new();
+
+        self.r_list_schema_entries(root_node, &mut entries)?;
+
+        Ok(entries)
+    }
+
+    fn r_list_schema_entries(
+        &self,
+        dir_node: TreeObject,
+        entries: &mut Vec<SchemaEntry>,
+    ) -> Result<(), OxenError> {
+        for vnode in dir_node.children() {
+            let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
+            for child in vnode.children() {
+                match child {
+                    TreeObjectChild::Dir { hash, .. } => {
+                        let dir_node = self.object_reader.get_dir(&hash)?.unwrap();
+                        self.r_list_schema_entries(dir_node, entries)?;
+                    }
+                    TreeObjectChild::Schema { path, hash, .. } => {
+                        let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
+                        log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
+                        let found_schema = self.object_reader.get_schema(&hash)?.unwrap();
+                        log::debug!("got found schema {:?}", found_schema);
+                        let found_entry = SchemaEntry {
+                            commit_id: self.commit_id.clone(),
+                            path: stripped_path.to_path_buf(),
+                            hash: found_schema.hash().clone(),
+                            num_bytes: 1,
+                        };
+                        entries.push(found_entry);
                     }
                     _ => {}
                 }
