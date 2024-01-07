@@ -546,6 +546,10 @@ impl EntryIndexer {
         if limit == 0 {
             limit = entries.len();
         }
+
+        if limit > entries.len() {
+            limit = entries.len();
+        }
         Ok(entries[0..limit].to_vec())
     }
 
@@ -558,6 +562,9 @@ impl EntryIndexer {
         let schemas = schema_reader.list_schema_entries()?;
 
         if limit == 0 {
+            limit = schemas.len();
+        }
+        if limit > schemas.len() {
             limit = schemas.len();
         }
         Ok(schemas[0..limit].to_vec())
@@ -698,17 +705,6 @@ impl EntryIndexer {
         let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
         entries.extend(schema_entries.into_iter().map(|e| Entry::from(e)));
 
-        // Pull all the entries and unpack them to the versions dir
-        // puller::pull_entries_to_working_dir(remote_repo, &entries, &self.repository.path, &|| {
-        //     self.backup_to_versions_dir(&commit, &entries).unwrap();
-
-        //     if limit == 0 {
-        //         // limit == 0 means we pulled everything, so mark it as complete
-        //         self.pull_complete(&commit).unwrap();
-        //     }
-        // })
-        // .await?;
-
         let n_entries_to_pull = entries.len();
         log::debug!("got {} entries to pull", n_entries_to_pull);
 
@@ -724,36 +720,13 @@ impl EntryIndexer {
 
         println!("🐂 Unpacking files...");
         self.unpack_version_files_to_working_dir(&commit, &entries, &bar)?;
-        self.pull_complete(&commit).unwrap();
+
+        if limit == 0 {
+            self.pull_complete(&commit).unwrap();
+        }
 
         Ok(())
     }
-
-    // fn backup_to_versions_dir(
-    //     &self,
-    //     commit: &Commit,
-    //     entries: &[Entry],
-    //     // csv_writer: &mut Writer<File>,
-    // ) -> Result<(), OxenError> {
-    //     if entries.is_empty() {
-    //         return Ok(());
-    //     }
-
-    //     let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
-
-    //     dir_entries.par_iter().for_each(|(dir, entries)| {
-    //         let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
-    //         entries.par_iter().for_each(|entry| {
-    //             let filepath = self.repository.path.join(&entry.path());
-
-    //             versioner::backup_entry(&self.repository, &committer, entry, filepath).unwrap();
-    //         });
-    //     });
-
-    //     log::debug!("Done Unpacking.");
-
-    //     Ok(())
-    // }
 
     pub fn unpack_version_files_to_working_dir(
         &self,
