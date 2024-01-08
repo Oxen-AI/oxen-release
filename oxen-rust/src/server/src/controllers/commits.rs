@@ -60,6 +60,7 @@ use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::convert::TryFrom;
+use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
@@ -490,6 +491,12 @@ pub async fn download_commit_entries_db(
         .ok_or(OxenError::revision_not_found(commit_or_branch.into()))?;
 
     let buffer = compress_commit(&repository, &commit)?;
+
+    let file_path = format!("/Users/ben/tars/server_commit_{}.tar.gz", commit.id); // change this to your desired path
+
+    let mut file = File::create(file_path)?;
+    file.write_all(&buffer)?;
+
     Ok(HttpResponse::Ok().body(buffer))
 }
 
@@ -508,6 +515,41 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
 
     // Ignore cache and other dirs, only take what we need
+
+    // TODONOW delete - let's peek into the dir_hashes for this commit...
+
+    let opts = db::opts::default();
+    let dir_hashes_dir = commit_dir.join(DIR_HASHES_DIR);
+    let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_dir, false)?;
+    let iter = dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
+    log::debug!("iterating over dir_hashes_db for commit {}", commit.id);
+    for item in iter {
+        match item {
+            Ok((key, value)) => {
+                let key = match std::str::from_utf8(&key) {
+                    Ok(k) => k,
+                    Err(e) => {
+                        log::error!("Failed to convert key to string: {:?}", e);
+                        continue;
+                    }
+                };
+                let value = match std::str::from_utf8(&value) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        log::error!("Failed to convert value to string: {:?}", e);
+                        continue;
+                    }
+                };
+                log::debug!("key {:?} value {:?}", key, value);
+            }
+            Err(e) => {
+                log::error!("Iterator error: {:?}", e);
+            }
+        }
+    }
+    log::debug!("done iterating for commit {}", commit.id);
+
     let dirs_to_compress = vec![
         DIRS_DIR,
         FILES_DIR,
@@ -524,6 +566,8 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
             tar.append_dir_all(&tar_path, full_path)?;
         }
     }
+
+    // Examine the full file structure of the tar
 
     tar.finish()?;
 
