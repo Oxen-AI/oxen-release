@@ -9,6 +9,7 @@ use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core::index;
 use crate::core::index::CommitEntryReader;
+use crate::core::index::SchemaReader;
 use crate::core::index::Stager;
 use crate::error::OxenError;
 use crate::model::Branch;
@@ -148,7 +149,13 @@ pub fn stage_file(
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
     let reader = CommitEntryReader::new(repo, &commit)?;
-    stager.add_file(filepath.as_ref(), &reader)?;
+    log::debug!("about to add file in the stager");
+    // Add a schema_reader to stager.add_file for?
+
+    let schema_reader = SchemaReader::new(repo, &commit.id)?;
+
+    stager.add_file(filepath.as_ref(), &reader, &schema_reader)?;
+    log::debug!("done adding file in the stager");
 
     let relative_path = util::fs::path_relative_to_dir(filepath, &staging_dir)?;
     Ok(relative_path)
@@ -185,6 +192,8 @@ pub fn commit(
 
     let staging_dir = branch_staging_dir(repo, branch, user_id);
     let status = status_for_branch(repo, branch_repo, branch)?;
+
+    log::debug!("got branch status: {:#?}", &status);
 
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();

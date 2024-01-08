@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use crate::model::LocalRepository;
 
-use super::ObjectDBReader;
+use super::{CommitReader, ObjectDBReader};
 
 pub struct SchemaReader {
     schema_db: DBWithThreadMode<MultiThreaded>,
@@ -93,6 +93,12 @@ impl SchemaReader {
             repository: repository.clone(),
             commit_id: commit_id.to_owned(),
         })
+    }
+
+    pub fn new_from_head(repository: &LocalRepository) -> Result<SchemaReader, OxenError> {
+        let commit_reader = CommitReader::new(repository)?;
+        let commit = commit_reader.head_commit()?;
+        SchemaReader::new(&repository, &commit.id)
     }
 
     /// See if a commit id exists - this is unused

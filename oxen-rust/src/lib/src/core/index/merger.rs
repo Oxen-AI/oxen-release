@@ -3,10 +3,10 @@ use crate::constants::MERGE_DIR;
 use crate::core::db;
 use crate::core::index::{
     oxenignore, CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
-    RefWriter, Stager,
+    RefWriter, SchemaReader, Stager,
 };
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
+use crate::model::{commit, Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 
 use crate::util;
 
@@ -312,8 +312,9 @@ impl Merger {
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
         let reader = CommitEntryReader::new(repo, &commit)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
         let ignore = oxenignore::create(repo);
-        stager.add(&repo.path, &reader, &ignore)?;
+        stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
 
         let commit_msg = format!(
             "Merge commit {} into {}",
