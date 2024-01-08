@@ -37,6 +37,12 @@ use futures_util::TryStreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
+use tokio::fs::File;
+use tokio::io::{AsyncWriteExt, BufReader};
+
+use bytes::Bytes;
+use futures::StreamExt;
+
 pub struct ChunkParams {
     pub chunk_num: usize,
     pub total_chunks: usize,
@@ -552,6 +558,10 @@ pub async fn download_commit_entries_db_to_path(
 ) -> Result<PathBuf, OxenError> {
     let uri = format!("/commits/{commit_id}/commit_db");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!(
+        "calling download_commit_entries_db_to_path for commit {}",
+        commit_id
+    );
     log::debug!("{} downloading from {}", current_function!(), url);
     let client = client::new_for_url(&url)?;
     match client.get(url).send().await {
@@ -563,7 +573,68 @@ pub async fn download_commit_entries_db_to_path(
                 .into_async_read();
             let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
             let archive = Archive::new(decoder);
-            archive.unpack(path).await?;
+
+            let full_unpacked_path = path.join(HISTORY_DIR).join(commit_id);
+
+            // canonicalize that path
+            // let full_unpacked_path = std::fs::canonicalize(full_unpacked_path)?;
+
+            // If the directory already exists, remove it
+            // if full_unpacked_path.exists() {
+            //     log::debug!(
+            //         "{} removing existing {:?}",
+            //         current_function!(),
+            //         full_unpacked_path
+            //     );
+            //     util::fs::remove_dir_all(&full_unpacked_path)?;
+            // } else {
+            //     log::debug!(
+            //         "{} does not exist {:?}",
+            //         current_function!(),
+            //         full_unpacked_path
+            //     );
+            // }
+
+            let archive_result = archive.unpack(path).await;
+            log::debug!(
+                "archive_result for commit {:?} is {:?}",
+                commit_id,
+                archive_result
+            );
+            archive_result?;
+
+            // For testing, open the dir_hashes db for this commit
+            // let opts = db::opts::default();
+            // let dir_hashes_db_path = path.join(HISTORY_DIR).join(commit_id).join(DIR_HASHES_DIR);
+            // let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            //     DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_db_path, false)?;
+            // let iter = dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
+            // log::debug!("iterating after unpack for commit {}", commit_id);
+            // for item in iter {
+            //     match item {
+            //         Ok((key, value)) => {
+            //             let key = match std::str::from_utf8(&key) {
+            //                 Ok(k) => k,
+            //                 Err(e) => {
+            //                     log::error!("Failed to convert key to string: {:?}", e);
+            //                     continue;
+            //                 }
+            //             };
+            //             let value = match std::str::from_utf8(&value) {
+            //                 Ok(v) => v,
+            //                 Err(e) => {
+            //                     log::error!("Failed to convert value to string: {:?}", e);
+            //                     continue;
+            //                 }
+            //             };
+            //             log::debug!("key {:?} value {:?}", key, value);
+            //         }
+            //         Err(e) => {
+            //             log::error!("Iterator error: {:?}", e);
+            //         }
+            //     }
+            // }
+
             log::debug!("{} writing to {:?}", current_function!(), path);
 
             Ok(path.to_path_buf())

@@ -45,8 +45,8 @@ pub fn get_by_path(
     repo: &LocalRepository,
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
-    log::debug!("trying to get by path");
     let path = path.as_ref();
+    log::debug!("here's our repo path: {:?}", repo.path);
     let commit = api::local::commits::head_commit(repo)?;
     let schema_reader = SchemaReader::new(repo, &commit.id)?;
     schema_reader.get_schema_for_file(path)

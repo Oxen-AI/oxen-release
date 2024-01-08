@@ -1297,21 +1297,6 @@ impl Stager {
             None => schema,
         };
 
-        // We should be tracking changes to this parent dir too
-        // let path_parent = path.parent();
-        // if let Some(parent) = path_parent {
-        //     let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
-        //     log::debug!("add_schema_for_tabular got parent {:?}", relative_parent);
-        //     if !self.has_entry(&relative_parent) && relative_parent != Path::new("") {
-        //         log::debug!(
-        //             "add_schema_for_tabular({:?}) adding parent {:?}",
-        //             path,
-        //             relative_parent
-        //         );
-        //         path_db::put(&self.dir_db, relative_parent, &StagedEntryStatus::Added)?;
-        //     }
-        // }
-
         // Need to also include all parents as staged
         let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         if let Some(_file_name) = relative.file_name() {
