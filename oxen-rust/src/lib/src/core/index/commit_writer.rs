@@ -381,6 +381,10 @@ impl CommitWriter {
         origin_path: &Path,
         branch: &Branch,
     ) -> Result<(), OxenError> {
+        log::debug!(
+            "add from status on remote branch has repository path {:?}",
+            self.repository.path
+        );
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
@@ -758,7 +762,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::core::df;
     use crate::core::index::{
-        self, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter,
+        self, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter, SchemaReader,
     };
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::{ModType, NewMod};
@@ -786,6 +790,7 @@ mod tests {
             // Create committer with no commits
             let repo_path = &repo.path;
             let entry_reader = CommitEntryReader::new_from_head(&repo)?;
+            let schema_reader = SchemaReader::new_from_head(&repo)?;
             let commit_writer = CommitWriter::new(&repo)?;
 
             let train_dir = repo_path.join("training_data");
@@ -801,7 +806,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
 
             // Add a file and a directory
-            stager.add_file(&annotation_file, &entry_reader)?;
+            stager.add_file(&annotation_file, &entry_reader, &schema_reader)?;
             stager.add_dir(&train_dir, &entry_reader)?;
 
             let message = "Adding training data to 🐂";
@@ -893,7 +898,7 @@ mod tests {
             let commit =
                 remote_dir_stager::commit(&repo, &branch_repo, &branch, &new_commit, &identity)?;
 
-            log::debug!("getting entry");
+            log::debug!("post commit getting entry");
             // Make sure version file is updated
             let entry = api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
             log::debug!("getting version file");
@@ -904,19 +909,19 @@ mod tests {
             assert_eq!(
                 format!("{data_frame}"),
                 r"shape: (7, 6)
-    ┌─────────────────┬───────┬───────┬───────┬───────┬────────┐
-    │ file            ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
-    │ ---             ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
-    │ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
-    ╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
-    │ train/dog_1.jpg ┆ dog   ┆ 101.5 ┆ 32.0  ┆ 385   ┆ 330    │
-    │ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
-    │ train/dog_2.jpg ┆ dog   ┆ 7.0   ┆ 29.5  ┆ 246   ┆ 247    │
-    │ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
-    │ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
-    │ train/cat_2.jpg ┆ cat   ┆ 30.5  ┆ 44.0  ┆ 333   ┆ 396    │
-    │ images/test.jpg ┆ dog   ┆ 2.0   ┆ 3.0   ┆ 100   ┆ 120    │
-    └─────────────────┴───────┴───────┴───────┴───────┴────────┘"
+┌─────────────────┬───────┬───────┬───────┬───────┬────────┐
+│ file            ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
+│ ---             ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
+│ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
+╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
+│ train/dog_1.jpg ┆ dog   ┆ 101.5 ┆ 32.0  ┆ 385   ┆ 330    │
+│ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
+│ train/dog_2.jpg ┆ dog   ┆ 7.0   ┆ 29.5  ┆ 246   ┆ 247    │
+│ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
+│ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
+│ train/cat_2.jpg ┆ cat   ┆ 30.5  ┆ 44.0  ┆ 333   ┆ 396    │
+│ images/test.jpg ┆ dog   ┆ 2.0   ┆ 3.0   ┆ 100   ┆ 120    │
+└─────────────────┴───────┴───────┴───────┴───────┴────────┘"
             );
             Ok(())
         })

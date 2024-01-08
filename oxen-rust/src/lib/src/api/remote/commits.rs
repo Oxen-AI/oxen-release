@@ -576,26 +576,17 @@ pub async fn download_commit_entries_db_to_path(
 
             let full_unpacked_path = path.join(HISTORY_DIR).join(commit_id);
 
-            // canonicalize that path
-            // let full_unpacked_path = std::fs::canonicalize(full_unpacked_path)?;
+            // TODONOW fix this
 
-            // If the directory already exists, remove it
-            // if full_unpacked_path.exists() {
-            //     log::debug!(
-            //         "{} removing existing {:?}",
-            //         current_function!(),
-            //         full_unpacked_path
-            //     );
-            //     util::fs::remove_dir_all(&full_unpacked_path)?;
-            // } else {
-            //     log::debug!(
-            //         "{} does not exist {:?}",
-            //         current_function!(),
-            //         full_unpacked_path
-            //     );
-            // }
+            // unpack to tmp path and
+            let tmp_path = path.join("tmp").join(commit_id).join("defnothinginhere");
 
-            let archive_result = archive.unpack(path).await;
+            // create the temp path if it doesn't exist
+            if !tmp_path.exists() {
+                std::fs::create_dir_all(&tmp_path)?;
+            }
+
+            let archive_result = archive.unpack(&tmp_path).await;
             log::debug!(
                 "archive_result for commit {:?} is {:?}",
                 commit_id,
@@ -603,37 +594,25 @@ pub async fn download_commit_entries_db_to_path(
             );
             archive_result?;
 
-            // For testing, open the dir_hashes db for this commit
-            // let opts = db::opts::default();
-            // let dir_hashes_db_path = path.join(HISTORY_DIR).join(commit_id).join(DIR_HASHES_DIR);
-            // let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            //     DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_db_path, false)?;
-            // let iter = dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
-            // log::debug!("iterating after unpack for commit {}", commit_id);
-            // for item in iter {
-            //     match item {
-            //         Ok((key, value)) => {
-            //             let key = match std::str::from_utf8(&key) {
-            //                 Ok(k) => k,
-            //                 Err(e) => {
-            //                     log::error!("Failed to convert key to string: {:?}", e);
-            //                     continue;
-            //                 }
-            //             };
-            //             let value = match std::str::from_utf8(&value) {
-            //                 Ok(v) => v,
-            //                 Err(e) => {
-            //                     log::error!("Failed to convert value to string: {:?}", e);
-            //                     continue;
-            //                 }
-            //             };
-            //             log::debug!("key {:?} value {:?}", key, value);
-            //         }
-            //         Err(e) => {
-            //             log::error!("Iterator error: {:?}", e);
-            //         }
-            //     }
-            // }
+            // Now delete `path` if it exists and replace it with `tmp_path`
+            if full_unpacked_path.exists() {
+                log::debug!(
+                    "{} removing existing {:?}",
+                    current_function!(),
+                    full_unpacked_path
+                );
+                util::fs::remove_dir_all(&full_unpacked_path)?;
+            } else {
+                log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
+                std::fs::create_dir_all(&full_unpacked_path)?;
+            }
+
+            // Move the tmp path to the full path
+            log::debug!("renaming {:?} to {:?}", tmp_path, full_unpacked_path);
+            std::fs::rename(
+                &tmp_path.join(HISTORY_DIR).join(commit_id),
+                &full_unpacked_path,
+            )?;
 
             log::debug!("{} writing to {:?}", current_function!(), path);
 

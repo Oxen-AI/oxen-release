@@ -126,6 +126,7 @@ impl Stager {
         &self,
         path: &Path,
         commit_reader: &CommitEntryReader,
+        schema_reader: &SchemaReader,
         ignore: &Option<Gitignore>,
     ) -> Result<(), OxenError> {
         if self.repository.is_shallow_clone() {
@@ -137,13 +138,14 @@ impl Stager {
         }
 
         log::debug!("stager.add({:?})", path);
+        // TODONOW:
 
         // Be able to add the current dir
         if path == Path::new(".") {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
                 let entry_path = self.repository.path.join(path);
-                self.add(&entry_path, commit_reader, ignore)?;
+                self.add(&entry_path, commit_reader, &schema_reader, ignore)?;
             }
             log::debug!("ADD CURRENT DIR: {:?}", path);
             return Ok(());
@@ -161,7 +163,7 @@ impl Stager {
                 Err(err) => Err(err),
             }
         } else {
-            match self.add_file(path, commit_reader) {
+            match self.add_file(path, commit_reader, &schema_reader) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
@@ -976,7 +978,7 @@ impl Stager {
         // Add all untracked files and modified files
         let (dir_paths, total) = self.list_unstaged_files_in_dir(dir);
         // log::debug!("Stager.add_dir {:?} -> {}", dir, total);
-
+        let schema_reader = SchemaReader::new(&self.repository, &entry_reader.commit_id)?;
         // println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
         let msg = format!("Adding directory {short_path:?}");
@@ -1009,7 +1011,12 @@ impl Stager {
                 // log::debug!("paths.par_iter().foreach {:?}", path);
 
                 let full_path = self.repository.path.join(path);
-                match self.add_staged_entry_in_dir_db(&full_path, &entry_reader, &staged_db) {
+                match self.add_staged_entry_in_dir_db(
+                    &full_path,
+                    &entry_reader,
+                    &schema_reader,
+                    &staged_db,
+                ) {
                     Ok(_) => {
                         // all good
                     }
@@ -1072,9 +1079,10 @@ impl Stager {
         &self,
         path: &Path,
         entry_reader: &CommitEntryReader,
+        schema_reader: &SchemaReader,
     ) -> Result<PathBuf, OxenError> {
         log::debug!("--- START OXEN ADD {:?} ---", path);
-        let relative = self.add_staged_entry(path, entry_reader)?;
+        let relative = self.add_staged_entry(path, entry_reader, schema_reader)?;
 
         // We should be tracking changes to this parent dir too
         let path_parent = path.parent();
@@ -1137,6 +1145,7 @@ impl Stager {
         &self,
         path: &Path,
         entry_reader: &CommitEntryReader,
+        schema_reader: &SchemaReader,
     ) -> Result<PathBuf, OxenError> {
         log::debug!("add_staged_entry {:?}", path);
         if let Some(parent) = path.parent() {
@@ -1151,7 +1160,7 @@ impl Stager {
                 object_reader,
             )?;
 
-            self.add_staged_entry_in_dir_db(path, &entry_reader, &staged_db)
+            self.add_staged_entry_in_dir_db(path, &entry_reader, &schema_reader, &staged_db)
         } else {
             log::error!("add_staged_entry no parent... {:?}", path);
             Err(OxenError::file_has_no_parent(path))
@@ -1162,6 +1171,7 @@ impl Stager {
         &self,
         path: &Path,
         entry_reader: &CommitDirEntryReader,
+        schema_reader: &SchemaReader,
         staged_db: &StagedDirEntryDB<T>,
     ) -> Result<PathBuf, OxenError> {
         // We should have normalized to path past repo at this point
@@ -1188,7 +1198,7 @@ impl Stager {
         if let Some(merger) = &self.merger {
             if merger.has_file(&path)? {
                 log::debug!("add_staged_entry_in_dir_db merger has file! {:?}", path);
-                self.add_staged_entry_to_db(&path, &staged_entry, staged_db)?;
+                self.add_staged_entry_to_db(&path, &staged_entry, staged_db, &schema_reader)?;
                 merger.remove_conflict_path(&path)?;
                 return Ok(path);
             }
@@ -1221,7 +1231,7 @@ impl Stager {
         }
 
         log::debug!("add_staged_entry_in_dir_db {:?} {:?}", path, staged_entry);
-        self.add_staged_entry_to_db(&path, &staged_entry, staged_db)?;
+        self.add_staged_entry_to_db(&path, &staged_entry, staged_db, &schema_reader)?;
 
         Ok(path)
     }
@@ -1231,6 +1241,7 @@ impl Stager {
         path: &Path,
         staged_entry: &StagedEntry,
         staged_db: &StagedDirEntryDB<T>,
+        schema_reader: &SchemaReader,
     ) -> Result<(), OxenError> {
         let relative = util::fs::path_relative_to_dir(path, &self.repository.path)?;
         if let Some(file_name) = relative.file_name() {
@@ -1256,7 +1267,7 @@ impl Stager {
 
                 match tabular::read_df(full_path, DFOpts::empty()) {
                     Ok(df) => {
-                        self.add_schema_for_tabular(&df, path)?;
+                        self.add_schema_for_tabular(&df, path, schema_reader)?;
                     }
                     Err(err) => {
                         log::warn!("Could not compute schema for file: {}", err);
@@ -1274,6 +1285,7 @@ impl Stager {
         &self,
         df: &polars::prelude::DataFrame,
         path: &Path,
+        schema_reader: &SchemaReader,
     ) -> Result<(), OxenError> {
         let mut schema = schema::Schema::from_polars(&df.schema());
         log::debug!(
@@ -1283,7 +1295,8 @@ impl Stager {
         );
 
         // if we have schema overrides staged or committed, continue to apply them
-        let maybe_schema: Option<schema::Schema> = self.maybe_get_existing_schema(path)?;
+        let maybe_schema: Option<schema::Schema> =
+            self.maybe_get_existing_schema_from_reader(path, schema_reader)?;
         let schema = match maybe_schema {
             Some(added_schema) => {
                 log::debug!(
@@ -1420,6 +1433,22 @@ impl Stager {
         log::debug!("couldn't find, calling get_by_path");
 
         api::local::schemas::get_by_path(&self.repository, path)
+    }
+
+    fn maybe_get_existing_schema_from_reader(
+        &self,
+        path: impl AsRef<Path>,
+        schema_reader: &SchemaReader,
+    ) -> Result<Option<schema::Schema>, OxenError> {
+        log::debug!("looking for staged schema for path {:?}", path.as_ref());
+        let maybe_schema: Option<StagedSchema> = path_db::get_entry(&self.schemas_db, &path)?;
+        if let Some(staged_schema) = maybe_schema {
+            log::debug!("found staged schema for path {:?}", path.as_ref());
+            return Ok(Some(staged_schema.schema));
+        }
+        log::debug!("couldn't find, calling get_by_path");
+
+        schema_reader.get_schema_for_file(path)
     }
 
     /// Remove a staged schema
@@ -1589,7 +1618,9 @@ impl Stager {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::index::{oxenignore, CommitEntryReader, CommitReader, CommitWriter, Stager};
+    use crate::core::index::{
+        oxenignore, CommitEntryReader, CommitReader, CommitWriter, SchemaReader, Stager,
+    };
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::util;
@@ -1604,6 +1635,7 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
@@ -1614,7 +1646,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
             // Add a file and a directory
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
             stager.add_dir(&sub_dir, &entry_reader)?;
 
             // Make sure the counts start properly
@@ -1639,15 +1671,16 @@ mod tests {
     fn test_stager_add_twice_only_adds_once() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
+            let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id)?;
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add it twice
-            stager.add_file(&hello_file, &entry_reader)?;
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             // Make sure we still only have it once
             let status = stager.status(&entry_reader)?;
@@ -1661,14 +1694,15 @@ mod tests {
     fn test_stager_cannot_add_if_not_modified() -> Result<(), OxenError> {
         test::run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
+            let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id)?;
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
 
             // Add it
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             // Commit it
             let commit_writer = CommitWriter::new(&repo)?;
@@ -1677,8 +1711,9 @@ mod tests {
             stager.unstage()?;
 
             // try to add it again
+            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
             let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             // make sure we don't have it added again, because the hash hadn't changed since last commit
             let status = stager.status(&entry_reader)?;
@@ -1693,9 +1728,12 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             let hello_file = PathBuf::from("non-existant.txt");
-            if stager.add_file(&hello_file, &entry_reader).is_ok() {
+            if stager
+                .add_file(&hello_file, &entry_reader, &schema_reader)
+                .is_ok()
+            {
                 // we don't want to be able to add this file
                 panic!("test_add_non_existant_file() Cannot stage non-existant file")
             }
@@ -1709,9 +1747,9 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             let hello_file = test::add_txt_file_to_dir(&stager.repository.path, "Hello 1")?;
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             let status = stager.status(&entry_reader)?;
             assert_eq!(status.staged_files.len(), 1);
@@ -1752,7 +1790,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             // Write two files to directories
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data").join("deeper");
@@ -1760,7 +1798,9 @@ mod tests {
             let file = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-            assert!(stager.add_file(&file, &entry_reader).is_ok());
+            assert!(stager
+                .add_file(&file, &entry_reader, &schema_reader)
+                .is_ok());
 
             let status = stager.status(&entry_reader)?;
             assert_eq!(status.staged_files.len(), 1);
@@ -1797,13 +1837,14 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
 
             // Stage file
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             // we should be able to fetch this entry json
             let entry = stager.get_entry(relative_path).unwrap().unwrap();
@@ -1819,13 +1860,13 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
 
             // Stage file
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             // List files
             let status = stager.status(&entry_reader)?;
@@ -1842,7 +1883,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data");
@@ -1851,7 +1892,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&sub_dir, "Hello 1")?;
             let sub_file = test::add_txt_file_to_dir(&sub_dir, "Hello 2")?;
 
-            stager.add_file(&sub_file, &entry_reader)?;
+            stager.add_file(&sub_file, &entry_reader, &schema_reader)?;
 
             // List files
             let status = stager.status(&entry_reader)?;
@@ -1871,7 +1912,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let training_data_dir = PathBuf::from("training_data");
@@ -1888,9 +1929,9 @@ mod tests {
             assert_eq!(dirs.len(), 1);
 
             // Then we add all three
-            stager.add_file(&sub_file_1, &entry_reader)?;
-            stager.add_file(&sub_file_2, &entry_reader)?;
-            stager.add_file(&sub_file_3, &entry_reader)?;
+            stager.add_file(&sub_file_1, &entry_reader, &schema_reader)?;
+            stager.add_file(&sub_file_2, &entry_reader, &schema_reader)?;
+            stager.add_file(&sub_file_3, &entry_reader, &schema_reader)?;
 
             // There now there are no untracked directories
             let dirs = stager.status(&entry_reader)?.untracked_dirs;
@@ -1965,12 +2006,12 @@ mod tests {
         test::run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-
+            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
 
             // add the file
-            stager.add_file(&hello_file, &entry_reader)?;
+            stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
             // commit the file
             let status = stager.status(&entry_reader)?;
@@ -2056,7 +2097,7 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-
+            let schema_reader = SchemaReader::new(&repo, &commit.id)?;
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let annotations_dir = PathBuf::from("annotations");
@@ -2073,7 +2114,12 @@ mod tests {
             //   test/
             //     annotations.txt
             let ignore = oxenignore::create(&repo);
-            stager.add(&full_annotations_dir, &entry_reader, &ignore)?;
+            stager.add(
+                &full_annotations_dir,
+                &entry_reader,
+                &schema_reader,
+                &ignore,
+            )?;
 
             // List dirs
             let status = stager.status(&entry_reader)?;
@@ -2213,6 +2259,7 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
 
             // Create 2 sub directories, one with  Write two files to a sub directory
             let repo_path = &stager.repository.path;
@@ -2243,7 +2290,7 @@ mod tests {
             // Add the directory
             stager.add_dir(&train_dir, &entry_reader)?;
             // Add one file
-            let _ = stager.add_file(&base_file_1, &entry_reader)?;
+            let _ = stager.add_file(&base_file_1, &entry_reader, &schema_reader)?;
 
             // List the files
             let staged_files = stager.status(&entry_reader)?.staged_files;
