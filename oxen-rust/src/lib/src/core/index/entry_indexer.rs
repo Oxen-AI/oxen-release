@@ -5,12 +5,14 @@ use filetime::FileTime;
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
+use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
 use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader, Stager};
 use crate::core::index::{
@@ -27,7 +29,7 @@ use crate::util::{self, concurrency};
 use crate::view::repository::RepositoryDataTypesView;
 use crate::{api, current_function};
 
-use super::{pusher, CommitReader, SchemaReader};
+use super::{pusher, CommitEntryWriter, CommitReader, SchemaReader};
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -736,6 +738,11 @@ impl EntryIndexer {
     ) -> Result<(), OxenError> {
         //TODOFIX: Is this the same logic as the previous `self.group` in commit
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
+        let opts = db::opts::default();
+        let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+        let files_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+
         dir_entries.par_iter().for_each(|(dir, entries)| {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
@@ -754,7 +761,9 @@ impl EntryIndexer {
                     Entry::CommitEntry(file) => match util::fs::metadata(&filepath) {
                         Ok(metadata) => {
                             let mtime = FileTime::from_last_modification_time(&metadata);
-                            committer.set_file_timestamps(file, &mtime).unwrap();
+                            committer
+                                .set_file_timestamps(file, &mtime, &files_db)
+                                .unwrap();
                         }
                         Err(err) => {
                             log::error!("Could not update timestamp for {:?}: {}", filepath, err)

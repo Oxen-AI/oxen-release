@@ -44,7 +44,6 @@ impl CommitDirEntryReader {
         CommitDirEntryReader::new_from_path(&repository.path, commit_id, dir, object_reader)
     }
 
-    // TODONOW: Error handling for when we can't find entries.
     pub fn new_from_path(
         base_path: &Path,
         commit_id: &str,
@@ -128,7 +127,6 @@ impl CommitDirEntryReader {
 
         let vnode_child = vnode_child.unwrap();
         // Get the vnode object proper
-        // TODONOW error handling
         let vnode = self
             .object_reader
             .get_vnode(vnode_child.hash())
@@ -214,7 +212,6 @@ impl CommitDirEntryReader {
     pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut files = Vec::new();
         for vnode_child in self.dir_object.children() {
-            // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::File { path, .. } = entry {
@@ -228,7 +225,6 @@ impl CommitDirEntryReader {
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut entries = Vec::new();
         for vnode_child in self.dir_object.children() {
-            // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::File { path, .. } = entry {
@@ -246,7 +242,6 @@ impl CommitDirEntryReader {
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
         let mut entries = HashSet::new();
         for vnode_child in self.dir_object.children() {
-            // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::File { path, .. } = entry {
@@ -313,35 +308,6 @@ impl CommitDirEntryReader {
             entry_i += 1;
         }
 
-        // for vnode_child in self.dir_object.children() {
-        //     // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-        //     let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
-        //     for entry in vnode.children() {
-        //         if let TreeObjectChild::File { path, .. } = entry {
-        //             if entries.len() >= page_size {
-        //                 break;
-        //             }
-
-        //             log::debug!(
-        //                 "considering entry {:?} with entry_i {:?} and start_idx {:?}",
-        //                 entry,
-        //                 entry_i,
-        //                 start_idx
-        //             );
-
-        //             if entry_i >= start_idx {
-        //                 // Get file object by hash
-        //                 let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
-        //                 // Get commit entry from file object
-        //                 let entry = file_object.to_commit_entry(path, &self.commit_id);
-        //                 log::debug!("adding entry to results");
-        //                 entries.push(entry);
-        //             }
-        //             entry_i += 1;
-        //         }
-        //     }
-        // }
-
         Ok(entries)
     }
 
@@ -399,45 +365,6 @@ impl CommitDirEntryReader {
             entry_i += 1;
         }
 
-        // let mut entries: Vec<CommitEntry> = Vec::new();
-        // let start_page = if page == 0 { 0 } else { page - 1 };
-        // let mut start_idx = start_page * page_size;
-        // let mut entry_i = 0;
-        // log::debug!("list_entry_page_with_offset(1) page: {page}, page_size: {page_size}, offset: {offset} start_idx: {start_idx} start_page: {start_page}");
-
-        // if start_idx >= offset {
-        //     start_idx -= offset;
-        // }
-        // log::debug!("list_entry_page_with_offset(2) page: {page}, page_size: {page_size}, offset: {offset} start_idx: {start_idx} start_page: {start_page}");
-
-        // for vnode_child in self.dir_object.children() {
-        //     // Get vnode entry - TODONOW: method here to get the object given a ChildObject and repo?
-        //     let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
-        //     for entry in vnode.children() {
-        //         if let TreeObjectChild::File { path, .. } = entry {
-        //             if entries.len() >= page_size {
-        //                 break;
-        //             }
-
-        //             log::debug!(
-        //                 "considering entry {:?} with entry_i {:?} and start_idx {:?}",
-        //                 entry,
-        //                 entry_i,
-        //                 start_idx
-        //             );
-
-        //             if entry_i >= start_idx {
-        //                 // Get file object by hash
-        //                 let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
-        //                 // Get commit entry from file object
-        //                 let entry = file_object.to_commit_entry(path, &self.commit_id);
-        //                 log::debug!("adding entry to results");
-        //                 entries.push(entry);
-        //             }
-        //             entry_i += 1;
-        //         }
-        //     }
-        // }
         Ok(entries)
     }
 }

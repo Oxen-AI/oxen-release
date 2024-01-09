@@ -185,13 +185,21 @@ impl TreeObject {
         }
     }
 
-    // TODONOW error handling and typing here
     pub fn name(&self) -> &String {
         match self {
             TreeObject::File { .. } => panic!("File does not have a name"),
             TreeObject::Schema { .. } => panic!("Schema does not have a name"),
             TreeObject::Dir { .. } => panic!("Dir does not have a name"),
             TreeObject::VNode { name, .. } => name,
+        }
+    }
+
+    pub fn num_bytes(&self) -> u64 {
+        match self {
+            TreeObject::File { num_bytes, .. } => *num_bytes,
+            TreeObject::Schema { num_bytes, .. } => *num_bytes,
+            TreeObject::Dir { .. } => panic!("num_bytes not defined for dir object"),
+            TreeObject::VNode { .. } => panic!("num_bytes not defined for vnode object"),
         }
     }
 
@@ -233,7 +241,6 @@ impl TreeObject {
         path: &PathBuf,
     ) -> Result<Option<TreeObjectChild>, OxenError> {
         match self {
-            // TODONOW: ERror handling
             TreeObject::File { .. } => panic!("File does not have children"),
             TreeObject::Schema { .. } => panic!("Schema does not have children"),
             TreeObject::Dir { children, .. } => {
@@ -276,7 +283,7 @@ impl TreeObject {
                 last_modified_seconds: *last_modified_seconds,
                 last_modified_nanoseconds: *last_modified_nanoseconds,
             },
-            _ => panic!("Cannot convert non-file object to CommitEntry"), // TODONOW error handling
+            _ => panic!("Cannot convert non-file object to CommitEntry"),
         }
     }
 }

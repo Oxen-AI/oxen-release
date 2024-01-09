@@ -21,49 +21,7 @@ impl CommitTreeReader {
     ) -> Result<Option<TreeObject>, OxenError> {
         match self {
             CommitTreeReader::TreeObjectReader(reader) => reader.get_node_from_child(child),
-            CommitTreeReader::DB(db) => {
-                // TODONOW get rid of this debug print
-                log::debug!("we're looking for child {:?}", child);
-                // Print every item in db
-                let iter = db.iterator(rocksdb::IteratorMode::Start);
-                for item in iter {
-                    match item {
-                        Ok((key_bytes, value_bytes)) => {
-                            match String::from_utf8(key_bytes.to_vec()) {
-                                Ok(key_str) => {
-                                    let key_path = PathBuf::from(key_str);
-
-                                    // Attempting to deserialize the value into TreeNode
-                                    let deserialized_value: Result<TreeObject, _> =
-                                        serde_json::from_slice(&value_bytes);
-                                    match deserialized_value {
-                                        Ok(tree_node) => {
-                                            log::debug!(
-                                                "\n\n client testing entry: {:?} -> {:?}\n\n",
-                                                key_path,
-                                                tree_node
-                                            );
-                                        }
-                                        Err(e) => {
-                                            log::error!(
-                                                "client error deserializing value: {:?}",
-                                                e
-                                            );
-                                        }
-                                    }
-                                }
-                                Err(_) => {
-                                    log::error!("tree_db Could not decode key {:?}", key_bytes);
-                                }
-                            }
-                        }
-                        Err(e) => {
-                            log::error!("tree_db error: {:?}", e);
-                        }
-                    }
-                }
-                path_db::get_entry(db, child.hash())
-            }
+            CommitTreeReader::DB(db) => path_db::get_entry(db, child.hash()),
         }
     }
 
@@ -149,7 +107,6 @@ impl TreeDBMerger {
             return Ok(false); // Changes in only one head commit
         }
 
-        // TODONOW: break this out to specify that all 3 must be dirs or vnodes together
         match (client_node, server_node, lca_node) {
             (
                 TreeObject::Dir {
@@ -245,7 +202,6 @@ impl TreeDBMerger {
         if client_node.hash() == server_node.hash() {
             return Ok(false);
         }
-        // TODONOW: separate out vnodes from dirs to ensure are same
         match (client_node, server_node) {
             (
                 TreeObject::Dir {
@@ -259,7 +215,6 @@ impl TreeDBMerger {
                 TreeObject::Dir { .. } | TreeObject::VNode { .. },
             ) => {
                 for child in client_children {
-                    // visited_paths.insert(child.path());
                     let client_child: Option<TreeObject> =
                         self.client_reader.get_entry_from_child(child)?;
 
@@ -290,7 +245,6 @@ impl TreeDBMerger {
             return Ok(false);
         }
 
-        // TODONOW: separate out vnodes from dirs to ensure are same
         match (head, lca) {
             (
                 TreeObject::Dir {
@@ -310,9 +264,6 @@ impl TreeDBMerger {
                     ..
                 },
             ) => {
-                // TODONOW: We might not need these hashsets
-                // TODONOW: these could be broken out into a Some None Some vs. Nome Some Some
-                // architecture if worried about symmetry
                 // Recurse down on children
                 let mut visited_paths: HashSet<&PathBuf> = HashSet::new();
 

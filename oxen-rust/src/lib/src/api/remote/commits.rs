@@ -576,10 +576,11 @@ pub async fn download_commit_entries_db_to_path(
 
             let full_unpacked_path = path.join(HISTORY_DIR).join(commit_id);
 
-            // TODONOW fix this
+            // TODO: This is to avoid a race condition caused by another process initializing the
+            // dirs db while the tarball is being unpacked, leading to an error.
 
-            // unpack to tmp path and
-            let tmp_path = path.join("tmp").join(commit_id).join("defnothinginhere");
+            // Find out what is causing this, then revert this to unpack directly in the final path
+            let tmp_path = path.join("tmp").join(commit_id).join("objects_db");
 
             // create the temp path if it doesn't exist
             if !tmp_path.exists() {
@@ -853,7 +854,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, TREE_DIR, DIR_HASHES_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);

@@ -288,6 +288,12 @@ impl Schema {
             format!("{}", table)
         }
     }
+    // For storing in SchemaEntries - might be a better way to do this, but
+    // not a direct parallel with CommitEntry because it doesn't live in the working directory
+    pub fn num_bytes(&self) -> u64 {
+        let bytes = serde_json::to_string(&self).unwrap().as_bytes().len();
+        bytes as u64
+    }
 }
 
 impl fmt::Display for Schema {

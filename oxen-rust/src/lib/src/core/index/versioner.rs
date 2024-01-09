@@ -13,46 +13,46 @@ use crate::util;
 
 use super::CommitDirEntryWriter;
 
-pub fn backup_file(
-    repository: &LocalRepository,
-    committer: &CommitDirEntryWriter,
-    entry: &CommitEntry,
-    filepath: impl AsRef<Path>,
-) -> Result<(), OxenError> {
-    let version_path = util::fs::version_path(repository, entry);
-    let filepath = filepath.as_ref();
-    if should_copy_entry(entry, &version_path) {
-        log::debug!("{} unpack {:?}", current_function!(), entry.path);
-        match util::fs::copy_mkdir(filepath, &version_path) {
-            Ok(_) => {}
-            Err(err) => {
-                log::error!(
-                    "Could not copy {:?} to {:?}: {}",
-                    version_path,
-                    filepath,
-                    err
-                );
-            }
-        }
+// pub fn backup_file(
+//     repository: &LocalRepository,
+//     committer: &CommitDirEntryWriter,
+//     entry: &CommitEntry,
+//     filepath: impl AsRef<Path>,
+// ) -> Result<(), OxenError> {
+//     let version_path = util::fs::version_path(repository, entry);
+//     let filepath = filepath.as_ref();
+//     if should_copy_entry(entry, &version_path) {
+//         log::debug!("{} unpack {:?}", current_function!(), entry.path);
+//         match util::fs::copy_mkdir(filepath, &version_path) {
+//             Ok(_) => {}
+//             Err(err) => {
+//                 log::error!(
+//                     "Could not copy {:?} to {:?}: {}",
+//                     version_path,
+//                     filepath,
+//                     err
+//                 );
+//             }
+//         }
 
-        log::debug!(
-            "{} updating timestamp for {:?}",
-            current_function!(),
-            filepath
-        );
+//         log::debug!(
+//             "{} updating timestamp for {:?}",
+//             current_function!(),
+//             filepath
+//         );
 
-        match util::fs::metadata(filepath) {
-            Ok(metadata) => {
-                let mtime = FileTime::from_last_modification_time(&metadata);
-                committer.set_file_timestamps(entry, &mtime)?;
-            }
-            Err(err) => {
-                log::error!("Could not update timestamp for {:?}: {}", filepath, err);
-            }
-        }
-    }
-    Ok(())
-}
+//         match util::fs::metadata(filepath) {
+//             Ok(metadata) => {
+//                 let mtime = FileTime::from_last_modification_time(&metadata);
+//                 committer.set_file_timestamps(entry, &mtime)?;
+//             }
+//             Err(err) => {
+//                 log::error!("Could not update timestamp for {:?}: {}", filepath, err);
+//             }
+//         }
+//     }
+//     Ok(())
+// }
 
 pub fn backup_schema(repository: &LocalRepository, schema: &Schema) -> Result<(), OxenError> {
     log::debug!("backing up schema {:?}", schema);

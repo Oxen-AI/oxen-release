@@ -536,15 +536,6 @@ pub fn read_unsynced_schemas(
     let this_grouped = api::local::entries::group_schemas_to_parent_dirs(&this_schemas);
     let last_grouped = api::local::entries::group_schemas_to_parent_dirs(&last_schemas);
 
-    log::debug!("for commit {:#?}", this_commit);
-    log::debug!("and last commit {:#?}", last_commit);
-
-    log::debug!("this_schemas: {:#?}", this_grouped);
-    log::debug!("last_schemas: {:#?}", last_grouped);
-
-    // Might not need to group into dirs since we don't have direntryreaders
-
-    // TODONOW: Can be made more efficient with sets
     let empty_vec = Vec::new();
     for (dir, dir_schemas) in this_grouped.iter() {
         let last_dir_schemas = last_grouped.get(dir).unwrap_or(&empty_vec);

@@ -114,8 +114,6 @@ impl Commit {
         }
     }
 
-    // TODONOW - change the above initialization - should be a param - etc.
-
     pub fn update_root_hash(&mut self, root_hash: String) {
         self.root_hash = Some(root_hash);
     }

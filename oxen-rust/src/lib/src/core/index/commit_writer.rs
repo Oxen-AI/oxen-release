@@ -518,7 +518,17 @@ impl CommitWriter {
         let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
         let commit_entries = commit_entry_reader.list_entries()?;
 
-        self.restore_missing_files(&commit.id, &commit_entries, &mut candidate_dirs_to_rm)?;
+        let opts = db::opts::default();
+        let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+        let files_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+
+        self.restore_missing_files(
+            &commit.id,
+            &commit_entries,
+            &mut candidate_dirs_to_rm,
+            &files_db,
+        )?;
 
         log::debug!("candidate_dirs_to_rm {}", candidate_dirs_to_rm.len());
         if !candidate_dirs_to_rm.is_empty() {
@@ -545,6 +555,7 @@ impl CommitWriter {
         commit_id: &str,
         entries: &[CommitEntry],
         candidate_dirs_to_rm: &mut HashSet<PathBuf>,
+        files_db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         println!("Setting working directory to {commit_id}");
         let size: u64 = unsafe { std::mem::transmute(entries.len()) };
@@ -588,6 +599,7 @@ impl CommitWriter {
                         &entry.path,
                         entry,
                         &committer,
+                        files_db,
                     ) {
                         Ok(_) => {}
                         Err(err) => {
@@ -618,6 +630,7 @@ impl CommitWriter {
                             &entry.path,
                             entry,
                             &committer,
+                            files_db,
                         ) {
                             Ok(_) => {}
                             Err(err) => {
