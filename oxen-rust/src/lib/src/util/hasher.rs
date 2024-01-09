@@ -137,7 +137,6 @@ pub fn hash_path<P: AsRef<Path>>(path: P) -> String {
     hash_str(path.as_ref().to_str().unwrap())
 }
 
-// TODONOW idk...
 pub fn hash_pathbuf(path: &Path) -> String {
     hash_str(path.to_str().unwrap())
 }

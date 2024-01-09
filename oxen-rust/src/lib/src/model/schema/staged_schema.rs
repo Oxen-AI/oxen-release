@@ -11,7 +11,6 @@ pub enum StagedSchemaStatus {
     Removed,
 }
 
-// TODONOW: Do we need to include actual schema information on here
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StagedSchema {
     pub schema: Schema,

@@ -138,7 +138,6 @@ impl Stager {
         }
 
         log::debug!("stager.add({:?})", path);
-        // TODONOW:
 
         // Be able to add the current dir
         if path == Path::new(".") {
@@ -1394,7 +1393,6 @@ impl Stager {
                 schema: schema.to_owned(),
                 status: StagedEntryStatus::Modified,
             };
-            // TODONOW: modified if nothing actually changes?
             path_db::put(&self.schemas_db, path, &staged_schema)?;
         } else {
             // If it doesn't exist, create the schema just based on the fields

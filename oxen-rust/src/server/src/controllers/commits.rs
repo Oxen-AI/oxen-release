@@ -515,49 +515,13 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let mut tar = tar::Builder::new(enc);
 
     // Ignore cache and other dirs, only take what we need
-
-    // TODONOW delete - let's peek into the dir_hashes for this commit...
-
     let opts = db::opts::default();
     let dir_hashes_dir = commit_dir.join(DIR_HASHES_DIR);
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_dir, false)?;
     let iter = dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
-    log::debug!("iterating over dir_hashes_db for commit {}", commit.id);
-    for item in iter {
-        match item {
-            Ok((key, value)) => {
-                let key = match std::str::from_utf8(&key) {
-                    Ok(k) => k,
-                    Err(e) => {
-                        log::error!("Failed to convert key to string: {:?}", e);
-                        continue;
-                    }
-                };
-                let value = match std::str::from_utf8(&value) {
-                    Ok(v) => v,
-                    Err(e) => {
-                        log::error!("Failed to convert value to string: {:?}", e);
-                        continue;
-                    }
-                };
-                log::debug!("key {:?} value {:?}", key, value);
-            }
-            Err(e) => {
-                log::error!("Iterator error: {:?}", e);
-            }
-        }
-    }
-    log::debug!("done iterating for commit {}", commit.id);
 
-    let dirs_to_compress = vec![
-        DIRS_DIR,
-        FILES_DIR,
-        // SCHEMAS_DIR,
-        OBJECTS_DIR,
-        TREE_DIR,
-        DIR_HASHES_DIR,
-    ];
+    let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -1284,77 +1248,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
 
     log::debug!("Done decompressing.");
 }
-
-// fn merge_objects_dbs(hidden_dir: PathBuf) -> Result<(), OxenError> {
-//     log::debug!("merging objects dbs");
-
-//     let repo_objects_dir = hidden_dir.join(OBJECTS_DIR);
-
-//     let tmp_objects_dir = hidden_dir.join("tmp").join("objects"); // TODONOW here
-
-//     let repo_dirs_dir = repo_objects_dir.join(OBJECT_DIRS_DIR);
-//     let repo_files_dir = repo_objects_dir.join(OBJECT_FILES_DIR);
-//     let repo_schemas_dir = repo_objects_dir.join(OBJECT_SCHEMAS_DIR);
-//     let repo_vnodes_dir = repo_objects_dir.join(OBJECT_VNODES_DIR);
-
-//     let new_dirs_dir = tmp_objects_dir.join(OBJECT_DIRS_DIR);
-//     let new_files_dir = tmp_objects_dir.join(OBJECT_FILES_DIR);
-//     let new_schemas_dir = tmp_objects_dir.join(OBJECT_SCHEMAS_DIR);
-//     let new_vnodes_dir = tmp_objects_dir.join(OBJECT_VNODES_DIR);
-
-//     log::debug!("opening temp dir dbs");
-//     // Open read only multithreaded rocksdbs to all the new dir locations
-//     let opts = db::opts::default();
-//     let new_dirs_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, new_dirs_dir, false)?;
-//     let new_files_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, new_files_dir, false)?;
-//     let new_schemas_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, new_schemas_dir, false)?;
-//     let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open_for_read_only(&opts, new_vnodes_dir, false)?;
-
-//     log::debug!("opening repo object dbs");
-//     // Simialrly, open read only databases to all the old dir locations
-//     let repo_dirs_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open(&opts, repo_dirs_dir)?;
-//     let repo_files_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open(&opts, repo_files_dir)?;
-//     let repo_schemas_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open(&opts, repo_schemas_dir)?;
-//     let repo_vnodes_db: DBWithThreadMode<MultiThreaded> =
-//         DBWithThreadMode::open(&opts, repo_vnodes_dir)?;
-
-//     let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
-//     let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
-//     let new_schemas: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
-//     let new_vnodes: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
-
-//     log::debug!("doing dirs reverse");
-//     for dir in &new_dirs {
-//         path_db::put(&repo_dirs_db, dir.hash(), dir)?;
-//     }
-
-//     log::debug!("doing files reverse");
-//     for file in &new_files {
-//         path_db::put(&repo_files_db, file.hash(), file)?;
-//     }
-
-//     log::debug!("doing schemas reverse");
-//     for schema in &new_schemas {
-//         path_db::put(&repo_schemas_db, schema.hash(), schema)?;
-//     }
-
-//     log::debug!("doing vnodes reverse");
-//     for vnode in &new_vnodes {
-//         path_db::put(&repo_vnodes_db, vnode.hash(), vnode)?;
-//     }
-
-//     log::debug!("allegedly finished merging here.");
-
-//     //
-//     Ok(())
-// }
 
 #[cfg(test)]
 mod tests {

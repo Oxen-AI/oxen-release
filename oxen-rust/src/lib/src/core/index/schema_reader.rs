@@ -297,7 +297,7 @@ impl SchemaReader {
                             commit_id: self.commit_id.clone(),
                             path: stripped_path.to_path_buf(),
                             hash: found_schema.hash().clone(),
-                            num_bytes: 1,
+                            num_bytes: found_schema.num_bytes(),
                         };
                         entries.push(found_entry);
                     }

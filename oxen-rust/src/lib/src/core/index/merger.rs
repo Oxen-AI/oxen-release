@@ -2,15 +2,15 @@ use crate::api;
 use crate::constants::MERGE_DIR;
 use crate::core::db;
 use crate::core::index::{
-    oxenignore, CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
-    RefWriter, SchemaReader, Stager,
+    oxenignore, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
+    MergeConflictDBReader, RefReader, RefWriter, SchemaReader, Stager,
 };
 use crate::error::OxenError;
 use crate::model::{commit, Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 
 use crate::util;
 
-use rocksdb::DB;
+use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -36,6 +36,7 @@ impl MergeCommits {
 pub struct Merger {
     repository: LocalRepository,
     merge_db: DB,
+    // files_db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl Merger {
@@ -47,6 +48,7 @@ impl Merger {
         Ok(Merger {
             repository: repo.to_owned(),
             merge_db: DB::open(&opts, dunce::simplified(&db_path))?,
+            // files_db: DBWithThreadMode::open(&opts, dunce::simplified(&files_db_path))?,
         })
     }
 
@@ -378,30 +380,36 @@ impl Merger {
         let base_entries = base_commit_entry_reader.list_entries_set()?;
         let merge_entries = merge_commit_entry_reader.list_entries_set()?;
 
-        // Can just copy over all new versions since it is fast forward
-        for merge_entry in merge_entries.iter() {
-            log::debug!("Merge entry: {:?}", merge_entry.path);
-            // Only copy over if hash is different or it doesn't exist for performance
-            if let Some(base_entry) = base_entries.get(merge_entry) {
-                if base_entry.hash != merge_entry.hash {
-                    log::debug!("Merge entry has changed, restore: {:?}", merge_entry.path);
-                    self.update_entry(merge_entry)?;
+        // Make sure files_db is dropped before the merge commit is written
+        {
+            let opts = db::opts::default();
+            let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+            let files_db = DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+            // Can just copy over all new versions since it is fast forward
+            for merge_entry in merge_entries.iter() {
+                log::debug!("Merge entry: {:?}", merge_entry.path);
+                // Only copy over if hash is different or it doesn't exist for performance
+                if let Some(base_entry) = base_entries.get(merge_entry) {
+                    if base_entry.hash != merge_entry.hash {
+                        log::debug!("Merge entry has changed, restore: {:?}", merge_entry.path);
+                        self.update_entry(merge_entry, &files_db)?;
+                    }
+                } else {
+                    log::debug!("Merge entry is new, restore: {:?}", merge_entry.path);
+                    self.update_entry(merge_entry, &files_db)?;
                 }
-            } else {
-                log::debug!("Merge entry is new, restore: {:?}", merge_entry.path);
-                self.update_entry(merge_entry)?;
             }
-        }
 
-        // Remove all entries that are in HEAD but not in merge entries
-        for base_entry in base_entries.iter() {
-            log::debug!("Base entry: {:?}", base_entry.path);
-            if !merge_entries.contains(base_entry) {
-                log::debug!("Removing Base Entry: {:?}", base_entry.path);
+            // Remove all entries that are in HEAD but not in merge entries
+            for base_entry in base_entries.iter() {
+                log::debug!("Base entry: {:?}", base_entry.path);
+                if !merge_entries.contains(base_entry) {
+                    log::debug!("Removing Base Entry: {:?}", base_entry.path);
 
-                let path = self.repository.path.join(&base_entry.path);
-                if path.exists() {
-                    util::fs::remove_file(path)?;
+                    let path = self.repository.path.join(&base_entry.path);
+                    if path.exists() {
+                        util::fs::remove_file(path)?;
+                    }
                 }
             }
         }
@@ -513,6 +521,10 @@ impl Merger {
         log::debug!("base_entries.len() {}", base_entries.len());
         log::debug!("merge_entries.len() {}", merge_entries.len());
 
+        let opts = db::opts::default();
+        let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+        let files_db = DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
             // log::debug!("Considering entry {}", merge_entries.len());
@@ -529,7 +541,7 @@ impl Merger {
                     //     merge_entry.hash
                     // );
                     if base_entry.hash == lca_entry.hash && write_to_disk {
-                        self.update_entry(merge_entry)?;
+                        self.update_entry(merge_entry, &files_db)?;
                     }
 
                     // If all three are different, mark as conflict
@@ -555,7 +567,7 @@ impl Merger {
                 }
             } else if write_to_disk {
                 // merge entry does not exist in base, so create it
-                self.update_entry(merge_entry)?;
+                self.update_entry(merge_entry, &files_db)?;
             }
         }
         log::debug!("three_way_merge conflicts.len() {}", conflicts.len());
@@ -563,12 +575,17 @@ impl Merger {
         Ok(conflicts)
     }
 
-    fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
+    fn update_entry(
+        &self,
+        merge_entry: &CommitEntry,
+        files_db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
         restore::restore_file(
             &self.repository,
             &merge_entry.path,
             &merge_entry.commit_id,
             merge_entry,
+            files_db,
         )?;
         Ok(())
     }
@@ -1019,9 +1036,12 @@ mod tests {
             command::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
+            log::debug!("init'ing merger");
             let merger = Merger::new(&repo)?;
+            log::debug!("merging fish branch");
             // Should merge cleanly
             let result = merger.merge(fish_branch_name)?;
+            log::debug!("merged");
             assert!(result.is_some());
 
             // But now there should be conflicts when trying to merge in the human branch
@@ -1030,7 +1050,9 @@ mod tests {
                 api::local::branches::get_by_name(&repo, human_branch_name)?.unwrap();
 
             // Check if there are conflicts
+            log::debug!("merger has conflicts");
             let has_conflicts = merger.has_conflicts(&base_branch, &merge_branch)?;
+            log::debug!("done");
             assert!(has_conflicts);
 
             Ok(())

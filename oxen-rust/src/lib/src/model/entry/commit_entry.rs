@@ -102,7 +102,7 @@ impl SchemaEntry {
             commit_id,
             path,
             hash: schema.hash.clone(),
-            num_bytes: 1,
+            num_bytes: schema.num_bytes(),
         }
     }
 }

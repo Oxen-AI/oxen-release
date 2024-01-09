@@ -27,13 +27,13 @@ use std::path::{Path, PathBuf};
 use super::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 
 pub struct CommitEntryWriter {
-    repository: LocalRepository,
+    pub repository: LocalRepository,
     pub dir_db: DBWithThreadMode<MultiThreaded>,
     pub dir_hashes_db: DBWithThreadMode<MultiThreaded>,
-    files_db: DBWithThreadMode<MultiThreaded>,
-    schemas_db: DBWithThreadMode<MultiThreaded>,
+    pub files_db: DBWithThreadMode<MultiThreaded>,
+    pub schemas_db: DBWithThreadMode<MultiThreaded>,
     pub dirs_db: DBWithThreadMode<MultiThreaded>,
-    vnodes_db: DBWithThreadMode<MultiThreaded>,
+    pub vnodes_db: DBWithThreadMode<MultiThreaded>,
     commit: Commit,
 }
 
@@ -134,10 +134,6 @@ impl CommitEntryWriter {
             dirs_db: DBWithThreadMode::open(&opts, dunce::simplified(&dirs_db_path))?,
             vnodes_db: DBWithThreadMode::open(&opts, dunce::simplified(&vnodes_db_path))?,
             dir_hashes_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_hashes_db_path))?,
-            // temp_commit_hashes_db: DBWithThreadMode::open(
-            //     &opts,
-            //     dunce::simplified(&temp_commit_hashes_db_path),
-            // )?,
             commit: commit.to_owned(),
         })
     }
@@ -192,16 +188,41 @@ impl CommitEntryWriter {
         Ok(())
     }
 
+    // pub fn set_file_timestamps(
+    //     &self,
+    //     entry: &CommitEntry,
+    //     time: &FileTime,
+    // ) -> Result<(), OxenError> {
+    //     if let Some(parent) = entry.path.parent() {
+    //         let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, parent)?;
+    //         writer.set_file_timestamps(entry, time)
+    //     } else {
+    //         Err(OxenError::file_has_no_parent(&entry.path))
+    //     }
+    // }
+
     pub fn set_file_timestamps(
         &self,
         entry: &CommitEntry,
         time: &FileTime,
     ) -> Result<(), OxenError> {
-        if let Some(parent) = entry.path.parent() {
-            let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, parent)?;
-            writer.set_file_timestamps(entry, time)
-        } else {
-            Err(OxenError::file_has_no_parent(&entry.path))
+        let file_entry: Option<TreeObject> =
+            path_db::get_entry(&self.files_db, entry.hash.clone())?;
+        match file_entry {
+            Some(TreeObject::File { .. }) => {
+                let file_entry = TreeObject::File {
+                    hash: entry.hash.to_owned(),
+                    num_bytes: entry.num_bytes,
+                    last_modified_seconds: time.unix_seconds(),
+                    last_modified_nanoseconds: time.nanoseconds(),
+                };
+                path_db::put(&self.files_db, file_entry.hash(), &file_entry)?;
+                Ok(())
+            }
+            _ => {
+                log::error!("Could not find file entry for {:?}", entry.path);
+                Ok(())
+            }
         }
     }
 
@@ -254,7 +275,6 @@ impl CommitEntryWriter {
             entry.hash
         );
 
-        // writer.add_commit_entry(&entry)?;
         Ok(())
     }
 
@@ -457,11 +477,9 @@ impl CommitEntryWriter {
         &self,
         _origin_path: &Path,
     ) -> Result<(), OxenError> {
-        log::debug!("constructing new merkle tree");
         // Operate on all dirs to make the tree from scratch...
         let mut dir_paths = path_db::list_paths(&self.dir_db, &PathBuf::from(""))?;
 
-        log::debug!("server got dirs {:?}", dir_paths);
         // So this is probably getting transferred over properly, meaning we're getting all the stuff from the dirs db.
 
         if dir_paths.is_empty() {
@@ -863,8 +881,6 @@ impl CommitEntryWriter {
             dunce::simplified(&parent_hash_db_dir),
         )?;
 
-        // TODONOW: streamline this - but for now, let's make a mapping of staged entries (as TreeObjects) to their parent directories
-
         let mut staged_entries_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>> =
             HashMap::new();
 
@@ -955,7 +971,7 @@ impl CommitEntryWriter {
         for schema_node in schema_nodes {
             let schema_object = TreeObject::Schema {
                 hash: schema_node.schema.hash.clone(),
-                num_bytes: 1,
+                num_bytes: schema_node.schema.num_bytes(),
             };
             path_db::put(&self.schemas_db, schema_object.hash(), &schema_object)?;
             // schema_object.write(&self.repository)?;
@@ -1021,7 +1037,7 @@ impl CommitEntryWriter {
             DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
         let commit_hash: &String = &self.commit.root_hash.clone().unwrap();
 
-        let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, commit_hash)?.unwrap(); // TODONOW: error handling here
+        let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, commit_hash)?.unwrap();
 
         for child in root_dir_node.children() {
             self.r_save_temp_commit_tree(child, &temp_tree_db)?;
@@ -1353,7 +1369,6 @@ impl CommitEntryWriter {
 
         // Get parent dir for this staged file
 
-        // TODONOW: m,aybe make a FROM method here?
         // Collect staged FILES into a map of dir -> TreeChildWithStatus
         for (path, entry) in staged_data.staged_files.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
@@ -1421,12 +1436,13 @@ impl CommitEntryWriter {
         for (path, staged_schema) in staged_data.staged_schemas.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
             log::debug!("parent dir for schema {:?} is {:?}", path, parent);
+
             let schema_child_with_status =
                 TreeObjectChildWithStatus::from_staged_schema(path.to_path_buf(), staged_schema);
 
             let schema_object = TreeObject::Schema {
                 hash: staged_schema.schema.hash.clone(),
-                num_bytes: 1,
+                num_bytes: staged_schema.schema.num_bytes(),
             };
 
             log::debug!("putting schema {:?} into schemas_db", schema_object);

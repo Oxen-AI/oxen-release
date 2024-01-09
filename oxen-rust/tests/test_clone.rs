@@ -112,70 +112,70 @@ async fn test_clone_all_push_all() -> Result<(), OxenError> {
     .await
 }
 
-// #[tokio::test]
-// async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenError> {
-//     test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
-//         let cloned_remote = remote_repo.clone();
+#[tokio::test]
+async fn test_clone_all_push_all_modified_deleted_files() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        let cloned_remote = remote_repo.clone();
 
-//         // Create a new text file
-//         let filename = "file_to_modify.txt";
-//         let filepath = local_repo.path.join(filename);
-//         test::write_txt_file_to_path(&filepath, "Content before modification")?;
-//         command::add(&local_repo, &filepath)?;
-//         command::commit(&local_repo, "Adding file_to_modify.txt")?;
+        // Create a new text file
+        let filename = "file_to_modify.txt";
+        let filepath = local_repo.path.join(filename);
+        test::write_txt_file_to_path(&filepath, "Content before modification")?;
+        command::add(&local_repo, &filepath)?;
+        command::commit(&local_repo, "Adding file_to_modify.txt")?;
 
-//         // Change the file's contents - different hash
-//         test::write_txt_file_to_path(&filepath, "A whole new hash now!")?;
-//         command::add(&local_repo, &filepath)?;
-//         command::commit(&local_repo, "Modifying file_to_modify.txt")?;
+        // Change the file's contents - different hash
+        test::write_txt_file_to_path(&filepath, "A whole new hash now!")?;
+        command::add(&local_repo, &filepath)?;
+        command::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
-//         test::write_txt_file_to_path(&filepath, "Changing againnnnn")?;
-//         command::add(&local_repo, &filepath)?;
-//         command::commit(&local_repo, "Modifying file_to_modify.txt")?;
+        test::write_txt_file_to_path(&filepath, "Changing againnnnn")?;
+        command::add(&local_repo, &filepath)?;
+        command::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
-//         // Delete file
-//         std::fs::remove_file(&filepath)?;
-//         command::add(&local_repo, &filepath)?;
-//         command::commit(&local_repo, "Deleting file_to_modify.txt")?;
+        // Delete file
+        std::fs::remove_file(&filepath)?;
+        command::add(&local_repo, &filepath)?;
+        command::commit(&local_repo, "Deleting file_to_modify.txt")?;
 
-//         // Add back new
-//         test::write_txt_file_to_path(&filepath, "Adding back new")?;
-//         command::add(&local_repo, &filepath)?;
-//         command::commit(&local_repo, "Adding back file_to_modify.txt")?;
+        // Add back new
+        test::write_txt_file_to_path(&filepath, "Adding back new")?;
+        command::add(&local_repo, &filepath)?;
+        command::commit(&local_repo, "Adding back file_to_modify.txt")?;
 
-//         command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME).await?;
+        command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME).await?;
 
-//         // Clone with the --all flag
-//         test::run_empty_dir_test_async(|new_repo_dir| async move {
-//             let new_repo_dir = new_repo_dir.join("repoo");
-//             let mut cloned_repo =
-//                 command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+        // Clone with the --all flag
+        test::run_empty_dir_test_async(|new_repo_dir| async move {
+            let new_repo_dir = new_repo_dir.join("repoo");
+            let mut cloned_repo =
+                command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
-//             let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
-//             let remote_url = test::repo_remote_url_from(&repo_name);
-//             let remote_name = "different";
+            let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
+            let remote_url = test::repo_remote_url_from(&repo_name);
+            let remote_name = "different";
 
-//             // Create a different repo
-//             let repo_new = RepoNew::from_namespace_name_host(
-//                 constants::DEFAULT_NAMESPACE,
-//                 repo_name,
-//                 test::test_host(),
-//             );
-//             api::remote::repositories::create_empty(repo_new).await?;
+            // Create a different repo
+            let repo_new = RepoNew::from_namespace_name_host(
+                constants::DEFAULT_NAMESPACE,
+                repo_name,
+                test::test_host(),
+            );
+            api::remote::repositories::create_empty(repo_new).await?;
 
-//             command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
+            command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
-//             // Should be able to push all data successfully
-//             command::push_remote_branch(&cloned_repo, remote_name, "main").await?;
+            // Should be able to push all data successfully
+            command::push_remote_branch(&cloned_repo, remote_name, "main").await?;
 
-//             Ok(new_repo_dir)
-//         })
-//         .await?;
+            Ok(new_repo_dir)
+        })
+        .await?;
 
-//         Ok(cloned_remote)
-//     })
-//     .await
-// }
+        Ok(cloned_remote)
+    })
+    .await
+}
 
 #[tokio::test]
 async fn test_clone_shallow_cannot_push_all() -> Result<(), OxenError> {

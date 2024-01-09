@@ -1,6 +1,7 @@
-use crate::constants::{FILES_DIR, HISTORY_DIR};
+use crate::constants::{FILES_DIR, HISTORY_DIR, OBJECTS_DIR, OBJECT_FILES_DIR};
 use crate::core::db;
 use crate::core::db::path_db;
+use crate::core::db::tree_db::TreeObject;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
@@ -14,6 +15,7 @@ use std::str;
 /// We keep a list of all the committed files in a subdirectory directory for fast lookup
 pub struct CommitDirEntryWriter {
     pub db: DBWithThreadMode<MultiThreaded>,
+    // pub files_db: DBWithThreadMode<MultiThreaded>,
     pub repository: LocalRepository,
 }
 
@@ -27,18 +29,25 @@ impl CommitDirEntryWriter {
             .join(dir)
     }
 
+    pub fn files_db_dir(repo: &LocalRepository, commit_id: &str, dir: &Path) -> PathBuf {
+        util::fs::oxen_hidden_dir(&repo.path)
+            .join(Path::new(OBJECTS_DIR).join(Path::new(OBJECT_FILES_DIR)))
+    }
+
     pub fn new(
         repository: &LocalRepository,
         commit_id: &str,
         dir: &Path,
     ) -> Result<CommitDirEntryWriter, OxenError> {
         let dbpath = CommitDirEntryWriter::db_dir(repository, commit_id, dir);
+        let files_dbpath = CommitDirEntryWriter::files_db_dir(repository, commit_id, dir);
         log::debug!("CommitDirEntryWriter db_path {:?}", dbpath);
         if !dbpath.exists() {
             std::fs::create_dir_all(&dbpath)?;
         }
         let opts = db::opts::default();
         Ok(CommitDirEntryWriter {
+            // files_db: DBWithThreadMode::open(&opts, dunce::simplified(&files_dbpath))?,
             db: DBWithThreadMode::open(&opts, dunce::simplified(&dbpath))?,
             repository: repository.clone(),
         })
@@ -48,17 +57,39 @@ impl CommitDirEntryWriter {
         &self,
         entry: &CommitEntry,
         time: &FileTime,
+        files_db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
-        let entry = CommitEntry {
-            commit_id: entry.commit_id.to_owned(),
-            path: entry.path.to_owned(),
-            hash: entry.hash.to_owned(),
-            num_bytes: entry.num_bytes,
-            last_modified_seconds: time.unix_seconds(),
-            last_modified_nanoseconds: time.nanoseconds(),
-        };
-        let path = entry.path.file_name().unwrap();
-        path_db::put(&self.db, path, &entry)
+        // Get the entry
+        let file_entry: Option<TreeObject> = path_db::get_entry(files_db, entry.hash.clone())?;
+
+        match file_entry {
+            Some(entry) => match entry {
+                TreeObject::File {
+                    hash,
+                    num_bytes,
+                    last_modified_seconds,
+                    last_modified_nanoseconds,
+                } => {
+                    let updated_entry = TreeObject::File {
+                        hash: hash.clone(),
+                        num_bytes,
+                        last_modified_seconds: time.unix_seconds(),
+                        last_modified_nanoseconds: time.nanoseconds(),
+                    };
+                    path_db::put(files_db, hash, &updated_entry)?;
+                }
+                _ => {
+                    log::error!("Attempting to set timestamps for invalid entry type");
+                }
+            },
+            None => {
+                log::error!(
+                    "Could not find file for setting timestamps: {:?}",
+                    entry.path
+                );
+            }
+        }
+        Ok(())
     }
 
     pub fn add_commit_entry(&self, entry: &CommitEntry) -> Result<(), OxenError> {
