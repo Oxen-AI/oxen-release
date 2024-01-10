@@ -402,6 +402,7 @@ pub async fn remote_metadata_list_image(path: impl AsRef<Path>) -> Result<(), Ox
 pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     for path in &opts.paths {
         if opts.is_remote {
@@ -417,6 +418,7 @@ pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
 pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     for path in paths {
         let path_opts = RmOpts::from_path_opts(&path, opts);
@@ -490,6 +492,7 @@ pub fn compare(
 ) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     let current_commit = api::local::commits::head_commit(&repository)?;
     // For revision_1 and revision_2, if none, set to current_commit
@@ -517,6 +520,7 @@ pub fn compare(
 pub fn merge(branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     command::merge(&repository, branch)?;
     Ok(())
@@ -525,6 +529,7 @@ pub fn merge(branch: &str) -> Result<(), OxenError> {
 pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repo)?;
 
     if is_remote {
         println!("Committing to remote with message: {message}");
@@ -551,6 +556,7 @@ pub async fn fetch() -> Result<(), OxenError> {
         util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
     command::fetch(&repository).await?;
     Ok(())
 }
@@ -604,6 +610,8 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
 
     let directory = directory.unwrap_or(current_dir);
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
+
     let repo_status = command::status_from_dir(&repository, &directory)?;
 
     if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
