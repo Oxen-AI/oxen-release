@@ -212,7 +212,13 @@ impl LocalRepository {
                 );
             }
 
-            let bar = oxen_progress_bar(remote_branches.len() as u64 - 1, ProgressBarType::Counter);
+            let n_other_branches: u64 = if remote_branches.len() > 1 {
+                (remote_branches.len() - 1) as u64
+            } else {
+                0
+            };
+
+            let bar = oxen_progress_bar(n_other_branches as u64, ProgressBarType::Counter);
 
             for branch in remote_branches {
                 // We've already pulled the target branch in full

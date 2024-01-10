@@ -578,6 +578,9 @@ impl EntryIndexer {
         commits: &[Commit],
     ) -> Result<(), OxenError> {
         log::debug!("🐂 pulling tree objects for {:?} commits", commits.len());
+        if commits.len() == 0 {
+            return Ok(()); // nothing to do, pulling anyway causes objects db errors
+        }
         api::remote::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
         Ok(())
     }
