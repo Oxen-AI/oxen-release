@@ -431,6 +431,10 @@ pub async fn download_objects_db_to_path(
     remote_repo: &RemoteRepository,
     dst: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
+    // In the future, if needed we can use this commit_ids param to
+    // only download the ids for necessary commits. For now though, we'll use it to prevent
+    // trying to download objects db on empty repos where one doesn't exist yet, causing errors
+
     log::debug!("in the downloading objects db fn in remote commits");
     let uri = "/objects_db".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -462,7 +466,9 @@ pub async fn download_objects_db_to_path(
     }
 
     log::debug!("{} writing to {:?}", current_function!(), dst);
-    archive.unpack(dst).await?;
+    let archive_result = archive.unpack(dst).await;
+    log::debug!("archive result: {:?}", archive_result);
+    archive_result?;
 
     Ok(unpacked_path)
 }
