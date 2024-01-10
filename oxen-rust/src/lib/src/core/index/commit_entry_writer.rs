@@ -24,7 +24,9 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader};
+use super::{
+    versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader,
+};
 
 pub struct CommitEntryWriter {
     pub repository: LocalRepository,
@@ -802,6 +804,8 @@ impl CommitEntryWriter {
         let mut schema_map: HashMap<PathBuf, Vec<SchemaWithPath>> = HashMap::new();
         for (path, schema) in schemas {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+            // Backup the schema to the versions dir as a part of the migration
+            versioner::backup_schema(&self.repository, &schema)?;
             let schema_with_path = SchemaWithPath {
                 path: PathBuf::from(SCHEMAS_TREE_PREFIX)
                     .join(path.clone())
