@@ -24,7 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
+use super::{CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader};
 
 pub struct CommitEntryWriter {
     pub repository: LocalRepository,
@@ -782,6 +782,7 @@ impl CommitEntryWriter {
         Ok(vnodes)
     }
 
+    // For migration only, can remove once old format is fully deprecated
     fn create_tree_nodes_from_dirs(
         &self,
         dirs: &mut Vec<PathBuf>,
@@ -794,7 +795,7 @@ impl CommitEntryWriter {
             b_count.cmp(&a_count)
         });
 
-        let schema_reader = SchemaReader::new(&self.repository, &self.commit.id)?;
+        let schema_reader = LegacySchemaReader::new(&self.repository, &self.commit.id)?;
         let schemas = schema_reader.list_schemas()?;
 
         // Map parent dirs to schemas
