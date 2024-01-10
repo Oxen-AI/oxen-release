@@ -89,12 +89,6 @@ impl CommitEntryWriter {
             .join(constants::OBJECT_VNODES_DIR)
     }
 
-    // pub fn temp_commit_hashes_db_dir(repo: &LocalRepository) -> PathBuf {
-    //     util::fs::oxen_hidden_dir(&repo.path)
-    //         .join(constants::OBJECTS_DIR)
-    //         .join("commit-hashes")
-    // }
-
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
@@ -118,7 +112,6 @@ impl CommitEntryWriter {
             &dirs_db_path,
             &vnodes_db_path,
             &dir_hashes_db_path,
-            // &temp_commit_hashes_db_path,
         ] {
             if !path.exists() {
                 util::fs::create_dir_all(path)?;
