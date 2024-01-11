@@ -292,12 +292,6 @@ impl CommitEntryWriter {
         let versions_entry_path = util::fs::version_path(&self.repository, &commit_entry);
         let versions_entry_dir = versions_entry_path.parent().unwrap();
 
-        log::debug!(
-            "Copying commit entry for file: {:?} -> {:?}",
-            commit_entry.path,
-            versions_entry_path
-        );
-
         // Create dir if not exists
         if !versions_entry_dir.exists() {
             std::fs::create_dir_all(versions_entry_dir)?;
@@ -1280,12 +1274,7 @@ impl CommitEntryWriter {
             }
             StagedEntryStatus::Added => {
                 match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
-                    Ok(_) => {
-                        log::debug!(
-                            "in the status adder adding full path {:?}",
-                            origin_path.join(path)
-                        );
-                    }
+                    Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
                         panic!("{}", err)

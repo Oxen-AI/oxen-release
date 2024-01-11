@@ -228,9 +228,7 @@ impl Stager {
 
         for (dir, status) in &staged_dirs {
             let full_path = self.repository.path.join(dir);
-            log::debug!("in the staged dir stats loop");
             let stats = self.compute_staged_dir_stats(&full_path, status)?;
-            log::debug!("done the staged dir stats loop");
             staged_data.staged_dirs.add_stats(&stats);
             candidate_dirs.insert(self.repository.path.join(dir));
         }
@@ -422,64 +420,49 @@ impl Stager {
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
 
         // List the staged entries in this dir
-        log::debug!("listing staged entries for dir {:?}", relative_dir);
         let staged_entries = self.list_staged_files_in_dir(&relative_dir)?;
-        log::debug!("got staged entries for dir {:?}", relative_dir);
 
         for relative_path in &staged_entries {
-            log::debug!("processing relative_path {:?}", relative_path);
             if self.should_ignore_path(ignore, relative_path) {
                 continue;
             } // TODONOW: probably unnecessary
 
             let fullpath = self.repository.path.join(relative_path);
 
-            log::debug!("getting file status for path {:?}", relative_path);
             let file_status = Stager::get_file_status(
                 &self.repository.path,
                 relative_path,
                 &staged_dir_db,
                 &dir_reader,
             );
-            log::debug!("got file status for path {:?}", relative_path);
 
             if fullpath.is_dir() {
-                log::debug!("skipping path {:?} because it's a dir", relative_path);
                 continue;
             }
 
             if let Some(file_type) = file_status {
-                log::debug!("got a filepath for dir {:?}", relative_path);
                 match file_type {
                     FileStatus::Added => {
-                        log::debug!("got added file {:?}", relative_path);
                         let file_name = relative_path.file_name().unwrap();
                         let result = staged_dir_db.get_entry(file_name);
-                        log::debug!("inserting");
                         if let Ok(Some(entry)) = result {
                             staged_data
                                 .staged_files
                                 .insert(relative_path.to_path_buf(), entry);
                         }
-                        log::debug!("inserted");
                     }
                     FileStatus::Untracked => {
-                        log::debug!("got untracked file {:?}", relative_path);
                         staged_data
                             .untracked_files
                             .push(relative_path.to_path_buf());
                     }
                     FileStatus::Modified => {
-                        log::debug!("got modified file");
                         staged_data.modified_files.push(relative_path.to_path_buf());
                     }
                     FileStatus::Removed => {
-                        log::debug!("got deleted file");
                         staged_data.removed_files.push(relative_path.to_path_buf());
                     }
                 }
-            } else {
-                log::debug!("got no file status");
             }
         }
 
