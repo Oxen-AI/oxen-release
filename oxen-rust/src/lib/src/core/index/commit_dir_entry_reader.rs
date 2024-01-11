@@ -1,5 +1,7 @@
 //!
 
+use std::time::{Duration, Instant};
+
 use crate::constants::{self};
 use crate::core::db;
 use crate::core::db::path_db;
@@ -58,17 +60,31 @@ impl CommitDirEntryReader {
 
         let opts = db::opts::default();
         if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
-            // log::debug!("dir hashes db not exists");
+            // Get the current time
+            let start_time = Instant::now();
+
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
             }
 
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+            let end_time = Instant::now();
+            let elapsed = end_time.duration_since(start_time);
+            log::debug!(
+                "CommitDirEntryReader took {:?} to create dir hashes db",
+                elapsed
+            );
         }
 
+        let start_time = Instant::now();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
+        let elapsed = start_time.elapsed();
+        log::debug!(
+            "CommitDirEntryReader took {:?} to open dir hashes db",
+            elapsed
+        );
 
         let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
 
