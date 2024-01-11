@@ -18,11 +18,13 @@ use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::view::schema::SchemaWithPath;
 
 use filetime::FileTime;
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 
 use super::{
     versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader,
@@ -308,6 +310,10 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
+        let bar = oxen_progress_bar(
+            staged_data.staged_files.len() as u64,
+            ProgressBarType::Counter,
+        );
         self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
         self.commit_schemas(commit, &staged_data.staged_schemas)?;
@@ -1185,17 +1191,14 @@ impl CommitEntryWriter {
         if size == 0 {
             return Ok(());
         }
-        let bar = oxen_progress_bar(size, ProgressBarType::Counter);
         let mut grouped = self.group_staged_files_to_dirs(&staged_data.staged_files);
         log::debug!(
             "commit_staged_entries_with_prog got groups {}",
             grouped.len()
         );
 
-        // // Track entries in commit
         for (dir, files) in grouped.iter_mut() {
             // Write entries per dir
-            let entry_writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, dir)?;
             path_db::put(&self.dir_db, dir, &0)?;
 
             log::debug!(
@@ -1203,12 +1206,6 @@ impl CommitEntryWriter {
                 files.len(),
                 dir
             );
-
-            // Commit entries data
-            files.par_iter().for_each(|(path, entry)| {
-                self.commit_staged_entry(&entry_writer, commit, origin_path, path, entry);
-                bar.inc(1);
-            });
         }
 
         let object_reader = ObjectDBReader::new(&self.repository)?;
@@ -1241,8 +1238,6 @@ impl CommitEntryWriter {
                 path_db::put(&self.dir_db, &staged_dir.path, &0)?;
             }
         }
-
-        bar.finish_and_clear();
 
         Ok(())
     }
@@ -1284,7 +1279,6 @@ impl CommitEntryWriter {
         }
     }
 
-    // Functions below here are all tree-y and should probably be moved to their own module
     fn map_schemas_to_parent_dirs(
         &self,
     ) -> Result<HashMap<PathBuf, Vec<SchemaWithPath>>, OxenError> {
@@ -1318,56 +1312,71 @@ impl CommitEntryWriter {
 
         // Get parent dir for this staged file
 
+        let bar = oxen_progress_bar(
+            staged_data.staged_files.len() as u64,
+            ProgressBarType::Counter,
+        );
+
         // Collect staged FILES into a map of dir -> TreeChildWithStatus
-        for (path, entry) in staged_data.staged_files.iter() {
-            let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-            // Add commit entry metadata to this file node
-            let file_object = match entry.status {
-                StagedEntryStatus::Added | StagedEntryStatus::Modified => {
-                    let full_path = origin_path.join(path);
-                    let metadata = fs::metadata(&full_path).unwrap();
-                    let mtime = FileTime::from_last_modification_time(&metadata);
 
-                    // Re-hash in case modified after adding
-                    let hash = util::hasher::hash_file_contents(&full_path)?;
+        let results: Vec<(PathBuf, TreeObjectChildWithStatus)> = staged_data
+            .staged_files
+            .par_iter()
+            .map(|(path, entry)| {
+                let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+                // Add commit entry metadata to this file node
+                let file_object = match entry.status {
+                    StagedEntryStatus::Added | StagedEntryStatus::Modified => {
+                        let full_path = origin_path.join(path);
+                        let metadata = fs::metadata(&full_path).unwrap();
+                        let mtime = FileTime::from_last_modification_time(&metadata);
 
-                    let file_res = TreeObject::File {
-                        num_bytes: metadata.len(),
-                        last_modified_seconds: mtime.unix_seconds(),
-                        last_modified_nanoseconds: mtime.nanoseconds(),
-                        hash,
-                    };
+                        // Re-hash in case modified after adding
+                        let hash = util::hasher::hash_file_contents(&full_path).unwrap();
 
-                    // Put the full file object into the files objects db by hash
-                    path_db::put(&self.files_db, file_res.hash(), &file_res)?;
-                    file_res
-                }
-                StagedEntryStatus::Removed => {
-                    // Return a dummy entry with valid hash - only using this to remove the file from
-                    // all its parents, does not need insertion into db
-                    TreeObject::File {
-                        num_bytes: 0,
-                        last_modified_seconds: 0,
-                        last_modified_nanoseconds: 0,
-                        hash: entry.hash.clone(),
+                        let file_res = TreeObject::File {
+                            num_bytes: metadata.len(),
+                            last_modified_seconds: mtime.unix_seconds(),
+                            last_modified_nanoseconds: mtime.nanoseconds(),
+                            hash,
+                        };
+
+                        // Put the full file object into the files objects db by hash
+                        path_db::put(&self.files_db, file_res.hash(), &file_res).unwrap();
+                        file_res
                     }
-                }
-            };
+                    StagedEntryStatus::Removed => {
+                        // Return a dummy entry with valid hash - only using this to remove the file from
+                        // all its parents, does not need insertion into db
+                        TreeObject::File {
+                            num_bytes: 0,
+                            last_modified_seconds: 0,
+                            last_modified_nanoseconds: 0,
+                            hash: entry.hash.clone(),
+                        }
+                    }
+                };
 
-            // Combine object with status so we know how to handle it in its parents later
-            let file_child_with_status = TreeObjectChildWithStatus {
-                child: TreeObjectChild::File {
-                    path: path.to_path_buf(),
-                    hash: file_object.hash().to_string(),
-                },
-                status: entry.status.clone(),
-            };
+                // Combine object with status so we know how to handle it in its parents later
+                let file_child_with_status = TreeObjectChildWithStatus {
+                    child: TreeObjectChild::File {
+                        path: path.to_path_buf(),
+                        hash: file_object.hash().to_string(),
+                    },
+                    status: entry.status.clone(),
+                };
+                bar.inc(1);
+                (parent, file_child_with_status)
+            })
+            .collect();
 
+        for (parent, file_child_with_status) in results {
             staged_entries_map
                 .entry(parent)
                 .or_default()
                 .push(file_child_with_status);
         }
+        bar.finish_and_clear();
 
         Ok(staged_entries_map)
     }
@@ -1377,11 +1386,6 @@ impl CommitEntryWriter {
         mut staged_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>,
         staged_data: &StagedData,
     ) -> Result<HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>, OxenError> {
-        log::debug!(
-            "staged schemas for commit {:#?} are {:#?}",
-            self.commit,
-            staged_data
-        );
         for (path, staged_schema) in staged_data.staged_schemas.iter() {
             let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
             log::debug!("parent dir for schema {:?} is {:?}", path, parent);

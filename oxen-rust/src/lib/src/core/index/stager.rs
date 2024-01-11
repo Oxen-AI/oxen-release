@@ -184,7 +184,6 @@ impl Stager {
         log::debug!("-----status_without_untracked START-----");
         let result = self.staged_data_without_untracked(&self.repository.path, entry_reader);
         log::debug!("-----status_without_untracked END-----");
-        log::debug!("and the result is {:?}", result);
         result
     }
 

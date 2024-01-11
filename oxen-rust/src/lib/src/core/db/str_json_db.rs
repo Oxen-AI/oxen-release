@@ -77,12 +77,12 @@ where
     let key = key.as_ref();
     let json_val = serde_json::to_string(entry)?;
 
-    log::debug!(
-        "str_json_db::put {:?} -> {:?} -> db: {:?}",
-        key,
-        json_val,
-        db.path()
-    );
+    // log::debug!(
+    //     "str_json_db::put {:?} -> {:?} -> db: {:?}",
+    //     key,
+    //     json_val,
+    //     db.path()
+    // );
 
     db.put(key, json_val.as_bytes())?;
     Ok(())
