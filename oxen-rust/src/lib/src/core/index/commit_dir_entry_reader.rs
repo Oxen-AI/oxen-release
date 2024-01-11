@@ -162,17 +162,7 @@ impl CommitDirEntryReader {
     }
 
     pub fn get_entry<P: AsRef<Path>>(&self, path: P) -> Result<Option<CommitEntry>, OxenError> {
-        log::debug!(
-            "checking in dir {:?} for path {:?}",
-            self.dir,
-            path.as_ref()
-        );
         let full_path = self.dir.join(path.as_ref());
-        log::debug!(
-            "got_entry the full_path {:?}, path {:?}",
-            full_path,
-            path.as_ref()
-        );
         let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
 
         // Binary search for the appropriate vnode

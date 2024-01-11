@@ -19,6 +19,8 @@ use crate::core::index::{
 use crate::error::OxenError;
 use crate::model::schema::staged_schema;
 use crate::model::schema::staged_schema::StagedSchema;
+use indicatif::ProgressStyle;
+use jwalk::WalkDirGeneric;
 
 use crate::opts::DFOpts;
 
@@ -28,11 +30,13 @@ use crate::model::{
     StagedEntryStatus,
 };
 use crate::util;
-use crate::util::progress_bar::{oxen_progress_bar, oxen_progress_bar_with_msg, ProgressBarType};
+use crate::util::progress_bar::{
+    oxen_progress_bar, oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType,
+};
 
 use filetime::FileTime;
 use ignore::gitignore::Gitignore;
-use jwalk::WalkDirGeneric;
+use indicatif::ProgressBar;
 use rayon::prelude::*;
 use rocksdb::SingleThreaded;
 use rocksdb::ThreadMode;
@@ -42,6 +46,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
+use std::sync::Mutex;
 
 use super::StagedDirEntryReader;
 
@@ -58,6 +63,14 @@ pub struct Stager {
     schemas_db: DBWithThreadMode<MultiThreaded>,
     pub repository: LocalRepository,
     merger: Option<Merger>,
+}
+
+struct StagedDirChanges {
+    pub untracked_dirs: Vec<(PathBuf, usize)>,
+    pub untracked_files: Vec<PathBuf>,
+    pub modified_files: Vec<PathBuf>,
+    pub removed_files: Vec<PathBuf>,
+    pub staged_files: Vec<PathBuf>,
 }
 
 impl Stager {
@@ -274,6 +287,8 @@ impl Stager {
             return Err(OxenError::repo_is_shallow());
         }
 
+        // Get the time before doing this
+
         let mut staged_data = StagedData::empty();
         let ignore = oxenignore::create(&self.repository);
 
@@ -299,7 +314,6 @@ impl Stager {
             log::debug!("compute_staged_data adding <added> dir {:?}", dir);
             candidate_dirs.insert(self.repository.path.join(dir));
         }
-
         let mut committed_dirs = entry_reader.list_dirs()?;
         if dir.is_relative() && dir != self.repository.path {
             committed_dirs.retain(|path| path.starts_with(dir))
@@ -325,7 +339,14 @@ impl Stager {
 
         let entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
 
-        let bar = oxen_progress_bar(candidate_dirs.len() as u64, ProgressBarType::Counter);
+        let bar = oxen_progress_bar(0, ProgressBarType::Counter);
+
+        bar.set_style(
+            ProgressStyle::default_bar()
+                .template("{spinner:.green} {msg} [{elapsed_precise}] [{wide_bar}] {pos}/?")
+                .unwrap()
+                .progress_chars("🌾🐂➖"),
+        );
 
         for dir in candidate_dirs.iter() {
             // log::debug!("compute_staged_data CANDIDATE DIR {:?}", dir);
@@ -336,9 +357,8 @@ impl Stager {
                 &ignore,
                 &entry_reader,
                 object_reader.clone(),
+                bar.clone(),
             )?;
-            log::debug!("processed dir");
-            bar.inc(1);
         }
 
         // Make pairs from Added + Removed stage entries with same hash, store in staged_data.moved_entries
@@ -475,6 +495,7 @@ impl Stager {
         ignore: &Option<Gitignore>,
         commit_reader: &CommitEntryReader,
         object_reader: Arc<ObjectDBReader>,
+        bar: Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
         // log::debug!("process_dir {:?}", full_dir);
         log::debug!("calling process_dir on {:?}", full_dir);
@@ -520,65 +541,101 @@ impl Stager {
             relative_dir
         );
 
-        for relative in candidate_files.iter() {
-            log::debug!("process_dir checking relative path {:?}", relative);
-            if util::fs::is_in_oxen_hidden_dir(relative) {
-                continue;
-            }
-
-            let fullpath = self.repository.path.join(relative);
-
-            log::debug!(
-                "process_dir checking is_dir? {} {:?}",
-                fullpath.is_dir(),
-                fullpath
-            );
-
-            if fullpath.is_dir() {
-                if !self.has_staged_dir(relative)
-                    && !staged_data.staged_dirs.contains_key(relative)
-                    && !commit_reader.has_dir(relative)
-                {
-                    log::debug!("process_dir adding untracked dir {:?}", relative);
-                    let count = util::fs::count_items_in_dir(&fullpath);
-                    staged_data
-                        .untracked_dirs
-                        .push((relative.to_path_buf(), count));
+        candidate_files
+            .par_iter()
+            .map(|relative| {
+                let mut local_staged_data = StagedData::empty();
+                log::debug!("process_dir checking relative path {:?}", relative);
+                if util::fs::is_in_oxen_hidden_dir(relative) {
+                    return local_staged_data;
                 }
-                continue;
-            } else {
-                // is file
-                let file_status = Stager::get_file_status(
-                    &self.repository.path,
-                    relative,
-                    &staged_dir_db,
-                    &root_commit_dir_reader,
+
+                let fullpath = self.repository.path.join(relative);
+
+                log::debug!(
+                    "process_dir checking is_dir? {} {:?}",
+                    fullpath.is_dir(),
+                    fullpath
                 );
-                log::debug!("process_dir got status {:?} {:?}", relative, file_status);
-                if let Some(file_type) = file_status {
-                    match file_type {
-                        FileStatus::Added => {
-                            let file_name = relative.file_name().unwrap();
-                            let result = staged_dir_db.get_entry(file_name);
-                            if let Ok(Some(entry)) = result {
-                                staged_data
-                                    .staged_files
-                                    .insert(relative.to_path_buf(), entry);
+
+                if fullpath.is_dir() {
+                    if !self.has_staged_dir(relative)
+                        && !staged_data.staged_dirs.contains_key(relative)
+                        && !commit_reader.has_dir(relative)
+                    {
+                        log::debug!("process_dir adding untracked dir {:?}", relative);
+                        let count = util::fs::count_items_in_dir(&fullpath);
+                        local_staged_data
+                            .untracked_dirs
+                            .push((relative.to_path_buf(), count));
+                    }
+                    return local_staged_data;
+                } else {
+                    // is file
+                    let file_status = Stager::get_file_status(
+                        &self.repository.path,
+                        relative,
+                        &staged_dir_db,
+                        &root_commit_dir_reader,
+                    );
+                    log::debug!("process_dir got status {:?} {:?}", relative, file_status);
+                    if let Some(file_type) = file_status {
+                        match file_type {
+                            FileStatus::Added => {
+                                let file_name = relative.file_name().unwrap();
+                                let result = staged_dir_db.get_entry(file_name);
+                                if let Ok(Some(entry)) = result {
+                                    local_staged_data
+                                        .staged_files
+                                        .insert(relative.to_path_buf(), entry);
+                                }
+                            }
+                            FileStatus::Untracked => {
+                                local_staged_data
+                                    .untracked_files
+                                    .push(relative.to_path_buf());
+                            }
+                            FileStatus::Modified => {
+                                local_staged_data
+                                    .modified_files
+                                    .push(relative.to_path_buf());
+                            }
+                            FileStatus::Removed => {
+                                local_staged_data.removed_files.push(relative.to_path_buf());
                             }
                         }
-                        FileStatus::Untracked => {
-                            staged_data.untracked_files.push(relative.to_path_buf());
-                        }
-                        FileStatus::Modified => {
-                            staged_data.modified_files.push(relative.to_path_buf());
-                        }
-                        FileStatus::Removed => {
-                            staged_data.removed_files.push(relative.to_path_buf());
-                        }
                     }
+                    bar.inc(1);
                 }
-            }
-        }
+                local_staged_data
+            })
+            .reduce_with(|mut a, b| {
+                a.untracked_dirs.extend(b.untracked_dirs);
+                a.untracked_files.extend(b.untracked_files);
+                a.modified_files.extend(b.modified_files);
+                a.removed_files.extend(b.removed_files);
+                a.staged_files.extend(b.staged_files);
+
+                a
+            })
+            .map(|combined_changes| {
+                staged_data
+                    .untracked_dirs
+                    .extend(combined_changes.untracked_dirs);
+                staged_data
+                    .untracked_files
+                    .extend(combined_changes.untracked_files);
+                staged_data
+                    .modified_files
+                    .extend(combined_changes.modified_files);
+                staged_data
+                    .removed_files
+                    .extend(combined_changes.removed_files);
+                staged_data
+                    .staged_files
+                    .extend(combined_changes.staged_files);
+            });
+
         Ok(())
     }
 
