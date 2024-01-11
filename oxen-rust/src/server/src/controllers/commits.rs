@@ -492,11 +492,6 @@ pub async fn download_commit_entries_db(
 
     let buffer = compress_commit(&repository, &commit)?;
 
-    let file_path = format!("/Users/ben/tars/server_commit_{}.tar.gz", commit.id); // change this to your desired path
-
-    let mut file = File::create(file_path)?;
-    file.write_all(&buffer)?;
-
     Ok(HttpResponse::Ok().body(buffer))
 }
 
