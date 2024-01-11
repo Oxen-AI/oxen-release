@@ -314,7 +314,6 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
-        log::debug!("here's the status for commit {:#?}", staged_data);
         self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
         self.commit_schemas(commit, &staged_data.staged_schemas)?;
@@ -439,12 +438,6 @@ impl CommitEntryWriter {
         dirs_to_recompute.insert(PathBuf::from(""));
         let mut modified_dirs_vec: Vec<PathBuf> = dirs_to_recompute.into_iter().collect();
 
-        log::debug!(
-            "affected dirs are {:#?} for commit {:?}",
-            modified_dirs_vec,
-            self.commit
-        );
-
         self.create_tree_nodes_from_affected_dirs(
             &mut modified_dirs_vec,
             dir_map,
@@ -567,19 +560,7 @@ impl CommitEntryWriter {
             .to_vec();
 
         // STEP 3: Get vnodes for this dir, including new ones (not on the previous dir object's child attr)
-        log::debug!(
-            "here's the new children for dir {:?}: {:#?} and commit {:#?}",
-            dir,
-            new_children,
-            self.commit
-        );
         let affected_vnodes = self.get_affected_vnodes(&new_children)?;
-        log::debug!(
-            "here affected_vnodes are {:#?} for commit {:#?} and dir {:#?}",
-            affected_vnodes,
-            self.commit,
-            dir
-        );
         let prev_vnode_children = prev_dir_object.children();
         let mut prev_vnode_map: HashMap<String, String> = HashMap::new();
         for vnode in prev_vnode_children {
@@ -595,27 +576,9 @@ impl CommitEntryWriter {
             all_vnodes.insert(vnode.path().to_string_lossy().to_string());
         }
 
-        log::debug!(
-            "affected_vnodes for commit with message {:?} and dir {:?} are {:?}",
-            self.commit.message,
-            dir,
-            affected_vnodes
-        );
         for vnode in affected_vnodes.keys() {
             all_vnodes.insert(vnode.to_string());
         }
-
-        log::debug!(
-            "vnodes we're processing here are {:?} for heya commit with message {:?}",
-            all_vnodes,
-            self.commit.message
-        );
-
-        log::debug!(
-            "prev_vnode_children are {:?} for commit with message {:?}",
-            prev_vnode_children,
-            self.commit.message
-        );
 
         let updated_dir_children =
             self.update_dir_vnode_children(all_vnodes, &prev_vnode_map, &affected_vnodes)?;
@@ -894,7 +857,6 @@ impl CommitEntryWriter {
         for dir in dirs.clone() {
             affected_dirs.insert(dir.clone());
         }
-        log::debug!("affected_dirs are {:#?}", affected_dirs);
 
         // Now get the unaffected dirs: aka, iterate over dirs_map, and if the dir isn't in affected_dirs, add it to unaffected_dirs
         let mut unaffected_dirs: Vec<PathBuf> = Vec::new();
@@ -1459,11 +1421,6 @@ impl CommitEntryWriter {
         mut staged_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>,
         staged_data: &StagedData,
     ) -> Result<HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>, OxenError> {
-        log::debug!(
-            "staged_dirs are {:#?} for commit {:#?}",
-            staged_data.staged_dirs,
-            self.commit
-        );
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for dir_stats in staged_dirs.iter() {
                 let parent = dir_stats

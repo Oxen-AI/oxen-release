@@ -176,15 +176,6 @@ impl CommitDirEntryReader {
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
-
-        // log::debug!("searching in path from root {:?}", full_path);
-
-        log::debug!(
-            "binary searching for path {:?} on these children {:?}",
-            full_path,
-            vnode.children()
-        );
-
         let file = vnode.binary_search_on_path(&full_path)?;
 
         if file.is_none() {
