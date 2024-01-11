@@ -225,7 +225,6 @@ impl CommitEntryWriter {
 
     fn add_staged_entry_to_db(
         &self,
-        writer: &CommitDirEntryWriter,
         new_commit: &Commit,
         origin_path: &Path,
         file_path: &Path,
@@ -255,14 +254,13 @@ impl CommitEntryWriter {
         };
 
         // Write to db & backup
-        self.add_commit_entry(origin_path, writer, entry)?;
+        self.add_commit_entry(origin_path, entry)?;
         Ok(())
     }
 
     fn add_commit_entry(
         &self,
         origin_path: &Path,
-        _writer: &CommitDirEntryWriter,
         commit_entry: CommitEntry,
     ) -> Result<(), OxenError> {
         let entry = self.backup_file_to_versions_dir(origin_path, commit_entry)?;
@@ -1244,22 +1242,15 @@ impl CommitEntryWriter {
 
     fn commit_staged_entry(
         &self,
-        writer: &CommitDirEntryWriter,
         commit: &Commit,
         origin_path: &Path,
         path: &Path,
         entry: &StagedEntry,
     ) {
         match entry.status {
-            StagedEntryStatus::Removed => match writer.remove_path_from_db(path) {
-                Ok(_) => {}
-                Err(err) => {
-                    let err = format!("Failed to remove file: {err}");
-                    panic!("{}", err)
-                }
-            },
+            StagedEntryStatus::Removed => {}
             StagedEntryStatus::Modified => {
-                match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
+                match self.add_staged_entry_to_db(commit, origin_path, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to commit MODIFIED file: {err}");
@@ -1268,7 +1259,7 @@ impl CommitEntryWriter {
                 }
             }
             StagedEntryStatus::Added => {
-                match self.add_staged_entry_to_db(writer, commit, origin_path, path) {
+                match self.add_staged_entry_to_db(commit, origin_path, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
@@ -1323,6 +1314,10 @@ impl CommitEntryWriter {
             .staged_files
             .par_iter()
             .map(|(path, entry)| {
+                // Backup to versions dir
+
+                self.commit_staged_entry(&self.commit, origin_path, path, entry);
+
                 let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
                 // Add commit entry metadata to this file node
                 let file_object = match entry.status {
