@@ -170,7 +170,7 @@ fn test_add_nested_nlp_dir() -> Result<(), OxenError> {
 #[test]
 fn test_command_add_stage_with_wildcard() -> Result<(), OxenError> {
     test::run_training_data_repo_test_fully_committed(|repo| {
-        let objects_dir = repo.path.join(".oxen/objects");
+        let _objects_dir = repo.path.join(".oxen/objects");
 
         // Modify and add the file deep in a sub dir
         let one_shot_path = repo.path.join("annotations/train/one_shot.csv");

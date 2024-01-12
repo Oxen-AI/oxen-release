@@ -15,7 +15,7 @@ use crate::core;
 use crate::core::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader, SchemaReader,
 };
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, Schema};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -416,7 +416,7 @@ pub fn group_commit_entries_to_parent_dirs(
             results
                 .entry(parent.to_path_buf())
                 .or_default()
-                .push(entry.clone().into());
+                .push(entry.clone());
         }
     }
 

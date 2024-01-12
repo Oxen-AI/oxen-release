@@ -62,14 +62,6 @@ pub struct Stager {
     merger: Option<Merger>,
 }
 
-struct StagedDirChanges {
-    pub untracked_dirs: Vec<(PathBuf, usize)>,
-    pub untracked_files: Vec<PathBuf>,
-    pub modified_files: Vec<PathBuf>,
-    pub removed_files: Vec<PathBuf>,
-    pub staged_files: Vec<PathBuf>,
-}
-
 impl Stager {
     pub fn dirs_db_path(path: &Path) -> Result<PathBuf, OxenError> {
         let path = util::fs::oxen_hidden_dir(path)
@@ -1787,8 +1779,8 @@ mod tests {
     #[test]
     fn test_stager_add_file2() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
-            let hello_file = test::write_txt_file_to_path(&repo.path.join("heyyo.txt"), "Hello 1")?;
-            command::add(&repo, &hello_file)?;
+            let hello_file = test::write_txt_file_to_path(repo.path.join("heyyo.txt"), "Hello 1")?;
+            command::add(&repo, hello_file)?;
 
             // let status = command::status(&repo)?;
 

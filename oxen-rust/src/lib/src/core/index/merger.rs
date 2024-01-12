@@ -6,7 +6,7 @@ use crate::core::index::{
     MergeConflictDBReader, RefReader, RefWriter, SchemaReader, Stager,
 };
 use crate::error::OxenError;
-use crate::model::{commit, Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 
 use crate::util;
 

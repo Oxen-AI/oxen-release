@@ -21,7 +21,7 @@ use crate::core::index::{
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{
-    schema, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
+    Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
 use crate::opts::PullOpts;
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
@@ -578,7 +578,7 @@ impl EntryIndexer {
         commits: &[Commit],
     ) -> Result<(), OxenError> {
         log::debug!("🐂 pulling tree objects for {:?} commits", commits.len());
-        if commits.len() == 0 {
+        if commits.is_empty() {
             return Ok(()); // nothing to do, pulling anyway causes objects db errors
         }
         api::remote::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
@@ -620,8 +620,8 @@ impl EntryIndexer {
                 log::debug!("read unsynced schemas for commit {}", commit.id);
 
                 // Collec these both together as Entry
-                let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
-                entries.extend(schemas.into_iter().map(|e| Entry::from(e)));
+                let mut entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
+                entries.extend(schemas.into_iter().map(Entry::from));
 
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
@@ -707,8 +707,8 @@ impl EntryIndexer {
 
         let schema_entries = self.read_pulled_schema_entries(&commit, limit)?;
 
-        let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
-        entries.extend(schema_entries.into_iter().map(|e| Entry::from(e)));
+        let mut entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
+        entries.extend(schema_entries.into_iter().map(Entry::from));
 
         let n_entries_to_pull = entries.len();
         log::debug!("got {} entries to pull", n_entries_to_pull);
@@ -749,7 +749,7 @@ impl EntryIndexer {
         dir_entries.par_iter().for_each(|(dir, entries)| {
             let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
             entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path());
+                let filepath = self.repository.path.join(entry.path());
                 if versioner::should_unpack_entry(entry, &filepath) {
                     log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
                     let version_path = util::fs::version_path_for_entry(&self.repository, entry);
@@ -760,8 +760,9 @@ impl EntryIndexer {
                         }
                     }
                 }
-                match entry {
-                    Entry::CommitEntry(file) => match util::fs::metadata(&filepath) {
+
+                if let Entry::CommitEntry(file) = entry {
+                    match util::fs::metadata(&filepath) {
                         Ok(metadata) => {
                             let mtime = FileTime::from_last_modification_time(&metadata);
                             committer
@@ -771,8 +772,7 @@ impl EntryIndexer {
                         Err(err) => {
                             log::error!("Could not update timestamp for {:?}: {}", filepath, err)
                         }
-                    },
-                    _ => {}
+                    }
                 }
                 bar.inc(1);
             });

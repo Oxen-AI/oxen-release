@@ -4,9 +4,7 @@ use crate::constants::{
 use crate::core::db;
 use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
-use crate::core::index::{
-    CommitDirEntryWriter, LegacyCommitDirEntryReader, RefWriter, SchemaReader, SchemaWriter,
-};
+use crate::core::index::{LegacyCommitDirEntryReader, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,
@@ -16,13 +14,12 @@ use crate::view::schema::SchemaWithPath;
 use crate::{api, util};
 
 use filetime::FileTime;
-use indicatif::ProgressBar;
+
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
 
 use super::{
     versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader,
@@ -306,7 +303,7 @@ impl CommitEntryWriter {
         staged_data: &StagedData,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
-        let bar = oxen_progress_bar(
+        let _bar = oxen_progress_bar(
             staged_data.staged_files.len() as u64,
             ProgressBarType::Counter,
         );
@@ -326,16 +323,12 @@ impl CommitEntryWriter {
         log::debug!("commit_schemas got {} schemas", staged_schemas.len());
 
         let schema_writer = SchemaWriter::new(&self.repository, &commit.id)?;
-        for (path, staged_schema) in staged_schemas.iter() {
+        for (_path, staged_schema) in staged_schemas.iter() {
             if staged_schema.status == StagedEntryStatus::Removed {
                 schema_writer.delete_schema(&staged_schema.schema)?;
                 // schema_writer.delete_schema_for_file(path, &staged_schema.schema)?;
-            } else {
-                if !schema_writer.has_schema(&staged_schema.schema) {
-                    schema_writer.put_schema(&staged_schema.schema)?;
-                }
-                // Map the file to the schema
-                // schema_writer.put_schema_for_file(path, &staged_schema.schema)?;
+            } else if !schema_writer.has_schema(&staged_schema.schema) {
+                schema_writer.put_schema(&staged_schema.schema)?;
             }
         }
 
@@ -829,8 +822,6 @@ impl CommitEntryWriter {
             b_count.cmp(&a_count)
         });
 
-        // let _schemas_map = self.map_schemas_to_parent_dirs()?;
-
         let parent_hash_db_dir =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &parent_commit_id);
         let parent_hash_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
@@ -1179,9 +1170,9 @@ impl CommitEntryWriter {
 
     fn commit_staged_entries_with_prog(
         &self,
-        commit: &Commit,
+        _commit: &Commit,
         staged_data: &StagedData,
-        origin_path: &Path,
+        _origin_path: &Path,
     ) -> Result<(), OxenError> {
         let size: u64 = unsafe { std::mem::transmute(staged_data.staged_files.len()) };
         if size == 0 {
@@ -1266,28 +1257,6 @@ impl CommitEntryWriter {
                 }
             }
         }
-    }
-
-    fn map_schemas_to_parent_dirs(
-        &self,
-    ) -> Result<HashMap<PathBuf, Vec<SchemaWithPath>>, OxenError> {
-        let schema_reader = SchemaReader::new(&self.repository, &self.commit.id)?;
-        let schemas = schema_reader.list_schemas()?;
-
-        let mut schema_map: HashMap<PathBuf, Vec<SchemaWithPath>> = HashMap::new();
-        for (path, schema) in schemas {
-            let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
-            let schema_with_path = SchemaWithPath {
-                path: PathBuf::from(SCHEMAS_TREE_PREFIX)
-                    .join(path.clone())
-                    .to_string_lossy()
-                    .to_string(),
-                schema,
-            };
-            schema_map.entry(parent).or_default().push(schema_with_path);
-        }
-
-        Ok(schema_map)
     }
 
     fn group_staged_files_to_dirs_with_status(
@@ -1485,8 +1454,8 @@ mod tests {
         test::run_empty_local_repo_test_async(|local_repo| async move {
             let p1 = "hi.txt";
             let p2 = "bye.txt";
-            let path_1 = local_repo.path.join(&p1);
-            let path_2 = local_repo.path.join(&p2);
+            let path_1 = local_repo.path.join(p1);
+            let path_2 = local_repo.path.join(p2);
 
             let common_contents = "the same file";
 
@@ -1510,7 +1479,7 @@ mod tests {
             let commit_entry_reader = CommitEntryReader::new(&local_repo, &commit)?;
 
             // List all the files
-            let files = commit_entry_reader.list_entries()?;
+            let _files = commit_entry_reader.list_entries()?;
 
             assert!(commit_entry_reader.has_file(&PathBuf::from(p1)));
             assert!(commit_entry_reader.has_file(&PathBuf::from(p2)));

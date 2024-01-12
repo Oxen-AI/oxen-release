@@ -9,8 +9,8 @@ use indicatif::ProgressBar;
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
-use crate::model::entry::commit_entry::{Entry, SchemaEntry};
-use crate::model::{CommitEntry, RemoteRepository};
+use crate::model::entry::commit_entry::Entry;
+use crate::model::RemoteRepository;
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
@@ -98,33 +98,6 @@ fn get_missing_entries(entries: &[Entry], dst: impl AsRef<Path>) -> Vec<Entry> {
         let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         if !version_path.exists() {
             missing_entries.push(entry.to_owned())
-        }
-    }
-
-    missing_entries
-}
-fn get_missing_commit_entries(entries: &[CommitEntry], dst: impl AsRef<Path>) -> Vec<CommitEntry> {
-    let dst = dst.as_ref();
-    let mut missing_entries: Vec<CommitEntry> = vec![];
-
-    for entry in entries {
-        let version_path = util::fs::version_path_from_dst(dst, entry);
-        if !version_path.exists() {
-            missing_entries.push(entry.to_owned())
-        }
-    }
-
-    missing_entries
-}
-
-fn get_missing_schema_entries(schemas: &[SchemaEntry], dst: impl AsRef<Path>) -> Vec<CommitEntry> {
-    let dst = dst.as_ref();
-    let mut missing_entries: Vec<CommitEntry> = vec![];
-
-    for schema in schemas {
-        let version_path = util::fs::version_path_from_schema_hash(dst, schema.hash.clone());
-        if !version_path.exists() {
-            missing_entries.push(CommitEntry::from_path(version_path))
         }
     }
 

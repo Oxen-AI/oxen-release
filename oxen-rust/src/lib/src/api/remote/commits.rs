@@ -1,11 +1,9 @@
 use crate::api::remote::client;
 use crate::constants::{
-    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, DIR_HASHES_DIR, FILES_DIR, HISTORY_DIR, OBJECTS_DIR,
-    OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, SCHEMAS_DIR,
-    TREE_DIR,
+    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, DIR_HASHES_DIR, HISTORY_DIR, OBJECTS_DIR, TREE_DIR,
 };
-use crate::core::db::tree_db::TreeObject;
-use crate::core::db::{self, path_db};
+
+use crate::core::db::{self};
 use crate::core::index::pusher::UnsyncedCommitEntries;
 use crate::core::index::{CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger};
 use crate::error::OxenError;
@@ -36,12 +34,6 @@ use flate2::Compression;
 use futures_util::TryStreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-
-use tokio::fs::File;
-use tokio::io::{AsyncWriteExt, BufReader};
-
-use bytes::Bytes;
-use futures::StreamExt;
 
 pub struct ChunkParams {
     pub chunk_num: usize,
@@ -617,7 +609,7 @@ pub async fn download_commit_entries_db_to_path(
             // Move the tmp path to the full path
             log::debug!("renaming {:?} to {:?}", tmp_path, full_unpacked_path);
             std::fs::rename(
-                &tmp_path.join(HISTORY_DIR).join(commit_id),
+                tmp_path.join(HISTORY_DIR).join(commit_id),
                 &full_unpacked_path,
             )?;
 
@@ -1175,7 +1167,6 @@ mod tests {
     use crate::core::index::pusher::UnsyncedCommitEntries;
     use crate::core::index::CommitDBReader;
     use crate::error::OxenError;
-    use crate::model::CommitEntry;
 
     use crate::model::entry::commit_entry::Entry;
     use crate::test;

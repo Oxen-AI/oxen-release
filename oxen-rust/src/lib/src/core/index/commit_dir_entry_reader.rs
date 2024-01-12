@@ -1,6 +1,6 @@
 //!
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use crate::constants::{self};
 use crate::core::db;

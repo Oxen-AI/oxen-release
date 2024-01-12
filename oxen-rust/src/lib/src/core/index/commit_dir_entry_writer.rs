@@ -29,7 +29,7 @@ impl CommitDirEntryWriter {
             .join(dir)
     }
 
-    pub fn files_db_dir(repo: &LocalRepository, commit_id: &str, dir: &Path) -> PathBuf {
+    pub fn files_db_dir(repo: &LocalRepository, _commit_id: &str, _dir: &Path) -> PathBuf {
         util::fs::oxen_hidden_dir(&repo.path)
             .join(Path::new(OBJECTS_DIR).join(Path::new(OBJECT_FILES_DIR)))
     }
@@ -40,7 +40,7 @@ impl CommitDirEntryWriter {
         dir: &Path,
     ) -> Result<CommitDirEntryWriter, OxenError> {
         let dbpath = CommitDirEntryWriter::db_dir(repository, commit_id, dir);
-        let files_dbpath = CommitDirEntryWriter::files_db_dir(repository, commit_id, dir);
+        let _files_dbpath = CommitDirEntryWriter::files_db_dir(repository, commit_id, dir);
         log::debug!("CommitDirEntryWriter db_path {:?}", dbpath);
         if !dbpath.exists() {
             std::fs::create_dir_all(&dbpath)?;
@@ -67,8 +67,8 @@ impl CommitDirEntryWriter {
                 TreeObject::File {
                     hash,
                     num_bytes,
-                    last_modified_seconds,
-                    last_modified_nanoseconds,
+                    last_modified_seconds: _,
+                    last_modified_nanoseconds: _,
                 } => {
                     let updated_entry = TreeObject::File {
                         hash: hash.clone(),
