@@ -128,7 +128,3 @@ pub fn create_merkle_trees_down(_repo: &LocalRepository) -> Result<(), OxenError
     println!("There are no operations to be run");
     Ok(())
 }
-
-// This logic mirrors the CommitEntryReader pre 0.10.0. It is only used here to get existing commit data for migration,
-// and will not work on repos created with 0.10.0 or later.
-// fn legacy_list_entries()
