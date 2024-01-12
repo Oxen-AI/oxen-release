@@ -76,8 +76,8 @@ pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
     !path.exists() || path_hash_is_different(entry, path)
 }
 
-pub fn should_copy_schema(schema: &Schema, path: &Path) -> bool {
-    !path.exists() // TODONOW do we also need "hash is different" here
+pub fn should_copy_schema(_schema: &Schema, path: &Path) -> bool {
+    !path.exists()
 }
 
 fn path_hash_is_different(entry: &CommitEntry, path: &Path) -> bool {
