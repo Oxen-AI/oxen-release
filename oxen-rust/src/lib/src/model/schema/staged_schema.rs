@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use super::Schema;
 
-// TODONOW: maybe come back to this
 #[derive(Deserialize, Serialize, Debug, PartialEq, Eq, Clone)]
 pub enum StagedSchemaStatus {
     Added,

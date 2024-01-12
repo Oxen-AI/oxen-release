@@ -269,8 +269,8 @@ impl TreeDBMerger {
 
                 for head_child in head_children {
                     visited_paths.insert(head_child.path());
+
                     // Client + server symmetric here
-                    // TODONOW - think a bit more about this symmetricity
                     let head_node: Option<TreeObject> =
                         self.client_reader.get_entry_from_child(head_child)?;
                     let other_head_node: Option<TreeObject> = None;

@@ -128,8 +128,6 @@ impl TreeObjectReader {
         }
     }
 
-    // TODONOW: This should be retooled to take in a commit - take the
-    // commit out of the objectreader struct
     pub fn get_root_node(&self) -> Result<Option<TreeObject>, OxenError> {
         let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
         path_db::get_entry(&self.dirs_db, root_hash)

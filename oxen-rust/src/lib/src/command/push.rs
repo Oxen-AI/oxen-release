@@ -314,6 +314,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "newer file")?;
                     command::add(&user_b_repo, &new_file_path)?;
                     command::commit(&user_b_repo, "User B adding second file path.")?;
+                    // This should now succeed! Used to fail, but auto-merges now.
                     log::debug!("pushing b...");
                     let result = command::push(&user_b_repo).await;
                     assert!(result.is_ok());

@@ -167,7 +167,6 @@ impl LocalRepository {
     ) -> Result<LocalRepository, OxenError> {
         api::remote::repositories::pre_clone(&repo).await?;
 
-        log::debug!("in clone repo");
         // if directory already exists -> return Err
         let repo_path = &opts.dst;
         if repo_path.exists() {
@@ -192,15 +191,11 @@ impl LocalRepository {
         util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
-        log::debug!("grabbing remote branch");
         let rb = RemoteBranch::from_branch(&opts.branch);
-        log::debug!("about to init entry indexer");
         let indexer = EntryIndexer::new(&local_repo)?;
-        log::debug!("init-d entry indexer");
         local_repo
             .maybe_pull_entries(&repo, &indexer, &rb, opts)
             .await?;
-        log::debug!("pulled entries");
 
         if opts.all {
             log::debug!("pulling all entries");

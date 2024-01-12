@@ -651,7 +651,6 @@ impl CommitEntryWriter {
                 hash: updated_vnode.hash().to_string(),
             };
 
-            // TODONOW: if broken, "&& !children_path_map.is_empty()"
             if !updated_vnode.children().is_empty() {
                 path_db::put(&self.vnodes_db, updated_vnode.hash(), &updated_vnode)?;
                 // Add the vnode
@@ -861,8 +860,7 @@ impl CommitEntryWriter {
                 log::debug!("Found some prev_dir_hash");
                 path_db::put(&self.dir_hashes_db, dir.clone(), &prev_hash)?;
             } else {
-                panic!("Somehow we have an unaffected dir that doesn't exist in the parent commit")
-                // TODONOW error hadnling
+                panic!("Found an unaffected dir that doesn't exist in the parent commit")
             }
         }
 

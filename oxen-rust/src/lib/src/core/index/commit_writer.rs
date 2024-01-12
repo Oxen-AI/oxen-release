@@ -884,15 +884,11 @@ mod tests {
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let user = UserConfig::get()?.to_user();
             let identity = UserConfig::identifier()?;
-            log::debug!("init-ing staging environment");
             let branch_repo =
                 index::remote_dir_stager::init_or_get(&repo, &branch, &identity).unwrap();
-            log::debug!("getting commit");
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-            log::debug!("getting entry");
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
-            log::debug!("appending contents");
             let append_contents = "{\"file\": \"images/test.jpg\", \"label\": \"dog\", \"min_x\": 2.0, \"min_y\": 3.0, \"width\": 100, \"height\": 120}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
@@ -901,7 +897,6 @@ mod tests {
                 content_type: ContentType::Json,
             };
             index::mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
-            log::debug!("new commit body");
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),
                 email: user.email,
@@ -911,12 +906,9 @@ mod tests {
             let commit =
                 remote_dir_stager::commit(&repo, &branch_repo, &branch, &new_commit, &identity)?;
 
-            log::debug!("post commit getting entry");
             // Make sure version file is updated
             let entry = api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
-            log::debug!("getting version file");
             let version_file = util::fs::version_path(&repo, &entry);
-            log::debug!("reading df");
             let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;
             println!("{data_frame}");
             assert_eq!(

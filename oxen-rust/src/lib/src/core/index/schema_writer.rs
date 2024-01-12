@@ -52,7 +52,6 @@ impl SchemaWriter {
         Ok(())
     }
 
-    // TODONOW:: ??
     pub fn has_schema(&self, schema: &Schema) -> bool {
         str_json_db::has_key(&self.db, &schema.hash)
     }

@@ -391,21 +391,6 @@ pub fn compute_schemas_size(schemas: &[SchemaEntry]) -> Result<u64, OxenError> {
 }
 
 /// Given a list of entries, group them by their parent directory.
-// pub fn group_entries_to_parent_dirs(entries: &[CommitEntry]) -> HashMap<PathBuf, Vec<CommitEntry>> {
-//     let mut results: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
-
-//     for entry in entries.iter() {
-//         if let Some(parent) = entry.path.parent() {
-//             results
-//                 .entry(parent.to_path_buf())
-//                 .or_default()
-//                 .push(entry.clone());
-//         }
-//     }
-
-//     results
-// }
-
 pub fn group_commit_entries_to_parent_dirs(
     entries: &[CommitEntry],
 ) -> HashMap<PathBuf, Vec<CommitEntry>> {
@@ -464,11 +449,6 @@ pub fn read_unsynced_entries(
     let this_entry_reader = CommitEntryReader::new(local_repo, this_commit)?;
 
     let this_entries = this_entry_reader.list_entries()?;
-    log::debug!(
-        "entries for commit {:#?} are {:#?}",
-        this_commit,
-        this_entries
-    );
     let grouped = api::local::entries::group_commit_entries_to_parent_dirs(&this_entries);
     log::debug!(
         "Checking {} entries in {} groups",
@@ -477,12 +457,6 @@ pub fn read_unsynced_entries(
     );
 
     let object_reader = ObjectDBReader::new(local_repo)?;
-
-    log::debug!(
-        "checking last commit {:#?} against this commit {:#?}",
-        last_commit,
-        this_commit
-    );
 
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {

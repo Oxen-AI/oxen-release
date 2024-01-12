@@ -94,7 +94,7 @@ pub fn should_unpack_entry(entry: &Entry, path: &Path) -> bool {
 }
 
 pub fn should_copy_schema_entry(_schema: &SchemaEntry, path: &Path) -> bool {
-    !path.exists() // TODONOW do we also need "hash is different" here
+    !path.exists()
 }
 
 pub fn should_copy_schema(_schema: &Schema, path: &Path) -> bool {

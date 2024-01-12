@@ -737,6 +737,7 @@ fn collect_modified_directories(
     diff_entries: &mut Vec<DiffEntry>,
 ) -> Result<(), OxenError> {
     for head_dir in head_dirs {
+        // HEAD entry is in BASE
         if base_dirs.contains(head_dir) {
             let diff_entry = DiffEntry::from_dir(
                 repo,
@@ -748,11 +749,6 @@ fn collect_modified_directories(
             )?;
 
             if diff_entry.has_changes() {
-                log::debug!(
-                    "head_dir {:?} has changes, pushing diff_entry {:?}",
-                    head_dir,
-                    diff_entry
-                );
                 diff_entries.push(diff_entry);
             }
         }

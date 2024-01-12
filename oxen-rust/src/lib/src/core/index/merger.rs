@@ -1036,12 +1036,9 @@ mod tests {
             command::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
-            log::debug!("init'ing merger");
             let merger = Merger::new(&repo)?;
-            log::debug!("merging fish branch");
             // Should merge cleanly
             let result = merger.merge(fish_branch_name)?;
-            log::debug!("merged");
             assert!(result.is_some());
 
             // But now there should be conflicts when trying to merge in the human branch
@@ -1050,9 +1047,7 @@ mod tests {
                 api::local::branches::get_by_name(&repo, human_branch_name)?.unwrap();
 
             // Check if there are conflicts
-            log::debug!("merger has conflicts");
             let has_conflicts = merger.has_conflicts(&base_branch, &merge_branch)?;
-            log::debug!("done");
             assert!(has_conflicts);
 
             Ok(())
