@@ -1,7 +1,7 @@
 use crate::api;
 use crate::constants::{self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, VERSIONS_DIR};
 use crate::core::db;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
+use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{kv_db, path_db};
 use crate::core::index::{CommitDirEntryWriter, RefWriter, SchemaReader, SchemaWriter};
 use crate::error::OxenError;

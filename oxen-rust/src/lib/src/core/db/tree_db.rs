@@ -209,7 +209,7 @@ impl TreeObject {
         let bottom_hash = &self.hash()[2..];
         let base_path = match self {
             TreeObject::File { .. } => objects_dir.join(OBJECT_FILES_DIR),
-            TreeObject::Schema { hash, .. } => objects_dir.join(OBJECT_SCHEMAS_DIR),
+            TreeObject::Schema { .. } => objects_dir.join(OBJECT_SCHEMAS_DIR),
             TreeObject::Dir { .. } => objects_dir.join(OBJECT_DIRS_DIR),
             TreeObject::VNode { .. } => objects_dir.join(OBJECT_VNODES_DIR),
         };
