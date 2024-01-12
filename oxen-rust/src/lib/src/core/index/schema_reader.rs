@@ -285,13 +285,13 @@ impl SchemaReader {
             for child in vnode.children() {
                 match child {
                     TreeObjectChild::Dir { hash, .. } => {
-                        let dir_node = self.object_reader.get_dir(&hash)?.unwrap();
+                        let dir_node = self.object_reader.get_dir(hash)?.unwrap();
                         self.r_list_schema_entries(dir_node, entries)?;
                     }
                     TreeObjectChild::Schema { path, hash, .. } => {
                         let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
                         log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
-                        let found_schema = self.object_reader.get_schema(&hash)?.unwrap();
+                        let found_schema = self.object_reader.get_schema(hash)?.unwrap();
                         log::debug!("got found schema {:?}", found_schema);
                         let found_entry = SchemaEntry {
                             commit_id: self.commit_id.clone(),

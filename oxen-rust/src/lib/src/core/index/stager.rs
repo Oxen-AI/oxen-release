@@ -30,9 +30,7 @@ use crate::model::{
     StagedEntryStatus,
 };
 use crate::util;
-use crate::util::progress_bar::{
-    oxen_progress_bar, oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType,
-};
+use crate::util::progress_bar::{oxen_progress_bar, oxen_progress_bar_with_msg, ProgressBarType};
 
 use filetime::FileTime;
 use ignore::gitignore::Gitignore;
@@ -46,7 +44,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
-use std::sync::Mutex;
 
 use super::StagedDirEntryReader;
 
@@ -157,7 +154,7 @@ impl Stager {
             for entry in (std::fs::read_dir(path)?).flatten() {
                 let path = entry.path();
                 let entry_path = self.repository.path.join(path);
-                self.add(&entry_path, commit_reader, &schema_reader, ignore)?;
+                self.add(&entry_path, commit_reader, schema_reader, ignore)?;
             }
             log::debug!("ADD CURRENT DIR: {:?}", path);
             return Ok(());
@@ -175,7 +172,7 @@ impl Stager {
                 Err(err) => Err(err),
             }
         } else {
-            match self.add_file(path, commit_reader, &schema_reader) {
+            match self.add_file(path, commit_reader, schema_reader) {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             }
@@ -541,7 +538,7 @@ impl Stager {
             relative_dir
         );
 
-        candidate_files
+        if let Some(combined_changes) = candidate_files
             .par_iter()
             .map(|relative| {
                 let mut local_staged_data = StagedData::empty();
@@ -618,24 +615,20 @@ impl Stager {
 
                 a
             })
-            .map(|combined_changes| {
-                staged_data
-                    .untracked_dirs
-                    .extend(combined_changes.untracked_dirs);
-                staged_data
-                    .untracked_files
-                    .extend(combined_changes.untracked_files);
-                staged_data
-                    .modified_files
-                    .extend(combined_changes.modified_files);
-                staged_data
-                    .removed_files
-                    .extend(combined_changes.removed_files);
-                staged_data
-                    .staged_files
-                    .extend(combined_changes.staged_files);
-            });
-
+        {
+            staged_data
+                .untracked_dirs
+                .extend(combined_changes.untracked_dirs);
+            staged_data
+                .untracked_files
+                .extend(combined_changes.untracked_files);
+            staged_data
+                .modified_files
+                .extend(combined_changes.modified_files);
+            staged_data
+                .removed_files
+                .extend(combined_changes.removed_files);
+        }
         Ok(())
     }
 
@@ -1198,7 +1191,7 @@ impl Stager {
                 object_reader,
             )?;
 
-            self.add_staged_entry_in_dir_db(path, &entry_reader, &schema_reader, &staged_db)
+            self.add_staged_entry_in_dir_db(path, &entry_reader, schema_reader, &staged_db)
         } else {
             log::error!("add_staged_entry no parent... {:?}", path);
             Err(OxenError::file_has_no_parent(path))
@@ -1236,7 +1229,7 @@ impl Stager {
         if let Some(merger) = &self.merger {
             if merger.has_file(&path)? {
                 log::debug!("add_staged_entry_in_dir_db merger has file! {:?}", path);
-                self.add_staged_entry_to_db(&path, &staged_entry, staged_db, &schema_reader)?;
+                self.add_staged_entry_to_db(&path, &staged_entry, staged_db, schema_reader)?;
                 merger.remove_conflict_path(&path)?;
                 return Ok(path);
             }
@@ -1269,7 +1262,7 @@ impl Stager {
         }
 
         log::debug!("add_staged_entry_in_dir_db {:?} {:?}", path, staged_entry);
-        self.add_staged_entry_to_db(&path, &staged_entry, staged_db, &schema_reader)?;
+        self.add_staged_entry_to_db(&path, &staged_entry, staged_db, schema_reader)?;
 
         Ok(path)
     }
