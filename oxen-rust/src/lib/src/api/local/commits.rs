@@ -6,7 +6,8 @@
 use crate::constants::HISTORY_DIR;
 use crate::core::cache::cachers::content_validator;
 use crate::core::index::{
-    self, CommitEntryReader, CommitReader, CommitWriter, RefReader, RefWriter, Stager,
+    self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
+    Stager,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -385,6 +386,15 @@ pub fn commit_history_is_complete(repo: &LocalRepository, commit: &Commit) -> bo
         }
     }
     true
+}
+
+pub fn construct_commit_merkle_tree_from_legacy(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    let commit_writer = CommitEntryWriter::new(repo, commit)?;
+    commit_writer.construct_merkle_tree_from_legacy_commit(&repo.path)?;
+    Ok(())
 }
 
 #[cfg(test)]

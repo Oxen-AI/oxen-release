@@ -73,6 +73,7 @@ pub use crate::model::remote::Remote;
 
 pub use crate::model::diff::data_frame_diff::DataFrameDiff;
 
+pub use crate::model::schema::staged_schema::StagedSchema;
 pub use crate::model::schema::Schema;
 
 pub use crate::model::namespace::Namespace;

@@ -381,6 +381,7 @@ mod tests {
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
                 timestamp,
+                root_hash: None,
             };
             let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;
@@ -543,6 +544,7 @@ mod tests {
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
                 timestamp,
+                root_hash: None,
             };
             let repo_new = RepoNew::from_root_commit(old_namespace, name, root_commit);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;

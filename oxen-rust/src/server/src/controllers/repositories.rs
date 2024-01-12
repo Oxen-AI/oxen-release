@@ -371,6 +371,7 @@ mod tests {
             author: String::from("Ox"),
             email: String::from("ox@oxen.ai"),
             timestamp,
+            root_hash: None,
         };
         let repo_new = RepoNew::from_root_commit("Testing-Name", "Testing-Namespace", root_commit);
         let data = serde_json::to_string(&repo_new)?;
