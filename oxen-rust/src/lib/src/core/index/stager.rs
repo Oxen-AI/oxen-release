@@ -1506,13 +1506,9 @@ impl Stager {
     }
 
     fn list_staged_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
-        log::debug!("got dir {:?}", dir);
         let relative = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        log::debug!("got relative {:?}", relative);
         let staged_dir = StagedDirEntryReader::new(&self.repository, &relative)?;
-        log::debug!("staged entry reader init'd");
         let paths = staged_dir.list_added_paths()?;
-        log::debug!("successfully listed added paths");
         Ok(paths)
     }
 
