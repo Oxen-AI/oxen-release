@@ -5,6 +5,7 @@
 
 use crate::api;
 use crate::command;
+use crate::core::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -51,6 +52,13 @@ Stage a file or directory with `oxen add <file>`"
         ));
     }
     let commit = api::local::commits::commit(repo, &status, message)?;
+    // Open then close commit entry writer to force indexing on rocksbds
+    {
+        // Get time here
+        let start = std::time::Instant::now();
+        let _ = CommitEntryWriter::new(repo, &commit)?;
+        let elapsed = start.elapsed();
+    }
     log::info!("DONE COMMITTING in command::commit {}", commit);
     Ok(commit)
 }
