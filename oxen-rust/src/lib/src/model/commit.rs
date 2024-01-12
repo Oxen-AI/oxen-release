@@ -46,6 +46,7 @@ pub struct Commit {
     pub message: String,
     pub author: String,
     pub email: String,
+    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
 }
@@ -64,6 +65,7 @@ pub struct CommitWithSize {
     pub message: String,
     pub author: String,
     pub email: String,
+    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
@@ -77,6 +79,7 @@ pub struct CommitWithBranchName {
     pub message: String,
     pub author: String,
     pub email: String,
+    pub root_hash: Option<String>,
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
     pub size: u64,
@@ -107,6 +110,7 @@ impl Commit {
             author: new_commit.author.to_owned(),
             email: new_commit.email.to_owned(),
             timestamp: new_commit.timestamp.to_owned(),
+            root_hash: None,
         }
     }
 
@@ -118,7 +122,12 @@ impl Commit {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
+            root_hash: commit.root_hash.to_owned(),
         }
+    }
+
+    pub fn update_root_hash(&mut self, root_hash: String) {
+        self.root_hash = Some(root_hash);
     }
 
     pub fn from_with_branch_name(commit: &CommitWithBranchName) -> Commit {
@@ -129,6 +138,7 @@ impl Commit {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
+            root_hash: commit.root_hash.to_owned(),
         }
     }
 
@@ -161,6 +171,7 @@ impl CommitWithSize {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
+            root_hash: commit.root_hash.to_owned(),
             size,
         }
     }
@@ -175,6 +186,7 @@ impl CommitWithBranchName {
             author: commit.author.to_owned(),
             email: commit.email.to_owned(),
             timestamp: commit.timestamp.to_owned(),
+            root_hash: commit.root_hash.to_owned(),
             size,
             branch_name,
         }

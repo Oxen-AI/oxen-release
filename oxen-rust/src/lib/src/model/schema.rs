@@ -1,6 +1,7 @@
 pub mod custom_data_type;
 pub mod data_type;
 pub mod field;
+pub mod staged_schema;
 
 pub use custom_data_type::CustomDataType;
 pub use data_type::DataType;
@@ -265,6 +266,11 @@ impl Schema {
             }
         }
         table.to_string()
+    }
+
+    pub fn num_bytes(&self) -> u64 {
+        let bytes = serde_json::to_string(&self).unwrap().as_bytes().len();
+        bytes as u64
     }
 
     pub fn verbose_str(&self) -> String {
