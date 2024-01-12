@@ -3,23 +3,14 @@ use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
 use liboxen::constants::DIRS_DIR;
 use liboxen::constants::DIR_HASHES_DIR;
-use liboxen::constants::FILES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::OBJECTS_DIR;
-use liboxen::constants::OBJECT_DIRS_DIR;
-use liboxen::constants::OBJECT_FILES_DIR;
-use liboxen::constants::OBJECT_SCHEMAS_DIR;
-use liboxen::constants::OBJECT_VNODES_DIR;
-use liboxen::constants::SCHEMAS_DIR;
 use liboxen::constants::TREE_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
 use liboxen::core::cache::commit_cacher;
-use liboxen::core::db;
-use liboxen::core::db::path_db;
-use liboxen::core::db::tree_db::TreeObject;
 use liboxen::core::index::CommitReader;
 use liboxen::core::index::CommitWriter;
 
@@ -40,8 +31,6 @@ use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::PaginatedCommits;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
-use rocksdb::DBWithThreadMode;
-use rocksdb::MultiThreaded;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -60,7 +49,6 @@ use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::convert::TryFrom;
-use std::fs::File;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
@@ -508,13 +496,6 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     log::debug!("Compressing commit {} from dir {:?}", commit.id, commit_dir);
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
-
-    // Ignore cache and other dirs, only take what we need
-    let opts = db::opts::default();
-    let dir_hashes_dir = commit_dir.join(DIR_HASHES_DIR);
-    let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_dir, false)?;
-    let iter = dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
 
     let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
 

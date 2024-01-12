@@ -213,17 +213,6 @@ pub fn extension_from_path(path: &Path) -> String {
     }
 }
 
-pub fn version_path_from_schema(dst: impl AsRef<Path>, schema: &Schema) -> PathBuf {
-    // Save schemas as path with no extension
-    version_path_from_schema_hash(dst, schema.hash.clone())
-}
-
-pub fn version_path_from_schema_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
-    // Save schemas as path with no extension
-    let version_dir = version_dir_from_hash(dst, hash);
-    version_dir.join(VERSION_FILE_NAME)
-}
-
 pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
     let topdir = &hash[..2];
     let subdir = &hash[2..];

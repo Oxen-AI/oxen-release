@@ -1,4 +1,3 @@
-use crate::api;
 use crate::constants::{
     self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
 };
@@ -8,8 +7,13 @@ use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithS
 use crate::core::index::{
     CommitDirEntryWriter, LegacyCommitDirEntryReader, RefWriter, SchemaReader, SchemaWriter,
 };
+use crate::error::OxenError;
+use crate::model::{
+    Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,
+};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::view::schema::SchemaWithPath;
+use crate::{api, util};
 
 use filetime::FileTime;
 use indicatif::ProgressBar;
