@@ -38,7 +38,7 @@ impl Migrate for CacheDataFrameSizeMigration {
         Ok(())
     }
 
-    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+    fn is_needed(&self, _repo: &LocalRepository) -> Result<bool, OxenError> {
         // Server-side migration, not necessary for autodetection on client
         Ok(false)
     }

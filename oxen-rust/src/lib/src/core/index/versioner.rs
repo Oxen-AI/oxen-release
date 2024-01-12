@@ -101,9 +101,10 @@ pub fn should_copy_schema_entry(schema: &SchemaEntry, path: &Path) -> bool {
     !path.exists() // TODONOW do we also need "hash is different" here
 }
 
-pub fn should_copy_schema(schema: &Schema, path: &Path) -> bool {
-    !path.exists() // TODONOW do we also need "hash is different" here
+pub fn should_copy_schema(_schema: &Schema, path: &Path) -> bool {
+    !path.exists()
 }
+
 fn path_hash_is_different(entry: &CommitEntry, path: &Path) -> bool {
     if let Ok(hash) = util::hasher::hash_file_contents(path) {
         return hash != entry.hash;

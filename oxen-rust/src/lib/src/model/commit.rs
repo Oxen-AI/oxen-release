@@ -130,6 +130,10 @@ impl Commit {
         }
     }
 
+    pub fn update_root_hash(&mut self, root_hash: String) {
+        self.root_hash = Some(root_hash);
+    }
+
     pub fn from_with_branch_name(commit: &CommitWithBranchName) -> Commit {
         Commit {
             id: commit.id.to_owned(),

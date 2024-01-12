@@ -268,6 +268,11 @@ impl Schema {
         table.to_string()
     }
 
+    pub fn num_bytes(&self) -> u64 {
+        let bytes = serde_json::to_string(&self).unwrap().as_bytes().len();
+        bytes as u64
+    }
+
     pub fn verbose_str(&self) -> String {
         let mut table = comfy_table::Table::new();
         table.set_header(vec!["name", "dtype", "metadata"]);
