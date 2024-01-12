@@ -620,6 +620,9 @@ impl Stager {
             staged_data
                 .removed_files
                 .extend(combined_changes.removed_files);
+            staged_data
+                .staged_files
+                .extend(combined_changes.staged_files);
         }
         Ok(())
     }
