@@ -69,7 +69,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_download_dir2() -> Result<(), OxenError> {
+    async fn test_download_dir() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let cloned_remote = remote_repo.clone();
             let src_path = "train";

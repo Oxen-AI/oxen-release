@@ -281,7 +281,6 @@ pub async fn can_push(
     let local_root = api::local::commits::root_commit(local_repo)?;
     let remote_root = api::remote::commits::root_commit(remote_repo).await?;
 
-    log::debug!("in the new can push endpoint");
     if local_root.id != remote_root.id {
         return Err(OxenError::basic_str(
             "Cannot push to a different repository",
@@ -304,10 +303,6 @@ pub async fn can_push(
     let reader = CommitReader::new(local_repo)?;
     let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
 
-    // let head_commit_dir = util::fs::oxen_hidden_dir(&local_repo.path)
-    //     .join(HISTORY_DIR)
-    //     .join(local_head.id.clone());
-
     // Create a temporary local tree representing the head commit
     let local_head_writer = CommitEntryWriter::new(local_repo, local_head)?;
     let tmp_tree_path = local_head_writer.save_temp_commit_tree()?;
@@ -317,12 +312,7 @@ pub async fn can_push(
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
-    let tar_path = tar_base_dir.join(TREE_DIR); // TODONOW: endogenize this
-    log::debug!(
-        "taring data from {:?} into dir {:?}",
-        tmp_tree_path,
-        tar_path
-    );
+    let tar_path = tar_base_dir.join(TREE_DIR);
 
     if tmp_tree_path.exists() {
         tar.append_dir_all(&tar_path, tmp_tree_path)?;
@@ -479,72 +469,6 @@ pub async fn download_objects_db_to_repo(
     // Merge with existing objects db
     api::local::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
     log::debug!("merged objects db");
-    // let opts = db::opts::default();
-
-    // let new_dirs_db: DBWithThreadMode<MultiThreaded> =
-    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_DIRS_DIR), false)?;
-    // let new_files_db: DBWithThreadMode<MultiThreaded> =
-    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_FILES_DIR), false)?;
-    // let new_schemas_db: DBWithThreadMode<MultiThreaded> =
-    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_SCHEMAS_DIR), false)?;
-    // let new_vnodes_db: DBWithThreadMode<MultiThreaded> =
-    //     DBWithThreadMode::open_for_read_only(&opts, new_path.join(OBJECT_VNODES_DIR), false)?;
-
-    // // Iterate over the new dirs db
-
-    // let dir_entries: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
-    // let file_entries: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
-    // let schema_entries: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
-    // let vnode_entries: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
-
-    // let head = api::local::commits::head_commit(local_repo)?;
-
-    // {
-    //     let _writer = CommitEntryWriter::new(local_repo, &head)?;
-    // };
-
-    // let oxen_hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    // let dirs_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-    //     &opts,
-    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_DIRS_DIR),
-    // )?;
-    // let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-    //     &opts,
-    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_FILES_DIR),
-    // )?;
-    // let schemas_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-    //     &opts,
-    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_SCHEMAS_DIR),
-    // )?;
-    // let vnodes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
-    //     &opts,
-    //     oxen_hidden_dir.join(OBJECTS_DIR).join(OBJECT_VNODES_DIR),
-    // )?;
-
-    // // Copy over from each of the new dbs to the old dbs
-    // log::debug!("doing dirs");
-    // for entry in dir_entries {
-    //     log::debug!("putting entry {:?} into dirs db", entry);
-    //     path_db::put(&dirs_db, &entry.hash().clone(), &entry)?;
-    // }
-
-    // log::debug!("doing files");
-    // for entry in file_entries {
-    //     log::debug!("putting entry {:?} into files db", entry);
-    //     path_db::put(&files_db, &entry.hash().clone(), &entry)?;
-    // }
-
-    // log::debug!("doing schemas");
-    // for entry in schema_entries {
-    //     log::debug!("putting entry {:?} into schemas db", entry);
-    //     path_db::put(&schemas_db, &entry.hash().clone(), &entry)?;
-    // }
-
-    // log::debug!("doing vnodes");
-    // for entry in vnode_entries {
-    //     log::debug!("putting entry {:?} into vnodes db", entry);
-    //     path_db::put(&vnodes_db, &entry.hash().clone(), &entry)?;
-    // }
 
     Ok(())
 }
@@ -593,7 +517,6 @@ pub async fn download_commit_entries_db_to_path(
             );
             archive_result?;
 
-            // Now delete `path` if it exists and replace it with `tmp_path`
             if full_unpacked_path.exists() {
                 log::debug!(
                     "{} removing existing {:?}",

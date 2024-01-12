@@ -350,9 +350,7 @@ where
         remote: false,
     };
 
-    log::debug!("about to rm in the test");
     command::rm(&local_repo, &rm_opts).await?;
-    log::debug!("successfully rm'd");
     command::commit(&local_repo, "Removing test/")?;
 
     // Add all the files

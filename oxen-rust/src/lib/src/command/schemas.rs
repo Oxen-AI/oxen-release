@@ -470,7 +470,6 @@ mod tests {
             assert_eq!(schemas.len(), 1);
             assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
             let schema = schemas.values().next().unwrap();
-            log::debug!("got schemas {:#?}", schemas);
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");

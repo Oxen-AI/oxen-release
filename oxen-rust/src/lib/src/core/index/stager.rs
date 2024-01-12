@@ -433,7 +433,7 @@ impl Stager {
         for relative_path in &staged_entries {
             if self.should_ignore_path(ignore, relative_path) {
                 continue;
-            } // TODONOW: probably unnecessary
+            }
 
             let fullpath = self.repository.path.join(relative_path);
 
@@ -1441,7 +1441,6 @@ impl Stager {
         let staged_schema: Option<StagedSchema> = path_db::get_entry(&self.schemas_db, path)?;
 
         // We just inserted so unwrap is okay
-        // TODONOW: maybe return the stagedschema here? idk.
         Ok(staged_schema.unwrap().schema)
     }
 
@@ -2193,17 +2192,9 @@ mod tests {
 
     #[test]
     fn test_stager_remove_file_top_level() -> Result<(), OxenError> {
-        log::debug!("starting the test");
         test::run_training_data_repo_test_fully_committed(|repo| {
-            log::debug!("made it into the fixture");
             // Get head commit
-            let head = CommitReader::new(&repo)?.head_commit()?;
-            log::debug!("head commit is {:?}", head);
-
             // List all entries in that commit
-            let entry_reader = CommitEntryReader::new(&repo, &head)?;
-            let entries = entry_reader.list_files()?;
-            log::debug!("entry_reader.list_files() is {:?}", entries);
 
             let stager = Stager::new(&repo)?;
             let commit_reader = CommitReader::new(&repo)?;

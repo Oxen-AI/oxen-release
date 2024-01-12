@@ -119,8 +119,6 @@ pub async fn download_dir(
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 
-    // TODONOW - schemas handling here?
-
     // Convert entries to [Entry]
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 

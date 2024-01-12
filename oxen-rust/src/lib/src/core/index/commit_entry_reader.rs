@@ -16,7 +16,6 @@ use crate::model::LocalRepository;
 
 use super::ObjectDBReader;
 
-// TODONOW - if we're iteratively opening CommitEntryReaders, handle ObjectDBReader differently
 pub struct CommitEntryReader {
     base_path: PathBuf,
     dir_db: DBWithThreadMode<MultiThreaded>,
