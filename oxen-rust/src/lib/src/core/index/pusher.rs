@@ -1,7 +1,7 @@
 //! Pushes commits and entries to the remote repository
 //!
 
-use crate::api::local::entries::{compute_entries_size, compute_generic_entries_size};
+use crate::api::local::entries::compute_generic_entries_size;
 use crate::api::remote::commits::ChunkParams;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::util::concurrency;
@@ -22,9 +22,7 @@ use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
 use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
-use crate::model::{
-    Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, Schema,
-};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
@@ -345,14 +343,14 @@ fn get_unsynced_entries_for_commit(
             api::local::entries::read_unsynced_schemas(local_repo, &local_parent, commit)?;
 
         // Get the entries and schemas into one Vec<Entry>
-        let mut entries: Vec<Entry> = entries.into_iter().map(|e| Entry::from(e)).collect();
+        let mut entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
         log::debug!(
             "got unsynced entries for commit {:#?}: {:#?}",
             commit,
             entries
         );
-        let schemas: Vec<Entry> = schemas.into_iter().map(|e| Entry::from(e)).collect();
+        let schemas: Vec<Entry> = schemas.into_iter().map(Entry::from).collect();
         log::debug!(
             "got unsynced schemas for commit {:#?}: {:#?}",
             commit,
@@ -1469,7 +1467,7 @@ mod tests {
 
             assert_eq!(commit_unsynced_commits.len(), 1);
 
-            for entry in commit_unsynced_commits[0].entries.clone().into_iter() {}
+            for _entry in commit_unsynced_commits[0].entries.clone().into_iter() {}
 
             assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
 

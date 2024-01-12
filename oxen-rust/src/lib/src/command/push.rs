@@ -100,10 +100,9 @@ mod tests {
     use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::core::db::path_db;
-    use crate::core::db::tree_db::TreeObject;
+
     use crate::core::index::CommitEntryReader;
-    use crate::core::index::CommitEntryWriter;
+
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -610,7 +609,7 @@ mod tests {
                         .join("train")
                         .join("annotations.txt");
 
-                    let add_path_b = user_b_repo
+                    let _add_path_b = user_b_repo
                         .path
                         .join("annotations")
                         .join("train")

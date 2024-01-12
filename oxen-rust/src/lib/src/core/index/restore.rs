@@ -21,7 +21,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     let path = opts.path;
     let commit = resource::get_commit_or_head(repo, opts.source_ref)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
-    let opts = db::opts::default();
+    let _opts = db::opts::default();
     let files_db_dir = CommitEntryWriter::files_db_dir(repo);
     let files_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&db::opts::default(), dunce::simplified(&files_db_dir))?;
@@ -74,7 +74,7 @@ fn restore_dir(
 
             // iterate over entries in parallel
             entries.iter().for_each(|entry| {
-                match restore_file(repo, &entry.path, &commit.id, entry, &files_db) {
+                match restore_file(repo, &entry.path, &commit.id, entry, files_db) {
                     Ok(_) => {}
                     Err(e) => {
                         log::error!("Error restoring file {:?}: {:?}", entry.path, e);

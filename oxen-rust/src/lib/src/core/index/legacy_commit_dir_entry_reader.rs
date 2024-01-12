@@ -12,7 +12,6 @@ use std::str;
 /// We keep a list of all the committed files in a subdirectory directory for fast lookup
 pub struct LegacyCommitDirEntryReader {
     db: DBWithThreadMode<MultiThreaded>,
-    dir: PathBuf,
 }
 
 impl LegacyCommitDirEntryReader {
@@ -73,7 +72,6 @@ impl LegacyCommitDirEntryReader {
 
         Ok(LegacyCommitDirEntryReader {
             db: DBWithThreadMode::open_for_read_only(&opts, &db_path, true)?,
-            dir: dir.to_owned(),
         })
     }
 

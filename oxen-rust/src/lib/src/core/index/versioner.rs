@@ -1,17 +1,13 @@
 //! versioner is responsible for interacting with entries in the versioned directory
 //!
 
-use filetime::FileTime;
 use std::io::Write;
 use std::path::Path;
 
-use crate::current_function;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::util;
-
-use super::CommitDirEntryWriter;
 
 // pub fn backup_file(
 //     repository: &LocalRepository,
@@ -93,11 +89,11 @@ pub fn should_copy_entry(entry: &CommitEntry, path: &Path) -> bool {
 pub fn should_unpack_entry(entry: &Entry, path: &Path) -> bool {
     match entry {
         Entry::CommitEntry(entry) => should_copy_entry(entry, path),
-        Entry::SchemaEntry(schema_entry) => false,
+        Entry::SchemaEntry(_schema_entry) => false,
     }
 }
 
-pub fn should_copy_schema_entry(schema: &SchemaEntry, path: &Path) -> bool {
+pub fn should_copy_schema_entry(_schema: &SchemaEntry, path: &Path) -> bool {
     !path.exists() // TODONOW do we also need "hash is different" here
 }
 

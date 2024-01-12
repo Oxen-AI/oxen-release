@@ -78,7 +78,7 @@ pub async fn pull_remote_branch(
 
 #[cfg(test)]
 mod tests {
-    use crate::core::index::CommitEntryReader;
+
     use crate::error::OxenError;
     use crate::test;
     use crate::{api, command};

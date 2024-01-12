@@ -122,10 +122,7 @@ pub async fn download_dir(
     // TODONOW - schemas handling here?
 
     // Convert entries to [Entry]
-    let entries: Vec<Entry> = entries
-        .into_iter()
-        .map(|entry| Entry::from(entry))
-        .collect();
+    let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {

@@ -45,7 +45,7 @@ impl Entry {
     pub fn extension(&self) -> String {
         match self {
             Entry::CommitEntry(entry) => entry.extension(),
-            Entry::SchemaEntry(entry) => "".to_string(),
+            Entry::SchemaEntry(_entry) => "".to_string(),
         }
     }
 }

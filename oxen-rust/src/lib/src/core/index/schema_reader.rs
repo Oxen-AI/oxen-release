@@ -1,7 +1,7 @@
 use crate::constants::{FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, SCHEMAS_TREE_PREFIX};
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{self, path_db};
-use crate::core::db::{str_json_db, str_val_db};
+
 use crate::core::index::CommitEntryWriter;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::SchemaEntry;
@@ -19,8 +19,6 @@ use crate::model::LocalRepository;
 use super::{CommitReader, ObjectDBReader};
 
 pub struct SchemaReader {
-    schema_db: DBWithThreadMode<MultiThreaded>,
-    schema_files_db: DBWithThreadMode<MultiThreaded>,
     object_reader: Arc<ObjectDBReader>,
     dir_hashes_db: DBWithThreadMode<MultiThreaded>,
     repository: LocalRepository,
@@ -47,27 +45,9 @@ impl SchemaReader {
     }
 
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaReader, OxenError> {
-        let schema_db_path = SchemaReader::schemas_db_dir(repository, commit_id);
-        log::debug!("SchemaReader db {:?}", schema_db_path);
-        let schema_files_db_path = SchemaReader::schema_files_db_dir(repository, commit_id);
-
         let dir_hashes_db_path = CommitEntryWriter::commit_dir_hash_db(&repository.path, commit_id);
 
-        log::debug!("SchemaReader files db {:?}", schema_files_db_path);
         let opts = db::opts::default();
-        if !schema_db_path.exists() {
-            std::fs::create_dir_all(&schema_db_path)?;
-            // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&schema_db_path))?;
-        }
-
-        if !schema_files_db_path.exists() {
-            std::fs::create_dir_all(&schema_files_db_path)?;
-            // open it then lose scope to close it
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&schema_files_db_path))?;
-        }
 
         if !dir_hashes_db_path.exists() {
             log::debug!("creating dir hashes db at path {:?}", dir_hashes_db_path);
@@ -79,15 +59,9 @@ impl SchemaReader {
             log::debug!("dir hashes db exists at path {:?}", dir_hashes_db_path)
         }
 
-        let object_reader = ObjectDBReader::new(&repository)?;
+        let object_reader = ObjectDBReader::new(repository)?;
 
         Ok(SchemaReader {
-            schema_db: DBWithThreadMode::open_for_read_only(&opts, &schema_db_path, false)?,
-            schema_files_db: DBWithThreadMode::open_for_read_only(
-                &opts,
-                &schema_files_db_path,
-                false,
-            )?,
             dir_hashes_db: DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_db_path, false)?,
             object_reader,
             repository: repository.clone(),
@@ -98,28 +72,8 @@ impl SchemaReader {
     pub fn new_from_head(repository: &LocalRepository) -> Result<SchemaReader, OxenError> {
         let commit_reader = CommitReader::new(repository)?;
         let commit = commit_reader.head_commit()?;
-        SchemaReader::new(&repository, &commit.id)
+        SchemaReader::new(repository, &commit.id)
     }
-
-    /// See if a commit id exists - this is unused
-    // pub fn schema_hash_exists(&self, hash: &str) -> bool {
-    //     str_json_db::has_key(&self.schema_db, hash)
-    // }
-
-    // Schema hash exists in this commit...
-
-    /// Get a commit object from an ID
-    /// only used in get_schema_for_file
-    // pub fn get_schema_by_hash<S: AsRef<str>>(&self, hash: S) -> Result<Option<Schema>, OxenError> {
-    //     str_json_db::get(&self.schema_db, hash)
-    // }
-
-    // pub fn get_schema_hash_for_file<P: AsRef<Path>>(
-    //     &self,
-    //     path: P,
-    // ) -> Result<Option<String>, OxenError> {
-    //     str_val_db::get(&self.schema_files_db, path.as_ref().to_str().unwrap())
-    // }
 
     pub fn get_schema_for_file<P: AsRef<Path>>(
         &self,
@@ -153,7 +107,7 @@ impl SchemaReader {
         }
 
         let vnode_child = vnode_child.unwrap();
-        let vnode = self.object_reader.get_vnode(&vnode_child.hash())?.unwrap();
+        let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
 
         log::debug!("got vnode");
         log::debug!("here's the vnode {:?}", vnode);
@@ -205,17 +159,17 @@ impl SchemaReader {
     ) -> Result<(), OxenError> {
         log::debug!("calling r_list_schemas on dir_node {:?}", dir_node);
         for vnode in dir_node.children() {
-            let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
             for child in vnode.children() {
                 match child {
                     TreeObjectChild::Dir { hash, .. } => {
-                        let dir_node = self.object_reader.get_dir(&hash)?.unwrap();
+                        let dir_node = self.object_reader.get_dir(hash)?.unwrap();
                         self.r_list_schemas(dir_node, path_vals)?;
                     }
                     TreeObjectChild::Schema { path, hash, .. } => {
                         let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
                         log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
-                        let found_schema = self.get_schema_by_hash(&hash)?;
+                        let found_schema = self.get_schema_by_hash(hash)?;
                         log::debug!("got found schema {:?}", found_schema);
                         path_vals.insert(stripped_path.to_path_buf(), found_schema);
                     }
@@ -281,7 +235,7 @@ impl SchemaReader {
         entries: &mut Vec<SchemaEntry>,
     ) -> Result<(), OxenError> {
         for vnode in dir_node.children() {
-            let vnode = self.object_reader.get_vnode(&vnode.hash())?.unwrap();
+            let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
             for child in vnode.children() {
                 match child {
                     TreeObjectChild::Dir { hash, .. } => {
@@ -326,30 +280,6 @@ impl SchemaReader {
         }
         Ok(found_schemas)
     }
-    // pub fn list_schemas_for_ref(
-    //     &self,
-    //     schema_ref: impl AsRef<str>,
-    // ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    //     let schema_ref = schema_ref.as_ref();
-    //     // This is a map of paths to schema hashes
-    //     let paths_to_hashes: HashMap<String, String> = str_val_db::hash_map(&self.schema_files_db)?;
-
-    //     // This is a map of hashes to schemas
-    //     let hash_to_schemas: HashMap<String, Schema> = str_json_db::hash_map(&self.schema_db)?;
-
-    //     // For each path, get the schema
-    //     let path_vals: HashMap<PathBuf, Schema> = paths_to_hashes
-    //         .iter()
-    //         .map(|(k, v)| (PathBuf::from(k), hash_to_schemas.get(v).unwrap().clone()))
-    //         .filter(|(k, v)| {
-    //             k.to_string_lossy() == schema_ref
-    //                 || v.hash == schema_ref
-    //                 || v.name == Some(schema_ref.to_string())
-    //         })
-    //         .collect();
-
-    //     Ok(path_vals)
-    // }
 
     fn get_schema_by_hash(&self, hash: &str) -> Result<Schema, OxenError> {
         let version_path =
