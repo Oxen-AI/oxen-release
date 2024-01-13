@@ -1,6 +1,7 @@
-//!
+//! # CommitDirEntryReader
+//! Used to read the commit dir entry db
 
-use std::time::Instant;
+// use std::time::Instant;
 
 use crate::constants::{self};
 use crate::core::db;
@@ -53,15 +54,15 @@ impl CommitDirEntryReader {
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitDirEntryReader, OxenError> {
         let db_path = CommitDirEntryReader::dir_hash_db(base_path, commit_id);
-        log::debug!(
-            "Creating new commit dir entry reader for path: {:?}",
-            base_path.join(dir)
-        );
+        // log::debug!(
+        //     "Creating new commit dir entry reader for path: {:?}",
+        //     base_path.join(dir)
+        // );
 
         let opts = db::opts::default();
         if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
             // Get the current time
-            let start_time = Instant::now();
+            // let start_time = Instant::now();
 
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
@@ -69,22 +70,22 @@ impl CommitDirEntryReader {
 
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-            let end_time = Instant::now();
-            let elapsed = end_time.duration_since(start_time);
-            log::debug!(
-                "CommitDirEntryReader took {:?} to create dir hashes db",
-                elapsed
-            );
+            // let end_time = Instant::now();
+            // let elapsed = end_time.duration_since(start_time);
+            // log::debug!(
+            //     "CommitDirEntryReader took {:?} to create dir hashes db",
+            //     elapsed
+            // );
         }
 
-        let start_time = Instant::now();
+        // let start_time = Instant::now();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
-        let elapsed = start_time.elapsed();
-        log::debug!(
-            "CommitDirEntryReader took {:?} to open dir hashes db",
-            elapsed
-        );
+        // let elapsed = start_time.elapsed();
+        // log::debug!(
+        //     "CommitDirEntryReader took {:?} to open dir hashes db",
+        //     elapsed
+        // );
 
         let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
 

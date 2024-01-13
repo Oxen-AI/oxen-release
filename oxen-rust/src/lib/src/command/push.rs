@@ -192,11 +192,11 @@ mod tests {
     // Test that we cannot push when the remote repo is ahead
     // 1) Clone repo to user A
     // 2) Clone repo to user B
-    // 3) User A makes commit and pushes
-    // 4) User B makes commit, pushes and fails
+    // 3) User A makes commit with `new_file.txt`` and pushes
+    // 4) User B makes commit with `another_file.txt` pushes and succeeds
     // 5) User B pulls user A's changes, pushes and succeeds
     #[tokio::test]
-    async fn test_tree_cannot_push_when_remote_repo_is_ahead_new_file() -> Result<(), OxenError> {
+    async fn test_tree_can_push_when_remote_repo_is_ahead_new_file() -> Result<(), OxenError> {
         // Push the Remote Repo
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
@@ -241,6 +241,94 @@ mod tests {
 
                     // Pull should succeed
                     command::pull(&user_b_repo).await?;
+
+                    // Push should now succeed
+                    command::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+
+    // Test that we cannot push when the remote repo is ahead
+    // * Clone repo to user A
+    // * Clone repo to user B
+    // * User A makes commit modifying `README.md` and pushes
+    // * User B makes commit modifying `README.md` pushes and fails
+    // * User B pulls user A's changes and there is a conflict
+    // * User B fixes the conflict and pushes and succeeds
+    #[tokio::test]
+    async fn test_tree_cannot_push_when_remote_repo_is_ahead_same_file() -> Result<(), OxenError> {
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
+                let user_a_repo = command::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir_copy.join("new_repo"),
+                )
+                .await?;
+
+                // Clone Repo to User B
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
+
+                    let user_b_repo = command::clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir_copy.join("New_repo"),
+                    )
+                    .await?;
+
+                    // User A modifies the README.md and pushes
+                    let mod_file = "README.md";
+                    let a_mod_file_path = user_a_repo.path.join(mod_file);
+                    let a_mod_file_path =
+                        test::write_txt_file_to_path(a_mod_file_path, "I am the README now")?;
+                    command::add(&user_a_repo, &a_mod_file_path)?;
+                    command::commit(&user_a_repo, "User A modifying the README.")?;
+                    command::push(&user_a_repo).await?;
+
+                    // User B tries to modify the same README.md and push
+                    let b_mod_file_path = user_b_repo.path.join(mod_file);
+                    let b_mod_file_path =
+                        test::write_txt_file_to_path(b_mod_file_path, "I be the README now.")?;
+                    command::add(&user_b_repo, &b_mod_file_path)?;
+                    command::commit(&user_b_repo, "User B modifying the README.")?;
+
+                    // Push should fail! Remote is ahead
+                    let result = command::push(&user_b_repo).await;
+                    assert!(result.is_err());
+
+                    // Pull should succeed
+                    command::pull(&user_b_repo).await?;
+
+                    // There should be conflicts
+                    let status = command::status(&user_b_repo)?;
+                    assert!(status.has_merge_conflicts());
+
+                    // Push should fail! Have not resolved conflicts
+                    let result = command::push(&user_b_repo).await;
+                    assert!(result.is_err());
+
+                    // User B resolves conflicts
+                    let b_mod_file_path = user_b_repo.path.join(mod_file);
+                    let b_mod_file_path = test::write_txt_file_to_path(
+                        b_mod_file_path,
+                        "No for real. I be the README now.",
+                    )?;
+                    command::add(&user_b_repo, &b_mod_file_path)?;
+                    command::commit(&user_b_repo, "User B resolving conflicts.")?;
 
                     // Push should now succeed
                     command::push(&user_b_repo).await?;
