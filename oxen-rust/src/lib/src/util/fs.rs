@@ -652,7 +652,7 @@ pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     match std::fs::create_dir_all(src) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("create_dir_all {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -664,7 +664,7 @@ pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     match std::fs::remove_dir_all(src) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("remove_dir_all {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -676,7 +676,7 @@ pub fn write(src: impl AsRef<Path>, data: impl AsRef<[u8]>) -> Result<(), OxenEr
     match std::fs::write(src, data) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("write {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -689,7 +689,7 @@ pub fn remove_file(src: impl AsRef<Path>) -> Result<(), OxenError> {
     match std::fs::remove_file(src) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("remove_file {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -701,7 +701,7 @@ pub fn metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, OxenError> 
     match std::fs::metadata(path) {
         Ok(file) => Ok(file),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("metadata {:?} {}", path, err);
             Err(OxenError::file_metadata_error(path, err))
         }
     }
@@ -713,7 +713,7 @@ pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
     match std::fs::File::create(path) {
         Ok(file) => Ok(file),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("file_create {:?} {}", path, err);
             Err(OxenError::file_create_error(path, err))
         }
     }

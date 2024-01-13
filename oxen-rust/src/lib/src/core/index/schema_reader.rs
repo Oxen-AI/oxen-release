@@ -142,9 +142,9 @@ impl SchemaReader {
     pub fn list_schemas(&self) -> Result<HashMap<PathBuf, Schema>, OxenError> {
         log::debug!("calling list schemas");
         let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
-        log::debug!("list_schemas got root hash {:?}", root_hash);
+        // log::debug!("list_schemas got root hash {:?}", root_hash);
         let root_node: TreeObject = self.object_reader.get_dir(&root_hash)?.unwrap();
-        log::debug!("list_schemas got root node {:?}", root_node);
+        // log::debug!("list_schemas got root node {:?}", root_node);
         let mut path_vals: HashMap<PathBuf, Schema> = HashMap::new();
 
         self.r_list_schemas(root_node, &mut path_vals)?;
