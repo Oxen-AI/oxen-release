@@ -155,7 +155,7 @@ impl OxenError {
 
     pub fn upstream_merge_conflict() -> Self {
         OxenError::UpstreamMergeConflict(StringError::from(
-            "\nRemote has conflicts with local branch.",
+            "\nRemote has conflicts with local branch. To fix run:\n\n  oxen pull\n\nThen resolve conflicts and commit changes.\n",
         ))
     }
 
