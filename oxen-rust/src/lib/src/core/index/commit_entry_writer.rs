@@ -1019,7 +1019,7 @@ impl CommitEntryWriter {
         match node.clone() {
             TreeObject::Dir { children, hash, .. } => {
                 // Add parent to db
-                log::debug!("yo adding dir {:?} to db", node);
+                // log::debug!("adding dir {:?} to db", node);
                 path_db::put(db, hash, &node)?;
                 for child in children {
                     self.r_save_temp_commit_tree(&child, db)?;
@@ -1027,7 +1027,7 @@ impl CommitEntryWriter {
                 Ok(())
             }
             TreeObject::VNode { children, hash, .. } => {
-                log::debug!("yo adding vnode {:?} to db", node);
+                // log::debug!("adding vnode {:?} to db", node);
                 path_db::put(db, hash, &node)?;
                 // let vnode_node: TreeObject = path_db::get_entry(&self.vnodes_db, &node.hash())?.unwrap();
                 for child in children {
@@ -1036,7 +1036,7 @@ impl CommitEntryWriter {
                 Ok(())
             }
             TreeObject::File { hash, .. } | TreeObject::Schema { hash, .. } => {
-                log::debug!("yo adding leaf {:?} to db", node);
+                // log::debug!("adding leaf {:?} to db", node);
                 path_db::put(db, hash, &node)?;
                 // We're at a leaf node, so we're done
                 Ok(())
