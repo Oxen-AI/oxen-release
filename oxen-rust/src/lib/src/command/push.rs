@@ -101,6 +101,7 @@ mod tests {
     use crate::command;
     use crate::constants;
 
+    use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::index::CommitEntryReader;
 
     use crate::error::OxenError;
@@ -969,6 +970,98 @@ mod tests {
 
                     // Push should succeed - different dirs!
                     command::push(&user_b_repo).await?;
+
+                    Ok(user_b_repo_dir_copy)
+                })
+                .await?;
+
+                Ok(user_a_repo_dir_copy)
+            })
+            .await?;
+            Ok(remote_repo_copy)
+        })
+        .await
+    }
+    #[tokio::test]
+    async fn test_tree_merge_on_push_to_branch() -> Result<(), OxenError> {
+        let new_branch = "new_branch";
+        // Push the Remote Repo
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            // Clone Repo to User A
+            test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+                let user_a_repo_dir_copy = user_a_repo_dir.clone();
+                let user_a_repo = command::deep_clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
+
+                // Save the current head of main
+                let main_head = api::local::commits::head_commit(&user_a_repo)?;
+
+                // User a checkout a branch
+                command::create_checkout(&user_a_repo, new_branch)?;
+
+                // Clone Repo to User B
+                test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                    let user_b_repo_dir_copy = user_b_repo_dir.clone();
+
+                    let user_b_repo = command::deep_clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir.join("new_repo"),
+                    )
+                    .await?;
+
+                    // User b checkout the same branch
+                    command::create_checkout(&user_b_repo, new_branch)?;
+
+                    // User A adds a file and pushes
+                    let modify_path_a = user_a_repo
+                        .path
+                        .join("annotations")
+                        .join("train")
+                        .join("averynewfile.txt");
+                    let modify_path_b = user_b_repo
+                        .path
+                        .join("annotations")
+                        .join("train")
+                        .join("anothernewfile.txt");
+                    test::write_txt_file_to_path(&modify_path_a, "new file")?;
+                    command::add(&user_a_repo, &modify_path_a)?;
+                    command::commit(&user_a_repo, "Adding first file path.")?;
+                    command::push(&user_a_repo).await?;
+
+                    // User B adds a different file and pushe
+                    test::write_txt_file_to_path(&modify_path_b, "newer file")?;
+                    command::add(&user_b_repo, &modify_path_b)?;
+
+                    command::commit(&user_b_repo, "User B adding second file path.")?;
+
+                    // Push should succeed - different dirs!
+                    command::push(&user_b_repo).await?;
+
+                    // Get the new branch head
+                    let new_main =
+                        api::remote::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
+                            .await?
+                            .unwrap();
+                    let new_branch = api::remote::branches::get_by_name(&remote_repo, new_branch)
+                        .await?
+                        .unwrap();
+
+                    // Assert commits have updated in the right place
+                    assert_eq!(new_main.commit_id, main_head.id);
+
+                    // Head at new_branch should be a merge commit
+                    let new_branch_head =
+                        api::remote::commits::get_by_id(&remote_repo, &new_branch.commit_id)
+                            .await?
+                            .unwrap();
+
+                    // Must be a merge commit
+                    assert_eq!(new_branch_head.parent_ids.len(), 2);
 
                     Ok(user_b_repo_dir_copy)
                 })
