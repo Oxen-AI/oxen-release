@@ -141,7 +141,6 @@ pub async fn maybe_create_merge(
 
     {
         let ref_writer = RefWriter::new(&repository)?;
-        ref_writer.set_branch_commit_id(&branch_name, &current_commit_id)?;
         ref_writer.set_head(&branch_name);
     }
 
