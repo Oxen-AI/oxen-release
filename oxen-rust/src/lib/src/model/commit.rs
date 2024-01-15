@@ -114,6 +114,32 @@ impl Commit {
         }
     }
 
+    pub fn has_ancestor(
+        &self,
+        parent_id: &str,
+        commit_reader: &CommitReader,
+    ) -> Result<bool, OxenError> {
+        if self.id == parent_id {
+            return Ok(true);
+        }
+        for parent in &self.parent_ids {
+            if parent == parent_id {
+                return Ok(true);
+            }
+
+            // Recurse
+            let commit = commit_reader.get_commit_by_id(parent)?;
+            if let Some(commit) = commit {
+                if commit.has_ancestor(parent_id, commit_reader)? {
+                    return Ok(true);
+                }
+            } else {
+                return Err(OxenError::local_parent_link_broken(parent));
+            }
+        }
+        Ok(false)
+    }
+
     pub fn update_root_hash(&mut self, root_hash: String) {
         self.root_hash = Some(root_hash);
     }

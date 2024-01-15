@@ -961,12 +961,12 @@ impl CommitEntryWriter {
     // Traverse the tree, saving it locally to a tmp path that will be deleted after transmission to the server
     pub fn save_temp_commit_tree(&self) -> Result<PathBuf, OxenError> {
         // Get hash of this commit
-        let temp_db_path = self
-            .repository
-            .path
+
+        let temp_db_path = util::fs::oxen_hidden_dir(&self.repository.path)
             .join(TMP_DIR)
             .join("trees")
             .join(&self.commit.id);
+
         if !temp_db_path.exists() {
             std::fs::create_dir_all(&temp_db_path)?;
         }
