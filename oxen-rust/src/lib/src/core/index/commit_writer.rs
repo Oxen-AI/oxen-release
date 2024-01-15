@@ -4,8 +4,8 @@ use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
     self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
-    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, EntryIndexer, ObjectDBReader,
-    RefReader, RefWriter,
+    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, CommitReader, EntryIndexer,
+    ObjectDBReader, RefReader, RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -195,6 +195,12 @@ impl CommitWriter {
         let staged = self.apply_mods(branch, user_id, &entries)?;
         // Write entries
         self.add_commit_from_status_on_remote_branch(&commit, &staged, origin_path, branch)?;
+
+        // Get the commit from the db post insert - it will now have the updated root hash
+        let commit = CommitReader::new(&self.repository)?
+            .get_commit_by_id(&commit.id)?
+            .unwrap();
+
         Ok(commit)
     }
 
