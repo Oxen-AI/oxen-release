@@ -76,17 +76,33 @@ async fn validate_repo_is_pushable(
     head_commit: &Commit,
 ) -> Result<bool, OxenError> {
     // Make sure the remote branch is not ahead of the local branch
-    if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
+    // log::debug!(
+    //     "validating repo is pushable for commit {:#?} and branch {:#?}",
+    //     head_commit,
+    //     branch
+    // );
+
+    if remote_is_ahead_of_local(head_commit, remote_repo, commit_reader, branch).await? {
+        log::debug!("remote is ahead of local for commit {:#?}", head_commit);
         if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit)
             .await?
         {
+            // log::debug!("can_push is true for commit {:#?}", head_commit);
             return Ok(true); // We need a merge commit
         } else {
+            // log::debug!("can_push is false for commit {:#?}", head_commit);
             return Err(OxenError::upstream_merge_conflict());
         }
     }
+    // } else {
+    //     log::debug!("remote is not ahead of local for commit {:#?}", head_commit);
+    // }
 
     if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {
+        log::debug!(
+            "cannot_push_incomplete_history is true for commit {:#?}",
+            head_commit
+        );
         return Err(OxenError::incomplete_local_history());
     }
 
@@ -122,10 +138,19 @@ pub async fn push_remote_repo(
     .await
     {
         Ok(result) => {
+            log::debug!(
+                "push_remote_repo is pushable, result is {} for commit {:#?}",
+                result,
+                head_commit
+            );
             requires_merge = result;
         }
         Err(err) => {
             api::remote::branches::unlock(&remote_repo, &branch.name).await?;
+            log::debug!(
+                "push_remote_repo is not pushable for commit {:#?}",
+                head_commit
+            );
             return Err(err);
         }
     }
@@ -417,6 +442,7 @@ async fn push_missing_commit_objects(
 }
 
 async fn remote_is_ahead_of_local(
+    local_head: &Commit,
     remote_repo: &RemoteRepository,
     reader: &CommitReader,
     branch: &Branch,
@@ -429,8 +455,22 @@ async fn remote_is_ahead_of_local(
         return Ok(false);
     }
 
-    // Meaning we do not have the remote branch commit in our history
-    Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
+    if !reader.commit_id_exists(&remote_branch.clone().unwrap().commit_id) {
+        log::debug!("commit id does not exist for commit {:#?}", remote_branch);
+        return Ok(true);
+    } else {
+        log::debug!("commit id exists for commit {:#?}", remote_branch);
+        // return Ok(false);
+    }
+
+    // Get the commit
+    let remote_commit = reader
+        .get_commit_by_id(remote_branch.clone().unwrap().commit_id)?
+        .ok_or(OxenError::local_parent_link_broken(
+            remote_branch.unwrap().commit_id,
+        ))?;
+
+    Ok(!local_head.has_ancestor(&remote_commit.id, reader)?)
 }
 
 async fn cannot_push_incomplete_history(

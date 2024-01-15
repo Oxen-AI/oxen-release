@@ -159,6 +159,7 @@ mod tests {
             command::commit(&local_repo, "adding file 2")?;
 
             // Push commits
+
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
             // Checkout main and modify README.md to have a conflict
@@ -167,6 +168,7 @@ mod tests {
             test::write_txt_file_to_path(&path, "I am on main conflicting the README")?;
             command::add(&local_repo, &path)?;
             command::commit(&local_repo, "modifying readme on main")?;
+
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
             let mergability = api::remote::merger::mergability(&remote_repo, base, head).await?;

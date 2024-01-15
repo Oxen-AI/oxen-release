@@ -315,7 +315,7 @@ pub async fn can_push(
     let tar_path = tar_base_dir.join(TREE_DIR);
 
     if tmp_tree_path.exists() {
-        tar.append_dir_all(&tar_path, tmp_tree_path)?;
+        tar.append_dir_all(&tar_path, tmp_tree_path.clone())?;
     };
 
     tar.finish()?;
@@ -338,6 +338,9 @@ pub async fn can_push(
         quiet_bar,
     )
     .await?;
+
+    // Delete tmp tree
+    util::fs::remove_dir_all(&tmp_tree_path)?;
 
     let uri = format!(
         "/commits/{}/can_push?remote_head={}&lca={}",
@@ -502,7 +505,7 @@ pub async fn download_commit_entries_db_to_path(
             // dirs db while the tarball is being unpacked, leading to an error.
 
             // Find out what is causing this, then revert this to unpack directly in the final path
-            let tmp_path = path.join("tmp").join(commit_id).join("objects_db");
+            let tmp_path = path.join("tmp").join(commit_id).join("commits_db");
 
             // create the temp path if it doesn't exist
             if !tmp_path.exists() {
@@ -1376,7 +1379,7 @@ mod tests {
                 constants::DEFAULT_REMOTE_NAME,
                 &remote_repo.remote.url,
             )?;
-            command::push(&local_repo).await?;
+            let push = command::push(&local_repo).await?;
 
             // Should now be synced
             let latest_synced =
