@@ -1,11 +1,10 @@
-use filetime::FileTime;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::Path;
 
 use crate::api::local::resource;
-use crate::core::db;
+use crate::core::db::{self};
+use crate::core::index::CommitEntryReader;
 use crate::core::index::Stager;
-use crate::core::index::{CommitDirEntryWriter, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
@@ -92,36 +91,24 @@ fn restore_dir(
 pub fn restore_file(
     repo: &LocalRepository,
     path: &Path,
-    commit_id: &str,
+    _commit_id: &str,
     entry: &CommitEntry,
     files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
-    // Update the local modified timestamps
-    let dir = path.parent().unwrap();
-    let committer = CommitDirEntryWriter::new(repo, commit_id, dir)?;
-    restore_file_with_commit_writer(repo, path, entry, &committer, files_db)?;
+    restore_file_with_metadata(repo, path, entry, files_db)?;
 
     Ok(())
 }
 
-pub fn restore_file_with_commit_writer(
+pub fn restore_file_with_metadata(
     repo: &LocalRepository,
     path: &Path,
     entry: &CommitEntry,
-    committer: &CommitDirEntryWriter,
     files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
     // copy data back over
     restore_regular(repo, path, entry)?;
-
-    // Update the local modified timestamps
-    let working_path = repo.path.join(path);
-    let metadata = util::fs::metadata(working_path).unwrap();
-    let mtime = FileTime::from_last_modification_time(&metadata);
-    committer
-        .set_file_timestamps(entry, &mtime, files_db)
-        .unwrap();
-
+    CommitEntryWriter::set_file_timestamps(repo, path, entry, files_db)?;
     Ok(())
 }
 

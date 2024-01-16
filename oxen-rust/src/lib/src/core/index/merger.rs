@@ -482,6 +482,7 @@ impl Merger {
         merge_commits: &MergeCommits,
         write_to_disk: bool,
     ) -> Result<Vec<MergeConflict>, OxenError> {
+        log::debug!("finding merge conflicts");
         /*
         https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
 
@@ -540,7 +541,11 @@ impl Merger {
                     //     lca_entry.hash,
                     //     merge_entry.hash
                     // );
-                    if base_entry.hash == lca_entry.hash && write_to_disk {
+                    if base_entry.hash == lca_entry.hash
+                        && base_entry.hash != merge_entry.hash
+                        && write_to_disk
+                    {
+                        log::debug!("top update entry");
                         self.update_entry(merge_entry, &files_db)?;
                     }
 
@@ -567,6 +572,7 @@ impl Merger {
                 }
             } else if write_to_disk {
                 // merge entry does not exist in base, so create it
+                log::debug!("bottom update entry");
                 self.update_entry(merge_entry, &files_db)?;
             }
         }

@@ -1,6 +1,5 @@
 pub mod commit_db_reader;
 pub mod commit_dir_entry_reader;
-pub mod commit_dir_entry_writer;
 pub mod commit_entry_reader;
 pub mod commit_entry_writer;
 pub mod commit_metadata_db;
@@ -38,7 +37,6 @@ pub mod tree_object_reader;
 pub mod versioner;
 
 pub use crate::core::index::commit_db_reader::CommitDBReader;
-pub use crate::core::index::commit_dir_entry_writer::CommitDirEntryWriter;
 pub use crate::core::index::commit_entry_writer::CommitEntryWriter;
 pub use crate::core::index::commit_reader::CommitReader;
 pub use crate::core::index::commit_writer::CommitWriter;
