@@ -318,6 +318,7 @@ impl CommitWriter {
         status: &StagedData,
         parent_ids: Vec<String>,
         message: &str,
+        branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
         let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
@@ -332,7 +333,17 @@ impl CommitWriter {
         let entries: Vec<StagedEntry> = status.staged_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
-        self.add_commit_from_status(&commit, status, &self.repository.path)?;
+        if let Some(branch) = branch {
+            log::debug!("adding commit from status on local branch");
+            self.add_commit_from_status_on_local_branch(
+                &commit,
+                status,
+                &self.repository.path,
+                branch,
+            )?;
+        } else {
+            self.add_commit_from_status(&commit, status, &self.repository.path)?;
+        }
         Ok(commit)
     }
 
@@ -341,6 +352,47 @@ impl CommitWriter {
         let status = StagedData::empty();
         let _commit = self.add_commit_from_status(commit, &status, &self.repository.path)?;
         Ok(())
+    }
+
+    pub fn add_commit_from_status_on_local_branch(
+        &self,
+        commit: &Commit,
+        status: &StagedData,
+        origin_path: &Path,
+        branch: Branch,
+    ) -> Result<Commit, OxenError> {
+        // Write entries
+        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
+
+        // Commit all staged files from db
+        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+
+        // Add to commits db id -> commit_json
+        log::debug!(
+            "add_commit_from_status_on_local_branch add commit [{}] to db",
+            commit.id
+        );
+
+        let mut commit = commit.clone();
+
+        let dir_hashes_db =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let opts = db::opts::default();
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
+
+        // Get the hash for this commit id
+        let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
+
+        commit.update_root_hash(hash.clone());
+
+        self.add_commit_to_db(&commit)?;
+
+        let ref_writer = RefWriter::new(&self.repository)?;
+        log::debug!("setting branch commit id {} -> {}", branch.name, commit.id);
+        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
+
+        Ok(commit)
     }
 
     pub fn add_commit_from_status(

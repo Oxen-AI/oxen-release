@@ -5,7 +5,7 @@ use crate::params::{app_data, path_param};
 use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::api;
-use liboxen::core::index::{Merger, RefWriter};
+use liboxen::core::index::Merger;
 use liboxen::error::OxenError;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
@@ -123,6 +123,8 @@ pub async fn maybe_create_merge(
     let name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
     let branch_name = path_param(&req, "branch_name")?;
+    let branch = api::local::branches::get_by_name(&repository, &branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
 
     let data: Result<BranchRemoteMerge, serde_json::Error> = serde_json::from_str(&body);
     let data = data.map_err(|err| OxenHttpError::BadRequest(format!("{:?}", err).into()))?;
@@ -139,22 +141,14 @@ pub async fn maybe_create_merge(
         incoming_commit_id
     );
 
-    {
-        let ref_writer = RefWriter::new(&repository)?;
-        ref_writer.set_head(&branch_name);
-    }
-
     let merger = Merger::new(&repository)?;
-    let maybe_merge_commit = merger.merge_commit_into_base(&incoming_commit, &current_commit)?;
+    let maybe_merge_commit =
+        merger.merge_commit_into_base_on_branch(&incoming_commit, &current_commit, &branch)?;
 
     // Return what will become the new head of the repo after push is complete.
     if let Some(merge_commit) = maybe_merge_commit {
         log::debug!("returning merge commit {:?}", merge_commit);
         // Update branch head
-        {
-            let ref_writer = RefWriter::new(&repository)?;
-            ref_writer.set_branch_commit_id(&branch_name, &merge_commit.id)?;
-        }
         Ok(HttpResponse::Ok().json(CommitResponse {
             status: StatusMessage::resource_created(),
             commit: merge_commit,
