@@ -246,6 +246,32 @@ impl Merger {
         self.merge_commits(&merge_commits)
     }
 
+    pub fn merge_commit_into_base_on_branch(
+        &self,
+        merge_commit: &Commit,
+        base_commit: &Commit,
+        branch: &Branch,
+    ) -> Result<Option<Commit>, OxenError> {
+        let commit_reader = CommitReader::new(&self.repository)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(&commit_reader, base_commit, merge_commit)?;
+
+        log::debug!(
+            "merge_commit_into_branch has lca {:?} for merge commit {:?} and base {:?}",
+            lca,
+            merge_commit,
+            base_commit
+        );
+
+        let merge_commits = MergeCommits {
+            lca,
+            base: base_commit.to_owned(),
+            merge: merge_commit.to_owned(),
+        };
+
+        self.merge_commits_on_branch(&merge_commits, branch)
+    }
+
     fn merge_commits(&self, merge_commits: &MergeCommits) -> Result<Option<Commit>, OxenError> {
         // User output
         println!(
@@ -282,6 +308,61 @@ impl Merger {
 
             if conflicts.is_empty() {
                 let commit = self.create_merge_commit(merge_commits)?;
+                Ok(Some(commit))
+            } else {
+                merge_conflict_writer::write_conflicts_to_disk(
+                    &self.repository,
+                    &self.merge_db,
+                    &merge_commits.merge,
+                    &merge_commits.base,
+                    &conflicts,
+                )?;
+                Ok(None)
+            }
+        }
+    }
+
+    fn merge_commits_on_branch(
+        &self,
+        merge_commits: &MergeCommits,
+        branch: &Branch,
+    ) -> Result<Option<Commit>, OxenError> {
+        // User output
+        println!(
+            "Updating {} -> {}",
+            merge_commits.base.id, merge_commits.merge.id
+        );
+
+        log::debug!(
+            "FOUND MERGE COMMITS:\nLCA: {} -> {}\nBASE: {} -> {}\nMerge: {} -> {}",
+            merge_commits.lca.id,
+            merge_commits.lca.message,
+            merge_commits.base.id,
+            merge_commits.base.message,
+            merge_commits.merge.id,
+            merge_commits.merge.message,
+        );
+
+        // Check which type of merge we need to do
+        if merge_commits.is_fast_forward_merge() {
+            // User output
+            println!("Fast-forward");
+            let commit = self.fast_forward_merge(&merge_commits.base, &merge_commits.merge)?;
+            Ok(Some(commit))
+        } else {
+            log::debug!(
+                "Three way merge! {} -> {}",
+                merge_commits.base.id,
+                merge_commits.merge.id
+            );
+
+            let write_to_disk = true;
+            let conflicts = self.find_merge_conflicts(merge_commits, write_to_disk)?;
+            log::debug!("Got {} conflicts", conflicts.len());
+
+            if conflicts.is_empty() {
+                log::debug!("creating merge commit on branch {:?}", branch);
+                let commit = self.create_merge_commit_on_branch(merge_commits, branch)?;
                 Ok(Some(commit))
             } else {
                 merge_conflict_writer::write_conflicts_to_disk(
@@ -333,7 +414,49 @@ impl Merger {
             merge_commits.base.id.to_owned(),
             merge_commits.merge.id.to_owned(),
         ];
-        let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
+        let commit =
+            commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg, None)?;
+        stager.unstage()?;
+
+        Ok(commit)
+    }
+
+    fn create_merge_commit_on_branch(
+        &self,
+        merge_commits: &MergeCommits,
+        branch: &Branch,
+    ) -> Result<Commit, OxenError> {
+        let repo = &self.repository;
+
+        // Stage changes
+        let stager = Stager::new(repo)?;
+        let commit = api::local::commits::head_commit(repo)?;
+        let reader = CommitEntryReader::new(repo, &commit)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
+        let ignore = oxenignore::create(repo);
+        stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
+
+        let commit_msg = format!(
+            "Merge commit {} into {} on branch {}",
+            merge_commits.merge.id, merge_commits.base.id, branch.name
+        );
+
+        log::debug!("create_merge_commit_on_branch {}", commit_msg);
+
+        // Create a commit with both parents
+        let reader = CommitEntryReader::new_from_head(repo)?;
+        let status = stager.status(&reader)?;
+        let commit_writer = CommitWriter::new(repo)?;
+        let parent_ids: Vec<String> = vec![
+            merge_commits.base.id.to_owned(),
+            merge_commits.merge.id.to_owned(),
+        ];
+        let commit = commit_writer.commit_with_parent_ids(
+            &status,
+            parent_ids,
+            &commit_msg,
+            Some(branch.clone()),
+        )?;
         stager.unstage()?;
 
         Ok(commit)
