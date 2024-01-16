@@ -4,9 +4,16 @@ use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
 use crate::view::PaginatedLinesResponse;
 
 use liboxen::constants::AVG_CHUNK_SIZE;
-use liboxen::util;
+use liboxen::error::OxenError;
 use liboxen::util::fs::replace_file_name_keep_extension;
+use liboxen::util::{paginate, paginate_with_total};
+use liboxen::view::entry::{
+    BranchEntryVersion, CommitEntryVersion, PaginatedEntryVersionsResponse,
+    PaginatedMetadataEntries, PaginatedMetadataEntriesResponse, ResourceVersion,
+};
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::StatusMessage;
+use liboxen::{api, util};
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
@@ -18,6 +25,7 @@ use serde::Deserialize;
 
 use std::fs::File;
 use std::io::prelude::*;
+use std::path::PathBuf;
 
 #[derive(Deserialize, Debug)]
 pub struct ChunkQuery {
@@ -164,4 +172,96 @@ pub async fn list_lines_in_file(
         total_pages,
         total_entries,
     }))
+}
+
+pub async fn list_tabular(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let commit_or_branch = path_param(&req, "commit_or_branch")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let commit = api::local::revisions::get(&repo, &commit_or_branch)?.ok_or_else(|| {
+        OxenError::revision_not_found(format!("Commit {} not found", commit_or_branch).into())
+    })?;
+
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    log::debug!(
+        "{} page {} page_size {}",
+        current_function!(),
+        page,
+        page_size,
+    );
+
+    let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
+    let (paginated_entries, pagination) = paginate(entries, page, page_size);
+
+    Ok(HttpResponse::Ok().json(PaginatedMetadataEntriesResponse {
+        status: StatusMessage::resource_found(),
+        entries: PaginatedMetadataEntries {
+            entries: paginated_entries,
+            pagination,
+        },
+    }))
+}
+
+pub async fn list_entry_versions(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+
+    let path = PathBuf::from(path_param(&req, "path")?);
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    let commits_with_versions = api::local::entries::list_entry_versions(&repo, &path)?;
+
+    let branches_with_versions =
+        api::local::entries::list_entry_versions_on_branches(&repo, &path)?;
+
+    let mut commit_versions: Vec<CommitEntryVersion> = Vec::new();
+    let mut branch_versions: Vec<BranchEntryVersion> = Vec::new();
+
+    for (commit, entry) in commits_with_versions {
+        commit_versions.push(CommitEntryVersion {
+            commit: commit.clone(),
+            resource: ResourceVersion {
+                version: commit.id.clone(),
+                path: entry.path.to_string_lossy().into(),
+            },
+        });
+    }
+
+    for (branch, entry) in branches_with_versions {
+        branch_versions.push(BranchEntryVersion {
+            branch: branch.clone(),
+            resource: ResourceVersion {
+                version: branch.name.clone(),
+                path: entry.path.to_string_lossy().into(),
+            },
+        });
+    }
+
+    let (paginated_commit_versions, pagination) = paginate(commit_versions, page, page_size);
+    let (paginated_branch_versions, _) = paginate(branch_versions, page, page_size);
+
+    let response = PaginatedEntryVersionsResponse {
+        status: StatusMessage::resource_found(),
+        versions: liboxen::view::entry::PaginatedEntryVersions {
+            branch_versions: paginated_branch_versions,
+            commit_versions: paginated_commit_versions,
+            pagination,
+        },
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
