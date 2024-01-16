@@ -3,9 +3,8 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
-    self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
-    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, CommitReader, EntryIndexer,
-    ObjectDBReader, RefReader, RefWriter,
+    self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader, CommitEntryReader,
+    CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -569,8 +568,8 @@ impl CommitWriter {
 
         let dir_entries = self.group_entries_to_dirs(entries);
 
-        for (dir, entries) in dir_entries.iter() {
-            let committer = CommitDirEntryWriter::new(&self.repository, commit_id, dir)?;
+        // TODO: don't need to group to dirs anymore
+        for (_dir, entries) in dir_entries.iter() {
             for entry in entries.iter() {
                 bar.inc(1);
                 let path = &entry.path;
@@ -600,11 +599,10 @@ impl CommitWriter {
                         }
                     }
 
-                    match index::restore::restore_file_with_commit_writer(
+                    match index::restore::restore_file_with_metadata(
                         &self.repository,
                         &entry.path,
                         entry,
-                        &committer,
                         files_db,
                     ) {
                         Ok(_) => {}
@@ -631,11 +629,10 @@ impl CommitWriter {
                             dst_path
                         );
 
-                        match index::restore::restore_file_with_commit_writer(
+                        match index::restore::restore_file_with_metadata(
                             &self.repository,
                             &entry.path,
                             entry,
-                            &committer,
                             files_db,
                         ) {
                             Ok(_) => {}

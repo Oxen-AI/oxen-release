@@ -9,6 +9,7 @@ use crate::error::OxenError;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,
 };
+
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::view::schema::SchemaWithPath;
 use crate::{api, util};
@@ -165,57 +166,9 @@ impl CommitEntryWriter {
             for dir in dirs {
                 path_db::put(&self.dir_db, &dir, &0)?;
             }
-
-            // Copy parent schemas
-            // let schemas = {
-            //     let schema_reader = SchemaReader::new(repo, &parent_commit.id)?;
-            //     schema_reader.list_schemas()?
-            // };
-            // let schema_writer = SchemaWriter::new(repo, &self.commit.id)?;
-            // for (path, schema) in schemas {
-            //     schema_writer.put_schema_for_file(&path, &schema)?;
-            // }
         }
 
         Ok(())
-    }
-
-    // pub fn set_file_timestamps(
-    //     &self,
-    //     entry: &CommitEntry,
-    //     time: &FileTime,
-    // ) -> Result<(), OxenError> {
-    //     if let Some(parent) = entry.path.parent() {
-    //         let writer = CommitDirEntryWriter::new(&self.repository, &self.commit.id, parent)?;
-    //         writer.set_file_timestamps(entry, time)
-    //     } else {
-    //         Err(OxenError::file_has_no_parent(&entry.path))
-    //     }
-    // }
-
-    pub fn set_file_timestamps(
-        &self,
-        entry: &CommitEntry,
-        time: &FileTime,
-    ) -> Result<(), OxenError> {
-        let file_entry: Option<TreeObject> =
-            path_db::get_entry(&self.files_db, entry.hash.clone())?;
-        match file_entry {
-            Some(TreeObject::File { .. }) => {
-                let file_entry = TreeObject::File {
-                    hash: entry.hash.to_owned(),
-                    num_bytes: entry.num_bytes,
-                    last_modified_seconds: time.unix_seconds(),
-                    last_modified_nanoseconds: time.nanoseconds(),
-                };
-                path_db::put(&self.files_db, file_entry.hash(), &file_entry)?;
-                Ok(())
-            }
-            _ => {
-                log::error!("Could not find file entry for {:?}", entry.path);
-                Ok(())
-            }
-        }
     }
 
     fn add_staged_entry_to_db(
@@ -1436,6 +1389,50 @@ impl CommitEntryWriter {
         }
 
         Ok(affected_vnodes)
+    }
+    pub fn set_file_timestamps(
+        repo: &LocalRepository,
+        path: &Path,
+        entry: &CommitEntry,
+        files_db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
+        // Update timestamps
+        let file_entry: Option<TreeObject> = path_db::get_entry(files_db, entry.hash.clone())?;
+
+        // Update the local modified timestamps
+        let working_path = repo.path.join(path);
+        let metadata = util::fs::metadata(working_path).unwrap();
+        let mtime = FileTime::from_last_modification_time(&metadata);
+
+        match file_entry {
+            Some(entry) => match entry {
+                TreeObject::File {
+                    hash,
+                    num_bytes,
+                    last_modified_seconds: _,
+                    last_modified_nanoseconds: _,
+                } => {
+                    let updated_entry = TreeObject::File {
+                        hash: hash.clone(),
+                        num_bytes,
+                        last_modified_seconds: mtime.unix_seconds(),
+                        last_modified_nanoseconds: mtime.nanoseconds(),
+                    };
+                    path_db::put(files_db, hash, &updated_entry)?;
+                }
+                _ => {
+                    log::error!("Attempting to set timestamps for invalid entry type");
+                }
+            },
+            None => {
+                log::error!(
+                    "Could not find file for setting timestamps: {:?}",
+                    entry.path
+                );
+            }
+        }
+
+        Ok(())
     }
 }
 

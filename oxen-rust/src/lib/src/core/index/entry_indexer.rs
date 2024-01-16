@@ -1,7 +1,6 @@
 //! EntryIndexer is responsible for pushing, pulling and syncing commit entries
 //!
 
-use filetime::FileTime;
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
@@ -15,9 +14,7 @@ use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
 use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader, Stager};
-use crate::core::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
-};
+use crate::core::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{
@@ -735,19 +732,18 @@ impl EntryIndexer {
 
     pub fn unpack_version_files_to_working_dir(
         &self,
-        commit: &Commit,
+        _commit: &Commit,
         entries: &[Entry],
         bar: &Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
-        //TODOFIX: Is this the same logic as the previous `self.group` in commit
+        // TODO: Don't need to group anymore
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
         let opts = db::opts::default();
         let files_db = CommitEntryWriter::files_db_dir(&self.repository);
         let files_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
 
-        dir_entries.par_iter().for_each(|(dir, entries)| {
-            let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
+        dir_entries.par_iter().for_each(|(_dir, entries)| {
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(entry.path());
                 if versioner::should_unpack_entry(entry, &filepath) {
@@ -762,17 +758,13 @@ impl EntryIndexer {
                 }
 
                 if let Entry::CommitEntry(file) = entry {
-                    match util::fs::metadata(&filepath) {
-                        Ok(metadata) => {
-                            let mtime = FileTime::from_last_modification_time(&metadata);
-                            committer
-                                .set_file_timestamps(file, &mtime, &files_db)
-                                .unwrap();
-                        }
-                        Err(err) => {
-                            log::error!("Could not update timestamp for {:?}: {}", filepath, err)
-                        }
-                    }
+                    CommitEntryWriter::set_file_timestamps(
+                        &self.repository,
+                        &file.path,
+                        file,
+                        &files_db,
+                    )
+                    .unwrap();
                 }
                 bar.inc(1);
             });
