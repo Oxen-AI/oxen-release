@@ -1528,7 +1528,7 @@ pub fn write_txt_file_to_path<P: AsRef<Path>>(
 pub fn append_line_txt_file<P: AsRef<Path>>(path: P, line: &str) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
 
-    let mut file = OpenOptions::new().write(true).append(true).open(path)?;
+    let mut file = OpenOptions::new().append(true).open(path)?;
 
     if let Err(e) = writeln!(file, "{line}") {
         return Err(OxenError::basic_str(format!("Couldn't write to file: {e}")));

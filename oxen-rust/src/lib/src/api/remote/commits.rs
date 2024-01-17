@@ -1379,7 +1379,7 @@ mod tests {
                 constants::DEFAULT_REMOTE_NAME,
                 &remote_repo.remote.url,
             )?;
-            let push = command::push(&local_repo).await?;
+            command::push(&local_repo).await?;
 
             // Should now be synced
             let latest_synced =
