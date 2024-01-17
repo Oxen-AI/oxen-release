@@ -21,7 +21,6 @@ pub fn list_unmigrated(
         ));
     }
 
-    // Read this into a string
     let global_last_migration = std::fs::read_to_string(&global_last_migration)?;
 
     if global_last_migration >= migration_tstamp {
