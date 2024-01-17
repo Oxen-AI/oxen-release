@@ -143,7 +143,7 @@ impl CommitDirEntryReader {
             .unwrap();
 
         let Some(vnode_child) = vnode_child else {
-            log::error!(
+            log::info!(
                 "could not get Some(vnode_child) for path {:?}",
                 path.as_ref()
             );
@@ -152,24 +152,24 @@ impl CommitDirEntryReader {
 
         // Get the vnode object proper
         let Ok(maybe_vnode) = self.object_reader.get_vnode(vnode_child.hash()) else {
-            log::error!("could not get Ok(maybe_vnode) for path {:?}", path.as_ref());
+            log::info!("could not get Ok(maybe_vnode) for path {:?}", path.as_ref());
             return false;
         };
 
         let Some(vnode) = maybe_vnode else {
-            log::error!("could not get Some(vnode) for path {:?}", path.as_ref());
+            log::info!("could not get Some(vnode) for path {:?}", path.as_ref());
             return false;
         };
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
         let Ok(maybe_file) = vnode.binary_search_on_path(&full_path.to_path_buf()) else {
-            log::error!("could not get Ok(file) for path {:?}", path.as_ref());
+            log::info!("could not get Ok(file) for path {:?}", path.as_ref());
             return false;
         };
 
         let Some(file) = maybe_file else {
-            log::error!("could not get Some(file) for path {:?}", path.as_ref());
+            log::info!("could not get Some(file) for path {:?}", path.as_ref());
             return false;
         };
 

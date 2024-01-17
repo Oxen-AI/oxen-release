@@ -89,6 +89,40 @@ impl CommitEntryWriter {
             .join(constants::OBJECT_VNODES_DIR)
     }
 
+    // Used at repo initialization when we don't have any commits yet
+    pub fn create_objects_dbs(repository: &LocalRepository) -> Result<(), OxenError> {
+        let objects_dir = CommitEntryWriter::objects_dir(&repository.path);
+        let objects_files_dir = objects_dir.join(constants::OBJECT_FILES_DIR);
+        let objects_schemas_dir = objects_dir.join(constants::OBJECT_SCHEMAS_DIR);
+        let objects_dirs_dir = objects_dir.join(constants::OBJECT_DIRS_DIR);
+        let objects_vnodes_dir = objects_dir.join(constants::OBJECT_VNODES_DIR);
+
+        for path in &[
+            &objects_dir,
+            &objects_files_dir,
+            &objects_schemas_dir,
+            &objects_dirs_dir,
+            &objects_vnodes_dir,
+        ] {
+            if !path.exists() {
+                util::fs::create_dir_all(path)?;
+            }
+        }
+
+        for path in &[
+            &objects_files_dir,
+            &objects_schemas_dir,
+            &objects_dirs_dir,
+            &objects_vnodes_dir,
+        ] {
+            let _db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&db::opts::default(), dunce::simplified(&path))?;
+            // open it then lose scope to close it
+        }
+
+        Ok(())
+    }
+
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,
@@ -433,6 +467,11 @@ impl CommitEntryWriter {
             if &parent != dir {
                 dir_map.entry(parent).or_default().push(dir.to_path_buf());
             }
+        }
+
+        // Root dir not accounted for in the dirs db
+        if !dir_paths.contains(&PathBuf::from("")) {
+            dir_paths.push(PathBuf::from(""));
         }
 
         self.create_tree_nodes_from_dirs(&mut dir_paths, dir_map)?;
