@@ -2,6 +2,7 @@ use crate::api;
 use crate::command;
 use crate::constants;
 use crate::core::cache::commit_cacher;
+use crate::core::index::CommitEntryWriter;
 use crate::core::index::Stager;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
@@ -226,7 +227,13 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
     let history_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::HISTORY_DIR);
     std::fs::create_dir_all(history_dir)?;
 
+    // Create objects dir and all objects rocksdbs
+    {
+        CommitEntryWriter::create_objects_dbs(&local_repo)?;
+    }
+
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
+
     {
         // Make go out of scope to release LOCK
         log::debug!(
@@ -246,6 +253,14 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
         // Write the root commit
         let commit_writer = CommitWriter::new(&local_repo)?;
         commit_writer.add_commit_from_empty_status(root_commit)?;
+        log::debug!("root commit created top for repo {:?}", local_repo.path);
+        // Check if local_repo.path.join(".oxen").join("objects") exists
+        let objects_dir = util::fs::oxen_hidden_dir(&local_repo.path).join(constants::OBJECTS_DIR);
+        if objects_dir.exists() {
+            log::debug!("and objects_dir exists");
+        } else {
+            log::debug!("and objects_dir does not exist");
+        }
     } else {
         // if no root commit, but yes files and a user, add and commit them
         if let Some(files) = &new_repo.files {
@@ -266,6 +281,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
                 // Write the root commit and go out of scope to close DB
                 let commit_writer = CommitWriter::new(&local_repo)?;
                 commit_writer.add_commit_from_empty_status(&root_commit)?;
+                log::debug!("root commit created for repo {:?}", local_repo.path);
             }
 
             // Add the files
