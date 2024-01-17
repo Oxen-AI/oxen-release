@@ -117,7 +117,6 @@ impl CommitEntryWriter {
         ] {
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&db::opts::default(), dunce::simplified(path))?;
-            // open it then lose scope to close it
         }
 
         Ok(())

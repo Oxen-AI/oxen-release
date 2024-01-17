@@ -404,7 +404,6 @@ impl CommitWriter {
         // Write entries
         log::debug!("init'ing CommitEntryWriter");
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-        log::debug!("done commitentrywriter");
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
