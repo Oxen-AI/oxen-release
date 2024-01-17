@@ -469,6 +469,11 @@ impl CommitEntryWriter {
             }
         }
 
+        // Root dir not accounted for in the dirs db
+        if !dir_paths.contains(&PathBuf::from("")) {
+            dir_paths.push(PathBuf::from(""));
+        }
+
         self.create_tree_nodes_from_dirs(&mut dir_paths, dir_map)?;
 
         // If dir path
