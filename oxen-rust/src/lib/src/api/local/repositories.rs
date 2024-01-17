@@ -253,14 +253,6 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
         // Write the root commit
         let commit_writer = CommitWriter::new(&local_repo)?;
         commit_writer.add_commit_from_empty_status(root_commit)?;
-        log::debug!("root commit created top for repo {:?}", local_repo.path);
-        // Check if local_repo.path.join(".oxen").join("objects") exists
-        let objects_dir = util::fs::oxen_hidden_dir(&local_repo.path).join(constants::OBJECTS_DIR);
-        if objects_dir.exists() {
-            log::debug!("and objects_dir exists");
-        } else {
-            log::debug!("and objects_dir does not exist");
-        }
     } else {
         // if no root commit, but yes files and a user, add and commit them
         if let Some(files) = &new_repo.files {
