@@ -124,14 +124,12 @@ pub fn parse(query: Option<String>) -> Result<Option<DFFilterExp>, OxenError> {
 
         // 2) Parse each sub expression
         // Order in which we check matters because some ops are substrings of others, put the longest ones first
-        let filter_ops = vec![
-            DFFilterOp::NEQ,
+        let filter_ops = [DFFilterOp::NEQ,
             DFFilterOp::GTE,
             DFFilterOp::LTE,
             DFFilterOp::EQ,
             DFFilterOp::GT,
-            DFFilterOp::LT,
-        ];
+            DFFilterOp::LT];
 
         let mut filter_vals: Vec<DFFilterVal> = vec![];
         for sub_expr in sub_exprs {

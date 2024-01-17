@@ -128,9 +128,13 @@ impl CommitDirEntryReader {
 
     pub fn has_file<P: AsRef<Path>>(&self, path: P) -> bool {
         let full_path = self.dir.join(path.as_ref());
-        let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
+        let path_hash_prefix = util::hasher::hash_path(&full_path)[0..2].to_string();
 
-        log::debug!("looking for this path hash prefix {:?}", path_hash_prefix);
+        log::debug!(
+            "has_file looking for this path hash prefix {:?} for {:?}",
+            path_hash_prefix,
+            full_path
+        );
 
         // Binary search for the appropriate vnode
         let vnode_child = self
@@ -138,28 +142,40 @@ impl CommitDirEntryReader {
             .binary_search_on_path(&PathBuf::from(path_hash_prefix))
             .unwrap();
 
-        if vnode_child.is_none() {
+        let Some(vnode_child) = vnode_child else {
+            log::error!(
+                "could not get Some(vnode_child) for path {:?}",
+                path.as_ref()
+            );
             return false;
-        }
+        };
 
-        let vnode_child = vnode_child.unwrap();
         // Get the vnode object proper
-        let vnode = self
-            .object_reader
-            .get_vnode(vnode_child.hash())
-            .unwrap()
-            .unwrap();
+        let Ok(maybe_vnode) = self.object_reader.get_vnode(vnode_child.hash()) else {
+            log::error!("could not get Ok(maybe_vnode) for path {:?}", path.as_ref());
+            return false;
+        };
+
+        let Some(vnode) = maybe_vnode else {
+            log::error!("could not get Some(vnode) for path {:?}", path.as_ref());
+            return false;
+        };
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
-        let file = vnode
-            .binary_search_on_path(&full_path.to_path_buf())
-            .unwrap();
-        if file.is_none() {
+        let Ok(maybe_file) = vnode.binary_search_on_path(&full_path.to_path_buf()) else {
+            log::error!("could not get Ok(file) for path {:?}", path.as_ref());
             return false;
-        }
+        };
 
-        matches!(file.unwrap(), TreeObjectChild::File { .. })
+        let Some(file) = maybe_file else {
+            log::error!("could not get Some(file) for path {:?}", path.as_ref());
+            return false;
+        };
+
+        log::debug!("has_file found file {:?}", file);
+
+        matches!(file, TreeObjectChild::File { .. })
     }
 
     pub fn get_entry<P: AsRef<Path>>(&self, path: P) -> Result<Option<CommitEntry>, OxenError> {
@@ -167,30 +183,26 @@ impl CommitDirEntryReader {
         let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
 
         // Binary search for the appropriate vnode
-        let vnode_child = self
+        let maybe_vnode_child = self
             .dir_object
             .binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
 
-        if vnode_child.is_none() {
+        let Some(vnode_child) = maybe_vnode_child else {
             log::debug!("could not find vnode child for path {:?}", path.as_ref());
             return Ok(None);
-        }
-
-        let vnode_child = vnode_child.unwrap();
+        };
 
         // Get parent vnode
         let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
-        let file = vnode.binary_search_on_path(&full_path)?;
+        let maybe_file = vnode.binary_search_on_path(&full_path)?;
 
-        if file.is_none() {
+        let Some(file) = maybe_file else {
             log::debug!("could not find file for path {:?}", path.as_ref());
             return Ok(None);
-        }
-
-        let file = file.unwrap();
+        };
 
         match file.clone() {
             TreeObjectChild::File { hash, .. } => {

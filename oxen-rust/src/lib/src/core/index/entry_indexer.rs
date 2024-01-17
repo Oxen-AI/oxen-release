@@ -133,6 +133,12 @@ impl EntryIndexer {
             self.cleanup_removed_entries(&commit, status)?;
         }
 
+        log::debug!(
+            "pull complete ✅ for commit {} -> '{}'",
+            commit.id,
+            commit.message
+        );
+
         Ok(())
     }
 
@@ -830,6 +836,13 @@ impl EntryIndexer {
                 )
                 .unwrap();
 
+                log::debug!(
+                    "cleanup_removed_entries got commit_entry_reader for commit {} -> '{}' dir_entry_results.len() {}",
+                    commit.id,
+                    commit.message,
+                    dir_entry_results.len()
+                );
+
                 dir_entry_results
                     .par_iter_mut()
                     .for_each(|dir_entry_result| {
@@ -854,6 +867,16 @@ impl EntryIndexer {
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
                                 // (unless it's in untracked files or parent in untracked dirs)
+
+                                log::debug!(
+                                    "{} considering file {:?} with untracked_files.len() {} untracked_dirs.contains({:?}) '{}'",
+                                    current_function!(),
+                                    path,
+                                    untracked_files.len(),
+                                    short_path,
+                                    untracked_dirs.contains(&short_path)
+                                );
+
                                 if !commit_entry_reader.has_file(path)
                                     && !untracked_files.contains(&short_path)
                                     && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
@@ -896,6 +919,7 @@ impl EntryIndexer {
                     })
             })
         {
+            log::debug!("cleanup_removed_entries : {:?}", dir_entry_result);
             match dir_entry_result {
                 Ok(dir_entry) => {
                     if let Some(was_removed) = &dir_entry.client_state {
@@ -909,6 +933,8 @@ impl EntryIndexer {
                 }
             }
         }
+
+        log::debug!("cleanup_removed_entries done!");
 
         Ok(())
     }
