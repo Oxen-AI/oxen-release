@@ -195,6 +195,10 @@ async fn main() -> std::io::Result<()> {
                                 "/api/namespaces/{namespace}",
                                 web::get().to(controllers::namespaces::show),
                             )
+                            .route(
+                                "/api/migrations/{migration_tstamp}",
+                                web::get().to(controllers::migrations::list_unmigrated),
+                            )
                             .wrap(Condition::new(
                                 enable_auth,
                                 HttpAuthentication::bearer(auth::validator::validate),
