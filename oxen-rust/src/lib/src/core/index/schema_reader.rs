@@ -183,44 +183,48 @@ impl SchemaReader {
     pub fn list_schema_entries(&self) -> Result<Vec<SchemaEntry>, OxenError> {
         log::debug!("trying to get root hash for commit {:?}", self.commit_id);
         // Print out all the entries of dir_hashes db
-        let iter = self.dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
+        // let iter = self.dir_hashes_db.iterator(rocksdb::IteratorMode::Start);
 
-        log::debug!(
-            "iterating over dir_hashes_db for commit {:?}",
-            self.commit_id
-        );
-        for item in iter {
-            match item {
-                Ok((key, value)) => {
-                    let key = match std::str::from_utf8(&key) {
-                        Ok(k) => k,
-                        Err(e) => {
-                            log::error!("Failed to convert key to string: {:?}", e);
-                            continue;
-                        }
-                    };
-                    let value = match std::str::from_utf8(&value) {
-                        Ok(v) => v,
-                        Err(e) => {
-                            log::error!("Failed to convert value to string: {:?}", e);
-                            continue;
-                        }
-                    };
-                    log::debug!("key {:?} value {:?}", key, value);
-                }
-                Err(e) => {
-                    log::error!("Iterator error: {:?}", e);
-                }
-            }
-        }
+        // log::debug!(
+        //     "iterating over dir_hashes_db for commit {:?}",
+        //     self.commit_id
+        // );
+        // for item in iter {
+        //     match item {
+        //         Ok((key, value)) => {
+        //             let key = match std::str::from_utf8(&key) {
+        //                 Ok(k) => k,
+        //                 Err(e) => {
+        //                     log::error!("Failed to convert key to string: {:?}", e);
+        //                     continue;
+        //                 }
+        //             };
+        //             let value = match std::str::from_utf8(&value) {
+        //                 Ok(v) => v,
+        //                 Err(e) => {
+        //                     log::error!("Failed to convert value to string: {:?}", e);
+        //                     continue;
+        //                 }
+        //             };
+        //             log::debug!("key {:?} value {:?}", key, value);
+        //         }
+        //         Err(e) => {
+        //             log::error!("Iterator error: {:?}", e);
+        //         }
+        //     }
+        // }
 
-        log::debug!("done iterating");
+        // log::debug!("done iterating");
 
-        log::debug!("done iterating round 2");
+        // log::debug!("done iterating round 2");
 
-        let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
+        let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.ok_or(
+            OxenError::basic_str("Could not find root hash in dir hashes db"),
+        )?;
 
-        let root_node: TreeObject = self.object_reader.get_dir(&root_hash)?.unwrap();
+        let root_node: TreeObject = self.object_reader.get_dir(&root_hash)?.ok_or(
+            OxenError::basic_str("Could not find root node in object db"),
+        )?;
 
         let mut entries: Vec<SchemaEntry> = Vec::new();
 
