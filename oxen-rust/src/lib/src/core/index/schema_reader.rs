@@ -222,9 +222,12 @@ impl SchemaReader {
             OxenError::basic_str("Could not find root hash in dir hashes db"),
         )?;
 
-        let root_node: TreeObject = self.object_reader.get_dir(&root_hash)?.ok_or(
-            OxenError::basic_str("Could not find root node in object db"),
-        )?;
+        let root_node: TreeObject =
+            self.object_reader
+                .get_dir(&root_hash)?
+                .ok_or(OxenError::basic_str(
+                    "Could not find root node in object db",
+                ))?;
 
         let mut entries: Vec<SchemaEntry> = Vec::new();
 
