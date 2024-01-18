@@ -29,15 +29,13 @@ pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
 
     let user_agent = req.headers().get("user-agent");
     let Some(user_agent) = user_agent else {
-        return Err(OxenHttpError::UpdateRequired(
-            constants::MIN_CLI_VERSION.into(),
-        ));
+        // No user agent, so we can't check the version
+        return get_app_data(req)
     };
 
     let Ok(user_agent_str) = user_agent.to_str() else {
-        return Err(OxenHttpError::UpdateRequired(
-            constants::MIN_CLI_VERSION.into(),
-        ));
+        // Invalid user agent, so we can't check the version
+        return get_app_data(req)
     };
 
     if user_cli_is_out_of_date(user_agent_str) {
@@ -46,6 +44,11 @@ pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
         ));
     }
 
+    req.app_data::<OxenAppData>()
+        .ok_or(OxenHttpError::AppDataDoesNotExist)
+}
+
+fn get_app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     req.app_data::<OxenAppData>()
         .ok_or(OxenHttpError::AppDataDoesNotExist)
 }
@@ -123,6 +126,13 @@ pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branc
 }
 
 fn user_cli_is_out_of_date(user_agent: &str) -> bool {
+    // check if the user agent contains oxen
+    if !user_agent.to_lowercase().contains("oxen") {
+        // Not an oxen user agent
+        return false;
+    }
+
+    // And if the version is less than the minimum version
     let parts: Vec<&str> = user_agent.split('/').collect();
 
     if parts.len() <= 1 {
