@@ -67,7 +67,7 @@ pub struct ChunkedDataUploadQuery {
 
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
 
@@ -88,7 +88,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 
 // List history for a branch or commit
 pub async fn commit_history(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
     let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");

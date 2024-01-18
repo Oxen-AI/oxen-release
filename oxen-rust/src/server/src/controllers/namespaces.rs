@@ -1,4 +1,5 @@
 use crate::app_data::OxenAppData;
+use crate::params::app_data;
 
 use liboxen::api;
 use liboxen::view::{ListNamespacesResponse, NamespaceResponse, NamespaceView, StatusMessage};
@@ -6,7 +7,7 @@ use liboxen::view::{ListNamespacesResponse, NamespaceResponse, NamespaceView, St
 use actix_web::{HttpRequest, HttpResponse};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
 
     let namespaces: Vec<NamespaceView> = api::local::namespaces::list(&app_data.path)
         .into_iter()
@@ -22,7 +23,7 @@ pub async fn index(req: HttpRequest) -> HttpResponse {
 }
 
 pub async fn show(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     let namespace: Option<&str> = req.match_info().get("namespace");
 
     if let Some(namespace) = namespace {
