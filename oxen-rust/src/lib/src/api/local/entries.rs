@@ -460,7 +460,7 @@ pub fn read_unsynced_entries(
 
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
-        log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
+        // log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
 
         let last_entry_reader =
             CommitDirEntryReader::new(local_repo, &last_commit.id, dir, object_reader.clone())?;

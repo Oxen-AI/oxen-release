@@ -158,7 +158,7 @@ impl CommitEntryReader {
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
         for dir in self.list_dirs()? {
-            log::debug!("listing entries for dir {:?}", dir);
+            // log::debug!("listing entries for dir {:?}", dir);
             let commit_dir = CommitDirEntryReader::new_from_path(
                 &self.base_path,
                 &self.commit_id,
