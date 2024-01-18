@@ -1,4 +1,3 @@
-use crate::app_data::OxenAppData;
 use crate::params::app_data;
 
 use liboxen::api;

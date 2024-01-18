@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use liboxen::api::local::resource::parse_resource_from_path;
 use liboxen::error::OxenError;
@@ -128,7 +129,7 @@ fn user_cli_is_out_of_date(user_agent: &str) -> bool {
         // Can't parse version from user agent
         return true;
     }
-    let user_cli_version = match OxenVersion::from_str(&parts[1]) {
+    let user_cli_version = match OxenVersion::from_str(parts[1]) {
         Ok(v) => v,
         Err(_) => return true,
     };

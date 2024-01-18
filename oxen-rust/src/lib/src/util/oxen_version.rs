@@ -7,26 +7,6 @@ pub struct OxenVersion {
     pub patch: u32,
 }
 
-impl OxenVersion {
-    pub fn from_str(s: &str) -> Result<Self, <OxenVersion as FromStr>::Err> {
-        let parts: Vec<&str> = s.split(|c| c == '.' || c == '-').collect();
-        if parts.len() < 3 || parts.len() > 4 {
-            return Err(OxenError::basic_str(format!(
-                "Invalid version string: {}",
-                s
-            )));
-        }
-        let major = parts[0].parse::<u32>()?;
-        let minor = parts[1].parse::<u32>()?;
-        let patch = parts[2].parse::<u32>()?;
-        Ok(OxenVersion {
-            major,
-            minor,
-            patch,
-        })
-    }
-}
-
 impl FromStr for OxenVersion {
     type Err = OxenError;
 
