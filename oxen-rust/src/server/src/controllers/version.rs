@@ -1,4 +1,5 @@
 use crate::app_data::OxenAppData;
+use crate::params::app_data;
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::api;
 use liboxen::constants::MIN_CLI_VERSION;
@@ -27,7 +28,7 @@ struct ResolveResponse {
 }
 
 pub async fn resolve(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
 
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");

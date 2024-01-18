@@ -1,5 +1,9 @@
+use actix_service::{Service, Transform};
+use actix_web::dev::{ServiceRequest, ServiceResponse};
 use liboxen::config::UserConfig;
 
+use liboxen::constants;
+use liboxen::error::OxenError;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -7,6 +11,7 @@ pub mod auth;
 pub mod controllers;
 pub mod errors;
 pub mod helpers;
+pub mod middleware;
 pub mod params;
 pub mod queues;
 pub mod routes;
@@ -18,17 +23,22 @@ extern crate log;
 extern crate lru;
 
 use actix_web::middleware::{Condition, Logger};
-use actix_web::{web, App, HttpServer};
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
 
 use clap::{Arg, Command};
 use env_logger::Env;
+use futures_util::future::FutureExt;
+
+use futures::future::{self, Ready};
+use liboxen::util::oxen_version::OxenVersion;
 use std::io::Write;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::errors::OxenHttpError;
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 use crate::tasks::Runnable;
 
@@ -206,7 +216,7 @@ async fn main() -> std::io::Result<()> {
                             .service(web::scope("/api/repos").configure(routes::config))
                             .default_service(web::route().to(controllers::not_found::index))
                             .wrap(Logger::default())
-                            .wrap(Logger::new("%a %{User-Agent}i"))
+                            .wrap(Logger::new("user agent is %a %{User-Agent}i"))
                     })
                     .bind((host.to_owned(), port))?
                     .run()

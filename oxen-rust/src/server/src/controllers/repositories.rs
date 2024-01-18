@@ -43,9 +43,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 }
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = req
-        .app_data::<OxenAppData>()
-        .ok_or(OxenHttpError::AppDataDoesNotExist)?;
+    let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
 
@@ -69,7 +67,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
 // Need this endpoint to get the size and data types for a repo from the UI
 pub async fn stats(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
 
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
@@ -110,7 +108,7 @@ pub async fn stats(req: HttpRequest) -> HttpResponse {
 }
 
 pub async fn create(req: HttpRequest, body: String) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     println!("controllers::repositories::create body:\n{}", body);
     let data: Result<RepoNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
@@ -188,7 +186,7 @@ pub async fn transfer_namespace(
 }
 
 pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -224,7 +222,7 @@ pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, actix_we
 }
 
 pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, actix_web::Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req)?;
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();

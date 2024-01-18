@@ -1,10 +1,11 @@
 use crate::app_data::OxenAppData;
+use crate::params::app_data;
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::util;
 use liboxen::view::{HealthResponse, StatusMessage};
 
 pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     match util::fs::disk_usage_for_path(&app_data.path) {
         Ok(disk_usage) => {
             let response = HealthResponse {
