@@ -6,8 +6,6 @@ use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 use serde_json::json;
 use std::io;
 
-use crate::view;
-
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
     InternalServerError,

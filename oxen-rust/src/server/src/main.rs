@@ -1,9 +1,5 @@
-use actix_service::{Service, Transform};
-use actix_web::dev::{ServiceRequest, ServiceResponse};
 use liboxen::config::UserConfig;
 
-use liboxen::constants;
-use liboxen::error::OxenError;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -23,22 +19,18 @@ extern crate log;
 extern crate lru;
 
 use actix_web::middleware::{Condition, Logger};
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::{web, App, HttpServer};
 use actix_web_httpauth::middleware::HttpAuthentication;
 
 use clap::{Arg, Command};
 use env_logger::Env;
-use futures_util::future::FutureExt;
 
-use futures::future::{self, Ready};
-use liboxen::util::oxen_version::OxenVersion;
 use std::io::Write;
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::errors::OxenHttpError;
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 use crate::tasks::Runnable;
 
