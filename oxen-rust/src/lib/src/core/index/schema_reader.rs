@@ -157,7 +157,7 @@ impl SchemaReader {
         dir_node: TreeObject,
         path_vals: &mut HashMap<PathBuf, Schema>,
     ) -> Result<(), OxenError> {
-        log::debug!("calling r_list_schemas on dir_node {:?}", dir_node);
+        // log::debug!("calling r_list_schemas on dir_node {:?}", dir_node);
         for vnode in dir_node.children() {
             let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
             for child in vnode.children() {
@@ -168,9 +168,9 @@ impl SchemaReader {
                     }
                     TreeObjectChild::Schema { path, hash, .. } => {
                         let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
-                        log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
+                        // log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
                         let found_schema = self.get_schema_by_hash(hash)?;
-                        log::debug!("got found schema {:?}", found_schema);
+                        // log::debug!("got found schema {:?}", found_schema);
                         path_vals.insert(stripped_path.to_path_buf(), found_schema);
                     }
                     _ => {}
