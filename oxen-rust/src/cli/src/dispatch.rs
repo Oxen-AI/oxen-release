@@ -140,6 +140,7 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
 
 pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
     let host = api::remote::client::get_host_from_url(&opts.url)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     command::clone(opts).await?;
@@ -318,6 +319,8 @@ pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
         return Err(OxenError::basic_str("Must supply a path to download."));
     }
 
+    check_remote_version_blocking(opts.clone().host).await?;
+
     // Check if the first path is a valid remote repo
     let name = paths[0].to_string_lossy();
     if let Some(remote_repo) =
@@ -343,6 +346,7 @@ pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
         return Err(OxenError::basic_str("Must supply a path to download."));
     }
 
+    check_remote_version_blocking(opts.clone().host).await?;
     // Check if the first path is a valid remote repo
     let name = paths[0].to_string_lossy();
     if let Some(remote_repo) =
@@ -487,6 +491,7 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
 
     let host = get_host_from_repo(&repository)?;
     check_repo_migration_needed(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch, all).await?;
@@ -582,7 +587,10 @@ pub async fn fetch() -> Result<(), OxenError> {
         util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    let host = get_host_from_repo(&repository)?;
+
     check_repo_migration_needed(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     command::fetch(&repository).await?;
     Ok(())
 }
@@ -704,6 +712,7 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let host = get_host_from_repo(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     let directory = directory.unwrap_or(PathBuf::from("."));
@@ -769,6 +778,7 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
         let repository = LocalRepository::from_dir(&repo_dir)?;
 
         let host = get_host_from_repo(&repository)?;
+        check_remote_version_blocking(host.clone()).await?;
         check_remote_version(host).await?;
 
         let directory = paths[0].clone();
@@ -1055,6 +1065,7 @@ pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repo)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     let remote = repo
