@@ -169,10 +169,11 @@ pub async fn push_remote_repo(
                     // Unlock the branch
                     api::remote::branches::unlock(&remote_repo, &branch_name).await?;
                 }
-                Err(_err) => {
+                Err(err) => {
                     // Unlock the branch and handle error
                     api::remote::branches::unlock(&remote_repo, &branch_name).await?;
                     // handle the error
+                    return Err(err);
                 }
             }
         },
