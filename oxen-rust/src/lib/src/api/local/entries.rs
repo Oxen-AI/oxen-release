@@ -6,7 +6,7 @@ use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::DFOpts;
-use crate::view::entry::{PaginatedMetadataEntries, ResourceVersion};
+use crate::view::entry::ResourceVersion;
 use crate::view::DataTypeCount;
 use crate::{api, util};
 use rayon::prelude::*;
@@ -14,9 +14,9 @@ use rayon::prelude::*;
 use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
-use crate::model::{Branch, Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
 use crate::view::PaginatedDirEntries;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 /// Get the entry for a given path in a commit.
@@ -551,66 +551,6 @@ pub fn list_tabular_files_in_repo(
     }
 
     Ok(meta_entries)
-}
-
-// All different versions of the file in its commit history - does not include commits where the file was uncahnged
-pub fn list_entry_versions(
-    local_repo: &LocalRepository,
-    path: &PathBuf,
-) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
-    let commit_reader = CommitReader::new(local_repo)?;
-
-    let mut all_commits = commit_reader.list_all()?;
-
-    // Sort on timestamp oldest to newest
-    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
-    let mut result: Vec<(Commit, CommitEntry)> = Vec::new();
-    let mut seen_hashes: HashSet<String> = HashSet::new();
-
-    for commit in all_commits {
-        let entry_reader = CommitEntryReader::new(local_repo, &commit)?;
-        let entry = entry_reader.get_entry(path)?;
-
-        if let Some(entry) = entry {
-            if !seen_hashes.contains(&entry.hash) {
-                seen_hashes.insert(entry.hash.clone());
-                result.push((commit, entry));
-            }
-        }
-    }
-
-    result.reverse();
-
-    Ok(result)
-}
-
-// The version of a file at the head of every branch
-pub fn list_entry_versions_on_branches(
-    local_repo: &LocalRepository,
-    path: &PathBuf,
-) -> Result<Vec<(Branch, CommitEntry)>, OxenError> {
-    let commit_reader = CommitReader::new(local_repo)?;
-
-    let mut all_branches = api::local::branches::list(local_repo)?;
-
-    let mut result: Vec<(Branch, CommitEntry)> = Vec::new();
-
-    for branch in all_branches {
-        let commit = commit_reader
-            .get_commit_by_id(&branch.commit_id)?
-            .ok_or_else(|| OxenError::revision_not_found(branch.commit_id.to_string().into()))?;
-        let entry_reader = CommitEntryReader::new(local_repo, &commit)?;
-        let entry = entry_reader.get_entry(path)?;
-
-        if let Some(entry) = entry {
-            result.push((branch, entry));
-        }
-    }
-
-    result.reverse();
-
-    Ok(result)
 }
 
 #[cfg(test)]

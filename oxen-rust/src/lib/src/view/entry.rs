@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::model::{metadata::MetadataDir, Branch, CommitEntry, MetadataEntry, RemoteEntry};
 use serde::{Deserialize, Serialize};
 
@@ -102,8 +104,7 @@ pub struct CommitEntryVersion {
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedEntryVersions {
-    pub branch_versions: Vec<BranchEntryVersion>,
-    pub commit_versions: Vec<CommitEntryVersion>,
+    pub versions: Vec<CommitEntryVersion>,
     #[serde(flatten)]
     pub pagination: Pagination,
 }
@@ -114,4 +115,6 @@ pub struct PaginatedEntryVersionsResponse {
     pub status: StatusMessage,
     #[serde(flatten)]
     pub versions: PaginatedEntryVersions,
+    pub branch: Branch,
+    pub path: PathBuf,
 }
