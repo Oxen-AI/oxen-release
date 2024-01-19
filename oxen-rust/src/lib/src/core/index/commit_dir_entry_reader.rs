@@ -44,6 +44,10 @@ impl CommitDirEntryReader {
         dir: &Path,
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitDirEntryReader, OxenError> {
+        log::debug!(
+            "Creating new commit dir entry reader for path: {:?}",
+            repository.path.join(dir)
+        );
         CommitDirEntryReader::new_from_path(&repository.path, commit_id, dir, object_reader)
     }
 
