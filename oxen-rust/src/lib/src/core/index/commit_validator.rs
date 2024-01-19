@@ -26,7 +26,9 @@ pub fn validate_tree_hash(
     let is_valid: Result<bool, OxenError> = if commit.parent_ids.is_empty() {
         validate_complete_merkle_tree(repository, commit)
     } else {
-        let parent = api::local::commits::get_by_id(repository, &commit.parent_ids[0])?.unwrap();
+        let parent = api::local::commits::get_by_id(repository, &commit.parent_ids[0])?.ok_or(
+            OxenError::basic_str(format!("parent commit not found for commit {}", commit.id)),
+        )?;
         validate_changed_parts_of_merkle_tree(repository, commit, &parent)
     };
 
@@ -210,12 +212,44 @@ fn validate_changed_parts_of_merkle_tree(
     commit: &Commit,
     parent: &Commit,
 ) -> Result<bool, OxenError> {
-    let object_reader = ObjectDBReader::new(repository)?;
-    let root_hash = commit.root_hash.clone().unwrap();
-    let parent_root_hash = parent.root_hash.clone().unwrap();
+    log::debug!(
+        "validate_changed_parts_of_merkle_tree for commit {:?} and parent {:?}",
+        commit,
+        parent
+    );
 
-    let root_node = object_reader.get_dir(&root_hash)?.unwrap();
-    let parent_root_node = object_reader.get_dir(&parent_root_hash)?.unwrap();
+    log::debug!("commit.root_hash {:?}", commit.root_hash);
+    log::debug!("parent.root_hash {:?}", parent.root_hash);
+
+    let object_reader = ObjectDBReader::new(repository)?;
+    let root_hash = commit
+        .root_hash
+        .clone()
+        .ok_or(OxenError::basic_str(format!(
+            "root_hash is None for commit {}",
+            commit.id
+        )))?;
+    let parent_root_hash = parent
+        .root_hash
+        .clone()
+        .ok_or(OxenError::basic_str(format!(
+            "root_hash is None for parent {}",
+            parent.id
+        )))?;
+
+    let root_node = object_reader
+        .get_dir(&root_hash)?
+        .ok_or(OxenError::basic_str(format!(
+            "root_node is None for commit {}",
+            commit.id
+        )))?;
+    let parent_root_node =
+        object_reader
+            .get_dir(&parent_root_hash)?
+            .ok_or(OxenError::basic_str(format!(
+                "root_node is None for parent {}",
+                parent.id
+            )))?;
 
     for child in root_node.children() {
         // Search in the parent root node for the same child

@@ -23,19 +23,19 @@ pub use df_opts_query::DFOptsQuery;
 
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     log::debug!(
-        "Get user agent from app data (app_data) {:#?}",
+        "Get user agent from app data (app_data) {:?}",
         req.headers().get("user-agent")
     );
 
     let user_agent = req.headers().get("user-agent");
     let Some(user_agent) = user_agent else {
         // No user agent, so we can't check the version
-        return get_app_data(req)
+        return get_app_data(req);
     };
 
     let Ok(user_agent_str) = user_agent.to_str() else {
         // Invalid user agent, so we can't check the version
-        return get_app_data(req)
+        return get_app_data(req);
     };
 
     if user_cli_is_out_of_date(user_agent_str) {
