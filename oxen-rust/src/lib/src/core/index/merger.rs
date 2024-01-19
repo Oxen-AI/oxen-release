@@ -1,4 +1,5 @@
 use crate::api;
+use crate::config::UserConfig;
 use crate::constants::MERGE_DIR;
 use crate::core::db;
 use crate::core::index::{
@@ -414,8 +415,7 @@ impl Merger {
             merge_commits.base.id.to_owned(),
             merge_commits.merge.id.to_owned(),
         ];
-        let commit =
-            commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg, None)?;
+        let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
         stager.unstage()?;
 
         Ok(commit)
@@ -451,12 +451,22 @@ impl Merger {
             merge_commits.base.id.to_owned(),
             merge_commits.merge.id.to_owned(),
         ];
-        let commit = commit_writer.commit_with_parent_ids(
+
+        // The author in this case is the pusher - the author of the merge commit
+
+        let cfg = UserConfig {
+            name: merge_commits.merge.author.clone(),
+            email: merge_commits.merge.email.clone(),
+        };
+
+        let commit = commit_writer.commit_with_parent_ids_on_branch(
             &status,
             parent_ids,
             &commit_msg,
-            Some(branch.clone()),
+            branch.clone(),
+            cfg,
         )?;
+
         stager.unstage()?;
 
         Ok(commit)
