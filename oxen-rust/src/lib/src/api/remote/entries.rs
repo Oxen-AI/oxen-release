@@ -3,7 +3,7 @@ use crate::constants::{AVG_CHUNK_SIZE, OBJECTS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
-use crate::model::{MetadataEntry, RemoteRepository};
+use crate::model::{Commit, MetadataEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
