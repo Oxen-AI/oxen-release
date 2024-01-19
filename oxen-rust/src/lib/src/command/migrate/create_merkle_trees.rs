@@ -121,6 +121,43 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
         bar.inc(1);
     }
+
+    // runtime check: commit root hash is properly updated for all commits
+    let updated_commits = reader.list_all()?;
+
+    for commit in updated_commits {
+        let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_db_dir, false)?;
+        let maybe_root_hash: Option<String> = path_db::get_entry(&dir_hashes_db, "")?;
+        let Some(root_hash) = maybe_root_hash else {
+            return Err(OxenError::basic_str(format!(
+                "Could not find root hash for dir hashes db {:?} in repo {:?}",
+                commit, repo.path
+            )));
+        };
+
+        let Some(db_root_hash) = commit.root_hash.clone() else {
+            return Err(OxenError::basic_str(format!(
+                "Could not find root hash in commit db from commit {:?} in repo {:?}",
+                commit, repo.path
+            )));
+        };
+
+        if root_hash != db_root_hash {
+            return Err(OxenError::basic_str(format!(
+                "Root hash in commit db {:?} does not match root hash in dir hashes db {:?} in repo {:?}",
+                db_root_hash, root_hash, repo.path
+            )));
+        }
+
+        log::debug!(
+            "Root hash for commit {:?} is correct in repo {:?}",
+            commit,
+            repo
+        );
+    }
+
     Ok(())
 }
 
