@@ -313,12 +313,43 @@ impl CommitWriter {
         Commit::from_new_and_id(commit_data, id)
     }
 
+    // For server-generetaed merge commits
+    pub fn commit_with_parent_ids_on_branch(
+        &self,
+        status: &StagedData,
+        parent_ids: Vec<String>,
+        message: &str,
+        branch: Branch,
+        cfg: UserConfig,
+    ) -> Result<Commit, OxenError> {
+        let timestamp = OffsetDateTime::now_utc();
+
+        let commit = NewCommit {
+            parent_ids,
+            message: String::from(message),
+            author: cfg.name,
+            email: cfg.email,
+            timestamp,
+        };
+
+        let entries: Vec<StagedEntry> = status.staged_files.values().cloned().collect();
+        let id = util::hasher::compute_commit_hash(&commit, &entries);
+        let commit = Commit::from_new_and_id(&commit, id);
+        log::debug!("adding commit from status on local branch");
+        self.add_commit_from_status_on_local_branch(
+            &commit,
+            status,
+            &self.repository.path,
+            branch,
+        )?;
+        Ok(commit)
+    }
+
     pub fn commit_with_parent_ids(
         &self,
         status: &StagedData,
         parent_ids: Vec<String>,
         message: &str,
-        branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
         let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
@@ -333,17 +364,7 @@ impl CommitWriter {
         let entries: Vec<StagedEntry> = status.staged_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
-        if let Some(branch) = branch {
-            log::debug!("adding commit from status on local branch");
-            self.add_commit_from_status_on_local_branch(
-                &commit,
-                status,
-                &self.repository.path,
-                branch,
-            )?;
-        } else {
-            self.add_commit_from_status(&commit, status, &self.repository.path)?;
-        }
+        self.add_commit_from_status(&commit, status, &self.repository.path)?;
         Ok(commit)
     }
 
