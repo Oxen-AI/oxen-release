@@ -2,10 +2,11 @@ use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
 use liboxen::constants::DIRS_DIR;
-use liboxen::constants::FILES_DIR;
+use liboxen::constants::DIR_HASHES_DIR;
 use liboxen::constants::HASH_FILE;
 use liboxen::constants::HISTORY_DIR;
-use liboxen::constants::SCHEMAS_DIR;
+use liboxen::constants::OBJECTS_DIR;
+use liboxen::constants::TREE_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::cache::cacher_status::CacherStatusType;
 use liboxen::core::cache::cachers::content_validator;
@@ -21,6 +22,7 @@ use liboxen::model::{Commit, LocalRepository};
 use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
+use liboxen::view::commit::CommitTreeValidationResponse;
 use liboxen::view::http::MSG_CONTENT_IS_INVALID;
 use liboxen::view::http::MSG_FAILED_PROCESS;
 use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
@@ -45,6 +47,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io::Read;
 use std::io::Write;
@@ -63,29 +66,32 @@ pub struct ChunkedDataUploadQuery {
 }
 
 // List commits for a repository
-pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
 
     if let (Some(namespace), Some(repo_name)) = (namespace, repo_name) {
         let repo_dir = app_data.path.join(namespace).join(repo_name);
         match p_index(&repo_dir) {
-            Ok(response) => HttpResponse::Ok().json(response),
+            Ok(response) => Ok(HttpResponse::Ok().json(response)),
             Err(err) => {
                 log::error!("api err: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                Err(OxenHttpError::InternalServerError)
             }
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+        Err(OxenHttpError::BadRequest(msg.into()))
     }
 }
 
 // List history for a branch or commit
-pub async fn commit_history(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+pub async fn commit_history(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
     let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
@@ -98,15 +104,16 @@ pub async fn commit_history(req: HttpRequest, query: web::Query<PageNumQuery>) -
     {
         let repo_dir = app_data.path.join(namespace).join(repo_name);
         match p_index_commit_or_branch_history(&repo_dir, commit_or_branch, page, page_size) {
-            Ok(response) => HttpResponse::Ok().json(response),
+            Ok(response) => Ok(HttpResponse::Ok().json(response)),
             Err(err) => {
                 let msg = format!("{err}");
-                HttpResponse::NotFound().json(StatusMessage::error(msg))
+                log::error!("api err: {}", msg);
+                Err(OxenHttpError::NotFound)
             }
         }
     } else {
         let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+        Err(OxenHttpError::BadRequest(msg.into()))
     }
 }
 
@@ -172,6 +179,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     // let mut commits = commits.into_iter().collect::<Vec<_>>();
     // commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
+    log::debug!("latest_synced has commits {}", commits.len());
     for commit in commits.iter() {
         log::debug!("latest_synced has commit.... {}", commit);
     }
@@ -432,6 +440,36 @@ fn compress_commits_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenErro
     Ok(buffer)
 }
 
+fn compress_objects_db(repository: &LocalRepository) -> Result<Vec<u8>, OxenError> {
+    let object_dir = util::fs::oxen_hidden_dir(&repository.path).join(OBJECTS_DIR);
+
+    let tar_subdir = Path::new(OBJECTS_DIR);
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    tar.append_dir_all(tar_subdir, object_dir)?;
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+    log::debug!("Compressed objects dir size is {}", ByteSize::b(total_size));
+    Ok(buffer)
+}
+
+pub async fn download_objects_db(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+    let buffer = compress_objects_db(&repository)?;
+    Ok(HttpResponse::Ok().body(buffer))
+}
+
 /// Download the database of all entries given a specific commit
 pub async fn download_commit_entries_db(
     req: HttpRequest,
@@ -446,6 +484,7 @@ pub async fn download_commit_entries_db(
         .ok_or(OxenError::revision_not_found(commit_or_branch.into()))?;
 
     let buffer = compress_commit(&repository, &commit)?;
+
     Ok(HttpResponse::Ok().body(buffer))
 }
 
@@ -463,8 +502,7 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
     let enc = GzEncoder::new(Vec::new(), Compression::default());
     let mut tar = tar::Builder::new(enc);
 
-    // Ignore cache and other dirs, only take what we need
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -473,6 +511,8 @@ fn compress_commit(repository: &LocalRepository, commit: &Commit) -> Result<Vec<
             tar.append_dir_all(&tar_path, full_path)?;
         }
     }
+
+    // Examine the full file structure of the tar
 
     tar.finish()?;
 
@@ -591,6 +631,7 @@ pub async fn upload_chunk(
     mut chunk: web::Payload,                   // the chunk of the file body,
     query: web::Query<ChunkedDataUploadQuery>, // gives the file
 ) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in upload chunk controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -599,9 +640,10 @@ pub async fn upload_chunk(
 
     let commit_reader = CommitReader::new(&repo)?;
 
-    let commit = commit_reader
-        .get_commit_by_id(&commit_id)?
-        .ok_or(OxenError::revision_not_found(commit_id.into()))?;
+    let commit = match commit_reader.get_commit_by_id(&commit_id)? {
+        Some(commit) => commit,
+        None => api::local::commits::head_commit(&repo)?,
+    };
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let id = query.hash.clone();
@@ -742,9 +784,113 @@ fn check_if_upload_complete_and_unpack(
         }
 
         // Cleanup tmp files
-        util::fs::remove_dir_all(tmp_dir).unwrap();
+        // util::fs::remove_dir_all(tmp_dir).unwrap();
         // });
     }
+}
+
+pub async fn upload_tree(
+    req: HttpRequest,
+    mut body: web::Payload,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let client_head_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+    // Get head commit on sever repo
+    let server_head_commit = api::local::commits::head_commit(&repo)?;
+
+    // Unpack in tmp/tree/commit_id
+    let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
+
+    let mut bytes = web::BytesMut::new();
+    while let Some(item) = body.next().await {
+        bytes.extend_from_slice(&item.unwrap());
+    }
+
+    let total_size: u64 = u64::try_from(bytes.len()).unwrap_or(u64::MAX);
+    log::debug!(
+        "Got compressed data for tree {} -> {}",
+        client_head_id,
+        ByteSize::b(total_size)
+    );
+
+    log::debug!("Decompressing {} bytes to {:?}", bytes.len(), tmp_dir);
+
+    let mut archive = Archive::new(GzDecoder::new(&bytes[..]));
+
+    unpack_tree_tarball(&tmp_dir, &mut archive);
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_found(),
+        commit: server_head_commit.to_owned(),
+    }))
+}
+
+pub async fn can_push(
+    req: HttpRequest,
+    query: web::Query<HashMap<String, String>>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let client_head_id = path_param(&req, "commit_id")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+    let server_head_id = query.get("remote_head").unwrap();
+    let lca_id = query.get("lca").unwrap();
+
+    log::debug!("in the new_can_push endpoint");
+
+    // Ensuring these commits exist on server
+    let _server_head_commit = api::local::commits::get_by_id(&repo, server_head_id)?.ok_or(
+        OxenError::revision_not_found(server_head_id.to_owned().into()),
+    )?;
+    let _lca_commit = api::local::commits::get_by_id(&repo, lca_id)?
+        .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
+
+    let can_merge = !api::local::commits::head_commits_have_conflicts(
+        &repo,
+        &client_head_id,
+        server_head_id,
+        lca_id,
+    )?;
+
+    // Clean up tmp tree files from client head commit
+    let tmp_tree_dir = util::fs::oxen_hidden_dir(&repo.path)
+        .join("tmp")
+        .join(client_head_id)
+        .join(TREE_DIR);
+
+    if tmp_tree_dir.exists() {
+        std::fs::remove_dir_all(tmp_tree_dir).unwrap();
+    }
+
+    if can_merge {
+        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
+            status: StatusMessage::resource_found(),
+            can_merge: true,
+        }))
+    } else {
+        Ok(HttpResponse::Ok().json(CommitTreeValidationResponse {
+            status: StatusMessage::resource_found(),
+            can_merge: false,
+        }))
+    }
+}
+
+pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, name)?;
+
+    let root = api::local::commits::root_commit(&repo)?;
+
+    Ok(HttpResponse::Ok().json(CommitResponse {
+        status: StatusMessage::resource_found(),
+        commit: root,
+    }))
 }
 
 fn unpack_compressed_data(files: &[PathBuf], hidden_dir: &Path) -> Result<(), OxenError> {
@@ -809,14 +955,20 @@ pub async fn upload(
     req: HttpRequest,
     mut body: web::Payload, // the actual file body
 ) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in regular upload controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
-    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
-        .ok_or(OxenError::revision_not_found(commit_id.to_owned().into()))?;
+    // Match commit as either the provided commit id if it exists, or the head commit of the repo otherwise.
+
+    let commit = match api::local::commits::get_by_id(&repo, &commit_id)? {
+        Some(commit) => commit,
+        None => api::local::commits::head_commit(&repo)?,
+    };
+
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
     // Read bytes from body
@@ -848,7 +1000,6 @@ pub async fn upload(
     }))
 }
 
-// Deprecated in favor of bulk - can we remove?
 /// Notify that the push should be complete, and we should start doing our background processing
 pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     let app_data = req.app_data::<OxenAppData>().unwrap();
@@ -975,6 +1126,39 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
 
+fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
+    match archive.entries() {
+        Ok(entries) => {
+            for file in entries {
+                if let Ok(mut file) = file {
+                    let path = file.path().unwrap();
+                    let stripped_path = if path.starts_with(HISTORY_DIR) {
+                        path.strip_prefix(HISTORY_DIR).unwrap()
+                    } else {
+                        &path
+                    };
+
+                    let mut new_path = PathBuf::from(tmp_dir);
+                    new_path.push(stripped_path);
+
+                    if let Some(parent) = new_path.parent() {
+                        if !parent.exists() {
+                            std::fs::create_dir_all(parent).expect("Could not create parent dir");
+                        }
+                    }
+                    file.unpack(&new_path).unwrap();
+                } else {
+                    log::error!("Could not unpack file in archive...");
+                }
+            }
+        }
+        Err(err) => {
+            log::error!("Could not unpack tree database from archive...");
+            log::error!("Err: {:?}", err);
+        }
+    }
+}
+
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     // Unpack and compute HASH and save next to the file to speed up computation later
     match archive.entries() {
@@ -1009,6 +1193,13 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                         let hash = util::hasher::hash_file_contents(&version_path).unwrap();
                         util::fs::write_to_path(&hash_file, &hash)
                             .expect("Could not write hash file");
+                    } else if path.starts_with(OBJECTS_DIR) {
+                        let temp_objects_dir = hidden_dir.join("tmp");
+                        if !temp_objects_dir.exists() {
+                            std::fs::create_dir_all(&temp_objects_dir).unwrap();
+                        }
+
+                        file.unpack_in(&temp_objects_dir).unwrap();
                     } else {
                         // For non-version files, use filename sent by client
                         file.unpack_in(hidden_dir).unwrap();
@@ -1023,6 +1214,19 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
             log::error!("Err: {:?}", err);
         }
     }
+    let tmp_objects_dir = hidden_dir.join("tmp").join(OBJECTS_DIR);
+
+    // If this dir exists:
+    if tmp_objects_dir.exists() {
+        log::debug!("tmp objects dir exists, let's do some stuff");
+
+        // merge_objects_dbs(hidden_dir.to_path_buf()).unwrap();
+        api::local::commits::merge_objects_dbs(&hidden_dir.join(OBJECTS_DIR), &tmp_objects_dir)
+            .unwrap();
+
+        std::fs::remove_dir_all(tmp_objects_dir.clone()).unwrap();
+    }
+
     log::debug!("Done decompressing.");
 }
 
@@ -1060,7 +1264,7 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
-        let resp = controllers::commits::index(req).await;
+        let resp = controllers::commits::index(req).await.unwrap();
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
@@ -1093,7 +1297,7 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
-        let resp = controllers::commits::index(req).await;
+        let resp = controllers::commits::index(req).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1138,7 +1342,9 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query).await;
+        let resp = controllers::commits::commit_history(req, query)
+            .await
+            .unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1189,7 +1395,9 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query).await;
+        let resp = controllers::commits::commit_history(req, query)
+            .await
+            .unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;

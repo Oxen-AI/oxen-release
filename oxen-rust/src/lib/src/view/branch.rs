@@ -39,6 +39,12 @@ pub struct BranchUpdate {
     pub commit_id: String,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct BranchRemoteMerge {
+    pub client_commit_id: String,
+    pub server_commit_id: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ListBranchesResponse {
     #[serde(flatten)]

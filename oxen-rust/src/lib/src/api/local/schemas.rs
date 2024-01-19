@@ -46,6 +46,7 @@ pub fn get_by_path(
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
     let path = path.as_ref();
+    log::debug!("here's our repo path: {:?}", repo.path);
     let commit = api::local::commits::head_commit(repo)?;
     let schema_reader = SchemaReader::new(repo, &commit.id)?;
     schema_reader.get_schema_for_file(path)

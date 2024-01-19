@@ -33,6 +33,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::commits::create_bulk),
         )
         .route(
+            "/{namespace}/{repo_name}/commits/root",
+            web::get().to(controllers::commits::root_commit),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/complete",
             web::post().to(controllers::commits::complete_bulk),
         )
@@ -49,6 +53,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::commits::download_commits_db),
         )
         .route(
+            "/{namespace}/{repo_name}/objects_db",
+            web::get().to(controllers::commits::download_objects_db),
+        )
+        .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/latest_synced",
             web::get().to(controllers::commits::latest_synced),
         )
@@ -59,6 +67,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/data",
             web::post().to(controllers::commits::upload),
+        )
+        .route(
+            "/{namespace}/{repo_name}/commits/{commit_id}/can_push",
+            web::get().to(controllers::commits::can_push),
         )
         .route(
             "/{namespace}/{repo_name}/commits/{commit_id}/complete",
@@ -108,6 +120,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/branches/{branch_name:.*}/unlock",
             web::post().to(controllers::branches::unlock),
+        )
+        .route(
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/merge",
+            web::put().to(controllers::branches::maybe_create_merge),
         )
         .route(
             "/{namespace}/{repo_name}/branches/{branch_name:.*}",

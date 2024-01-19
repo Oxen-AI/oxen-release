@@ -66,11 +66,8 @@ use crate::model::{LocalRepository, StagedData};
 /// # }
 /// ```
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    log::debug!("status before new_from_head");
     let reader = CommitEntryReader::new_from_head(repository)?;
-    log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
-    log::debug!("status before stager.status");
     let status = stager.status(&reader)?;
     Ok(status)
 }
@@ -106,11 +103,15 @@ pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
 /// # }
 /// ```
 pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<StagedData, OxenError> {
-    log::debug!("status before new_from_head");
     let reader = CommitEntryReader::new_from_head(repository)?;
-    log::debug!("status before Stager::new");
     let stager = Stager::new(repository)?;
-    log::debug!("status before stager.status");
     let status = stager.status_from_dir(&reader, dir)?;
+    Ok(status)
+}
+
+pub fn status_without_untracked(repository: &LocalRepository) -> Result<StagedData, OxenError> {
+    let reader = CommitEntryReader::new_from_head(repository)?;
+    let stager = Stager::new(repository)?;
+    let status = stager.status_without_untracked(&reader)?;
     Ok(status)
 }

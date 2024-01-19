@@ -2,6 +2,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
+use liboxen::core::index::ObjectDBReader;
 use liboxen::error::OxenError;
 use liboxen::model::CommitEntry;
 use liboxen::util;
@@ -42,6 +43,7 @@ pub async fn get(
 
     // Try to get the parent of the file path, if it exists
     let mut entry: Option<CommitEntry> = None;
+    let object_reader = ObjectDBReader::new(&repo)?;
     let path = &resource.file_path;
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
         let key = format!(
@@ -65,6 +67,7 @@ pub async fn get(
                 &repo,
                 &resource.commit.id,
                 parent,
+                object_reader.clone(),
             )?;
             log::debug!("looking up entry {}", key);
             entry = cder.get_entry(file_name)?;

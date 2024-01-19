@@ -126,4 +126,12 @@ impl StatusMessage {
             oxen_version: Some(OXEN_VERSION.to_string()),
         }
     }
+
+    pub fn update_required() -> StatusMessage {
+        StatusMessage {
+            status: String::from(view::http::STATUS_ERROR),
+            status_message: String::from(view::http::MSG_UPDATE_REQUIRED),
+            oxen_version: Some(OXEN_VERSION.to_string()),
+        }
+    }
 }

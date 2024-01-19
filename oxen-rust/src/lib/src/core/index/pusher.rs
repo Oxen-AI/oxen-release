@@ -1,8 +1,9 @@
 //! Pushes commits and entries to the remote repository
 //!
 
-use crate::api::local::entries::compute_entries_size;
+use crate::api::local::entries::compute_generic_entries_size;
 use crate::api::remote::commits::ChunkParams;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
 
@@ -11,6 +12,7 @@ use flate2::Compression;
 use futures::prelude::*;
 use indicatif::ProgressBar;
 use std::collections::HashSet;
+
 use std::io::{BufReader, Read};
 use std::sync::Arc;
 
@@ -20,15 +22,21 @@ use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
 use crate::core::index::{self, CommitReader, Merger, RefReader};
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
 
+#[derive(Debug)]
 pub struct UnsyncedCommitEntries {
     pub commit: Commit,
-    pub entries: Vec<CommitEntry>,
+    pub entries: Vec<Entry>,
 }
+
+// pub struct UnsyncedCommitSchemas {
+//     pub commit: Commit,
+//     pub schemas: Vec<Schema>,
+// }
 pub async fn push(
     repo: &LocalRepository,
     rb: &RemoteBranch,
@@ -66,17 +74,39 @@ async fn validate_repo_is_pushable(
     branch: &Branch,
     commit_reader: &CommitReader,
     head_commit: &Commit,
-) -> Result<(), OxenError> {
+) -> Result<bool, OxenError> {
     // Make sure the remote branch is not ahead of the local branch
-    if remote_is_ahead_of_local(remote_repo, commit_reader, branch).await? {
-        return Err(OxenError::remote_ahead_of_local());
+    // log::debug!(
+    //     "validating repo is pushable for commit {:#?} and branch {:#?}",
+    //     head_commit,
+    //     branch
+    // );
+
+    if remote_is_ahead_of_local(head_commit, remote_repo, commit_reader, branch).await? {
+        log::debug!("remote is ahead of local for commit {:#?}", head_commit);
+        if api::remote::commits::can_push(remote_repo, &branch.name, local_repo, head_commit)
+            .await?
+        {
+            // log::debug!("can_push is true for commit {:#?}", head_commit);
+            return Ok(true); // We need a merge commit
+        } else {
+            // log::debug!("can_push is false for commit {:#?}", head_commit);
+            return Err(OxenError::upstream_merge_conflict());
+        }
     }
+    // } else {
+    //     log::debug!("remote is not ahead of local for commit {:#?}", head_commit);
+    // }
 
     if cannot_push_incomplete_history(local_repo, remote_repo, head_commit, branch).await? {
+        log::debug!(
+            "cannot_push_incomplete_history is true for commit {:#?}",
+            head_commit
+        );
         return Err(OxenError::incomplete_local_history());
     }
 
-    Ok(())
+    Ok(false)
 }
 
 pub async fn push_remote_repo(
@@ -96,6 +126,8 @@ pub async fn push_remote_repo(
     // Lock successfully acquired
     api::remote::repositories::pre_push(&remote_repo, &branch, &head_commit.id).await?;
 
+    #[allow(unused_assignments)]
+    let mut requires_merge = false;
     match validate_repo_is_pushable(
         local_repo,
         &remote_repo,
@@ -105,9 +137,20 @@ pub async fn push_remote_repo(
     )
     .await
     {
-        Ok(_) => {}
+        Ok(result) => {
+            log::debug!(
+                "push_remote_repo is pushable, result is {} for commit {:#?}",
+                result,
+                head_commit
+            );
+            requires_merge = result;
+        }
         Err(err) => {
             api::remote::branches::unlock(&remote_repo, &branch.name).await?;
+            log::debug!(
+                "push_remote_repo is not pushable for commit {:#?}",
+                head_commit
+            );
             return Err(err);
         }
     }
@@ -118,17 +161,19 @@ pub async fn push_remote_repo(
     // Push the commits. If at any point during this process, we have errors or the user ctrl+c's, we release the branch lock.
     // TODO: Maybe we should only release the lock if we haven't yet started adding commits to the queue.
     // IF we've added commits to the queue, should we cede control of lock removal to when the queue is finished processing?
+    let head_commit_clone = head_commit.clone();
     tokio::select! {
-        result = try_push_remote_repo(local_repo, &remote_repo, branch, &head_commit) => {
+        result = try_push_remote_repo(local_repo, &remote_repo, branch, head_commit, requires_merge) => {
             match result {
                 Ok(_) => {
                     // Unlock the branch
                     api::remote::branches::unlock(&remote_repo, &branch_name).await?;
                 }
-                Err(_err) => {
+                Err(err) => {
                     // Unlock the branch and handle error
                     api::remote::branches::unlock(&remote_repo, &branch_name).await?;
                     // handle the error
+                    return Err(err);
                 }
             }
         },
@@ -143,7 +188,8 @@ pub async fn push_remote_repo(
         }
     }
     // TODO: Handle additional push complete / incomplete statuses on ctrl + c
-    api::remote::repositories::post_push(&remote_repo, &branch_clone, &head_commit.id).await?;
+    api::remote::repositories::post_push(&remote_repo, &branch_clone, &head_commit_clone.id)
+        .await?;
     Ok(remote_repo)
 }
 
@@ -151,15 +197,18 @@ pub async fn try_push_remote_repo(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     branch: Branch,
-    head_commit: &Commit,
+    mut head_commit: Commit,
+    requires_merge: bool,
 ) -> Result<(), OxenError> {
     let commits_to_sync =
-        get_commit_objects_to_sync(local_repo, remote_repo, head_commit, &branch).await?;
+        get_commit_objects_to_sync(local_repo, remote_repo, &head_commit, &branch).await?;
 
     log::debug!(
         "push_remote_repo commit order after get_commit_objects_to_sync {:?}",
         commits_to_sync
     );
+
+    let maybe_remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
 
     let (unsynced_entries, _total_size) =
         push_missing_commit_objects(local_repo, remote_repo, &commits_to_sync, &branch).await?;
@@ -168,20 +217,13 @@ pub async fn try_push_remote_repo(
     let unsynced_db_commits =
         api::remote::commits::get_commits_with_unsynced_dbs(remote_repo, &branch).await?;
 
+    api::remote::commits::post_tree_objects_to_server(local_repo, remote_repo, &head_commit)
+        .await?;
+
     push_missing_commit_dbs(local_repo, remote_repo, unsynced_db_commits).await?;
 
-    // update the branch after everything else is synced
-    log::debug!(
-        "Updating remote branch {:?} to commit {:?}",
-        &branch.name,
-        &head_commit
-    );
-    log::debug!("🐂 Identifying commits with unsynced entries...");
-
-    // Raise an OxenError for testing purposes
-
     // Get commits with unsynced entries
-    let unsynced_entries_commits =
+    let mut unsynced_entries_commits =
         api::remote::commits::get_commits_with_unsynced_entries(remote_repo, &branch).await?;
 
     log::debug!(
@@ -197,10 +239,45 @@ pub async fn try_push_remote_repo(
     )
     .await?;
 
+    if requires_merge {
+        let remote_head_id = match maybe_remote_branch {
+            Some(remote_branch) => remote_branch.commit_id,
+            None => return Err(OxenError::remote_branch_not_found(&branch.name)),
+        };
+
+        let merge_commit = api::remote::branches::maybe_create_merge(
+            remote_repo,
+            branch.name.as_str(),
+            head_commit.id.as_str(),
+            remote_head_id.as_str(),
+        )
+        .await?;
+
+        log::debug!(
+            "try_push_remote_repo found new merge head commit {:?}",
+            head_commit
+        );
+        unsynced_entries_commits.push(merge_commit.clone());
+
+        head_commit = merge_commit;
+    } else {
+        log::debug!(
+            "try_push_remote_repo didn't find new merge head, old head is {:?}",
+            head_commit
+        );
+    }
+
     // Even if there are no entries, there may still be commits we need to call post-push on (esp initial commits)
     api::remote::commits::bulk_post_push_complete(remote_repo, &unsynced_entries_commits).await?;
+    // Update the head...
+    api::remote::branches::update(remote_repo, &branch.name, &head_commit).await?;
 
-    api::remote::branches::update(remote_repo, &branch.name, head_commit).await?;
+    // update the branch after everything else is synced
+    log::debug!(
+        "updated remote branch {:?} to commit {:?}",
+        &branch.name,
+        &head_commit
+    );
 
     // Remotely validate commit
     // This is an async process on the server so good to stall the user here so they don't push again
@@ -209,7 +286,7 @@ pub async fn try_push_remote_repo(
         unsynced_entries_commits.len() as u64,
         "Remote validating commits",
     );
-    poll_until_synced(remote_repo, head_commit, &bar).await?;
+    poll_until_synced(remote_repo, &head_commit, &bar).await?;
     bar.finish_and_clear();
 
     log::debug!("Just finished push.");
@@ -288,8 +365,28 @@ fn get_unsynced_entries_for_commit(
         let entries =
             api::local::entries::read_unsynced_entries(local_repo, &local_parent, commit)?;
 
+        let schemas: Vec<SchemaEntry> =
+            api::local::entries::read_unsynced_schemas(local_repo, &local_parent, commit)?;
+
+        // Get the entries and schemas into one Vec<Entry>
+        let mut entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
+
+        log::debug!(
+            "got unsynced entries for commit {:#?}: {:#?}",
+            commit,
+            entries
+        );
+        let schemas: Vec<Entry> = schemas.into_iter().map(Entry::from).collect();
+        log::debug!(
+            "got unsynced schemas for commit {:#?}: {:#?}",
+            commit,
+            schemas
+        );
+
+        entries.extend(schemas);
+
         // Get size of these entries
-        let entries_size = api::local::entries::compute_entries_size(&entries)?;
+        let entries_size = api::local::entries::compute_generic_entries_size(&entries)?;
         total_size += entries_size;
 
         unsynced_commits.push(UnsyncedCommitEntries {
@@ -317,8 +414,14 @@ async fn push_missing_commit_objects(
     let mut total_size: u64 = 0;
 
     for commit in commits {
+        log::debug!("objects checker checking commit {:#?}", commit);
         let (commit_unsynced_commits, commit_size) =
             get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+        log::debug!(
+            "objects checker got entries for commit {:#?} as {:?}",
+            commit,
+            commit_unsynced_commits
+        );
         total_size += commit_size;
         unsynced_commits.extend(commit_unsynced_commits);
     }
@@ -340,6 +443,7 @@ async fn push_missing_commit_objects(
 }
 
 async fn remote_is_ahead_of_local(
+    local_head: &Commit,
     remote_repo: &RemoteRepository,
     reader: &CommitReader,
     branch: &Branch,
@@ -352,8 +456,22 @@ async fn remote_is_ahead_of_local(
         return Ok(false);
     }
 
-    // Meaning we do not have the remote branch commit in our history
-    Ok(!reader.commit_id_exists(&remote_branch.unwrap().commit_id))
+    if !reader.commit_id_exists(&remote_branch.clone().unwrap().commit_id) {
+        log::debug!("commit id does not exist for commit {:#?}", remote_branch);
+        return Ok(true);
+    } else {
+        log::debug!("commit id exists for commit {:#?}", remote_branch);
+        // return Ok(false);
+    }
+
+    // Get the commit
+    let remote_commit = reader
+        .get_commit_by_id(remote_branch.clone().unwrap().commit_id)?
+        .ok_or(OxenError::local_parent_link_broken(
+            remote_branch.unwrap().commit_id,
+        ))?;
+
+    Ok(!local_head.has_ancestor(&remote_commit.id, reader)?)
 }
 
 async fn cannot_push_incomplete_history(
@@ -577,27 +695,42 @@ async fn push_missing_commit_entries(
     for commit in commits {
         // Only if the commit is not already accounted for in unsynced entries - avoid double counting
         if !unsynced_entries.iter().any(|u| u.commit.id == commit.id) {
+            log::debug!("processing commit {:?}", commit);
             let (commit_unsynced_commits, _commit_size) =
                 get_unsynced_entries_for_commit(local_repo, commit, &commit_reader)?;
+
+            log::debug!(
+                "got entries for commit {:#?} {:?}",
+                commit,
+                commit_unsynced_commits
+            );
+
             unsynced_entries.extend(commit_unsynced_commits);
+        } else {
+            log::debug!("Skipping commit {:?}", commit);
         }
     }
 
-    let mut unsynced_entries: Vec<CommitEntry> = unsynced_entries
+    let mut unsynced_entries: Vec<Entry> = unsynced_entries
         .iter()
         .flat_map(|u: &UnsyncedCommitEntries| u.entries.clone())
         .collect();
+
+    log::debug!(
+        "pushing and we've collected these entries: {:#?}",
+        unsynced_entries
+    );
 
     spinner.finish_and_clear();
 
     // Dedupe unsynced_entries on hash and file extension to form unique version path names
     let mut seen_entries: HashSet<String> = HashSet::new();
     unsynced_entries.retain(|e| {
-        let key = format!("{}{}", e.hash.clone(), e.extension());
+        let key = format!("{}{}", e.hash().clone(), e.extension());
         seen_entries.insert(key)
     });
 
-    let total_size = compute_entries_size(&unsynced_entries)?;
+    let total_size = compute_generic_entries_size(&unsynced_entries)?;
 
     println!("🐂 Pushing {}", bytesize::ByteSize::b(total_size));
 
@@ -629,7 +762,7 @@ async fn push_missing_commit_entries(
 async fn push_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    entries: &[CommitEntry],
+    entries: &[Entry],
     commit: &Commit,
     bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
@@ -643,16 +776,16 @@ async fn push_entries(
     // since bodies will be too big. Hence we chunk and send the big ones, and bundle and send the small ones
 
     // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
-    let smaller_entries: Vec<CommitEntry> = entries
+    let smaller_entries: Vec<Entry> = entries
         .iter()
-        .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() < AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
     // For files larger than AVG_CHUNK_SIZE, we are going break them into chunks and send the chunks in parallel
-    let larger_entries: Vec<CommitEntry> = entries
+    let larger_entries: Vec<Entry> = entries
         .iter()
-        .filter(|e| e.num_bytes > AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() > AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
@@ -693,7 +826,7 @@ async fn push_entries(
 async fn chunk_and_send_large_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
+    entries: Vec<Entry>,
     commit: &Commit,
     chunk_size: u64,
     bar: &Arc<ProgressBar>,
@@ -704,7 +837,7 @@ async fn chunk_and_send_large_entries(
 
     use tokio::time::sleep;
     type PieceOfWork = (
-        CommitEntry,
+        Entry,
         LocalRepository,
         Commit,
         RemoteRepository,
@@ -726,18 +859,6 @@ async fn chunk_and_send_large_entries(
             )
         })
         .collect();
-
-    // for entry in entries {
-    //     let (entry, repo, commit, remote_repo, bar) = entry;
-    //     upload_large_file_chunks(
-    //         entry,
-    //         repo,
-    //         commit,
-    //         remote_repo,
-    //         chunk_size,
-    //         &bar
-    //     ).await;
-    // }
 
     let queue = Arc::new(TaskQueue::new(entries.len()));
     let finished_queue = Arc::new(FinishedTaskQueue::new(entries.len()));
@@ -781,7 +902,7 @@ async fn chunk_and_send_large_entries(
 
 /// Chunk and send large file in parallel
 async fn upload_large_file_chunks(
-    entry: CommitEntry,
+    entry: Entry,
     repo: LocalRepository,
     commit: Commit,
     remote_repo: RemoteRepository,
@@ -789,7 +910,7 @@ async fn upload_large_file_chunks(
     bar: &Arc<ProgressBar>,
 ) {
     // Open versioned file
-    let version_path = util::fs::version_path(&repo, &entry);
+    let version_path = util::fs::version_path_for_entry(&repo, &entry);
     let f = std::fs::File::open(&version_path).unwrap();
     let mut reader = BufReader::new(f);
 
@@ -800,7 +921,7 @@ async fn upload_large_file_chunks(
     let file_name = Some(String::from(path.to_str().unwrap()));
 
     // Calculate chunk sizes
-    let total_bytes = entry.num_bytes;
+    let total_bytes = entry.num_bytes();
     let total_chunks = ((total_bytes / chunk_size) + 1) as usize;
     let mut total_bytes_read = 0;
     let mut chunk_size = chunk_size;
@@ -832,7 +953,7 @@ async fn upload_large_file_chunks(
     let num_sub_chunks = (total_chunks / sub_chunk_size) + 1;
     log::debug!(
         "upload_large_file_chunks {:?} proccessing file in {} subchunks of size {} from total {} chunk size {} file size {}",
-        entry.path,
+        entry.path(),
         num_sub_chunks,
         sub_chunk_size,
         total_chunks,
@@ -864,7 +985,7 @@ async fn upload_large_file_chunks(
             match reader.read_exact(&mut buffer) {
                 Ok(_) => {}
                 Err(err) => {
-                    log::error!("upload_large_file_chunks Error reading file {:?} chunk {total_chunk_idx}/{total_chunks} chunk size {chunk_size} total_bytes_read: {total_bytes_read} total_bytes: {total_bytes} {:?}", entry.path, err);
+                    log::error!("upload_large_file_chunks Error reading file {:?} chunk {total_chunk_idx}/{total_chunks} chunk size {chunk_size} total_bytes_read: {total_bytes_read} total_bytes: {total_bytes} {:?}", entry.path(), err);
                     return;
                 }
             }
@@ -894,7 +1015,7 @@ async fn upload_large_file_chunks(
                 total_chunks,
                 total_bytes,
                 remote_repo.to_owned(),
-                entry.hash.to_owned(),
+                entry.hash().to_owned(),
                 commit.to_owned(),
                 file_name.to_owned(),
             ));
@@ -980,7 +1101,7 @@ async fn upload_large_file_chunks(
 async fn bundle_and_send_small_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
+    entries: Vec<Entry>,
     commit: &Commit,
     avg_chunk_size: u64,
     bar: &Arc<ProgressBar>,
@@ -990,7 +1111,7 @@ async fn bundle_and_send_small_entries(
     }
 
     // Compute size for this subset of entries
-    let total_size = api::local::entries::compute_entries_size(&entries)?;
+    let total_size = api::local::entries::compute_generic_entries_size(&entries)?;
     let num_chunks = ((total_size / avg_chunk_size) + 1) as usize;
 
     let mut chunk_size = entries.len() / num_chunks;
@@ -1001,7 +1122,7 @@ async fn bundle_and_send_small_entries(
     // Split into chunks, zip up, and post to server
     use tokio::time::sleep;
     type PieceOfWork = (
-        Vec<CommitEntry>,
+        Vec<Entry>,
         LocalRepository,
         Commit,
         RemoteRepository,
@@ -1043,7 +1164,7 @@ async fn bundle_and_send_small_entries(
                 let enc = GzEncoder::new(Vec::new(), Compression::default());
                 let mut tar = tar::Builder::new(enc);
                 log::debug!("Chunk size {}", chunk.len());
-                let chunk_size = match compute_entries_size(&chunk) {
+                let chunk_size = match compute_generic_entries_size(&chunk) {
                     Ok(size) => size,
                     Err(e) => {
                         log::error!("Failed to compute entries size: {}", e);
@@ -1051,10 +1172,9 @@ async fn bundle_and_send_small_entries(
                     }
                 };
 
-                log::debug!("got repo {:?}", &repo.path);
                 for entry in chunk.into_iter() {
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-                    let version_path = util::fs::version_path(&repo, &entry);
+                    let version_path = util::fs::version_path_for_entry(&repo, &entry);
                     let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                     tar.append_path_with_name(version_path, name).unwrap();
@@ -1387,6 +1507,9 @@ mod tests {
                 pusher::get_unsynced_entries_for_commit(&local_repo, &commit, &commit_reader)?;
 
             assert_eq!(commit_unsynced_commits.len(), 1);
+
+            for _entry in commit_unsynced_commits[0].entries.clone().into_iter() {}
+
             assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
 
             command::push(&local_repo).await?;

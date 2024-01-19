@@ -67,6 +67,7 @@ mod tests {
 
     use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::core::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;
@@ -76,9 +77,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_file_entry() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let path = Path::new("annotations").join("README.md");
             let revision = DEFAULT_BRANCH_NAME;
+
+            let head = api::local::commits::head_commit(&local_repo)?;
+
+            let commit_entry_reader = CommitEntryReader::new(&local_repo, &head)?;
+
+            // Try to get the entry from the local repo
+            let entry = commit_entry_reader.get_entry(&path)?;
+            assert!(entry.is_some());
+
             let entry = api::remote::metadata::get_file(&remote_repo, revision, path)
                 .await?
                 .entry;

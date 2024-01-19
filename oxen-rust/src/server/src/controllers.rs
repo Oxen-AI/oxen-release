@@ -9,6 +9,7 @@ pub mod file;
 pub mod health;
 pub mod merger;
 pub mod metadata;
+pub mod migrations;
 pub mod namespaces;
 pub mod not_found;
 pub mod repositories;

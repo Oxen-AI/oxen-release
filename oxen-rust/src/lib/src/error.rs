@@ -8,6 +8,7 @@ use std::fmt::Debug;
 use std::io;
 use std::num::ParseIntError;
 use std::path::Path;
+use std::path::StripPrefixError;
 
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
@@ -45,6 +46,7 @@ pub enum OxenError {
     RemoteAheadOfLocal(StringError),
     IncompleteLocalHistory(StringError),
     RemoteBranchLocked(StringError),
+    UpstreamMergeConflict(StringError),
 
     // Branches/Commits
     BranchNotFound(Box<StringError>),
@@ -60,6 +62,7 @@ pub enum OxenError {
 
     // Versioning
     MigrationRequired(StringError),
+    OxenUpdateRequired(StringError),
 
     // Entry
     CommitEntryNotFound(StringError),
@@ -80,6 +83,9 @@ pub enum OxenError {
 
     // CLI Interaction
     OperationCancelled(StringError),
+
+    // fs / io
+    StripPrefixError(StringError),
 
     // External Library Errors
     IO(io::Error),
@@ -119,6 +125,10 @@ impl OxenError {
         OxenError::MigrationRequired(StringError::from(s.as_ref()))
     }
 
+    pub fn oxen_update_required<T: AsRef<str>>(s: T) -> Self {
+        OxenError::OxenUpdateRequired(StringError::from(s.as_ref()))
+    }
+
     pub fn user_config_not_found(value: StringError) -> Self {
         OxenError::UserConfigNotFound(Box::new(value))
     }
@@ -140,6 +150,12 @@ impl OxenError {
     pub fn remote_ahead_of_local() -> Self {
         OxenError::RemoteAheadOfLocal(StringError::from(
             "\nRemote ahead of local, must pull changes. To fix run:\n\n  oxen pull\n",
+        ))
+    }
+
+    pub fn upstream_merge_conflict() -> Self {
+        OxenError::UpstreamMergeConflict(StringError::from(
+            "\nRemote has conflicts with local branch. To fix run:\n\n  oxen pull\n\nThen resolve conflicts and commit changes.\n",
         ))
     }
 
@@ -572,6 +588,11 @@ impl From<std::env::VarError> for OxenError {
     }
 }
 
+impl From<StripPrefixError> for OxenError {
+    fn from(error: StripPrefixError) -> Self {
+        OxenError::basic_str(format!("Error stripping prefix: {}", error))
+    }
+}
 impl From<ParseIntError> for OxenError {
     fn from(error: ParseIntError) -> Self {
         OxenError::basic_str(error.to_string())

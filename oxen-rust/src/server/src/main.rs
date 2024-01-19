@@ -7,6 +7,7 @@ pub mod auth;
 pub mod controllers;
 pub mod errors;
 pub mod helpers;
+pub mod middleware;
 pub mod params;
 pub mod queues;
 pub mod routes;
@@ -23,6 +24,7 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 
 use clap::{Arg, Command};
 use env_logger::Env;
+
 use std::io::Write;
 
 use std::path::{Path, PathBuf};
@@ -195,6 +197,10 @@ async fn main() -> std::io::Result<()> {
                                 "/api/namespaces/{namespace}",
                                 web::get().to(controllers::namespaces::show),
                             )
+                            .route(
+                                "/api/migrations/{migration_tstamp}",
+                                web::get().to(controllers::migrations::list_unmigrated),
+                            )
                             .wrap(Condition::new(
                                 enable_auth,
                                 HttpAuthentication::bearer(auth::validator::validate),
@@ -202,7 +208,7 @@ async fn main() -> std::io::Result<()> {
                             .service(web::scope("/api/repos").configure(routes::config))
                             .default_service(web::route().to(controllers::not_found::index))
                             .wrap(Logger::default())
-                            .wrap(Logger::new("%a %{User-Agent}i"))
+                            .wrap(Logger::new("user agent is %a %{User-Agent}i"))
                     })
                     .bind((host.to_owned(), port))?
                     .run()

@@ -1,5 +1,5 @@
 use crate::core::db::str_json_db;
-use crate::core::db::{self, str_val_db};
+use crate::core::db::{self};
 use crate::error::OxenError;
 use crate::model::Schema;
 
@@ -10,9 +10,11 @@ use std::str;
 use crate::core::index::SchemaReader;
 use crate::model::LocalRepository;
 
+use super::versioner;
+
 pub struct SchemaWriter {
     db: DBWithThreadMode<MultiThreaded>,
-    files_db: DBWithThreadMode<MultiThreaded>,
+    repository: LocalRepository,
 }
 
 impl SchemaWriter {
@@ -36,13 +38,18 @@ impl SchemaWriter {
 
         Ok(SchemaWriter {
             db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
-            files_db: DBWithThreadMode::open(&opts, dunce::simplified(&schema_files_db_path))?,
+            repository: repository.clone(),
         })
     }
 
-    pub fn put_schema_for_file(&self, path: &Path, schema: &Schema) -> Result<(), OxenError> {
-        str_val_db::put(&self.files_db, path.to_string_lossy(), &schema.hash)?;
-        str_json_db::put(&self.db, &schema.hash, schema)
+    pub fn put_schema_for_file(&self, _path: &Path, schema: &Schema) -> Result<(), OxenError> {
+        // All we want to do is make sure the schema is inserted into the versions directory by hash.
+        versioner::backup_schema(&self.repository, schema)?;
+        Ok(())
+    }
+
+    pub fn delete_schema_for_file(&self, _path: &Path, _schema: &Schema) -> Result<(), OxenError> {
+        Ok(())
     }
 
     pub fn has_schema(&self, schema: &Schema) -> bool {
@@ -50,50 +57,20 @@ impl SchemaWriter {
     }
 
     pub fn put_schema(&self, schema: &Schema) -> Result<(), OxenError> {
-        str_json_db::put(&self.db, &schema.hash, schema)
+        // All we want to do is make sure the schema is inserted into the versions directory by hash.
+        versioner::backup_schema(&self.repository, schema)?;
+        Ok(())
     }
 
     pub fn update_schema(&self, schema: &Schema) -> Result<Schema, OxenError> {
-        str_json_db::put(&self.db, &schema.hash, schema)?;
-        Ok(str_json_db::get(&self.db, &schema.hash)?.unwrap())
+        // All we want to do is make sure the schema is inserted into the versions directory by hash.
+        versioner::backup_schema(&self.repository, schema)?;
+        Ok(schema.clone())
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
+    pub fn delete_schema(&self, _schema: &Schema) -> Result<(), OxenError> {
+        // We don't need this at all
 
-    use crate::api;
-    use crate::core::index::SchemaReader;
-    use crate::core::index::SchemaWriter;
-    use crate::error::OxenError;
-    use crate::model::schema;
-    use crate::model::Schema;
-    use crate::test;
-
-    #[test]
-    fn test_put_schema_for_file() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
-            let history = api::local::commits::list(&repo)?;
-            let last_commit = history.first().unwrap();
-
-            {
-                let schema_writer = SchemaWriter::new(&repo, &last_commit.id)?;
-
-                let schema = Schema::from_fields(vec![
-                    schema::Field::new("label", "str"),
-                    schema::Field::new("min_x", "int"),
-                    schema::Field::new("min_y", "int"),
-                ]);
-
-                schema_writer.put_schema_for_file(Path::new("test.csv"), &schema)?;
-            }
-
-            let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
-            let schemas = schema_reader.list_schemas()?;
-            assert_eq!(schemas.len(), 1);
-
-            Ok(())
-        })
+        Ok(())
     }
 }

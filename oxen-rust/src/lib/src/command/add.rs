@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::helpers;
-use crate::core::index::{oxenignore, CommitEntryReader, Stager};
+use crate::core::index::{oxenignore, CommitEntryReader, SchemaReader, Stager};
 use crate::{api, error::OxenError, model::LocalRepository};
 /// # Stage files into repository
 ///
@@ -41,6 +41,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     let stager = Stager::new_with_merge(repo)?;
     let commit = api::local::commits::head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
+    let schema_reader = SchemaReader::new(repo, &commit.id)?;
     let ignore = oxenignore::create(repo);
     log::debug!("---START--- oxen add: {:?}", path.as_ref());
 
@@ -65,7 +66,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
 
     // Get all entries in the head commit
     for path in paths {
-        stager.add(path.as_ref(), &reader, &ignore)?;
+        stager.add(path.as_ref(), &reader, &schema_reader, &ignore)?;
     }
 
     log::debug!("---END--- oxen add: {:?}", path.as_ref());

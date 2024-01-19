@@ -1,6 +1,8 @@
-use jwalk::WalkDir;
 use liboxen::api;
 use liboxen::command;
+use liboxen::command::migrate::CreateMerkleTreesMigration;
+use liboxen::command::migrate::Migrate;
+use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
 use liboxen::error;
@@ -22,6 +24,7 @@ use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::util;
+use liboxen::util::oxen_version::OxenVersion;
 
 use colored::Colorize;
 use liboxen::view::PaginatedDirEntries;
@@ -66,51 +69,62 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             eprintln!("Err checking remote version: {err}")
         }
     }
-
     Ok(())
 }
 
-fn version_files_out_of_date(repo: &LocalRepository) -> Result<bool, OxenError> {
-    let versions_dir = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::VERSIONS_DIR);
-    if !versions_dir.exists() {
-        return Ok(false);
-    }
-    for entry in WalkDir::new(&versions_dir) {
-        let entry = entry?;
-        if entry.file_type().is_file() {
-            let path = entry.path();
-            let filename = match path.file_name() {
-                Some(filename) => filename.to_string_lossy().to_string(),
-                None => continue,
-            };
+pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), OxenError> {
+    match api::remote::version::get_min_cli_version(host.as_ref()).await {
+        Ok(remote_version) => {
+            let local_version: &str = constants::OXEN_VERSION;
+            let min_oxen_version = OxenVersion::from_str(&remote_version)?;
+            let local_oxen_version = OxenVersion::from_str(local_version)?;
 
-            if filename.starts_with(constants::HASH_FILE) {
-                continue;
+            if local_oxen_version < min_oxen_version {
+                return Err(OxenError::OxenUpdateRequired(format!(
+                    "Error: Oxen CLI out of date. Pushing to OxenHub requires version >= {:?}, found version {:?}.\n\nVisit https://docs.oxen.ai/getting-started/intro for update instructions.",
+                    min_oxen_version,
+                    local_oxen_version
+                ).into()));
             }
-
-            if filename.starts_with(constants::VERSION_FILE_NAME) {
-                return Ok(false);
-            }
-            return Ok(true);
+        }
+        Err(_) => {
+            return Err(OxenError::basic_str(
+                "Error: unable to verify remote version",
+            ));
         }
     }
-    Ok(false)
+    Ok(())
 }
 
-pub fn check_versions_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
-    let migration_needed = version_files_out_of_date(repo)?;
+pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
+    let migrations: Vec<Box<dyn Migrate>> = vec![
+        Box::new(UpdateVersionFilesMigration),
+        Box::new(CreateMerkleTreesMigration),
+    ];
 
-    if migration_needed {
-        let warning = "Warning: 🐂 This repo requires a quick migration to the latest Oxen version.\n\nPlease run `oxen migrate up update-version-files .` to migrate.\n".to_string().yellow();
-        eprintln!("{warning}");
-        return Err(OxenError::MigrationRequired(
-            "Error: Migration required".to_string().into(),
-        ));
+    let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
+
+    for migration in migrations {
+        if migration.is_needed(repo)? {
+            migrations_needed.push(migration);
+        }
     }
-    Ok(())
+
+    if migrations_needed.is_empty() {
+        return Ok(());
+    }
+    let warning = "\nWarning: 🐂 This repo requires a quick migration to the latest Oxen version. \n\nPlease run the following to update:".to_string().yellow();
+    eprintln!("{warning}\n\n");
+    for migration in migrations_needed {
+        eprintln!(
+            "{}",
+            format!("oxen migrate up {} .\n", migration.name()).yellow()
+        );
+    }
+    eprintln!("\n");
+    Err(OxenError::MigrationRequired(
+        "Error: Migration required".to_string().into(),
+    ))
 }
 
 pub async fn init(path: &str) -> Result<(), OxenError> {
@@ -126,6 +140,7 @@ pub async fn init(path: &str) -> Result<(), OxenError> {
 
 pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
     let host = api::remote::client::get_host_from_url(&opts.url)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     command::clone(opts).await?;
@@ -304,6 +319,8 @@ pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
         return Err(OxenError::basic_str("Must supply a path to download."));
     }
 
+    check_remote_version_blocking(opts.clone().host).await?;
+
     // Check if the first path is a valid remote repo
     let name = paths[0].to_string_lossy();
     if let Some(remote_repo) =
@@ -329,6 +346,7 @@ pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
         return Err(OxenError::basic_str("Must supply a path to download."));
     }
 
+    check_remote_version_blocking(opts.clone().host).await?;
     // Check if the first path is a valid remote repo
     let name = paths[0].to_string_lossy();
     if let Some(remote_repo) =
@@ -414,6 +432,7 @@ pub async fn remote_metadata_list_image(path: impl AsRef<Path>) -> Result<(), Ox
 pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     for path in &opts.paths {
         if opts.is_remote {
@@ -429,6 +448,7 @@ pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
 pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     for path in paths {
         let path_opts = RmOpts::from_path_opts(&path, opts);
@@ -442,7 +462,7 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
-    check_versions_migration_needed(&repository)?;
+    check_repo_migration_needed(&repository)?;
     if opts.is_remote {
         command::remote::restore(&repository, opts).await?;
     } else {
@@ -455,9 +475,10 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
 pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    check_versions_migration_needed(&repository)?;
     let host = get_host_from_repo(&repository)?;
+
+    check_repo_migration_needed(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     command::push_remote_branch(&repository, remote, branch).await?;
@@ -469,7 +490,8 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
     let repository = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repository)?;
-    check_versions_migration_needed(&repository)?;
+    check_repo_migration_needed(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch, all).await?;
@@ -501,6 +523,7 @@ pub fn compare(
 ) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     let current_commit = api::local::commits::head_commit(&repository)?;
     // For revision_1 and revision_2, if none, set to current_commit
@@ -528,6 +551,7 @@ pub fn compare(
 pub fn merge(branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
 
     command::merge(&repository, branch)?;
     Ok(())
@@ -536,6 +560,7 @@ pub fn merge(branch: &str) -> Result<(), OxenError> {
 pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repo)?;
 
     if is_remote {
         println!("Committing to remote with message: {message}");
@@ -562,6 +587,10 @@ pub async fn fetch() -> Result<(), OxenError> {
         util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    let host = get_host_from_repo(&repository)?;
+
+    check_repo_migration_needed(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     command::fetch(&repository).await?;
     Ok(())
 }
@@ -615,6 +644,8 @@ pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result
 
     let directory = directory.unwrap_or(current_dir);
     let repository = LocalRepository::from_dir(&repo_dir)?;
+    check_repo_migration_needed(&repository)?;
+
     let repo_status = command::status_from_dir(&repository, &directory)?;
 
     if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
@@ -681,6 +712,7 @@ async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Res
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let host = get_host_from_repo(&repository)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     let directory = directory.unwrap_or(PathBuf::from("."));
@@ -746,6 +778,7 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
         let repository = LocalRepository::from_dir(&repo_dir)?;
 
         let host = get_host_from_repo(&repository)?;
+        check_remote_version_blocking(host.clone()).await?;
         check_remote_version(host).await?;
 
         let directory = paths[0].clone();
@@ -1032,6 +1065,7 @@ pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repo)?;
+    check_remote_version_blocking(host.clone()).await?;
     check_remote_version(host).await?;
 
     let remote = repo

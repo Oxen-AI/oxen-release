@@ -201,7 +201,7 @@ where
     };
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    // util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
@@ -349,6 +349,7 @@ where
         staged: false,
         remote: false,
     };
+
     command::rm(&local_repo, &rm_opts).await?;
     command::commit(&local_repo, "Removing test/")?;
 
@@ -697,8 +698,10 @@ where
 
     // Add all the files
     command::add(&repo, &repo.path)?;
+    log::debug!("about to commit whole repo");
     // commit
     command::commit(&repo, "Adding all data")?;
+    log::debug!("committed whole repo");
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -823,8 +826,9 @@ where
         "text_classification",
     )?;
 
+    log::debug!("about to commit this repo");
     command::commit(&repo, "adding all data baby")?;
-
+    log::debug!("successfully committed the repo");
     // Run test to see if it panic'd
     let result = match test(repo).await {
         Ok(_) => true,
@@ -1017,13 +1021,11 @@ where
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
     let repo = command::init(&repo_dir)?;
-
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
 
     // Add all the files
     command::add(&repo, &repo.path)?;
-
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schemas::set_name(
@@ -1033,7 +1035,6 @@ where
     )?;
 
     command::commit(&repo, "adding all data baby")?;
-
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
         Ok(_) => {}
@@ -1527,7 +1528,7 @@ pub fn write_txt_file_to_path<P: AsRef<Path>>(
 pub fn append_line_txt_file<P: AsRef<Path>>(path: P, line: &str) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
 
-    let mut file = OpenOptions::new().write(true).append(true).open(path)?;
+    let mut file = OpenOptions::new().append(true).open(path)?;
 
     if let Err(e) = writeln!(file, "{line}") {
         return Err(OxenError::basic_str(format!("Couldn't write to file: {e}")));
