@@ -1,17 +1,19 @@
 use crate::api::remote::client;
 use crate::constants::{
-    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, FILES_DIR, HISTORY_DIR, SCHEMAS_DIR,
+    COMMITS_DIR, DEFAULT_PAGE_NUM, DIRS_DIR, DIR_HASHES_DIR, HISTORY_DIR, OBJECTS_DIR, TREE_DIR,
 };
-use crate::core::db;
+
+use crate::core::db::{self};
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{CommitDBReader, CommitWriter};
+use crate::core::index::{CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger};
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
+use crate::util::fs::oxen_hidden_dir;
 use crate::util::hasher::hash_buffer;
 use crate::util::progress_bar::{oxify_bar, ProgressBarType};
-use crate::view::commit::CommitSyncStatusResponse;
+use crate::view::commit::{CommitSyncStatusResponse, CommitTreeValidationResponse};
 use crate::{api, constants};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
@@ -246,6 +248,124 @@ pub async fn download_commits_db_to_repo(
     Ok(writer.commits_db.path().to_path_buf())
 }
 
+pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenError> {
+    let uri = "/commits/root".to_string();
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("remote::commits::root_commit {}", url);
+
+    let client = client::new_for_url(&url)?;
+    if let Ok(res) = client.get(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        log::debug!("api::remote::commits::root_commit Got response {}", body);
+        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        match response {
+            Ok(j_res) => Ok(j_res.commit),
+            Err(err) => Err(OxenError::basic_str(format!(
+                "root_commit() Could not deserialize response [{err}]\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str("root_commit() Request failed"))
+    }
+}
+
+pub async fn can_push(
+    remote_repo: &RemoteRepository,
+    remote_branch_name: &str,
+    local_repo: &LocalRepository,
+    local_head: &Commit,
+) -> Result<bool, OxenError> {
+    // Before we do this, need to ensure that we are working in the same repo
+    // If we don't, downloading the commits db in the next step
+    // will mess up the local commit history by merging two different repos
+    let local_root = api::local::commits::root_commit(local_repo)?;
+    let remote_root = api::remote::commits::root_commit(remote_repo).await?;
+
+    if local_root.id != remote_root.id {
+        return Err(OxenError::basic_str(
+            "Cannot push to a different repository",
+        ));
+    }
+
+    // First need to download local history so we can get LCA
+    download_commits_db_to_repo(local_repo, remote_repo).await?;
+
+    let remote_branch = api::remote::branches::get_by_name(remote_repo, remote_branch_name)
+        .await?
+        .ok_or(OxenError::remote_branch_not_found(remote_branch_name))?;
+
+    let remote_head_id = remote_branch.commit_id;
+    let remote_head = api::remote::commits::get_by_id(remote_repo, &remote_head_id)
+        .await?
+        .unwrap();
+
+    let merger = Merger::new(local_repo)?;
+    let reader = CommitReader::new(local_repo)?;
+    let lca = merger.lowest_common_ancestor_from_commits(&reader, &remote_head, local_head)?;
+
+    // Create a temporary local tree representing the head commit
+    let local_head_writer = CommitEntryWriter::new(local_repo, local_head)?;
+    let tmp_tree_path = local_head_writer.save_temp_commit_tree()?;
+
+    let tar_base_dir = Path::new("tmp").join(&local_head.id); // Still want to save out in tmp, which is good
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    let tar_path = tar_base_dir.join(TREE_DIR);
+
+    if tmp_tree_path.exists() {
+        tar.append_dir_all(&tar_path, tmp_tree_path.clone())?;
+    };
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let is_compressed = true;
+    let filename = None;
+
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    log::debug!("posting data to server...");
+
+    post_data_to_server(
+        remote_repo,
+        local_head,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await?;
+
+    // Delete tmp tree
+    util::fs::remove_dir_all(&tmp_tree_path)?;
+
+    let uri = format!(
+        "/commits/{}/can_push?remote_head={}&lca={}",
+        local_head.id, remote_head.id, lca.id
+    );
+
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+
+    if let Ok(res) = client.get(&url).send().await {
+        log::debug!("can_push() request successful");
+        let body = client::parse_json_body(&url, res).await?;
+        let response: CommitTreeValidationResponse = serde_json::from_str(&body)?;
+        log::debug!(
+            "can_merge response for commit {} is {}",
+            local_head.message,
+            response.can_merge
+        );
+        Ok(response.can_merge)
+    } else {
+        Err(OxenError::basic_str("can_push() Request failed"))
+    }
+}
+
 pub async fn download_commits_db_to_path(
     remote_repo: &RemoteRepository,
     dst: impl AsRef<Path>,
@@ -292,6 +412,69 @@ pub async fn download_commit_entries_db_to_repo(
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
     download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
 }
+pub async fn download_objects_db_to_path(
+    remote_repo: &RemoteRepository,
+    dst: impl AsRef<Path>,
+) -> Result<PathBuf, OxenError> {
+    // In the future, if needed we can use this commit_ids param to
+    // only download the ids for necessary commits. For now though, we'll use it to prevent
+    // trying to download objects db on empty repos where one doesn't exist yet, causing errors
+
+    log::debug!("in the downloading objects db fn in remote commits");
+    let uri = "/objects_db".to_string();
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("{} downloading from {}", current_function!(), url);
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(url).send().await?;
+
+    let dst = dst.as_ref();
+
+    // Get the size of the archive
+    let reader = res
+        .bytes_stream()
+        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+        .into_async_read();
+    let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+    let archive = Archive::new(decoder);
+
+    let unpacked_path = dst.join(OBJECTS_DIR);
+    // If the directory already exists, remove it
+    if unpacked_path.exists() {
+        log::debug!(
+            "{} removing existing {:?}",
+            current_function!(),
+            unpacked_path
+        );
+        util::fs::remove_dir_all(&unpacked_path)?;
+    }
+
+    log::debug!("{} writing to {:?}", current_function!(), dst);
+    let archive_result = archive.unpack(dst).await;
+    log::debug!("archive result: {:?}", archive_result);
+    archive_result?;
+
+    Ok(unpacked_path)
+}
+
+pub async fn download_objects_db_to_repo(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+) -> Result<(), OxenError> {
+    let tmp_path = util::fs::oxen_hidden_dir(&local_repo.path).join("tmp");
+    log::debug!("downloading objects db...");
+    let tmp_objects_dir = download_objects_db_to_path(remote_repo, tmp_path).await?;
+    log::debug!("downloaded objects db");
+    let local_objects_dir = oxen_hidden_dir(local_repo.path.clone()).join(OBJECTS_DIR);
+
+    log::debug!("merging objects db...");
+    // Merge with existing objects db
+    api::local::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+    log::debug!("merged objects db");
+
+    Ok(())
+}
 
 pub async fn download_commit_entries_db_to_path(
     remote_repo: &RemoteRepository,
@@ -300,6 +483,10 @@ pub async fn download_commit_entries_db_to_path(
 ) -> Result<PathBuf, OxenError> {
     let uri = format!("/commits/{commit_id}/commit_db");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!(
+        "calling download_commit_entries_db_to_path for commit {}",
+        commit_id
+    );
     log::debug!("{} downloading from {}", current_function!(), url);
     let client = client::new_for_url(&url)?;
     match client.get(url).send().await {
@@ -311,7 +498,47 @@ pub async fn download_commit_entries_db_to_path(
                 .into_async_read();
             let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
             let archive = Archive::new(decoder);
-            archive.unpack(path).await?;
+
+            let full_unpacked_path = path.join(HISTORY_DIR).join(commit_id);
+
+            // TODO: This is to avoid a race condition caused by another process initializing the
+            // dirs db while the tarball is being unpacked, leading to an error.
+
+            // Find out what is causing this, then revert this to unpack directly in the final path
+            let tmp_path = path.join("tmp").join(commit_id).join("commits_db");
+
+            // create the temp path if it doesn't exist
+            if !tmp_path.exists() {
+                std::fs::create_dir_all(&tmp_path)?;
+            }
+
+            let archive_result = archive.unpack(&tmp_path).await;
+            log::debug!(
+                "archive_result for commit {:?} is {:?}",
+                commit_id,
+                archive_result
+            );
+            archive_result?;
+
+            if full_unpacked_path.exists() {
+                log::debug!(
+                    "{} removing existing {:?}",
+                    current_function!(),
+                    full_unpacked_path
+                );
+                util::fs::remove_dir_all(&full_unpacked_path)?;
+            } else {
+                log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
+                std::fs::create_dir_all(&full_unpacked_path)?;
+            }
+
+            // Move the tmp path to the full path
+            log::debug!("renaming {:?} to {:?}", tmp_path, full_unpacked_path);
+            std::fs::rename(
+                tmp_path.join(HISTORY_DIR).join(commit_id),
+                &full_unpacked_path,
+            )?;
+
             log::debug!("{} writing to {:?}", current_function!(), path);
 
             Ok(path.to_path_buf())
@@ -471,7 +698,8 @@ pub async fn post_commits_to_server(
         let commit_history_dir = util::fs::oxen_hidden_dir(&local_repo.path)
             .join(HISTORY_DIR)
             .join(&commit_with_entries.commit.id);
-        let entries_size = api::local::entries::compute_entries_size(&commit_with_entries.entries)?;
+        let entries_size =
+            api::local::entries::compute_generic_entries_size(&commit_with_entries.entries)?;
 
         let size = match fs_extra::dir::get_size(&commit_history_dir) {
             Ok(size) => size + entries_size,
@@ -494,6 +722,46 @@ pub async fn post_commits_to_server(
     Ok(())
 }
 
+pub async fn post_tree_objects_to_server(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    let objects_dir = util::fs::oxen_hidden_dir(local_repo.path.clone()).join(OBJECTS_DIR);
+
+    let tar_subdir = Path::new(OBJECTS_DIR);
+
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    log::debug!(
+        "appending objects dir {:?} to tar at path {:?}",
+        objects_dir,
+        tar_subdir
+    );
+    tar.append_dir_all(tar_subdir, objects_dir)?;
+
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+
+    let is_compressed = true;
+
+    let filename = None;
+
+    let quiet_bar = Arc::new(ProgressBar::hidden());
+
+    post_data_to_server(
+        remote_repo,
+        commit,
+        buffer,
+        is_compressed,
+        &filename,
+        quiet_bar,
+    )
+    .await
+}
+
 pub async fn post_commit_db_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -510,7 +778,7 @@ pub async fn post_commit_db_to_server(
     let mut tar = tar::Builder::new(enc);
 
     // Don't send any errantly downloaded local cache files (from old versions of oxen clone)
-    let dirs_to_compress = vec![DIRS_DIR, FILES_DIR, SCHEMAS_DIR];
+    let dirs_to_compress = vec![DIRS_DIR, DIR_HASHES_DIR];
 
     for dir in &dirs_to_compress {
         let full_path = commit_dir.join(dir);
@@ -628,7 +896,6 @@ async fn upload_single_tarball_to_server(
 ) -> Result<CommitResponse, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
     let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
         .build()?;
@@ -782,8 +1049,7 @@ async fn upload_data_chunk_to_server(
 
     let uri = format!(
         "/commits/{}/upload_chunk?chunk_num={}&total_size={}&hash={}&total_chunks={}&is_compressed={}{}",
-        commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename
-    );
+        commit.id, params.chunk_num, params.total_size, hash, params.total_chunks, is_compressed, maybe_filename);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let total_size = chunk.len() as u64;
     log::debug!(
@@ -827,8 +1093,8 @@ mod tests {
     use crate::core::index::pusher::UnsyncedCommitEntries;
     use crate::core::index::CommitDBReader;
     use crate::error::OxenError;
-    use crate::model::CommitEntry;
 
+    use crate::model::entry::commit_entry::Entry;
     use crate::test;
     use rocksdb::{DBWithThreadMode, MultiThreaded};
 
@@ -862,11 +1128,11 @@ mod tests {
             let unsynced_commits = vec![
                 UnsyncedCommitEntries {
                     commit: commit1,
-                    entries: Vec::<CommitEntry>::new(),
+                    entries: Vec::<Entry>::new(),
                 },
                 UnsyncedCommitEntries {
                     commit: commit2,
-                    entries: Vec::<CommitEntry>::new(),
+                    entries: Vec::<Entry>::new(),
                 },
             ];
 
@@ -937,7 +1203,7 @@ mod tests {
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Dummy entries, not checking this
-            let entries = Vec::<CommitEntry>::new();
+            let entries = Vec::<Entry>::new();
 
             let unsynced_commits = vec![UnsyncedCommitEntries {
                 commit: commit.clone(),
@@ -1086,7 +1352,7 @@ mod tests {
             let branch = api::local::branches::current_branch(&local_repo)?.unwrap();
 
             // Post commit but not the actual files
-            let entries = Vec::<CommitEntry>::new(); // actual entries doesn't matter, since we aren't verifying size in tests
+            let entries = Vec::<Entry>::new(); // actual entries doesn't matter, since we aren't verifying size in tests
             api::remote::commits::post_commits_to_server(
                 &local_repo,
                 &remote_repo,

@@ -13,3 +13,4 @@ pub const MSG_RESOURCE_IS_PROCESSING: &str = "resource_is_processing";
 pub const MSG_FAILED_PROCESS: &str = "failed_process";
 pub const MSG_INTERNAL_SERVER_ERROR: &str = "internal_server_error";
 pub const MSG_NOT_IMPLEMENTED: &str = "not_implemented";
+pub const MSG_UPDATE_REQUIRED: &str = "update_required";

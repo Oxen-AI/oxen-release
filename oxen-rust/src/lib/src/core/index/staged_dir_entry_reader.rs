@@ -8,7 +8,7 @@ use crate::core::index::StagedDirEntryDB;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedEntry};
 
-use rocksdb::SingleThreaded;
+use rocksdb::MultiThreaded;
 use std::path::{Path, PathBuf};
 
 pub struct StagedDirEntryReader {
@@ -17,7 +17,7 @@ pub struct StagedDirEntryReader {
     // Even with SingleThreaded, almost all of RocksDB operations is
     // multi-threaded unless the underlying RocksDB
     // instance is specifically configured otherwise
-    db: StagedDirEntryDB<SingleThreaded>,
+    db: StagedDirEntryDB<MultiThreaded>,
 }
 
 impl StagedDirEntryReader {

@@ -9,13 +9,17 @@ use glob::Pattern;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::core::db::path_db;
 use crate::model::LocalRepository;
 
+use super::ObjectDBReader;
+
 pub struct CommitEntryReader {
     base_path: PathBuf,
     dir_db: DBWithThreadMode<MultiThreaded>,
+    object_reader: Arc<ObjectDBReader>,
     pub commit_id: String,
 }
 
@@ -32,19 +36,22 @@ impl CommitEntryReader {
         commit: &Commit,
     ) -> Result<CommitEntryReader, OxenError> {
         log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
-        CommitEntryReader::new_from_commit_id(repository, &commit.id)
+        let object_reader = ObjectDBReader::new(repository)?;
+        CommitEntryReader::new_from_commit_id(repository, &commit.id, object_reader)
     }
 
     pub fn new_from_commit_id(
         repository: &LocalRepository,
         commit_id: &str,
+        object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitEntryReader, OxenError> {
-        CommitEntryReader::new_from_path(&repository.path, commit_id)
+        CommitEntryReader::new_from_path(&repository.path, commit_id, object_reader)
     }
 
     pub fn new_from_path(
         base_path: impl AsRef<Path>,
         commit_id: &str,
+        object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitEntryReader, OxenError> {
         let path = Self::db_path(&base_path, commit_id);
         let opts = db::opts::default();
@@ -65,10 +72,10 @@ impl CommitEntryReader {
             base_path: base_path.as_ref().to_owned(),
             dir_db: DBWithThreadMode::open_for_read_only(&opts, &path, true)?,
             commit_id: commit_id.to_owned(),
+            object_reader,
         })
     }
 
-    /// For opening the entry reader from head, so that it opens and closes the commit db within the constructor
     pub fn new_from_head(repository: &LocalRepository) -> Result<CommitEntryReader, OxenError> {
         let commit_reader = CommitReader::new(repository)?;
         let commit = commit_reader.head_commit()?;
@@ -79,7 +86,7 @@ impl CommitEntryReader {
         CommitEntryReader::new(repository, &commit)
     }
 
-    /// Lists all the directories in the commit
+    // List dirs should be the same - we still have access to the dirs db...
     pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
         let root = PathBuf::from("");
         let mut paths = path_db::list_paths(&self.dir_db, &root)?;
@@ -121,8 +128,12 @@ impl CommitEntryReader {
     pub fn num_entries(&self) -> Result<usize, OxenError> {
         let mut count = 0;
         for dir in self.list_dirs()? {
-            let commit_entry_dir =
-                CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            let commit_entry_dir = CommitDirEntryReader::new_from_path(
+                &self.base_path,
+                &self.commit_id,
+                &dir,
+                self.object_reader.clone(),
+            )?;
             count += commit_entry_dir.num_entries();
         }
         Ok(count)
@@ -131,32 +142,44 @@ impl CommitEntryReader {
     pub fn list_files(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut paths: Vec<PathBuf> = vec![];
         for dir in self.list_dirs()? {
-            let commit_dir =
-                CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            log::debug!("listing files for dir {:?}", dir);
+            let commit_dir = CommitDirEntryReader::new_from_path(
+                &self.base_path,
+                &self.commit_id,
+                &dir,
+                self.object_reader.clone(),
+            )?;
             let mut files = commit_dir.list_files()?;
             paths.append(&mut files);
         }
         Ok(paths)
     }
 
-    /// List entries in a vector when we need ordering
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
         let mut paths: Vec<CommitEntry> = vec![];
         for dir in self.list_dirs()? {
-            let commit_dir =
-                CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            // log::debug!("listing entries for dir {:?}", dir);
+            let commit_dir = CommitDirEntryReader::new_from_path(
+                &self.base_path,
+                &self.commit_id,
+                &dir,
+                self.object_reader.clone(),
+            )?;
             let mut files = commit_dir.list_entries()?;
             paths.append(&mut files);
         }
         Ok(paths)
     }
 
-    /// List entries in a set for quick lookup
     pub fn list_entries_set(&self) -> Result<HashSet<CommitEntry>, OxenError> {
         let mut paths: HashSet<CommitEntry> = HashSet::new();
         for dir in self.list_dirs()? {
-            let commit_dir =
-                CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, &dir)?;
+            let commit_dir = CommitDirEntryReader::new_from_path(
+                &self.base_path,
+                &self.commit_id,
+                &dir,
+                self.object_reader.clone(),
+            )?;
             let files = commit_dir.list_entries_set()?;
             paths.extend(files);
         }
@@ -168,7 +191,10 @@ impl CommitEntryReader {
         page: usize,
         page_size: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        let entries = self.list_entries()?;
+        let mut entries = self.list_entries()?;
+
+        // Entries not automatically path-sorted due to tree structure
+        entries.sort_by(|a, b| a.path.cmp(&b.path));
 
         let start_page = if page == 0 { 0 } else { page - 1 };
         let start_idx = start_page * page_size;
@@ -188,7 +214,9 @@ impl CommitEntryReader {
         log::debug!("CommitEntryReader::list_directory() dir: {:?}", dir);
         let mut entries = vec![];
         // This lists all the committed dirs
-        let dirs = self.list_dirs()?;
+        let mut dirs = self.list_dirs()?;
+        dirs.sort();
+
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
             // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
@@ -197,6 +225,7 @@ impl CommitEntryReader {
                     &self.base_path,
                     &self.commit_id,
                     &committed_dir,
+                    self.object_reader.clone(),
                 )?;
                 let mut dir_entries = entry_reader.list_entries()?;
                 entries.append(&mut dir_entries);
@@ -205,7 +234,6 @@ impl CommitEntryReader {
         Ok(entries)
     }
 
-    /// Groups the entries by their parent directory and returns hashmap of dir -> vec<entry>
     pub fn list_entries_per_directory(
         &self,
         dir: &Path,
@@ -222,6 +250,7 @@ impl CommitEntryReader {
                     &self.base_path,
                     &self.commit_id,
                     &committed_dir,
+                    self.object_reader.clone(),
                 )?;
                 let entries = entry_reader.list_entries()?;
                 dir_entries.insert(committed_dir, entries);
@@ -232,9 +261,12 @@ impl CommitEntryReader {
 
     pub fn has_file(&self, path: &Path) -> bool {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            if let Ok(dir) =
-                CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)
-            {
+            if let Ok(dir) = CommitDirEntryReader::new_from_path(
+                &self.base_path,
+                &self.commit_id,
+                parent,
+                self.object_reader.clone(),
+            ) {
                 return dir.has_file(file_name);
             }
         }
@@ -243,8 +275,12 @@ impl CommitEntryReader {
 
     pub fn get_entry(&self, path: &Path) -> Result<Option<CommitEntry>, OxenError> {
         if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-            let dir =
-                CommitDirEntryReader::new_from_path(&self.base_path, &self.commit_id, parent)?;
+            let dir = CommitDirEntryReader::new_from_path(
+                &self.base_path,
+                &self.commit_id,
+                parent,
+                self.object_reader.clone(),
+            )?;
             // log::debug!("CommitEntryReader::get_entry() get_entry: {:?}", path);
 
             // log::debug!("CommitEntryReader::get_entry() path: {:?} result: {:?}", path, result);
@@ -269,32 +305,5 @@ impl CommitEntryReader {
         }
 
         Ok(paths)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::command;
-    use crate::core::index::CommitEntryReader;
-    use crate::error::OxenError;
-
-    use crate::test;
-
-    use std::path::Path;
-
-    #[test]
-    fn test_commit_dir_reader_check_if_file_exists() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_no_commits(|repo| {
-            let filename = "labels.txt";
-            let filepath = repo.path.join(filename);
-            command::add(&repo, filepath)?;
-            let commit = command::commit(&repo, "Adding labels file")?;
-
-            let reader = CommitEntryReader::new(&repo, &commit)?;
-            let path = Path::new(filename);
-            assert!(reader.has_file(path));
-
-            Ok(())
-        })
     }
 }

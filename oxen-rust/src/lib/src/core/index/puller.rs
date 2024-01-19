@@ -9,17 +9,18 @@ use indicatif::ProgressBar;
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::error::OxenError;
-use crate::model::{CommitEntry, RemoteRepository};
+use crate::model::entry::commit_entry::Entry;
+use crate::model::RemoteRepository;
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
-type SmallEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<(String, PathBuf)>;
-type LargeEntryPathFn = dyn Fn(&[CommitEntry], &Path) -> Vec<PathBuf>;
+type SmallEntryPathFn = dyn Fn(&[Entry], &Path) -> Vec<(String, PathBuf)>;
+type LargeEntryPathFn = dyn Fn(&[Entry], &Path) -> Vec<PathBuf>;
 
 pub async fn pull_entries(
     remote_repo: &RemoteRepository,
-    entries: &[CommitEntry],
+    entries: &[Entry],
     dst: impl AsRef<Path>,
     get_small_entry_paths: &SmallEntryPathFn,
     get_large_entry_paths: &LargeEntryPathFn,
@@ -31,29 +32,30 @@ pub async fn pull_entries(
         return Ok(());
     }
 
-    let missing_entries = get_missing_commit_entries(entries, &dst);
+    let missing_entries = get_missing_entries(entries, &dst);
+    log::debug!("Pulling missing entries {:?}", missing_entries);
 
     if missing_entries.is_empty() {
         return Ok(());
     }
 
-    let total_size = api::local::entries::compute_entries_size(&missing_entries)?;
+    let total_size = api::local::entries::compute_generic_entries_size(entries)?;
     println!("🐂 Downloading {}", bytesize::ByteSize::b(total_size));
 
     // Some files may be much larger than others....so we can't just download them within a single body
     // Hence we chunk and send the big ones, and bundle and download the small ones
 
     // For files smaller than AVG_CHUNK_SIZE, we are going to group them, zip them up, and transfer them
-    let smaller_entries: Vec<CommitEntry> = missing_entries
+    let smaller_entries: Vec<Entry> = missing_entries
         .iter()
-        .filter(|e| e.num_bytes < AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() < AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
     // For files larger than AVG_CHUNK_SIZE, we are going break them into chunks and download the chunks in parallel
-    let larger_entries: Vec<CommitEntry> = missing_entries
+    let larger_entries: Vec<Entry> = missing_entries
         .iter()
-        .filter(|e| e.num_bytes > AVG_CHUNK_SIZE)
+        .filter(|e| e.num_bytes() > AVG_CHUNK_SIZE)
         .map(|e| e.to_owned())
         .collect();
 
@@ -88,12 +90,12 @@ pub async fn pull_entries(
     Ok(())
 }
 
-fn get_missing_commit_entries(entries: &[CommitEntry], dst: impl AsRef<Path>) -> Vec<CommitEntry> {
+fn get_missing_entries(entries: &[Entry], dst: impl AsRef<Path>) -> Vec<Entry> {
     let dst = dst.as_ref();
-    let mut missing_entries: Vec<CommitEntry> = vec![];
+    let mut missing_entries: Vec<Entry> = vec![];
 
     for entry in entries {
-        let version_path = util::fs::version_path_from_dst(dst, entry);
+        let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         if !version_path.exists() {
             missing_entries.push(entry.to_owned())
         }
@@ -104,7 +106,7 @@ fn get_missing_commit_entries(entries: &[CommitEntry], dst: impl AsRef<Path>) ->
 
 async fn pull_large_entries(
     remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
+    entries: Vec<Entry>,
     dst: impl AsRef<Path>,
     download_paths: Vec<PathBuf>,
     bar: &Arc<ProgressBar>,
@@ -114,13 +116,7 @@ async fn pull_large_entries(
     }
     // Pull the large entries in parallel
     use tokio::time::{sleep, Duration};
-    type PieceOfWork = (
-        RemoteRepository,
-        CommitEntry,
-        PathBuf,
-        PathBuf,
-        Arc<ProgressBar>,
-    );
+    type PieceOfWork = (RemoteRepository, Entry, PathBuf, PathBuf, Arc<ProgressBar>);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -164,15 +160,15 @@ async fn pull_large_entries(
                 log::debug!("worker[{}] processing task...", worker);
 
                 // Chunk and individual files
-                let remote_path = &entry.path;
+                let remote_path = &entry.path();
 
                 // Download to the tmp path, then copy over to the entries dir
                 match api::remote::entries::download_large_entry(
                     &remote_repo,
                     &remote_path,
                     &download_path,
-                    &entry.commit_id,
-                    entry.num_bytes,
+                    &entry.commit_id(),
+                    entry.num_bytes(),
                     bar,
                 )
                 .await
@@ -201,7 +197,7 @@ async fn pull_large_entries(
 
 async fn pull_small_entries(
     remote_repo: &RemoteRepository,
-    entries: Vec<CommitEntry>,
+    entries: Vec<Entry>,
     dst: impl AsRef<Path>,
     content_ids: Vec<(String, PathBuf)>,
     bar: &Arc<ProgressBar>,
@@ -210,7 +206,7 @@ async fn pull_small_entries(
         return Ok(());
     }
 
-    let total_size = api::local::entries::compute_entries_size(&entries)?;
+    let total_size = api::local::entries::compute_generic_entries_size(&entries)?;
 
     // Compute num chunks
     let num_chunks = ((total_size / AVG_CHUNK_SIZE) + 1) as usize;
@@ -294,19 +290,16 @@ async fn pull_small_entries(
 }
 
 /// Returns a mapping from content_id -> entry.path
-fn working_dir_paths_from_small_entries(
-    entries: &[CommitEntry],
-    dst: &Path,
-) -> Vec<(String, PathBuf)> {
+fn working_dir_paths_from_small_entries(entries: &[Entry], dst: &Path) -> Vec<(String, PathBuf)> {
     let mut content_ids: Vec<(String, PathBuf)> = vec![];
 
     for entry in entries.iter() {
-        let version_path = util::fs::version_path_from_dst(dst, entry);
+        let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         let version_path = util::fs::path_relative_to_dir(&version_path, dst).unwrap();
 
         content_ids.push((
             String::from(version_path.to_str().unwrap()).replace('\\', "/"),
-            entry.path.to_owned(),
+            entry.path().to_owned(),
         ));
     }
 
@@ -315,13 +308,10 @@ fn working_dir_paths_from_small_entries(
 
 // This one redundantly is just going to pass in two copies of
 // the version path so we don't have to change download_data_from_version_paths
-fn version_dir_paths_from_small_entries(
-    entries: &[CommitEntry],
-    dst: &Path,
-) -> Vec<(String, PathBuf)> {
+fn version_dir_paths_from_small_entries(entries: &[Entry], dst: &Path) -> Vec<(String, PathBuf)> {
     let mut content_ids: Vec<(String, PathBuf)> = vec![];
     for entry in entries.iter() {
-        let version_path = util::fs::version_path_from_dst(dst, entry);
+        let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         let version_path = util::fs::path_relative_to_dir(&version_path, dst).unwrap();
 
         content_ids.push((
@@ -332,19 +322,19 @@ fn version_dir_paths_from_small_entries(
     content_ids
 }
 
-fn version_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> Vec<PathBuf> {
+fn version_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
-        let version_path = util::fs::version_path_from_dst(dst, entry);
+        let version_path = util::fs::version_path_from_dst_generic(dst, entry);
         paths.push(version_path);
     }
     paths
 }
 
-fn working_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> Vec<PathBuf> {
+fn working_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
-        let working_path = dst.join(&entry.path);
+        let working_path = dst.join(&entry.path());
         paths.push(working_path);
     }
     paths
@@ -352,7 +342,7 @@ fn working_dir_paths_from_large_entries(entries: &[CommitEntry], dst: &Path) -> 
 
 pub async fn pull_entries_to_versions_dir(
     remote_repo: &RemoteRepository,
-    entries: &[CommitEntry],
+    entries: &[Entry],
     dst: impl AsRef<Path>,
     on_complete: &dyn Fn(),
 ) -> Result<(), OxenError> {
@@ -370,7 +360,7 @@ pub async fn pull_entries_to_versions_dir(
 
 pub async fn pull_entries_to_working_dir(
     remote_repo: &RemoteRepository,
-    entries: &[CommitEntry],
+    entries: &[Entry],
     dst: impl AsRef<Path>,
     on_complete: &dyn Fn(),
 ) -> Result<(), OxenError> {

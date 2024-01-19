@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::core::df::tabular;
+use crate::core::index::object_db_reader::ObjectDBReader;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
@@ -81,8 +82,12 @@ pub fn get_version_file_from_commit_id(
         None => return Err(OxenError::file_has_no_parent(path)),
     };
 
+    let object_reader = ObjectDBReader::new(repo)?;
+
+    // Instantiate CommitDirEntryReader to fetch entry
     let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader = CommitDirEntryReader::new(repo, commit_id, &relative_parent)?;
+    let commit_entry_reader =
+        CommitDirEntryReader::new(repo, commit_id, &relative_parent, object_reader)?;
     let file_name = match path.file_name() {
         Some(file_name) => file_name,
         None => return Err(OxenError::file_has_no_name(path)),
@@ -803,7 +808,6 @@ fn collect_added_entries(
         base_entries.len()
     );
     let diff = head_entries.difference(base_entries);
-    log::debug!("done difference for add entries");
     for head_entry in diff {
         // HEAD entry is *not* in BASE
         diff_entries.push(DiffCommitEntry {
@@ -983,18 +987,20 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
-
             let entries =
                 api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
             }
 
-            // it currently shows all the parent dirs as being modified
+            // it currently shows all the parent dirs as being
+            // CHANGE: through the merkle logic, this is now removing these directories...
+            // do we want this?
             assert_eq!(3, entries.len());
 
-            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[0].status, DiffEntryStatus::Removed.to_string());
             assert_eq!(entries[1].status, DiffEntryStatus::Removed.to_string());
             assert_eq!(entries[2].status, DiffEntryStatus::Removed.to_string());
 

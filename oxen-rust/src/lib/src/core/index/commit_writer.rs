@@ -1,9 +1,10 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
+use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
-    self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
-    CommitDirEntryWriter, CommitEntryReader, CommitEntryWriter, EntryIndexer, RefReader, RefWriter,
+    self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader, CommitEntryReader,
+    CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -156,7 +157,7 @@ impl CommitWriter {
             commit.message
         );
 
-        self.add_commit_from_status(&commit, status, origin_path)?;
+        let commit = self.add_commit_from_status(&commit, status, origin_path)?;
 
         Ok(commit)
     }
@@ -172,8 +173,12 @@ impl CommitWriter {
         let commit = self.gen_commit(new_commit, status);
 
         let entries = mod_stager::list_mod_entries(&self.repository, branch, user_id)?;
-        let commit_entry_reader =
-            CommitEntryReader::new_from_commit_id(&self.repository, &branch.commit_id)?;
+        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(
+            &self.repository,
+            &branch.commit_id,
+            object_reader,
+        )?;
         // TODO: this is not the most efficient, but easiest way right now
         //       might want to make helper for dir entry reader
         let entries: Vec<CommitEntry> = entries
@@ -189,6 +194,12 @@ impl CommitWriter {
         let staged = self.apply_mods(branch, user_id, &entries)?;
         // Write entries
         self.add_commit_from_status_on_remote_branch(&commit, &staged, origin_path, branch)?;
+
+        // Get the commit from the db post insert - it will now have the updated root hash
+        let commit = CommitReader::new(&self.repository)?
+            .get_commit_by_id(&commit.id)?
+            .unwrap();
+
         Ok(commit)
     }
 
@@ -307,6 +318,7 @@ impl CommitWriter {
         status: &StagedData,
         parent_ids: Vec<String>,
         message: &str,
+        branch: Option<Branch>,
     ) -> Result<Commit, OxenError> {
         let cfg = UserConfig::get()?;
         let timestamp = OffsetDateTime::now_utc();
@@ -321,14 +333,66 @@ impl CommitWriter {
         let entries: Vec<StagedEntry> = status.staged_files.values().cloned().collect();
         let id = util::hasher::compute_commit_hash(&commit, &entries);
         let commit = Commit::from_new_and_id(&commit, id);
-        self.add_commit_from_status(&commit, status, &self.repository.path)?;
+        if let Some(branch) = branch {
+            log::debug!("adding commit from status on local branch");
+            self.add_commit_from_status_on_local_branch(
+                &commit,
+                status,
+                &self.repository.path,
+                branch,
+            )?;
+        } else {
+            self.add_commit_from_status(&commit, status, &self.repository.path)?;
+        }
         Ok(commit)
     }
 
     pub fn add_commit_from_empty_status(&self, commit: &Commit) -> Result<(), OxenError> {
         // Empty Status
         let status = StagedData::empty();
-        self.add_commit_from_status(commit, &status, &self.repository.path)
+        let _commit = self.add_commit_from_status(commit, &status, &self.repository.path)?;
+        Ok(())
+    }
+
+    pub fn add_commit_from_status_on_local_branch(
+        &self,
+        commit: &Commit,
+        status: &StagedData,
+        origin_path: &Path,
+        branch: Branch,
+    ) -> Result<Commit, OxenError> {
+        // Write entries
+        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
+
+        // Commit all staged files from db
+        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+
+        // Add to commits db id -> commit_json
+        log::debug!(
+            "add_commit_from_status_on_local_branch add commit [{}] to db",
+            commit.id
+        );
+
+        let mut commit = commit.clone();
+
+        let dir_hashes_db =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let opts = db::opts::default();
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
+
+        // Get the hash for this commit id
+        let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
+
+        commit.update_root_hash(hash.clone());
+
+        self.add_commit_to_db(&commit)?;
+
+        let ref_writer = RefWriter::new(&self.repository)?;
+        log::debug!("setting branch commit id {} -> {}", branch.name, commit.id);
+        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
+
+        Ok(commit)
     }
 
     pub fn add_commit_from_status(
@@ -336,22 +400,35 @@ impl CommitWriter {
         commit: &Commit,
         status: &StagedData,
         origin_path: &Path,
-    ) -> Result<(), OxenError> {
+    ) -> Result<Commit, OxenError> {
         // Write entries
+        log::debug!("init'ing CommitEntryWriter");
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-
-        log::debug!("add_commit_from_status about to commit staged entries...");
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-        self.add_commit_to_db(commit)?;
+
+        let mut commit = commit.clone();
+
+        let dir_hashes_db =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let opts = db::opts::default();
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
+
+        // Get the hash for this commit id
+        let hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
+
+        commit.update_root_hash(hash.clone());
+
+        self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         ref_writer.set_head_commit_id(&commit.id)?;
 
-        Ok(())
+        Ok(commit)
     }
 
     pub fn add_commit_from_status_on_remote_branch(
@@ -361,16 +438,29 @@ impl CommitWriter {
         origin_path: &Path,
         branch: &Branch,
     ) -> Result<(), OxenError> {
+        log::debug!(
+            "add from status on remote branch has repository path {:?}",
+            self.repository.path
+        );
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
-        log::debug!("add_commit_from_status about to commit staged entries...");
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
+        let mut commit = commit.clone();
+
+        let opts = db::opts::default();
+        let dir_hashes_db_dir =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db_dir, false)?;
+
+        let hash: String = path_db::get_entry(&dir_hashes_db, "")?.unwrap();
+        commit.update_root_hash(hash.clone());
+
         // Add to commits db id -> commit_json
-        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-        self.add_commit_to_db(commit)?;
+        self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         log::debug!(
@@ -397,9 +487,20 @@ impl CommitWriter {
         // Commit all staged files from db
         entry_writer.commit_staged_entries(commit, status, origin_path)?;
 
+        let mut commit = commit.clone();
+        let opts = db::opts::default();
+        let dir_hashes_db_dir =
+            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db_dir, false)?;
+
+        let hash: String = path_db::get_entry(&dir_hashes_db, "")?.unwrap();
+        commit.update_root_hash(hash.clone());
+        log::debug!("got hash {} for commit {}", hash, commit.id);
+
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
-        self.add_commit_to_db(commit)?;
+        self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
         log::debug!(
@@ -474,7 +575,17 @@ impl CommitWriter {
         let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
         let commit_entries = commit_entry_reader.list_entries()?;
 
-        self.restore_missing_files(&commit.id, &commit_entries, &mut candidate_dirs_to_rm)?;
+        let opts = db::opts::default();
+        let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+        let files_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+
+        self.restore_missing_files(
+            &commit.id,
+            &commit_entries,
+            &mut candidate_dirs_to_rm,
+            &files_db,
+        )?;
 
         log::debug!("candidate_dirs_to_rm {}", candidate_dirs_to_rm.len());
         if !candidate_dirs_to_rm.is_empty() {
@@ -501,6 +612,7 @@ impl CommitWriter {
         commit_id: &str,
         entries: &[CommitEntry],
         candidate_dirs_to_rm: &mut HashSet<PathBuf>,
+        files_db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         println!("Setting working directory to {commit_id}");
         let size: u64 = unsafe { std::mem::transmute(entries.len()) };
@@ -508,8 +620,8 @@ impl CommitWriter {
 
         let dir_entries = self.group_entries_to_dirs(entries);
 
-        for (dir, entries) in dir_entries.iter() {
-            let committer = CommitDirEntryWriter::new(&self.repository, commit_id, dir)?;
+        // TODO: don't need to group to dirs anymore
+        for (_dir, entries) in dir_entries.iter() {
             for entry in entries.iter() {
                 bar.inc(1);
                 let path = &entry.path;
@@ -539,11 +651,11 @@ impl CommitWriter {
                         }
                     }
 
-                    match index::restore::restore_file_with_commit_writer(
+                    match index::restore::restore_file_with_metadata(
                         &self.repository,
                         &entry.path,
                         entry,
-                        &committer,
+                        files_db,
                     ) {
                         Ok(_) => {}
                         Err(err) => {
@@ -569,11 +681,11 @@ impl CommitWriter {
                             dst_path
                         );
 
-                        match index::restore::restore_file_with_commit_writer(
+                        match index::restore::restore_file_with_metadata(
                             &self.repository,
                             &entry.path,
                             entry,
-                            &committer,
+                            files_db,
                         ) {
                             Ok(_) => {}
                             Err(err) => {
@@ -616,8 +728,11 @@ impl CommitWriter {
 
         let dirs_to_paths = self.group_paths_to_dirs(paths);
 
+        let object_reader = ObjectDBReader::new(&self.repository)?;
+
         for (dir, paths) in dirs_to_paths.iter() {
-            let entry_reader = CommitDirEntryReader::new(&self.repository, commit_id, dir)?;
+            let entry_reader =
+                CommitDirEntryReader::new(&self.repository, commit_id, dir, object_reader.clone())?;
             for path in paths.iter() {
                 let full_path = self.repository.path.join(path);
                 log::debug!(
@@ -715,7 +830,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::core::df;
     use crate::core::index::{
-        self, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter,
+        self, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter, SchemaReader,
     };
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::{ModType, NewMod};
@@ -743,6 +858,7 @@ mod tests {
             // Create committer with no commits
             let repo_path = &repo.path;
             let entry_reader = CommitEntryReader::new_from_head(&repo)?;
+            let schema_reader = SchemaReader::new_from_head(&repo)?;
             let commit_writer = CommitWriter::new(&repo)?;
 
             let train_dir = repo_path.join("training_data");
@@ -758,7 +874,7 @@ mod tests {
             let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
 
             // Add a file and a directory
-            stager.add_file(&annotation_file, &entry_reader)?;
+            stager.add_file(&annotation_file, &entry_reader, &schema_reader)?;
             stager.add_dir(&train_dir, &entry_reader)?;
 
             let message = "Adding training data to 🐂";
@@ -825,7 +941,6 @@ mod tests {
             let identity = UserConfig::identifier()?;
             let branch_repo =
                 index::remote_dir_stager::init_or_get(&repo, &branch, &identity).unwrap();
-
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
@@ -849,7 +964,6 @@ mod tests {
             // Make sure version file is updated
             let entry = api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
             let version_file = util::fs::version_path(&repo, &entry);
-
             let data_frame = df::tabular::read_df(version_file, DFOpts::empty())?;
             println!("{data_frame}");
             assert_eq!(

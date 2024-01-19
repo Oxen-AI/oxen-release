@@ -1,7 +1,8 @@
 use crate::api::remote::client;
-use crate::constants::{AVG_CHUNK_SIZE, OXEN_HIDDEN_DIR};
-use crate::core::index::{puller, CommitEntryReader};
+use crate::constants::{AVG_CHUNK_SIZE, OBJECTS_DIR, OXEN_HIDDEN_DIR};
+use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{MetadataEntry, RemoteRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
@@ -99,10 +100,27 @@ pub async fn download_dir(
         &repo_cache_dir,
     )
     .await?;
-    // Read the entries from the cache commit db
-    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision)?;
+
+    let local_objects_dir = repo_cache_dir.join(OBJECTS_DIR);
+    let tmp_objects_dir =
+        api::remote::commits::download_objects_db_to_path(remote_repo, &repo_dir).await?;
+    log::debug!(
+        "trying to merge tmp_objects_dir {:?} into local objects dir {:?}",
+        tmp_objects_dir,
+        local_objects_dir
+    );
+    api::local::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+
+    // Merge it in with the (probably not already extant) local objects db
+
+    let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
+
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
+
+    // Convert entries to [Entry]
+    let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
     puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
@@ -648,7 +666,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_download_dir_different_dir() -> Result<(), OxenError> {
+    async fn test_download_different_dir() -> Result<(), OxenError> {
         test::run_select_data_sync_remote("annotations", |local_repo, remote_repo| async move {
             let remote_path = Path::new("annotations");
             let local_path = local_repo.path.join("data");

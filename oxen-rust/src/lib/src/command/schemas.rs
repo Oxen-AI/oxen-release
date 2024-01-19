@@ -407,8 +407,8 @@ mod tests {
             let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
             let schema_ref = bbox_file.to_string_lossy();
             command::add(&repo, &bbox_path)?;
-            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
+            command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
             assert_eq!(schemas.len(), 1);
             assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
@@ -424,7 +424,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cmd_schemas_add_column_to_committed_schema() -> Result<(), OxenError> {
+    async fn test_cmd_schemas_add_column_to_committed_schema2() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Find the bbox csv
             let bbox_path = repo
@@ -449,6 +449,7 @@ mod tests {
             let metadata = json!({
                 "root": "images"
             });
+
             command::add(&repo, &bbox_path)?;
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 

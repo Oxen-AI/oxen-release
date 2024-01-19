@@ -2,6 +2,7 @@
 //!
 
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::DFOpts;
@@ -11,7 +12,9 @@ use crate::{api, util};
 use rayon::prelude::*;
 
 use crate::core;
-use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
+use crate::core::index::{
+    CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader, SchemaReader,
+};
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
@@ -34,7 +37,9 @@ pub fn get_meta_entry(
         log::debug!("get_meta_entry has file: {:?}", path);
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-        let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent)?;
+        let object_reader = ObjectDBReader::new(repo)?;
+        let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader)?;
+
         let entry = dir_entry_reader
             .get_entry(base_name)?
             .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
@@ -101,10 +106,12 @@ fn compute_latest_commit(
     let mut latest_commit = Some(commit.to_owned());
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            let entry_reader =
+                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
             for entry in entry_reader.list_entries()? {
                 let commit = if commits.contains_key(&entry.commit_id) {
                     Some(commits[&entry.commit_id].clone())
@@ -134,10 +141,12 @@ fn compute_dir_size(
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
-            let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            let entry_reader =
+                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
             for entry in entry_reader.list_entries()? {
                 total_size += entry.num_bytes;
             }
@@ -229,7 +238,11 @@ pub fn list_directory(
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
     for dir in entry_reader.list_dirs()? {
-        // log::debug!("LIST DIRECTORY considering committed dir: {:?} for search {:?}", dir, directory);
+        // log::debug!(
+        //     "LIST DIRECTORY considering committed dir: {:?} for search {:?}",
+        //     dir,
+        //     directory
+        // );
         if let Some(parent) = dir.parent() {
             if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
                 dir_paths.push(meta_entry_from_dir(
@@ -242,19 +255,13 @@ pub fn list_directory(
             }
         }
     }
-    log::debug!("list_directory got dir_paths {}", dir_paths.len());
-
-    // Once we know how many directories we have we can calculate the offset for the files
+    let object_reader = ObjectDBReader::new(repo)?;
     let mut file_paths: Vec<MetadataEntry> = vec![];
-    let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory)?;
-    log::debug!("list_directory counting entries...");
+    let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory, object_reader)?;
     let total = dir_entry_reader.num_entries() + dir_paths.len();
     let total_pages = (total as f64 / page_size as f64).ceil() as usize;
 
-    log::debug!("list_directory got {} total entries", total);
     let offset = dir_paths.len();
-
-    log::debug!("list_directory offset {}", offset,);
 
     for entry in dir_entry_reader.list_entry_page_with_offset(page, page_size, offset)? {
         file_paths.push(meta_entry_from_commit_entry(
@@ -264,7 +271,6 @@ pub fn list_directory(
             revision,
         )?)
     }
-    log::debug!("list_directory got file_paths {}", file_paths.len());
 
     // Combine all paths, starting with dirs if there are enough, else just files
     let start_page = if page == 0 { 0 } else { page - 1 };
@@ -374,11 +380,55 @@ pub fn compute_entries_size(entries: &[CommitEntry]) -> Result<u64, OxenError> {
     Ok(total_size)
 }
 
+pub fn compute_generic_entries_size(entries: &[Entry]) -> Result<u64, OxenError> {
+    let total_size: u64 = entries.into_par_iter().map(|e| e.num_bytes()).sum();
+    Ok(total_size)
+}
+
+pub fn compute_schemas_size(schemas: &[SchemaEntry]) -> Result<u64, OxenError> {
+    let total_size: u64 = schemas.into_par_iter().map(|e| e.num_bytes).sum();
+    Ok(total_size)
+}
+
 /// Given a list of entries, group them by their parent directory.
-pub fn group_entries_to_parent_dirs(entries: &[CommitEntry]) -> HashMap<PathBuf, Vec<CommitEntry>> {
+pub fn group_commit_entries_to_parent_dirs(
+    entries: &[CommitEntry],
+) -> HashMap<PathBuf, Vec<CommitEntry>> {
     let mut results: HashMap<PathBuf, Vec<CommitEntry>> = HashMap::new();
 
     for entry in entries.iter() {
+        if let Some(parent) = entry.path.parent() {
+            results
+                .entry(parent.to_path_buf())
+                .or_default()
+                .push(entry.clone());
+        }
+    }
+
+    results
+}
+
+pub fn group_entries_to_parent_dirs(entries: &[Entry]) -> HashMap<PathBuf, Vec<Entry>> {
+    let mut results: HashMap<PathBuf, Vec<Entry>> = HashMap::new();
+
+    for entry in entries.iter() {
+        if let Some(parent) = entry.path().parent() {
+            results
+                .entry(parent.to_path_buf())
+                .or_default()
+                .push(entry.clone());
+        }
+    }
+
+    results
+}
+
+pub fn group_schemas_to_parent_dirs(
+    schema_entries: &[SchemaEntry],
+) -> HashMap<PathBuf, Vec<SchemaEntry>> {
+    let mut results: HashMap<PathBuf, Vec<SchemaEntry>> = HashMap::new();
+
+    for entry in schema_entries.iter() {
         if let Some(parent) = entry.path.parent() {
             results
                 .entry(parent.to_path_buf())
@@ -399,18 +449,21 @@ pub fn read_unsynced_entries(
     let this_entry_reader = CommitEntryReader::new(local_repo, this_commit)?;
 
     let this_entries = this_entry_reader.list_entries()?;
-    let grouped = api::local::entries::group_entries_to_parent_dirs(&this_entries);
+    let grouped = api::local::entries::group_commit_entries_to_parent_dirs(&this_entries);
     log::debug!(
         "Checking {} entries in {} groups",
         this_entries.len(),
         grouped.len()
     );
 
+    let object_reader = ObjectDBReader::new(local_repo)?;
+
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
-        log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
+        // log::debug!("Checking {} entries from {:?}", dir_entries.len(), dir);
 
-        let last_entry_reader = CommitDirEntryReader::new(local_repo, &last_commit.id, dir)?;
+        let last_entry_reader =
+            CommitDirEntryReader::new(local_repo, &last_commit.id, dir, object_reader.clone())?;
         let mut entries: Vec<CommitEntry> = dir_entries
             .into_par_iter()
             .filter(|entry| {
@@ -439,6 +492,39 @@ pub fn read_unsynced_entries(
     log::debug!("Got {} entries to sync", entries_to_sync.len());
 
     Ok(entries_to_sync)
+}
+
+pub fn read_unsynced_schemas(
+    local_repo: &LocalRepository,
+    last_commit: &Commit,
+    this_commit: &Commit,
+) -> Result<Vec<SchemaEntry>, OxenError> {
+    let this_schema_reader = SchemaReader::new(local_repo, &this_commit.id)?;
+    let last_schema_reader = SchemaReader::new(local_repo, &last_commit.id)?;
+
+    let this_schemas = this_schema_reader.list_schema_entries()?;
+    let last_schemas = last_schema_reader.list_schema_entries()?;
+
+    let mut schemas_to_sync: Vec<SchemaEntry> = vec![];
+
+    let this_grouped = api::local::entries::group_schemas_to_parent_dirs(&this_schemas);
+    let last_grouped = api::local::entries::group_schemas_to_parent_dirs(&last_schemas);
+
+    let empty_vec = Vec::new();
+    for (dir, dir_schemas) in this_grouped.iter() {
+        let last_dir_schemas = last_grouped.get(dir).unwrap_or(&empty_vec);
+        for schema in dir_schemas {
+            let filename = schema.path.file_name().unwrap().to_str().unwrap();
+            let last_schema = last_dir_schemas
+                .iter()
+                .find(|s| s.path.file_name().unwrap().to_str().unwrap() == filename);
+            if last_schema.is_none() || last_schema.unwrap().hash != schema.hash {
+                schemas_to_sync.push(schema.clone());
+            }
+        }
+    }
+
+    Ok(schemas_to_sync)
 }
 
 #[cfg(test)]
@@ -655,6 +741,7 @@ mod tests {
                 2,
                 3,
             )?;
+
             let dir_entries = paginated.entries;
             let total_entries = paginated.total_entries;
 

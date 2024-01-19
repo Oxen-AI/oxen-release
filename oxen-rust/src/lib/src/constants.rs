@@ -27,6 +27,8 @@ pub const HISTORY_DIR: &str = "history";
 pub const COMMITS_DIR: &str = "commits";
 /// name of the schema db
 pub const SCHEMAS_DIR: &str = "schemas";
+/// schemas node in merkle tree
+pub const SCHEMAS_TREE_PREFIX: &str = ".oxen";
 // name of dir for locking branches during push
 pub const BRANCH_LOCKS_DIR: &str = "locks";
 // name of file for locking repository during push
@@ -39,6 +41,10 @@ pub const FILES_DIR: &str = "files";
 pub const DATA_FRAMES_DIR: &str = "data_frames";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
+/// prefix for a commit dir => hash maping
+pub const DIR_HASHES_DIR: &str = "dir_hashes";
+/// prefix for the commit merkle tree db
+pub const TREE_DIR: &str = "tree";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
 /// prefix for cached compare dfs
@@ -61,6 +67,16 @@ pub const INDICES_DIR: &str = "indices";
 pub const FIELDS_DIR: &str = "fields";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
+/// objects/ stores pointers to data files and sub-tree structures for efficient commit representations
+pub const OBJECTS_DIR: &str = "objects";
+/// Storage of file node representations in objects dir
+pub const OBJECT_FILES_DIR: &str = "files";
+/// Storage of dir node representations in objects dir
+pub const OBJECT_DIRS_DIR: &str = "dirs";
+/// Storage of hash-bucketed vnode representations in objects dir
+pub const OBJECT_VNODES_DIR: &str = "vnodes";
+/// Storage of schema node representations in objects dir
+pub const OBJECT_SCHEMAS_DIR: &str = "schemas";
 /// File name for files stored in versions directory (>0.8.4). (Was commit id <= 0.8.4)
 pub const VERSION_FILE_NAME: &str = "data";
 /// merge/ is where any merge conflicts are stored so that we can get rid of them
@@ -135,5 +151,8 @@ pub const TABULAR: &str = "tabular";
 pub const BINARY: &str = "binary";
 pub const DIR: &str = "dir";
 
-/// Minimum allowable oxen version to push new data
-pub const MIN_CLI_VERSION: &str = "0.9.6";
+/// Minimum allowable oxen version to push or pull data
+pub const MIN_CLI_VERSION: &str = "0.10.0";
+
+/// Filepath used to track repo and server-level migration status
+pub const LAST_MIGRATION_FILE: &str = "last_migration.txt";

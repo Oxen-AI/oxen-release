@@ -1,4 +1,3 @@
-use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{
@@ -193,7 +192,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
 }
 
 pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -339,7 +338,7 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
 }
 
 pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Error> {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req)?;
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
@@ -432,7 +431,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
 }
 
 pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let user_id: &str = req.match_info().get("identifier").unwrap();
@@ -469,7 +468,7 @@ pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
 }
 
 pub async fn delete_file(req: HttpRequest) -> HttpResponse {
-    let app_data = req.app_data::<OxenAppData>().unwrap();
+    let app_data = app_data(&req).unwrap();
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let user_id: &str = req.match_info().get("identifier").unwrap();

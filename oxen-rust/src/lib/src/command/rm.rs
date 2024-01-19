@@ -19,7 +19,6 @@ use super::helpers;
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     let commit = api::local::commits::head_commit(repo)?;
-
     let path = &opts.path;
 
     let mut paths: HashSet<PathBuf> = HashSet::new();

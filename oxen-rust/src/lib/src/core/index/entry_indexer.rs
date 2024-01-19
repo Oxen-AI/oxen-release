@@ -1,22 +1,22 @@
 //! EntryIndexer is responsible for pushing, pulling and syncing commit entries
 //!
 
-use filetime::FileTime;
 use indicatif::ProgressBar;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
+use crate::core::db;
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{self, puller, versioner, Merger, Stager};
-use crate::core::index::{
-    CommitDirEntryReader, CommitDirEntryWriter, CommitEntryReader, RefWriter,
-};
+use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader, Stager};
+use crate::core::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{
     Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
@@ -26,7 +26,7 @@ use crate::util::{self, concurrency};
 use crate::view::repository::RepositoryDataTypesView;
 use crate::{api, current_function};
 
-use super::{pusher, CommitReader};
+use super::{pusher, CommitEntryWriter, CommitReader, SchemaReader};
 
 pub struct EntryIndexer {
     pub repository: LocalRepository,
@@ -114,14 +114,13 @@ impl EntryIndexer {
 
         // TODO Do we add a flag for if this pull is a merge somehow...?
         // If the branches have diverged, we need to merge the commit into the base
+
         if let Some(ref head_commit) = head_commit {
             if head_commit.id != commit.id {
                 let merger = Merger::new(&self.repository)?;
                 if let Some(merge_commit) = merger.merge_commit_into_base(&commit, head_commit)? {
                     commit = merge_commit;
                 }
-            } else {
-                log::debug!("No merge commit required");
             }
         }
 
@@ -133,6 +132,12 @@ impl EntryIndexer {
         if !&self.repository.is_shallow_clone() {
             self.cleanup_removed_entries(&commit, status)?;
         }
+
+        log::debug!(
+            "pull complete ✅ for commit {} -> '{}'",
+            commit.id,
+            commit.message
+        );
 
         Ok(())
     }
@@ -150,6 +155,9 @@ impl EntryIndexer {
         };
 
         self.pull_commit_entries_db(&remote_repo, commit).await?;
+        let commit_vec = vec![commit.clone()];
+        self.pull_tree_objects_for_commits(&remote_repo, &commit_vec)
+            .await?;
         self.pull_all_entries_for_commit(&remote_repo, commit)
             .await?;
 
@@ -162,6 +170,7 @@ impl EntryIndexer {
         rb: &RemoteBranch,
         should_update_head: bool,
     ) -> Result<Commit, OxenError> {
+        log::debug!("pulling all");
         let new_head = match self.pull_all_commit_objects(remote_repo, rb).await {
             Ok(Some(commit)) => {
                 log::debug!("pull_result: {} -> {}", commit.id, commit.message);
@@ -186,12 +195,21 @@ impl EntryIndexer {
         let commits = commits.into_iter().rev().collect::<Vec<Commit>>();
 
         let mut unsynced_entry_commits: Vec<Commit> = Vec::new();
+        log::debug!("checking if {} commits are synced", commits.len());
         for c in &commits {
             if !index::commit_sync_status::commit_is_synced(&self.repository, c) {
                 unsynced_entry_commits.push(c.clone());
             }
         }
 
+        for commit in &unsynced_entry_commits {
+            log::debug!("unsynced_entry_commits: {:#?}", commit);
+        }
+
+        self.pull_tree_objects_for_commits(remote_repo, &unsynced_entry_commits)
+            .await?;
+
+        log::debug!("about to pull entries for commits");
         // Download all files to versions dir
         self.pull_entries_for_commits(remote_repo, unsynced_entry_commits)
             .await?;
@@ -281,6 +299,10 @@ impl EntryIndexer {
 
                 // Make sure this branch points to this commit
                 self.set_branch_name_for_commit(&rb.branch, &commit, should_update_head)?;
+
+                let commits_vec = vec![commit.clone()];
+                self.pull_tree_objects_for_commits(remote_repo, &commits_vec)
+                    .await?;
 
                 // Sync the commit entries objects
                 self.pull_commit_entries_db(remote_repo, &commit).await?;
@@ -529,7 +551,41 @@ impl EntryIndexer {
         if limit == 0 {
             limit = entries.len();
         }
+
+        if limit > entries.len() {
+            limit = entries.len();
+        }
         Ok(entries[0..limit].to_vec())
+    }
+
+    fn read_pulled_schema_entries(
+        &self,
+        commit: &Commit,
+        mut limit: usize,
+    ) -> Result<Vec<SchemaEntry>, OxenError> {
+        let schema_reader = SchemaReader::new(&self.repository, &commit.id)?;
+        let schemas = schema_reader.list_schema_entries()?;
+
+        if limit == 0 {
+            limit = schemas.len();
+        }
+        if limit > schemas.len() {
+            limit = schemas.len();
+        }
+        Ok(schemas[0..limit].to_vec())
+    }
+
+    pub async fn pull_tree_objects_for_commits(
+        &self,
+        remote_repo: &RemoteRepository,
+        commits: &[Commit],
+    ) -> Result<(), OxenError> {
+        log::debug!("🐂 pulling tree objects for {:?} commits", commits.len());
+        if commits.is_empty() {
+            return Ok(()); // nothing to do, pulling anyway causes objects db errors
+        }
+        api::remote::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
+        Ok(())
     }
     pub async fn pull_entries_for_commits(
         &self,
@@ -543,6 +599,7 @@ impl EntryIndexer {
 
         let mut unsynced_entries: Vec<UnsyncedCommitEntries> = Vec::new();
 
+        log::debug!("gathering entries");
         for commit in &commits {
             for parent_id in &commit.parent_ids {
                 let local_parent = commit_reader
@@ -554,6 +611,21 @@ impl EntryIndexer {
                     &local_parent,
                     commit,
                 )?;
+
+                log::debug!("about to read unsynced schemas for commit {}", commit.id);
+
+                let schemas = api::local::entries::read_unsynced_schemas(
+                    &self.repository,
+                    &local_parent,
+                    commit,
+                )?;
+
+                log::debug!("read unsynced schemas for commit {}", commit.id);
+
+                // Collec these both together as Entry
+                let mut entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
+                entries.extend(schemas.into_iter().map(Entry::from));
+
                 unsynced_entries.push(UnsyncedCommitEntries {
                     commit: commit.clone(),
                     entries,
@@ -561,20 +633,23 @@ impl EntryIndexer {
             }
         }
 
+        log::debug!("gathered entries");
+
         // Pull flattened entries
         // Flatten unsynced_entries
-        let mut all_entries: Vec<CommitEntry> = Vec::new();
+        let mut all_entries: Vec<Entry> = Vec::new();
         for commit_with_entries in &unsynced_entries {
             all_entries.extend(commit_with_entries.entries.clone());
         }
 
-        // Only pull entries with unique hashes to save storage and data transfe for duplicate and/or moved files.
+        // Only pull entries with unique hashes to save storage and data transfer for duplicate and/or moved files.
         let mut seen_entries: HashSet<String> = HashSet::new();
         all_entries.retain(|entry| {
-            let key = format!("{}{}", entry.hash, entry.extension());
+            let key = format!("{}{}", entry.hash(), entry.extension());
             seen_entries.insert(key)
         });
 
+        log::debug!("about to pull the entires to the versions dir");
         puller::pull_entries_to_versions_dir(
             remote_repo,
             &all_entries,
@@ -633,61 +708,53 @@ impl EntryIndexer {
             entries.len()
         );
 
-        // Pull all the entries and unpack them to the versions dir
-        puller::pull_entries_to_working_dir(remote_repo, &entries, &self.repository.path, &|| {
-            self.backup_to_versions_dir(&commit, &entries).unwrap();
+        let schema_entries = self.read_pulled_schema_entries(&commit, limit)?;
 
-            if limit == 0 {
-                // limit == 0 means we pulled everything, so mark it as complete
-                self.pull_complete(&commit).unwrap();
-            }
+        let mut entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
+        entries.extend(schema_entries.into_iter().map(Entry::from));
+
+        let n_entries_to_pull = entries.len();
+        log::debug!("got {} entries to pull", n_entries_to_pull);
+
+        // PUll all the entries to the versions dir and then hydrate them into the working dir
+        puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path, &|| {
+            log::debug!("Pulled entries to versions dir.")
         })
         .await?;
 
-        Ok(())
-    }
+        let entries_to_unpack = entries.len();
 
-    fn backup_to_versions_dir(
-        &self,
-        commit: &Commit,
-        entries: &[CommitEntry],
-        // csv_writer: &mut Writer<File>,
-    ) -> Result<(), OxenError> {
-        if entries.is_empty() {
-            return Ok(());
+        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
+
+        println!("🐂 Unpacking files...");
+        self.unpack_version_files_to_working_dir(&commit, &entries, &bar)?;
+
+        if limit == 0 {
+            self.pull_complete(&commit).unwrap();
         }
-
-        let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
-
-        dir_entries.par_iter().for_each(|(dir, entries)| {
-            let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
-            entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path);
-
-                versioner::backup_file(&self.repository, &committer, entry, filepath).unwrap();
-            });
-        });
-
-        log::debug!("Done Unpacking.");
 
         Ok(())
     }
 
     pub fn unpack_version_files_to_working_dir(
         &self,
-        commit: &Commit,
-        entries: &[CommitEntry],
+        _commit: &Commit,
+        entries: &[Entry],
         bar: &Arc<ProgressBar>,
     ) -> Result<(), OxenError> {
-        //TODOFIX: Is this the same logic as the previous `self.group` in commit
+        // TODO: Don't need to group anymore
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
-        dir_entries.par_iter().for_each(|(dir, entries)| {
-            let committer = CommitDirEntryWriter::new(&self.repository, &commit.id, dir).unwrap();
+        let opts = db::opts::default();
+        let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+        let files_db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+
+        dir_entries.par_iter().for_each(|(_dir, entries)| {
             entries.par_iter().for_each(|entry| {
-                let filepath = self.repository.path.join(&entry.path);
-                if versioner::should_copy_entry(entry, &filepath) {
-                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path);
-                    let version_path = util::fs::version_path(&self.repository, entry);
+                let filepath = self.repository.path.join(entry.path());
+                if versioner::should_unpack_entry(entry, &filepath) {
+                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
+                    let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
                         Ok(_) => {}
                         Err(err) => {
@@ -695,14 +762,15 @@ impl EntryIndexer {
                         }
                     }
                 }
-                match util::fs::metadata(&filepath) {
-                    Ok(metadata) => {
-                        let mtime = FileTime::from_last_modification_time(&metadata);
-                        committer.set_file_timestamps(entry, &mtime).unwrap();
-                    }
-                    Err(err) => {
-                        log::error!("Could not update timestamp for {:?}: {}", filepath, err);
-                    }
+
+                if let Entry::CommitEntry(file) = entry {
+                    CommitEntryWriter::set_file_timestamps(
+                        &self.repository,
+                        &file.path,
+                        file,
+                        &files_db,
+                    )
+                    .unwrap();
                 }
                 bar.inc(1);
             });
@@ -739,6 +807,9 @@ impl EntryIndexer {
         let repository = self.repository.clone();
         let commit = commit.clone();
         let commit_reader = CommitEntryReader::new(&repository, &commit)?;
+
+        let object_reader = ObjectDBReader::new(&repository)?;
+
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)
             .process_read_dir(move |_, parent, _, dir_entry_results| {
@@ -757,8 +828,20 @@ impl EntryIndexer {
                     commit.message
                 );
 
-                let commit_entry_reader =
-                    CommitDirEntryReader::new(&repository, &commit.id, &parent).unwrap();
+                let commit_entry_reader = CommitDirEntryReader::new(
+                    &repository,
+                    &commit.id,
+                    &parent,
+                    object_reader.clone(),
+                )
+                .unwrap();
+
+                log::debug!(
+                    "cleanup_removed_entries got commit_entry_reader for commit {} -> '{}' dir_entry_results.len() {}",
+                    commit.id,
+                    commit.message,
+                    dir_entry_results.len()
+                );
 
                 dir_entry_results
                     .par_iter_mut()
@@ -784,6 +867,16 @@ impl EntryIndexer {
                                 let path = short_path.file_name().unwrap().to_str().unwrap();
                                 // If we don't have the file in the commit, remove it
                                 // (unless it's in untracked files or parent in untracked dirs)
+
+                                log::debug!(
+                                    "{} considering file {:?} with untracked_files.len() {} untracked_dirs.contains({:?}) '{}'",
+                                    current_function!(),
+                                    path,
+                                    untracked_files.len(),
+                                    short_path,
+                                    untracked_dirs.contains(&short_path)
+                                );
+
                                 if !commit_entry_reader.has_file(path)
                                     && !untracked_files.contains(&short_path)
                                     && !util::fs::is_any_parent_in_set(&short_path, &untracked_dirs)
@@ -826,6 +919,7 @@ impl EntryIndexer {
                     })
             })
         {
+            log::debug!("cleanup_removed_entries : {:?}", dir_entry_result);
             match dir_entry_result {
                 Ok(dir_entry) => {
                     if let Some(was_removed) = &dir_entry.client_state {
@@ -839,6 +933,8 @@ impl EntryIndexer {
                 }
             }
         }
+
+        log::debug!("cleanup_removed_entries done!");
 
         Ok(())
     }
@@ -936,6 +1032,7 @@ mod tests {
                 let latest_commit = commits.first().unwrap();
                 let page_size = 2;
                 let limit = page_size;
+
                 indexer
                     .pull_entries_for_commit_with_limit(&remote_repo, latest_commit, limit)
                     .await?;
@@ -944,6 +1041,7 @@ mod tests {
                 assert_eq!(num_files, limit);
 
                 // try to pull the full thing again even though we have only partially pulled some
+                log::debug!("second pull");
                 let rb = RemoteBranch::default();
                 indexer
                     .pull(
@@ -954,6 +1052,8 @@ mod tests {
                         },
                     )
                     .await?;
+
+                log::debug!("second pull done");
 
                 let num_files = util::fs::rcount_files_in_dir(&new_repo_dir);
                 assert_eq!(og_num_files, num_files);

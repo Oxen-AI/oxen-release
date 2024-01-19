@@ -1,7 +1,9 @@
 use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::error::{OxenError, StringError};
+use liboxen::view::http::{MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
+use serde_json::json;
 use std::io;
 
 #[derive(Debug, Display, Error)]
@@ -12,6 +14,8 @@ pub enum OxenHttpError {
     AppDataDoesNotExist,
     PathParamDoesNotExist(StringError),
     SQLParseError(StringError),
+
+    UpdateRequired(StringError),
 
     // Translate OxenError to OxenHttpError
     InternalOxenError(OxenError),
@@ -85,6 +89,18 @@ impl error::ResponseError for OxenHttpError {
             }
             OxenHttpError::RedisError(_) => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+            OxenHttpError::UpdateRequired(version) => {
+                let version_str = version.to_string();
+                let error_json = json!({
+                    "error": {
+                        "type": "update_required",
+                        "title": format!("Oxen CLI out of date. Pushing to OxenHub requires version >= {version_str}.")
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_UPDATE_REQUIRED,
+                });
+                HttpResponse::UpgradeRequired().json(error_json)
             }
             OxenHttpError::InternalOxenError(error) => {
                 // Catch specific OxenError's and return the appropriate response
@@ -179,6 +195,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::BadRequest(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
+            OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,

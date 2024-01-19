@@ -1,3 +1,4 @@
+use crate::core::db::tree_db::TreeObjectChild;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 
@@ -40,6 +41,22 @@ where
     commit_hasher.update(commit_str.as_bytes());
 
     let val = commit_hasher.digest();
+    format!("{val:x}")
+}
+
+// Need to hash on both path and hash - otherwise, vnode with same content under two different path hashes
+// (and many other examples) would overwrite node in objects dir since is hash-indexed
+pub fn compute_children_hash(children: &Vec<TreeObjectChild>) -> String {
+    let mut buffer = Vec::new();
+    for child in children {
+        let hash = child.hash();
+        let path = child.path().to_str().unwrap();
+        let hash_input = hash.as_bytes();
+        let path_input = path.as_bytes();
+        buffer.extend_from_slice(hash_input);
+        buffer.extend_from_slice(path_input);
+    }
+    let val = hash_buffer_128bit(&buffer);
     format!("{val:x}")
 }
 
@@ -114,4 +131,12 @@ pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
             Err(OxenError::basic_str(err))
         }
     }
+}
+
+pub fn hash_path<P: AsRef<Path>>(path: P) -> String {
+    hash_str(path.as_ref().to_str().unwrap())
+}
+
+pub fn hash_pathbuf(path: &Path) -> String {
+    hash_str(path.to_str().unwrap())
 }

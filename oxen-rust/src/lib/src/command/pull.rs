@@ -78,9 +78,10 @@ pub async fn pull_remote_branch(
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+
     use crate::error::OxenError;
     use crate::test;
+    use crate::{api, command};
 
     // Deal with merge conflicts on pull
     // 1) Clone repo to user A
@@ -192,15 +193,15 @@ mod tests {
                     // Add file_3 to user B repo
                     let file_3 = "file_3.txt";
                     test::write_txt_file_to_path(user_b_repo.path.join(file_3), "File 3")?;
+
                     command::add(&user_b_repo, user_b_repo.path.join(file_3))?;
                     command::commit(&user_b_repo, "Adding file_3")?;
 
-                    // Push should fail, we are behind
-                    let result = command::push(&user_b_repo).await;
-                    assert!(result.is_err());
-
-                    // Pull changes
+                    // Pull changes without pushing first - fine since no conflict
                     command::pull(&user_b_repo).await?;
+
+                    // Get new  head commit of the pulled repo
+                    api::local::commits::head_commit(&user_b_repo)?;
 
                     // Make sure we now have all three files
                     assert!(user_b_repo.path.join(file_1).exists());

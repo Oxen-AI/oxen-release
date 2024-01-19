@@ -180,7 +180,7 @@ fn parse_status_and_message(
             }
 
             Err(OxenError::basic_str(format!(
-                "Remote Err: {}",
+                "Err: {}",
                 response.error_or_msg()
             )))
         }

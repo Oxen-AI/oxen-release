@@ -1,11 +1,13 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 
-use liboxen::api;
 use liboxen::api::local::resource::parse_resource_from_path;
 use liboxen::error::OxenError;
 use liboxen::model::{Branch, Commit, LocalRepository, ParsedResource};
+use liboxen::{api, constants};
 
 use actix_web::HttpRequest;
+use liboxen::util::oxen_version::OxenVersion;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -20,6 +22,33 @@ pub mod df_opts_query;
 pub use df_opts_query::DFOptsQuery;
 
 pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
+    log::debug!(
+        "Get user agent from app data (app_data) {:?}",
+        req.headers().get("user-agent")
+    );
+
+    let user_agent = req.headers().get("user-agent");
+    let Some(user_agent) = user_agent else {
+        // No user agent, so we can't check the version
+        return get_app_data(req);
+    };
+
+    let Ok(user_agent_str) = user_agent.to_str() else {
+        // Invalid user agent, so we can't check the version
+        return get_app_data(req);
+    };
+
+    if user_cli_is_out_of_date(user_agent_str) {
+        return Err(OxenHttpError::UpdateRequired(
+            constants::MIN_CLI_VERSION.into(),
+        ));
+    }
+
+    req.app_data::<OxenAppData>()
+        .ok_or(OxenHttpError::AppDataDoesNotExist)
+}
+
+fn get_app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
     req.app_data::<OxenAppData>()
         .ok_or(OxenHttpError::AppDataDoesNotExist)
 }
@@ -94,4 +123,34 @@ pub fn resolve_revision(
 pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
     // Lookup branch name
     api::local::branches::get_by_name(repo, name)
+}
+
+fn user_cli_is_out_of_date(user_agent: &str) -> bool {
+    // check if the user agent contains oxen
+    if !user_agent.to_lowercase().contains("oxen") {
+        // Not an oxen user agent
+        return false;
+    }
+
+    // And if the version is less than the minimum version
+    let parts: Vec<&str> = user_agent.split('/').collect();
+
+    if parts.len() <= 1 {
+        // Can't parse version from user agent
+        return true;
+    }
+    let user_cli_version = match OxenVersion::from_str(parts[1]) {
+        Ok(v) => v,
+        Err(_) => return true,
+    };
+
+    let min_cli_version = match OxenVersion::from_str(constants::MIN_CLI_VERSION) {
+        Ok(v) => v,
+        Err(_) => return true,
+    };
+
+    if min_cli_version > user_cli_version {
+        return true;
+    }
+    false
 }

@@ -1126,7 +1126,7 @@ who won the game?,The packers beat up on the bears,packers
             // images
             let entry = compare.entries.first().unwrap();
             assert_eq!(entry.filename, "images");
-            assert_eq!(entry.status, "modified");
+            assert_eq!(entry.status, "removed");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
             let summary = entry.diff_summary.as_ref().unwrap();

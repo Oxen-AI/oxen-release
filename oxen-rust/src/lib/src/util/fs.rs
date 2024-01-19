@@ -20,8 +20,11 @@ use crate::constants::CACHE_DIR;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
 use crate::constants::HISTORY_DIR;
+use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::Commit;
+use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
@@ -150,8 +153,26 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
 }
 
+pub fn version_path_for_entry(repo: &LocalRepository, entry: &Entry) -> PathBuf {
+    match entry {
+        Entry::CommitEntry(commit_entry) => version_path(repo, commit_entry),
+        Entry::SchemaEntry(schema_entry) => {
+            version_path_from_schema_hash(repo.path.clone(), schema_entry.hash.clone())
+        }
+    }
+}
+
 pub fn version_path_from_dst(dst: impl AsRef<Path>, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(dst, entry.hash.clone(), entry.filename())
+}
+
+pub fn version_path_from_dst_generic(dst: impl AsRef<Path>, entry: &Entry) -> PathBuf {
+    match entry {
+        Entry::CommitEntry(commit_entry) => version_path_from_dst(dst, commit_entry),
+        Entry::SchemaEntry(schema_entry) => {
+            version_path_from_schema_hash(dst, schema_entry.hash.clone())
+        }
+    }
 }
 
 pub fn df_version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
@@ -165,7 +186,31 @@ pub fn version_path_from_hash_and_file(
     filename: PathBuf,
 ) -> PathBuf {
     let version_dir = version_dir_from_hash(dst, hash);
-    version_dir.join(filename)
+    let extension = extension_from_path(&filename);
+    if extension.is_empty() {
+        version_dir.join(VERSION_FILE_NAME)
+    } else {
+        version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
+    }
+}
+
+pub fn version_path_from_schema(dst: impl AsRef<Path>, schema: &Schema) -> PathBuf {
+    // Save schemas as path with no extension
+    version_path_from_schema_hash(dst, schema.hash.clone())
+}
+
+pub fn version_path_from_schema_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
+    // Save schemas as path with no extension
+    let version_dir = version_dir_from_hash(dst, hash);
+    version_dir.join(VERSION_FILE_NAME)
+}
+
+pub fn extension_from_path(path: &Path) -> String {
+    if let Some(ext) = path.extension() {
+        String::from(ext.to_str().unwrap_or(""))
+    } else {
+        String::from("")
+    }
 }
 
 pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
@@ -176,6 +221,13 @@ pub fn version_dir_from_hash(dst: impl AsRef<Path>, hash: String) -> PathBuf {
         .join(constants::FILES_DIR)
         .join(topdir)
         .join(subdir)
+}
+
+pub fn object_dir_suffix_from_hash(_dst: impl AsRef<Path>, hash: String) -> PathBuf {
+    let topdir = &hash[..2];
+    let subdir = &hash[2..];
+
+    PathBuf::from(topdir).join(subdir)
 }
 
 pub fn read_from_path(path: impl AsRef<Path>) -> Result<String, OxenError> {
@@ -600,7 +652,7 @@ pub fn create_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     match std::fs::create_dir_all(src) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("create_dir_all {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -612,7 +664,7 @@ pub fn remove_dir_all(src: impl AsRef<Path>) -> Result<(), OxenError> {
     match std::fs::remove_dir_all(src) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("remove_dir_all {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -624,7 +676,7 @@ pub fn write(src: impl AsRef<Path>, data: impl AsRef<[u8]>) -> Result<(), OxenEr
     match std::fs::write(src, data) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("write {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -637,7 +689,7 @@ pub fn remove_file(src: impl AsRef<Path>) -> Result<(), OxenError> {
     match std::fs::remove_file(src) {
         Ok(_) => Ok(()),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("remove_file {:?} {}", src, err);
             Err(OxenError::file_error(src, err))
         }
     }
@@ -649,7 +701,7 @@ pub fn metadata(path: impl AsRef<Path>) -> Result<std::fs::Metadata, OxenError> 
     match std::fs::metadata(path) {
         Ok(file) => Ok(file),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("metadata {:?} {}", path, err);
             Err(OxenError::file_metadata_error(path, err))
         }
     }
@@ -661,7 +713,7 @@ pub fn file_create(path: impl AsRef<Path>) -> Result<std::fs::File, OxenError> {
     match std::fs::File::create(path) {
         Ok(file) => Ok(file),
         Err(err) => {
-            log::error!("{}", err);
+            log::error!("file_create {:?} {}", path, err);
             Err(OxenError::file_create_error(path, err))
         }
     }

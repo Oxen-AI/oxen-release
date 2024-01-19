@@ -193,12 +193,12 @@ impl LocalRepository {
         // Pull all commit objects, but not entries
         let rb = RemoteBranch::from_branch(&opts.branch);
         let indexer = EntryIndexer::new(&local_repo)?;
-
         local_repo
             .maybe_pull_entries(&repo, &indexer, &rb, opts)
             .await?;
 
         if opts.all {
+            log::debug!("pulling all entries");
             let remote_branches = api::remote::branches::list(&repo).await?;
             if remote_branches.len() > 1 {
                 println!(
@@ -207,7 +207,13 @@ impl LocalRepository {
                 );
             }
 
-            let bar = oxen_progress_bar(remote_branches.len() as u64 - 1, ProgressBarType::Counter);
+            let n_other_branches: u64 = if remote_branches.len() > 1 {
+                (remote_branches.len() - 1) as u64
+            } else {
+                0
+            };
+
+            let bar = oxen_progress_bar(n_other_branches as u64, ProgressBarType::Counter);
 
             for branch in remote_branches {
                 // We've already pulled the target branch in full
@@ -333,10 +339,14 @@ mod tests {
             // Create remote repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
+            log::debug!("created the remote repo");
+
             test::run_empty_dir_test_async(|dir| async move {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
-                let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
 
+                log::debug!("about to clone the remote");
+                let local_repo = LocalRepository::clone_remote(&opts).await?.unwrap();
+                log::debug!("succeeded");
                 let cfg_fname = ".oxen/config.toml".to_string();
                 let config_path = local_repo.path.join(&cfg_fname);
                 assert!(config_path.exists());

@@ -108,6 +108,7 @@ fn dir_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenErr
 fn file_is_committed(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
     let commit = api::local::commits::head_commit(repo)?;
     let commit_reader = CommitEntryReader::new(repo, &commit)?;
+
     Ok(commit_reader.has_file(path))
 }
 

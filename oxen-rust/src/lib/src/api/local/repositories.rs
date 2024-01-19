@@ -2,6 +2,7 @@ use crate::api;
 use crate::command;
 use crate::constants;
 use crate::core::cache::commit_cacher;
+use crate::core::index::CommitEntryWriter;
 use crate::core::index::Stager;
 use crate::core::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
@@ -226,7 +227,13 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
     let history_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::HISTORY_DIR);
     std::fs::create_dir_all(history_dir)?;
 
+    // Create objects dir and all objects rocksdbs
+    {
+        CommitEntryWriter::create_objects_dbs(&local_repo)?;
+    }
+
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
+
     {
         // Make go out of scope to release LOCK
         log::debug!(
@@ -266,6 +273,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
                 // Write the root commit and go out of scope to close DB
                 let commit_writer = CommitWriter::new(&local_repo)?;
                 commit_writer.add_commit_from_empty_status(&root_commit)?;
+                log::debug!("root commit created for repo {:?}", local_repo.path);
             }
 
             // Add the files
@@ -380,6 +388,7 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
+                root_hash: None,
                 timestamp,
             };
             let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
@@ -543,6 +552,7 @@ mod tests {
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
                 timestamp,
+                root_hash: None,
             };
             let repo_new = RepoNew::from_root_commit(old_namespace, name, root_commit);
             let _repo = api::local::repositories::create(sync_dir, repo_new)?;

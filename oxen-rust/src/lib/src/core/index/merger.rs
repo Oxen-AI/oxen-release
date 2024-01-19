@@ -2,15 +2,15 @@ use crate::api;
 use crate::constants::MERGE_DIR;
 use crate::core::db;
 use crate::core::index::{
-    oxenignore, CommitEntryReader, CommitReader, CommitWriter, MergeConflictDBReader, RefReader,
-    RefWriter, Stager,
+    oxenignore, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
+    MergeConflictDBReader, RefReader, RefWriter, SchemaReader, Stager,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 
 use crate::util;
 
-use rocksdb::DB;
+use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -36,6 +36,7 @@ impl MergeCommits {
 pub struct Merger {
     repository: LocalRepository,
     merge_db: DB,
+    // files_db: DBWithThreadMode<MultiThreaded>,
 }
 
 impl Merger {
@@ -47,6 +48,7 @@ impl Merger {
         Ok(Merger {
             repository: repo.to_owned(),
             merge_db: DB::open(&opts, dunce::simplified(&db_path))?,
+            // files_db: DBWithThreadMode::open(&opts, dunce::simplified(&files_db_path))?,
         })
     }
 
@@ -229,6 +231,12 @@ impl Merger {
 
         let lca =
             self.lowest_common_ancestor_from_commits(&commit_reader, base_commit, merge_commit)?;
+        log::debug!(
+            "merge_commit_into_base has lca {:?} for merge commit {:?} and base {:?}",
+            lca,
+            merge_commit,
+            base_commit
+        );
         let merge_commits = MergeCommits {
             lca,
             base: base_commit.to_owned(),
@@ -236,6 +244,32 @@ impl Merger {
         };
 
         self.merge_commits(&merge_commits)
+    }
+
+    pub fn merge_commit_into_base_on_branch(
+        &self,
+        merge_commit: &Commit,
+        base_commit: &Commit,
+        branch: &Branch,
+    ) -> Result<Option<Commit>, OxenError> {
+        let commit_reader = CommitReader::new(&self.repository)?;
+        let lca =
+            self.lowest_common_ancestor_from_commits(&commit_reader, base_commit, merge_commit)?;
+
+        log::debug!(
+            "merge_commit_into_branch has lca {:?} for merge commit {:?} and base {:?}",
+            lca,
+            merge_commit,
+            base_commit
+        );
+
+        let merge_commits = MergeCommits {
+            lca,
+            base: base_commit.to_owned(),
+            merge: merge_commit.to_owned(),
+        };
+
+        self.merge_commits_on_branch(&merge_commits, branch)
     }
 
     fn merge_commits(&self, merge_commits: &MergeCommits) -> Result<Option<Commit>, OxenError> {
@@ -288,6 +322,61 @@ impl Merger {
         }
     }
 
+    fn merge_commits_on_branch(
+        &self,
+        merge_commits: &MergeCommits,
+        branch: &Branch,
+    ) -> Result<Option<Commit>, OxenError> {
+        // User output
+        println!(
+            "Updating {} -> {}",
+            merge_commits.base.id, merge_commits.merge.id
+        );
+
+        log::debug!(
+            "FOUND MERGE COMMITS:\nLCA: {} -> {}\nBASE: {} -> {}\nMerge: {} -> {}",
+            merge_commits.lca.id,
+            merge_commits.lca.message,
+            merge_commits.base.id,
+            merge_commits.base.message,
+            merge_commits.merge.id,
+            merge_commits.merge.message,
+        );
+
+        // Check which type of merge we need to do
+        if merge_commits.is_fast_forward_merge() {
+            // User output
+            println!("Fast-forward");
+            let commit = self.fast_forward_merge(&merge_commits.base, &merge_commits.merge)?;
+            Ok(Some(commit))
+        } else {
+            log::debug!(
+                "Three way merge! {} -> {}",
+                merge_commits.base.id,
+                merge_commits.merge.id
+            );
+
+            let write_to_disk = true;
+            let conflicts = self.find_merge_conflicts(merge_commits, write_to_disk)?;
+            log::debug!("Got {} conflicts", conflicts.len());
+
+            if conflicts.is_empty() {
+                log::debug!("creating merge commit on branch {:?}", branch);
+                let commit = self.create_merge_commit_on_branch(merge_commits, branch)?;
+                Ok(Some(commit))
+            } else {
+                merge_conflict_writer::write_conflicts_to_disk(
+                    &self.repository,
+                    &self.merge_db,
+                    &merge_commits.merge,
+                    &merge_commits.base,
+                    &conflicts,
+                )?;
+                Ok(None)
+            }
+        }
+    }
+
     pub fn has_file(&self, path: &Path) -> Result<bool, OxenError> {
         MergeConflictDBReader::has_file(&self.merge_db, path)
     }
@@ -306,8 +395,9 @@ impl Merger {
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
         let reader = CommitEntryReader::new(repo, &commit)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
         let ignore = oxenignore::create(repo);
-        stager.add(&repo.path, &reader, &ignore)?;
+        stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
 
         let commit_msg = format!(
             "Merge commit {} into {}",
@@ -324,7 +414,49 @@ impl Merger {
             merge_commits.base.id.to_owned(),
             merge_commits.merge.id.to_owned(),
         ];
-        let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
+        let commit =
+            commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg, None)?;
+        stager.unstage()?;
+
+        Ok(commit)
+    }
+
+    fn create_merge_commit_on_branch(
+        &self,
+        merge_commits: &MergeCommits,
+        branch: &Branch,
+    ) -> Result<Commit, OxenError> {
+        let repo = &self.repository;
+
+        // Stage changes
+        let stager = Stager::new(repo)?;
+        let commit = api::local::commits::head_commit(repo)?;
+        let reader = CommitEntryReader::new(repo, &commit)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
+        let ignore = oxenignore::create(repo);
+        stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
+
+        let commit_msg = format!(
+            "Merge commit {} into {} on branch {}",
+            merge_commits.merge.id, merge_commits.base.id, branch.name
+        );
+
+        log::debug!("create_merge_commit_on_branch {}", commit_msg);
+
+        // Create a commit with both parents
+        let reader = CommitEntryReader::new_from_head(repo)?;
+        let status = stager.status(&reader)?;
+        let commit_writer = CommitWriter::new(repo)?;
+        let parent_ids: Vec<String> = vec![
+            merge_commits.base.id.to_owned(),
+            merge_commits.merge.id.to_owned(),
+        ];
+        let commit = commit_writer.commit_with_parent_ids(
+            &status,
+            parent_ids,
+            &commit_msg,
+            Some(branch.clone()),
+        )?;
         stager.unstage()?;
 
         Ok(commit)
@@ -371,30 +503,36 @@ impl Merger {
         let base_entries = base_commit_entry_reader.list_entries_set()?;
         let merge_entries = merge_commit_entry_reader.list_entries_set()?;
 
-        // Can just copy over all new versions since it is fast forward
-        for merge_entry in merge_entries.iter() {
-            log::debug!("Merge entry: {:?}", merge_entry.path);
-            // Only copy over if hash is different or it doesn't exist for performance
-            if let Some(base_entry) = base_entries.get(merge_entry) {
-                if base_entry.hash != merge_entry.hash {
-                    log::debug!("Merge entry has changed, restore: {:?}", merge_entry.path);
-                    self.update_entry(merge_entry)?;
+        // Make sure files_db is dropped before the merge commit is written
+        {
+            let opts = db::opts::default();
+            let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+            let files_db = DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+            // Can just copy over all new versions since it is fast forward
+            for merge_entry in merge_entries.iter() {
+                log::debug!("Merge entry: {:?}", merge_entry.path);
+                // Only copy over if hash is different or it doesn't exist for performance
+                if let Some(base_entry) = base_entries.get(merge_entry) {
+                    if base_entry.hash != merge_entry.hash {
+                        log::debug!("Merge entry has changed, restore: {:?}", merge_entry.path);
+                        self.update_entry(merge_entry, &files_db)?;
+                    }
+                } else {
+                    log::debug!("Merge entry is new, restore: {:?}", merge_entry.path);
+                    self.update_entry(merge_entry, &files_db)?;
                 }
-            } else {
-                log::debug!("Merge entry is new, restore: {:?}", merge_entry.path);
-                self.update_entry(merge_entry)?;
             }
-        }
 
-        // Remove all entries that are in HEAD but not in merge entries
-        for base_entry in base_entries.iter() {
-            log::debug!("Base entry: {:?}", base_entry.path);
-            if !merge_entries.contains(base_entry) {
-                log::debug!("Removing Base Entry: {:?}", base_entry.path);
+            // Remove all entries that are in HEAD but not in merge entries
+            for base_entry in base_entries.iter() {
+                log::debug!("Base entry: {:?}", base_entry.path);
+                if !merge_entries.contains(base_entry) {
+                    log::debug!("Removing Base Entry: {:?}", base_entry.path);
 
-                let path = self.repository.path.join(&base_entry.path);
-                if path.exists() {
-                    util::fs::remove_file(path)?;
+                    let path = self.repository.path.join(&base_entry.path);
+                    if path.exists() {
+                        util::fs::remove_file(path)?;
+                    }
                 }
             }
         }
@@ -467,6 +605,7 @@ impl Merger {
         merge_commits: &MergeCommits,
         write_to_disk: bool,
     ) -> Result<Vec<MergeConflict>, OxenError> {
+        log::debug!("finding merge conflicts");
         /*
         https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
 
@@ -506,6 +645,10 @@ impl Merger {
         log::debug!("base_entries.len() {}", base_entries.len());
         log::debug!("merge_entries.len() {}", merge_entries.len());
 
+        let opts = db::opts::default();
+        let files_db = CommitEntryWriter::files_db_dir(&self.repository);
+        let files_db = DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
+
         // Check all the entries in the candidate merge
         for merge_entry in merge_entries.iter() {
             // log::debug!("Considering entry {}", merge_entries.len());
@@ -521,8 +664,12 @@ impl Merger {
                     //     lca_entry.hash,
                     //     merge_entry.hash
                     // );
-                    if base_entry.hash == lca_entry.hash && write_to_disk {
-                        self.update_entry(merge_entry)?;
+                    if base_entry.hash == lca_entry.hash
+                        && base_entry.hash != merge_entry.hash
+                        && write_to_disk
+                    {
+                        log::debug!("top update entry");
+                        self.update_entry(merge_entry, &files_db)?;
                     }
 
                     // If all three are different, mark as conflict
@@ -548,7 +695,8 @@ impl Merger {
                 }
             } else if write_to_disk {
                 // merge entry does not exist in base, so create it
-                self.update_entry(merge_entry)?;
+                log::debug!("bottom update entry");
+                self.update_entry(merge_entry, &files_db)?;
             }
         }
         log::debug!("three_way_merge conflicts.len() {}", conflicts.len());
@@ -556,12 +704,17 @@ impl Merger {
         Ok(conflicts)
     }
 
-    fn update_entry(&self, merge_entry: &CommitEntry) -> Result<(), OxenError> {
+    fn update_entry(
+        &self,
+        merge_entry: &CommitEntry,
+        files_db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<(), OxenError> {
         restore::restore_file(
             &self.repository,
             &merge_entry.path,
             &merge_entry.commit_id,
             merge_entry,
+            files_db,
         )?;
         Ok(())
     }

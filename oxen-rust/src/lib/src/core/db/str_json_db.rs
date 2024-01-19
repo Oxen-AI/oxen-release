@@ -77,12 +77,12 @@ where
     let key = key.as_ref();
     let json_val = serde_json::to_string(entry)?;
 
-    log::debug!(
-        "str_json_db::put {:?} -> {:?} -> db: {:?}",
-        key,
-        json_val,
-        db.path()
-    );
+    // log::debug!(
+    //     "str_json_db::put {:?} -> {:?} -> db: {:?}",
+    //     key,
+    //     json_val,
+    //     db.path()
+    // );
 
     db.put(key, json_val.as_bytes())?;
     Ok(())
@@ -165,6 +165,7 @@ where
     let iter = db.iterator(IteratorMode::Start);
     let mut results: HashMap<String, D> = HashMap::new();
     for item in iter {
+        log::debug!("str_json_db::hash_map() got item {:?}", item);
         match item {
             Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
                 (Ok(key), Ok(value)) => {
@@ -191,5 +192,6 @@ where
             }
         }
     }
+    log::debug!("done iterating");
     Ok(results)
 }

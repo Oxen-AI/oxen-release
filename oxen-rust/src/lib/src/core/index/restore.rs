@@ -1,15 +1,16 @@
-use filetime::FileTime;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::Path;
 
 use crate::api::local::resource;
+use crate::core::db::{self};
+use crate::core::index::CommitEntryReader;
 use crate::core::index::Stager;
-use crate::core::index::{CommitDirEntryWriter, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util;
 
-use super::CommitDirEntryReader;
+use super::{CommitDirEntryReader, CommitEntryWriter, ObjectDBReader};
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     if opts.staged {
@@ -19,15 +20,19 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     let path = opts.path;
     let commit = resource::get_commit_or_head(repo, opts.source_ref)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
+    let _opts = db::opts::default();
+    let files_db_dir = CommitEntryWriter::files_db_dir(repo);
+    let files_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&db::opts::default(), dunce::simplified(&files_db_dir))?;
 
     // Check if is directory, need to recursively restore
     if reader.has_dir(&path) {
         log::debug!("Restoring directory: {:?}", path);
-        restore_dir(repo, &path, &commit, &reader)
+        restore_dir(repo, &path, &commit, &reader, &files_db)
     } else {
         // is file
         if let Some(entry) = reader.get_entry(&path)? {
-            restore_file(repo, &path, &commit.id, &entry)
+            restore_file(repo, &path, &commit.id, &entry, &files_db)
         } else {
             let error = format!("Could not restore file: {path:?} does not exist");
             Err(OxenError::basic_str(error))
@@ -55,17 +60,20 @@ fn restore_dir(
     path: &Path,
     commit: &Commit,
     dir_reader: &CommitEntryReader,
+    files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
     let dirs = dir_reader.list_dirs()?;
+    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         if dir.starts_with(path) {
-            let reader = CommitDirEntryReader::new(repo, &commit.id, &dir)?;
+            let reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
             let entries = reader.list_entries()?;
             let msg = format!("Restoring Directory: {:?}", dir);
             let bar = util::progress_bar::oxen_progress_bar_with_msg(entries.len() as u64, &msg);
+
             // iterate over entries in parallel
             entries.iter().for_each(|entry| {
-                match restore_file(repo, &entry.path, &commit.id, entry) {
+                match restore_file(repo, &entry.path, &commit.id, entry, files_db) {
                     Ok(_) => {}
                     Err(e) => {
                         log::error!("Error restoring file {:?}: {:?}", entry.path, e);
@@ -83,32 +91,24 @@ fn restore_dir(
 pub fn restore_file(
     repo: &LocalRepository,
     path: &Path,
-    commit_id: &str,
+    _commit_id: &str,
     entry: &CommitEntry,
+    files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
-    // Update the local modified timestamps
-    let dir = path.parent().unwrap();
-    let committer = CommitDirEntryWriter::new(repo, commit_id, dir)?;
-    restore_file_with_commit_writer(repo, path, entry, &committer)?;
+    restore_file_with_metadata(repo, path, entry, files_db)?;
 
     Ok(())
 }
 
-pub fn restore_file_with_commit_writer(
+pub fn restore_file_with_metadata(
     repo: &LocalRepository,
     path: &Path,
     entry: &CommitEntry,
-    committer: &CommitDirEntryWriter,
+    files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
     // copy data back over
     restore_regular(repo, path, entry)?;
-
-    // Update the local modified timestamps
-    let working_path = repo.path.join(path);
-    let metadata = util::fs::metadata(working_path).unwrap();
-    let mtime = FileTime::from_last_modification_time(&metadata);
-    committer.set_file_timestamps(entry, &mtime).unwrap();
-
+    CommitEntryWriter::set_file_timestamps(repo, path, entry, files_db)?;
     Ok(())
 }
 
@@ -124,7 +124,6 @@ fn restore_regular(
         util::fs::create_dir_all(parent)?;
     }
 
-    log::debug!("Restore file: {:?} from {:?}", entry.path, version_path);
-    util::fs::copy(version_path, working_path)?;
+    util::fs::copy(version_path, working_path.clone())?;
     Ok(())
 }
