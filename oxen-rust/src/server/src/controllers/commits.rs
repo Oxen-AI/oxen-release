@@ -66,29 +66,32 @@ pub struct ChunkedDataUploadQuery {
 }
 
 // List commits for a repository
-pub async fn index(req: HttpRequest) -> HttpResponse {
-    let app_data = app_data(&req).unwrap();
+pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
 
     if let (Some(namespace), Some(repo_name)) = (namespace, repo_name) {
         let repo_dir = app_data.path.join(namespace).join(repo_name);
         match p_index(&repo_dir) {
-            Ok(response) => HttpResponse::Ok().json(response),
+            Ok(response) => Ok(HttpResponse::Ok().json(response)),
             Err(err) => {
                 log::error!("api err: {}", err);
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                Err(OxenHttpError::InternalServerError)
             }
         }
     } else {
         let msg = "Could not find `name` param...";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+        Err(OxenHttpError::BadRequest(msg.into()))
     }
 }
 
 // List history for a branch or commit
-pub async fn commit_history(req: HttpRequest, query: web::Query<PageNumQuery>) -> HttpResponse {
-    let app_data = app_data(&req).unwrap();
+pub async fn commit_history(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
     let namespace: Option<&str> = req.match_info().get("namespace");
     let repo_name: Option<&str> = req.match_info().get("repo_name");
     let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
@@ -101,15 +104,16 @@ pub async fn commit_history(req: HttpRequest, query: web::Query<PageNumQuery>) -
     {
         let repo_dir = app_data.path.join(namespace).join(repo_name);
         match p_index_commit_or_branch_history(&repo_dir, commit_or_branch, page, page_size) {
-            Ok(response) => HttpResponse::Ok().json(response),
+            Ok(response) => Ok(HttpResponse::Ok().json(response)),
             Err(err) => {
                 let msg = format!("{err}");
-                HttpResponse::NotFound().json(StatusMessage::error(msg))
+                log::error!("api err: {}", msg);
+                Err(OxenHttpError::NotFound)
             }
         }
     } else {
         let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
-        HttpResponse::BadRequest().json(StatusMessage::error(msg))
+        Err(OxenHttpError::BadRequest(msg.into()))
     }
 }
 
@@ -175,6 +179,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     // let mut commits = commits.into_iter().collect::<Vec<_>>();
     // commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
+    log::debug!("latest_synced has commits {}", commits.len());
     for commit in commits.iter() {
         log::debug!("latest_synced has commit.... {}", commit);
     }
@@ -1259,7 +1264,7 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
-        let resp = controllers::commits::index(req).await;
+        let resp = controllers::commits::index(req).await.unwrap();
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
@@ -1292,7 +1297,7 @@ mod tests {
         let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
-        let resp = controllers::commits::index(req).await;
+        let resp = controllers::commits::index(req).await.unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1337,7 +1342,9 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query).await;
+        let resp = controllers::commits::commit_history(req, query)
+            .await
+            .unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
@@ -1388,7 +1395,9 @@ mod tests {
 
         let query: web::Query<PageNumQuery> =
             web::Query::from_query("page=1&page_size=10").unwrap();
-        let resp = controllers::commits::commit_history(req, query).await;
+        let resp = controllers::commits::commit_history(req, query)
+            .await
+            .unwrap();
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let list: ListCommitResponse = serde_json::from_str(text)?;
