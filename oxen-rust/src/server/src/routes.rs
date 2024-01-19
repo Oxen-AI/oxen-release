@@ -276,6 +276,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/schemas/{resource:.*}",
             web::get().to(controllers::schemas::list_or_get),
         )
+        .route(
+            "/{namespace}/{repo_name}/tabular/{commit_or_branch:.*}",
+            web::get().to(controllers::entries::list_tabular),
+        )
+        .route(
+            "/{namespace}/{repo_name}/entry_versions/{path:.*}",
+            web::get().to(controllers::entries::list_entry_versions),
+        )
         // ----- Stats ----- //
         .route(
             "/{namespace}/{repo_name}/stats",
