@@ -297,7 +297,7 @@ impl CommitEntryWriter {
         self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
         self.commit_schemas(commit, &staged_data.staged_schemas)?;
         self.construct_commit_merkle_tree(staged_data, origin_path)?;
-        // self.new_temp_print_tree_db()?;
+        self.new_temp_print_tree_db()?;
         Ok(())
     }
 
