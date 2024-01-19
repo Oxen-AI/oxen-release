@@ -415,10 +415,6 @@ pub fn list_entry_versions_on_branch(
 
     for commit in branch_commits {
         let entry_reader = CommitEntryReader::new(local_repo, &commit)?;
-
-        // List all entries for the commit
-        let entries = entry_reader.list_entries()?;
-        log::debug!("got entries {:#?} for commit {:#?}", entries, commit);
         let entry = entry_reader.get_entry(path)?;
 
         if let Some(entry) = entry {
