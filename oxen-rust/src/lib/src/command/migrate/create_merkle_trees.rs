@@ -129,7 +129,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_db_dir, false)?;
-        let maybe_root_hash: Option<String> = path_db::get_entry(&dir_hashes_db, &commit.id)?;
+        let maybe_root_hash: Option<String> = path_db::get_entry(&dir_hashes_db, "")?;
         let Some(root_hash) = maybe_root_hash else {
             return Err(OxenError::basic_str(format!(
                 "Could not find root hash for dir hashes db {:?} in repo {:?}",
