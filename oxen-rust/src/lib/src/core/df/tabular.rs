@@ -39,6 +39,7 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
         .sample_size(DEFAULT_SAMPLE_SIZE)
         .with_ignore_errors(true)
         .has_header(true)
+        .truncate_ragged_lines(true)
         .with_separator(delimiter)
         .with_end_of_line_char(b'\n')
         .with_quote_char(Some(b'"'))
