@@ -110,7 +110,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::branches::lock),
         )
         .route(
-            "/{namespace}/{repo_name}/branches/{branch_name:.*}/latest_synced_commit",
+            "/{namespace}/{repo_name}/branches/{branch_name:.*}/versions/{path:.*}",
+            web::get().to(controllers::branches::list_entry_versions),
+        )
+        .route(
+            "/{namespace}/{repo_name}/branches/{branch_name}/latest_synced_commit",
             web::get().to(controllers::branches::latest_synced_commit),
         )
         .route(
@@ -275,6 +279,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/schemas/{resource:.*}",
             web::get().to(controllers::schemas::list_or_get),
+        )
+        .route(
+            "/{namespace}/{repo_name}/tabular/{commit_or_branch:.*}",
+            web::get().to(controllers::entries::list_tabular),
         )
         // ----- Stats ----- //
         .route(
