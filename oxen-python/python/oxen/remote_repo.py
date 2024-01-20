@@ -166,31 +166,31 @@ class RemoteRepo:
         return self._repo.ls(directory, page_num, page_size).entries
 
     def download(
-        self, remote_path: str, local_path: Optional[str] = None, revision: str = ""
+        self, src: str, dst: Optional[str] = None, revision: Optional[str] = None
     ):
         """
         Download a file or directory from the remote repo.
 
         Args:
-            remote_path: `str`
+            src: `str`
                 The path to the remote file
-            local_path: `str | None`
+            dst: `str | None`
                 The path to the local file. If None, will download to
-                the same path as remote_path
-            revision: `str`
+                the same path as `src`
+            revision: `str | None`
                 The branch or commit id to download. Defaults to `self.revision`
         """
-        if local_path is None:
-            local_path = remote_path
+        if dst is None:
+            dst = src
             # create parent dir if it does not exist
-            directory = os.path.dirname(local_path)
+            directory = os.path.dirname(dst)
             if directory and not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
 
-        if revision == "":
-            self._repo.download(remote_path, local_path, self.revision)
+        if revision == None:
+            self._repo.download(src, dst, self.revision)
         else:
-            self._repo.download(remote_path, local_path, revision)
+            self._repo.download(src, dst, revision)
 
     def add(self, local_path: str, directory: str = ""):
         """

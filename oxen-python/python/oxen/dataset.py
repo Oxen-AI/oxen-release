@@ -1,4 +1,5 @@
 from oxen import PyDataset
+from oxen import RemoteRepo
 
 import os
 import polars as pl
@@ -23,6 +24,27 @@ def load_dataset(repo, paths: Union[str, Sequence[str]], features=None):
     """
     dataset = Dataset(repo, paths, features)
     return dataset
+
+
+def download(repo: str, path: str, revision=None, dst=None):
+    """
+    Download files from a remote repo.
+
+    Parameters
+    ----------
+    repo : str
+        The oxen repository you are loading data from
+        should be in the format {namespace}/{name}
+    path : str
+        The path to the data files
+    revision : str | None
+        The commit id or branch name of the version of the data to download
+    dst : str | None
+        The path to download the data to.
+    """
+
+    repo = RemoteRepo(repo)
+    repo.download(path, revision=revision, dst=dst)
 
 
 class Dataset:
