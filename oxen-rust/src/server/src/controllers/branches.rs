@@ -1,16 +1,21 @@
+use std::path::PathBuf;
+
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, path_param};
+use crate::params::{app_data, path_param, PageNumQuery};
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 
-use liboxen::api;
 use liboxen::core::index::Merger;
 use liboxen::error::OxenError;
+use liboxen::util::paginate;
+use liboxen::view::entry::ResourceVersion;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
-    CommitResponse, ListBranchesResponse, StatusMessage,
+    CommitEntryVersion, CommitResponse, ListBranchesResponse, PaginatedEntryVersions,
+    PaginatedEntryVersionsResponse, StatusMessage,
 };
+use liboxen::{api, constants};
 
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -236,6 +241,56 @@ pub async fn is_locked(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         branch_name,
         is_locked,
     }))
+}
+
+pub async fn list_entry_versions(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let branch_name = path_param(&req, "branch_name")?;
+
+    // Get branch
+    let repo = get_repo(&app_data.path, namespace.clone(), &repo_name)?;
+    let branch = api::local::branches::get_by_name(&repo, &branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
+
+    let path = PathBuf::from(path_param(&req, "path")?);
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    let commits_with_versions =
+        api::local::branches::list_entry_versions_on_branch(&repo, &branch.name, &path)?;
+
+    let mut commit_versions: Vec<CommitEntryVersion> = Vec::new();
+
+    for (commit, entry) in commits_with_versions {
+        commit_versions.push(CommitEntryVersion {
+            commit: commit.clone(),
+            resource: ResourceVersion {
+                version: commit.id.clone(),
+                path: entry.path.to_string_lossy().into(),
+            },
+        });
+    }
+
+    let (paginated_commit_versions, pagination) = paginate(commit_versions, page, page_size);
+
+    let response = PaginatedEntryVersionsResponse {
+        status: StatusMessage::resource_found(),
+        versions: PaginatedEntryVersions {
+            versions: paginated_commit_versions,
+            pagination,
+        },
+        branch,
+        path,
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[cfg(test)]
