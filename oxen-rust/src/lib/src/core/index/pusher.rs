@@ -321,6 +321,14 @@ async fn get_commit_objects_to_sync(
     } else {
         // Remote branch does not exist. Find commits to push with reference to whatever
         // remote branch head comes first in the local newbranch history, aka what it was branched off of.
+
+        // Early return to avoid checking for remote commits: if full local history and no remote branch,
+        // push full local branch history.
+        if api::local::commits::commit_history_is_complete(local_repo, local_commit) {
+            return api::local::commits::list_from(local_repo, &local_commit.id);
+        }
+
+        // Otherwise, find the remote commit that the local branch was branched off of and push everything since then.
         let all_commits = api::remote::commits::list_all(remote_repo).await?;
         log::debug!("got all remote commits as {:#?}", all_commits);
         let maybe_remote_commit =
@@ -333,22 +341,6 @@ async fn get_commit_objects_to_sync(
                 &remote_commit,
                 local_commit,
             )?;
-
-            println!("🐂 Getting commit history...");
-            let remote_history =
-                api::remote::commits::list_commit_history(remote_repo, &branch.name)
-                    .await
-                    .unwrap_or_else(|_| vec![]);
-            log::debug!(
-                "get_commit_objects_to_sync calculated {} commits",
-                commits_to_sync.len()
-            );
-
-            commits_to_sync.retain(|commit| {
-                !remote_history
-                    .iter()
-                    .any(|remote_commit| remote_commit.id == commit.id)
-            });
         } else {
             commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
         }
