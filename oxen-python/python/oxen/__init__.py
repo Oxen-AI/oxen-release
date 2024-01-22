@@ -5,7 +5,7 @@ from .oxen import PyLocalRepo, PyStagedData, PyCommit, PyRemoteRepo, PyDataset
 from .oxen import util
 
 # Python classes
-from oxen.dataset import Dataset
+# from oxen.dataset import Dataset
 from oxen.local_repo import LocalRepo
 from oxen.remote_repo import RemoteRepo
 from oxen.dag import DAG
