@@ -113,11 +113,15 @@ class RemoteRepo:
     def __repr__(self):
         return f"RemoteRepo({self._repo.url()})"
 
-    def create(self):
+    def create(self, empty: bool = True):
         """
         Will create the repo on the remote server.
+        
+        Args:
+            empty: `bool`
+                Whether to create an empty repo or not. Default: True
         """
-        self._repo.create()
+        self._repo.create(empty)
 
     def exists(self) -> bool:
         """

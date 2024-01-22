@@ -16,7 +16,7 @@ if "OXEN_TEST_LOG" in os.environ:
     elif "info" == level:
         logging.getLogger().setLevel(logging.INFO)
 
-TEST_HOST = "0.0.0.0:3000"
+TEST_HOST = "localhost:3000"
 if "OXEN_TEST_HOST" in os.environ:
     TEST_HOST = os.environ["OXEN_TEST_HOST"]
 
