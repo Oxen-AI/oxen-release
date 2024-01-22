@@ -317,9 +317,6 @@ async fn get_commit_objects_to_sync(
                 .any(|remote_commit| remote_commit.id == commit.id)
         });
     } else {
-        // TODO: This logic was already run as a check in cannot_push_incomplete history -
-        // could likely get it down to 1x w/ a moderate refactor but it is not expensive
-
         // Remote branch does not exist. Find commits to push with reference to whatever
         // remote branch head comes first in the local newbranch history, aka what it was branched off of.
         let branches: Vec<Branch> = api::remote::branches::list(remote_repo).await?;
