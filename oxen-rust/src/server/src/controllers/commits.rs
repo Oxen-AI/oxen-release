@@ -117,6 +117,30 @@ pub async fn commit_history(
     }
 }
 
+// List all commits in the rpeo
+pub async fn list_all(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace: Option<&str> = req.match_info().get("namespace");
+    let repo_name: Option<&str> = req.match_info().get("repo_name");
+
+    let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    if let (Some(namespace), Some(repo_name)) = (namespace, repo_name) {
+        let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+        let paginated_commits = api::local::commits::list_all_paginated(&repo, page, page_size)?;
+
+        Ok(HttpResponse::Ok().json(paginated_commits))
+    } else {
+        let msg = "Must supply `namespace`, `repo_name`  params";
+        Err(OxenHttpError::BadRequest(msg.into()))
+    }
+}
+
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;

@@ -11,7 +11,7 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures::prelude::*;
 use indicatif::ProgressBar;
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 
 use std::io::{BufReader, Read};
 use std::sync::Arc;
@@ -185,6 +185,8 @@ pub async fn try_push_remote_repo(
     let commits_to_push =
         get_commit_objects_to_sync(local_repo, remote_repo, &head_commit, &branch).await?;
 
+    log::debug!("got these commits to push");
+
     if !commits_to_push_are_synced(local_repo, &commits_to_push)? {
         return Err(OxenError::incomplete_local_history());
     }
@@ -319,14 +321,18 @@ async fn get_commit_objects_to_sync(
     } else {
         // Remote branch does not exist. Find commits to push with reference to whatever
         // remote branch head comes first in the local newbranch history, aka what it was branched off of.
-        let branches: Vec<Branch> = api::remote::branches::list(remote_repo).await?;
-        let maybe_remote_head =
-            find_local_commit_matching_remote_branch(local_repo, local_commit, &branches)?;
+        let all_commits = api::remote::commits::list_all(remote_repo).await?;
+        log::debug!("got all remote commits as {:#?}", all_commits);
+        let maybe_remote_commit =
+            find_latest_local_commit_synced(local_repo, local_commit, &all_commits)?;
 
-        if let Some(remote_head) = maybe_remote_head {
+        if let Some(remote_commit) = maybe_remote_commit {
             let merger = Merger::new(local_repo)?;
-            commits_to_sync =
-                merger.list_commits_between_commits(&commit_reader, &remote_head, local_commit)?;
+            commits_to_sync = merger.list_commits_between_commits(
+                &commit_reader,
+                &remote_commit,
+                local_commit,
+            )?;
 
             println!("🐂 Getting commit history...");
             let remote_history =
@@ -484,28 +490,23 @@ async fn remote_is_ahead_of_local(
     Ok(!local_head.has_ancestor(&remote_commit.id, reader)?)
 }
 
-fn find_local_commit_matching_remote_branch(
+fn find_latest_local_commit_synced(
     local_repo: &LocalRepository,
     local_head: &Commit,
-    remote_branches: &Vec<Branch>,
+    remote_commits: &Vec<Commit>,
 ) -> Result<Option<Commit>, OxenError> {
     let commit_reader = CommitReader::new(local_repo).unwrap();
-    let mut branches_map: HashMap<String, String> = HashMap::new();
-    for remote_branch in remote_branches {
-        branches_map.insert(remote_branch.commit_id.clone(), remote_branch.name.clone());
+    let mut commits_set: HashSet<String> = HashSet::new();
+    for remote_commit in remote_commits {
+        commits_set.insert(remote_commit.id.clone());
     }
     // let mut current_commit = local_head.clone();
     let mut queue: VecDeque<Commit> = VecDeque::new();
     queue.push_back(local_head.clone());
 
-    while queue.is_empty() {
+    while !queue.is_empty() {
         let current_commit = queue.pop_front().unwrap();
-        if branches_map.contains_key(&current_commit.id) {
-            log::debug!(
-                "Found commit {:#?} as head of remote branch {:?}",
-                current_commit,
-                branches_map.get(&current_commit.id)
-            );
+        if commits_set.contains(&current_commit.id) {
             return Ok(Some(current_commit));
         }
         for parent_id in current_commit.parent_ids.iter() {
