@@ -278,6 +278,20 @@ pub fn list_all(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     Ok(commits)
 }
 
+pub fn list_all_paginated(
+    repo: &LocalRepository,
+    page_number: usize,
+    page_size: usize,
+) -> Result<PaginatedCommits, OxenError> {
+    let commits = list_all(repo)?;
+    let (commits, pagination) = util::paginate(commits, page_number, page_size);
+    Ok(PaginatedCommits {
+        status: StatusMessage::resource_found(),
+        commits,
+        pagination,
+    })
+}
+
 /// Get commit history given options
 pub async fn list_with_opts(
     repo: &LocalRepository,
