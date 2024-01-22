@@ -11,8 +11,9 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures::prelude::*;
 use indicatif::ProgressBar;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet, VecDeque};
 
+use std::hash::Hash;
 use std::io::{BufReader, Read};
 use std::sync::Arc;
 
@@ -301,7 +302,7 @@ async fn get_commit_objects_to_sync(
     branch: &Branch,
 ) -> Result<Vec<Commit>, OxenError> {
     let remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
-
+    let commit_reader = CommitReader::new(local_repo)?;
     let mut commits_to_sync: Vec<Commit>;
     // TODO: If remote branch does not yet, recreates all commits regardless of shared history.
     // Not a huge deal performance-wise right now, but could be for very commit-heavy repos
@@ -312,7 +313,7 @@ async fn get_commit_objects_to_sync(
         let remote_commit = api::remote::commits::get_by_id(remote_repo, &remote_branch.commit_id)
             .await?
             .unwrap();
-        let commit_reader = CommitReader::new(local_repo)?;
+
         let merger = Merger::new(local_repo)?;
         commits_to_sync =
             merger.list_commits_between_commits(&commit_reader, &remote_commit, local_commit)?;
@@ -335,7 +336,36 @@ async fn get_commit_objects_to_sync(
     } else {
         // Branch does not exist on remote yet - get all commits?
         log::debug!("get_commit_objects_to_sync remote branch does not exist, getting all commits from local head");
-        commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
+
+        // Do the branch thing again
+        let branches: Vec<Branch> = api::remote::branches::list(remote_repo).await?;
+        let maybe_remote_head =
+            find_local_commit_matching_remote_branch(local_repo, local_commit, &branches)?;
+
+        if let Some(remote_head) = maybe_remote_head {
+            let merger = Merger::new(local_repo)?;
+            commits_to_sync =
+                merger.list_commits_between_commits(&commit_reader, &remote_head, local_commit)?;
+
+            println!("🐂 Getting commit history...");
+            let remote_history =
+                api::remote::commits::list_commit_history(remote_repo, &branch.name)
+                    .await
+                    .unwrap_or_else(|_| vec![]);
+            log::debug!(
+                "get_commit_objects_to_sync calculated {} commits",
+                commits_to_sync.len()
+            );
+
+            // Filter out any commits_to_sync that are in the remote_history
+            commits_to_sync.retain(|commit| {
+                !remote_history
+                    .iter()
+                    .any(|remote_commit| remote_commit.id == commit.id)
+            });
+        } else {
+            commits_to_sync = api::local::commits::list_from(local_repo, &local_commit.id)?;
+        }
     }
 
     // Order from BASE to HEAD
@@ -474,6 +504,41 @@ async fn remote_is_ahead_of_local(
     Ok(!local_head.has_ancestor(&remote_commit.id, reader)?)
 }
 
+fn find_local_commit_matching_remote_branch(
+    local_repo: &LocalRepository,
+    local_head: &Commit,
+    remote_branches: &Vec<Branch>,
+) -> Result<Option<Commit>, OxenError> {
+    let commit_reader = CommitReader::new(local_repo).unwrap();
+    let mut branches_map: HashMap<String, String> = HashMap::new();
+    for remote_branch in remote_branches {
+        branches_map.insert(remote_branch.commit_id.clone(), remote_branch.name.clone());
+    }
+    // let mut current_commit = local_head.clone();
+    let mut queue: VecDeque<Commit> = VecDeque::new();
+    queue.push_back(local_head.clone());
+
+    while queue.len() > 0 {
+        let current_commit = queue.pop_front().unwrap();
+        if branches_map.contains_key(&current_commit.id) {
+            log::debug!(
+                "Found commit {:#?} as head of remote branch {:?}",
+                current_commit,
+                branches_map.get(&current_commit.id)
+            );
+            return Ok(Some(current_commit));
+        }
+        for parent_id in current_commit.parent_ids.iter() {
+            let parent_commit = commit_reader.get_commit_by_id(parent_id)?;
+            let Some(parent_commit) = parent_commit else {
+                return Err(OxenError::local_parent_link_broken(&current_commit.id));
+            };
+            queue.push_back(parent_commit);
+        }
+    }
+    Ok(None)
+}
+
 async fn cannot_push_incomplete_history(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
@@ -482,46 +547,70 @@ async fn cannot_push_incomplete_history(
 ) -> Result<bool, OxenError> {
     log::debug!("Checking if we can push incomplete history.");
     match api::remote::commits::list_commit_history(remote_repo, &branch.name).await {
-        Err(_) => {
-            return Ok(!api::local::commits::commit_history_is_complete(
-                local_repo, local_head,
-            ));
+        Err(e) => {
+            log::debug!("got err when checking remote history {:?}", e);
+            let remote_branches = api::remote::branches::list(remote_repo).await?;
+            log::debug!("got remote branches {:?}", remote_branches);
+
+            let maybe_remote_head =
+                find_local_commit_matching_remote_branch(local_repo, local_head, &remote_branches)?;
+
+            log::debug!("got maybe_remote_head {:?}", maybe_remote_head);
+
+            let Some(remote_head) = maybe_remote_head else {
+                // No commits in the local branch history match any remote branch head.
+                // This is the empty repo case - require a complete history
+                return Ok(!api::local::commits::commit_history_is_complete(
+                    local_repo, local_head,
+                ));
+            };
+
+            // Otherwise, we have a remote head that matches a local commit - get commits between and check if they're synced
+            return Ok(!commits_to_push_are_synced(
+                local_repo,
+                local_head,
+                &remote_head,
+            )?);
         }
         Ok(remote_history) => {
-            let remote_head = remote_history.first().unwrap();
             log::debug!(
-                "Checking between local head {:?} and remote head {:?} on branch {}",
+                "got remote history {:#?} on branch {:#?}",
+                remote_history,
+                branch
+            );
+            let remote_head = remote_history.first().unwrap();
+            return Ok(!commits_to_push_are_synced(
+                local_repo,
                 local_head,
                 remote_head,
-                branch.name
-            );
+            )?);
+        }
+    }
+}
 
-            let commit_reader = CommitReader::new(local_repo)?;
-            let merger = Merger::new(local_repo)?;
+fn commits_to_push_are_synced(
+    local_repo: &LocalRepository,
+    local_head: &Commit,
+    remote_head: &Commit,
+) -> Result<bool, OxenError> {
+    let commit_reader = CommitReader::new(local_repo)?;
+    let merger = Merger::new(local_repo)?;
 
-            let commits_to_push =
-                merger.list_commits_between_commits(&commit_reader, remote_head, local_head)?;
+    let commits_to_push =
+        merger.list_commits_between_commits(&commit_reader, remote_head, local_head)?;
 
-            let commits_to_push: Vec<Commit> = commits_to_push
-                .into_iter()
-                .filter(|commit| {
-                    !remote_history
-                        .iter()
-                        .any(|remote_commit| remote_commit.id == commit.id)
-                })
-                .collect();
+    log::debug!("got commits to push {:?}", commits_to_push);
 
-            log::debug!("Found the following commits_to_push: {:?}", commits_to_push);
-            // Ensure all `commits_to_push` are synced
-            for commit in commits_to_push {
-                if !index::commit_sync_status::commit_is_synced(local_repo, &commit) {
-                    return Ok(true);
-                }
-            }
+    for commit in commits_to_push {
+        if !index::commit_sync_status::commit_is_synced(local_repo, &commit) {
+            log::debug!("commit is not synced {:?}", commit);
+            return Ok(false);
         }
     }
 
-    Ok(false)
+    log::debug!("commits to push ARE synced!");
+
+    Ok(true)
 }
 
 async fn poll_until_synced(
