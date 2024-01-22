@@ -1,4 +1,4 @@
-from oxen import Dataset
+from oxen.dataset import Dataset
 import os
 
 
