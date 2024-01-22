@@ -44,8 +44,8 @@ pub use crate::view::repository::{
 };
 
 pub use crate::view::entry::{
-    EntryResponse, PaginatedDirEntries, PaginatedDirEntriesResponse, PaginatedEntries,
-    RemoteEntryResponse,
+    CommitEntryVersion, EntryResponse, PaginatedDirEntries, PaginatedDirEntriesResponse,
+    PaginatedEntries, PaginatedEntryVersions, PaginatedEntryVersionsResponse, RemoteEntryResponse,
 };
 
 pub use crate::view::commit::{

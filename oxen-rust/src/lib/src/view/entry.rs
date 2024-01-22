@@ -1,7 +1,9 @@
-use crate::model::{metadata::MetadataDir, CommitEntry, MetadataEntry, RemoteEntry};
+use std::path::PathBuf;
+
+use crate::model::{metadata::MetadataDir, Branch, CommitEntry, MetadataEntry, RemoteEntry};
 use serde::{Deserialize, Serialize};
 
-use super::StatusMessage;
+use super::{Pagination, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct EntryResponse {
@@ -43,6 +45,21 @@ pub struct PaginatedEntries {
     pub total_entries: usize,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct PaginatedMetadataEntries {
+    pub entries: Vec<MetadataEntry>,
+    #[serde(flatten)]
+    pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct PaginatedMetadataEntriesResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    #[serde(flatten)]
+    pub entries: PaginatedMetadataEntries,
+}
+
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PaginatedDirEntries {
     pub entries: Vec<MetadataEntry>,
@@ -71,4 +88,33 @@ impl PaginatedDirEntriesResponse {
             dir,
         }
     }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct BranchEntryVersion {
+    pub branch: Branch,
+    pub resource: ResourceVersion,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CommitEntryVersion {
+    pub commit: crate::model::Commit,
+    pub resource: ResourceVersion,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct PaginatedEntryVersions {
+    pub versions: Vec<CommitEntryVersion>,
+    #[serde(flatten)]
+    pub pagination: Pagination,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct PaginatedEntryVersionsResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    #[serde(flatten)]
+    pub versions: PaginatedEntryVersions,
+    pub branch: Branch,
+    pub path: PathBuf,
 }

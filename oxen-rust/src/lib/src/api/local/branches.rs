@@ -3,10 +3,15 @@
 //! Interact with branches on your local machine.
 //!
 
+use std::collections::HashSet;
+use std::path::Path;
+
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
-use crate::core::index::{CommitReader, CommitWriter, EntryIndexer, RefReader, RefWriter};
+use crate::core::index::{
+    CommitEntryReader, CommitReader, CommitWriter, EntryIndexer, RefReader, RefWriter,
+};
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, LocalRepository, RemoteBranch};
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch};
 use crate::{api, util};
 
 /// List all the local branches within a repo
@@ -382,8 +387,222 @@ pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(
     }
 }
 
+// Traces through a branches history to list all unique versions of a file
+pub fn list_entry_versions_on_branch(
+    local_repo: &LocalRepository,
+    branch_name: &str,
+    path: &Path,
+) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
+    let branch = api::local::branches::get_by_name(local_repo, branch_name)?
+        .ok_or(OxenError::local_branch_not_found(branch_name))?;
+    let commit_reader = CommitReader::new(local_repo)?;
+
+    let root_commit = commit_reader.root_commit()?;
+    let mut branch_commits =
+        commit_reader.history_from_base_to_head(&root_commit.id, &branch.commit_id)?;
+
+    // Sort on timestamp oldest to newest
+    branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    log::debug!(
+        "got branch commits {:#?} for branch {:?}",
+        branch_commits,
+        branch.name
+    );
+
+    let mut result: Vec<(Commit, CommitEntry)> = Vec::new();
+    let mut seen_hashes: HashSet<String> = HashSet::new();
+
+    for commit in branch_commits {
+        let entry_reader = CommitEntryReader::new(local_repo, &commit)?;
+        let entry = entry_reader.get_entry(path)?;
+
+        if let Some(entry) = entry {
+            log::debug!("found entry {} for commit: {}", path.display(), commit.id);
+            if !seen_hashes.contains(&entry.hash) {
+                seen_hashes.insert(entry.hash.clone());
+                result.push((commit, entry));
+            }
+        } else {
+            log::debug!(
+                "did not find entry {} for commit: {}",
+                path.display(),
+                commit.id
+            );
+        }
+    }
+
+    result.reverse();
+
+    Ok(result)
+}
+
 fn branch_name_no_slashes(name: &str) -> String {
     // Replace all slashes with dashes
 
     name.replace('/', "-")
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use crate::api;
+    use crate::command;
+    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::core;
+    use crate::error::OxenError;
+    use crate::test;
+    use crate::util;
+
+    #[test]
+    fn test_list_branch_versions_main() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Make a dir
+            let dir_path = Path::new("test_dir");
+            let dir_repo_path = repo.path.join(dir_path);
+            util::fs::create_dir_all(&dir_repo_path)?;
+
+            // File in the dir
+            let file_path = dir_path.join(Path::new("test_file.txt"));
+            let file_repo_path = repo.path.join(&file_path);
+            util::fs::write_to_path(&file_repo_path, "test")?;
+
+            // Add the dir
+            command::add(&repo, &repo.path)?;
+            let commit_1 = command::commit(&repo, "adding test dir")?;
+
+            // New file in root
+            let file_path_2 = Path::new("test_file_2.txt");
+            let file_repo_path_2 = repo.path.join(&file_path_2);
+            util::fs::write_to_path(&file_repo_path_2, "test")?;
+
+            // Add the file
+            command::add(&repo, &file_repo_path_2)?;
+            let commit_2 = command::commit(&repo, "adding test file")?;
+
+            // Now modify both files, add a third
+            let file_path_3 = Path::new("test_file_3.txt");
+            let file_repo_path_3 = repo.path.join(&file_path_3);
+
+            util::fs::write_to_path(&file_repo_path_3, "test 3")?;
+            util::fs::write_to_path(&file_repo_path_2, "something different now")?;
+            util::fs::write_to_path(&file_repo_path, "something different now")?;
+
+            // Add-commit all
+            command::add(&repo, &repo.path)?;
+
+            let commit_3 = command::commit(&repo, "adding test file 2")?;
+
+            let branch = api::local::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();
+
+            let file_versions =
+                api::local::branches::list_entry_versions_on_branch(&repo, "main", &file_path)?;
+
+            let file_2_versions = api::local::branches::list_entry_versions_on_branch(
+                &repo,
+                "main",
+                &file_path_2.to_path_buf(),
+            )?;
+
+            let file_3_versions = api::local::branches::list_entry_versions_on_branch(
+                &repo,
+                "main",
+                &file_path_3.to_path_buf(),
+            )?;
+
+            assert_eq!(file_versions.len(), 2);
+            assert_eq!(file_versions[0].0.id, commit_3.id);
+            assert_eq!(file_versions[1].0.id, commit_1.id);
+
+            assert_eq!(file_2_versions.len(), 2);
+            assert_eq!(file_2_versions[0].0.id, commit_3.id);
+            assert_eq!(file_2_versions[1].0.id, commit_2.id);
+
+            assert_eq!(file_3_versions.len(), 1);
+            assert_eq!(file_3_versions[0].0.id, commit_3.id);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_list_branch_versions_branch_off_main() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            let dir_path = Path::new("test_dir");
+            std::fs::create_dir_all(repo.path.join(dir_path))?;
+
+            let file_path = dir_path.join(Path::new("test_file.txt"));
+            let file_repo_path = repo.path.join(&file_path);
+
+            // STARTING ON MAIN
+
+            // Write initial file
+            util::fs::write_to_path(&file_repo_path, "test")?;
+            command::add(&repo, &repo.path)?;
+            let commit_1 = command::commit(&repo, "adding test file")?;
+
+            // Change it
+            util::fs::write_to_path(&file_repo_path, "something different now")?;
+            command::add(&repo, &repo.path)?;
+            let commit_2 = command::commit(&repo, "adding test file 2")?;
+
+            // Add an irrelevant file - aka this isn't changing for commit 3
+            let file_path_2 = Path::new("test_file_2.txt");
+            let file_repo_path_2 = repo.path.join(&file_path_2);
+            util::fs::write_to_path(&file_repo_path_2, "test")?;
+            command::add(&repo, &repo.path)?;
+            let _commit_3 = command::commit(&repo, "adding test file 3")?;
+
+            // Branch off of main
+            api::local::branches::create_checkout(&repo, "test_branch")?;
+
+            // Change the file again
+            util::fs::write_to_path(&file_repo_path, "something different now again")?;
+            command::add(&repo, &repo.path)?;
+            let commit_4 = command::commit(&repo, "adding test file 4")?;
+
+            // One more time on branch
+            util::fs::write_to_path(&file_repo_path, "something different now again again")?;
+            command::add(&repo, &repo.path)?;
+            let commit_5 = command::commit(&repo, "adding test file 5")?;
+
+            // Back to main - hacky to avoid async checkout
+            {
+                let ref_writer = core::index::RefWriter::new(&repo)?;
+                ref_writer.set_head(DEFAULT_BRANCH_NAME);
+            }
+
+            // Another commit
+            util::fs::write_to_path(&file_repo_path, "something different now again again again")?;
+            command::add(&repo, &repo.path)?;
+            let commit_6 = command::commit(&repo, "adding test file 6")?;
+
+            let main = api::local::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();
+            let branch = api::local::branches::get_by_name(&repo, "test_branch")?.unwrap();
+            let main_versions =
+                api::local::branches::list_entry_versions_on_branch(&repo, "main", &file_path)?;
+
+            let branch_versions = api::local::branches::list_entry_versions_on_branch(
+                &repo,
+                "test_branch",
+                &file_path.to_path_buf(),
+            )?;
+
+            // Main should have commits 6, 2, and 1.
+            assert_eq!(main_versions.len(), 3);
+            assert_eq!(main_versions[0].0.id, commit_6.id);
+            assert_eq!(main_versions[1].0.id, commit_2.id);
+            assert_eq!(main_versions[2].0.id, commit_1.id);
+
+            // Branch should have commits 5, 4, 2, and 1.
+            assert_eq!(branch_versions.len(), 4);
+            assert_eq!(branch_versions[0].0.id, commit_5.id);
+            assert_eq!(branch_versions[1].0.id, commit_4.id);
+            assert_eq!(branch_versions[2].0.id, commit_2.id);
+            assert_eq!(branch_versions[3].0.id, commit_1.id);
+
+            Ok(())
+        })
+    }
 }
