@@ -7,7 +7,7 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::core::df::tabular;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
-use liboxen::view::schema::SchemaWithPath;
+use liboxen::view::schema::{SchemaResponse, SchemaWithPath};
 use liboxen::{api, util};
 
 use actix_web::{HttpRequest, HttpResponse};
@@ -111,4 +111,26 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
         resource: None,
     };
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_by_hash(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let hash = path_param(&req, "hash")?;
+
+    let maybe_schema = api::local::schemas::get_by_hash(&repo, hash)?;
+
+    if let Some(schema) = maybe_schema {
+        let response = SchemaResponse {
+            status: StatusMessage::resource_found(),
+            schema,
+        };
+        Ok(HttpResponse::Ok().json(response))
+    } else {
+        Err(OxenHttpError::NotFound)
+    }
 }
