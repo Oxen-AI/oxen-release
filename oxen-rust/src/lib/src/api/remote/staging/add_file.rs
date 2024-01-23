@@ -23,7 +23,12 @@ pub async fn add_file(
         .into_string()
         .ok()
         .unwrap();
-    let file = std::fs::read(&path).unwrap();
+
+    let Ok(file) = std::fs::read(&path) else {
+        let err = format!("Error reading file at path: {path:?}");
+        return Err(OxenError::basic_str(err));
+    };
+
     let file_part = reqwest::multipart::Part::bytes(file).file_name(file_name);
     let form = reqwest::multipart::Form::new().part("file", file_part);
     let client = client::new_for_url(&url)?;
