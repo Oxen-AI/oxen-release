@@ -100,6 +100,7 @@ pub struct BranchEntryVersion {
 pub struct CommitEntryVersion {
     pub commit: crate::model::Commit,
     pub resource: ResourceVersion,
+    pub schema_hash: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug)]

@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::api;
+use crate::{api, util};
 
 use crate::core::index::SchemaReader;
 use crate::error::OxenError;
@@ -67,5 +67,16 @@ pub fn get_by_path_from_ref(
         schema_reader.get_schema_for_file(path)
     } else {
         Err(OxenError::revision_not_found(revision.into()))
+    }
+}
+
+pub fn get_by_hash(repo: &LocalRepository, hash: String) -> Result<Option<Schema>, OxenError> {
+    let version_path = util::fs::version_path_from_schema_hash(repo.path.clone(), hash);
+    // Read schema from that path
+    if version_path.exists() {
+        let schema: Schema = serde_json::from_reader(std::fs::File::open(version_path)?)?;
+        Ok(Some(schema))
+    } else {
+        Ok(None)
     }
 }
