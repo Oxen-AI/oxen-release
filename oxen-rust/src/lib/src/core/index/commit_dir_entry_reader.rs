@@ -132,13 +132,13 @@ impl CommitDirEntryReader {
 
     pub fn has_file<P: AsRef<Path>>(&self, path: P) -> bool {
         let full_path = self.dir.join(path.as_ref());
-        let path_hash_prefix = util::hasher::hash_path(&full_path)[0..2].to_string();
+        let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
 
-        log::debug!(
-            "has_file looking for this path hash prefix {:?} for {:?}",
-            path_hash_prefix,
-            full_path
-        );
+        // log::debug!(
+        //     "has_file looking for this path hash prefix {:?} for {:?}",
+        //     path_hash_prefix,
+        //     full_path
+        // );
 
         // Binary search for the appropriate vnode
         let vnode_child = self
@@ -177,7 +177,7 @@ impl CommitDirEntryReader {
             return false;
         };
 
-        log::debug!("has_file found file {:?}", file);
+        // log::debug!("has_file found file {:?}", file);
 
         matches!(file, TreeObjectChild::File { .. })
     }

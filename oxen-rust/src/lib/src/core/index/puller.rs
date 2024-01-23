@@ -33,7 +33,7 @@ pub async fn pull_entries(
     }
 
     let missing_entries = get_missing_entries(entries, &dst);
-    log::debug!("Pulling missing entries {:?}", missing_entries);
+    // log::debug!("Pulling missing entries {:?}", missing_entries);
 
     if missing_entries.is_empty() {
         return Ok(());
