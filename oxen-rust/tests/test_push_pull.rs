@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use liboxen::api;
-use liboxen::api::remote;
+
 use liboxen::command;
 use liboxen::constants;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
