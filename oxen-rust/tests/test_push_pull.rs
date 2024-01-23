@@ -1,6 +1,7 @@
 use std::path::Path;
 
 use liboxen::api;
+use liboxen::api::remote;
 use liboxen::command;
 use liboxen::constants;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
@@ -636,6 +637,55 @@ async fn test_push_pull_moved_files() -> Result<(), OxenError> {
             // Pull down this removal
             let repo_dir = repo_dir.join("repoo");
             let _cloned_repo = command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+            Ok(repo_dir)
+        })
+        .await?;
+
+        Ok(remote_repo_copy)
+    })
+    .await
+}
+
+#[tokio::test]
+async fn test_push_new_branch_default_clone() -> Result<(), OxenError> {
+    test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        let remote_repo_copy = remote_repo.clone();
+        test::run_empty_dir_test_async(|repo_dir| async move {
+            // Clone the remote repo
+            let repo_dir = repo_dir.join("repoo");
+            let cloned_repo = command::clone_url(&remote_repo.remote.url, &repo_dir).await?;
+
+            // Create-checkout a new branch
+            let branch_name = "new-branch";
+            command::create_checkout(&cloned_repo, branch_name)?;
+
+            // Add a file
+            let contents = "this is the file";
+            let path = &cloned_repo.path.join("a.txt");
+            test::write_txt_file_to_path(path, contents)?;
+
+            command::add(&cloned_repo, path)?;
+            let commit = command::commit(&cloned_repo, "Adding file for first time")?;
+
+            // Try to push upstream branch
+            let push_result = command::push_remote_branch(
+                &cloned_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await;
+
+            log::debug!("Push result: {:?}", push_result);
+
+            assert!(push_result.is_ok());
+
+            // Get the remote branch
+            let remote_branch = api::remote::branches::get_by_name(&remote_repo, branch_name)
+                .await?
+                .unwrap();
+
+            assert_eq!(remote_branch.commit_id, commit.id);
+
             Ok(repo_dir)
         })
         .await?;

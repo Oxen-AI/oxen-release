@@ -69,6 +69,44 @@ pub async fn get_by_id(
     }
 }
 
+pub async fn list_all(remote_repo: &RemoteRepository) -> Result<Vec<Commit>, OxenError> {
+    let mut all_commits: Vec<Commit> = Vec::new();
+    let mut page_num = DEFAULT_PAGE_NUM;
+    let page_size = 100;
+
+    let bar = Arc::new(ProgressBar::new_spinner());
+    bar.set_style(ProgressStyle::default_spinner());
+
+    loop {
+        let page_opts = PaginateOpts {
+            page_num,
+            page_size,
+        };
+        match list_all_commits_paginated(remote_repo, &page_opts).await {
+            Ok(paginated_commits) => {
+                if page_num == DEFAULT_PAGE_NUM {
+                    let bar = oxify_bar(bar.clone(), ProgressBarType::Counter);
+                    bar.set_length(paginated_commits.pagination.total_entries as u64);
+                }
+                let n_commits = paginated_commits.commits.len();
+                all_commits.extend(paginated_commits.commits);
+                bar.inc(n_commits as u64);
+                if page_num < paginated_commits.pagination.total_pages {
+                    page_num += 1;
+                } else {
+                    break;
+                }
+            }
+            Err(err) => {
+                return Err(err);
+            }
+        }
+    }
+    bar.finish_and_clear();
+
+    Ok(all_commits)
+}
+
 pub async fn list_commit_history(
     remote_repo: &RemoteRepository,
     revision: &str,
@@ -118,6 +156,33 @@ async fn list_commit_history_paginated(
     let page_num = page_opts.page_num;
     let page_size = page_opts.page_size;
     let uri = format!("/commits/{revision}/history?page={page_num}&page_size={page_size}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            let response: Result<PaginatedCommits, serde_json::Error> = serde_json::from_str(&body);
+            match response {
+                Ok(j_res) => Ok(j_res),
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "list_commit_history() Could not deserialize response [{err}]\n{body}"
+                ))),
+            }
+        }
+        Err(err) => Err(OxenError::basic_str(format!(
+            "list_commit_history() Request failed: {err}"
+        ))),
+    }
+}
+
+async fn list_all_commits_paginated(
+    remote_repo: &RemoteRepository,
+    page_opts: &PaginateOpts,
+) -> Result<PaginatedCommits, OxenError> {
+    let page_num = page_opts.page_num;
+    let page_size = page_opts.page_size;
+    let uri = format!("/commits/all?page={page_num}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
