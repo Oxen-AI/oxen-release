@@ -6,9 +6,9 @@ use crate::params::{app_data, path_param, PageNumQuery};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
-use liboxen::core::index::Merger;
+use liboxen::core::index::{Merger, SchemaReader};
 use liboxen::error::OxenError;
-use liboxen::util::paginate;
+use liboxen::util::{self, paginate};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
@@ -269,12 +269,28 @@ pub async fn list_entry_versions(
     let mut commit_versions: Vec<CommitEntryVersion> = Vec::new();
 
     for (commit, entry) in commits_with_versions {
+        // For each version, get the schema hash if one exists.
+        let maybe_schema_hash = if util::fs::is_tabular(&entry.path) {
+            let schema_reader = SchemaReader::new(&repo, &commit.id)?;
+            let maybe_schema = schema_reader.get_schema_for_file(&entry.path)?;
+            match maybe_schema {
+                Some(schema) => Some(schema.hash),
+                None => {
+                    log::error!("Could not get schema for tabular file {:?}", entry.path);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         commit_versions.push(CommitEntryVersion {
             commit: commit.clone(),
             resource: ResourceVersion {
                 version: commit.id.clone(),
                 path: entry.path.to_string_lossy().into(),
             },
+            schema_hash: maybe_schema_hash,
         });
     }
 
