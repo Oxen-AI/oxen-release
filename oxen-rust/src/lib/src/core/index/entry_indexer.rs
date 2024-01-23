@@ -753,7 +753,7 @@ impl EntryIndexer {
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(entry.path());
                 if versioner::should_unpack_entry(entry, &filepath) {
-                    log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
+                    // log::debug!("pull_entries_for_commit unpack {:?}", entry.path());
                     let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
                         Ok(_) => {}
@@ -919,7 +919,7 @@ impl EntryIndexer {
                     })
             })
         {
-            log::debug!("cleanup_removed_entries : {:?}", dir_entry_result);
+            // log::debug!("cleanup_removed_entries : {:?}", dir_entry_result);
             match dir_entry_result {
                 Ok(dir_entry) => {
                     if let Some(was_removed) = &dir_entry.client_state {
