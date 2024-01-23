@@ -499,17 +499,11 @@ mod tests {
             let file_versions =
                 api::local::branches::list_entry_versions_on_branch(&repo, "main", &file_path)?;
 
-            let file_2_versions = api::local::branches::list_entry_versions_on_branch(
-                &repo,
-                "main",
-                file_path_2,
-            )?;
+            let file_2_versions =
+                api::local::branches::list_entry_versions_on_branch(&repo, "main", file_path_2)?;
 
-            let file_3_versions = api::local::branches::list_entry_versions_on_branch(
-                &repo,
-                "main",
-                file_path_3,
-            )?;
+            let file_3_versions =
+                api::local::branches::list_entry_versions_on_branch(&repo, "main", file_path_3)?;
 
             assert_eq!(file_versions.len(), 2);
             assert_eq!(file_versions[0].0.id, commit_3.id);

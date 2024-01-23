@@ -597,7 +597,11 @@ pub async fn download_commit_entries_db_to_path(
                 if let Some(parent) = full_unpacked_path.parent() {
                     std::fs::create_dir_all(parent)?;
                 } else {
-                    log::error!("{} no parent found for {:?}", current_function!(), full_unpacked_path);
+                    log::error!(
+                        "{} no parent found for {:?}",
+                        current_function!(),
+                        full_unpacked_path
+                    );
                 }
             }
 
