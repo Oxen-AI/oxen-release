@@ -461,7 +461,7 @@ mod tests {
             // Make a dir
             let dir_path = Path::new("test_dir");
             let dir_repo_path = repo.path.join(dir_path);
-            util::fs::create_dir_all(&dir_repo_path)?;
+            util::fs::create_dir_all(dir_repo_path)?;
 
             // File in the dir
             let file_path = dir_path.join(Path::new("test_file.txt"));
@@ -474,7 +474,7 @@ mod tests {
 
             // New file in root
             let file_path_2 = Path::new("test_file_2.txt");
-            let file_repo_path_2 = repo.path.join(&file_path_2);
+            let file_repo_path_2 = repo.path.join(file_path_2);
             util::fs::write_to_path(&file_repo_path_2, "test")?;
 
             // Add the file
@@ -483,9 +483,9 @@ mod tests {
 
             // Now modify both files, add a third
             let file_path_3 = Path::new("test_file_3.txt");
-            let file_repo_path_3 = repo.path.join(&file_path_3);
+            let file_repo_path_3 = repo.path.join(file_path_3);
 
-            util::fs::write_to_path(&file_repo_path_3, "test 3")?;
+            util::fs::write_to_path(file_repo_path_3, "test 3")?;
             util::fs::write_to_path(&file_repo_path_2, "something different now")?;
             util::fs::write_to_path(&file_repo_path, "something different now")?;
 
@@ -494,7 +494,7 @@ mod tests {
 
             let commit_3 = command::commit(&repo, "adding test file 2")?;
 
-            let branch = api::local::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();
+            let _branch = api::local::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();
 
             let file_versions =
                 api::local::branches::list_entry_versions_on_branch(&repo, "main", &file_path)?;
@@ -502,13 +502,13 @@ mod tests {
             let file_2_versions = api::local::branches::list_entry_versions_on_branch(
                 &repo,
                 "main",
-                &file_path_2.to_path_buf(),
+                file_path_2,
             )?;
 
             let file_3_versions = api::local::branches::list_entry_versions_on_branch(
                 &repo,
                 "main",
-                &file_path_3.to_path_buf(),
+                file_path_3,
             )?;
 
             assert_eq!(file_versions.len(), 2);
@@ -549,8 +549,8 @@ mod tests {
 
             // Add an irrelevant file - aka this isn't changing for commit 3
             let file_path_2 = Path::new("test_file_2.txt");
-            let file_repo_path_2 = repo.path.join(&file_path_2);
-            util::fs::write_to_path(&file_repo_path_2, "test")?;
+            let file_repo_path_2 = repo.path.join(file_path_2);
+            util::fs::write_to_path(file_repo_path_2, "test")?;
             command::add(&repo, &repo.path)?;
             let _commit_3 = command::commit(&repo, "adding test file 3")?;
 
@@ -578,8 +578,8 @@ mod tests {
             command::add(&repo, &repo.path)?;
             let commit_6 = command::commit(&repo, "adding test file 6")?;
 
-            let main = api::local::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();
-            let branch = api::local::branches::get_by_name(&repo, "test_branch")?.unwrap();
+            let _main = api::local::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();
+            let _branch = api::local::branches::get_by_name(&repo, "test_branch")?.unwrap();
             let main_versions =
                 api::local::branches::list_entry_versions_on_branch(&repo, "main", &file_path)?;
 
