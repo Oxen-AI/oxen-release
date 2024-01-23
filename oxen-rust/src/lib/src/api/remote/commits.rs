@@ -594,11 +594,12 @@ pub async fn download_commit_entries_db_to_path(
                 util::fs::remove_dir_all(&full_unpacked_path)?;
             } else {
                 log::debug!("{} creating {:?}", current_function!(), full_unpacked_path);
-                std::fs::create_dir_all(&full_unpacked_path)?;
+                std::fs::create_dir_all(&full_unpacked_path.parent().unwrap())?;
             }
 
             // Move the tmp path to the full path
             log::debug!("renaming {:?} to {:?}", tmp_path, full_unpacked_path);
+
             std::fs::rename(
                 tmp_path.join(HISTORY_DIR).join(commit_id),
                 &full_unpacked_path,
