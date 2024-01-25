@@ -152,6 +152,7 @@ pub async fn create_remote(
     name: impl AsRef<str>,
     host: impl AsRef<str>,
     empty: bool,
+    is_public: bool,
 ) -> Result<(), OxenError> {
     let namespace = namespace.as_ref();
     let name = name.as_ref();
@@ -159,6 +160,7 @@ pub async fn create_remote(
     if empty {
         let mut repo_new = RepoNew::from_namespace_name(namespace, name);
         repo_new.host = Some(String::from(host));
+        repo_new.is_public = Some(is_public);
         let remote_repo = api::remote::repositories::create_empty(repo_new).await?;
         println!(
             "🎉 Remote successfully created for '{}/{}' if this is a brand new repository:\n\n  oxen clone {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote origin {}\n",
@@ -218,6 +220,7 @@ Happy Mooooooving of data 🐂
         }];
         let mut repo = RepoNew::from_files(namespace, name, files);
         repo.host = Some(String::from(host));
+        repo.is_public = Some(is_public);
 
         let remote_repo = api::remote::repositories::create(repo).await?;
         println!(
