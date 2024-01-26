@@ -6,7 +6,7 @@ use std::fs::File;
 use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
-use xxhash_rust::xxh3::xxh3_128;
+use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 
 pub fn hash_buffer(buffer: &[u8]) -> String {
     let val = xxh3_128(buffer);
@@ -85,6 +85,18 @@ pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
 }
 
 pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
+    // If file is < 1GB, one-shot hash for speed
+    // If file is > 1GB, stream hash to avoid memory overage issues
+    let file_size = std::fs::metadata(path)?.len();
+
+    if file_size < 1_000_000_000 {
+        hash_small_file_contents(path)
+    } else {
+        hash_large_file_contents(path)
+    }
+}
+
+fn hash_small_file_contents(path: &Path) -> Result<String, OxenError> {
     match File::open(path) {
         Ok(file) => {
             let mut reader = BufReader::new(file);
@@ -108,29 +120,31 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
     }
 }
 
-pub fn hash_file_contents_128bit(path: &Path) -> Result<u128, OxenError> {
-    match File::open(path) {
-        Ok(file) => {
-            let mut reader = BufReader::new(file);
-            let mut buffer = Vec::new();
-            match reader.read_to_end(&mut buffer) {
-                Ok(_) => {
-                    let result = hash_buffer_128bit(&buffer);
-                    Ok(result)
-                }
-                Err(_) => {
-                    eprintln!("Could not read file to end {path:?}");
-                    Err(OxenError::basic_str("Could not read file to end"))
-                }
-            }
+fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
+    let file = File::open(path).map_err(|err| {
+        eprintln!("Could not open file {:?} due to {:?}", path, err);
+        OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path, err))
+    })?;
+
+    let mut reader = BufReader::new(file);
+    let mut hasher = Xxh3::new();
+    let mut buffer = [0; 4096];
+
+    loop {
+        let count = reader.read(&mut buffer).map_err(|_| {
+            eprintln!("Could not read file to end {:?}", path);
+            OxenError::basic_str("Could not read file to end")
+        })?;
+
+        if count == 0 {
+            break;
         }
-        Err(err) => {
-            let err = format!(
-                "util::hasher::hash_file_contents_128bit Could not open file {path:?} {err:?}"
-            );
-            Err(OxenError::basic_str(err))
-        }
+
+        hasher.update(&buffer[..count]);
     }
+
+    let result = hasher.digest128();
+    Ok(format!("{result:x}"))
 }
 
 pub fn hash_path<P: AsRef<Path>>(path: P) -> String {
