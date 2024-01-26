@@ -1215,7 +1215,6 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                         let hash_dir = version_path.parent().unwrap();
                         let hash_file = hash_dir.join(HASH_FILE);
                         let hash = util::hasher::hash_file_contents(&version_path).unwrap();
-
                         util::fs::write_to_path(&hash_file, &hash)
                             .expect("Could not write hash file");
                     } else if path.starts_with(OBJECTS_DIR) {

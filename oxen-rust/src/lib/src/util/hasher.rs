@@ -107,8 +107,8 @@ fn hash_small_file_contents(path: &Path) -> Result<String, OxenError> {
                     Ok(result)
                 }
                 Err(_) => {
-                    eprintln!("Could not read file to end {path:?}");
-                    Err(OxenError::basic_str("Could not read file to end"))
+                    eprintln!("Could not read file for hashing {path:?}");
+                    Err(OxenError::basic_str("Could not read file for hashing"))
                 }
             }
         }
@@ -132,8 +132,8 @@ fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
 
     loop {
         let count = reader.read(&mut buffer).map_err(|_| {
-            eprintln!("Could not read file to end {:?}", path);
-            OxenError::basic_str("Could not read file to end")
+            eprintln!("Could not read file for hashing {:?}", path);
+            OxenError::basic_str("Could not read file for hashing")
         })?;
 
         if count == 0 {
