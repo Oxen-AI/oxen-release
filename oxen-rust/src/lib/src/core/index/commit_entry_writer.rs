@@ -836,13 +836,6 @@ impl CommitEntryWriter {
             }
         }
 
-        // Sort by component count to work bottom-up
-        dirs.sort_by(|a, b| {
-            let a_count = a.components().count();
-            let b_count = b.components().count();
-            b_count.cmp(&a_count)
-        });
-
         // iterate over unaffected dirs and get their hashes from the parent commit and copy them over to the new commit
         // If the dir is not in the parent commit, log an error and add it to affected_dirs
         for dir in unaffected_dirs {
@@ -854,14 +847,22 @@ impl CommitEntryWriter {
                     "Found a directory in dirs db not present in parent commit: {:?}",
                     dir
                 );
-                affected_dirs.insert(dir.clone());
+                dirs.push(dir.clone());
             }
         }
+
+        // Sort by component count to work bottom-up
+        dirs.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
 
         // These dirs are sorted by descending component count, so we can work bottom up
         for dir in dirs {
             self.process_affected_dir(dir.to_path_buf(), &parent_hash_db, &staged_entries_map)?;
         }
+
         Ok(())
     }
 
