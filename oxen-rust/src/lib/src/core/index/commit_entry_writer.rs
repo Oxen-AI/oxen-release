@@ -395,7 +395,7 @@ impl CommitEntryWriter {
             }
         }
 
-        // Also recomepute for staged schemas
+        // Also recompute for staged schemas
         for (path, _schema) in staged_data.staged_schemas.iter() {
             let mut current_path = PathBuf::new();
             for component in path.iter() {
@@ -805,13 +805,6 @@ impl CommitEntryWriter {
         parent_commit_id: String,
         origin_path: &Path,
     ) -> Result<(), OxenError> {
-        // Step 1: Sort affected dirs by their component count
-        dirs.sort_by(|a, b| {
-            let a_count = a.components().count();
-            let b_count = b.components().count();
-            b_count.cmp(&a_count)
-        });
-
         let parent_hash_db_dir =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &parent_commit_id);
         let parent_hash_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
@@ -844,21 +837,32 @@ impl CommitEntryWriter {
         }
 
         // iterate over unaffected dirs and get their hashes from the parent commit and copy them over to the new commit
+        // If the dir is not in the parent commit, log an error and add it to affected_dirs
         for dir in unaffected_dirs {
-            log::debug!("checking unaffected dir {:?}", dir);
             let prev_dir_hash: Option<String> = path_db::get_entry(&parent_hash_db, dir.clone())?;
             if let Some(prev_hash) = prev_dir_hash {
-                log::debug!("Found some prev_dir_hash");
                 path_db::put(&self.dir_hashes_db, dir.clone(), &prev_hash)?;
             } else {
-                panic!("Found an unaffected dir that doesn't exist in the parent commit")
+                log::error!(
+                    "Found a directory in dirs db not present in parent commit: {:?}",
+                    dir
+                );
+                dirs.push(dir.clone());
             }
         }
+
+        // Sort by component count to work bottom-up
+        dirs.sort_by(|a, b| {
+            let a_count = a.components().count();
+            let b_count = b.components().count();
+            b_count.cmp(&a_count)
+        });
 
         // These dirs are sorted by descending component count, so we can work bottom up
         for dir in dirs {
             self.process_affected_dir(dir.to_path_buf(), &parent_hash_db, &staged_entries_map)?;
         }
+
         Ok(())
     }
 
