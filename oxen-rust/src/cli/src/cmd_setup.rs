@@ -114,11 +114,10 @@ pub fn create_remote() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("empty")
-                .long("empty")
-                .short('e')
-                .help("If present, it will create an empty remote that you need to push an initial commit to.")
-                .action(clap::ArgAction::SetFalse),
+            Arg::new("add_readme")
+                .long("add_readme")
+                .help("If present, it will create a README file and initial commit in the remote repo.")
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("is_public")

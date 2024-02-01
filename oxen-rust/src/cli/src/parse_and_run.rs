@@ -116,7 +116,7 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
 
     let namespace = parts[0];
     let name = parts[1];
-    let empty = sub_matches.get_flag("empty");
+    let empty = !sub_matches.get_flag("add_readme");
     let is_public = sub_matches.get_flag("is_public");
 
     match dispatch::create_remote(namespace, name, remote_host, empty, is_public).await {
