@@ -943,8 +943,15 @@ pub async fn pull(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn diff(sub_matches: &ArgMatches) {
+pub async fn remote_diff(sub_matches: &ArgMatches) {
+    log::debug!("in remote diff...");
     let is_remote = true;
+    p_diff(sub_matches, is_remote).await
+}
+
+pub async fn diff(sub_matches: &ArgMatches) {
+    log::debug!("parse and run diff");
+    let is_remote = false;
     p_diff(sub_matches, is_remote).await
 }
 
@@ -961,7 +968,7 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     let (file2, revision2) = match resource2 {
         Some(resource) => {
             let (file, revision) = parse_file_and_revision(resource);
-            (Some(PathBuf::from(file)), Some(revision))
+            (Some(PathBuf::from(file)), revision)
         }
         None => (None, None),
     };

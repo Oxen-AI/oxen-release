@@ -20,8 +20,22 @@ pub struct TabularCompare {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularCompareBody {
     pub compare_id: String,
-    pub left_resource: String,
-    pub right_resource: String,
-    pub keys: Vec<String>,
-    pub targets: Vec<String>,
+    pub left: TabularCompareResourceBody,
+    pub right: TabularCompareResourceBody,
+    pub keys: Vec<TabularCompareFieldBody>,
+    pub compare: Vec<TabularCompareFieldBody>,
+    pub display: Vec<TabularCompareFieldBody>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareResourceBody {
+    pub path: String,
+    pub version: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareFieldBody {
+    pub left: String,
+    pub right: String,
+    pub alias: Option<String>,
 }
