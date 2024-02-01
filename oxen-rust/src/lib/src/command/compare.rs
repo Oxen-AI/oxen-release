@@ -13,8 +13,9 @@ pub fn compare(
     keys: Vec<String>,
     targets: Vec<String>,
     output: Option<PathBuf>,
-) -> Result<(), OxenError> {
+) -> Result<String, OxenError> {
     // TODONOW - anything we can clean up with this mut initialization?
+    log::debug!("in the compare...");
     let mut compare_entry_1 = CompareEntry {
         commit_entry: None,
         path: cpath_1.path.clone(),
@@ -64,10 +65,11 @@ pub fn compare(
         output,
     )?;
 
+    log::debug!("compare result: {:?}", compare_result);
+
     let text = match compare_result {
         CompareResult::Tabular((_, text)) => text,
         CompareResult::Text(text) => text,
     };
-    println!("{}", text);
-    Ok(())
+    Ok(text)
 }

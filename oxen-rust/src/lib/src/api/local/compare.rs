@@ -44,6 +44,7 @@ pub fn compare_files(
     targets: Vec<String>,
     output: Option<PathBuf>,
 ) -> Result<CompareResult, OxenError> {
+    log::debug!("comparing files");
     // Assert that the files exist in their respective commits.
     let file_1 = get_version_file(repo, &compare_entry_1)?;
     let file_2 = get_version_file(repo, &compare_entry_2)?;

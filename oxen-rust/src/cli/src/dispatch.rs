@@ -519,12 +519,6 @@ pub async fn diff(
     let current_commit = api::local::commits::head_commit(&repository)?;
     // For revision_1 and revision_2, if none, set to current_commit
     // let revision_1 = revision_1.unwrap_or(current_commit.id.as_str());
-    // let revision_2 = revision_2.unwrap_or(current_commit.id.as_str());
-
-    let commit_1 = api::local::revisions::get(&repository, revision_1)?
-        .ok_or_else(|| OxenError::revision_not_found(revision_1.into()))?;
-    let commit_2 = api::local::revisions::get(&repository, revision_2)?
-        .ok_or_else(|| OxenError::revision_not_found(revision_2.into()))?;
 
     // TODONOW: might be able to clean this logic up - pull out into function so we can early return and be less confusing
     let (cpath_1, cpath_2) = if let Some(file_2) = file_2 {
