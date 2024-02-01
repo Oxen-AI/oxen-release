@@ -1,3 +1,9 @@
+# v0.10.14
+
+* Change --empty flag on `oxen create-remote` command, to default to create an empty repo and use `--add_readme` if you want to add a README
+
+# Sorry we got lazy...
+
 # v0.6.2
 
 ## Features/Fixes
@@ -72,9 +78,9 @@
 ## Features
 * Remote staging area
   * `oxen remote status`
-  * `oxen remote add file.png` 
+  * `oxen remote add file.png`
   * `oxen remote commit -m "committing without cloning data"`
-  * `oxen remote diff path/to/file.png` 
+  * `oxen remote diff path/to/file.png`
 * Remote DataFrame CLI interface
   * `oxen remote df annotations/train.csv`
   * `oxen remote df annotations/train.csv --add-row 'file.png,label'`
