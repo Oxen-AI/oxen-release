@@ -118,7 +118,7 @@ pub fn create_remote() -> Command {
                 .long("empty")
                 .short('e')
                 .help("If present, it will create an empty remote that you need to push an initial commit to.")
-                .action(clap::ArgAction::SetTrue),
+                .action(clap::ArgAction::SetFalse),
         )
         .arg(
             Arg::new("is_public")
