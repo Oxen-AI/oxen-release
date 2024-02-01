@@ -97,7 +97,7 @@ pub fn config() -> Command {
 
 pub fn create_remote() -> Command {
     Command::new(CREATE_REMOTE)
-        .about("Creates a remote repository with the name on the host. Default behavior is to create a remote on the hub.oxen.ai remote with a README file that contains the name of the repository.")
+        .about("Creates a remote repository with the name on the host. Default behavior is to create a remote on the hub.oxen.ai remote.")
         .arg(
             Arg::new("name")
                 .long("name")
