@@ -1,3 +1,8 @@
+# v0.10.15
+
+* fix tabular json file size computation
+* better error handling on metadata unwrap on push
+
 # v0.10.14
 
 * Change --empty flag on `oxen create-remote` command, to default to create an empty repo and use `--add_readme` if you want to add a README
