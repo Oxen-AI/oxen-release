@@ -84,14 +84,15 @@ impl PyRemoteRepo {
         self.revision = new_revision;
     }
 
-    fn create(&mut self, empty: bool) -> Result<PyRemoteRepo, PyOxenError> {
+    fn create(&mut self, empty: bool, is_public: bool) -> Result<PyRemoteRepo, PyOxenError> {
         let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
             if empty {
-                let repo = RepoNew::from_namespace_name_host(
+                let mut repo = RepoNew::from_namespace_name_host(
                     self.repo.namespace.clone(),
                     self.repo.name.clone(),
                     self.host.clone(),
                 );
+                repo.is_public = Some(is_public);
                 api::remote::repositories::create_empty(repo).await
             } else {
                 let config = UserConfig::get()?;
@@ -101,7 +102,8 @@ impl PyRemoteRepo {
                     contents: format!("# {}\n", &self.repo.name),
                     user: user.clone()
                 }];
-                let repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);
+                let mut repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);
+                repo.is_public = Some(is_public);
                 api::remote::repositories::create(repo).await
             }
         })?;
