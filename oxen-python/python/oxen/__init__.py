@@ -14,6 +14,7 @@ from oxen import auth
 from oxen import loaders
 from oxen.clone import clone
 from oxen.init import init
+from oxen.config import is_configured
 
 # Names of public modules we want to expose
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "Op",
     "clone",
     "init",
+    "is_configured",
     "RemoteRepo",
     "LocalRepo",
     "auth",
