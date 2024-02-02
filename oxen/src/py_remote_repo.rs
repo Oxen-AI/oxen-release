@@ -357,6 +357,7 @@ impl PyRemoteRepo {
             _ => Err(PyValueError::new_err("Could not get or create branch")),
         }
     }
+
     fn checkout(&mut self, revision: String) -> PyResult<()> {
         let branch = self.get_branch(revision.clone());
         if let Ok(branch) = branch {
