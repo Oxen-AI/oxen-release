@@ -27,6 +27,7 @@ use liboxen::util;
 use liboxen::util::oxen_version::OxenVersion;
 
 use colored::Colorize;
+use liboxen::view::compare::CompareResult;
 use liboxen::view::PaginatedDirEntries;
 use minus::Pager;
 use std::env;
@@ -569,7 +570,12 @@ pub async fn diff(
     let result = if is_remote {
         command::remote::diff(&repository, revision_1, &file_1).await?
     } else {
-        command::compare(&repository, cpath_1, cpath_2, keys, targets, output)?
+        let compare_result =
+            command::compare(&repository, cpath_1, cpath_2, keys, targets, output)?;
+        match compare_result {
+            CompareResult::Tabular((_tabular_compare, df)) => df.to_string(),
+            CompareResult::Text(text) => text,
+        }
     };
 
     println!("{result}");
