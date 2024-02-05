@@ -275,7 +275,6 @@ impl CommitDirEntryReader {
         page: usize,
         page_size: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        log::debug!("deleteme calling list_entry_page");
         // Don't have a skip here....
         let mut entries: Vec<CommitEntry> = Vec::new();
         let mut entry_i = 0;
@@ -331,8 +330,6 @@ impl CommitDirEntryReader {
         page_size: usize,
         offset: usize,
     ) -> Result<Vec<CommitEntry>, OxenError> {
-        log::debug!("deleteme calling list_entry_page_with_offset");
-
         // Apply logic from above here
         let mut entries: Vec<CommitEntry> = Vec::new();
         let start_page = if page == 0 { 0 } else { page - 1 };
