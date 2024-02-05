@@ -89,7 +89,7 @@ pub struct CompareSourceDF {
 
 #[derive(Debug)]
 pub enum CompareResult {
-    Tabular((CompareTabular, String)),
+    Tabular((CompareTabular, DataFrame)),
     Text(String),
 }
 

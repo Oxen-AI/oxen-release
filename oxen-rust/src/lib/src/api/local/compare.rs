@@ -13,7 +13,7 @@ use crate::view::schema::SchemaWithPath;
 use crate::{api, util};
 
 use polars::prelude::DataFrame;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 pub mod join_compare;
@@ -22,6 +22,13 @@ pub mod utf8_compare;
 pub enum CompareStrategy {
     Hash,
     Join,
+}
+
+#[derive(Debug, Clone)]
+pub struct SchemaDiff {
+    added_cols: Vec<String>,
+    removed_cols: Vec<String>,
+    unchanged_cols: Vec<String>,
 }
 
 const LEFT: &str = "left";
@@ -86,7 +93,7 @@ fn compare_tabular(
     keys: Vec<String>,
     targets: Vec<String>,
     output: Option<PathBuf>,
-) -> Result<(CompareTabular, String), OxenError> {
+) -> Result<(CompareTabular, DataFrame), OxenError> {
     let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
     let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
 
@@ -121,7 +128,7 @@ fn compare_tabular(
         &mut compare_tabular_raw,
     )?;
 
-    Ok((compare, compare_to_string(&compare_tabular_raw)))
+    Ok((compare, compare_tabular_raw.diff_df))
 }
 
 pub fn get_cached_compare(
@@ -178,16 +185,16 @@ pub fn get_cached_compare(
         path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
     };
 
-    let match_df = tabular::read_df(get_compare_match_path(repo, compare_id), DFOpts::empty())?;
+    // let match_df = tabular::read_df(get_compare_match_path(repo, compare_id), DFOpts::empty())?;
     let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
-    let left_only_df = tabular::read_df(get_compare_left_path(repo, compare_id), DFOpts::empty())?;
-    let right_only_df =
-        tabular::read_df(get_compare_right_path(repo, compare_id), DFOpts::empty())?;
+    // let left_only_df = tabular::read_df(get_compare_left_path(repo, compare_id), DFOpts::empty())?;
+    // let right_only_df =
+    //     tabular::read_df(get_compare_right_path(repo, compare_id), DFOpts::empty())?;
 
-    let match_schema = Schema::from_polars(&match_df.schema());
+    // let match_schema = Schema::from_polars(&match_df.schema());
     let diff_schema = Schema::from_polars(&diff_df.schema());
-    let left_only_schema = Schema::from_polars(&left_only_df.schema());
-    let right_only_schema = Schema::from_polars(&right_only_df.schema());
+    // let left_only_schema = Schema::from_polars(&left_only_df.schema());
+    // let right_only_schema = Schema::from_polars(&right_only_df.schema());
 
     let source_df_left = CompareSourceDF::from_name_df_entry_schema(
         LEFT,
@@ -202,14 +209,14 @@ pub fn get_cached_compare(
         right_schema.schema.clone(),
     );
 
-    let derived_df_match = CompareDerivedDF::from_compare_info(
-        MATCH,
-        Some(compare_id),
-        Some(&left_commit),
-        Some(&right_commit),
-        match_df,
-        match_schema,
-    );
+    // let derived_df_match = CompareDerivedDF::from_compare_info(
+    //     MATCH,
+    //     Some(compare_id),
+    //     Some(&left_commit),
+    //     Some(&right_commit),
+    //     match_df,
+    //     match_schema,
+    // );
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
         Some(compare_id),
@@ -218,22 +225,22 @@ pub fn get_cached_compare(
         diff_df,
         diff_schema,
     );
-    let derived_df_left_only = CompareDerivedDF::from_compare_info(
-        LEFT_ONLY,
-        Some(compare_id),
-        Some(&left_commit),
-        Some(&right_commit),
-        left_only_df,
-        left_only_schema,
-    );
-    let derived_df_right_only = CompareDerivedDF::from_compare_info(
-        RIGHT_ONLY,
-        Some(compare_id),
-        Some(&left_commit),
-        Some(&right_commit),
-        right_only_df,
-        right_only_schema,
-    );
+    // let derived_df_left_only = CompareDerivedDF::from_compare_info(
+    //     LEFT_ONLY,
+    //     Some(compare_id),
+    //     Some(&left_commit),
+    //     Some(&right_commit),
+    //     left_only_df,
+    //     left_only_schema,
+    // );
+    // let derived_df_right_only = CompareDerivedDF::from_compare_info(
+    //     RIGHT_ONLY,
+    //     Some(compare_id),
+    //     Some(&left_commit),
+    //     Some(&right_commit),
+    //     right_only_df,
+    //     right_only_schema,
+    // );
 
     let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
         (LEFT.to_string(), source_df_left),
@@ -241,10 +248,10 @@ pub fn get_cached_compare(
     ]);
 
     let derived_dfs: HashMap<String, CompareDerivedDF> = HashMap::from([
-        (MATCH.to_string(), derived_df_match),
+        // (MATCH.to_string(), derived_df_match),
         (DIFF.to_string(), derived_df_diff),
-        (LEFT_ONLY.to_string(), derived_df_left_only),
-        (RIGHT_ONLY.to_string(), derived_df_right_only),
+        // (LEFT_ONLY.to_string(), derived_df_left_only),
+        // (RIGHT_ONLY.to_string(), derived_df_right_only),
     ]);
 
     let compare_results = CompareTabular {
@@ -413,13 +420,32 @@ fn compute_row_comparison(
 ) -> Result<CompareTabularRaw, OxenError> {
     let schema_1 = Schema::from_polars(&df_1.schema());
     let schema_2 = Schema::from_polars(&df_2.schema());
+
+    let schema_diff = get_schema_diff(df_1, df_2);
+
+    log::debug!("schema diff: {:#?}", schema_diff);
+
+    log::debug!("added cols: {:?}", schema_diff.added_cols);
+    log::debug!("removed cols: {:?}", schema_diff.removed_cols);
+
+    // If no keys, then compare on all shared columns
     let targets = targets.to_owned();
     let keys = keys.to_owned();
+
+    let unchanged_cols = schema_diff.unchanged_cols.clone();
+    let keys = if keys.is_empty() {
+        unchanged_cols
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+    } else {
+        keys
+    };
 
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), keys.clone(), targets.clone())?;
 
-    let mut compare = join_compare::compare(&df_1, &df_2, targets, keys)?;
+    let mut compare = join_compare::compare(&df_1, &df_2, schema_diff, targets, keys)?;
 
     compare.dupes = CompareDupes {
         left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
@@ -429,6 +455,47 @@ fn compute_row_comparison(
     Ok(compare)
 }
 
+fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
+    let df1_cols = df1.get_column_names();
+    let df2_cols = df2.get_column_names();
+
+    let mut df1_set = HashSet::new();
+    let mut df2_set = HashSet::new();
+
+    // let oxen_cols: Vec<&str> = vec![TARGETS_HASH_COL, KEYS_HASH_COL, DIFF_STATUS_COL];
+
+    for col in df1_cols.iter() {
+        // if !oxen_cols.contains(col) {
+        df1_set.insert(col);
+        // }
+    }
+
+    for col in df2_cols.iter() {
+        // if !oxen_cols.contains(col) {
+        df2_set.insert(col);
+        // }
+    }
+
+    let added_cols: Vec<String> = df2_set
+        .difference(&df1_set)
+        .map(|s| (*s).to_string())
+        .collect();
+    let removed_cols: Vec<String> = df1_set
+        .difference(&df2_set)
+        .map(|s| (*s).to_string())
+        .collect();
+    let unchanged_cols: Vec<String> = df1_set
+        .intersection(&df2_set)
+        .map(|s| (*s).to_string())
+        .collect();
+
+    SchemaDiff {
+        added_cols,
+        removed_cols,
+        unchanged_cols,
+    }
+}
+
 fn hash_dfs(
     mut left_df: DataFrame,
     mut right_df: DataFrame,
@@ -436,10 +503,10 @@ fn hash_dfs(
     targets: Vec<&str>,
 ) -> Result<(DataFrame, DataFrame), OxenError> {
     // Subset to only targets and keys - also checks that these are present
-    let out_fields = keys.iter().chain(targets.iter()).copied();
+    // let out_fields = keys.iter().chain(targets.iter()).copied();
 
-    left_df = left_df.select(out_fields.clone())?;
-    right_df = right_df.select(out_fields)?;
+    // left_df = left_df.select(out_fields.clone())?;
+    // right_df = right_df.select(out_fields)?;
 
     // Generate hash columns for target set and key set
     left_df = tabular::df_hash_rows_on_cols(left_df, targets.clone(), TARGETS_HASH_COL)?;
@@ -674,6 +741,10 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use polars::lazy::dsl::col;
+    use polars::lazy::dsl::lit;
+    use polars::lazy::frame::IntoLazy;
+
     use crate::api;
     use crate::api::local::compare::CompareStrategy;
     use crate::command;
@@ -683,6 +754,9 @@ mod tests {
     use crate::opts::DFOpts;
     use crate::test;
     use crate::view::compare::CompareResult;
+
+    use super::get_cached_compare;
+    use super::get_compare_diff_path;
 
     #[test]
     fn test_compare_fails_when_not_tabular() -> Result<(), OxenError> {
@@ -756,9 +830,11 @@ mod tests {
                 path: right_file,
             };
 
+            let compare_id = "savingforlater";
+
             let result = api::local::compare::compare_files(
                 &repo,
-                None,
+                Some(compare_id),
                 compare_entry_1,
                 compare_entry_2,
                 vec![
@@ -770,12 +846,38 @@ mod tests {
                 None,
             )?;
 
+            // Should be: 2 removed, 1 added, 6 unchanged, 5 modified
+
             if let CompareResult::Tabular((compare, _)) = result {
-                // Should be updated values
-                assert_eq!(compare.derived["left_only"].size.height, 2);
-                assert_eq!(compare.derived["right_only"].size.height, 1);
-                assert_eq!(compare.derived["match"].size.height, 6);
-                assert_eq!(compare.derived["diff"].size.height, 5);
+                // Get the actual df for this compare
+                let df_path = get_compare_diff_path(&repo, compare_id);
+                let df = tabular::read_df(&df_path, DFOpts::empty())?;
+
+                let diff_col = ".oxen.diff.status";
+                // Assert the overall height of the dataframe
+                let added_df = df
+                    .clone()
+                    .lazy()
+                    .filter(col(diff_col).eq(lit("added")))
+                    .collect()?;
+                let removed_df = df
+                    .clone()
+                    .lazy()
+                    .filter(col(diff_col).eq(lit("removed")))
+                    .collect()?;
+                let modified_df = df
+                    .clone()
+                    .lazy()
+                    .filter(col(diff_col).eq(lit("modified")))
+                    .collect()?;
+                let unchanged_df = df
+                    .lazy()
+                    .filter(col(diff_col).eq(lit("unchanged")))
+                    .collect()?;
+
+                assert_eq!(added_df.height(), 1);
+                assert_eq!(removed_df.height(), 2);
+                assert_eq!(modified_df.height(), 5);
             } else {
                 assert_eq!(true, false, "Wrong result type for input files")
             }
@@ -829,10 +931,36 @@ mod tests {
             )?
             .unwrap();
 
-            assert_eq!(compare.derived["left_only"].size.height, 2);
-            assert_eq!(compare.derived["right_only"].size.height, 1);
-            assert_eq!(compare.derived["match"].size.height, 6);
-            assert_eq!(compare.derived["diff"].size.height, 5);
+            // Get the actual df for this compare
+            let df_path = get_compare_diff_path(&repo, "a_compare_id");
+            let df = tabular::read_df(&df_path, DFOpts::empty())?;
+
+            let diff_col = ".oxen.diff.status";
+            // Assert the overall height of the dataframe
+            let added_df = df
+                .clone()
+                .lazy()
+                .filter(col(diff_col).eq(lit("added")))
+                .collect()?;
+            let removed_df = df
+                .clone()
+                .lazy()
+                .filter(col(diff_col).eq(lit("removed")))
+                .collect()?;
+            let modified_df = df
+                .clone()
+                .lazy()
+                .filter(col(diff_col).eq(lit("modified")))
+                .collect()?;
+            let unchanged_df = df
+                .lazy()
+                .filter(col(diff_col).eq(lit("unchanged")))
+                .collect()?;
+
+            assert_eq!(added_df.height(), 1);
+            assert_eq!(removed_df.height(), 2);
+            assert_eq!(modified_df.height(), 5);
+            assert_eq!(unchanged_df.height(), 6);
 
             // Update one of the files
             let path = Path::new("compare_left.csv");
@@ -894,16 +1022,36 @@ mod tests {
                 None,
             )?;
 
-            if let CompareResult::Tabular((new_compare, _)) = result {
-                // Should be updated values
-                assert_eq!(new_compare.derived["left_only"].size.height, 0);
-                assert_eq!(new_compare.derived["right_only"].size.height, 6);
-                assert_eq!(new_compare.derived["match"].size.height, 6);
-                assert_eq!(new_compare.derived["diff"].size.height, 0);
-            } else {
-                assert_eq!(true, false, "Wrong result type for input files")
-            }
+            // Get the actual df for this compare
+            let df_path = get_compare_diff_path(&repo, "a_compare_id");
+            let df = tabular::read_df(&df_path, DFOpts::empty())?;
 
+            let diff_col = ".oxen.diff.status";
+            // Assert the overall height of the dataframe
+            let added_df = df
+                .clone()
+                .lazy()
+                .filter(col(diff_col).eq(lit("added")))
+                .collect()?;
+            let removed_df = df
+                .clone()
+                .lazy()
+                .filter(col(diff_col).eq(lit("removed")))
+                .collect()?;
+            let modified_df = df
+                .clone()
+                .lazy()
+                .filter(col(diff_col).eq(lit("modified")))
+                .collect()?;
+            let unchanged_df = df
+                .lazy()
+                .filter(col(diff_col).eq(lit("unchanged")))
+                .collect()?;
+
+            assert_eq!(added_df.height(), 6);
+            assert_eq!(removed_df.height(), 0);
+            assert_eq!(modified_df.height(), 0);
+            assert_eq!(unchanged_df.height(), 6);
             Ok(())
         })
     }

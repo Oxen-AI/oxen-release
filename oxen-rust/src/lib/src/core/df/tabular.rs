@@ -763,6 +763,11 @@ pub fn df_hash_rows_on_cols(
     hash_fields: Vec<&str>,
     out_col_name: &str,
 ) -> Result<DataFrame, OxenError> {
+    // Do not modify the df if no fields to hash
+    if hash_fields.is_empty() {
+        return Ok(df);
+    }
+
     let num_rows = df.height() as i64;
 
     // Create a vector to store columns to be hashed

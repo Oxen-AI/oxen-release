@@ -25,7 +25,6 @@ be able to run queries on removed rows, added rows, etc. to see what changed
 pub struct DataFrameDiff {
     pub base_schema: Option<Schema>,
     pub head_schema: Option<Schema>,
-
     pub added_rows: Option<DataFrame>,
     pub removed_rows: Option<DataFrame>,
     pub added_cols: Option<DataFrame>,
