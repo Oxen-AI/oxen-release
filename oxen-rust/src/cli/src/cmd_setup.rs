@@ -97,7 +97,7 @@ pub fn config() -> Command {
 
 pub fn create_remote() -> Command {
     Command::new(CREATE_REMOTE)
-        .about("Creates a remote repository with the name on the host. Default behavior is to create a remote on the hub.oxen.ai remote with a README file that contains the name of the repository.")
+        .about("Creates a remote repository with the name on the host. Default behavior is to create a remote on the hub.oxen.ai remote.")
         .arg(
             Arg::new("name")
                 .long("name")
@@ -114,10 +114,9 @@ pub fn create_remote() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("empty")
-                .long("empty")
-                .short('e')
-                .help("If present, it will create an empty remote that you need to push an initial commit to.")
+            Arg::new("add_readme")
+                .long("add_readme")
+                .help("If present, it will create a README file and initial commit in the remote repo.")
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(

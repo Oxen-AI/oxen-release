@@ -216,7 +216,8 @@ impl CommitEntryWriter {
         let full_path = origin_path.join(file_path);
 
         // // Get last modified time
-        let metadata = fs::metadata(&full_path).unwrap();
+        let metadata =
+            fs::metadata(&full_path).map_err(|e| OxenError::file_error(&full_path, e))?;
         let mtime = FileTime::from_last_modification_time(&metadata);
 
         let metadata = fs::metadata(&full_path)?;

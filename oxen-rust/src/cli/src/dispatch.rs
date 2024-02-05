@@ -164,7 +164,7 @@ pub async fn create_remote(
         repo_new.is_public = Some(is_public);
         let remote_repo = api::remote::repositories::create_empty(repo_new).await?;
         println!(
-            "🎉 Remote successfully created for '{}/{}' if this is a brand new repository:\n\n  oxen clone {}\n\nTo push an existing repository to a new remote:\n\n  oxen config --set-remote origin {}\n",
+            "🎉 Remote successfully created for '{}/{}' if this is a brand new repository:\n\n  oxen clone {}\n\nTo push an existing local repository to a new remote:\n\n  oxen config --set-remote origin {}\n",
             namespace, name, remote_repo.remote.url, remote_repo.remote.url
         );
     } else {

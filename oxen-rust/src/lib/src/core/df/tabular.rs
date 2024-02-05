@@ -123,6 +123,12 @@ pub fn scan_df_jsonl(
     )
 }
 
+pub fn scan_df_json(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
+    // cannot lazy read json array
+    let df = read_df_json(path)?;
+    Ok(df.lazy())
+}
+
 pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let error_str = format!("Could not read tabular data from path {path:?}");
@@ -881,6 +887,7 @@ pub fn scan_df(
         Some(extension) => match extension {
             "ndjson" => scan_df_jsonl(path, opts, total_rows),
             "jsonl" => scan_df_jsonl(path, opts, total_rows),
+            "json" => scan_df_json(path),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
                 scan_df_csv(path, delimiter, opts, total_rows)
@@ -927,6 +934,13 @@ pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
                 let file = File::open(input_path)?;
                 let mut reader = IpcReader::new(file);
                 let height = reader._num_rows()?;
+                Ok(DataFrameSize { width, height })
+            }
+            "json" => {
+                let df = lazy_df
+                    .collect()
+                    .map_err(|_| OxenError::basic_str("Could not collect json df"))?;
+                let height = df.height();
                 Ok(DataFrameSize { width, height })
             }
             _ => Err(OxenError::basic_str(err)),
