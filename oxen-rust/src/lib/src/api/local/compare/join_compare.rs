@@ -15,7 +15,6 @@ const DIFF_STATUS_COL: &str = ".oxen.diff.status";
 const DIFF_STATUS_ADDED: &str = "added";
 const DIFF_STATUS_REMOVED: &str = "removed";
 const DIFF_STATUS_MODIFIED: &str = "modified";
-const DIFF_STATUS_UNCHANGED: &str = "unchanged";
 
 pub fn compare(
     df_1: &DataFrame,
@@ -200,36 +199,6 @@ fn calculate_modified_df(
 
     // Add on the diff status
     Ok(diff_df.select(output_columns)?)
-}
-
-fn calculate_unchanged_df(
-    df: &DataFrame,
-    targets: Vec<&str>,
-    keys: Vec<&str>,
-    output_columns: &Vec<String>,
-) -> Result<DataFrame, OxenError> {
-    // Mask behavior: if targets defined, return match on targets hash. Else, match on keys hash.
-    // keys[0] is guaranteed to exist - if not specified, we've populated it with all columns earlier
-    let match_mask = if targets.is_empty() {
-        df.column(format!("{}.left", keys[0]).as_str())?
-            .equal(df.column(format!("{}.right", keys[0]).as_str())?)?
-    } else {
-        df.column(format!("{}.left", TARGETS_HASH_COL).as_str())?
-            .equal(df.column(format!("{}.right", TARGETS_HASH_COL).as_str())?)?
-    };
-
-    let mut match_df = df.filter(&match_mask)?;
-
-    for key in keys.iter() {
-        match_df.rename(&format!("{}.left", key), key)?;
-    }
-
-    let match_df = match_df.with_column(Series::new(
-        DIFF_STATUS_COL,
-        vec![DIFF_STATUS_UNCHANGED; match_df.height()],
-    ))?;
-
-    Ok(match_df.select(output_columns)?)
 }
 
 fn calculate_removed_df(

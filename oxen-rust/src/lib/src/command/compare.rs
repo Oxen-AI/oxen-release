@@ -119,17 +119,12 @@ mod tests {
                 path: path_2.clone(),
             };
 
-            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], None)?;
+            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
-                    assert_eq!(df.height(), 2);
-                    let unchanged_df = df
-                        .lazy()
-                        .filter(col(diff_col).eq(lit("unchanged")))
-                        .collect()?;
-                    assert_eq!(unchanged_df.height(), 2);
+                    assert_eq!(df.height(), 0);
                 }
                 _ => panic!("expected tabular result"),
             }
@@ -166,18 +161,13 @@ mod tests {
                 path: path_2.clone(),
             };
 
-            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], None)?;
+            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
-                    assert_eq!(df.height(), 3);
+                    assert_eq!(df.height(), 2);
                     assert_eq!(df.width(), 4); // 3 (inferred) key columns + diff status
-                    let unchanged_df = df
-                        .clone()
-                        .lazy()
-                        .filter(col(diff_col).eq(lit("unchanged")))
-                        .collect()?;
                     let added_df = df
                         .clone()
                         .lazy()
@@ -187,7 +177,6 @@ mod tests {
                         .lazy()
                         .filter(col(diff_col).eq(lit("removed")))
                         .collect()?;
-                    assert_eq!(unchanged_df.height(), 1);
                     assert_eq!(added_df.height(), 1);
                     assert_eq!(removed_df.height(), 1);
                 }
@@ -205,7 +194,7 @@ mod tests {
             // Removed: -> 5,6 and 7,8
             // Added: 9,10
             // Modified: 3,4 (1 -> 1234)
-            // Unchanged: 1,2
+            // Unchanged: 1,2 (not included)
 
             let csv1 = "a,b,c\n1,2,1\n3,4,1\n5,6,1\n7,8,1";
             let csv2 = "a,b,c\n1,2,1\n3,4,1234\n9,10,1";
@@ -237,13 +226,14 @@ mod tests {
                 c2,
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string()],
+                vec![],
                 None,
             )?;
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
-                    assert_eq!(df.height(), 5);
+                    assert_eq!(df.height(), 4);
                     assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
                     let unchanged_df = df
                         .clone()
@@ -264,7 +254,6 @@ mod tests {
                         .lazy()
                         .filter(col(diff_col).eq(lit("modified")))
                         .collect()?;
-                    assert_eq!(unchanged_df.height(), 1);
                     assert_eq!(added_df.height(), 1);
                     assert_eq!(removed_df.height(), 2);
                     assert_eq!(modified_df.height(), 1);
@@ -313,19 +302,15 @@ mod tests {
                 c2,
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string()],
+                vec![],
                 None,
             )?;
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
-                    assert_eq!(df.height(), 5);
+                    assert_eq!(df.height(), 3);
                     assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
-                    let unchanged_df = df
-                        .clone()
-                        .lazy()
-                        .filter(col(diff_col).eq(lit("unchanged")))
-                        .collect()?;
                     let added_df = df
                         .clone()
                         .lazy()
@@ -340,7 +325,6 @@ mod tests {
                         .lazy()
                         .filter(col(diff_col).eq(lit("modified")))
                         .collect()?;
-                    assert_eq!(unchanged_df.height(), 2);
                     assert_eq!(added_df.height(), 1);
                     assert_eq!(removed_df.height(), 2);
                     assert_eq!(modified_df.height(), 0);
@@ -386,19 +370,16 @@ mod tests {
                 c2,
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string(), "d".to_string()],
+                vec![],
                 None,
             )?;
 
+            // Should return empty df
             let diff_col = ".oxen.diff.status";
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
-                    assert_eq!(df.height(), 2);
+                    assert_eq!(df.height(), 0);
                     assert_eq!(df.width(), 7); // 2 key columns, 2 targets * 2(right+left) + diff status
-                    let unchanged_df = df
-                        .clone()
-                        .lazy()
-                        .filter(col(diff_col).eq(lit("unchanged")))
-                        .collect()?;
                     let added_df = df
                         .clone()
                         .lazy()
@@ -413,7 +394,6 @@ mod tests {
                         .lazy()
                         .filter(col(diff_col).eq(lit("modified")))
                         .collect()?;
-                    assert_eq!(unchanged_df.height(), 2);
                     assert_eq!(added_df.height(), 0);
                     assert_eq!(removed_df.height(), 0);
                     assert_eq!(modified_df.height(), 0);
