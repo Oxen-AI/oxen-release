@@ -33,10 +33,7 @@ pub struct SchemaDiff {
 
 const LEFT: &str = "left";
 const RIGHT: &str = "right";
-const MATCH: &str = "match";
 const DIFF: &str = "diff";
-const LEFT_ONLY: &str = "left_only";
-const RIGHT_ONLY: &str = "right_only";
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
 const DUPES_PATH: &str = "dupes.json";
@@ -49,6 +46,7 @@ pub fn compare_files(
     compare_entry_2: CompareEntry,
     keys: Vec<String>,
     targets: Vec<String>,
+    display: Vec<String>,
     output: Option<PathBuf>,
 ) -> Result<CompareResult, OxenError> {
     log::debug!("comparing files");
@@ -66,6 +64,7 @@ pub fn compare_files(
             compare_id,
             keys,
             targets,
+            display,
             output,
         )?;
 
@@ -92,6 +91,7 @@ fn compare_tabular(
     compare_id: Option<&str>,
     keys: Vec<String>,
     targets: Vec<String>,
+    display: Vec<String>,
     output: Option<PathBuf>,
 ) -> Result<(CompareTabular, DataFrame), OxenError> {
     let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
@@ -102,13 +102,18 @@ fn compare_tabular(
 
     validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
 
+    // TODO: Clean this up
     let keys = keys.iter().map(|key| key.as_str()).collect::<Vec<&str>>();
     let targets = targets
         .iter()
         .map(|target| target.as_str())
         .collect::<Vec<&str>>();
+    let display = display
+        .iter()
+        .map(|display| display.as_str())
+        .collect::<Vec<&str>>();
 
-    let mut compare_tabular_raw = compute_row_comparison(&df_1, &df_2, &keys, &targets)?;
+    let mut compare_tabular_raw = compute_row_comparison(&df_1, &df_2, &keys, &targets, &display)?;
 
     let compare = build_compare_tabular(
         &df_1,
@@ -270,24 +275,9 @@ pub fn get_compare_dir(repo: &LocalRepository, compare_id: &str) -> PathBuf {
         .join(compare_id)
 }
 
-fn get_compare_match_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
-    let compare_dir = get_compare_dir(repo, compare_id);
-    compare_dir.join("match.parquet")
-}
-
 fn get_compare_diff_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
     let compare_dir = get_compare_dir(repo, compare_id);
     compare_dir.join("diff.parquet")
-}
-
-fn get_compare_left_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
-    let compare_dir = get_compare_dir(repo, compare_id);
-    compare_dir.join("left_only.parquet")
-}
-
-fn get_compare_right_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
-    let compare_dir = get_compare_dir(repo, compare_id);
-    compare_dir.join("right_only.parquet")
 }
 
 fn maybe_write_dupes(
@@ -417,9 +407,10 @@ fn compute_row_comparison(
     df_2: &DataFrame,
     keys: &[&str],
     targets: &[&str],
+    display: &[&str],
 ) -> Result<CompareTabularRaw, OxenError> {
-    let schema_1 = Schema::from_polars(&df_1.schema());
-    let schema_2 = Schema::from_polars(&df_2.schema());
+    // let schema_1 = Schema::from_polars(&df_1.schema());
+    // let schema_2 = Schema::from_polars(&df_2.schema());
 
     let schema_diff = get_schema_diff(df_1, df_2);
 
@@ -431,6 +422,7 @@ fn compute_row_comparison(
     // If no keys, then compare on all shared columns
     let targets = targets.to_owned();
     let keys = keys.to_owned();
+    let display = display.to_owned();
 
     let unchanged_cols = schema_diff.unchanged_cols.clone();
     let keys = if keys.is_empty() {
@@ -445,7 +437,7 @@ fn compute_row_comparison(
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), keys.clone(), targets.clone())?;
 
-    let mut compare = join_compare::compare(&df_1, &df_2, schema_diff, targets, keys)?;
+    let mut compare = join_compare::compare(&df_1, &df_2, schema_diff, targets, keys, display)?;
 
     compare.dupes = CompareDupes {
         left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
@@ -680,30 +672,30 @@ fn maybe_write_cache(
     Ok(())
 }
 
-fn compare_to_string(compare_tabular_raw: &CompareTabularRaw) -> String {
-    // let left_only_df = &compare_tabular_raw.left_only_df;
-    // let right_only_df = &compare_tabular_raw.right_only_df;
+// fn compare_to_string(compare_tabular_raw: &CompareTabularRaw) -> String {
+//     // let left_only_df = &compare_tabular_raw.left_only_df;
+//     // let right_only_df = &compare_tabular_raw.right_only_df;
 
-    let mut results: Vec<String> = vec![];
+//     let mut results: Vec<String> = vec![];
 
-    let diff_df = &compare_tabular_raw.diff_df;
-    // let match_df = &compare_tabular_raw.match_df;
+//     let diff_df = &compare_tabular_raw.diff_df;
+//     // let match_df = &compare_tabular_raw.match_df;
 
-    results.push(format!(
-        "Rows with matching keys and DIFFERENT targets\n\n{diff_df}\n\n"
-    ));
-    // results.push(format!(
-    //     "Rows with matching keys and SAME targets\n\n{match_df}\n\n"
-    // ));
-    // results.push(format!(
-    //     "Rows with keys only in LEFT DataFrame\n\n{left_only_df}\n\n"
-    // ));
-    // results.push(format!(
-    //     "Rows with keys only in RIGHT DataFrame\n\n{right_only_df}\n\n"
-    // ));
+//     results.push(format!(
+//         "Rows with matching keys and DIFFERENT targets\n\n{diff_df}\n\n"
+//     ));
+//     // results.push(format!(
+//     //     "Rows with matching keys and SAME targets\n\n{match_df}\n\n"
+//     // ));
+//     // results.push(format!(
+//     //     "Rows with keys only in LEFT DataFrame\n\n{left_only_df}\n\n"
+//     // ));
+//     // results.push(format!(
+//     //     "Rows with keys only in RIGHT DataFrame\n\n{right_only_df}\n\n"
+//     // ));
 
-    results.join("\n")
-}
+//     results.join("\n")
+// }
 
 fn maybe_save_compare_output(
     compare_tabular_raw: &mut CompareTabularRaw,
@@ -843,6 +835,7 @@ mod tests {
                     "gender".to_string(),
                 ],
                 vec!["target".to_string(), "other_target".to_string()],
+                vec![],
                 None,
             )?;
 
