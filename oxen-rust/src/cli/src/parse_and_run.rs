@@ -1003,34 +1003,6 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     }
 }
 
-// pub async fn diff(sub_matches: &ArgMatches) {
-//     let is_remote = false;
-//     p_diff(sub_matches, is_remote).await
-// }
-
-// async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
-//     // First arg is optional
-//     let file_or_commit_id = sub_matches
-//         .get_one::<String>("FILE_OR_REVISION")
-//         .expect("required");
-//     let path = sub_matches.get_one::<String>("PATH");
-//     if let Some(path) = path {
-//         match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {
-//             Ok(_) => {}
-//             Err(err) => {
-//                 eprintln!("{err}")
-//             }
-//         }
-//     } else {
-//         match dispatch::diff(None, file_or_commit_id, is_remote).await {
-//             Ok(_) => {}
-//             Err(err) => {
-//                 eprintln!("{err}")
-//             }
-//         }
-//     }
-// }
-
 pub async fn clone(sub_matches: &ArgMatches) {
     let url = sub_matches.get_one::<String>("URL").expect("required");
     let shallow = sub_matches.get_flag("shallow");

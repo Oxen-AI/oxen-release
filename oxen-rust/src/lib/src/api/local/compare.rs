@@ -190,16 +190,9 @@ pub fn get_cached_compare(
         path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
     };
 
-    // let match_df = tabular::read_df(get_compare_match_path(repo, compare_id), DFOpts::empty())?;
     let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
-    // let left_only_df = tabular::read_df(get_compare_left_path(repo, compare_id), DFOpts::empty())?;
-    // let right_only_df =
-    //     tabular::read_df(get_compare_right_path(repo, compare_id), DFOpts::empty())?;
 
-    // let match_schema = Schema::from_polars(&match_df.schema());
     let diff_schema = Schema::from_polars(&diff_df.schema());
-    // let left_only_schema = Schema::from_polars(&left_only_df.schema());
-    // let right_only_schema = Schema::from_polars(&right_only_df.schema());
 
     let source_df_left = CompareSourceDF::from_name_df_entry_schema(
         LEFT,
@@ -214,14 +207,6 @@ pub fn get_cached_compare(
         right_schema.schema.clone(),
     );
 
-    // let derived_df_match = CompareDerivedDF::from_compare_info(
-    //     MATCH,
-    //     Some(compare_id),
-    //     Some(&left_commit),
-    //     Some(&right_commit),
-    //     match_df,
-    //     match_schema,
-    // );
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
         Some(compare_id),
@@ -230,34 +215,14 @@ pub fn get_cached_compare(
         diff_df,
         diff_schema,
     );
-    // let derived_df_left_only = CompareDerivedDF::from_compare_info(
-    //     LEFT_ONLY,
-    //     Some(compare_id),
-    //     Some(&left_commit),
-    //     Some(&right_commit),
-    //     left_only_df,
-    //     left_only_schema,
-    // );
-    // let derived_df_right_only = CompareDerivedDF::from_compare_info(
-    //     RIGHT_ONLY,
-    //     Some(compare_id),
-    //     Some(&left_commit),
-    //     Some(&right_commit),
-    //     right_only_df,
-    //     right_only_schema,
-    // );
 
     let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
         (LEFT.to_string(), source_df_left),
         (RIGHT.to_string(), source_df_right),
     ]);
 
-    let derived_dfs: HashMap<String, CompareDerivedDF> = HashMap::from([
-        // (MATCH.to_string(), derived_df_match),
-        (DIFF.to_string(), derived_df_diff),
-        // (LEFT_ONLY.to_string(), derived_df_left_only),
-        // (RIGHT_ONLY.to_string(), derived_df_right_only),
-    ]);
+    let derived_dfs: HashMap<String, CompareDerivedDF> =
+        HashMap::from([(DIFF.to_string(), derived_df_diff)]);
 
     let compare_results = CompareTabular {
         source: source_dfs,
@@ -561,29 +526,14 @@ fn build_compare_tabular(
     compare_tabular_raw: &CompareTabularRaw,
     compare_id: Option<&str>,
 ) -> CompareTabular {
-    // let left_only_df = &compare_tabular_raw.left_only_df;
-    // let right_only_df = &compare_tabular_raw.right_only_df;
     let diff_df = &compare_tabular_raw.diff_df.clone();
-    // let match_df = &compare_tabular_raw.match_df.clone();
 
     let diff_schema = Schema::from_polars(&diff_df.schema());
-    // let match_schema = Schema::from_polars(&match_df.schema());
-    // let left_only_schema = Schema::from_polars(&left_only_df.schema());
-    // let right_only_schema = Schema::from_polars(&right_only_df.schema());
 
     let df_1_size = DataFrameSize::from_df(df_1);
     let df_2_size = DataFrameSize::from_df(df_2);
     let og_schema_1 = Schema::from_polars(&df_1.schema());
     let og_schema_2 = Schema::from_polars(&df_2.schema());
-
-    // let derived_df_match = CompareDerivedDF::from_compare_info(
-    //     MATCH,
-    //     compare_id,
-    //     compare_entry_1.commit_entry.as_ref(),
-    //     compare_entry_2.commit_entry.as_ref(),
-    //     match_df.clone(),
-    //     match_schema,
-    // );
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
         compare_id,
@@ -592,22 +542,6 @@ fn build_compare_tabular(
         diff_df.clone(),
         diff_schema,
     );
-    // let derived_df_left_only = CompareDerivedDF::from_compare_info(
-    //     LEFT_ONLY,
-    //     compare_id,
-    //     compare_entry_1.commit_entry.as_ref(),
-    //     compare_entry_2.commit_entry.as_ref(),
-    //     left_only_df.clone(),
-    //     left_only_schema,
-    // );
-    // let derived_df_right_only = CompareDerivedDF::from_compare_info(
-    //     RIGHT_ONLY,
-    //     compare_id,
-    //     compare_entry_1.commit_entry.as_ref(),
-    //     compare_entry_2.commit_entry.as_ref(),
-    //     right_only_df.clone(),
-    //     right_only_schema,
-    // );
 
     let source_df_left = CompareSourceDF {
         name: LEFT.to_string(),
@@ -638,12 +572,8 @@ fn build_compare_tabular(
         (RIGHT.to_string(), source_df_right),
     ]);
 
-    let derived_dfs: HashMap<String, CompareDerivedDF> = HashMap::from([
-        // (MATCH.to_string(), derived_df_match),
-        (DIFF.to_string(), derived_df_diff),
-        // (LEFT_ONLY.to_string(), derived_df_left_only),
-        // (RIGHT_ONLY.to_string(), derived_df_right_only),
-    ]);
+    let derived_dfs: HashMap<String, CompareDerivedDF> =
+        HashMap::from([(DIFF.to_string(), derived_df_diff)]);
 
     CompareTabular {
         source: source_dfs,
@@ -818,6 +748,7 @@ mod tests {
                 compare_entry_2,
                 keys,
                 targets,
+                vec![],
                 None,
             );
 
@@ -940,6 +871,7 @@ mod tests {
                     String::from("gender"),
                 ],
                 vec![String::from("target"), String::from("other_target")],
+                vec![],
                 None,
             )?;
 
@@ -973,15 +905,10 @@ mod tests {
                 .lazy()
                 .filter(col(diff_col).eq(lit("modified")))
                 .collect()?;
-            let unchanged_df = df
-                .lazy()
-                .filter(col(diff_col).eq(lit("unchanged")))
-                .collect()?;
 
             assert_eq!(added_df.height(), 1);
             assert_eq!(removed_df.height(), 2);
             assert_eq!(modified_df.height(), 5);
-            assert_eq!(unchanged_df.height(), 6);
 
             // Update one of the files
             let path = Path::new("compare_left.csv");
@@ -1029,7 +956,7 @@ mod tests {
             assert!(maybe_compare.is_none());
 
             // Create the compare and add to the cache to ensure proper update
-            let result = api::local::compare::compare_files(
+            api::local::compare::compare_files(
                 &repo,
                 Some("a_compare_id"),
                 new_compare_entry_1,
@@ -1040,6 +967,7 @@ mod tests {
                     String::from("gender"),
                 ],
                 vec![String::from("target"), String::from("other_target")],
+                vec![],
                 None,
             )?;
 
@@ -1064,15 +992,10 @@ mod tests {
                 .lazy()
                 .filter(col(diff_col).eq(lit("modified")))
                 .collect()?;
-            let unchanged_df = df
-                .lazy()
-                .filter(col(diff_col).eq(lit("unchanged")))
-                .collect()?;
 
             assert_eq!(added_df.height(), 6);
             assert_eq!(removed_df.height(), 0);
             assert_eq!(modified_df.height(), 0);
-            assert_eq!(unchanged_df.height(), 6);
             Ok(())
         })
     }
