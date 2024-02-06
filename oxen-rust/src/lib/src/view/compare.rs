@@ -72,6 +72,12 @@ pub struct CompareTabular {
     pub dupes: CompareDupes,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompareDisplayFields {
+    pub left: Vec<String>,
+    pub right: Vec<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareDupes {
     pub left: u64,

@@ -233,6 +233,7 @@ pub async fn create_df_compare(
         cpath_2,
         keys,
         targets,
+        vec![], // TODONOW: add display handling here
         None,
     )?;
 
@@ -338,6 +339,8 @@ pub async fn get_df_compare(
                 cpath_2,
                 keys,
                 targets,
+                // TODONOW
+                vec![],
                 None,
             )?;
 
@@ -366,6 +369,7 @@ pub async fn get_derived_df(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in derived df compare");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;

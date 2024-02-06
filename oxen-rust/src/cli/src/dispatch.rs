@@ -510,6 +510,7 @@ pub async fn diff(
     revision_2: Option<&str>,
     keys: Vec<String>,
     targets: Vec<String>,
+    display: Vec<String>,
     output: Option<PathBuf>,
     is_remote: bool,
 ) -> Result<(), OxenError> {
@@ -517,7 +518,7 @@ pub async fn diff(
     let repository = LocalRepository::from_dir(&repo_dir)?;
     check_repo_migration_needed(&repository)?;
 
-    let current_commit = api::local::commits::head_commit(&repository)?;
+    // let current_commit = api::local::commits::head_commit(&repository)?;
     // For revision_1 and revision_2, if none, set to current_commit
     // let revision_1 = revision_1.unwrap_or(current_commit.id.as_str());
 
@@ -570,8 +571,15 @@ pub async fn diff(
     let result = if is_remote {
         command::remote::diff(&repository, revision_1, &file_1).await?
     } else {
-        let compare_result =
-            command::compare(&repository, cpath_1, cpath_2, keys, targets, output)?;
+        let compare_result = command::compare(
+            &repository,
+            cpath_1,
+            cpath_2,
+            keys,
+            targets,
+            display,
+            output,
+        )?;
         match compare_result {
             CompareResult::Tabular((_tabular_compare, df)) => df.to_string(),
             CompareResult::Text(text) => text,

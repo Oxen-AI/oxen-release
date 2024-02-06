@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use crate::error::OxenError;
 use crate::view::compare::{CompareDupes, CompareTabularRaw};
 
@@ -25,6 +23,7 @@ pub fn compare(
     schema_diff: SchemaDiff,
     targets: Vec<&str>,
     keys: Vec<&str>,
+    display: Vec<&str>,
 ) -> Result<CompareTabularRaw, OxenError> {
     if !targets.is_empty() && keys.is_empty() {
         return Err(OxenError::basic_str(
@@ -32,7 +31,12 @@ pub fn compare(
         ));
     }
 
-    let output_columns = get_output_columns(keys.clone(), targets.clone(), schema_diff.clone());
+    let output_columns = get_output_columns(
+        keys.clone(),
+        targets.clone(),
+        display.clone(),
+        schema_diff.clone(),
+    );
     log::debug!("out columns are {:?}", output_columns);
 
     let joined_df = join_hashed_dfs(
@@ -40,71 +44,84 @@ pub fn compare(
         df_2,
         keys.clone(),
         targets.clone(),
-        schema_diff.unchanged_cols.clone(),
+        schema_diff.clone(),
     )?;
 
     log::debug!("joined df: {:#?}", joined_df);
 
-    log::debug!("getting diff");
-    let diff_df = calculate_diff_df(&joined_df, targets.clone(), keys.clone(), &output_columns)?;
-    log::debug!("getting match");
-    let match_df = calculate_match_df(&joined_df, targets.clone(), keys.clone(), &output_columns)?;
-    log::debug!("getting left only");
-    let left_only_df =
-        calculate_left_df(&joined_df, targets.clone(), keys.clone(), &output_columns)?;
-    log::debug!("getting right only");
-    let right_only_df =
-        calculate_right_df(&joined_df, targets.clone(), keys.clone(), &output_columns)?;
-
-    log::debug!("diff_df: {:#?}", diff_df);
-    log::debug!("match_df: {:#?}", match_df);
-    log::debug!("left_only_df: {:#?}", left_only_df);
-    log::debug!("right_only_df: {:#?}", right_only_df);
+    let modified_df =
+        calculate_modified_df(&joined_df, targets.clone(), keys.clone(), &output_columns)?;
+    let removed_df = calculate_removed_df(&joined_df, keys.clone(), &output_columns)?;
+    let added_df = calculate_added_df(&joined_df, keys.clone(), &output_columns)?;
 
     // Stack these together and then sort by the keys
-    let mut stacked_df = diff_df.vstack(&match_df)?;
-    stacked_df = stacked_df.vstack(&left_only_df)?;
-    stacked_df = stacked_df.vstack(&right_only_df)?;
+    let mut stacked_df = modified_df.vstack(&removed_df)?;
+    stacked_df = stacked_df.vstack(&added_df)?;
+
+    let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
+    let sorted_df = stacked_df.sort(&keys, descending, false)?;
 
     Ok(CompareTabularRaw {
         added_cols_df: DataFrame::default(),
         removed_cols_df: DataFrame::default(),
-        diff_df: stacked_df,
+        diff_df: sorted_df,
         dupes: CompareDupes { left: 0, right: 0 },
     })
 }
 
-fn get_output_columns(keys: Vec<&str>, targets: Vec<&str>, schema_diff: SchemaDiff) -> Vec<String> {
-    // TODONOW: this is messy. look what polars has done to us.
+fn get_output_columns(
+    keys: Vec<&str>,
+    targets: Vec<&str>,
+    display: Vec<&str>,
+    schema_diff: SchemaDiff,
+) -> Vec<String> {
+    // Ordering for now: keys, then targets, then removed cols, then added
     let mut out_columns = vec![];
     // All targets, renamed
+    for key in keys.iter() {
+        out_columns.push(key.to_string());
+    }
     for target in targets.iter() {
         out_columns.push(format!("{}.left", target));
         out_columns.push(format!("{}.right", target));
     }
 
-    for key in keys.iter() {
-        out_columns.push(key.to_string());
-    }
-
     // Columns in both dfs are renamed
-    for col in schema_diff.unchanged_cols.iter() {
-        if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
-            out_columns.push(format!("{}.left", col));
-            out_columns.push(format!("{}.right", col));
-        }
-    }
+    // for col in schema_diff.unchanged_cols.iter() {
+    //     if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
+    //         out_columns.push(format!("{}.left", col));
+    //         out_columns.push(format!("{}.right", col));
+    //     }
+    // }
+    // for col in schema_diff.removed_cols.iter() {
+    //     // If in display chcek maybe?
+    //     if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
+    //         out_columns.push(format!("{}.left", col));
+    //     }
+    // }
+    // for col in schema_diff.added_cols.iter() {
+    //     // If in display check maybe?
+    //     if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
+    //         out_columns.push(format!("{}.right", col));
+    //     }
+    // }
 
-    // Columns in one df are just once
-    for col in schema_diff.added_cols.iter() {
-        if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
-            out_columns.push(col.to_string());
+    for col in display.iter() {
+        if col.ends_with(".left") {
+            let stripped = col.trim_end_matches(".left");
+            if schema_diff.removed_cols.contains(&stripped.to_string())
+                || schema_diff.unchanged_cols.contains(&stripped.to_string())
+            {
+                out_columns.push(col.to_string());
+            }
         }
-    }
-
-    for col in schema_diff.removed_cols.iter() {
-        if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
-            out_columns.push(col.to_string());
+        if col.ends_with(".right") {
+            let stripped = col.trim_end_matches(".right");
+            if schema_diff.added_cols.contains(&stripped.to_string())
+                || schema_diff.unchanged_cols.contains(&stripped.to_string())
+            {
+                out_columns.push(col.to_string());
+            }
         }
     }
 
@@ -117,7 +134,7 @@ fn join_hashed_dfs(
     right_df: &DataFrame,
     keys: Vec<&str>,
     targets: Vec<&str>,
-    unchanged_cols: Vec<String>,
+    schema_diff: SchemaDiff,
 ) -> Result<DataFrame, OxenError> {
     let mut joined_df = left_df.outer_join(right_df, [KEYS_HASH_COL], [KEYS_HASH_COL])?;
 
@@ -126,11 +143,12 @@ fn join_hashed_dfs(
         cols_to_rename.push(key);
     }
     // TODONOW: maybe set logic?
-    for col in unchanged_cols.iter() {
+    for col in schema_diff.unchanged_cols.iter() {
         if !cols_to_rename.contains(&col.as_str()) {
             cols_to_rename.push(col);
         }
     }
+
     if !targets.is_empty() {
         cols_to_rename.push(TARGETS_HASH_COL);
     }
@@ -145,17 +163,23 @@ fn join_hashed_dfs(
         joined_df.rename(&right_before, &right_after)?;
     }
 
+    for col in schema_diff.added_cols.iter() {
+        joined_df.rename(col, &format!("{}.right", col))?;
+    }
+
+    for col in schema_diff.removed_cols.iter() {
+        joined_df.rename(col, &format!("{}.left", col))?;
+    }
+
     Ok(joined_df)
 }
 
-fn calculate_diff_df(
+fn calculate_modified_df(
     df: &DataFrame,
     targets: Vec<&str>,
     keys: Vec<&str>,
     output_columns: &Vec<String>,
 ) -> Result<DataFrame, OxenError> {
-    // If no targets, this is undefined - return schema-matched empty df.
-
     let diff_mask = if targets.is_empty() {
         ChunkedArray::new("false", vec![false; df.height()])
     } else {
@@ -169,24 +193,22 @@ fn calculate_diff_df(
         diff_df.rename(&format!("{}.left", key), key)?;
     }
 
-    let mut diff_df = diff_df.with_column(Series::new(
+    let diff_df = diff_df.with_column(Series::new(
         DIFF_STATUS_COL,
         vec![DIFF_STATUS_MODIFIED; diff_df.height()],
     ))?;
 
     // Add on the diff status
-
     Ok(diff_df.select(output_columns)?)
 }
 
-fn calculate_match_df(
+fn calculate_unchanged_df(
     df: &DataFrame,
     targets: Vec<&str>,
     keys: Vec<&str>,
     output_columns: &Vec<String>,
 ) -> Result<DataFrame, OxenError> {
     // Mask behavior: if targets defined, return match on targets hash. Else, match on keys hash.
-    log::debug!("columns for match are {:?}", df.get_column_names());
     // keys[0] is guaranteed to exist - if not specified, we've populated it with all columns earlier
     let match_mask = if targets.is_empty() {
         df.column(format!("{}.left", keys[0]).as_str())?
@@ -202,7 +224,7 @@ fn calculate_match_df(
         match_df.rename(&format!("{}.left", key), key)?;
     }
 
-    let mut match_df = match_df.with_column(Series::new(
+    let match_df = match_df.with_column(Series::new(
         DIFF_STATUS_COL,
         vec![DIFF_STATUS_UNCHANGED; match_df.height()],
     ))?;
@@ -210,31 +232,18 @@ fn calculate_match_df(
     Ok(match_df.select(output_columns)?)
 }
 
-fn calculate_left_df(
+fn calculate_removed_df(
     df: &DataFrame,
-    targets: Vec<&str>,
     keys: Vec<&str>,
     output_columns: &Vec<String>,
 ) -> Result<DataFrame, OxenError> {
-    // let keys_and_targets = keys
-    //     .iter()
-    //     .chain(targets.iter())
-    //     .copied()
-    //     .collect::<Vec<&str>>();
-
     // Using keys hash col is correct regardless of whether or not there are targets
     let mut left_only = df.filter(&df.column(format!("{}.right", keys[0]).as_str())?.is_null())?;
     for key in keys.iter() {
         left_only.rename(&format!("{}.left", key), key)?;
     }
 
-    // for target in targets.iter() {
-    //     let left_before = format!("{}.left", target);
-    //     let left_after = target.to_string();
-    //     left_only.rename(&left_before, &left_after)?;
-    // }
-
-    let mut left_only = left_only.with_column(Series::new(
+    let left_only = left_only.with_column(Series::new(
         DIFF_STATUS_COL,
         vec![DIFF_STATUS_REMOVED; left_only.height()],
     ))?;
@@ -242,34 +251,20 @@ fn calculate_left_df(
     Ok(left_only.select(output_columns)?)
 }
 
-fn calculate_right_df(
+fn calculate_added_df(
     df: &DataFrame,
-    targets: Vec<&str>,
     keys: Vec<&str>,
     output_columns: &Vec<String>,
 ) -> Result<DataFrame, OxenError> {
-    // Using keys hash col is correct regardless of whether or not there are targets
-    // let keys_and_targets = keys
-    //     .iter()
-    //     .chain(targets.iter())
-    //     .copied()
-    //     .collect::<Vec<&str>>();
-
     let mut right_only = df.filter(&df.column(format!("{}.left", keys[0]).as_str())?.is_null())?;
     for key in keys.iter() {
         right_only.rename(&format!("{}.right", key), key)?;
     }
 
-    let mut right_only = right_only.with_column(Series::new(
+    let right_only = right_only.with_column(Series::new(
         DIFF_STATUS_COL,
         vec![DIFF_STATUS_ADDED; right_only.height()],
     ))?;
-
-    // for target in targets.iter() {
-    //     let right_before = format!("{}.right", target);
-    //     let right_after = target.to_string();
-    //     right_only.rename(&right_before, &right_after)?;
-    // }
 
     Ok(right_only.select(output_columns)?)
 }

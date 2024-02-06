@@ -357,6 +357,7 @@ pub fn get_lock_file(repo: &LocalRepository) -> Result<fd_lock::RwLock<File>, st
         .read(true)
         .write(true)
         .create(true)
+        .truncate(true)
         .open(lock_file_path)?;
 
     Ok(RwLock::new(lock_file))
