@@ -63,7 +63,6 @@ pub struct DerivedDFResource {
     pub resource_id: String,
     pub path: String,
     pub resource_type: DFResourceType,
-    pub name: String,
 }
 
 impl JsonDataFrameSource {
