@@ -419,11 +419,11 @@ fn compute_row_comparison(
     log::debug!("added cols: {:?}", schema_diff.added_cols);
     log::debug!("removed cols: {:?}", schema_diff.removed_cols);
 
-    // If no keys, then compare on all shared columns
     let targets = targets.to_owned();
     let keys = keys.to_owned();
     let display = display.to_owned();
 
+    // If no keys, then compare on all shared columns
     let unchanged_cols = schema_diff.unchanged_cols.clone();
     let keys = if keys.is_empty() {
         unchanged_cols
@@ -432,6 +432,34 @@ fn compute_row_comparison(
             .collect::<Vec<&str>>()
     } else {
         keys
+    };
+
+    // TODONOW isolate this
+    let mut display_default = vec![];
+    for col in &schema_diff.unchanged_cols {
+        if !keys.contains(&col.as_str()) && !targets.contains(&col.as_str()) {
+            display_default.push(format!("{}.left", col));
+            display_default.push(format!("{}.right", col));
+        }
+    }
+    for col in &schema_diff.removed_cols {
+        display_default.push(format!("{}.left", col));
+    }
+
+    for col in &schema_diff.added_cols {
+        display_default.push(format!("{}.right", col));
+    }
+
+    // Map this to a Vec<&str>
+    let display_default = display_default
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<&str>>();
+
+    let display = if display.is_empty() {
+        display_default
+    } else {
+        display
     };
 
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing

@@ -7,7 +7,7 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
-use liboxen::model::compare::tabular_compare::TabularCompareBody;
+use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareDisplayBody};
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
@@ -195,6 +195,14 @@ pub async fn create_df_compare(
     let resource_2 = PathBuf::from(data.right.path);
     let keys = data.keys;
     let targets = data.compare;
+    let display = data.display;
+
+    log::debug!("display is {:?}", display);
+
+    let display_by_column = get_display_by_columns(display);
+
+    log::debug!("display by col is {:?}", display_by_column);
+
     let compare_id = data.compare_id;
 
     let commit_1 = api::local::revisions::get(&repository, &data.left.version)?
@@ -233,7 +241,7 @@ pub async fn create_df_compare(
         cpath_2,
         keys,
         targets,
-        vec![], // TODONOW: add display handling here
+        display_by_column, // TODONOW: add display handling here
         None,
     )?;
 
@@ -331,6 +339,9 @@ pub async fn get_df_compare(
             // different keys and targets from left and right file.
             let keys = data.keys.iter().map(|k| k.left.clone()).collect();
             let targets = data.compare.iter().map(|t| t.left.clone()).collect();
+            let display = data.display;
+
+            let display_by_column = get_display_by_columns(display);
 
             let result = api::local::compare::compare_files(
                 &repository,
@@ -339,8 +350,7 @@ pub async fn get_df_compare(
                 cpath_2,
                 keys,
                 targets,
-                // TODONOW
-                vec![],
+                display_by_column,
                 None,
             )?;
 
@@ -369,18 +379,16 @@ pub async fn get_derived_df(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("in derived df compare");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let compare_id = path_param(&req, "compare_id")?;
-    let path = path_param(&req, "path")?;
     let base_head = path_param(&req, "base_head")?;
 
     let compare_dir = api::local::compare::get_compare_dir(&repo, &compare_id);
 
-    let derived_df_path = compare_dir.join(format!("{}.parquet", path));
+    let derived_df_path = compare_dir.join("diff.parquet");
 
     // TODO: If this structure holds for diff + query, there is some amt of reusability with
     // controllers::df::get logic
@@ -463,9 +471,8 @@ pub async fn get_derived_df(
 
             let derived_resource = DerivedDFResource {
                 resource_type: DFResourceType::Compare,
-                name: path.clone(),
                 resource_id: compare_id.clone(),
-                path: format!("/compare/data_frame/{}/{}/{}", compare_id, path, base_head),
+                path: format!("/compare/data_frame/{}/{}", compare_id, base_head),
             };
 
             let response = JsonDataFrameViewResponse {
@@ -536,4 +543,17 @@ fn parse_base_head_resource(
     let resource = resource.ok_or(OxenError::revision_not_found(head.into()))?;
 
     Ok((base_commit, head_commit, resource))
+}
+
+fn get_display_by_columns(display: Vec<TabularCompareDisplayBody>) -> Vec<String> {
+    let mut display_by_column = vec![];
+    for d in display {
+        if let Some(left) = d.left {
+            display_by_column.push(format!("{}.left", left));
+        }
+        if let Some(right) = d.right {
+            display_by_column.push(format!("{}.right", right));
+        }
+    }
+    display_by_column
 }
