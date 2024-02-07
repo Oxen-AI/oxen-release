@@ -265,6 +265,102 @@ pub async fn create_df_compare(
     Ok(HttpResponse::Ok().json(view))
 }
 
+pub async fn update_df_compare(
+    req: HttpRequest,
+    body: String,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let compare_id = path_param(&req, "compare_id")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    let data: Result<TabularCompareBody, serde_json::Error> = serde_json::from_str(&body);
+    let data = match data {
+        Ok(data) => data,
+        Err(err) => {
+            log::error!(
+                "unable to parse tabular comparison data. Err: {}\n{}",
+                err,
+                body
+            );
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())));
+        }
+    };
+
+    let resource_1 = PathBuf::from(data.left.path);
+    let resource_2 = PathBuf::from(data.right.path);
+    let keys = data.keys;
+    let targets = data.compare;
+    let display = data.display;
+
+    log::debug!("display is {:?}", display);
+
+    let display_by_column = get_display_by_columns(display);
+
+    log::debug!("display by col is {:?}", display_by_column);
+
+    let compare_id = data.compare_id;
+
+    let commit_1 = api::local::revisions::get(&repository, &data.left.version)?
+        .ok_or_else(|| OxenError::revision_not_found(data.left.version.into()))?;
+    let commit_2 = api::local::revisions::get(&repository, &data.right.version)?
+        .ok_or_else(|| OxenError::revision_not_found(data.right.version.into()))?;
+
+    let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
+        .ok_or_else(|| {
+            OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
+        })?;
+    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
+        .ok_or_else(|| {
+            OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
+        })?;
+
+    let cpath_1 = CompareEntry {
+        commit_entry: Some(entry_1),
+        path: resource_1,
+    };
+
+    let cpath_2 = CompareEntry {
+        commit_entry: Some(entry_2),
+        path: resource_2,
+    };
+
+    // TODO: Remove the next two lines when we want to allow mapping
+    // different keys and targets from left and right file.
+    let keys = keys.iter().map(|k| k.left.clone()).collect();
+    let targets = targets.iter().map(|t| t.left.clone()).collect();
+
+    let result = api::local::compare::compare_files(
+        &repository,
+        Some(&compare_id),
+        cpath_1,
+        cpath_2,
+        keys,
+        targets,
+        display_by_column, // TODONOW: add display handling here
+        None,
+    )?;
+
+    let view = match result {
+        CompareResult::Tabular((compare, _)) => {
+            let mut messages: Vec<OxenMessage> = vec![];
+
+            if compare.dupes.left > 0 || compare.dupes.right > 0 {
+                messages.push(compare.dupes.clone().to_message());
+            }
+
+            CompareTabularResponse {
+                status: StatusMessage::resource_found(),
+                dfs: compare,
+                messages,
+            }
+        }
+        _ => Err(OxenError::basic_str("Wrong comparison type"))?,
+    };
+    Ok(HttpResponse::Ok().json(view))
+}
+
 pub async fn get_df_compare(
     req: HttpRequest,
     body: String,
@@ -318,62 +414,133 @@ pub async fn get_df_compare(
         cpath_2.clone(),
     )?;
 
-    let view = match maybe_cached_compare {
-        Some(compare) => {
-            let mut messages: Vec<OxenMessage> = vec![];
+    if let Some(compare) = maybe_cached_compare {
+        let mut messages: Vec<OxenMessage> = vec![];
 
-            if compare.dupes.left > 0 || compare.dupes.right > 0 {
-                messages.push(compare.dupes.clone().to_message());
-            }
-
-            log::debug!("cache hit!");
-            CompareTabularResponse {
-                status: StatusMessage::resource_found(),
-                dfs: compare,
-                messages,
-            }
+        if compare.dupes.left > 0 || compare.dupes.right > 0 {
+            messages.push(compare.dupes.clone().to_message());
         }
-        None => {
-            log::debug!("cache miss");
-            // TODO: Remove the next two lines when we want to allow mapping
-            // different keys and targets from left and right file.
-            let keys = data.keys.iter().map(|k| k.left.clone()).collect();
-            let targets = data.compare.iter().map(|t| t.left.clone()).collect();
-            let display = data.display;
 
-            let display_by_column = get_display_by_columns(display);
-
-            let result = api::local::compare::compare_files(
-                &repository,
-                Some(&compare_id),
-                cpath_1,
-                cpath_2,
-                keys,
-                targets,
-                display_by_column,
-                None,
-            )?;
-
-            match result {
-                CompareResult::Tabular((compare, _)) => {
-                    let mut messages: Vec<OxenMessage> = vec![];
-
-                    if compare.dupes.left > 0 || compare.dupes.right > 0 {
-                        messages.push(compare.dupes.clone().to_message());
-                    }
-
-                    CompareTabularResponse {
-                        status: StatusMessage::resource_found(),
-                        dfs: compare,
-                        messages,
-                    }
-                }
-                _ => Err(OxenError::basic_str("Wrong comparison type"))?,
-            }
-        }
-    };
-    Ok(HttpResponse::Ok().json(view))
+        let view = CompareTabularResponse {
+            status: StatusMessage::resource_found(),
+            dfs: compare,
+            messages,
+        };
+        Ok(HttpResponse::Ok().json(view))
+    } else {
+        Err(OxenHttpError::NotFound)
+    }
 }
+
+// pub async fn get_df_compare(
+//     req: HttpRequest,
+//     body: String,
+// ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+// let app_data = app_data(&req)?;
+// let namespace = path_param(&req, "namespace")?;
+// let name = path_param(&req, "repo_name")?;
+// let compare_id = path_param(&req, "compare_id")?;
+// let repository = get_repo(&app_data.path, namespace, name)?;
+// let base_head = path_param(&req, "base_head")?;
+
+// let data: TabularCompareBody = serde_json::from_str(&body)?;
+
+// let (left, right) = parse_base_head(&base_head)?;
+// let (left_commit, right_commit) = resolve_base_head(&repository, &left, &right)?;
+
+// let left_commit = left_commit.ok_or(OxenError::revision_not_found(left.into()))?;
+// let right_commit = right_commit.ok_or(OxenError::revision_not_found(right.into()))?;
+
+// let left_entry = api::local::entries::get_commit_entry(
+//     &repository,
+//     &left_commit,
+//     &PathBuf::from(data.left.path.clone()),
+// )?
+// .ok_or_else(|| {
+//     OxenError::ResourceNotFound(format!("{}@{}", data.left.path, left_commit).into())
+// })?;
+// let right_entry = api::local::entries::get_commit_entry(
+//     &repository,
+//     &right_commit,
+//     &PathBuf::from(data.right.path.clone()),
+// )?
+// .ok_or_else(|| {
+//     OxenError::ResourceNotFound(format!("{}@{}", data.right.path, right_commit).into())
+// })?;
+
+// let cpath_1 = CompareEntry {
+//     commit_entry: Some(left_entry.clone()),
+//     path: left_entry.path,
+// };
+
+// let cpath_2 = CompareEntry {
+//     commit_entry: Some(right_entry.clone()),
+//     path: right_entry.path,
+// };
+
+//     let maybe_cached_compare = api::local::compare::get_cached_compare(
+//         &repository,
+//         &compare_id,
+//         cpath_1.clone(),
+//         cpath_2.clone(),
+//     )?;
+
+//     let view = match maybe_cached_compare {
+//         Some(compare) => {
+//             let mut messages: Vec<OxenMessage> = vec![];
+
+//             if compare.dupes.left > 0 || compare.dupes.right > 0 {
+//                 messages.push(compare.dupes.clone().to_message());
+//             }
+
+//             log::debug!("cache hit!");
+//             CompareTabularResponse {
+//                 status: StatusMessage::resource_found(),
+//                 dfs: compare,
+//                 messages,
+//             }
+//         }
+//         None => {
+//             log::debug!("cache miss");
+//             // TODO: Remove the next two lines when we want to allow mapping
+//             // different keys and targets from left and right file.
+//             let keys = data.keys.iter().map(|k| k.left.clone()).collect();
+//             let targets = data.compare.iter().map(|t| t.left.clone()).collect();
+//             let display = data.display;
+
+//             let display_by_column = get_display_by_columns(display);
+
+//             let result = api::local::compare::compare_files(
+//                 &repository,
+//                 Some(&compare_id),
+//                 cpath_1,
+//                 cpath_2,
+//                 keys,
+//                 targets,
+//                 display_by_column,
+//                 None,
+//             )?;
+
+//             match result {
+//                 CompareResult::Tabular((compare, _)) => {
+//                     let mut messages: Vec<OxenMessage> = vec![];
+
+//                     if compare.dupes.left > 0 || compare.dupes.right > 0 {
+//                         messages.push(compare.dupes.clone().to_message());
+//                     }
+
+//                     CompareTabularResponse {
+//                         status: StatusMessage::resource_found(),
+//                         dfs: compare,
+//                         messages,
+//                     }
+//                 }
+//                 _ => Err(OxenError::basic_str("Wrong comparison type"))?,
+//             }
+//         }
+//     };
+//     Ok(HttpResponse::Ok().json(view))
+// }
 
 pub async fn get_derived_df(
     req: HttpRequest,
@@ -384,7 +551,7 @@ pub async fn get_derived_df(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let compare_id = path_param(&req, "compare_id")?;
-    let base_head = path_param(&req, "base_head")?;
+    // let base_head = path_param(&req, "base_head")?;
 
     let compare_dir = api::local::compare::get_compare_dir(&repo, &compare_id);
 
@@ -472,7 +639,7 @@ pub async fn get_derived_df(
             let derived_resource = DerivedDFResource {
                 resource_type: DFResourceType::Compare,
                 resource_id: compare_id.clone(),
-                path: format!("/compare/data_frame/{}/{}", compare_id, base_head),
+                path: format!("/compare/data_frame/{}/diff", compare_id),
             };
 
             let response = JsonDataFrameViewResponse {
@@ -556,4 +723,39 @@ fn get_display_by_columns(display: Vec<TabularCompareDisplayBody>) -> Vec<String
         }
     }
     display_by_column
+}
+
+#[cfg(test)]
+mod tests {
+    use liboxen::{command, error::OxenError};
+
+    use crate::test;
+
+    #[actix_web::test]
+    async fn test_controllers_compare_create() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+        let queue = test::init_queue();
+
+        let namepsace = "testing-namespace";
+        let repo_name = "testing-repo";
+
+        let repo = test::create_local_repo(&sync_dir, namepsace, repo_name)?;
+
+        let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n9,0,1,2";
+        let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,8\n0,1,9,2";
+
+        let path1 = repo.path.join("file1.csv");
+        let path2 = repo.path.join("file2.csv");
+
+        liboxen::test::write_txt_file_to_path(&path1, csv1)?;
+        liboxen::test::write_txt_file_to_path(&path2, csv2)?;
+
+        command::add(&repo, &repo.path)?;
+
+        let status = command::status(&repo)?;
+
+        let commit = command::commit(&repo, "commit 1")?;
+
+        Ok(())
+    }
 }

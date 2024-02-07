@@ -121,6 +121,8 @@ pub const FILE_ROW_NUM_COL_NAME: &str = "_file_row_num";
 pub const TARGETS_HASH_COL: &str = "_targets_hash";
 // Internal Name When Performing Computation
 pub const KEYS_HASH_COL: &str = "_keys_hash";
+// Internal Name When Performing Computation
+pub const DIFF_STATUS_COL: &str = ".oxen.diff.status";
 
 // Data transfer
 // Average chunk size of ~4mb

@@ -136,7 +136,7 @@ fn compare_tabular(
     Ok((compare, compare_tabular_raw.diff_df))
 }
 
-pub fn get_cached_compare(
+pub fn get_cached_compare_with_update(
     repo: &LocalRepository,
     compare_id: &str,
     compare_entry_1: CompareEntry,
@@ -162,6 +162,99 @@ pub fn get_cached_compare(
     {
         return Ok(None);
     }
+
+    let left_full_df = tabular::read_df(
+        api::local::diff::get_version_file_from_commit_id(
+            repo,
+            &left_commit.commit_id,
+            &compare_entry_1.path,
+        )?,
+        DFOpts::empty(),
+    )?;
+    let right_full_df = tabular::read_df(
+        api::local::diff::get_version_file_from_commit_id(
+            repo,
+            &right_commit.commit_id,
+            &compare_entry_2.path,
+        )?,
+        DFOpts::empty(),
+    )?;
+
+    let left_schema = SchemaWithPath {
+        schema: Schema::from_polars(&left_full_df.schema()),
+        path: compare_entry_1.path.to_str().map(|s| s.to_owned()).unwrap(),
+    };
+
+    let right_schema = SchemaWithPath {
+        schema: Schema::from_polars(&right_full_df.schema()),
+        path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
+    };
+
+    let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
+
+    let diff_schema = Schema::from_polars(&diff_df.schema());
+
+    let source_df_left = CompareSourceDF::from_name_df_entry_schema(
+        LEFT,
+        left_full_df,
+        &left_commit,
+        left_schema.schema.clone(),
+    );
+    let source_df_right = CompareSourceDF::from_name_df_entry_schema(
+        RIGHT,
+        right_full_df,
+        &right_commit,
+        right_schema.schema.clone(),
+    );
+
+    let derived_df_diff = CompareDerivedDF::from_compare_info(
+        DIFF,
+        Some(compare_id),
+        Some(&left_commit),
+        Some(&right_commit),
+        diff_df,
+        diff_schema,
+    );
+
+    let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
+        (LEFT.to_string(), source_df_left),
+        (RIGHT.to_string(), source_df_right),
+    ]);
+
+    let derived_dfs: HashMap<String, CompareDerivedDF> =
+        HashMap::from([(DIFF.to_string(), derived_df_diff)]);
+
+    let compare_results = CompareTabular {
+        source: source_dfs,
+        derived: derived_dfs,
+        dupes: read_dupes(repo, compare_id)?,
+    };
+
+    Ok(Some(compare_results))
+}
+
+pub fn get_cached_compare(
+    repo: &LocalRepository,
+    compare_id: &str,
+    compare_entry_1: CompareEntry,
+    compare_entry_2: CompareEntry,
+) -> Result<Option<CompareTabular>, OxenError> {
+    // Check if commits have cahnged since LEFT and RIGHT files were last cached
+    let (cached_left_id, cached_right_id) = get_compare_commit_ids(repo, compare_id)?;
+
+    // If commits cache files do not exist or have changed since last hash (via branch name) then return None to recompute
+    if cached_left_id.is_none() || cached_right_id.is_none() {
+        return Ok(None);
+    }
+
+    // Issue with
+    if compare_entry_1.commit_entry.is_none() || compare_entry_2.commit_entry.is_none() {
+        return Ok(None);
+    }
+
+    // Checked these above
+    let left_commit = compare_entry_1.commit_entry.unwrap();
+    let right_commit = compare_entry_2.commit_entry.unwrap();
 
     let left_full_df = tabular::read_df(
         api::local::diff::get_version_file_from_commit_id(

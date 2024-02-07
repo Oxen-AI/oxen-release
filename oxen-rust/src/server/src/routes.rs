@@ -159,7 +159,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::compare::file),
         )
         .route(
-            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}/{path}/{base_head:.*}",
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}/{path}",
             web::get().to(controllers::compare::get_derived_df),
         )
         // The below is a POST rather than a GET for two reasons: 1) tesla doesn't allow GET requests to have a body,
@@ -168,6 +168,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
             web::post().to(controllers::compare::get_df_compare),
+        )
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
+            web::put().to(controllers::compare::update_df_compare),
         )
         .route(
             "/{namespace}/{repo_name}/compare/data_frame",
