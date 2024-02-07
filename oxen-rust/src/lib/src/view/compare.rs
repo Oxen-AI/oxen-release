@@ -61,6 +61,7 @@ pub struct CompareEntriesResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareTabularResponse {
     pub dfs: CompareTabular,
+    #[serde(flatten)]
     pub status: StatusMessage,
     pub messages: Vec<OxenMessage>,
 }
