@@ -1,5 +1,8 @@
 use crate::error::OxenError;
-use crate::view::compare::{CompareDupes, CompareTabularRaw};
+use crate::model::Schema;
+use crate::view::compare::{
+    CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSummary, CompareTabularRaw,
+};
 
 use polars::chunked_array::ChunkedArray;
 use polars::prelude::{ChunkCompare, NamedFrom};
@@ -53,6 +56,19 @@ pub fn compare(
     let removed_df = calculate_removed_df(&joined_df, keys.clone(), &output_columns)?;
     let added_df = calculate_added_df(&joined_df, keys.clone(), &output_columns)?;
 
+    let compare_summary = {
+        let added_rows = added_df.height();
+        let removed_rows = removed_df.height();
+        let modified_rows = modified_df.height();
+        let derived_schema = Schema::from_polars(&modified_df.schema());
+        CompareSummary {
+            added_rows,
+            removed_rows,
+            modified_rows,
+            derived_schema,
+        }
+    };
+
     // Stack these together and then sort by the keys
     let mut stacked_df = modified_df.vstack(&removed_df)?;
     stacked_df = stacked_df.vstack(&added_df)?;
@@ -60,11 +76,51 @@ pub fn compare(
     let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
     let sorted_df = stacked_df.sort(&keys, descending, false)?;
 
+    let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
+
     Ok(CompareTabularRaw {
-        added_cols_df: DataFrame::default(),
-        removed_cols_df: DataFrame::default(),
         diff_df: sorted_df,
         dupes: CompareDupes { left: 0, right: 0 },
+        schema_diff: Some(schema_diff),
+        compare_summary: Some(compare_summary),
+    })
+}
+
+fn build_compare_schema_diff(
+    schema_diff: SchemaDiff,
+    df_1: &DataFrame,
+    df_2: &DataFrame,
+) -> Result<CompareSchemaDiff, OxenError> {
+    // Refactor the above to use result instead of unwrap
+    let added_cols = schema_diff
+        .added_cols
+        .iter()
+        .map(|col| {
+            let dtype = df_2.column(col)?;
+            Ok(CompareSchemaColumn {
+                name: col.clone(),
+                key: format!("{}.right", col),
+                dtype: dtype.dtype().to_string(),
+            })
+        })
+        .collect::<Result<Vec<CompareSchemaColumn>, OxenError>>()?;
+
+    let removed_cols = schema_diff
+        .removed_cols
+        .iter()
+        .map(|col| {
+            let dtype = df_1.column(col)?;
+            Ok(CompareSchemaColumn {
+                name: col.clone(),
+                key: format!("{}.left", col),
+                dtype: dtype.dtype().to_string(),
+            })
+        })
+        .collect::<Result<Vec<CompareSchemaColumn>, OxenError>>()?;
+
+    Ok(CompareSchemaDiff {
+        added_cols,
+        removed_cols,
     })
 }
 
