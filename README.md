@@ -131,6 +131,29 @@ Code bases to contribute to:
 
 If you are building anything with Oxen.ai or have any questions we would love to hear from you in our [discord](https://discord.gg/s3tBEn7Ptg).
 
+## Build 🔨
+
+Set up virtual environment:
+
+```Bash
+# Set up your python virtual environment
+$ python -m venv ~/.venv_oxen # could be python3 
+$ source ~/.venv_oxen/bin/activate
+$ pip install maturin
+```
+
+```Bash
+# Install rust
+$ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Run maturin
+$ maturin develop
+```
+
+
+
+
+
 ## Why build Oxen?
 
 Oxen was build by a team of machine learning engineers, who have spent countless hours in their careers managing datasets. We have used many different tools, but none of them were as easy to use and as ergonomic as we would like. 
@@ -150,3 +173,4 @@ We built Oxen to be the tool we wish we had.
 <!---------------------------------------------------------------------------->
 
 [Learn The Basics]: https://img.shields.io/badge/Learn_The_Basics-37a779?style=for-the-badge
+
