@@ -232,7 +232,7 @@ pub fn get_cached_compare_with_update(
         source: source_dfs,
         derived: derived_dfs,
         dupes: read_dupes(repo, compare_id)?,
-        compare_summary: Some(compare_summary),
+        summary: Some(compare_summary),
         schema_diff: Some(schema_diff),
     };
 
@@ -338,7 +338,7 @@ pub fn get_cached_compare(
         derived: derived_dfs,
         dupes: read_dupes(repo, compare_id)?,
         schema_diff: Some(schema_diff),
-        compare_summary: Some(compare_summary),
+        summary: Some(compare_summary),
     };
 
     Ok(Some(compare_results))
@@ -689,7 +689,7 @@ fn build_compare_tabular(
         derived: derived_dfs,
         dupes: compare_tabular_raw.dupes.clone(),
         schema_diff: compare_tabular_raw.schema_diff.clone(),
-        compare_summary: compare_tabular_raw.compare_summary.clone(),
+        summary: compare_tabular_raw.compare_summary.clone(),
     }
 }
 
