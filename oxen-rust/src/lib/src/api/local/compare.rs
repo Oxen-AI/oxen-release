@@ -2,14 +2,13 @@ use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPA
 use crate::core::df::tabular::{self};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::CompareEntry;
-use crate::model::{CommitEntry, DataFrameSize, LocalRepository, Schema};
+use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 
 use crate::view::compare::{
-    CompareDerivedDF, CompareDupes, CompareResult, CompareSourceDF, CompareTabular,
-    CompareTabularRaw,
+    CompareDerivedDF, CompareDupes, CompareResult, CompareSchemaDiff, CompareSourceDF,
+    CompareSummary, CompareTabular, CompareTabularRaw,
 };
-use crate::view::schema::SchemaWithPath;
 use crate::{api, util};
 
 use polars::prelude::DataFrame;
@@ -31,8 +30,6 @@ pub struct SchemaDiff {
     unchanged_cols: Vec<String>,
 }
 
-const LEFT: &str = "left";
-const RIGHT: &str = "right";
 const DIFF: &str = "diff";
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
@@ -136,7 +133,7 @@ fn compare_tabular(
     Ok((compare, compare_tabular_raw.diff_df))
 }
 
-pub fn get_cached_compare(
+pub fn get_cached_compare_with_update(
     repo: &LocalRepository,
     compare_id: &str,
     compare_entry_1: CompareEntry,
@@ -180,32 +177,39 @@ pub fn get_cached_compare(
         DFOpts::empty(),
     )?;
 
-    let left_schema = SchemaWithPath {
-        schema: Schema::from_polars(&left_full_df.schema()),
-        path: compare_entry_1.path.to_str().map(|s| s.to_owned()).unwrap(),
-    };
+    let schema_diff = CompareSchemaDiff::from_schemas(
+        &Schema::from_polars(&left_full_df.schema()),
+        &Schema::from_polars(&right_full_df.schema()),
+    )?;
 
-    let right_schema = SchemaWithPath {
-        schema: Schema::from_polars(&right_full_df.schema()),
-        path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
-    };
+    // let left_schema = SchemaWithPath {
+    //     schema: Schema::from_polars(&left_full_df.schema()),
+    //     path: compare_entry_1.path.to_str().map(|s| s.to_owned()).unwrap(),
+    // };
+
+    // let right_schema = SchemaWithPath {
+    //     schema: Schema::from_polars(&right_full_df.schema()),
+    //     path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
+    // };
 
     let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
 
     let diff_schema = Schema::from_polars(&diff_df.schema());
 
-    let source_df_left = CompareSourceDF::from_name_df_entry_schema(
-        LEFT,
-        left_full_df,
-        &left_commit,
-        left_schema.schema.clone(),
-    );
-    let source_df_right = CompareSourceDF::from_name_df_entry_schema(
-        RIGHT,
-        right_full_df,
-        &right_commit,
-        right_schema.schema.clone(),
-    );
+    // let source_df_left = CompareSourceDF::from_name_df_entry_schema(
+    //     LEFT,
+    //     left_full_df,
+    //     &left_commit,
+    //     left_schema.schema.clone(),
+    // );
+    // let source_df_right = CompareSourceDF::from_name_df_entry_schema(
+    //     RIGHT,
+    //     right_full_df,
+    //     &right_commit,
+    //     right_schema.schema.clone(),
+    // );
+
+    let compare_summary = CompareSummary::from_diff_df(&diff_df)?;
 
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
@@ -217,8 +221,8 @@ pub fn get_cached_compare(
     );
 
     let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
-        (LEFT.to_string(), source_df_left),
-        (RIGHT.to_string(), source_df_right),
+        // (LEFT.to_string(), source_df_left),
+        // (RIGHT.to_string(), source_df_right),
     ]);
 
     let derived_dfs: HashMap<String, CompareDerivedDF> =
@@ -228,6 +232,113 @@ pub fn get_cached_compare(
         source: source_dfs,
         derived: derived_dfs,
         dupes: read_dupes(repo, compare_id)?,
+        summary: Some(compare_summary),
+        schema_diff: Some(schema_diff),
+    };
+
+    Ok(Some(compare_results))
+}
+
+pub fn get_cached_compare(
+    repo: &LocalRepository,
+    compare_id: &str,
+    compare_entry_1: CompareEntry,
+    compare_entry_2: CompareEntry,
+) -> Result<Option<CompareTabular>, OxenError> {
+    // Check if commits have cahnged since LEFT and RIGHT files were last cached
+    let (cached_left_id, cached_right_id) = get_compare_commit_ids(repo, compare_id)?;
+
+    // If commits cache files do not exist or have changed since last hash (via branch name) then return None to recompute
+    if cached_left_id.is_none() || cached_right_id.is_none() {
+        return Ok(None);
+    }
+
+    // Issue with
+    if compare_entry_1.commit_entry.is_none() || compare_entry_2.commit_entry.is_none() {
+        return Ok(None);
+    }
+
+    // Checked these above
+    let left_commit = compare_entry_1.commit_entry.unwrap();
+    let right_commit = compare_entry_2.commit_entry.unwrap();
+
+    // TODONOW this should be cached
+    let left_full_df = tabular::read_df(
+        api::local::diff::get_version_file_from_commit_id(
+            repo,
+            &left_commit.commit_id,
+            &compare_entry_1.path,
+        )?,
+        DFOpts::empty(),
+    )?;
+    let right_full_df = tabular::read_df(
+        api::local::diff::get_version_file_from_commit_id(
+            repo,
+            &right_commit.commit_id,
+            &compare_entry_2.path,
+        )?,
+        DFOpts::empty(),
+    )?;
+
+    let schema_diff = CompareSchemaDiff::from_schemas(
+        &Schema::from_polars(&left_full_df.schema()),
+        &Schema::from_polars(&right_full_df.schema()),
+    )?;
+
+    // let left_schema = SchemaWithPath {
+    //     schema: Schema::from_polars(&left_full_df.schema()),
+    //     path: compare_entry_1.path.to_str().map(|s| s.to_owned()).unwrap(),
+    // };
+
+    // let right_schema = SchemaWithPath {
+    //     schema: Schema::from_polars(&right_full_df.schema()),
+    //     path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
+    // };
+
+    let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
+
+    let diff_schema = Schema::from_polars(&diff_df.schema());
+
+    // let source_df_left = CompareSourceDF::from_name_df_entry_schema(
+    //     LEFT,
+    //     left_full_df,
+    //     &left_commit,
+    //     left_schema.schema.clone(),
+    // );
+    // let source_df_right = CompareSourceDF::from_name_df_entry_schema(
+    //     RIGHT,
+    //     right_full_df,
+    //     &right_commit,
+    //     right_schema.schema.clone(),
+    // );
+
+    let compare_summary = CompareSummary::from_diff_df(&diff_df)?;
+
+    let derived_df_diff = CompareDerivedDF::from_compare_info(
+        DIFF,
+        Some(compare_id),
+        Some(&left_commit),
+        Some(&right_commit),
+        diff_df,
+        diff_schema,
+    );
+
+    let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
+        // (LEFT.to_string(), source_df_left),
+        // (RIGHT.to_string(), source_df_right),
+    ]);
+
+    // TODONOW; schema diffs should probably also be cached.
+
+    let derived_dfs: HashMap<String, CompareDerivedDF> =
+        HashMap::from([(DIFF.to_string(), derived_df_diff)]);
+
+    let compare_results = CompareTabular {
+        source: source_dfs,
+        derived: derived_dfs,
+        dupes: read_dupes(repo, compare_id)?,
+        schema_diff: Some(schema_diff),
+        summary: Some(compare_summary),
     };
 
     Ok(Some(compare_results))
@@ -440,6 +551,7 @@ fn compute_row_comparison(
     Ok(compare)
 }
 
+// TODO: consolidate this - and maybe the entire struct - with CompareSchemaDiff
 fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
     let df1_cols = df1.get_column_names();
     let df2_cols = df2.get_column_names();
@@ -517,10 +629,11 @@ fn get_version_file(
     }
 }
 
-// TODONOW clean
+// TODONOW we can take this step out and accomplish
+// what we need to with compare_tabular_raw
 fn build_compare_tabular(
-    df_1: &DataFrame,
-    df_2: &DataFrame,
+    _df_1: &DataFrame,
+    _df_2: &DataFrame,
     compare_entry_1: &CompareEntry,
     compare_entry_2: &CompareEntry,
     compare_tabular_raw: &CompareTabularRaw,
@@ -530,10 +643,6 @@ fn build_compare_tabular(
 
     let diff_schema = Schema::from_polars(&diff_df.schema());
 
-    let df_1_size = DataFrameSize::from_df(df_1);
-    let df_2_size = DataFrameSize::from_df(df_2);
-    let og_schema_1 = Schema::from_polars(&df_1.schema());
-    let og_schema_2 = Schema::from_polars(&df_2.schema());
     let derived_df_diff = CompareDerivedDF::from_compare_info(
         DIFF,
         compare_id,
@@ -543,33 +652,33 @@ fn build_compare_tabular(
         diff_schema,
     );
 
-    let source_df_left = CompareSourceDF {
-        name: LEFT.to_string(),
-        path: compare_entry_1.path.clone(),
-        version: compare_entry_1
-            .clone()
-            .commit_entry
-            .map(|c| c.commit_id)
-            .unwrap_or("".to_owned()),
-        schema: og_schema_1.clone(),
-        size: df_1_size,
-    };
+    // let source_df_left = CompareSourceDF {
+    //     name: LEFT.to_string(),
+    //     path: compare_entry_1.path.clone(),
+    //     version: compare_entry_1
+    //         .clone()
+    //         .commit_entry
+    //         .map(|c| c.commit_id)
+    //         .unwrap_or("".to_owned()),
+    //     schema: og_schema_1.clone(),
+    //     size: df_1_size,
+    // };
 
-    let source_df_right = CompareSourceDF {
-        name: RIGHT.to_string(),
-        path: compare_entry_2.path.clone(),
-        version: compare_entry_2
-            .clone()
-            .commit_entry
-            .map(|c| c.commit_id)
-            .unwrap_or("".to_owned()),
-        schema: og_schema_2.clone(),
-        size: df_2_size,
-    };
+    // let source_df_right = CompareSourceDF {
+    //     name: RIGHT.to_string(),
+    //     path: compare_entry_2.path.clone(),
+    //     version: compare_entry_2
+    //         .clone()
+    //         .commit_entry
+    //         .map(|c| c.commit_id)
+    //         .unwrap_or("".to_owned()),
+    //     schema: og_schema_2.clone(),
+    //     size: df_2_size,
+    // };
 
     let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
-        (LEFT.to_string(), source_df_left),
-        (RIGHT.to_string(), source_df_right),
+        // (LEFT.to_string(), source_df_left),
+        // (RIGHT.to_string(), source_df_right),
     ]);
 
     let derived_dfs: HashMap<String, CompareDerivedDF> =
@@ -579,6 +688,8 @@ fn build_compare_tabular(
         source: source_dfs,
         derived: derived_dfs,
         dupes: compare_tabular_raw.dupes.clone(),
+        schema_diff: compare_tabular_raw.schema_diff.clone(),
+        summary: compare_tabular_raw.compare_summary.clone(),
     }
 }
 
@@ -696,7 +807,6 @@ mod tests {
     use polars::lazy::frame::IntoLazy;
 
     use crate::api;
-    use crate::api::local::compare::CompareStrategy;
     use crate::command;
     use crate::core::df::tabular;
     use crate::error::OxenError;
@@ -705,7 +815,6 @@ mod tests {
     use crate::test;
     use crate::view::compare::CompareResult;
 
-    use super::get_cached_compare;
     use super::get_compare_diff_path;
 
     #[test]
