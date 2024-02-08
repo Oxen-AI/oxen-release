@@ -74,7 +74,7 @@ pub struct CompareTabular {
     pub derived: HashMap<String, CompareDerivedDF>,
     pub dupes: CompareDupes,
     pub schema_diff: Option<CompareSchemaDiff>,
-    pub compare_summary: Option<CompareSummary>,
+    pub summary: Option<CompareSummary>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -85,10 +85,15 @@ pub struct CompareSchemaDiff {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareSummary {
+    pub modifications: CompareTabularMods,
+    pub schema: Schema,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CompareTabularMods {
     pub added_rows: usize,
     pub removed_rows: usize,
     pub modified_rows: usize,
-    pub derived_schema: Schema,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -243,10 +248,12 @@ impl CompareSummary {
             .count();
 
         Ok(CompareSummary {
-            added_rows,
-            removed_rows,
-            modified_rows,
-            derived_schema: Schema::from_polars(&df.schema()),
+            modifications: CompareTabularMods {
+                added_rows,
+                removed_rows,
+                modified_rows,
+            },
+            schema: Schema::from_polars(&df.schema()),
         })
     }
 }

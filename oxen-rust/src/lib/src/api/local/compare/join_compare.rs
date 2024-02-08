@@ -1,7 +1,8 @@
 use crate::error::OxenError;
 use crate::model::Schema;
 use crate::view::compare::{
-    CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSummary, CompareTabularRaw,
+    CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSummary, CompareTabularMods,
+    CompareTabularRaw,
 };
 
 use polars::chunked_array::ChunkedArray;
@@ -62,10 +63,12 @@ pub fn compare(
         let modified_rows = modified_df.height();
         let derived_schema = Schema::from_polars(&modified_df.schema());
         CompareSummary {
-            added_rows,
-            removed_rows,
-            modified_rows,
-            derived_schema,
+            modifications: CompareTabularMods {
+                added_rows,
+                removed_rows,
+                modified_rows,
+            },
+            schema: derived_schema,
         }
     };
 
