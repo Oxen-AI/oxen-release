@@ -22,7 +22,6 @@ pub struct TabularDiffImpl {
 
     pub base_schema: Option<Schema>,
     pub head_schema: Option<Schema>,
-
     pub added_rows: Option<JsonDataFrame>,
     pub added_rows_view: Option<JsonDataFrameView>,
     pub removed_rows: Option<JsonDataFrame>,

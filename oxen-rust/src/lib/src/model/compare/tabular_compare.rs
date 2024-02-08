@@ -37,7 +37,8 @@ pub struct TabularCompareResourceBody {
 pub struct TabularCompareFieldBody {
     pub left: String,
     pub right: String,
-    pub alias: Option<String>,
+    pub alias_as: Option<String>,
+    pub compare_method: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
