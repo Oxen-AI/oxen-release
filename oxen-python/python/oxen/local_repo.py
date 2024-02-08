@@ -80,6 +80,14 @@ class LocalRepo:
         """
         return self._repo.list_branches()
 
+    def branch(self, name: str, delete=False):
+        """
+        """
+        return self._repo.branch(name, delete)
+
+
+
+
     def checkout(self, revision: str, create=False):
         """
         Checkout a branch or commit id.

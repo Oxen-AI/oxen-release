@@ -97,6 +97,13 @@ impl PyLocalRepo {
         let commit = command::commit(&repo, message)?;
         Ok(PyCommit { commit })
     }
+    pub fn branch(&self, name: &str, delete: bool) -> Result<(), PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        if delete{
+            api::local::branches::delete(&repo, name)?;
+        }
+        Ok(())
+    }
 
     pub fn checkout(&self, revision: &str, create: bool) -> Result<PyBranch, PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
