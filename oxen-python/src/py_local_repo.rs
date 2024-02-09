@@ -144,10 +144,17 @@ impl PyLocalRepo {
         Ok(())
     }
 
-    pub fn push(&self, remote: &str, branch: &str) -> Result<(), PyOxenError> {
+    pub fn push(&self, remote: &str, branch: &str, delete: bool) -> Result<(), PyOxenError> {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             let repo = LocalRepository::from_dir(&self.path)?;
-            command::push_remote_branch(&repo, remote, branch).await
+            if delete {
+                // Delete the remote branch
+                api::remote::branches::delete_remote(&repo, remote, branch).await?;
+            } else {
+                // Push to the remote branch
+                command::push_remote_branch(&repo, remote, branch).await?;
+            }
+            Ok(())
         })?;
         Ok(())
     }
