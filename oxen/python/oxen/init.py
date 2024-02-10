@@ -2,7 +2,7 @@ from oxen.local_repo import LocalRepo
 
 
 def init(
-    path: str,
+    path: str = "./",
 ):
     """
     Initialize a [LocalRepo](/python-api/local_repo) at the given path.
