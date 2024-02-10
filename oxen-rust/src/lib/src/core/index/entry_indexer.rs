@@ -18,7 +18,7 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{
-    Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
+    Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
 use crate::opts::PullOpts;
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
@@ -39,8 +39,8 @@ impl EntryIndexer {
         })
     }
 
-    pub async fn push(&self, rb: &RemoteBranch) -> Result<RemoteRepository, OxenError> {
-        pusher::push(&self.repository, rb).await
+    pub async fn push(&self, src: Branch, dst: RemoteBranch) -> Result<Branch, OxenError> {
+        pusher::push(&self.repository, src, dst).await
     }
 
     pub async fn pull(&self, rb: &RemoteBranch, mut opts: PullOpts) -> Result<(), OxenError> {
