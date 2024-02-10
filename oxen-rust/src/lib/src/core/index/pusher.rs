@@ -20,7 +20,7 @@ use tokio::time::Duration;
 
 use crate::constants::{self, AVG_CHUNK_SIZE, NUM_HTTP_RETRIES};
 
-use crate::core::index::{self, CommitReader, Merger, RefReader};
+use crate::core::index::{self, CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
@@ -33,29 +33,19 @@ pub struct UnsyncedCommitEntries {
     pub entries: Vec<Entry>,
 }
 
-// pub struct UnsyncedCommitSchemas {
-//     pub commit: Commit,
-//     pub schemas: Vec<Schema>,
-// }
 pub async fn push(
     repo: &LocalRepository,
-    rb: &RemoteBranch,
-) -> Result<RemoteRepository, OxenError> {
-    let ref_reader = RefReader::new(repo)?;
-    let branch = ref_reader.get_branch_by_name(&rb.branch)?;
-    if branch.is_none() {
-        return Err(OxenError::local_branch_not_found(&rb.branch));
-    }
-
-    let branch = branch.unwrap();
-
+    src: Branch,
+    dst: RemoteBranch,
+) -> Result<Branch, OxenError> {
+    let branch = src;
     println!(
         "🐂 Oxen push {} {} -> {}",
-        rb.remote, branch.name, branch.commit_id
+        dst.remote, branch.name, branch.commit_id
     );
     let remote = repo
-        .get_remote(&rb.remote)
-        .ok_or(OxenError::remote_not_set(&rb.remote))?;
+        .get_remote(&dst.remote)
+        .ok_or(OxenError::remote_not_set(&dst.remote))?;
 
     log::debug!("Pushing to remote {:?}", remote);
     // Repo should be created before this step
@@ -65,7 +55,8 @@ pub async fn push(
         Err(err) => return Err(err),
     };
 
-    push_remote_repo(repo, remote_repo, branch).await
+    push_remote_repo(repo, remote_repo, branch.clone()).await?;
+    Ok(branch)
 }
 
 async fn validate_repo_is_pushable(

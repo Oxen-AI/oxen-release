@@ -118,7 +118,8 @@ pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Bra
     }
 }
 
-pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+pub fn delete(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+    // Make sure they don't delete the current checked out branch
     if let Ok(Some(branch)) = current_branch(repo) {
         if branch.name == name {
             let err = format!("Err: Cannot delete current checked out branch '{name}'");
@@ -137,7 +138,7 @@ pub fn delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 
 /// # Force delete a local branch
 /// Caution! Will delete a local branch without checking if it has been merged or pushed.
-pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
     if let Ok(Some(branch)) = current_branch(repo) {
         if branch.name == name {
             let err = format!("Err: Cannot delete current checked out branch '{name}'");

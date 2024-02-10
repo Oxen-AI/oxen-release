@@ -92,14 +92,17 @@ impl RefWriter {
         }
     }
 
-    pub fn delete_branch(&self, name: &str) -> Result<(), OxenError> {
-        if !self.has_branch(name) {
+    pub fn delete_branch(&self, name: &str) -> Result<Branch, OxenError> {
+        // Get the commit id for the branch so we can
+        // 1) verify it exists
+        // 2) delete it
+        // 3) return the branch
+        let Some(branch) = self.get_branch_by_name(name)? else {
             let err = format!("Branch does not exist: {name}");
-            Err(OxenError::basic_str(err))
-        } else {
-            self.refs_db.delete(name)?;
-            Ok(())
-        }
+            return Err(OxenError::basic_str(err));
+        };
+        self.refs_db.delete(name)?;
+        Ok(branch)
     }
 
     pub fn set_branch_commit_id(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
