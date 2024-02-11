@@ -2,6 +2,7 @@
 //!
 
 use liboxen::error::OxenError;
+use liboxen::model::Branch;
 use liboxen::model::LocalRepository;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::RmOpts;
@@ -81,7 +82,7 @@ impl PyLocalRepo {
 
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             command::rm(&repo, &rm_opts).await
-        }).unwrap();
+        })?;
 
         Ok(())
     }
@@ -96,6 +97,17 @@ impl PyLocalRepo {
         let repo = LocalRepository::from_dir(&self.path)?;
         let commit = command::commit(&repo, message)?;
         Ok(PyCommit { commit })
+    }
+
+    pub fn branch(&self, name: &str, delete: bool) -> Result<PyBranch, PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+        let branch = if delete {
+            api::local::branches::delete(&repo, name)
+        } else {
+            api::local::branches::get_by_name(&repo, name)?
+                .ok_or(OxenError::local_branch_not_found(name))
+        };
+        Ok(PyBranch::from(branch?))
     }
 
     pub fn checkout(&self, revision: &str, create: bool) -> Result<PyBranch, PyOxenError> {
@@ -137,12 +149,20 @@ impl PyLocalRepo {
         Ok(())
     }
 
-    pub fn push(&self, remote: &str, branch: &str) -> Result<(), PyOxenError> {
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+    pub fn push(&self, remote: &str, branch: &str, delete: bool) -> Result<PyBranch, PyOxenError> {
+        let result: Result<Branch, OxenError> = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let repo = LocalRepository::from_dir(&self.path)?;
-            command::push_remote_branch(&repo, remote, branch).await
-        })?;
-        Ok(())
+            if delete {
+                // Delete the remote branch
+                api::remote::branches::delete_remote(&repo, remote, branch).await
+            } else {
+                // Push to the remote branch
+                command::push_remote_branch(&repo, remote, branch).await
+            }
+        });
+
+        let py_branch = PyBranch::from(result?);
+        Ok(py_branch)
     }
 
     pub fn pull(&self, remote: &str, branch: &str, all: bool) -> Result<(), PyOxenError> {
