@@ -345,7 +345,7 @@ pub fn get_dir_entry_metadata(
         let dt_series: Vec<&str> = data_type_df
             .column("data_type")
             .unwrap()
-            .utf8()
+            .str()
             .unwrap()
             .into_no_null_iter()
             .collect();

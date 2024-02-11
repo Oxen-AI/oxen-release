@@ -228,21 +228,21 @@ impl CompareSummary {
         // TODO optimization: can this be done in one pass?
         let added_rows = df
             .column(DIFF_STATUS_COL)?
-            .utf8()?
+            .str()?
             .into_iter()
             .filter(|opt| opt.as_ref().map(|s| *s == "added").unwrap_or(false))
             .count();
 
         let removed_rows = df
             .column(DIFF_STATUS_COL)?
-            .utf8()?
+            .str()?
             .into_iter()
             .filter(|opt| opt.as_ref().map(|s| *s == "removed").unwrap_or(false))
             .count();
 
         let modified_rows = df
             .column(DIFF_STATUS_COL)?
-            .utf8()?
+            .str()?
             .into_iter()
             .filter(|opt| opt.as_ref().map(|s| *s == "modified").unwrap_or(false))
             .count();
