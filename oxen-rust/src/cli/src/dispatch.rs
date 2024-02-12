@@ -1,3 +1,4 @@
+use colored::ColoredString;
 use liboxen::api;
 use liboxen::command;
 use liboxen::command::migrate::CreateMerkleTreesMigration;
@@ -28,6 +29,8 @@ use liboxen::util::oxen_version::OxenVersion;
 
 use colored::Colorize;
 use liboxen::view::compare::CompareResult;
+use liboxen::view::compare::CompareSchemaDiff;
+use liboxen::view::compare::CompareSummary;
 use liboxen::view::PaginatedDirEntries;
 use minus::Pager;
 use std::env;
@@ -568,8 +571,9 @@ pub async fn diff(
         )
     };
 
-    let result = if is_remote {
-        command::remote::diff(&repository, revision_1, &file_1).await?
+    if is_remote {
+        let remote_diff = command::remote::diff(&repository, revision_1, &file_1).await?;
+        println!("{remote_diff}");
     } else {
         let compare_result = command::compare(
             &repository,
@@ -580,13 +584,9 @@ pub async fn diff(
             display,
             output,
         )?;
-        match compare_result {
-            CompareResult::Tabular((_tabular_compare, df)) => df.to_string(),
-            CompareResult::Text(text) => text,
-        }
+        print_compare_result(compare_result)?;
     };
 
-    println!("{result}");
     Ok(())
 }
 
@@ -1164,5 +1164,83 @@ pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
 
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
     command::load(src_path, dest_path, no_working_dir)?;
+    Ok(())
+}
+
+fn print_compare_result(result: CompareResult) -> Result<(), OxenError> {
+    match result {
+        CompareResult::Tabular((ct, df)) => {
+            // println!("{:?}", ct.summary);
+            if let Some(schema_diff) = ct.schema_diff {
+                print_schema_diff(schema_diff)?;
+            }
+            if let Some(summary) = ct.summary {
+                print_compare_summary(summary)?;
+            }
+            println!("{}", df);
+        }
+        CompareResult::Text(s) => {
+            println!("{}", s);
+        }
+    }
+
+    Ok(())
+}
+
+// TODO: Truncate to "and x more"
+fn print_schema_diff(schema_diff: CompareSchemaDiff) -> Result<(), OxenError> {
+    let mut outputs: Vec<ColoredString> = vec![];
+
+    print!("\n");
+    if !schema_diff.added_cols.is_empty() {
+        let mut added_rows = vec![];
+        for col in schema_diff.added_cols {
+            added_rows.push(format!("   + {} ({})", col.name, col.dtype));
+        }
+        outputs.push("Added columns:\n".into());
+        outputs.push(added_rows.join("\n").green());
+        outputs.push("\n\n".into());
+    }
+
+    if !schema_diff.removed_cols.is_empty() {
+        let mut removed_rows = vec![];
+        for col in schema_diff.removed_cols {
+            removed_rows.push(format!("   - {} ({})", col.name, col.dtype));
+        }
+        outputs.push("Removed columns:\n".into());
+        outputs.push(removed_rows.join("\n").red());
+        outputs.push("\n\n".into());
+    }
+
+    for output in outputs {
+        print!("{output}");
+    }
+
+    Ok(())
+}
+
+fn print_compare_summary(summary: CompareSummary) -> Result<(), OxenError> {
+    let mut outputs: Vec<ColoredString> = vec![];
+
+    if summary.modifications.added_rows > 0 {
+        outputs.push("Added rows: \n".into());
+        outputs.push(format!("   + {}\n", summary.modifications.added_rows).green());
+    }
+
+    if summary.modifications.removed_rows > 0 {
+        outputs.push("Removed rows: \n".into());
+        outputs.push(format!("   - {}\n", summary.modifications.removed_rows).red());
+    }
+
+    if summary.modifications.modified_rows > 0 {
+        outputs.push("Modified rows: \n".into());
+        outputs.push(format!("   Δ {}\n", summary.modifications.modified_rows).yellow());
+    }
+    for output in outputs {
+        print!("{output}");
+    }
+
+    print!("\n");
+
     Ok(())
 }
