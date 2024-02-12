@@ -4,6 +4,7 @@
 //!
 
 use crate::api;
+use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::core::index::{pusher, EntryIndexer};
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
@@ -47,30 +48,38 @@ use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 /// # Ok(())
 /// # }
 /// ```
-pub async fn push(repo: &LocalRepository) -> Result<RemoteRepository, OxenError> {
+pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let indexer = EntryIndexer::new(repo)?;
-    let mut rb = RemoteBranch::default();
+    let mut remote_branch = RemoteBranch::default();
 
     // Push the currently checked out branch
-    if let Some(current_branch) = api::local::branches::current_branch(repo)? {
-        rb.branch = current_branch.name;
-    }
+    let Some(local_branch) = api::local::branches::current_branch(repo)? else {
+        return Err(OxenError::local_branch_not_found(DEFAULT_BRANCH_NAME));
+    };
 
-    indexer.push(&rb).await
+    let local_branch_cpy = local_branch.clone();
+    remote_branch.branch = local_branch_cpy.clone().name;
+    indexer.push(local_branch_cpy, remote_branch).await?;
+    Ok(local_branch)
 }
 
 /// Push to a specific remote branch on the default remote repository
 pub async fn push_remote_branch(
     repo: &LocalRepository,
     remote: &str,
-    branch: &str,
-) -> Result<RemoteRepository, OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch {
-        remote: String::from(remote),
-        branch: String::from(branch),
+    branch_name: &str,
+) -> Result<Branch, OxenError> {
+    let Some(local_branch) = api::local::branches::get_by_name(repo, branch_name)? else {
+        return Err(OxenError::local_branch_not_found(branch_name));
     };
-    indexer.push(&rb).await
+
+    let indexer = EntryIndexer::new(repo)?;
+    let remote_branch = RemoteBranch {
+        remote: String::from(remote),
+        branch: String::from(branch_name),
+    };
+    indexer.push(local_branch.clone(), remote_branch).await?;
+    Ok(local_branch)
 }
 
 /// Push to a specific remote repository

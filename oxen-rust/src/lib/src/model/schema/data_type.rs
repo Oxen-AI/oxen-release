@@ -94,7 +94,7 @@ impl DataType {
             DataType::Int64 => polars::prelude::DataType::Int64,
             DataType::Float32 => polars::prelude::DataType::Float32,
             DataType::Float64 => polars::prelude::DataType::Float64,
-            DataType::String => polars::prelude::DataType::Utf8,
+            DataType::String => polars::prelude::DataType::String,
             DataType::Date => polars::prelude::DataType::Date,
             DataType::Time => polars::prelude::DataType::Time,
             DataType::List(val) => polars::prelude::DataType::List(Box::new(val.to_polars())),
@@ -116,7 +116,7 @@ impl DataType {
             polars::prelude::DataType::Int64 => DataType::Int64,
             polars::prelude::DataType::Float32 => DataType::Float32,
             polars::prelude::DataType::Float64 => DataType::Float64,
-            polars::prelude::DataType::Utf8 => DataType::String,
+            polars::prelude::DataType::String => DataType::String,
             polars::prelude::DataType::Null => DataType::Null,
             _ => DataType::Unknown,
         }

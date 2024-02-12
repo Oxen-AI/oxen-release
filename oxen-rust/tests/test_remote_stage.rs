@@ -71,7 +71,7 @@ async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenE
             // Grab ID from the row we just added
             let df = command::remote::df(&cloned_repo, &path, opts).await?;
             let uuid = match df.get(0).unwrap().first().unwrap() {
-                AnyValue::Utf8(s) => s.to_string(),
+                AnyValue::String(s) => s.to_string(),
                 _ => panic!("Expected string"),
             };
 
