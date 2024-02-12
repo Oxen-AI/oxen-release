@@ -176,14 +176,14 @@ pub async fn delete_remote(
     repo: &LocalRepository,
     remote: &str,
     branch_name: &str,
-) -> Result<(), OxenError> {
+) -> Result<Branch, OxenError> {
     if let Some(remote) = repo.get_remote(remote) {
         if let Some(remote_repo) = api::remote::repositories::get_by_remote(&remote).await? {
             if let Some(branch) =
                 api::remote::branches::get_by_name(&remote_repo, branch_name).await?
             {
                 api::remote::branches::delete(&remote_repo, &branch.name).await?;
-                Ok(())
+                Ok(branch)
             } else {
                 Err(OxenError::remote_branch_not_found(branch_name))
             }
