@@ -124,6 +124,8 @@ pub struct CompareSchemaColumn {
     pub dtype: String,
 }
 
+// TODONOW these should maybe be moved to a model
+
 #[derive(Debug)]
 pub enum CompareResult {
     Tabular((CompareTabular, DataFrame)),
