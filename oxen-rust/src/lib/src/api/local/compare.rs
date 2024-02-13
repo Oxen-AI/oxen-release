@@ -415,7 +415,10 @@ fn write_compare_dfs(
     let diff_path = get_compare_diff_path(repo, compare_id);
 
     // log::debug!("writing {:?} rows to {:?}", match_df.height(), match_path);
+    log::debug!("writing {:?} rows to {:?}", df.height(), diff_path);
+    log::debug!("joined_df at this point is {:?}", df);
     tabular::write_df(&mut df, &diff_path)?;
+    log::debug!("Wrote");
     // log::debug!("writing {:?} rows to {:?}", diff_df.height(), diff_path);
     // tabular::write_df(&mut diff_df, &diff_path)?;
     // log::debug!("writing {:?} rows to {:?}", left_only.height(), left_path);
@@ -728,14 +731,18 @@ fn maybe_write_cache(
     compare_tabular_raw: &mut CompareTabularRaw,
 ) -> Result<(), OxenError> {
     if let Some(compare_id) = compare_id {
+        log::debug!("writing commit ids");
         write_compare_commit_ids(
             repo,
             compare_id,
             &compare_entry_1.commit_entry,
             &compare_entry_2.commit_entry,
         )?;
+        log::debug!("writing dfs");
         write_compare_dfs(repo, compare_id, compare_tabular_raw)?;
+        log::debug!("writing dupes");
         maybe_write_dupes(repo, compare_id, &compare_tabular_raw.dupes)?;
+        log::debug!("wrote dupes");
     }
 
     Ok(())
@@ -776,15 +783,25 @@ fn maybe_save_compare_output(
     let diff_df = &mut compare_tabular_raw.diff_df;
     // let match_df = &mut compare_tabular_raw.match_df;
 
+    log::debug!("saving compare output");
+
     let (df_1, file_name_1) = (diff_df, "diff.csv");
 
-    // // Save to disk if we have an output - i.e., if called from CLI
+    log::debug!("before output");
+
+    // // Save to disk if we have an output - i.e., if called from API
     if let Some(output) = output {
+        log::debug!("we do have an output");
         std::fs::create_dir_all(output.clone())?;
+        log::debug!("we created the dir");
         let file_1_path = output.join(file_name_1);
         // let file_2_path = output.join(file_name_2);
+        log::debug!("trying to write");
         tabular::write_df(df_1, file_1_path.clone())?;
+        log::debug!("wrote to {:?}", file_1_path);
         // tabular::write_df(df_2, file_2_path.clone())?;
+    } else {
+        log::debug!("we do not have an output??");
     }
 
     Ok(())
