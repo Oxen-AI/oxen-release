@@ -93,6 +93,8 @@ mod tests {
     use crate::test;
     use crate::util;
     use image::imageops;
+    use polars::io::csv::CsvReader;
+    use polars::io::SerReader;
 
     // Test diff add image
     #[tokio::test]
@@ -272,6 +274,12 @@ mod tests {
             command::add(&repo, &repo_filepath)?;
             command::commit(&repo, "Adding initial csv")?;
 
+            // Read the file in as a df and print to screen 
+            let df = CsvReader::from_path(&repo_filepath)?.has_header(true).finish().unwrap();
+
+            log::debug!("df before additions {:?}", df);
+
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
@@ -287,11 +295,15 @@ mod tests {
             command::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the dataframe
-            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the sky?,blue,trivia\n")?;
-            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the ocean?,blue-ish green sometimes,trivia\n")?;
+            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the sky?,blue,trivia")?;
+            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the ocean?,blue-ish green sometimes,trivia")?;
 
             command::add(&repo, &repo_filepath)?;
             command::commit(&repo, "Modifying the csv")?;
+
+            // Read it in again 
+            let df = CsvReader::from_path(&repo_filepath)?.has_header(true).finish().unwrap();
+            log::debug!("df after additions {:?}", df);
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -323,6 +335,7 @@ mod tests {
             let metadata = head_entry.metadata.as_ref().unwrap();
             match metadata {
                 GenericMetadata::MetadataTabular(metadata) => {
+                    log::debug!("here's our tabular metadata {:#?}", metadata);
                     assert_eq!(metadata.tabular.height, 8);
                     assert_eq!(metadata.tabular.width, 4);
                 }

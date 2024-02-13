@@ -963,20 +963,19 @@ where
     write_txt_file_to_path(
         repo.path.join("compare_left.csv"),
         r"height,weight,gender,target,other_target
-        57,150,M,1,yes
-        57,160,M,0,yes
-        58,160,M,1,no
-        59,170,F,1,no
-        60,170,F,0,yes
-        61,180,F,0,yes
-        62,180,F,0,no
-        63,190,M,1,no
-        64,190,M,0,yes
-        65,200,M,0,no
-        70,240,M,1,yes
-        71,241,F,1,no
-        71,242,F,1,no
-        ",
+57,150,M,1,yes
+57,160,M,0,yes
+58,160,M,1,no
+59,170,F,1,no
+60,170,F,0,yes
+61,180,F,0,yes
+62,180,F,0,no
+63,190,M,1,no
+64,190,M,0,yes
+65,200,M,0,no
+70,240,M,1,yes
+71,241,F,1,no
+71,242,F,1,no",
     )?;
 
     write_txt_file_to_path(
