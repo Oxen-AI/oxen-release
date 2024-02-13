@@ -671,13 +671,13 @@ fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
     Ok(df
-        .with_row_index(constants::ROW_NUM_COL_NAME, Some(0))
+        .with_row_count(constants::ROW_NUM_COL_NAME, Some(0))
         .expect(COLLECT_ERROR))
 }
 
 pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame, OxenError> {
     Ok(df
-        .with_row_index(constants::ROW_NUM_COL_NAME, Some(start))
+        .with_row_count(constants::ROW_NUM_COL_NAME, Some(start))
         .expect(COLLECT_ERROR))
 }
 
@@ -1049,7 +1049,7 @@ pub fn copy_df_add_row_num(
     let df = read_df(input, DFOpts::empty())?;
     let mut df = df
         .lazy()
-        .with_row_index("_row_num", Some(0))
+        .with_row_count("_row_num", Some(0))
         .collect()
         .expect("Could not add row count");
     write_df_arrow(&mut df, output)?;
