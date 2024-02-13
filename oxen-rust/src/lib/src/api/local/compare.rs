@@ -506,60 +506,34 @@ fn compute_row_comparison(
     let added_cols = schema_diff.added_cols.clone();
     let removed_cols = schema_diff.removed_cols.clone();
 
+    // TODONOW: extract this key-target overriding into a function that matches on both
     if !targets.is_empty() && keys.is_empty() {
         return Err(OxenError::basic_str(
             "Must specify at least one key column if specifying target columns.",
         ));
     }
 
+    // If keys but not targets, include all other COMMON columns as targets
+    // so we can show modified
+    let targets = if !keys.is_empty() && targets.is_empty() {
+        unchanged_cols
+            .iter()
+            .filter(|c| !keys.contains(&c.as_str()))
+            .map(|s| s.as_str())
+            .collect::<Vec<&str>>()
+    } else {
+        targets
+    };
+
     // By default, key on all shared columns and target on all other columns
+    let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff);
 
-    let (keys, targets) = if keys.is_empty() {
-        let filled_keys = unchanged_cols
-            .iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<&str>>();
-        let filled_targets = added_cols
-            .iter()
-            .chain(removed_cols.iter())
-            .map(|s| s.as_str())
-            .collect::<Vec<&str>>();
-        (filled_keys, filled_targets)
-    } else {
-        (keys, targets)
-    };
+    // Depends on the updated values of keys and targets - TODO maybe consolidate
+    let display = get_display_smart_defaults(display, &schema_diff, &keys, &targets);
 
-    // TODONOW isolate this
-    let mut display_default = vec![];
-    for col in &schema_diff.unchanged_cols {
-        if !keys.contains(&col.as_str()) && !targets.contains(&col.as_str()) {
-            display_default.push(format!("{}.left", col));
-            display_default.push(format!("{}.right", col));
-        }
-    }
-    for col in &schema_diff.removed_cols {
-        if !keys.contains(&col.as_str()) && !targets.contains(&col.as_str()) {
-            display_default.push(format!("{}.left", col));
-        }
-    }
-
-    for col in &schema_diff.added_cols {
-        if !keys.contains(&col.as_str()) && !targets.contains(&col.as_str()) {
-            display_default.push(format!("{}.right", col));
-        }
-    }
-
-    // Map this to a Vec<&str>
-    let display_default = display_default
-        .iter()
-        .map(|s| s.as_str())
-        .collect::<Vec<&str>>();
-
-    let display = if display.is_empty() {
-        display_default
-    } else {
-        display
-    };
+    let keys = keys.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+    let targets = targets.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+    let display = display.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
 
     // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), keys.clone(), targets.clone())?;
@@ -832,6 +806,93 @@ fn is_files_tabular(file_1: &Path, file_2: &Path) -> bool {
 }
 fn is_files_utf8(file_1: &Path, file_2: &Path) -> bool {
     util::fs::is_utf8(file_1) && util::fs::is_utf8(file_2)
+}
+
+fn get_keys_targets_smart_defaults(
+    keys: Vec<&str>,
+    targets: Vec<&str>,
+    schema_diff: &SchemaDiff,
+) -> (Vec<String>, Vec<String>) {
+    let has_keys = !keys.is_empty();
+    let has_targets = !targets.is_empty();
+
+    // Convert to string to avoid lifetime management
+    let keys = keys.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let targets = targets
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+
+    match (has_keys, has_targets) {
+        (true, true) => (keys, targets),
+        (true, false) => {
+            let filled_targets = schema_diff
+                .unchanged_cols
+                .iter()
+                .filter(|c| !keys.contains(&c))
+                .map(|s| s.clone())
+                .collect::<Vec<String>>();
+            (keys, filled_targets)
+        }
+        (false, true) => {
+            let filled_keys = schema_diff
+                .unchanged_cols
+                .iter()
+                .map(|s| s.clone())
+                .collect::<Vec<String>>();
+            (filled_keys, targets)
+        }
+        (false, false) => {
+            let filled_keys = schema_diff
+                .unchanged_cols
+                .iter()
+                .map(|s| s.clone())
+                .collect::<Vec<String>>();
+            let filled_targets = schema_diff
+                .added_cols
+                .iter()
+                .chain(schema_diff.removed_cols.iter())
+                .map(|s| s.clone())
+                .collect::<Vec<String>>();
+            (filled_keys, filled_targets)
+        }
+    }
+}
+
+fn get_display_smart_defaults(
+    display: Vec<&str>,
+    schema_diff: &SchemaDiff,
+    keys: &[String],
+    targets: &[String],
+) -> Vec<String> {
+    if !display.is_empty() {
+        return display
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+    }
+
+    // All non-key non-target columns, with the appropriate suffix(es)
+    let mut display_default = vec![];
+    for col in &schema_diff.unchanged_cols {
+        if !keys.contains(&col) && !targets.contains(&col) {
+            display_default.push(format!("{}.left", col));
+            display_default.push(format!("{}.right", col));
+        }
+    }
+    for col in &schema_diff.removed_cols {
+        if !keys.contains(&col) && !targets.contains(&col) {
+            display_default.push(format!("{}.left", col));
+        }
+    }
+
+    for col in &schema_diff.added_cols {
+        if !keys.contains(&col) && !targets.contains(&col) {
+            display_default.push(format!("{}.right", col));
+        }
+    }
+
+    display_default
 }
 
 #[cfg(test)]

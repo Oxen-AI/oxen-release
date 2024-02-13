@@ -16,7 +16,6 @@ pub fn compare(
     output: Option<PathBuf>,
 ) -> Result<CompareResult, OxenError> {
     // TODONOW - anything we can clean up with this mut initialization?
-    log::debug!("in the compare...");
     let mut compare_entry_1 = CompareEntry {
         commit_entry: None,
         path: cpath_1.path.clone(),
@@ -458,6 +457,77 @@ mod tests {
                     assert_eq!(added_df.height(), 1);
                     assert_eq!(removed_df.height(), 1);
                     assert_eq!(modified_df.height(), 2);
+                }
+                _ => panic!("expected tabular result"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_keys_no_targets_implies_modified() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // We'll key on a, b, and c.
+            // D will then be an implicit target bc it's a shared column
+            // (1 added, 1 removed, 1 modified)
+            let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n0,0,0,0\n";
+            let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,8\n1,1,1,1\n";
+
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::compare(
+                &repo,
+                c1,
+                c2,
+                vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                vec![],
+                vec![],
+                None,
+            )?;
+
+            // Should return empty df
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                CompareResult::Tabular((_ct, df)) => {
+                    assert_eq!(df.height(), 3);
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 1);
+                    assert_eq!(modified_df.height(), 1);
                 }
                 _ => panic!("expected tabular result"),
             }
