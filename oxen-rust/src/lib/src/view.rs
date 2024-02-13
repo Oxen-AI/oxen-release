@@ -57,6 +57,8 @@ pub use crate::view::branch::{
     BranchUpdate, ListBranchesResponse,
 };
 
+pub use crate::view::compare::CompareResult;
+
 pub use crate::view::entry_metadata::MetadataEntryResponse;
 
 pub use crate::view::pagination::Pagination;

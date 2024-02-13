@@ -405,4 +405,65 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn compare_no_keys_no_targets_added_column() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n8,7,6,5";
+            let csv2 = "a,b,c,d,e\n1,2,3,4,5\n4,5,6,7,8\n9,8,7,6,5";
+            // 2 modified (added row) 1 added 1 removed
+
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
+
+            // Should return empty df
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                CompareResult::Tabular((_ct, df)) => {
+                    assert_eq!(df.height(), 4);
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 1);
+                    assert_eq!(modified_df.height(), 2);
+                }
+                _ => panic!("expected tabular result"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
 }

@@ -769,11 +769,6 @@ pub fn df_hash_rows_on_cols(
     hash_fields: Vec<&str>,
     out_col_name: &str,
 ) -> Result<DataFrame, OxenError> {
-    // Do not modify the df if no fields to hash
-    if hash_fields.is_empty() {
-        return Ok(df);
-    }
-
     let num_rows = df.height() as i64;
 
     // Create a vector to store columns to be hashed
@@ -784,6 +779,15 @@ pub fn df_hash_rows_on_cols(
         if hash_fields.contains(&field_name) {
             col_names.push(col(field.name()));
         }
+    }
+
+    log::debug!("Trying to hash on columns: {:?}", col_names);
+    log::debug!("to create column: {}", out_col_name);
+
+    // This is to allow asymmetric target hashing for added / removed cols in default behavior
+    if col_names.is_empty() {
+        let null_string_col = lit(Null {}).alias(out_col_name);
+        return Ok(df.lazy().with_column(null_string_col).collect()?);
     }
 
     // Continue as before
