@@ -23,7 +23,7 @@ pub struct TabularCompareBody {
     pub left: TabularCompareResourceBody,
     pub right: TabularCompareResourceBody,
     pub keys: Vec<TabularCompareFieldBody>,
-    pub compare: Vec<TabularCompareFieldBody>,
+    pub compare: Vec<TabularCompareTargetBody>,
     pub display: Vec<TabularCompareDisplayBody>,
 }
 
@@ -45,5 +45,13 @@ pub struct TabularCompareFieldBody {
 pub struct TabularCompareDisplayBody {
     pub left: Option<String>,
     pub right: Option<String>,
+    pub compare_method: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareTargetBody {
+    pub left: Option<String>,
+    pub right: Option<String>,
+    pub alias_as: Option<String>,
     pub compare_method: Option<String>,
 }

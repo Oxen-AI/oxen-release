@@ -7,7 +7,9 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
-use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareDisplayBody};
+use liboxen::model::compare::tabular_compare::{
+    TabularCompareBody, TabularCompareDisplayBody, TabularCompareTargetBody,
+};
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
@@ -79,6 +81,7 @@ pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("in the compare entries controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -232,7 +235,7 @@ pub async fn create_df_compare(
     // TODO: Remove the next two lines when we want to allow mapping
     // different keys and targets from left and right file.
     let keys = keys.iter().map(|k| k.left.clone()).collect();
-    let targets = targets.iter().map(|t| t.left.clone()).collect();
+    let targets = get_targets_from_req(targets);
 
     let result = api::local::compare::compare_files(
         &repository,
@@ -327,7 +330,7 @@ pub async fn update_df_compare(
     // TODO: Remove the next two lines when we want to allow mapping
     // different keys and targets from left and right file.
     let keys = keys.iter().map(|k| k.left.clone()).collect();
-    let targets = targets.iter().map(|t| t.left.clone()).collect();
+    let targets = get_targets_from_req(targets);
 
     let result = api::local::compare::compare_files(
         &repository,
@@ -611,6 +614,18 @@ fn get_display_by_columns(display: Vec<TabularCompareDisplayBody>) -> Vec<String
         }
     }
     display_by_column
+}
+
+fn get_targets_from_req(targets: Vec<TabularCompareTargetBody>) -> Vec<String> {
+    let mut out_targets: Vec<String> = vec![];
+    for t in targets {
+        if let Some(left) = t.left {
+            out_targets.push(left);
+        } else if let Some(right) = t.right {
+            out_targets.push(right);
+        }
+    }
+    out_targets
 }
 
 #[cfg(test)]
