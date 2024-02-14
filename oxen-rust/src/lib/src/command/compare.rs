@@ -86,11 +86,11 @@ mod tests {
     use polars::lazy::dsl::{col, lit};
     use polars::lazy::frame::IntoLazy;
 
+    use crate::command;
     use crate::error::OxenError;
     use crate::model::entry::commit_entry::CommitPath;
     use crate::test;
     use crate::view::compare::CompareResult;
-    use crate::{api, command};
     #[tokio::test]
     async fn test_compare_same_dataframe_no_keys_no_targets() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
