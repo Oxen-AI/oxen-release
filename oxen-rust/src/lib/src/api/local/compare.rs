@@ -468,30 +468,19 @@ fn compute_row_comparison(
     targets: &[&str],
     display: &[&str],
 ) -> Result<CompareTabularRaw, OxenError> {
-    // let schema_1 = Schema::from_polars(&df_1.schema());
-    // let schema_2 = Schema::from_polars(&df_2.schema());
-
     let schema_diff = get_schema_diff(df_1, df_2);
-
-    log::debug!("schema diff: {:#?}", schema_diff);
-
-    log::debug!("added cols: {:?}", schema_diff.added_cols);
-    log::debug!("removed cols: {:?}", schema_diff.removed_cols);
 
     let targets = targets.to_owned();
     let keys = keys.to_owned();
     let display = display.to_owned();
 
     let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff)?;
-
-    // Depends on the updated values of keys and targets - TODO maybe consolidate
     let display = get_display_smart_defaults(display, &schema_diff, &keys, &targets);
 
     let keys = keys.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
     let targets = targets.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
     let display = display.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
 
-    // TODO: unsure if hash comparison or join is faster here - would guess join, could use some testing
     let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), keys.clone(), targets.clone())?;
 
     let mut compare = join_compare::compare(&df_1, &df_2, schema_diff, targets, keys, display)?;
@@ -504,7 +493,6 @@ fn compute_row_comparison(
     Ok(compare)
 }
 
-// TODO: consolidate this - and maybe the entire struct - with CompareSchemaDiff
 fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
     let df1_cols = df1.get_column_names();
     let df2_cols = df2.get_column_names();
@@ -512,18 +500,12 @@ fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
     let mut df1_set = HashSet::new();
     let mut df2_set = HashSet::new();
 
-    // let oxen_cols: Vec<&str> = vec![TARGETS_HASH_COL, KEYS_HASH_COL, DIFF_STATUS_COL];
-
     for col in df1_cols.iter() {
-        // if !oxen_cols.contains(col) {
         df1_set.insert(col);
-        // }
     }
 
     for col in df2_cols.iter() {
-        // if !oxen_cols.contains(col) {
         df2_set.insert(col);
-        // }
     }
 
     let added_cols: Vec<String> = df2_set
@@ -552,13 +534,6 @@ fn hash_dfs(
     keys: Vec<&str>,
     targets: Vec<&str>,
 ) -> Result<(DataFrame, DataFrame), OxenError> {
-    // Subset to only targets and keys - also checks that these are present
-    // let out_fields = keys.iter().chain(targets.iter()).copied();
-
-    // left_df = left_df.select(out_fields.clone())?;
-    // right_df = right_df.select(out_fields)?;
-
-    // Generate hash columns for target set and key set
     left_df = tabular::df_hash_rows_on_cols(left_df, targets.clone(), TARGETS_HASH_COL)?;
     right_df = tabular::df_hash_rows_on_cols(right_df, targets.clone(), TARGETS_HASH_COL)?;
 
@@ -582,8 +557,8 @@ fn get_version_file(
     }
 }
 
-// TODONOW we can take this step out and accomplish
-// what we need to with compare_tabular_raw
+// TODO we can take this step out and accomplish
+// the same with a refactor and renaming of CompareTabularRaw
 fn build_compare_tabular(
     _df_1: &DataFrame,
     _df_2: &DataFrame,
@@ -604,30 +579,6 @@ fn build_compare_tabular(
         diff_df.clone(),
         diff_schema,
     );
-
-    // let source_df_left = CompareSourceDF {
-    //     name: LEFT.to_string(),
-    //     path: compare_entry_1.path.clone(),
-    //     version: compare_entry_1
-    //         .clone()
-    //         .commit_entry
-    //         .map(|c| c.commit_id)
-    //         .unwrap_or("".to_owned()),
-    //     schema: og_schema_1.clone(),
-    //     size: df_1_size,
-    // };
-
-    // let source_df_right = CompareSourceDF {
-    //     name: RIGHT.to_string(),
-    //     path: compare_entry_2.path.clone(),
-    //     version: compare_entry_2
-    //         .clone()
-    //         .commit_entry
-    //         .map(|c| c.commit_id)
-    //         .unwrap_or("".to_owned()),
-    //     schema: og_schema_2.clone(),
-    //     size: df_2_size,
-    // };
 
     let source_dfs: HashMap<String, CompareSourceDF> = HashMap::from([
         // (LEFT.to_string(), source_df_left),
