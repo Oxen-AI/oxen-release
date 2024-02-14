@@ -6,8 +6,8 @@ use crate::view::compare::{
 };
 
 use polars::datatypes::{AnyValue, StringChunked};
-use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
+use polars::lazy::dsl::{coalesce, lit};
 use polars::lazy::frame::IntoLazy;
 use polars::prelude::ChunkCompare;
 use polars::prelude::{DataFrame, DataFrameJoinOps};
@@ -44,7 +44,6 @@ pub fn compare(
         display.clone(),
         schema_diff.clone(),
     );
-    log::debug!("out columns are {:?}", output_columns);
 
     let joined_df = join_hashed_dfs(
         df_1,
@@ -117,22 +116,24 @@ pub fn compare(
             .not_equal(DIFF_STATUS_UNCHANGED)?,
     )?;
 
-    // TODO: is converting to lazy in the loop costly?
-    for key in keys.clone() {
-        joined_df = joined_df
-            .lazy()
-            .with_columns([coalesce(&[
-                col(&format!("{}.right", key)),
-                col(&format!("{}.left", key)),
-            ])
-            .alias(key)])
-            .collect()?;
+    // TODO: for reasons which are unclear to me it is ridiculously unclear how
+    // to use the polars DSL to get the added, removed, and modified rows as a scalary without
+    // filtering down into sub-dataframes or cloning them. This is a workaround for now.
+
+    let mut added_rows = 0;
+    let mut removed_rows = 0;
+    let mut modified_rows = 0;
+
+    for row in joined_df.column(DIFF_STATUS_COL)?.str()?.into_iter() {
+        match row {
+            Some("added") => added_rows += 1,
+            Some("removed") => removed_rows += 1,
+            Some("modified") => modified_rows += 1,
+            _ => (),
+        }
     }
 
-    let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
-    let joined_df = joined_df.sort(&keys, descending, false)?;
     let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
-
     Ok(CompareTabularRaw {
         diff_df: joined_df.select(&output_columns)?,
         dupes: CompareDupes { left: 0, right: 0 },
@@ -140,9 +141,9 @@ pub fn compare(
         compare_summary: Some(
             CompareSummary {
                 modifications: CompareTabularMods {
-                    added_rows: 0,
-                    removed_rows: 0,
-                    modified_rows: 0,
+                    added_rows,
+                    removed_rows,
+                    modified_rows,
                 },
                 schema: Schema::from_polars(&joined_df.schema()),
             }, // TODONOW return this!
