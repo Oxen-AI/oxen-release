@@ -1192,24 +1192,17 @@ fn print_schema_diff(schema_diff: CompareSchemaDiff) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
 
     println!();
-    if !schema_diff.added_cols.is_empty() {
-        let mut added_rows = vec![];
-        for col in schema_diff.added_cols {
-            added_rows.push(format!("   + {} ({})", col.name, col.dtype));
-        }
-        outputs.push("Added columns:\n".into());
-        outputs.push(added_rows.join("\n").green());
-        outputs.push("\n\n".into());
+
+    if !schema_diff.added_cols.is_empty() || !schema_diff.removed_cols.is_empty() {
+        outputs.push("Column changes:\n".into());
     }
 
-    if !schema_diff.removed_cols.is_empty() {
-        let mut removed_rows = vec![];
-        for col in schema_diff.removed_cols {
-            removed_rows.push(format!("   - {} ({})", col.name, col.dtype));
-        }
-        outputs.push("Removed columns:\n".into());
-        outputs.push(removed_rows.join("\n").red());
-        outputs.push("\n\n".into());
+    for col in schema_diff.added_cols {
+        outputs.push(format!("   + {} ({})\n", col.name, col.dtype).green());
+    }
+
+    for col in schema_diff.removed_cols {
+        outputs.push(format!("   - {} ({})\n", col.name, col.dtype).red());
     }
 
     for output in outputs {
@@ -1222,20 +1215,28 @@ fn print_schema_diff(schema_diff: CompareSchemaDiff) -> Result<(), OxenError> {
 fn print_compare_summary(summary: CompareSummary) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
 
+    if summary.modifications.modified_rows
+        + summary.modifications.added_rows
+        + summary.modifications.removed_rows
+        == 0
+    {
+        println!();
+        return Ok(());
+    }
+
+    outputs.push("\nRow changes: \n".into());
+    if summary.modifications.modified_rows > 0 {
+        outputs.push(format!("   Δ {} (modified)\n", summary.modifications.modified_rows).yellow());
+    }
+
     if summary.modifications.added_rows > 0 {
-        outputs.push("Added rows: \n".into());
-        outputs.push(format!("   + {}\n", summary.modifications.added_rows).green());
+        outputs.push(format!("   + {} (added)\n", summary.modifications.added_rows).green());
     }
 
     if summary.modifications.removed_rows > 0 {
-        outputs.push("Removed rows: \n".into());
-        outputs.push(format!("   - {}\n", summary.modifications.removed_rows).red());
+        outputs.push(format!("   - {} (removed)\n", summary.modifications.removed_rows).red());
     }
 
-    if summary.modifications.modified_rows > 0 {
-        outputs.push("Modified rows: \n".into());
-        outputs.push(format!("   Δ {}\n", summary.modifications.modified_rows).yellow());
-    }
     for output in outputs {
         print!("{output}");
     }
