@@ -32,7 +32,6 @@ pub fn compare(
     keys: Vec<&str>,
     display: Vec<&str>,
 ) -> Result<CompareTabularRaw, OxenError> {
-    log::debug!("in join compre with targets: {:#?}", targets);
     if !targets.is_empty() && keys.is_empty() {
         return Err(OxenError::basic_str(
             "Must specifiy at least one key column if specifying target columns.",
@@ -55,9 +54,6 @@ pub fn compare(
         schema_diff.clone(),
     )?;
 
-    // What columns do we actually want going into this?
-    // Well, keys[0], and the targets_hash_col (but it might not exist...)
-
     let col_names = [
         format!("{}.left", keys[0]),
         format!("{}.right", keys[0]),
@@ -66,9 +62,7 @@ pub fn compare(
     ];
 
     let mut field_names = vec![];
-    // Iterate over col_names to ensure the order is preserved
     for col_name in &col_names {
-        // Check if the joined_df schema contains the column name
         if joined_df
             .schema()
             .iter_fields()
@@ -117,56 +111,6 @@ pub fn compare(
 
     log::debug!("finished joining");
 
-    // log::debug!("joined df: {:#?}", joined_df.select(debug_cols));
-
-    // let modified_df =
-    //     calculate_modified_df(&joined_df, targets.clone(), keys.clone(), &output_columns)?;
-    // log::debug!("getting removed df");
-    // let removed_df = calculate_removed_df(&joined_df, keys.clone(), &output_columns)?;
-    // log::debug!("getting added_df");
-    // let added_df = calculate_added_df(&joined_df, keys.clone(), &output_columns)?;
-
-    // let diff_status = add_diff_status_column(
-    //     &mut joined_df,
-    //     keys.clone(),
-    //     targets.clone(),
-    //     &output_columns,
-    // )?;
-
-    // let compare_summary = {
-    //     let added_rows = added_df.height();
-    //     let removed_rows = removed_df.height();
-    //     let modified_rows = modified_df.height();
-    //     let derived_schema = Schema::from_polars(&modified_df.schema());
-    //     CompareSummary {
-    //         modifications: CompareTabularMods {
-    //             added_rows,
-    //             removed_rows,
-    //             modified_rows,
-    //         },
-    //         schema: derived_schema,
-    //     }
-    // };
-
-    // // Stack these together and then sort by the keys
-    // log::debug!("stacking dfs");
-    // let mut stacked_df = modified_df.vstack(&removed_df)?;
-    // log::debug!("again");
-    // // print out all the columns of stacked_df and their dtypes
-    // for col in stacked_df.get_column_names() {
-    //     log::debug!("col: {}", col);
-    //     log::debug!("dtype: {:?}", stacked_df.column(col).unwrap().dtype());
-    // }
-
-    // // do the same with added_df
-    // for col in added_df.get_column_names() {
-    //     log::debug!("col: {}", col);
-    //     log::debug!("dtype: {:?}", added_df.column(col).unwrap().dtype());
-    // }
-    // stacked_df = stacked_df.vstack(&added_df)?;
-    // log::debug!("againagain");
-
-    // filter the joined_df to where diff_status_col != "unchanged"
     let mut joined_df = joined_df.filter(
         &joined_df
             .column(DIFF_STATUS_COL)?
@@ -185,30 +129,9 @@ pub fn compare(
             .collect()?;
     }
 
-    // Rename all columns in schema_diff.added_cols to .right
-    // for c in schema_diff.added_cols.iter() {
-    //     joined_df = joined_df
-    //         .lazy()
-    //         .with_column(col(&c).alias(&format!("{}.right", c)))
-    //         .collect()?;
-    // }
-
-    // Rename all columns in schema_diff.removed_cols to .left
-    // for c in schema_diff.removed_cols.iter() {
-    //     joined_df = joined_df
-    //         .lazy()
-    //         .with_column(col(&c).alias(&format!("{}.left", c)))
-    //         .collect()?;
-    // }
-
     let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
     let joined_df = joined_df.sort(&keys, descending, false)?;
     let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
-
-    log::debug!(
-        "joined_df with its cols and dtypes: {:#?}",
-        joined_df.schema()
-    );
 
     Ok(CompareTabularRaw {
         diff_df: joined_df.select(&output_columns)?,
@@ -232,7 +155,6 @@ fn build_compare_schema_diff(
     df_1: &DataFrame,
     df_2: &DataFrame,
 ) -> Result<CompareSchemaDiff, OxenError> {
-    // Refactor the above to use result instead of unwrap
     let added_cols = schema_diff
         .added_cols
         .iter()
@@ -288,26 +210,6 @@ fn get_output_columns(
         };
     }
 
-    // Columns in both dfs are renamed
-    // for col in schema_diff.unchanged_cols.iter() {
-    //     if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
-    //         out_columns.push(format!("{}.left", col));
-    //         out_columns.push(format!("{}.right", col));
-    //     }
-    // }
-    // for col in schema_diff.removed_cols.iter() {
-    //     // If in display chcek maybe?
-    //     if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
-    //         out_columns.push(format!("{}.left", col));
-    //     }
-    // }
-    // for col in schema_diff.added_cols.iter() {
-    //     // If in display check maybe?
-    //     if !targets.contains(&col.as_str()) && !keys.contains(&col.as_str()) {
-    //         out_columns.push(format!("{}.right", col));
-    //     }
-    // }
-
     for col in display.iter() {
         if col.ends_with(".left") {
             let stripped = col.trim_end_matches(".left");
@@ -355,10 +257,6 @@ fn join_hashed_dfs(
         cols_to_rename.push(TARGETS_HASH_COL);
     }
 
-    log::debug!("targets were {:#?}", targets);
-
-    log::debug!("joined schema is {:#?}", joined_df.schema());
-
     for col in schema_diff.added_cols.iter() {
         if joined_df.schema().contains(col) {
             joined_df.rename(col, &format!("{}.right", col))?;
@@ -386,96 +284,8 @@ fn join_hashed_dfs(
         }
     }
 
-    log::debug!("joined schema is now {:#?}", joined_df.schema());
-
     Ok(joined_df)
 }
-
-// fn calculate_modified_df(
-//     df: &DataFrame,
-//     targets: Vec<&str>,
-//     keys: Vec<&str>,
-//     output_columns: &Vec<String>,
-// ) -> Result<DataFrame, OxenError> {
-//     let diff_mask = if targets.is_empty() {
-//         ChunkedArray::new("false", vec![false; df.height()])
-//     } else {
-//         df.column(format!("{}.left", TARGETS_HASH_COL).as_str())?
-//             .not_equal(df.column(format!("{}.right", TARGETS_HASH_COL).as_str())?)?
-//     };
-
-//     let mut diff_df = df.filter(&diff_mask)?;
-//     log::debug!("diff columns: {:?}", diff_df.get_column_names());
-//     for key in keys.iter() {
-//         diff_df.rename(&format!("{}.left", key), key)?;
-//     }
-
-//     log::debug!("about to append new column");
-//     let diff_df = diff_df.with_column(Series::new(
-//         DIFF_STATUS_COL,
-//         vec![DIFF_STATUS_MODIFIED; diff_df.height()],
-//     ))?;
-//     log::debug!("appended new column");
-
-//     // Add on the diff status
-//     Ok(diff_df.select(output_columns)?)
-// }
-
-// fn calculate_removed_df(
-//     df: &DataFrame,
-//     keys: Vec<&str>,
-//     output_columns: &Vec<String>,
-// ) -> Result<DataFrame, OxenError> {
-//     // Using keys hash col is correct regardless of whether or not there are targets
-//     let mut left_only = df.filter(&df.column(format!("{}.right", keys[0]).as_str())?.is_null())?;
-//     for key in keys.iter() {
-//         left_only.rename(&format!("{}.left", key), key)?;
-//     }
-
-//     let left_only = left_only.with_column(Series::new(
-//         DIFF_STATUS_COL,
-//         vec![DIFF_STATUS_REMOVED; left_only.height()],
-//     ))?;
-
-//     Ok(left_only.select(output_columns)?)
-// }
-
-// fn add_diff_status_column(
-//     df: &mut DataFrame,
-//     keys: Vec<&str>,
-//     targets: Vec<&str>,
-//     output_columns: &Vec<String>,
-// ) -> Result<(), OxenError> {
-//     // Iterate over the df
-//     df.apply(|row| Ok(get_row_diff_status(row, keys.clone(), targets.clone())));
-
-//     Ok(())
-// }
-
-// fn get_row_diff_status(row: &Series, keys: Vec<&str>, targets: Vec<&str>) -> String {
-//     // If the column "keys[0].right" is null, it's a removed row
-//     if row.get(&format!("{}.right", keys[0])).is_null() {
-//         return DIFF_STATUS_REMOVED.to_string();
-//     }
-
-//     // If the column "keys[0].left" is null, it's an added row
-//     if row.get(&format!("{}.left", keys[0])).is_null() {
-//         return DIFF_STATUS_ADDED.to_string();
-//     }
-
-//     // If there are targets, check if they are different
-//     // TODO: handle implicit targets!
-//     if !targets.is_empty() {
-//         let left_hash = row.get(&format!("{}.left", TARGETS_HASH_COL));
-//         let right_hash = row.get(&format!("{}.right", TARGETS_HASH_COL));
-//         if left_hash != right_hash {
-//             return DIFF_STATUS_MODIFIED.to_string();
-//         }
-//     }
-
-//     // If we've made it this far, it's unchanged
-//     DIFF_STATUS_UNCHANGED.to_string()
-// }
 
 fn test_function(
     key_left: Option<&AnyValue>,
@@ -510,24 +320,3 @@ fn test_function(
     }
     DIFF_STATUS_UNCHANGED.to_string()
 }
-
-// fn calculate_added_df(
-//     df: &DataFrame,
-//     keys: Vec<&str>,
-//     output_columns: &Vec<String>,
-// ) -> Result<DataFrame, OxenError> {
-//     let hi = df.lazy().with_column(lit(NULL).alias("new col"))
-//     .with_column()
-//     );
-//     let mut right_only = df.filter(&df.column(format!("{}.left", keys[0]).as_str())?.is_null())?;
-//     for key in keys.iter() {
-//         right_only.rename(&format!("{}.right", key), key)?;
-//     }
-
-//     let right_only = right_only.with_column(Series::new(
-//         DIFF_STATUS_COL,
-//         vec![DIFF_STATUS_ADDED; right_only.height()],
-//     ))?;
-
-//     Ok(right_only.select(output_columns)?)
-// }

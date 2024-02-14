@@ -398,33 +398,13 @@ fn write_compare_dfs(
         std::fs::create_dir_all(&compare_dir)?;
     }
 
-    // let mut left_only = compare_tabular_raw.left_only_df.clone();
-    // let mut right_only = compare_tabular_raw.right_only_df.clone();
-    // let mut match_df = compare_tabular_raw.match_df.clone();
-    // let mut diff_df = compare_tabular_raw.diff_df.clone();
-
-    // let match_path = get_compare_match_path(repo, compare_id);
-    // let diff_path = get_compare_diff_path(repo, compare_id);
-    // let left_path = get_compare_left_path(repo, compare_id);
-    // let right_path = get_compare_right_path(repo, compare_id);
-
     // TODONOW expensive clone
     let mut df = compare_tabular_raw.diff_df.clone();
 
     // TODONOW fix path
     let diff_path = get_compare_diff_path(repo, compare_id);
 
-    // log::debug!("writing {:?} rows to {:?}", match_df.height(), match_path);
-    log::debug!("writing {:?} rows to {:?}", df.height(), diff_path);
-    log::debug!("joined_df at this point is {:?}", df);
     tabular::write_df(&mut df, &diff_path)?;
-    log::debug!("Wrote");
-    // log::debug!("writing {:?} rows to {:?}", diff_df.height(), diff_path);
-    // tabular::write_df(&mut diff_df, &diff_path)?;
-    // log::debug!("writing {:?} rows to {:?}", left_only.height(), left_path);
-    // tabular::write_df(&mut left_only, &left_path)?;
-    // log::debug!("writing {:?} rows to {:?}", right_only.height(), right_path);
-    // tabular::write_df(&mut right_only, &right_path)?;
 
     Ok(())
 }
@@ -502,12 +482,6 @@ fn compute_row_comparison(
     let keys = keys.to_owned();
     let display = display.to_owned();
 
-    // TODONOW: extract this key-target overriding into a function that matches on both
-    if !targets.is_empty() && keys.is_empty() {
-        return Err(OxenError::basic_str(
-            "Must specify at least one key column if specifying target columns.",
-        ));
-    }
     let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff)?;
 
     // Depends on the updated values of keys and targets - TODO maybe consolidate
@@ -707,18 +681,14 @@ fn maybe_write_cache(
     compare_tabular_raw: &mut CompareTabularRaw,
 ) -> Result<(), OxenError> {
     if let Some(compare_id) = compare_id {
-        log::debug!("writing commit ids");
         write_compare_commit_ids(
             repo,
             compare_id,
             &compare_entry_1.commit_entry,
             &compare_entry_2.commit_entry,
         )?;
-        log::debug!("writing dfs");
         write_compare_dfs(repo, compare_id, compare_tabular_raw)?;
-        log::debug!("writing dupes");
         maybe_write_dupes(repo, compare_id, &compare_tabular_raw.dupes)?;
-        log::debug!("wrote dupes");
     }
 
     Ok(())
@@ -759,25 +729,15 @@ fn maybe_save_compare_output(
     let diff_df = &mut compare_tabular_raw.diff_df;
     // let match_df = &mut compare_tabular_raw.match_df;
 
-    log::debug!("saving compare output");
-
     let (df_1, file_name_1) = (diff_df, "diff.csv");
-
-    log::debug!("before output");
 
     // // Save to disk if we have an output - i.e., if called from API
     if let Some(output) = output {
-        log::debug!("we do have an output");
         std::fs::create_dir_all(output.clone())?;
-        log::debug!("we created the dir");
         let file_1_path = output.join(file_name_1);
         // let file_2_path = output.join(file_name_2);
-        log::debug!("trying to write");
         tabular::write_df(df_1, file_1_path.clone())?;
-        log::debug!("wrote to {:?}", file_1_path);
         // tabular::write_df(df_2, file_2_path.clone())?;
-    } else {
-        log::debug!("we do not have an output??");
     }
 
     Ok(())
