@@ -603,23 +603,25 @@ fn validate_required_fields(
     keys: Vec<String>,
     targets: Vec<String>,
 ) -> Result<(), OxenError> {
-    // Subset dataframes to "keys" and "targets"
+    // Keys must be in both dfs
     #[allow(clippy::map_clone)]
-    let required_fields = keys
-        .iter()
-        .chain(targets.iter())
-        .cloned()
-        .collect::<Vec<String>>();
-
-    // Make sure both dataframes have all required fields
-
-    if !schema_1.has_field_names(&required_fields) {
-        return Err(OxenError::incompatible_schemas(required_fields, schema_1));
+    if !schema_1.has_field_names(&keys) {
+        return Err(OxenError::incompatible_schemas(keys, schema_1));
     };
 
-    if !schema_2.has_field_names(&required_fields) {
-        return Err(OxenError::incompatible_schemas(required_fields, schema_2));
+    if !schema_2.has_field_names(&keys) {
+        return Err(OxenError::incompatible_schemas(keys, schema_2));
     };
+
+    // Targets must be in either df
+    for target in &targets {
+        if !schema_1.has_field_name(target) && !schema_2.has_field_name(target) {
+            return Err(OxenError::incompatible_schemas(
+                vec![target.to_string()],
+                schema_1,
+            ));
+        }
+    }
 
     Ok(())
 }
