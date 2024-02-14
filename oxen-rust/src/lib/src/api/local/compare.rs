@@ -502,31 +502,13 @@ fn compute_row_comparison(
     let keys = keys.to_owned();
     let display = display.to_owned();
 
-    let unchanged_cols = schema_diff.unchanged_cols.clone();
-    let added_cols = schema_diff.added_cols.clone();
-    let removed_cols = schema_diff.removed_cols.clone();
-
     // TODONOW: extract this key-target overriding into a function that matches on both
     if !targets.is_empty() && keys.is_empty() {
         return Err(OxenError::basic_str(
             "Must specify at least one key column if specifying target columns.",
         ));
     }
-
-    // If keys but not targets, include all other COMMON columns as targets
-    // so we can show modified
-    let targets = if !keys.is_empty() && targets.is_empty() {
-        unchanged_cols
-            .iter()
-            .filter(|c| !keys.contains(&c.as_str()))
-            .map(|s| s.as_str())
-            .collect::<Vec<&str>>()
-    } else {
-        targets
-    };
-
-    // By default, key on all shared columns and target on all other columns
-    let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff);
+    let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff)?;
 
     // Depends on the updated values of keys and targets - TODO maybe consolidate
     let display = get_display_smart_defaults(display, &schema_diff, &keys, &targets);
@@ -812,7 +794,7 @@ fn get_keys_targets_smart_defaults(
     keys: Vec<&str>,
     targets: Vec<&str>,
     schema_diff: &SchemaDiff,
-) -> (Vec<String>, Vec<String>) {
+) -> Result<(Vec<String>, Vec<String>), OxenError> {
     let has_keys = !keys.is_empty();
     let has_targets = !targets.is_empty();
 
@@ -824,37 +806,29 @@ fn get_keys_targets_smart_defaults(
         .collect::<Vec<String>>();
 
     match (has_keys, has_targets) {
-        (true, true) => (keys, targets),
+        (true, true) => Ok((keys, targets)),
         (true, false) => {
             let filled_targets = schema_diff
                 .unchanged_cols
                 .iter()
-                .filter(|c| !keys.contains(&c))
-                .map(|s| s.clone())
-                .collect::<Vec<String>>();
-            (keys, filled_targets)
+                .filter(|c| !keys.contains(c))
+                .cloned()
+                .collect();
+            Ok((keys, filled_targets))
         }
-        (false, true) => {
-            let filled_keys = schema_diff
-                .unchanged_cols
-                .iter()
-                .map(|s| s.clone())
-                .collect::<Vec<String>>();
-            (filled_keys, targets)
-        }
+        (false, true) => Err(OxenError::basic_str(
+            "Must specify at least one key column if specifying target columns.",
+        )),
         (false, false) => {
-            let filled_keys = schema_diff
-                .unchanged_cols
-                .iter()
-                .map(|s| s.clone())
-                .collect::<Vec<String>>();
+            let filled_keys = schema_diff.unchanged_cols.to_vec();
+
             let filled_targets = schema_diff
                 .added_cols
                 .iter()
                 .chain(schema_diff.removed_cols.iter())
-                .map(|s| s.clone())
-                .collect::<Vec<String>>();
-            (filled_keys, filled_targets)
+                .cloned()
+                .collect();
+            Ok((filled_keys, filled_targets))
         }
     }
 }
@@ -875,19 +849,19 @@ fn get_display_smart_defaults(
     // All non-key non-target columns, with the appropriate suffix(es)
     let mut display_default = vec![];
     for col in &schema_diff.unchanged_cols {
-        if !keys.contains(&col) && !targets.contains(&col) {
+        if !keys.contains(col) && !targets.contains(col) {
             display_default.push(format!("{}.left", col));
             display_default.push(format!("{}.right", col));
         }
     }
     for col in &schema_diff.removed_cols {
-        if !keys.contains(&col) && !targets.contains(&col) {
+        if !keys.contains(col) && !targets.contains(col) {
             display_default.push(format!("{}.left", col));
         }
     }
 
     for col in &schema_diff.added_cols {
-        if !keys.contains(&col) && !targets.contains(&col) {
+        if !keys.contains(col) && !targets.contains(col) {
             display_default.push(format!("{}.right", col));
         }
     }
