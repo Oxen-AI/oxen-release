@@ -781,9 +781,6 @@ pub fn df_hash_rows_on_cols(
         }
     }
 
-    log::debug!("Trying to hash on columns: {:?}", col_names);
-    log::debug!("to create column: {}", out_col_name);
-
     // This is to allow asymmetric target hashing for added / removed cols in default behavior
     if col_names.is_empty() {
         let null_string_col = lit(Null {}).alias(out_col_name);

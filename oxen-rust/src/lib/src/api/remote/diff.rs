@@ -274,10 +274,6 @@ mod tests {
             command::add(&repo, &repo_filepath)?;
             command::commit(&repo, "Adding initial csv")?;
 
-            // Read the file in as a df and print to screen 
-            let df = CsvReader::from_path(&repo_filepath)?.has_header(true).finish().unwrap();
-
-            log::debug!("df before additions {:?}", df);
 
 
             // Set the proper remote
@@ -301,9 +297,6 @@ mod tests {
             command::add(&repo, &repo_filepath)?;
             command::commit(&repo, "Modifying the csv")?;
 
-            // Read it in again 
-            let df = CsvReader::from_path(&repo_filepath)?.has_header(true).finish().unwrap();
-            log::debug!("df after additions {:?}", df);
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -335,7 +328,6 @@ mod tests {
             let metadata = head_entry.metadata.as_ref().unwrap();
             match metadata {
                 GenericMetadata::MetadataTabular(metadata) => {
-                    log::debug!("here's our tabular metadata {:#?}", metadata);
                     assert_eq!(metadata.tabular.height, 8);
                     assert_eq!(metadata.tabular.width, 4);
                 }
