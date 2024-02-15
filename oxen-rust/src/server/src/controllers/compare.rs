@@ -433,6 +433,18 @@ pub async fn get_df_compare(
     }
 }
 
+pub async fn delete_df_compare(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let compare_id = path_param(&req, "compare_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    api::local::compare::delete_df_compare(&repo, &compare_id)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+}
+
 pub async fn get_derived_df(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,

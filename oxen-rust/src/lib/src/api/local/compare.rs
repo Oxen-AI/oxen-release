@@ -182,32 +182,9 @@ pub fn get_cached_compare_with_update(
         &Schema::from_polars(&right_full_df.schema()),
     )?;
 
-    // let left_schema = SchemaWithPath {
-    //     schema: Schema::from_polars(&left_full_df.schema()),
-    //     path: compare_entry_1.path.to_str().map(|s| s.to_owned()).unwrap(),
-    // };
-
-    // let right_schema = SchemaWithPath {
-    //     schema: Schema::from_polars(&right_full_df.schema()),
-    //     path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
-    // };
-
     let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
 
     let diff_schema = Schema::from_polars(&diff_df.schema());
-
-    // let source_df_left = CompareSourceDF::from_name_df_entry_schema(
-    //     LEFT,
-    //     left_full_df,
-    //     &left_commit,
-    //     left_schema.schema.clone(),
-    // );
-    // let source_df_right = CompareSourceDF::from_name_df_entry_schema(
-    //     RIGHT,
-    //     right_full_df,
-    //     &right_commit,
-    //     right_schema.schema.clone(),
-    // );
 
     let compare_summary = CompareSummary::from_diff_df(&diff_df)?;
 
@@ -285,32 +262,9 @@ pub fn get_cached_compare(
         &Schema::from_polars(&right_full_df.schema()),
     )?;
 
-    // let left_schema = SchemaWithPath {
-    //     schema: Schema::from_polars(&left_full_df.schema()),
-    //     path: compare_entry_1.path.to_str().map(|s| s.to_owned()).unwrap(),
-    // };
-
-    // let right_schema = SchemaWithPath {
-    //     schema: Schema::from_polars(&right_full_df.schema()),
-    //     path: compare_entry_2.path.to_str().map(|s| s.to_owned()).unwrap(),
-    // };
-
     let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
 
     let diff_schema = Schema::from_polars(&diff_df.schema());
-
-    // let source_df_left = CompareSourceDF::from_name_df_entry_schema(
-    //     LEFT,
-    //     left_full_df,
-    //     &left_commit,
-    //     left_schema.schema.clone(),
-    // );
-    // let source_df_right = CompareSourceDF::from_name_df_entry_schema(
-    //     RIGHT,
-    //     right_full_df,
-    //     &right_commit,
-    //     right_schema.schema.clone(),
-    // );
 
     let compare_summary = CompareSummary::from_diff_df(&diff_df)?;
 
@@ -342,6 +296,19 @@ pub fn get_cached_compare(
     };
 
     Ok(Some(compare_results))
+}
+
+pub fn delete_df_compare(repo: &LocalRepository, compare_id: &str) -> Result<(), OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+
+    if compare_dir.exists() {
+        log::debug!(
+            "delete_df_compare() found compare_dir, deleting: {:?}",
+            compare_dir
+        );
+        std::fs::remove_dir_all(&compare_dir)?;
+    }
+    Ok(())
 }
 
 pub fn get_compare_dir(repo: &LocalRepository, compare_id: &str) -> PathBuf {
@@ -646,31 +613,6 @@ fn maybe_write_cache(
 
     Ok(())
 }
-
-// fn compare_to_string(compare_tabular_raw: &CompareTabularRaw) -> String {
-//     // let left_only_df = &compare_tabular_raw.left_only_df;
-//     // let right_only_df = &compare_tabular_raw.right_only_df;
-
-//     let mut results: Vec<String> = vec![];
-
-//     let diff_df = &compare_tabular_raw.diff_df;
-//     // let match_df = &compare_tabular_raw.match_df;
-
-//     results.push(format!(
-//         "Rows with matching keys and DIFFERENT targets\n\n{diff_df}\n\n"
-//     ));
-//     // results.push(format!(
-//     //     "Rows with matching keys and SAME targets\n\n{match_df}\n\n"
-//     // ));
-//     // results.push(format!(
-//     //     "Rows with keys only in LEFT DataFrame\n\n{left_only_df}\n\n"
-//     // ));
-//     // results.push(format!(
-//     //     "Rows with keys only in RIGHT DataFrame\n\n{right_only_df}\n\n"
-//     // ));
-
-//     results.join("\n")
-// }
 
 fn maybe_save_compare_output(
     compare_tabular_raw: &mut CompareTabularRaw,
