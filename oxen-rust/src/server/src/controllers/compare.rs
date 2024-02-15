@@ -649,7 +649,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_compare_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
 
         let namepsace = "testing-namespace";
         let repo_name = "testing-repo";
@@ -662,14 +661,14 @@ mod tests {
         let path1 = repo.path.join("file1.csv");
         let path2 = repo.path.join("file2.csv");
 
-        liboxen::test::write_txt_file_to_path(&path1, csv1)?;
-        liboxen::test::write_txt_file_to_path(&path2, csv2)?;
+        liboxen::test::write_txt_file_to_path(path1, csv1)?;
+        liboxen::test::write_txt_file_to_path(path2, csv2)?;
 
         command::add(&repo, &repo.path)?;
 
-        let status = command::status(&repo)?;
+        command::status(&repo)?;
 
-        let commit = command::commit(&repo, "commit 1")?;
+        command::commit(&repo, "commit 1")?;
 
         Ok(())
     }
