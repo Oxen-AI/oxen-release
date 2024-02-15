@@ -177,6 +177,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/compare/data_frame",
             web::post().to(controllers::compare::create_df_compare),
         )
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
+            web::delete().to(controllers::compare::delete_df_compare),
+        )
         // ----- Merge ----- //
         // GET merge to test if merge is possible
         .route(
