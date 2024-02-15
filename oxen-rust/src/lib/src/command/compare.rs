@@ -120,7 +120,6 @@ mod tests {
 
             let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
 
-            let diff_col = ".oxen.diff.status";
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
                     assert_eq!(df.height(), 0);
@@ -234,11 +233,6 @@ mod tests {
                 CompareResult::Tabular((_ct, df)) => {
                     assert_eq!(df.height(), 4);
                     assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
-                    let unchanged_df = df
-                        .clone()
-                        .lazy()
-                        .filter(col(diff_col).eq(lit("unchanged")))
-                        .collect()?;
                     let added_df = df
                         .clone()
                         .lazy()

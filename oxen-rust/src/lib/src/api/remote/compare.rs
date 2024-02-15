@@ -274,8 +274,7 @@ mod tests {
             test::write_txt_file_to_path(local_repo.path.join(right_path), csv2)?;
 
             command::add(&local_repo, &local_repo.path)?;
-
-            let commit = command::commit(&local_repo, "committing files")?;
+            command::commit(&local_repo, "committing files")?;
 
             // set remote
 
@@ -288,7 +287,7 @@ mod tests {
 
             let compare_id = "abcdefgh";
 
-            let compare = api::remote::compare::create_compare(
+            api::remote::compare::create_compare(
                 &remote_repo,
                 compare_id,
                 left_path,
@@ -375,7 +374,7 @@ mod tests {
 
             // Now, update the compare - using the exact same body as before, only the commits have changed
             // (is now MAIN)
-            let compare = api::remote::compare::update_compare(
+            api::remote::compare::update_compare(
                 &remote_repo,
                 compare_id,
                 left_path,

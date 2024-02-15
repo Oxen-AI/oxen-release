@@ -894,10 +894,10 @@ mod tests {
 
             // Should be: 2 removed, 1 added, 6 unchanged, 5 modified
 
-            if let CompareResult::Tabular((compare, _)) = result {
+            if let CompareResult::Tabular((_compare, _)) = result {
                 // Get the actual df for this compare
                 let df_path = get_compare_diff_path(&repo, compare_id);
-                let df = tabular::read_df(&df_path, DFOpts::empty())?;
+                let df = tabular::read_df(df_path, DFOpts::empty())?;
 
                 let diff_col = ".oxen.diff.status";
                 // Assert the overall height of the dataframe
@@ -915,10 +915,6 @@ mod tests {
                     .clone()
                     .lazy()
                     .filter(col(diff_col).eq(lit("modified")))
-                    .collect()?;
-                let unchanged_df = df
-                    .lazy()
-                    .filter(col(diff_col).eq(lit("unchanged")))
                     .collect()?;
 
                 assert_eq!(added_df.height(), 1);
@@ -970,7 +966,7 @@ mod tests {
             )?;
 
             // Check getting via cache
-            let compare = api::local::compare::get_cached_compare(
+            api::local::compare::get_cached_compare(
                 &repo,
                 "a_compare_id",
                 compare_entry_1,
@@ -980,7 +976,7 @@ mod tests {
 
             // Get the actual df for this compare
             let df_path = get_compare_diff_path(&repo, "a_compare_id");
-            let df = tabular::read_df(&df_path, DFOpts::empty())?;
+            let df = tabular::read_df(df_path, DFOpts::empty())?;
 
             let diff_col = ".oxen.diff.status";
             // Assert the overall height of the dataframe
@@ -1067,7 +1063,7 @@ mod tests {
 
             // Get the actual df for this compare
             let df_path = get_compare_diff_path(&repo, "a_compare_id");
-            let df = tabular::read_df(&df_path, DFOpts::empty())?;
+            let df = tabular::read_df(df_path, DFOpts::empty())?;
 
             let diff_col = ".oxen.diff.status";
             // Assert the overall height of the dataframe

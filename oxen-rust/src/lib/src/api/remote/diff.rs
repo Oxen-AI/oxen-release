@@ -93,8 +93,6 @@ mod tests {
     use crate::test;
     use crate::util;
     use image::imageops;
-    use polars::io::csv::CsvReader;
-    use polars::io::SerReader;
 
     // Test diff add image
     #[tokio::test]
