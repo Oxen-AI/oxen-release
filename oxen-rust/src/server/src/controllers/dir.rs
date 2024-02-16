@@ -25,7 +25,7 @@ pub async fn get(
         liboxen::current_function!()
     );
 
-    let paginated_entries = api::local::entries::list_directory(
+    let (paginated_entries, dir) = api::local::entries::list_directory(
         &repo,
         &resource.commit,
         &resource.file_path,
@@ -34,7 +34,7 @@ pub async fn get(
         page_size,
     )?;
 
-    let dir = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
+    // let dir = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let view = PaginatedDirEntriesResponse::ok_from(dir, paginated_entries);
     Ok(HttpResponse::Ok().json(view))
 }
