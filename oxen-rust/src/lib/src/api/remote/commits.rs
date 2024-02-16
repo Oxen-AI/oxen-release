@@ -1172,8 +1172,6 @@ mod tests {
     use crate::test;
     use rocksdb::{DBWithThreadMode, MultiThreaded};
 
-    use std::thread;
-
     #[tokio::test]
     async fn test_remote_commits_post_commits_to_server() -> Result<(), OxenError> {
         test::run_training_data_sync_test_no_commits(|local_repo, remote_repo| async move {
@@ -1240,9 +1238,6 @@ mod tests {
 
             // Push it
             command::push(&local_repo).await?;
-
-            // We unzip in a background thread, so give it a second
-            thread::sleep(std::time::Duration::from_secs(1));
 
             let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?
@@ -1320,9 +1315,6 @@ mod tests {
 
             // Push it
             command::push(&local_repo).await?;
-
-            // We unzip in a background thread, so give it a second
-            thread::sleep(std::time::Duration::from_secs(1));
 
             // List the remote commits
             let remote_commits =

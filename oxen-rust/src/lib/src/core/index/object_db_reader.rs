@@ -61,6 +61,8 @@ impl ObjectDBReader {
         let dirs_db_path = ObjectDBReader::dirs_db_dir(path.clone());
         let vnodes_db_path = ObjectDBReader::vnodes_db_dir(path.clone());
 
+        log::debug!("ObjectDBReader::new_from_path: {:?}", path);
+
         for path in &[
             &files_db_path,
             &schemas_db_path,

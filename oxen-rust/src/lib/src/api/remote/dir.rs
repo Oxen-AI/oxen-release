@@ -49,3 +49,136 @@ pub async fn list(
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::api;
+    use crate::command;
+    use crate::constants;
+
+    use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::error::OxenError;
+    use crate::test;
+    use crate::util;
+
+    use std::path::Path;
+
+    #[tokio::test]
+    async fn test_list_dir_has_correct_commits() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|local_repo| async move {
+            let mut local_repo = local_repo;
+
+            // Set the proper remote
+            let name = local_repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // Make sure we have no entries
+            let root_path = Path::new("");
+            let root_entries =
+                api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            assert_eq!(root_entries.entries.len(), 0);
+
+            // Add a file
+            let file_name = Path::new("file.txt");
+            let file_path = local_repo.path.join(file_name);
+            let file_content = "Hello, World!";
+            util::fs::write_to_path(&file_path, file_content)?;
+            command::add(&local_repo, file_path)?;
+
+            // Commit it
+            let first_commit = command::commit(&local_repo, "Add file.txt")?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // Make sure we have one entry
+            let root_entries =
+                api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            assert_eq!(root_entries.entries.len(), 1);
+
+            // Add a dir
+            let dir_name = Path::new("data");
+            let dir_path = local_repo.path.join(dir_name);
+            util::fs::create_dir_all(&dir_path)?;
+
+            // Write some files to the dir
+            let file1_path = dir_path.join("file1.txt");
+            let file2_path = dir_path.join("file2.txt");
+            let file1_content = "Hello, World 1!";
+            let file2_content = "Hello, World 2!";
+            util::fs::write_to_path(&file1_path, file1_content)?;
+            util::fs::write_to_path(&file2_path, file2_content)?;
+            command::add(&local_repo, &dir_path)?;
+
+            // Commit it
+            let second_commit = command::commit(&local_repo, "Add data dir")?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // Make sure we have two entries
+            let root_entries =
+                api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            assert_eq!(root_entries.entries.len(), 2);
+
+            // Make sure the commit hashes are correct
+            assert_eq!(
+                root_entries.entries[0].latest_commit.as_ref().unwrap().id,
+                second_commit.id
+            );
+            assert_eq!(
+                root_entries.entries[1].latest_commit.as_ref().unwrap().id,
+                first_commit.id
+            );
+
+            // Add a second dir
+            let dir2_name = Path::new("a_data");
+            let dir2_path = local_repo.path.join(dir2_name);
+            util::fs::create_dir_all(&dir2_path)?;
+
+            // Write some files to the dir
+            let file3_path = dir2_path.join("file3.txt");
+            let file4_path = dir2_path.join("file4.txt");
+            let file3_content = "Hello, World 3!";
+            let file4_content = "Hello, World 4!";
+            util::fs::write_to_path(&file3_path, file3_content)?;
+            util::fs::write_to_path(&file4_path, file4_content)?;
+            command::add(&local_repo, &dir2_path)?;
+
+            // Commit it
+            let third_commit = command::commit(&local_repo, "Add a_data dir")?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // Make sure we have three entries
+            let root_entries =
+                api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            assert_eq!(root_entries.entries.len(), 3);
+
+            // Make sure the commit hashes are correct
+            assert_eq!(
+                root_entries.entries[0].latest_commit.as_ref().unwrap().id,
+                third_commit.id
+            );
+            assert_eq!(
+                root_entries.entries[1].latest_commit.as_ref().unwrap().id,
+                second_commit.id
+            );
+            assert_eq!(
+                root_entries.entries[2].latest_commit.as_ref().unwrap().id,
+                first_commit.id
+            );
+
+            Ok(())
+        })
+        .await
+    }
+}

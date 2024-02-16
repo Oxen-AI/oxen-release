@@ -44,10 +44,6 @@ impl CommitDirEntryReader {
         dir: &Path,
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitDirEntryReader, OxenError> {
-        log::debug!(
-            "Creating new commit dir entry reader for path: {:?}",
-            repository.path.join(dir)
-        );
         CommitDirEntryReader::new_from_path(&repository.path, commit_id, dir, object_reader)
     }
 
@@ -58,10 +54,10 @@ impl CommitDirEntryReader {
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitDirEntryReader, OxenError> {
         let db_path = CommitDirEntryReader::dir_hash_db(base_path, commit_id);
-        // log::debug!(
-        //     "Creating new commit dir entry reader for path: {:?}",
-        //     base_path.join(dir)
-        // );
+        log::debug!(
+            "Creating new CommitDirEntryReader for path: {:?}",
+            base_path.join(dir)
+        );
 
         let opts = db::opts::default();
         if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
@@ -113,7 +109,6 @@ impl CommitDirEntryReader {
     }
 
     pub fn num_entries(&self) -> usize {
-        log::debug!("num_entries in dir {:?}", self.dir);
         let mut count = 0;
         for vnode_child in self.dir_object.children() {
             let vnode = self
@@ -127,6 +122,7 @@ impl CommitDirEntryReader {
                 }
             }
         }
+        log::debug!("num_entries in dir '{:?}' == {}", self.dir, count);
         count
     }
 
