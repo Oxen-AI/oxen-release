@@ -1,10 +1,13 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::error::OxenError;
+use crate::model::compare::tabular_compare::{
+    TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
+};
 use crate::model::Schema;
 use crate::view::compare::{
     CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSummary, CompareTabularMods,
-    CompareTabularRaw,
+    CompareTabularWithDF,
 };
 
 use polars::datatypes::{AnyValue, StringChunked};
@@ -33,7 +36,7 @@ pub fn compare(
     targets: Vec<&str>,
     keys: Vec<&str>,
     display: Vec<&str>,
-) -> Result<CompareTabularRaw, OxenError> {
+) -> Result<CompareTabularWithDF, OxenError> {
     if !targets.is_empty() && keys.is_empty() {
         return Err(OxenError::basic_str(
             "Must specifiy at least one key column if specifying target columns.",
@@ -58,8 +61,6 @@ pub fn compare(
 
     let joined_df = add_diff_status_column(joined_df, keys.clone(), targets.clone())?;
 
-    log::debug!("finished joining");
-
     let mut joined_df = joined_df.filter(
         &joined_df
             .column(DIFF_STATUS_COL)?
@@ -83,15 +84,22 @@ pub fn compare(
     let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
     let joined_df = joined_df.sort(&keys, descending, false)?;
 
+    let result_fields =
+        prepare_response_fields(&schema_diff, keys.clone(), targets.clone(), display);
+
     let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
-    Ok(CompareTabularRaw {
+
+    Ok(CompareTabularWithDF {
         diff_df: joined_df.select(output_columns)?,
         dupes: CompareDupes { left: 0, right: 0 },
         schema_diff: Some(schema_diff),
-        compare_summary: Some(CompareSummary {
+        summary: Some(CompareSummary {
             modifications,
             schema: Schema::from_polars(&joined_df.schema()),
         }),
+        keys: result_fields.keys,
+        targets: result_fields.targets,
+        display: result_fields.display,
     })
 }
 
@@ -298,7 +306,6 @@ fn add_diff_status_column(
                         let out: StringChunked = ca
                             .into_iter()
                             .map(|row| {
-                                log::debug!("here's the row: {:#?}", row);
                                 let key_left = row.first();
                                 let key_right = row.get(1);
                                 let target_hash_left = row.get(2);
@@ -357,11 +364,6 @@ fn test_function(
     has_targets: bool,
 ) -> String {
     // TODONOW better error handling
-    log::debug!("key left is: {:?}", key_left);
-    log::debug!("key right is: {:?}", key_right);
-    log::debug!("target hash left is: {:?}", target_hash_left);
-    log::debug!("target hash right is: {:?}", target_hash_right);
-
     if let Some(AnyValue::Null) = key_left {
         return DIFF_STATUS_ADDED.to_string();
     }
@@ -381,4 +383,74 @@ fn test_function(
         }
     }
     DIFF_STATUS_UNCHANGED.to_string()
+}
+
+fn prepare_response_fields(
+    schema_diff: &SchemaDiff,
+    keys: Vec<&str>,
+    targets: Vec<&str>,
+    display: Vec<&str>,
+) -> TabularCompareFields {
+    let res_keys = keys
+        .iter()
+        .map(|key| TabularCompareFieldBody {
+            left: key.to_string(),
+            right: key.to_string(),
+            alias_as: None,
+            compare_method: None,
+        })
+        .collect::<Vec<TabularCompareFieldBody>>();
+
+    let mut res_targets: Vec<TabularCompareTargetBody> = vec![];
+
+    for target in targets.iter() {
+        if schema_diff.added_cols.contains(&target.to_string()) {
+            res_targets.push(TabularCompareTargetBody {
+                left: None,
+                right: Some(target.to_string()),
+                compare_method: None,
+            });
+        } else if schema_diff.removed_cols.contains(&target.to_string()) {
+            res_targets.push(TabularCompareTargetBody {
+                left: Some(target.to_string()),
+                right: None,
+                compare_method: None,
+            });
+        } else {
+            res_targets.push(TabularCompareTargetBody {
+                left: Some(target.to_string()),
+                right: Some(target.to_string()),
+                compare_method: None,
+            });
+        }
+    }
+
+    let mut res_display: Vec<TabularCompareTargetBody> = vec![];
+    for disp in display.iter() {
+        if schema_diff.added_cols.contains(&disp.to_string()) {
+            res_display.push(TabularCompareTargetBody {
+                left: None,
+                right: Some(disp.to_string()),
+                compare_method: None,
+            });
+        } else if schema_diff.removed_cols.contains(&disp.to_string()) {
+            res_display.push(TabularCompareTargetBody {
+                left: Some(disp.to_string()),
+                right: None,
+                compare_method: None,
+            });
+        } else {
+            res_display.push(TabularCompareTargetBody {
+                left: Some(disp.to_string()),
+                right: Some(disp.to_string()),
+                compare_method: None,
+            });
+        }
+    }
+
+    TabularCompareFields {
+        keys: res_keys,
+        targets: res_targets,
+        display: res_display,
+    }
 }
