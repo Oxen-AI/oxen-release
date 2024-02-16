@@ -187,6 +187,19 @@ pub fn get_cached_compare(
     Ok(Some(compare_results))
 }
 
+pub fn delete_df_compare(repo: &LocalRepository, compare_id: &str) -> Result<(), OxenError> {
+    let compare_dir = get_compare_dir(repo, compare_id);
+
+    if compare_dir.exists() {
+        log::debug!(
+            "delete_df_compare() found compare_dir, deleting: {:?}",
+            compare_dir
+        );
+        std::fs::remove_dir_all(&compare_dir)?;
+    }
+    Ok(())
+}
+
 pub fn get_compare_dir(repo: &LocalRepository, compare_id: &str) -> PathBuf {
     util::fs::oxen_hidden_dir(&repo.path)
         .join(CACHE_DIR)
@@ -406,23 +419,25 @@ fn validate_required_fields(
     keys: Vec<String>,
     targets: Vec<String>,
 ) -> Result<(), OxenError> {
-    // Subset dataframes to "keys" and "targets"
+    // Keys must be in both dfs
     #[allow(clippy::map_clone)]
-    let required_fields = keys
-        .iter()
-        .chain(targets.iter())
-        .cloned()
-        .collect::<Vec<String>>();
-
-    // Make sure both dataframes have all required fields
-
-    if !schema_1.has_field_names(&required_fields) {
-        return Err(OxenError::incompatible_schemas(required_fields, schema_1));
+    if !schema_1.has_field_names(&keys) {
+        return Err(OxenError::incompatible_schemas(keys, schema_1));
     };
 
-    if !schema_2.has_field_names(&required_fields) {
-        return Err(OxenError::incompatible_schemas(required_fields, schema_2));
+    if !schema_2.has_field_names(&keys) {
+        return Err(OxenError::incompatible_schemas(keys, schema_2));
     };
+
+    // Targets must be in either df
+    for target in &targets {
+        if !schema_1.has_field_name(target) && !schema_2.has_field_name(target) {
+            return Err(OxenError::incompatible_schemas(
+                vec![target.to_string()],
+                schema_1,
+            ));
+        }
+    }
 
     Ok(())
 }
@@ -664,10 +679,10 @@ mod tests {
 
             // Should be: 2 removed, 1 added, 6 unchanged, 5 modified
 
-            if let CompareResult::Tabular((compare, _)) = result {
+            if let CompareResult::Tabular((_compare, _)) = result {
                 // Get the actual df for this compare
                 let df_path = get_compare_diff_path(&repo, compare_id);
-                let df = tabular::read_df(&df_path, DFOpts::empty())?;
+                let df = tabular::read_df(df_path, DFOpts::empty())?;
 
                 let diff_col = ".oxen.diff.status";
                 // Assert the overall height of the dataframe
@@ -685,10 +700,6 @@ mod tests {
                     .clone()
                     .lazy()
                     .filter(col(diff_col).eq(lit("modified")))
-                    .collect()?;
-                let unchanged_df = df
-                    .lazy()
-                    .filter(col(diff_col).eq(lit("unchanged")))
                     .collect()?;
 
                 assert_eq!(added_df.height(), 1);
@@ -740,7 +751,7 @@ mod tests {
             )?;
 
             // Check getting via cache
-            let compare = api::local::compare::get_cached_compare(
+            api::local::compare::get_cached_compare(
                 &repo,
                 "a_compare_id",
                 compare_entry_1,
@@ -750,7 +761,7 @@ mod tests {
 
             // Get the actual df for this compare
             let df_path = get_compare_diff_path(&repo, "a_compare_id");
-            let df = tabular::read_df(&df_path, DFOpts::empty())?;
+            let df = tabular::read_df(df_path, DFOpts::empty())?;
 
             let diff_col = ".oxen.diff.status";
             // Assert the overall height of the dataframe
@@ -837,7 +848,7 @@ mod tests {
 
             // Get the actual df for this compare
             let df_path = get_compare_diff_path(&repo, "a_compare_id");
-            let df = tabular::read_df(&df_path, DFOpts::empty())?;
+            let df = tabular::read_df(df_path, DFOpts::empty())?;
 
             let diff_col = ".oxen.diff.status";
             // Assert the overall height of the dataframe
