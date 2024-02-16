@@ -3,8 +3,8 @@ use crate::{
     error::OxenError,
     model::{
         compare::tabular_compare::{
-            TabularCompareBody, TabularCompareDisplayBody, TabularCompareFieldBody,
-            TabularCompareResourceBody,
+            TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
+            TabularCompareTargetBody,
         },
         RemoteRepository,
     },
@@ -28,7 +28,7 @@ pub async fn create_compare(
     right_revision: &str,
     keys: Vec<TabularCompareFieldBody>,
     compare: Vec<TabularCompareFieldBody>,
-    display: Vec<TabularCompareDisplayBody>,
+    display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
@@ -77,7 +77,7 @@ pub async fn update_compare(
     right_revision: &str,
     keys: Vec<TabularCompareFieldBody>,
     compare: Vec<TabularCompareFieldBody>,
-    display: Vec<TabularCompareDisplayBody>,
+    display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),

@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use polars::frame::DataFrame;
@@ -7,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::message::{MessageLevel, OxenMessage};
+use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareTargetBody};
 use crate::model::{Commit, CommitEntry, DataFrameSize, DiffEntry, Schema};
 use crate::view::Pagination;
 
@@ -68,13 +68,15 @@ pub struct CompareTabularResponse {
     pub messages: Vec<OxenMessage>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CompareTabular {
-    pub source: HashMap<String, CompareSourceDF>,
-    pub derived: HashMap<String, CompareDerivedDF>,
+#[derive(Debug)]
+pub struct CompareTabularWithDF {
+    pub diff_df: DataFrame,
     pub dupes: CompareDupes,
     pub schema_diff: Option<CompareSchemaDiff>,
     pub summary: Option<CompareSummary>,
+    pub keys: Vec<TabularCompareFieldBody>,
+    pub targets: Vec<TabularCompareTargetBody>,
+    pub display: Vec<TabularCompareTargetBody>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -132,11 +134,15 @@ pub enum CompareResult {
     Text(String),
 }
 
-pub struct CompareTabularRaw {
-    pub diff_df: DataFrame,
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompareTabular {
+    // pub diff_df: DataFrame,
     pub dupes: CompareDupes,
-    pub compare_summary: Option<CompareSummary>,
+    pub summary: Option<CompareSummary>,
     pub schema_diff: Option<CompareSchemaDiff>,
+    pub keys: Option<Vec<TabularCompareFieldBody>>,
+    pub targets: Option<Vec<TabularCompareTargetBody>>,
+    pub display: Option<Vec<TabularCompareTargetBody>>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -330,5 +336,18 @@ impl CompareSchemaDiff {
             added_cols,
             removed_cols,
         })
+    }
+}
+
+impl CompareTabular {
+    pub fn from_with_df(with_df: &CompareTabularWithDF) -> CompareTabular {
+        CompareTabular {
+            dupes: with_df.dupes.clone(),
+            schema_diff: with_df.schema_diff.clone(),
+            summary: with_df.summary.clone(),
+            keys: Some(with_df.keys.clone()),
+            targets: Some(with_df.targets.clone()),
+            display: Some(with_df.display.clone()),
+        }
     }
 }
