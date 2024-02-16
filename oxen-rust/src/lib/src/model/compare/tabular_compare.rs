@@ -23,7 +23,7 @@ pub struct TabularCompareBody {
     pub left: TabularCompareResourceBody,
     pub right: TabularCompareResourceBody,
     pub keys: Vec<TabularCompareFieldBody>,
-    pub compare: Vec<TabularCompareFieldBody>,
+    pub compare: Vec<TabularCompareTargetBody>,
     pub display: Vec<TabularCompareTargetBody>,
 }
 

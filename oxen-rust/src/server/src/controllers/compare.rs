@@ -79,6 +79,7 @@ pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("in the compare entries controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -232,7 +233,7 @@ pub async fn create_df_compare(
     // TODO: Remove the next two lines when we want to allow mapping
     // different keys and targets from left and right file.
     let keys = keys.iter().map(|k| k.left.clone()).collect();
-    let targets = targets.iter().map(|t| t.left.clone()).collect();
+    let targets = get_targets_from_req(targets);
 
     let result = api::local::compare::compare_files(
         &repository,
@@ -327,7 +328,7 @@ pub async fn update_df_compare(
     // TODO: Remove the next two lines when we want to allow mapping
     // different keys and targets from left and right file.
     let keys = keys.iter().map(|k| k.left.clone()).collect();
-    let targets = targets.iter().map(|t| t.left.clone()).collect();
+    let targets = get_targets_from_req(targets);
 
     let result = api::local::compare::compare_files(
         &repository,
@@ -428,6 +429,18 @@ pub async fn get_df_compare(
     } else {
         Err(OxenHttpError::NotFound)
     }
+}
+
+pub async fn delete_df_compare(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let compare_id = path_param(&req, "compare_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    api::local::compare::delete_df_compare(&repo, &compare_id)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
 
 pub async fn get_derived_df(
@@ -613,6 +626,18 @@ fn get_display_by_columns(display: Vec<TabularCompareTargetBody>) -> Vec<String>
     display_by_column
 }
 
+fn get_targets_from_req(targets: Vec<TabularCompareTargetBody>) -> Vec<String> {
+    let mut out_targets: Vec<String> = vec![];
+    for t in targets {
+        if let Some(left) = t.left {
+            out_targets.push(left);
+        } else if let Some(right) = t.right {
+            out_targets.push(right);
+        }
+    }
+    out_targets
+}
+
 #[cfg(test)]
 mod tests {
     use liboxen::{command, error::OxenError};
@@ -622,7 +647,6 @@ mod tests {
     #[actix_web::test]
     async fn test_controllers_compare_create() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
-        let queue = test::init_queue();
 
         let namepsace = "testing-namespace";
         let repo_name = "testing-repo";
@@ -635,14 +659,14 @@ mod tests {
         let path1 = repo.path.join("file1.csv");
         let path2 = repo.path.join("file2.csv");
 
-        liboxen::test::write_txt_file_to_path(&path1, csv1)?;
-        liboxen::test::write_txt_file_to_path(&path2, csv2)?;
+        liboxen::test::write_txt_file_to_path(path1, csv1)?;
+        liboxen::test::write_txt_file_to_path(path2, csv2)?;
 
         command::add(&repo, &repo.path)?;
 
-        let status = command::status(&repo)?;
+        command::status(&repo)?;
 
-        let commit = command::commit(&repo, "commit 1")?;
+        command::commit(&repo, "commit 1")?;
 
         Ok(())
     }

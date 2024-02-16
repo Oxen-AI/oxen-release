@@ -1,18 +1,13 @@
-use crate::{
-    api,
-    error::OxenError,
-    model::{
-        compare::tabular_compare::{
-            TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
-            TabularCompareTargetBody,
-        },
-        RemoteRepository,
-    },
-    view::{
-        compare::{CompareTabular, CompareTabularResponse},
-        JsonDataFrameView, JsonDataFrameViewResponse,
-    },
+use crate::api;
+use crate::error::OxenError;
+use crate::model::compare::tabular_compare::{
+    TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
+    TabularCompareTargetBody,
 };
+use crate::model::RemoteRepository;
+use crate::view::compare::CompareTabularResponse;
+use crate::view::JsonDataFrameViewResponse;
+use crate::view::{compare::CompareTabular, JsonDataFrameView};
 
 use super::client;
 use serde_json::json;
@@ -27,7 +22,7 @@ pub async fn create_compare(
     right_path: &str,
     right_revision: &str,
     keys: Vec<TabularCompareFieldBody>,
-    compare: Vec<TabularCompareFieldBody>,
+    compare: Vec<TabularCompareTargetBody>,
     display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
     let req_body = TabularCompareBody {
@@ -76,7 +71,7 @@ pub async fn update_compare(
     right_path: &str,
     right_revision: &str,
     keys: Vec<TabularCompareFieldBody>,
-    compare: Vec<TabularCompareFieldBody>,
+    compare: Vec<TabularCompareTargetBody>,
     display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
     let req_body = TabularCompareBody {
@@ -152,6 +147,7 @@ mod tests {
     use crate::error::OxenError;
 
     use crate::model::compare::tabular_compare::TabularCompareFieldBody;
+    use crate::model::compare::tabular_compare::TabularCompareTargetBody;
     use crate::test;
     use polars::lazy::dsl::col;
     use polars::lazy::dsl::lit;
@@ -213,10 +209,9 @@ mod tests {
                         compare_method: None,
                     },
                 ],
-                vec![TabularCompareFieldBody {
-                    left: "d".to_string(),
-                    right: "d".to_string(),
-                    alias_as: None,
+                vec![TabularCompareTargetBody {
+                    left: Some("d".to_string()),
+                    right: Some("d".to_string()),
                     compare_method: None,
                 }],
                 vec![],
@@ -273,8 +268,7 @@ mod tests {
             test::write_txt_file_to_path(local_repo.path.join(right_path), csv2)?;
 
             command::add(&local_repo, &local_repo.path)?;
-
-            let commit = command::commit(&local_repo, "committing files")?;
+            command::commit(&local_repo, "committing files")?;
 
             // set remote
 
@@ -287,7 +281,7 @@ mod tests {
 
             let compare_id = "abcdefgh";
 
-            let compare = api::remote::compare::create_compare(
+            api::remote::compare::create_compare(
                 &remote_repo,
                 compare_id,
                 left_path,
@@ -314,10 +308,9 @@ mod tests {
                         compare_method: None,
                     },
                 ],
-                vec![TabularCompareFieldBody {
-                    left: "d".to_string(),
-                    right: "d".to_string(),
-                    alias_as: None,
+                vec![TabularCompareTargetBody {
+                    left: Some("d".to_string()),
+                    right: Some("d".to_string()),
                     compare_method: None,
                 }],
                 vec![],
@@ -374,7 +367,7 @@ mod tests {
 
             // Now, update the compare - using the exact same body as before, only the commits have changed
             // (is now MAIN)
-            let compare = api::remote::compare::update_compare(
+            api::remote::compare::update_compare(
                 &remote_repo,
                 compare_id,
                 left_path,
@@ -401,10 +394,9 @@ mod tests {
                         compare_method: None,
                     },
                 ],
-                vec![TabularCompareFieldBody {
-                    left: "d".to_string(),
-                    right: "d".to_string(),
-                    alias_as: None,
+                vec![TabularCompareTargetBody {
+                    left: Some("d".to_string()),
+                    right: Some("d".to_string()),
                     compare_method: None,
                 }],
                 vec![],
