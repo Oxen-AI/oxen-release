@@ -1,18 +1,13 @@
-use crate::{
-    api,
-    error::OxenError,
-    model::{
-        compare::tabular_compare::{
-            TabularCompareBody, TabularCompareDisplayBody, TabularCompareFieldBody,
-            TabularCompareResourceBody, TabularCompareTargetBody,
-        },
-        RemoteRepository,
-    },
-    view::{
-        compare::{CompareTabular, CompareTabularResponse},
-        JsonDataFrameView, JsonDataFrameViewResponse,
-    },
+use crate::api;
+use crate::error::OxenError;
+use crate::model::compare::tabular_compare::{
+    TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
+    TabularCompareTargetBody,
 };
+use crate::model::RemoteRepository;
+use crate::view::compare::CompareTabularResponse;
+use crate::view::JsonDataFrameViewResponse;
+use crate::view::{compare::CompareTabular, JsonDataFrameView};
 
 use super::client;
 use serde_json::json;
@@ -28,7 +23,7 @@ pub async fn create_compare(
     right_revision: &str,
     keys: Vec<TabularCompareFieldBody>,
     compare: Vec<TabularCompareTargetBody>,
-    display: Vec<TabularCompareDisplayBody>,
+    display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
@@ -77,7 +72,7 @@ pub async fn update_compare(
     right_revision: &str,
     keys: Vec<TabularCompareFieldBody>,
     compare: Vec<TabularCompareTargetBody>,
-    display: Vec<TabularCompareDisplayBody>,
+    display: Vec<TabularCompareTargetBody>,
 ) -> Result<CompareTabular, OxenError> {
     let req_body = TabularCompareBody {
         compare_id: compare_id.to_string(),
@@ -217,7 +212,6 @@ mod tests {
                 vec![TabularCompareTargetBody {
                     left: Some("d".to_string()),
                     right: Some("d".to_string()),
-                    alias_as: None,
                     compare_method: None,
                 }],
                 vec![],
@@ -317,7 +311,6 @@ mod tests {
                 vec![TabularCompareTargetBody {
                     left: Some("d".to_string()),
                     right: Some("d".to_string()),
-                    alias_as: None,
                     compare_method: None,
                 }],
                 vec![],
@@ -404,7 +397,6 @@ mod tests {
                 vec![TabularCompareTargetBody {
                     left: Some("d".to_string()),
                     right: Some("d".to_string()),
-                    alias_as: None,
                     compare_method: None,
                 }],
                 vec![],

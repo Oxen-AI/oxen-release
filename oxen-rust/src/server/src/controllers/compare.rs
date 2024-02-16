@@ -7,9 +7,7 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
-use liboxen::model::compare::tabular_compare::{
-    TabularCompareBody, TabularCompareDisplayBody, TabularCompareTargetBody,
-};
+use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
@@ -615,7 +613,7 @@ fn parse_base_head_resource(
     Ok((base_commit, head_commit, resource))
 }
 
-fn get_display_by_columns(display: Vec<TabularCompareDisplayBody>) -> Vec<String> {
+fn get_display_by_columns(display: Vec<TabularCompareTargetBody>) -> Vec<String> {
     let mut display_by_column = vec![];
     for d in display {
         if let Some(left) = d.left {
