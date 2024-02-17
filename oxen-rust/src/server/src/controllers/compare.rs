@@ -7,9 +7,7 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
-use liboxen::model::compare::tabular_compare::{
-    TabularCompareBody, TabularCompareDisplayBody, TabularCompareTargetBody,
-};
+use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
@@ -217,7 +215,7 @@ pub async fn create_df_compare(
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
         })?;
-    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
+    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_2, &resource_2)?
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
@@ -615,7 +613,7 @@ fn parse_base_head_resource(
     Ok((base_commit, head_commit, resource))
 }
 
-fn get_display_by_columns(display: Vec<TabularCompareDisplayBody>) -> Vec<String> {
+fn get_display_by_columns(display: Vec<TabularCompareTargetBody>) -> Vec<String> {
     let mut display_by_column = vec![];
     for d in display {
         if let Some(left) = d.left {
