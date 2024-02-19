@@ -177,6 +177,34 @@ mod tests {
                 first_commit.id
             );
 
+            // Add a sub directory to the second dir
+            let dir3_name = Path::new("sub_data");
+            let dir3_path = dir2_path.join(dir3_name);
+            util::fs::create_dir_all(&dir3_path)?;
+
+            // Write some files to the dir
+            let file5_path = dir3_path.join("file5.txt");
+            let file6_path = dir3_path.join("file6.txt");
+            let file5_content = "Hello, World 5!";
+            let file6_content = "Hello, World 6!";
+            util::fs::write_to_path(&file5_path, file5_content)?;
+            util::fs::write_to_path(&file6_path, file6_content)?;
+            command::add(&local_repo, &dir3_path)?;
+
+            // Commit it
+            let fourth_commit = command::commit(&local_repo, "Add sub_data dir")?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // Make sure the sub directory has the correct commit id
+            let root_entries =
+                api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
+            assert_eq!(
+                root_entries.entries[0].latest_commit.as_ref().unwrap().id,
+                fourth_commit.id
+            );
+
             Ok(())
         })
         .await
