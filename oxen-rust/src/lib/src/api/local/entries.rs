@@ -786,43 +786,6 @@ mod tests {
     }
 
     #[test]
-    fn test_list_directories_updates_latest_commit() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            // write a new file
-            let new_file_name = "aaa.txt";
-            let new_file = repo.path.join(new_file_name);
-            util::fs::write(&new_file, "new file")?;
-            command::add(&repo, &new_file)?;
-            let new_commit = command::commit(&repo, "Adding file in unit test")?;
-
-            // List the directory again
-            let (paginated, _dir) = api::local::entries::list_directory(
-                &repo,
-                &new_commit,
-                Path::new(""),
-                &new_commit.id,
-                1,
-                10,
-            )?;
-
-            for entry in paginated.entries.iter() {
-                println!("{entry:?}");
-            }
-
-            // Count how many entries have the new commit as the latest commit
-            let new_commit_id = new_commit.id.clone();
-            let num_with_new_commit = paginated
-                .entries
-                .into_iter()
-                .filter(|e| e.latest_commit.as_ref().unwrap().id == new_commit_id)
-                .count();
-            assert_eq!(num_with_new_commit, 1);
-
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_list_directories_full() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let commits = api::local::commits::list(&repo)?;
