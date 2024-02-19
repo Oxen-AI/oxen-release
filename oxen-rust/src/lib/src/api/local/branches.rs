@@ -599,4 +599,29 @@ mod tests {
             Ok(())
         })
     }
+
+    #[tokio::test]
+    async fn test_local_delete_branch() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
+            // Get the original branches
+            let og_branches = api::local::branches::list(&repo)?;
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            let branch_name = "my-branch";
+            api::local::branches::create_checkout(&repo, branch_name)?;
+
+            // Must checkout main again before deleting
+            command::checkout(&repo, og_branch.name).await?;
+
+            // Now we can delete
+            api::local::branches::delete(&repo, branch_name)?;
+
+            // Should be same num as og_branches
+            let leftover_branches = api::local::branches::list(&repo)?;
+            assert_eq!(og_branches.len(), leftover_branches.len());
+
+            Ok(())
+        })
+        .await
+    }
 }
