@@ -1,7 +1,6 @@
 //! Caches the size of the repo to disk at the time of the commit, so that we can quickly query it
 
 use fs_extra::dir::get_size;
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::api;
@@ -39,7 +38,8 @@ pub fn dir_latest_commit_path(repo: &LocalRepository, commit: &Commit, dir: &Pat
         .join("latest_commit.txt")
 }
 
-// TODO: Refactor each one of these computes into a configurable cache
+// TODO: Very aware this is ugly and not DRY. Struggles of shipping in startup mode.
+// Refactor each one of these computes into a configurable cache
 // 1) Compute the size of the repo at the time of the commit
 // 2) Compute the size of each directory at time of commit
 // 3) Compute the latest commit that modified each directory
@@ -53,28 +53,47 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     // List directories in the repo, and cache all of their entry sizes
     let reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
+
+    let mut commits = commit_reader.list_all()?;
+    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
     let dirs = reader.list_dirs()?;
     log::debug!("Computing size of {} dirs", dirs.len());
     let object_reader = ObjectDBReader::new(repo)?;
+
     for dir in dirs {
         // log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
 
         // Start with the size of all the entries in this dir
-        let dir_reader =
-            CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone()).unwrap();
-        let entries = dir_reader.list_entries().unwrap();
-        let mut total_size = api::local::entries::compute_entries_size(&entries).unwrap();
+        let entries = {
+            // let dir_reader go out of scope
+            let dir_reader =
+                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
+
+            dir_reader.list_entries()?
+        };
+        let mut total_size = api::local::entries::compute_entries_size(&entries)?;
+
+        let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+        for c in &commits {
+            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_reader.clone())?;
+            commit_entry_readers.push((c.clone(), reader));
+        }
 
         // For each dir, find the latest commit that modified it
-        let commits: HashMap<String, Commit> = HashMap::new();
         let mut latest_commit: Option<Commit> = None;
 
         // TODO: do not copy pasta this code
         for entry in entries {
-            let commit = if commits.contains_key(&entry.commit_id) {
-                Some(commits[&entry.commit_id].clone())
-            } else {
-                commit_reader.get_commit_by_id(&entry.commit_id)?
+            let Some(commit) =
+                api::local::entries::get_latest_commit_for_entry(&commit_entry_readers, &entry)?
+            else {
+                log::debug!(
+                    "No commit found for entry {:?} in dir {:?}",
+                    entry.path,
+                    dir
+                );
+                continue;
             };
 
             if latest_commit.is_none() {
@@ -83,7 +102,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 //     entry.path,
                 //     commit
                 // );
-                latest_commit = commit.clone();
+                latest_commit = Some(commit.clone());
             } else {
                 // log::debug!(
                 //     "CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}",
@@ -91,48 +110,61 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 //     latest_commit.as_ref().unwrap().timestamp,
                 //     commit.as_ref().unwrap().timestamp
                 // );
-                if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
+                if latest_commit.as_ref().unwrap().timestamp < commit.timestamp {
                     // log::debug!(
                     //     "FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}",
                     //     entry.path,
                     //     commit
                     // );
-                    latest_commit = commit.clone();
+                    latest_commit = Some(commit.clone());
                 }
             }
         }
 
         // Recursively compute the size of the directory children
         let children = reader.list_dir_children(&dir)?;
-        let object_reader = ObjectDBReader::new(repo)?;
         for child in children {
             // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
 
-            let dir_reader =
-                CommitDirEntryReader::new(repo, &commit.id, &child, object_reader.clone()).unwrap();
+            let entries = {
+                let dir_reader =
+                    CommitDirEntryReader::new(repo, &commit.id, &child, object_reader.clone())?;
 
-            let entries = dir_reader.list_entries().unwrap();
-            let size = api::local::entries::compute_entries_size(&entries).unwrap();
+                dir_reader.list_entries()?
+            };
+
+            let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+            for c in &commits {
+                let reader = CommitDirEntryReader::new(repo, &c.id, &child, object_reader.clone())?;
+                commit_entry_readers.push((c.clone(), reader));
+            }
+
+            let size = api::local::entries::compute_entries_size(&entries)?;
 
             total_size += size;
 
             for entry in entries {
-                let commit = if commits.contains_key(&entry.commit_id) {
-                    Some(commits[&entry.commit_id].clone())
-                } else {
-                    commit_reader.get_commit_by_id(&entry.commit_id)?
+                let Some(commit) = api::local::entries::get_latest_commit_for_entry(
+                    &commit_entry_readers,
+                    &entry,
+                )?
+                else {
+                    log::debug!(
+                        "No commit found for entry {:?} in child {:?}",
+                        entry.path,
+                        child
+                    );
+                    continue;
                 };
 
                 if latest_commit.is_none() {
                     // log::debug!("FOUND LATEST COMMIT CHILD EMPTY {:?} -> {:?}", entry.path, commit);
-                    latest_commit = commit.clone();
+                    latest_commit = Some(commit.clone());
                 } else {
                     // log::debug!("CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}", entry.path, latest_commit.as_ref().unwrap().timestamp, commit.as_ref().unwrap().timestamp);
-                    if latest_commit.as_ref().unwrap().timestamp
-                        < commit.as_ref().unwrap().timestamp
-                    {
+                    if latest_commit.as_ref().unwrap().timestamp < commit.timestamp {
                         // log::debug!("FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}", entry.path, commit);
-                        latest_commit = commit.clone();
+                        latest_commit = Some(commit.clone());
                     }
                 }
             }

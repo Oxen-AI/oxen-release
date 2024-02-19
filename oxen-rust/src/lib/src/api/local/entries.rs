@@ -16,8 +16,9 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
 use crate::view::PaginatedDirEntries;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 /// Get the entry for a given path in a commit.
 /// Could be a file or a directory.
@@ -26,23 +27,42 @@ pub fn get_meta_entry(
     commit: &Commit,
     path: &Path,
 ) -> Result<MetadataEntry, OxenError> {
-    let entry_reader = CommitEntryReader::new(repo, commit)?;
+    let object_reader = ObjectDBReader::new(repo)?;
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let commit_reader = CommitReader::new(repo)?;
+    let mut commits = commit_reader.list_all()?;
+    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
     // Check if the path is a dir or is the root
     if entry_reader.has_dir(path) || path == Path::new("") {
         log::debug!("get_meta_entry found dir: {:?}", path);
-        meta_entry_from_dir(repo, commit, path, &commit_reader, &commit.id)
+        meta_entry_from_dir(
+            repo,
+            object_reader,
+            commit,
+            path,
+            &commit_reader,
+            &commit.id,
+        )
     } else {
         log::debug!("get_meta_entry has file: {:?}", path);
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-        let object_reader = ObjectDBReader::new(repo)?;
-        let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader)?;
+        let dir_entry_reader =
+            CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
+        // load all commit entry readers once
+        let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+
+        for c in commits {
+            let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
+            commit_entry_readers.push((c.clone(), reader));
+        }
 
         let entry = dir_entry_reader
             .get_entry(base_name)?
             .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
-        meta_entry_from_commit_entry(repo, &entry, &commit_reader, &commit.id)
+        meta_entry_from_commit_entry(repo, &entry, &commit_entry_readers, &commit.id)
     }
 }
 
@@ -50,6 +70,7 @@ pub fn get_meta_entry(
 /// and finding the latest commit within the directory
 pub fn meta_entry_from_dir(
     repo: &LocalRepository,
+    object_reader: Arc<ObjectDBReader>,
     commit: &Commit,
     path: &Path,
     commit_reader: &CommitReader,
@@ -61,7 +82,9 @@ pub fn meta_entry_from_dir(
 
     let latest_commit = match util::fs::read_from_path(latest_commit_path) {
         Ok(id) => commit_reader.get_commit_by_id(id)?,
-        Err(_) => compute_latest_commit(repo, commit, path, commit_reader)?,
+        Err(_) => {
+            compute_latest_commit_for_dir(repo, object_reader.clone(), commit, path, commit_reader)?
+        }
     };
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
@@ -71,7 +94,7 @@ pub fn meta_entry_from_dir(
             .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
         Err(_) => {
             // cache failed, go compute it
-            compute_dir_size(repo, commit, path)?
+            compute_dir_size(repo, object_reader.clone(), commit, path)?
         }
     };
 
@@ -94,18 +117,19 @@ pub fn meta_entry_from_dir(
     });
 }
 
-fn compute_latest_commit(
+fn compute_latest_commit_for_dir(
     repo: &LocalRepository,
+    object_reader: Arc<ObjectDBReader>,
     commit: &Commit,
     path: &Path,
     commit_reader: &CommitReader,
 ) -> Result<Option<Commit>, OxenError> {
-    let entry_reader = CommitEntryReader::new(repo, commit)?;
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let commits: HashMap<String, Commit> = HashMap::new();
     let mut latest_commit = Some(commit.to_owned());
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
-    let object_reader = ObjectDBReader::new(repo)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
@@ -133,10 +157,12 @@ fn compute_latest_commit(
 
 fn compute_dir_size(
     repo: &LocalRepository,
+    object_reader: Arc<ObjectDBReader>,
     commit: &Commit,
     path: &Path,
 ) -> Result<u64, OxenError> {
-    let entry_reader = CommitEntryReader::new(repo, commit)?;
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
@@ -154,14 +180,52 @@ fn compute_dir_size(
     Ok(total_size)
 }
 
+pub fn get_latest_commit_for_entry(
+    commits: &[(Commit, CommitDirEntryReader)],
+    entry: &CommitEntry,
+) -> Result<Option<Commit>, OxenError> {
+    let mut result: Vec<Commit> = Vec::new();
+    let mut seen_hashes: HashSet<String> = HashSet::new();
+    let path = &entry
+        .path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(&entry.path))?;
+
+    for (commit, entry_reader) in commits {
+        let old_entry = entry_reader.get_entry(path)?;
+
+        if let Some(old_entry) = old_entry {
+            if !seen_hashes.contains(&old_entry.hash) {
+                seen_hashes.insert(old_entry.hash.clone());
+                result.push(commit.clone());
+            }
+        }
+    }
+
+    result.reverse();
+
+    if result.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(result.first().unwrap().clone()))
+}
+
 pub fn meta_entry_from_commit_entry(
     repo: &LocalRepository,
     entry: &CommitEntry,
-    commit_reader: &CommitReader,
+    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
     revision: &str,
 ) -> Result<MetadataEntry, OxenError> {
+    log::debug!("meta_entry_from_commit_entry: {:?}", entry.path);
     let size = util::fs::version_file_size(repo, entry)?;
-    let latest_commit = commit_reader.get_commit_by_id(&entry.commit_id)?.unwrap();
+    let Some(latest_commit) = get_latest_commit_for_entry(commit_entry_readers, entry)? else {
+        log::error!("No latest commit for entry: {:?}", entry.path);
+        return Err(OxenError::basic_str(format!(
+            "No latest commit for entry: {:?}",
+            entry.path
+        )));
+    };
 
     let base_name = entry
         .path
@@ -225,27 +289,38 @@ pub fn list_directory(
     revision: &str,
     page: usize,
     page_size: usize,
-) -> Result<PaginatedDirEntries, OxenError> {
+) -> Result<(PaginatedDirEntries, MetadataEntry), OxenError> {
     let resource = Some(ResourceVersion {
         path: directory.to_str().unwrap().to_string(),
         version: revision.to_string(),
     });
 
-    let entry_reader = CommitEntryReader::new(repo, commit)?;
+    // Instantiate these readers once so they can be efficiently passed down through and databases not re-opened
+    let object_reader = ObjectDBReader::new(repo)?;
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let commit_reader = CommitReader::new(repo)?;
+
+    // Find all the commits once, so that we can re-use to find the latest commit per entry
+    let mut commits = commit_reader.list_all()?;
+
+    // Sort on timestamp oldest to newest
+    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    for c in commits {
+        let reader = CommitDirEntryReader::new(repo, &c.id, directory, object_reader.clone())?;
+        commit_entry_readers.push((c.clone(), reader));
+    }
 
     // List the directories first, then the files
     let mut dir_paths: Vec<MetadataEntry> = vec![];
     for dir in entry_reader.list_dirs()? {
-        // log::debug!(
-        //     "LIST DIRECTORY considering committed dir: {:?} for search {:?}",
-        //     dir,
-        //     directory
-        // );
         if let Some(parent) = dir.parent() {
             if parent == directory || (parent == Path::new("") && directory == Path::new("")) {
                 dir_paths.push(meta_entry_from_dir(
                     repo,
+                    object_reader.clone(),
                     commit,
                     &dir,
                     &commit_reader,
@@ -254,9 +329,10 @@ pub fn list_directory(
             }
         }
     }
-    let object_reader = ObjectDBReader::new(repo)?;
+
     let mut file_paths: Vec<MetadataEntry> = vec![];
-    let dir_entry_reader = CommitDirEntryReader::new(repo, &commit.id, directory, object_reader)?;
+    let dir_entry_reader =
+        CommitDirEntryReader::new(repo, &commit.id, directory, object_reader.clone())?;
     let total = dir_entry_reader.num_entries() + dir_paths.len();
     let total_pages = (total as f64 / page_size as f64).ceil() as usize;
 
@@ -266,7 +342,7 @@ pub fn list_directory(
         file_paths.push(meta_entry_from_commit_entry(
             repo,
             &entry,
-            &commit_reader,
+            &commit_entry_readers,
             revision,
         )?)
     }
@@ -274,10 +350,6 @@ pub fn list_directory(
     // Combine all paths, starting with dirs if there are enough, else just files
     let start_page = if page == 0 { 0 } else { page - 1 };
     let start_idx = start_page * page_size;
-    log::debug!(
-        "list_directory start_idx {start_idx} page_size {page_size} dir_paths.len() {}",
-        dir_paths.len()
-    );
     let mut entries = if dir_paths.len() < start_idx {
         file_paths
     } else {
@@ -285,45 +357,37 @@ pub fn list_directory(
         dir_paths
     };
 
-    log::debug!(
-        "list_directory checking slice entries start_idx {start_idx} page_size {page_size} entries.len() {}",
-        entries.len()
-    );
-
     if entries.len() > page_size {
         let mut end_idx = start_idx + page_size;
         if end_idx > entries.len() {
             end_idx = entries.len();
         }
 
-        log::debug!(
-            "list_directory slice start_idx {start_idx} end_idx {end_idx} entries.len() {}",
-            entries.len()
-        );
-
         entries = entries[start_idx..end_idx].to_vec();
     }
 
-    log::debug!(
-        "list_directory {:?} page {} page_size {} total {} total_pages {}",
-        directory,
-        page,
-        page_size,
-        total,
-        total_pages,
-    );
-
     let metadata = get_dir_entry_metadata(repo, commit, directory)?;
+    let dir = meta_entry_from_dir(
+        repo,
+        object_reader,
+        commit,
+        directory,
+        &commit_reader,
+        revision,
+    )?;
 
-    Ok(PaginatedDirEntries {
-        entries,
-        resource,
-        metadata: Some(metadata),
-        page_size,
-        page_number: page,
-        total_pages,
-        total_entries: total,
-    })
+    Ok((
+        PaginatedDirEntries {
+            entries,
+            resource,
+            metadata: Some(metadata),
+            page_size,
+            page_number: page,
+            total_pages,
+            total_entries: total,
+        },
+        dir,
+    ))
 }
 
 pub fn get_dir_entry_metadata(
@@ -535,13 +599,29 @@ pub fn list_tabular_files_in_repo(
     let mut meta_entries: Vec<MetadataEntry> = vec![];
     let entry_reader = CommitEntryReader::new(local_repo, commit)?;
     let commit_reader = CommitReader::new(local_repo)?;
+    let commits = commit_reader.list_all()?;
+
     for (path, _schema) in schemas.iter() {
         let entry = entry_reader.get_entry(path)?;
+
         if entry.is_some() {
+            let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
+            let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+            let object_reader = ObjectDBReader::new(local_repo)?;
+            for commit in &commits {
+                let reader = CommitDirEntryReader::new(
+                    local_repo,
+                    &commit.id,
+                    parent,
+                    object_reader.clone(),
+                )?;
+                commit_entry_readers.push((commit.clone(), reader));
+            }
+
             let metadata = meta_entry_from_commit_entry(
                 local_repo,
                 &entry.unwrap(),
-                &commit_reader,
+                &commit_entry_readers,
                 &commit.id,
             )?;
             if metadata.data_type == EntryDataType::Tabular {
@@ -675,7 +755,7 @@ mod tests {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 commit,
                 Path::new(""),
@@ -711,7 +791,7 @@ mod tests {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 commit,
                 Path::new("train"),
@@ -735,7 +815,7 @@ mod tests {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 commit,
                 Path::new("annotations/train"),
@@ -759,7 +839,7 @@ mod tests {
             let commits = api::local::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 commit,
                 Path::new("train"),
@@ -814,7 +894,7 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -854,7 +934,7 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -902,7 +982,7 @@ mod tests {
             let page_number = 11;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -958,7 +1038,7 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -1006,7 +1086,7 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -1054,7 +1134,7 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -1103,7 +1183,7 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -1148,7 +1228,7 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
@@ -1198,7 +1278,7 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let paginated = api::local::entries::list_directory(
+            let (paginated, _dir) = api::local::entries::list_directory(
                 &repo,
                 &commit,
                 Path::new(""),
