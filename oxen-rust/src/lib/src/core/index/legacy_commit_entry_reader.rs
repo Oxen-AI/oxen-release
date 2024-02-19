@@ -48,7 +48,7 @@ impl LegacyCommitEntryReader {
         let path = Self::db_path(&base_path, commit_id);
         let opts = db::opts::default();
         log::debug!(
-            "CommitEntryReader::new_from_commit_id() commit_id: {} path: {:?}",
+            "CommitEntryReader::new_from_path() commit_id: {} path: {:?}",
             commit_id,
             path
         );
