@@ -6,6 +6,7 @@ use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
+use liboxen::core::df::tabular;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::entry::commit_entry::CommitPath;
@@ -574,18 +575,33 @@ pub async fn diff(
     if is_remote {
         let remote_diff = command::remote::diff(&repository, revision_1, &file_1).await?;
         println!("{remote_diff}");
+
+        // TODO: Allow them to save a remote diff to disk
     } else {
-        let compare_result = command::compare(
-            &repository,
-            cpath_1,
-            cpath_2,
-            keys,
-            targets,
-            display,
-            output,
-        )?;
-        print_compare_result(compare_result)?;
+        let mut compare_result =
+            command::compare(&repository, cpath_1, cpath_2, keys, targets, display)?;
+        print_compare_result(&compare_result)?;
+        maybe_save_compare_output(&mut compare_result, output)?;
     };
+
+    Ok(())
+}
+
+fn maybe_save_compare_output(
+    result: &mut CompareResult,
+    output: Option<PathBuf>,
+) -> Result<(), OxenError> {
+    match result {
+        CompareResult::Tabular((_, df)) => {
+            // Save to disk if we have an output
+            if let Some(file_path) = output {
+                tabular::write_df(df, file_path.clone())?;
+            }
+        }
+        CompareResult::Text(_) => {
+            println!("Saving to disk not supported for text output");
+        }
+    }
 
     Ok(())
 }
@@ -1167,14 +1183,14 @@ pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(
     Ok(())
 }
 
-fn print_compare_result(result: CompareResult) -> Result<(), OxenError> {
+fn print_compare_result(result: &CompareResult) -> Result<(), OxenError> {
     match result {
         CompareResult::Tabular((ct, df)) => {
             // println!("{:?}", ct.summary);
-            if let Some(schema_diff) = ct.schema_diff {
+            if let Some(schema_diff) = &ct.schema_diff {
                 print_schema_diff(schema_diff)?;
             }
-            if let Some(summary) = ct.summary {
+            if let Some(summary) = &ct.summary {
                 print_compare_summary(summary)?;
             }
             println!("{}", df);
@@ -1188,7 +1204,7 @@ fn print_compare_result(result: CompareResult) -> Result<(), OxenError> {
 }
 
 // TODO: Truncate to "and x more"
-fn print_schema_diff(schema_diff: CompareSchemaDiff) -> Result<(), OxenError> {
+fn print_schema_diff(schema_diff: &CompareSchemaDiff) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
 
     println!();
@@ -1197,11 +1213,11 @@ fn print_schema_diff(schema_diff: CompareSchemaDiff) -> Result<(), OxenError> {
         outputs.push("Column changes:\n".into());
     }
 
-    for col in schema_diff.added_cols {
+    for col in &schema_diff.added_cols {
         outputs.push(format!("   + {} ({})\n", col.name, col.dtype).green());
     }
 
-    for col in schema_diff.removed_cols {
+    for col in &schema_diff.removed_cols {
         outputs.push(format!("   - {} ({})\n", col.name, col.dtype).red());
     }
 
@@ -1212,7 +1228,7 @@ fn print_schema_diff(schema_diff: CompareSchemaDiff) -> Result<(), OxenError> {
     Ok(())
 }
 
-fn print_compare_summary(summary: CompareSummary) -> Result<(), OxenError> {
+fn print_compare_summary(summary: &CompareSummary) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
 
     if summary.modifications.modified_rows

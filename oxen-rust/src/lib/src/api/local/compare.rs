@@ -43,7 +43,6 @@ pub fn compare_files(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-    output: Option<PathBuf>,
 ) -> Result<CompareResult, OxenError> {
     log::debug!("comparing files");
     // Assert that the files exist in their respective commits.
@@ -61,7 +60,6 @@ pub fn compare_files(
             keys,
             targets,
             display,
-            output,
         )?;
 
         Ok(CompareResult::Tabular(result))
@@ -88,7 +86,6 @@ fn compare_tabular(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-    output: Option<PathBuf>,
 ) -> Result<(CompareTabular, DataFrame), OxenError> {
     let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
     let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
@@ -112,7 +109,6 @@ fn compare_tabular(
     let mut compare_tabular_raw = compute_row_comparison(&df_1, &df_2, &keys, &targets, &display)?;
 
     let compare = CompareTabular::from_with_df(&compare_tabular_raw);
-    maybe_save_compare_output(&mut compare_tabular_raw, output)?;
     maybe_write_cache(
         repo,
         compare_id,
@@ -463,24 +459,6 @@ fn maybe_write_cache(
     Ok(())
 }
 
-fn maybe_save_compare_output(
-    compare_tabular_raw: &mut CompareTabularWithDF,
-    output: Option<PathBuf>,
-) -> Result<(), OxenError> {
-    let diff_df = &mut compare_tabular_raw.diff_df;
-
-    let (df_1, file_name_1) = (diff_df, "diff.csv");
-
-    // // Save to disk if we have an output - i.e., if called from API
-    if let Some(output) = output {
-        std::fs::create_dir_all(output.clone())?;
-        let file_1_path = output.join(file_name_1);
-        tabular::write_df(df_1, file_1_path.clone())?;
-    }
-
-    Ok(())
-}
-
 fn is_files_tabular(file_1: &Path, file_2: &Path) -> bool {
     util::fs::is_tabular(file_1) || util::fs::is_tabular(file_2)
 }
@@ -628,7 +606,6 @@ mod tests {
                 keys,
                 targets,
                 vec![],
-                None,
             );
 
             assert!(matches!(result.unwrap_err(), OxenError::InvalidFileType(_)));
@@ -674,7 +651,6 @@ mod tests {
                 ],
                 vec!["target".to_string(), "other_target".to_string()],
                 vec![],
-                None,
             )?;
 
             // Should be: 2 removed, 1 added, 6 unchanged, 5 modified
@@ -747,7 +723,6 @@ mod tests {
                 ],
                 vec![String::from("target"), String::from("other_target")],
                 vec![],
-                None,
             )?;
 
             // Check getting via cache
@@ -843,7 +818,6 @@ mod tests {
                 ],
                 vec![String::from("target"), String::from("other_target")],
                 vec![],
-                None,
             )?;
 
             // Get the actual df for this compare
