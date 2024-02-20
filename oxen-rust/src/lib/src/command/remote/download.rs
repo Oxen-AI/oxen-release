@@ -34,9 +34,6 @@ mod tests {
     use crate::util;
 
     use crate::constants;
-    use crate::error::OxenError;
-
-    use std::path::Path;
 
     #[tokio::test]
     async fn test_remote_download_directory() -> Result<(), OxenError> {

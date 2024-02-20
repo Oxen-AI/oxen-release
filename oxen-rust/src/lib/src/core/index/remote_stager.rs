@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::iter::FromIterator;
 use std::path::{Path, PathBuf};
 
 use crate::api;

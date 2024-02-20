@@ -5,8 +5,6 @@ use liboxen::constants::DEFAULT_REDIS_URL;
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, RepoNew};
 
-use r2d2;
-
 use crate::errors::OxenHttpError;
 
 pub fn get_repo(

@@ -444,7 +444,6 @@ mod tests {
     use crate::model::file::FileNew;
     use crate::model::RepoNew;
     use crate::test;
-    use mockito;
 
     #[tokio::test]
     async fn test_repo_pre_and_post_clone() -> Result<(), OxenError> {
