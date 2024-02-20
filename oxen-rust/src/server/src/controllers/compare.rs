@@ -243,7 +243,6 @@ pub async fn create_df_compare(
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-        None,
     )?;
 
     let view = match result {
@@ -338,7 +337,6 @@ pub async fn update_df_compare(
         keys,
         targets,
         display_by_column, // TODONOW: add display handling here
-        None,
     )?;
 
     let view = match result {

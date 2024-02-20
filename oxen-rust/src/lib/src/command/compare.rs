@@ -4,7 +4,6 @@ use crate::error::OxenError;
 use crate::model::entry::commit_entry::{CommitPath, CompareEntry};
 use crate::model::LocalRepository;
 use crate::view::compare::CompareResult;
-use std::path::PathBuf;
 
 pub fn compare(
     repo: &LocalRepository,
@@ -13,7 +12,6 @@ pub fn compare(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-    output: Option<PathBuf>,
 ) -> Result<CompareResult, OxenError> {
     // TODONOW - anything we can clean up with this mut initialization?
     let mut compare_entry_1 = CompareEntry {
@@ -70,7 +68,6 @@ pub fn compare(
         keys,
         targets,
         display_by_column,
-        output,
     )?;
 
     log::debug!("compare result: {:?}", compare_result);
@@ -118,7 +115,7 @@ mod tests {
                 path: path_2.clone(),
             };
 
-            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
+            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![])?;
 
             match compare_result {
                 CompareResult::Tabular((_ct, df)) => {
@@ -159,7 +156,7 @@ mod tests {
                 path: path_2.clone(),
             };
 
-            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
+            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![])?;
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
@@ -225,7 +222,6 @@ mod tests {
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string()],
                 vec![],
-                None,
             )?;
 
             let diff_col = ".oxen.diff.status";
@@ -296,7 +292,6 @@ mod tests {
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string()],
                 vec![],
-                None,
             )?;
 
             let diff_col = ".oxen.diff.status";
@@ -364,7 +359,6 @@ mod tests {
                 vec!["a".to_string(), "b".to_string()],
                 vec!["c".to_string(), "d".to_string()],
                 vec![],
-                None,
             )?;
 
             // Should return empty df
@@ -427,7 +421,7 @@ mod tests {
                 path: path_2.clone(),
             };
 
-            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![], None)?;
+            let compare_result = command::compare(&repo, c1, c2, vec![], vec![], vec![])?;
 
             // Should return empty df
             let diff_col = ".oxen.diff.status";
@@ -497,7 +491,6 @@ mod tests {
                 vec!["a".to_string(), "b".to_string(), "c".to_string()],
                 vec![],
                 vec![],
-                None,
             )?;
 
             // Should return empty df
