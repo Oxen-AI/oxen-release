@@ -476,6 +476,7 @@ pub async fn get_derived_df(
 
     let start = if page == 0 { 0 } else { page_size * (page - 1) };
     let end = page_size * page;
+    let opts_view = DFOptsView::from_df_opts(&opts);
 
     // We have to run the query param transforms, then paginate separately
     match tabular::transform(df, opts) {
@@ -488,7 +489,6 @@ pub async fn get_derived_df(
             // Paginate after transform
             let mut paginate_opts = DFOpts::empty();
             paginate_opts.slice = Some(format!("{}..{}", start, end));
-            let opts_view = DFOptsView::from_df_opts(&paginate_opts);
             let mut paginated_df = tabular::transform(view_df, paginate_opts)?;
 
             let total_pages = (view_height as f64 / page_size as f64).ceil() as usize;
