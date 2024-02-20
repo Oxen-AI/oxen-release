@@ -5,7 +5,6 @@ use crate::error::OxenError;
 use crate::model::{Commit, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;
 use crate::util;
-use polars::lazy::dsl::{col, lit};
 use polars::prelude::*;
 use std::path::Path;
 use std::path::PathBuf;

@@ -1,4 +1,4 @@
-use polars::{lazy::dsl::Expr, prelude::*};
+use polars::prelude::*;
 use polars_sql::SQLContext;
 use std::fs::File;
 
@@ -13,7 +13,6 @@ use crate::{api, constants};
 use colored::Colorize;
 use comfy_table::Table;
 use indicatif::ProgressBar;
-use qsv_sniffer;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
@@ -369,6 +368,9 @@ fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
 
 fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
     log::debug!("Got filter: {:?}", filter);
+    if filter.vals.is_empty() {
+        return Ok(df);
+    }
     let mut vals = filter.vals.iter();
     let mut expr: Expr = filter_from_val(&df, vals.next().unwrap());
     for op in &filter.logical_ops {
