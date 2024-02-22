@@ -6,8 +6,8 @@ use crate::model::compare::tabular_compare::{
 };
 use crate::model::Schema;
 use crate::view::compare::{
-    CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSummary, CompareTabularMods,
-    CompareTabularWithDF,
+    CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSourceSchemas, CompareSummary,
+    CompareTabularMods, CompareTabularWithDF,
 };
 
 use polars::datatypes::{AnyValue, StringChunked};
@@ -89,10 +89,16 @@ pub fn compare(
 
     let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
 
+    let source_schemas = CompareSourceSchemas {
+        left: Schema::from_polars(&df_1.schema()),
+        right: Schema::from_polars(&df_2.schema()),
+    };
+
     Ok(CompareTabularWithDF {
         diff_df: joined_df.select(output_columns)?,
         dupes: CompareDupes { left: 0, right: 0 },
         schema_diff: Some(schema_diff),
+        source_schemas,
         summary: Some(CompareSummary {
             modifications,
             schema: Schema::from_polars(&joined_df.schema()),
