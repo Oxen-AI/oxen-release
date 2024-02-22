@@ -948,64 +948,57 @@ pub async fn remote_diff(sub_matches: &ArgMatches) {
     p_diff(sub_matches, is_remote).await
 }
 
-pub async fn compare(sub_matches: &ArgMatches) {
-    let resource1 = sub_matches
-        .get_one::<String>("RESOURCE1")
-        .expect("required");
-    let resource2 = sub_matches
-        .get_one::<String>("RESOURCE2")
-        .expect("required");
-
-    let (file1, revision1) = parse_file_and_revision(resource1);
-    let (file2, revision2) = parse_file_and_revision(resource2);
-
-    let file1 = PathBuf::from(file1);
-    let file2 = PathBuf::from(file2);
-
-    let keys: Vec<String> = match sub_matches.get_many::<String>("keys") {
-        Some(values) => values.cloned().collect(),
-        None => Vec::new(),
-    };
-
-    let targets: Vec<String> = match sub_matches.get_many::<String>("targets") {
-        Some(values) => values.cloned().collect(),
-        None => Vec::new(),
-    };
-
-    let output = sub_matches.get_one::<String>("output").map(PathBuf::from);
-
-    match dispatch::compare(file1, revision1, file2, revision2, keys, targets, output) {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
 pub async fn diff(sub_matches: &ArgMatches) {
     let is_remote = false;
     p_diff(sub_matches, is_remote).await
 }
 
 async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
-    // First arg is optional
-    let file_or_commit_id = sub_matches
-        .get_one::<String>("FILE_OR_REVISION")
+    let resource1 = sub_matches
+        .get_one::<String>("RESOURCE1")
         .expect("required");
-    let path = sub_matches.get_one::<String>("PATH");
-    if let Some(path) = path {
-        match dispatch::diff(Some(file_or_commit_id), path, is_remote).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
+    let resource2 = sub_matches.get_one::<String>("RESOURCE2");
+
+    let (file1, revision1) = parse_file_and_revision(resource1);
+
+    let file1 = PathBuf::from(file1);
+
+    let (file2, revision2) = match resource2 {
+        Some(resource) => {
+            let (file, revision) = parse_file_and_revision(resource);
+            (Some(PathBuf::from(file)), revision)
         }
-    } else {
-        match dispatch::diff(None, file_or_commit_id, is_remote).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
+        None => (None, None),
+    };
+
+    let keys: Vec<String> = match sub_matches.get_many::<String>("keys") {
+        Some(values) => values.cloned().collect(),
+        None => Vec::new(),
+    };
+
+    let maybe_targets = sub_matches.get_many::<String>("targets");
+
+    let targets = match maybe_targets {
+        Some(values) => values.cloned().collect(),
+        None => Vec::new(),
+    };
+
+    let maybe_display = sub_matches.get_many::<String>("display");
+    let display = match maybe_display {
+        Some(values) => values.cloned().collect(),
+        None => Vec::new(),
+    };
+
+    let output = sub_matches.get_one::<String>("output").map(PathBuf::from);
+
+    match dispatch::diff(
+        file1, revision1, file2, revision2, keys, targets, display, output, is_remote,
+    )
+    .await
+    {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
         }
     }
 }

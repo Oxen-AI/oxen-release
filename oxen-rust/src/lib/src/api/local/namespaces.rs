@@ -1,4 +1,3 @@
-use bytesize;
 use fs_extra::dir::get_size;
 use rayon::prelude::*;
 use std::path::Path;

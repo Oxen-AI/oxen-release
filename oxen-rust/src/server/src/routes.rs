@@ -166,12 +166,20 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // and 2) for branch revisions (main..staging), this DOES create resources (updating compare cache) if
         // commit heads have changed since last cache
         .route(
-            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}/{base_head:.*}",
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
             web::post().to(controllers::compare::get_df_compare),
         )
         .route(
-            "/{namespace}/{repo_name}/compare/data_frame/{base_head:.*}",
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
+            web::put().to(controllers::compare::update_df_compare),
+        )
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame",
             web::post().to(controllers::compare::create_df_compare),
+        )
+        .route(
+            "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
+            web::delete().to(controllers::compare::delete_df_compare),
         )
         // ----- Merge ----- //
         // GET merge to test if merge is possible

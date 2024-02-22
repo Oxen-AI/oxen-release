@@ -272,6 +272,8 @@ mod tests {
             command::add(&repo, &repo_filepath)?;
             command::commit(&repo, "Adding initial csv")?;
 
+
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
@@ -287,11 +289,12 @@ mod tests {
             command::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the dataframe
-            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the sky?,blue,trivia\n")?;
-            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the ocean?,blue-ish green sometimes,trivia\n")?;
+            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the sky?,blue,trivia")?;
+            let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the ocean?,blue-ish green sometimes,trivia")?;
 
             command::add(&repo, &repo_filepath)?;
             command::commit(&repo, "Modifying the csv")?;
+
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());

@@ -216,7 +216,7 @@ pub fn count_added_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize,
     let base_hash_indices: HashSet<String> = base_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
-        .utf8()
+        .str()
         .unwrap()
         .into_iter()
         .map(|v| v.unwrap().to_string())
@@ -225,7 +225,7 @@ pub fn count_added_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize,
     let head_hash_indices: HashSet<String> = head_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
-        .utf8()
+        .str()
         .unwrap()
         .into_iter()
         .map(|v| v.unwrap().to_string())
@@ -248,7 +248,7 @@ pub fn count_removed_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usiz
     let base_hash_indices: HashSet<String> = base_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
-        .utf8()
+        .str()
         .unwrap()
         .into_iter()
         .map(|v| v.unwrap().to_string())
@@ -257,7 +257,7 @@ pub fn count_removed_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usiz
     let head_hash_indices: HashSet<String> = head_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
-        .utf8()
+        .str()
         .unwrap()
         .into_iter()
         .map(|v| v.unwrap().to_string())
@@ -286,7 +286,7 @@ pub fn compute_new_row_indices(
     let base_hash_indices: HashMap<String, u32> = base_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
-        .utf8()
+        .str()
         .unwrap()
         .into_iter()
         .enumerate()
@@ -296,7 +296,7 @@ pub fn compute_new_row_indices(
     let head_hash_indices: HashMap<String, u32> = head_df
         .column(constants::ROW_HASH_COL_NAME)
         .unwrap()
-        .utf8()
+        .str()
         .unwrap()
         .into_iter()
         .enumerate()

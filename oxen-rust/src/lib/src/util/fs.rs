@@ -4,7 +4,6 @@
 
 use jwalk::WalkDir;
 
-use bytesize;
 use simdutf8::compat::from_utf8;
 use std::collections::HashSet;
 use std::fs::File;

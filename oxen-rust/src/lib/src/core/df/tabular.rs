@@ -1,4 +1,4 @@
-use polars::{lazy::dsl::Expr, prelude::*};
+use polars::prelude::*;
 use polars_sql::SQLContext;
 use std::fs::File;
 
@@ -13,7 +13,6 @@ use crate::{api, constants};
 use colored::Colorize;
 use comfy_table::Table;
 use indicatif::ProgressBar;
-use qsv_sniffer;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
@@ -322,7 +321,7 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
         polars::prelude::DataType::Float64 => {
             AnyValue::Float64(s.parse::<f64>().expect("must be f64"))
         }
-        polars::prelude::DataType::Utf8 => AnyValue::Utf8(s),
+        polars::prelude::DataType::String => AnyValue::String(s),
         polars::prelude::DataType::Null => AnyValue::Null,
         _ => panic!("Currently do not support data type {}", dtype),
     }
@@ -349,7 +348,7 @@ fn lit_from_any(value: &AnyValue) -> Expr {
         AnyValue::Float32(val) => lit(*val),
         AnyValue::Int64(val) => lit(*val),
         AnyValue::Int32(val) => lit(*val),
-        AnyValue::Utf8(val) => lit(*val),
+        AnyValue::String(val) => lit(*val),
         val => panic!("Unknown data type for [{}] to create literal", val),
     }
 }
@@ -369,6 +368,9 @@ fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
 
 fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
     log::debug!("Got filter: {:?}", filter);
+    if filter.vals.is_empty() {
+        return Ok(df);
+    }
     let mut vals = filter.vals.iter();
     let mut expr: Expr = filter_from_val(&df, vals.next().unwrap());
     for op in &filter.logical_ops {
@@ -689,14 +691,14 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         AnyValue::Int8(val) => val.to_le_bytes().to_vec(),
         AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
         AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
-        AnyValue::Utf8(val) => val.as_bytes().to_vec(),
+        AnyValue::String(val) => val.as_bytes().to_vec(),
         AnyValue::Boolean(val) => vec![if *val { 1 } else { 0 }],
         // TODO: handle rows with lists...
         // AnyValue::List(val) => {
         //     match val.dtype() {
         //         DataType::Int32 => {},
         //         DataType::Float32 => {},
-        //         DataType::Utf8 => {},
+        //         DataType::String => {},
         //         DataType::UInt8 => {},
         //         x => panic!("unable to parse list with value: {} and type: {:?}", x, x.inner_dtype())
         //     }
@@ -729,7 +731,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         let pb = ProgressBar::new(num_rows as u64);
                         // downcast to struct
                         let ca = s.struct_()?;
-                        let out: Utf8Chunked = ca
+                        let out: StringChunked = ca
                             .into_iter()
                             // .par_bridge() // not sure why this is breaking
                             .map(|row| {
@@ -753,7 +755,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 
                         Ok(Some(out.into_series()))
                     },
-                    GetOutput::from_type(polars::prelude::DataType::Utf8),
+                    GetOutput::from_type(polars::prelude::DataType::String),
                 )
                 .alias(constants::ROW_HASH_COL_NAME),
         ])
@@ -781,6 +783,12 @@ pub fn df_hash_rows_on_cols(
         }
     }
 
+    // This is to allow asymmetric target hashing for added / removed cols in default behavior
+    if col_names.is_empty() {
+        let null_string_col = lit(Null {}).alias(out_col_name);
+        return Ok(df.lazy().with_column(null_string_col).collect()?);
+    }
+
     // Continue as before
     let df = df
         .lazy()
@@ -791,7 +799,7 @@ pub fn df_hash_rows_on_cols(
                     move |s| {
                         let pb = ProgressBar::new(num_rows as u64);
                         let ca = s.struct_()?;
-                        let out: Utf8Chunked = ca
+                        let out: StringChunked = ca
                             .into_iter()
                             .map(|row| {
                                 pb.inc(1);
@@ -807,7 +815,7 @@ pub fn df_hash_rows_on_cols(
 
                         Ok(Some(out.into_series()))
                     },
-                    GetOutput::from_type(polars::prelude::DataType::Utf8),
+                    GetOutput::from_type(polars::prelude::DataType::String),
                 )
                 .alias(out_col_name),
         ])
