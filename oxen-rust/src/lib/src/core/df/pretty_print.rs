@@ -24,7 +24,6 @@ use polars::prelude::*;
 pub fn df_to_str(df: &DataFrame) -> String {
     let default_fmt = format!("{:?}", df);
 
-    
     default_fmt
         .replace(['┌', '└', '┬', '┴', '┐', '┘'], "+")
         .replace('─', "-")
