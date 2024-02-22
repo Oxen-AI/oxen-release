@@ -6,6 +6,7 @@ use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::constants;
+use liboxen::core::df::pretty_print;
 use liboxen::core::df::tabular;
 use liboxen::error;
 use liboxen::error::OxenError;
@@ -562,11 +563,11 @@ pub async fn diff(
 
         (
             CommitPath {
-                commit: None,
+                commit,
                 path: file_1.clone(),
             },
             CommitPath {
-                commit,
+                commit: None,
                 path: file_1.clone(),
             },
         )
@@ -1193,7 +1194,7 @@ fn print_compare_result(result: &CompareResult) -> Result<(), OxenError> {
             if let Some(summary) = &ct.summary {
                 print_compare_summary(summary)?;
             }
-            println!("{}", df);
+            println!("{}", pretty_print::df_to_str(df));
         }
         CompareResult::Text(s) => {
             println!("{}", s);
@@ -1206,8 +1207,6 @@ fn print_compare_result(result: &CompareResult) -> Result<(), OxenError> {
 // TODO: Truncate to "and x more"
 fn print_schema_diff(schema_diff: &CompareSchemaDiff) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
-
-    println!();
 
     if !schema_diff.added_cols.is_empty() || !schema_diff.removed_cols.is_empty() {
         outputs.push("Column changes:\n".into());

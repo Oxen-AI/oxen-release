@@ -13,6 +13,12 @@ pub fn compare(
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<CompareResult, OxenError> {
+    log::debug!(
+        "Compare command called with: {:?} and {:?}",
+        cpath_1,
+        cpath_2
+    );
+
     // TODONOW - anything we can clean up with this mut initialization?
     let mut compare_entry_1 = CompareEntry {
         commit_entry: None,

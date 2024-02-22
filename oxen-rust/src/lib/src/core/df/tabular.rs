@@ -3,6 +3,7 @@ use polars_sql::SQLContext;
 use std::fs::File;
 
 use crate::core::df::filter::DFLogicalOp;
+use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::{ContentType, DataFrameSize};
@@ -1076,7 +1077,8 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
             }
         }
     } else {
-        println!("{df}");
+        let pretty_df = pretty_print::df_to_str(&df);
+        println!("{pretty_df}");
     }
     Ok(df)
 }
