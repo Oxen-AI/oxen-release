@@ -16,7 +16,7 @@ pub use paginate::{paginate, paginate_with_total};
 
 pub mod oxen_date_format {
     use chrono::{DateTime, Local};
-    use serde::{self, Deserialize, Deserializer, Serializer};
+    use serde::{Deserialize, Deserializer, Serializer};
 
     pub const FORMAT: &str = "%a, %d %b %Y %H:%M:%S %z";
 

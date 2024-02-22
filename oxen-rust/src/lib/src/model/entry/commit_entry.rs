@@ -74,7 +74,7 @@ impl From<Entry> for CommitEntry {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitPath {
-    pub commit: Commit,
+    pub commit: Option<Commit>,
     pub path: PathBuf,
 }
 
@@ -86,6 +86,13 @@ pub struct CommitEntry {
     pub num_bytes: u64,
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
+}
+
+// TODONOW - maybe rename or reorg, this isn't an "entry" as such
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct CompareEntry {
+    pub commit_entry: Option<CommitEntry>,
+    pub path: PathBuf,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

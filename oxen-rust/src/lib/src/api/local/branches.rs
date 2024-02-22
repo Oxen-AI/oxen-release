@@ -396,20 +396,26 @@ pub fn list_entry_versions_on_branch(
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
     let branch = api::local::branches::get_by_name(local_repo, branch_name)?
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
+    log::debug!(
+        "get branch commits for branch {:?} -> {}",
+        branch.name,
+        branch.commit_id
+    );
+    list_entry_versions_for_commit(local_repo, &branch.commit_id, path)
+}
+
+pub fn list_entry_versions_for_commit(
+    local_repo: &LocalRepository,
+    commit_id: &str,
+    path: &Path,
+) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
     let commit_reader = CommitReader::new(local_repo)?;
 
     let root_commit = commit_reader.root_commit()?;
-    let mut branch_commits =
-        commit_reader.history_from_base_to_head(&root_commit.id, &branch.commit_id)?;
+    let mut branch_commits = commit_reader.history_from_base_to_head(&root_commit.id, commit_id)?;
 
     // Sort on timestamp oldest to newest
     branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
-    log::debug!(
-        "got branch commits {:#?} for branch {:?}",
-        branch_commits,
-        branch.name
-    );
 
     let mut result: Vec<(Commit, CommitEntry)> = Vec::new();
     let mut seen_hashes: HashSet<String> = HashSet::new();
@@ -419,17 +425,10 @@ pub fn list_entry_versions_on_branch(
         let entry = entry_reader.get_entry(path)?;
 
         if let Some(entry) = entry {
-            log::debug!("found entry {} for commit: {}", path.display(), commit.id);
             if !seen_hashes.contains(&entry.hash) {
                 seen_hashes.insert(entry.hash.clone());
                 result.push((commit, entry));
             }
-        } else {
-            log::debug!(
-                "did not find entry {} for commit: {}",
-                path.display(),
-                commit.id
-            );
         }
     }
 
@@ -599,5 +598,30 @@ mod tests {
 
             Ok(())
         })
+    }
+
+    #[tokio::test]
+    async fn test_local_delete_branch() -> Result<(), OxenError> {
+        test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
+            // Get the original branches
+            let og_branches = api::local::branches::list(&repo)?;
+            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+
+            let branch_name = "my-branch";
+            api::local::branches::create_checkout(&repo, branch_name)?;
+
+            // Must checkout main again before deleting
+            command::checkout(&repo, og_branch.name).await?;
+
+            // Now we can delete
+            api::local::branches::delete(&repo, branch_name)?;
+
+            // Should be same num as og_branches
+            let leftover_branches = api::local::branches::list(&repo)?;
+            assert_eq!(og_branches.len(), leftover_branches.len());
+
+            Ok(())
+        })
+        .await
     }
 }

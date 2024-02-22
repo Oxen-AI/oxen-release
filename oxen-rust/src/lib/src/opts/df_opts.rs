@@ -360,6 +360,7 @@ impl DFOptsView {
         let ordered_opts: Vec<DFOptView> = [
             DFOptView::from_opt("text2sql", &opts.text2sql),
             DFOptView::from_opt("sql", &opts.sql),
+            DFOptView::from_opt("filter", &opts.filter),
             DFOptView::from_opt("unique", &opts.unique),
             DFOptView::from_opt(
                 "should_randomize",

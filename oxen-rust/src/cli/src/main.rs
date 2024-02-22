@@ -21,7 +21,6 @@ async fn main() {
         .subcommand(cmd_setup::clone())
         .subcommand(cmd_setup::commit_cache())
         .subcommand(cmd_setup::commit())
-        .subcommand(cmd_setup::compare())
         .subcommand(cmd_setup::config())
         .subcommand(cmd_setup::create_remote())
         .subcommand(cmd_setup::df())
@@ -56,13 +55,12 @@ async fn main() {
             parse_and_run::compute_commit_cache(sub_matches).await
         }
         Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches).await,
-        Some((cmd_setup::COMPARE, sub_matches)) => parse_and_run::compare(sub_matches).await,
+        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::CONFIG, sub_matches)) => parse_and_run::config(sub_matches),
         Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
             parse_and_run::create_remote(sub_matches).await
         }
         Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
-        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::DOWNLOAD, sub_matches)) => parse_and_run::download(sub_matches).await,
         Some((cmd_setup::INIT, sub_matches)) => parse_and_run::init(sub_matches).await,
         Some((cmd_setup::INFO, sub_matches)) => parse_and_run::info(sub_matches),

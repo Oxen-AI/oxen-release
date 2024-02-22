@@ -17,7 +17,6 @@ use super::CommitEntryReader;
 use super::Stager;
 
 use pluralizer::pluralize;
-use std::convert::TryInto;
 use std::path::Path;
 use std::path::PathBuf;
 

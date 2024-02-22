@@ -48,7 +48,6 @@ use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use std::collections::HashMap;
-use std::convert::TryFrom;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;

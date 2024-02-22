@@ -1,3 +1,5 @@
+// Catch all tests for the library
+
 use std::path::Path;
 
 use liboxen::command;
