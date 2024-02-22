@@ -6,8 +6,8 @@ use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 
 use crate::view::compare::{
-    CompareDupes, CompareResult, CompareSchemaDiff, CompareSummary, CompareTabular,
-    CompareTabularWithDF,
+    CompareDupes, CompareResult, CompareSchemaDiff, CompareSourceSchemas, CompareSummary,
+    CompareTabular, CompareTabularWithDF,
 };
 use crate::{api, util};
 
@@ -109,6 +109,7 @@ fn compare_tabular(
     let mut compare_tabular_raw = compute_row_comparison(&df_1, &df_2, &keys, &targets, &display)?;
 
     let compare = CompareTabular::from_with_df(&compare_tabular_raw);
+
     maybe_write_cache(
         repo,
         compare_id,
@@ -166,6 +167,12 @@ pub fn get_cached_compare(
         &Schema::from_polars(&right_full_df.schema()),
     )?;
 
+    // TODO: Should we be grabbing oxen schemas here?
+    let source_schemas = CompareSourceSchemas {
+        left: Schema::from_polars(&left_full_df.schema()),
+        right: Schema::from_polars(&right_full_df.schema()),
+    };
+
     let diff_df = tabular::read_df(get_compare_diff_path(repo, compare_id), DFOpts::empty())?;
 
     let compare_summary = CompareSummary::from_diff_df(&diff_df)?;
@@ -178,6 +185,7 @@ pub fn get_cached_compare(
         keys: None,
         targets: None,
         display: None,
+        source_schemas,
     };
 
     Ok(Some(compare_results))

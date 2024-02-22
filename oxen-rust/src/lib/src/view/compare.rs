@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use polars::frame::DataFrame;
 use serde::{Deserialize, Serialize};
 
@@ -7,7 +5,7 @@ use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::message::{MessageLevel, OxenMessage};
 use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareTargetBody};
-use crate::model::{Commit, CommitEntry, DataFrameSize, DiffEntry, Schema};
+use crate::model::{Commit, DiffEntry, Schema};
 use crate::view::Pagination;
 
 use super::StatusMessage;
@@ -77,6 +75,7 @@ pub struct CompareTabularWithDF {
     pub keys: Vec<TabularCompareFieldBody>,
     pub targets: Vec<TabularCompareTargetBody>,
     pub display: Vec<TabularCompareTargetBody>,
+    pub source_schemas: CompareSourceSchemas,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -110,14 +109,14 @@ pub struct CompareDupes {
     pub right: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CompareSourceDF {
-    pub name: String,
-    pub path: PathBuf,
-    pub version: String, // Commit id or branch name
-    pub schema: Schema,
-    pub size: DataFrameSize,
-}
+// #[derive(Serialize, Deserialize, Debug)]
+// pub struct CompareSourceDF {
+//     pub name: String,
+//     pub path: PathBuf,
+//     pub version: String, // Commit id or branch name
+//     pub schema: Schema,
+//     pub size: DataFrameSize,
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareSchemaColumn {
@@ -136,10 +135,10 @@ pub enum CompareResult {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareTabular {
-    // pub diff_df: DataFrame,
     pub dupes: CompareDupes,
     pub summary: Option<CompareSummary>,
     pub schema_diff: Option<CompareSchemaDiff>,
+    pub source_schemas: CompareSourceSchemas,
     pub keys: Option<Vec<TabularCompareFieldBody>>,
     pub targets: Option<Vec<TabularCompareTargetBody>>,
     pub display: Option<Vec<TabularCompareTargetBody>>,
@@ -155,11 +154,21 @@ pub struct CompareVirtualResource {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct CompareDerivedDF {
-    pub name: String,
-    pub size: DataFrameSize,
+pub struct CompareSourceDFs {
+    pub left: CompareSourceDF,
+    pub right: CompareSourceDF,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompareSourceDF {
+    pub path: String,
+    pub version: Option<String>, // Needs to be option for py / CLI
     pub schema: Schema,
-    pub resource: Option<CompareVirtualResource>, // None for direct CLI compare creation
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CompareSourceSchemas {
+    pub left: Schema,
+    pub right: Schema,
 }
 
 impl CompareDupes {
@@ -170,66 +179,31 @@ impl CompareDupes {
     pub fn to_message(&self) -> OxenMessage {
         OxenMessage {
             level: MessageLevel::Warning,
-            message: format!("This compare contains rows with duplicate keys. Results may be unexpected if keys are intended to be unique.\nLeft df duplicates: {}\nRight df duplicates: {}\n", self.left, self.right),
+            title: "Duplicate keys".to_owned(),
+            description: format!("This compare contains rows with duplicate keys. Results may be unexpected if keys are intended to be unique.\nLeft df duplicates: {}\nRight df duplicates: {}\n", self.left, self.right),
         }
     }
 }
 
-impl CompareSourceDF {
-    pub fn from_name_df_entry_schema(
-        name: &str,
-        df: DataFrame,
-        entry: &CommitEntry,
-        schema: Schema,
-    ) -> CompareSourceDF {
-        CompareSourceDF {
-            name: name.to_owned(),
-            path: entry.path.clone(),
-            version: entry.commit_id.clone(),
-            schema,
-            size: DataFrameSize {
-                height: df.height(),
-                width: df.width(),
-            },
-        }
-    }
-}
-
-impl CompareDerivedDF {
-    pub fn from_compare_info(
-        name: &str,
-        compare_id: Option<&str>,
-        left_commit_entry: Option<&CommitEntry>,
-        right_commit_entry: Option<&CommitEntry>,
-        df: DataFrame,
-        schema: Schema,
-    ) -> CompareDerivedDF {
-        let resource = match (compare_id, left_commit_entry, right_commit_entry) {
-            (Some(compare_id), Some(left_commit_entry), Some(right_commit_entry)) => {
-                Some(CompareVirtualResource {
-                    path: format!(
-                        "/compare/data_frame/{}/{}/{}..{}",
-                        compare_id, name, left_commit_entry.commit_id, right_commit_entry.commit_id
-                    ),
-                    base: left_commit_entry.commit_id.to_owned(),
-                    head: right_commit_entry.commit_id.to_owned(),
-                    resource: format!("{}/{}", compare_id, name),
-                })
-            }
-            _ => None,
-        };
-
-        CompareDerivedDF {
-            name: name.to_owned(),
-            size: DataFrameSize {
-                height: df.height(),
-                width: df.width(),
-            },
-            schema,
-            resource,
-        }
-    }
-}
+// impl CompareSourceDF {
+//     pub fn from_name_df_entry_schema(
+//         name: &str,
+//         df: DataFrame,
+//         entry: &CommitEntry,
+//         schema: Schema,
+//     ) -> CompareSourceDF {
+//         CompareSourceDF {
+//             name: name.to_owned(),
+//             path: entry.path.clone(),
+//             version: entry.commit_id.clone(),
+//             schema,
+//             size: DataFrameSize {
+//                 height: df.height(),
+//                 width: df.width(),
+//             },
+//         }
+//     }
+// }
 
 impl CompareSummary {
     pub fn from_diff_df(df: &DataFrame) -> Result<CompareSummary, OxenError> {
@@ -340,6 +314,20 @@ impl CompareSchemaDiff {
 }
 
 impl CompareTabular {
+    pub fn from_with_df_and_source_schemas(
+        with_df: &CompareTabularWithDF,
+        source_schemas: CompareSourceSchemas,
+    ) -> CompareTabular {
+        CompareTabular {
+            dupes: with_df.dupes.clone(),
+            schema_diff: with_df.schema_diff.clone(),
+            summary: with_df.summary.clone(),
+            keys: Some(with_df.keys.clone()),
+            targets: Some(with_df.targets.clone()),
+            display: Some(with_df.display.clone()),
+            source_schemas,
+        }
+    }
     pub fn from_with_df(with_df: &CompareTabularWithDF) -> CompareTabular {
         CompareTabular {
             dupes: with_df.dupes.clone(),
@@ -348,6 +336,7 @@ impl CompareTabular {
             keys: Some(with_df.keys.clone()),
             targets: Some(with_df.targets.clone()),
             display: Some(with_df.display.clone()),
+            source_schemas: with_df.source_schemas.clone(),
         }
     }
 }
