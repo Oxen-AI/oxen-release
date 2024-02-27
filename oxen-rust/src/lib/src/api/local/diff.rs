@@ -540,8 +540,6 @@ pub fn diff_entries(
     Ok(entry)
 }
 
-/// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
-
 pub fn list_diff_entries_in_dir(
     repo: &LocalRepository,
     dir: PathBuf,
@@ -566,9 +564,6 @@ pub fn list_diff_entries_in_dir(
 
     let base_dirs = base_dir_reader.list_dirs_set()?;
     let head_dirs = head_dir_reader.list_dirs_set()?;
-
-    log::debug!("Base dirs: {:#?}", base_dirs);
-    log::debug!("Head dirs: {:#?}", head_dirs);
 
     // TODO TBD: If the logic is an exact match, this can be deduped with list_diff_entries
     let mut dir_entries: Vec<DiffEntry> = vec![];
@@ -655,6 +650,7 @@ pub fn list_diff_entries_in_dir(
     })
 }
 
+/// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
 pub fn list_diff_entries(
     repo: &LocalRepository,
     base_commit: &Commit,
@@ -688,11 +684,9 @@ pub fn list_diff_entries(
 
     let head_dirs = read_dirs_from_commit(repo, head_commit)?;
     log::debug!("Got {} head_dirs", head_dirs.len());
-    log::debug!("Head dirs are {:#?}", head_dirs);
 
     let base_dirs = read_dirs_from_commit(repo, base_commit)?;
     log::debug!("Got {} base_dirs", base_dirs.len());
-    log::debug!("Base dirs are {:#?}", base_dirs);
 
     let mut dir_entries: Vec<DiffEntry> = vec![];
     collect_added_directories(
@@ -1249,8 +1243,23 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             assert_eq!(entries[2].status, DiffEntryStatus::Added.to_string());
 
             // 1. Schmannotations dir added
-            // 2. Schmannotations/added_file.txt added
-            // assert_eq!(annotation_diff_entries.entries.len(), 3);
+            // 2. Train dir modified
+
+            assert_eq!(2, annotation_diff_entries.entries.len());
+
+            log::debug!(
+                "Got annotation_diff_entries: {:?}",
+                annotation_diff_entries.entries
+            );
+
+            assert_eq!(
+                annotation_diff_entries.entries[0].status,
+                DiffEntryStatus::Added.to_string()
+            );
+            assert_eq!(
+                annotation_diff_entries.entries[1].status,
+                DiffEntryStatus::Modified.to_string()
+            );
 
             Ok(())
         })
