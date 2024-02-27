@@ -80,7 +80,7 @@ pub struct CommitPath {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CommitEntry {
-    pub commit_id: String, // need commit_id to restore
+    pub commit_id: String,
     pub path: PathBuf,
     pub hash: String,
     pub num_bytes: u64,
