@@ -86,7 +86,6 @@ impl CommitEntryReader {
         CommitEntryReader::new(repository, &commit)
     }
 
-    // List dirs should be the same - we still have access to the dirs db...
     pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
         let root = PathBuf::from("");
         let mut paths = path_db::list_paths(&self.dir_db, &root)?;
