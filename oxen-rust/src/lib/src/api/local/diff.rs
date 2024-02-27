@@ -540,6 +540,116 @@ pub fn diff_entries(
     Ok(entry)
 }
 
+pub fn list_diff_entries_in_dir(
+    repo: &LocalRepository,
+    dir: PathBuf,
+    base_commit: &Commit,
+    head_commit: &Commit,
+    page: usize,
+    page_size: usize,
+) -> Result<EntriesDiff, OxenError> {
+    log::debug!(
+        "list_top_level_diff_entries base_commit: '{}', head_commit: '{}'",
+        base_commit,
+        head_commit
+    );
+
+    let object_reader = ObjectDBReader::new(repo)?;
+    let base_dir_reader =
+        CommitDirEntryReader::new(repo, &base_commit.id, &dir, object_reader.clone())?;
+    let head_dir_reader = CommitDirEntryReader::new(repo, &head_commit.id, &dir, object_reader)?;
+
+    let base_entries = base_dir_reader.list_entries_set()?;
+    let head_entries = head_dir_reader.list_entries_set()?;
+
+    let base_dirs = base_dir_reader.list_dirs_set()?;
+    let head_dirs = head_dir_reader.list_dirs_set()?;
+
+    // TODO TBD: If the logic is an exact match, this can be deduped with list_diff_entries
+    let mut dir_entries: Vec<DiffEntry> = vec![];
+    collect_added_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut dir_entries,
+    )?;
+
+    collect_removed_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut dir_entries,
+    )?;
+
+    collect_modified_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut dir_entries,
+    )?;
+
+    dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
+
+    let mut added_commit_entries: Vec<DiffCommitEntry> = vec![];
+    collect_added_entries(&base_entries, &head_entries, &mut added_commit_entries)?;
+
+    let mut removed_commit_entries: Vec<DiffCommitEntry> = vec![];
+    collect_removed_entries(&base_entries, &head_entries, &mut removed_commit_entries)?;
+
+    let mut modified_commit_entries: Vec<DiffCommitEntry> = vec![];
+    collect_modified_entries(&base_entries, &head_entries, &mut modified_commit_entries)?;
+
+    let counts = AddRemoveModifyCounts {
+        added: added_commit_entries.len(),
+        removed: removed_commit_entries.len(),
+        modified: modified_commit_entries.len(),
+    };
+
+    let mut combined: Vec<_> = added_commit_entries
+        .into_iter()
+        .chain(removed_commit_entries)
+        .chain(modified_commit_entries)
+        .collect();
+
+    combined.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let (files, pagination) =
+        util::paginate::paginate_files_assuming_dirs(&combined, dir_entries.len(), page, page_size);
+
+    let diff_entries: Vec<DiffEntry> = files
+        .into_iter()
+        .map(|entry| {
+            DiffEntry::from_commit_entry(
+                repo,
+                entry.base_entry,
+                base_commit,
+                entry.head_entry,
+                head_commit,
+                entry.status,
+                false,
+                None,
+            )
+        })
+        .collect();
+
+    let (dirs, _) =
+        util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
+
+    let all = dirs.into_iter().chain(diff_entries).collect();
+
+    Ok(EntriesDiff {
+        entries: all,
+        counts,
+        pagination,
+    })
+}
+
 /// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
 pub fn list_diff_entries(
     repo: &LocalRepository,
@@ -896,6 +1006,7 @@ fn read_entries_from_commit(
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::path::PathBuf;
 
     use crate::api;
     use crate::command;
@@ -1048,6 +1159,148 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             assert_eq!(5, entries.len());
             assert_eq!(2, counts.added);
             assert_eq!(1, counts.removed);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_entries_in_dir_at_root() -> Result<(), OxenError> {
+        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(&bbox_filename);
+
+            let new_bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("new_bounding_box.csv");
+            let new_bbox_file = repo.path.join(&new_bbox_filename);
+
+            let new_root_filename = Path::new("READMENOW.md");
+
+            let new_root_file = repo.path.join(&new_root_filename);
+
+            let add_dir = PathBuf::from("annotations").join("schmannotations");
+            let add_dir_added_file = PathBuf::from("annotations")
+                .join("schmannotations")
+                .join("added_file.txt");
+
+            let add_root_dir = PathBuf::from("not_annotations");
+            let add_root_dir_added_file = PathBuf::from("not_annotations").join("added_file.txt");
+
+            util::fs::create_dir_all(&repo.path.join(add_dir))?;
+            util::fs::create_dir_all(&repo.path.join(add_root_dir))?;
+
+            test::write_txt_file_to_path(&new_root_file, "Hello,world")?;
+            test::write_txt_file_to_path(&new_bbox_file, "Hello,world")?;
+            test::write_txt_file_to_path(&repo.path.join(add_dir_added_file), "Hello,world!!")?;
+            test::write_txt_file_to_path(
+                &repo.path.join(add_root_dir_added_file),
+                "Hello,world!!",
+            )?;
+
+            // get og commit
+            let base_commit = api::local::commits::head_commit(&repo)?;
+
+            // Remove the file
+            util::fs::remove_file(bbox_file)?;
+
+            let opts = RmOpts::from_path(&bbox_filename);
+            command::rm(&repo, &opts).await?;
+            command::add(&repo, &repo.path)?;
+            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+            let entries = api::local::diff::list_diff_entries_in_dir(
+                &repo,
+                PathBuf::from(""),
+                &base_commit,
+                &head_commit,
+                0,
+                10,
+            )?;
+
+            let entries = entries.entries;
+
+            let annotation_diff_entries = api::local::diff::list_diff_entries_in_dir(
+                &repo,
+                PathBuf::from("annotations"),
+                &base_commit,
+                &head_commit,
+                0,
+                10,
+            )?;
+
+            // We should have...
+            // 1. A modification in the `annotations` directory
+            // 2. The addition of the README.md file
+            log::debug!("Got entries: {:?}", entries);
+
+            assert_eq!(3, entries.len());
+
+            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
+            assert_eq!(entries[1].status, DiffEntryStatus::Added.to_string());
+            assert_eq!(entries[2].status, DiffEntryStatus::Added.to_string());
+
+            // 1. Schmannotations dir added
+            // 2. Train dir modified
+
+            assert_eq!(2, annotation_diff_entries.entries.len());
+
+            log::debug!(
+                "Got annotation_diff_entries: {:?}",
+                annotation_diff_entries.entries
+            );
+
+            assert_eq!(
+                annotation_diff_entries.entries[0].status,
+                DiffEntryStatus::Added.to_string()
+            );
+            assert_eq!(
+                annotation_diff_entries.entries[1].status,
+                DiffEntryStatus::Modified.to_string()
+            );
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_entries_remove_one_tabular_in_dir() -> Result<(), OxenError> {
+        test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
+            let bbox_filename = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let bbox_file = repo.path.join(&bbox_filename);
+
+            // get og commit
+            let base_commit = api::local::commits::head_commit(&repo)?;
+
+            // Remove the file
+            util::fs::remove_file(bbox_file)?;
+
+            let opts = RmOpts::from_path(&bbox_filename);
+            command::rm(&repo, &opts).await?;
+            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+            let entries = api::local::diff::list_diff_entries_in_dir(
+                &repo,
+                PathBuf::from(""),
+                &base_commit,
+                &head_commit,
+                0,
+                10,
+            )?;
+
+            let entries = entries.entries;
+            for entry in entries.iter().enumerate() {
+                println!("entry {}: {:?}", entry.0, entry.1);
+            }
+
+            assert_eq!(1, entries.len());
+
+            // Dir is removed because all its children were removed
+            assert_eq!(entries[0].status, DiffEntryStatus::Removed.to_string());
 
             Ok(())
         })
