@@ -155,6 +155,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::compare::entries),
         )
         .route(
+            "/{namespace}/{repo_name}/compare/entries/{base_head:.*}/dir/{dir:.*}",
+            web::post().to(controllers::compare::dir_entries),
+        )
+        .route(
             "/{namespace}/{repo_name}/compare/file/{base_head:.*}",
             web::get().to(controllers::compare::file),
         )

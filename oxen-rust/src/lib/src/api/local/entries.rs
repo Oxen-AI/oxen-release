@@ -34,6 +34,12 @@ pub fn get_meta_entry(
     let mut commits = commit_reader.list_all()?;
     commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
+    // List dirs from the entry reader
+    let temp_all_dirs = entry_reader.list_dirs()?;
+    for dir in temp_all_dirs {
+        log::debug!("get_meta_entry found dir: {:?}", dir);
+    }
+
     // Check if the path is a dir or is the root
     if entry_reader.has_dir(path) || path == Path::new("") {
         log::debug!("get_meta_entry found dir: {:?}", path);

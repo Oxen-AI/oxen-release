@@ -61,31 +61,16 @@ impl CommitDirEntryReader {
 
         let opts = db::opts::default();
         if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
-            // Get the current time
-            // let start_time = Instant::now();
-
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
             }
 
             let _db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-            // let end_time = Instant::now();
-            // let elapsed = end_time.duration_since(start_time);
-            // log::debug!(
-            //     "CommitDirEntryReader took {:?} to create dir hashes db",
-            //     elapsed
-            // );
         }
 
-        // let start_time = Instant::now();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
-        // let elapsed = start_time.elapsed();
-        // log::debug!(
-        //     "CommitDirEntryReader took {:?} to open dir hashes db",
-        //     elapsed
-        // );
 
         let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
 
@@ -130,12 +115,6 @@ impl CommitDirEntryReader {
         let full_path = self.dir.join(path.as_ref());
         let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
 
-        // log::debug!(
-        //     "has_file looking for this path hash prefix {:?} for {:?}",
-        //     path_hash_prefix,
-        //     full_path
-        // );
-
         // Binary search for the appropriate vnode
         let vnode_child = self
             .dir_object
@@ -172,8 +151,6 @@ impl CommitDirEntryReader {
             log::info!("could not get Some(file) for path {:?}", path.as_ref());
             return false;
         };
-
-        // log::debug!("has_file found file {:?}", file);
 
         matches!(file, TreeObjectChild::File { .. })
     }
@@ -230,6 +207,46 @@ impl CommitDirEntryReader {
             }
         }
         Ok(files)
+    }
+
+    pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {
+        let mut dirs = Vec::new();
+        for vnode_child in self.dir_object.children() {
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
+            for entry in vnode.children() {
+                if let TreeObjectChild::Dir { path, hash } = entry {
+                    let dir = self.object_reader.get_dir(hash)?;
+                    if let Some(dir) = dir {
+                        if !dir.children().is_empty() {
+                            dirs.push(path.to_owned());
+                        }
+                    } else {
+                        log::error!("Could not get dir by hash: {}", hash)
+                    }
+                }
+            }
+        }
+        Ok(dirs)
+    }
+
+    pub fn list_dirs_set(&self) -> Result<HashSet<PathBuf>, OxenError> {
+        let mut dirs = HashSet::new();
+        for vnode_child in self.dir_object.children() {
+            let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
+            for entry in vnode.children() {
+                if let TreeObjectChild::Dir { path, hash } = entry {
+                    let dir = self.object_reader.get_dir(hash)?;
+                    if let Some(dir) = dir {
+                        if !dir.children().is_empty() {
+                            dirs.insert(path.to_owned());
+                        }
+                    } else {
+                        log::error!("Could not get dir by hash: {}", hash)
+                    }
+                }
+            }
+        }
+        Ok(dirs)
     }
 
     pub fn list_entries(&self) -> Result<Vec<CommitEntry>, OxenError> {
