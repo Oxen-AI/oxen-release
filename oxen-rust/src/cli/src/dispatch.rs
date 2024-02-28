@@ -10,6 +10,8 @@ use liboxen::core::df::pretty_print;
 use liboxen::core::df::tabular;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::model::diff::text_diff::TextDiff;
+use liboxen::model::diff::ChangeType;
 use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
@@ -29,9 +31,8 @@ use liboxen::util;
 use liboxen::util::oxen_version::OxenVersion;
 
 use colored::Colorize;
-use liboxen::view::compare::CompareResult;
-use liboxen::view::compare::CompareSchemaDiff;
-use liboxen::view::compare::CompareSummary;
+use liboxen::model::diff::tabular_diff::TabularDiffMods;
+use liboxen::model::diff::DiffResult;
 use liboxen::view::PaginatedDirEntries;
 use minus::Pager;
 use std::env;
@@ -534,7 +535,7 @@ pub async fn diff(
             api::local::diff::tabular(path_1, path_2.unwrap(), keys, targets, vec![])?
         } else {
             let repo_dir = env::current_dir().unwrap();
-            command::diff_tabular(
+            command::diff(
                 path_1,
                 path_2,
                 keys,
@@ -553,17 +554,18 @@ pub async fn diff(
 }
 
 fn maybe_save_compare_output(
-    result: &mut CompareResult,
+    result: &mut DiffResult,
     output: Option<PathBuf>,
 ) -> Result<(), OxenError> {
     match result {
-        CompareResult::Tabular((_, df)) => {
+        DiffResult::Tabular(result) => {
+            let mut df = result.contents.clone();
             // Save to disk if we have an output
             if let Some(file_path) = output {
-                tabular::write_df(df, file_path.clone())?;
+                tabular::write_df(&mut df, file_path.clone())?;
             }
         }
-        CompareResult::Text(_) => {
+        DiffResult::Text(_) => {
             println!("Saving to disk not supported for text output");
         }
     }
@@ -1148,39 +1150,46 @@ pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(
     Ok(())
 }
 
-fn print_compare_result(result: &CompareResult) -> Result<(), OxenError> {
+fn print_compare_result(result: &DiffResult) -> Result<(), OxenError> {
     match result {
-        CompareResult::Tabular((ct, df)) => {
+        DiffResult::Tabular(result) => {
             // println!("{:?}", ct.summary);
-            if let Some(schema_diff) = &ct.schema_diff {
-                print_schema_diff(schema_diff)?;
-            }
-            if let Some(summary) = &ct.summary {
-                print_compare_summary(summary)?;
-            }
-            println!("{}", pretty_print::df_to_str(df));
+            print_column_changes(&result.summary.modifications)?;
+            print_row_changes(&result.summary.modifications)?;
+            println!("{}", pretty_print::df_to_str(&result.contents));
         }
-        CompareResult::Text(s) => {
-            println!("{}", s);
+        DiffResult::Text(diff) => {
+            print_text_diff(diff);
         }
     }
 
     Ok(())
 }
 
+fn print_text_diff(diff: &TextDiff) {
+    for line in &diff.lines {
+        match line.modification {
+            ChangeType::Unchanged => println!("{}", line.text),
+            ChangeType::Added => println!("{}", line.text.green()),
+            ChangeType::Removed => println!("{}", line.text.red()),
+            ChangeType::Modified => println!("{}", line.text.yellow()),
+        }
+    }
+}
+
 // TODO: Truncate to "and x more"
-fn print_schema_diff(schema_diff: &CompareSchemaDiff) -> Result<(), OxenError> {
+fn print_column_changes(mods: &TabularDiffMods) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
 
-    if !schema_diff.added_cols.is_empty() || !schema_diff.removed_cols.is_empty() {
+    if !mods.col_changes.added.is_empty() || !mods.col_changes.added.is_empty() {
         outputs.push("Column changes:\n".into());
     }
 
-    for col in &schema_diff.added_cols {
+    for col in &mods.col_changes.added {
         outputs.push(format!("   + {} ({})\n", col.name, col.dtype).green());
     }
 
-    for col in &schema_diff.removed_cols {
+    for col in &mods.col_changes.removed {
         outputs.push(format!("   - {} ({})\n", col.name, col.dtype).red());
     }
 
@@ -1191,29 +1200,25 @@ fn print_schema_diff(schema_diff: &CompareSchemaDiff) -> Result<(), OxenError> {
     Ok(())
 }
 
-fn print_compare_summary(summary: &CompareSummary) -> Result<(), OxenError> {
+fn print_row_changes(mods: &TabularDiffMods) -> Result<(), OxenError> {
     let mut outputs: Vec<ColoredString> = vec![];
 
-    if summary.modifications.modified_rows
-        + summary.modifications.added_rows
-        + summary.modifications.removed_rows
-        == 0
-    {
+    if mods.row_counts.modified + mods.row_counts.added + mods.row_counts.removed == 0 {
         println!();
         return Ok(());
     }
 
     outputs.push("\nRow changes: \n".into());
-    if summary.modifications.modified_rows > 0 {
-        outputs.push(format!("   Δ {} (modified)\n", summary.modifications.modified_rows).yellow());
+    if mods.row_counts.modified > 0 {
+        outputs.push(format!("   Δ {} (modified)\n", mods.row_counts.modified).yellow());
     }
 
-    if summary.modifications.added_rows > 0 {
-        outputs.push(format!("   + {} (added)\n", summary.modifications.added_rows).green());
+    if mods.row_counts.added > 0 {
+        outputs.push(format!("   + {} (added)\n", mods.row_counts.added).green());
     }
 
-    if summary.modifications.removed_rows > 0 {
-        outputs.push(format!("   - {} (removed)\n", summary.modifications.removed_rows).red());
+    if mods.row_counts.removed > 0 {
+        outputs.push(format!("   - {} (removed)\n", mods.row_counts.removed).red());
     }
 
     for output in outputs {

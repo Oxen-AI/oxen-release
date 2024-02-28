@@ -1,17 +1,20 @@
-
 //! # api::local::diff
 //!
 //! Compare two files to find changes between them.
 //!
 
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 use crate::core::db::{self, path_db};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
 use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
+use crate::model::diff::tabular_diff::{
+    TabularDiff, TabularDiffMods, TabularDiffSummary, TabularSchemaDiff,
+};
+use crate::model::schema::Field;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 
 use crate::{constants, util};
@@ -28,10 +31,10 @@ use crate::model::diff::diff_commit_entry::DiffCommitEntry;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::schema_diff::SchemaDiff;
 use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::diff::DiffResult;
 
 use crate::opts::DFOpts;
 use crate::view::compare::{CompareDupes, CompareTabular, CompareTabularWithDF};
-use crate::view::CompareResult;
 
 pub mod join_diff;
 pub mod utf8_diff;
@@ -45,7 +48,7 @@ pub fn tabular(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-) -> Result<CompareResult, OxenError> {
+) -> Result<DiffResult, OxenError> {
     let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
     let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
 
@@ -56,7 +59,52 @@ pub fn tabular(
 
     let compare_df = compare_dfs(&df_1, &df_2, keys, targets, display)?;
     let compare_tabular = CompareTabular::from_with_df(&compare_df);
-    let result = CompareResult::Tabular((compare_tabular, compare_df.diff_df));
+
+    let df = compare_df.diff_df;
+    let summary = compare_tabular.summary.unwrap();
+    let schema_diff = compare_df.schema_diff.unwrap();
+
+    let col_changes = TabularSchemaDiff {
+        added: schema_diff
+            .added_cols
+            .into_iter()
+            .map(|c| Field {
+                name: c.name,
+                dtype: c.dtype,
+                metadata: None,
+            })
+            .collect(),
+        removed: schema_diff
+            .removed_cols
+            .into_iter()
+            .map(|c| Field {
+                name: c.name,
+                dtype: c.dtype,
+                metadata: None,
+            })
+            .collect(),
+    };
+
+    let mods = TabularDiffMods {
+        col_changes,
+        row_counts: AddRemoveModifyCounts {
+            added: summary.modifications.added_rows,
+            removed: summary.modifications.removed_rows,
+            modified: summary.modifications.modified_rows,
+        },
+    };
+
+    let diff_summary = TabularDiffSummary {
+        modifications: mods,
+        schema: Schema::from_polars(&df.schema()),
+    };
+
+    let tabular_diff = TabularDiff {
+        summary: diff_summary,
+        contents: df,
+    };
+
+    let result = DiffResult::Tabular(tabular_diff);
     Ok(result)
 }
 

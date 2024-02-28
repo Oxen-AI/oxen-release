@@ -53,7 +53,7 @@ pub fn compare_files(
 
         Ok(CompareResult::Tabular(result))
     } else if is_files_utf8(&file_1, &file_2) {
-        let result = utf8_diff::compare(&file_1, &file_2)?;
+        let result = utf8_diff::diff(&file_1, &file_2)?;
 
         Ok(CompareResult::Text(result))
     } else {
