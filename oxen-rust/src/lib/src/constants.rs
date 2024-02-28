@@ -158,3 +158,6 @@ pub const MIN_CLI_VERSION: &str = "0.10.0";
 
 /// Filepath used to track repo and server-level migration status
 pub const LAST_MIGRATION_FILE: &str = "last_migration.txt";
+
+/// Constraints for diff and compare size
+pub const MAX_DISPLAY_DIRS: usize = 10;

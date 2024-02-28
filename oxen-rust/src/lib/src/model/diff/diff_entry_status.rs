@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum DiffEntryStatus {
     Added,
     Modified,
