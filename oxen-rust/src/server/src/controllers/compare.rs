@@ -15,6 +15,7 @@ use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse, CompareResult,
     CompareTabularResponse,
 };
+use liboxen::view::diff::DirTreeDiffResponse;
 use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
 use liboxen::view::{
     CompareEntriesResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
@@ -121,6 +122,48 @@ pub async fn entries(
         pagination,
     };
     Ok(HttpResponse::Ok().json(view))
+}
+
+pub async fn dir_tree(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let base_head = path_param(&req, "base_head")?;
+
+    // Get the repository or return error
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    // Page size and number
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    // Parse the base and head from the base..head string
+    let (base, head) = parse_base_head(&base_head)?;
+    let (base_commit, head_commit) = resolve_base_head(&repository, &base, &head)?;
+
+    let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
+
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    let dir_diff_tree = api::local::diff::get_changed_dirs_tree(
+        &repository,
+        &base_commit,
+        &head_commit,
+        page,
+        page_size,
+    )?;
+
+    let response = DirTreeDiffResponse {
+        dirs: dir_diff_tree,
+        status: StatusMessage::resource_found(),
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn dir_entries(
