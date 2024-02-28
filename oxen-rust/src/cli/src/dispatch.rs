@@ -10,7 +10,6 @@ use liboxen::core::df::pretty_print;
 use liboxen::core::df::tabular;
 use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::model::entry::commit_entry::CommitPath;
 use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
@@ -509,88 +508,43 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
 
 #[allow(clippy::too_many_arguments)]
 pub async fn diff(
-    file_1: PathBuf,
-    revision_1: Option<&str>,
-    file_2: Option<PathBuf>,
-    revision_2: Option<&str>,
+    path_1: PathBuf,
+    revision_1: Option<String>,
+    path_2: Option<PathBuf>,
+    revision_2: Option<String>,
     keys: Vec<String>,
     targets: Vec<String>,
-    display: Vec<String>,
     output: Option<PathBuf>,
     is_remote: bool,
 ) -> Result<(), OxenError> {
-    // If the user specifies two files without revisions, we will compare the files on disk
-    if revision_1.is_none() && revision_2.is_none() && file_2.is_some() {
-        // If we do not have revisions set, just compare the files on disk
-        let mut result = command::diff_tabular(&file_1, file_2.unwrap(), keys, targets, display)?;
-
-        print_compare_result(&result)?;
-        maybe_save_compare_output(&mut result, output)?;
-        return Ok(());
-    }
-
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    check_repo_migration_needed(&repository)?;
-
-    // let current_commit = api::local::commits::head_commit(&repository)?;
-    // For revision_1 and revision_2, if none, set to current_commit
-    // let revision_1 = revision_1.unwrap_or(current_commit.id.as_str());
-
-    // TODONOW: might be able to clean this logic up - pull out into function so we can early return and be less confusing
-    let (cpath_1, cpath_2) = if let Some(file_2) = file_2 {
-        let cpath_1 = if let Some(revison) = revision_1 {
-            let commit_1 = api::local::revisions::get(&repository, revison)?;
-            CommitPath {
-                commit: commit_1,
-                path: file_1.clone(),
-            }
-        } else {
-            CommitPath {
-                commit: None,
-                path: file_1.clone(),
-            }
-        };
-
-        let cpath_2 = if let Some(revison) = revision_2 {
-            let commit = api::local::revisions::get(&repository, revison)?;
-
-            CommitPath {
-                commit,
-                path: file_2,
-            }
-        } else {
-            CommitPath {
-                commit: None,
-                path: file_2,
-            }
-        };
-
-        (cpath_1, cpath_2)
-    } else {
-        // If no file2, compare with file1 at head.
-        let commit = Some(api::local::commits::head_commit(&repository)?);
-
-        (
-            CommitPath {
-                commit,
-                path: file_1.clone(),
-            },
-            CommitPath {
-                commit: None,
-                path: file_1.clone(),
-            },
-        )
-    };
-
     if is_remote {
-        let remote_diff = command::remote::diff(&repository, revision_1, &file_1).await?;
+        let repo_dir = env::current_dir().unwrap();
+        let repository = LocalRepository::from_dir(&repo_dir)?;
+        check_repo_migration_needed(&repository)?;
+
+        let remote_diff = command::remote::diff(&repository, revision_1, &path_1).await?;
         println!("{remote_diff}");
 
         // TODO: Allow them to save a remote diff to disk
     } else {
-        let mut compare_result =
-            command::diff_commits(&repository, cpath_1, cpath_2, keys, targets, display)?;
+        // If the user specifies two files without revisions, we will compare the files on disk
+        let mut compare_result = if revision_1.is_none() && revision_2.is_none() && path_2.is_some()
+        {
+            // If we do not have revisions set, just compare the files on disk
+            api::local::diff::tabular(path_1, path_2.unwrap(), keys, targets, vec![])?
+        } else {
+            let repo_dir = env::current_dir().unwrap();
+            command::diff_tabular(
+                path_1,
+                path_2,
+                keys,
+                targets,
+                Some(repo_dir),
+                revision_1,
+                revision_2,
+            )?
+        };
+
         print_compare_result(&compare_result)?;
         maybe_save_compare_output(&mut compare_result, output)?;
     };

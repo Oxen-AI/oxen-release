@@ -1020,7 +1020,7 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
     Ok(())
 }
 
-pub fn write_df<P: AsRef<Path>>(df: &mut DataFrame, path: P) -> Result<(), OxenError> {
+pub fn write_df(df: &mut DataFrame, path: impl AsRef<Path>) -> Result<(), OxenError> {
     let path = path.as_ref();
     let extension = path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type write_df {path:?} {extension:?}");
