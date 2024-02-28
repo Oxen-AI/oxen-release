@@ -651,11 +651,6 @@ pub fn list_diff_entries_in_dir(
     })
 }
 
-// TODO: Right now, this grabs all dirs and their full DiffEntries when they have changes.
-// this assumes we need that info on the sidebar - if we don't, we can utilize a much more efficient
-// direct traversal of the merkle tree to only get changed dirs and the fact that they were added,
-// removed, or modified.
-
 pub fn list_changed_dirs(
     repo: &LocalRepository,
     base_commit: &Commit,
@@ -675,7 +670,6 @@ pub fn list_changed_dirs(
     let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
     let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
 
-    // open these two for read only
     let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
         &db::opts::default(),
         dunce::simplified(&base_dir_hashes_db_path),
