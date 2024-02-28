@@ -10,14 +10,14 @@
 
 use std::path::Path;
 
-use crate::api;
 use crate::core::index::MergeConflictReader;
 use crate::error::OxenError;
-use crate::model::entry::commit_entry::{CommitPath, CompareEntry};
+use crate::model::diff::DiffResult;
+use crate::model::entry::commit_entry::CommitPath;
 use crate::model::LocalRepository;
-use crate::view::compare::CompareResult;
+use crate::{api, util};
 
-pub fn diff_tabular(
+pub fn diff(
     path_1: impl AsRef<Path>,
     path_2: Option<impl AsRef<Path>>,
     keys: Vec<String>,
@@ -25,9 +25,9 @@ pub fn diff_tabular(
     repo_dir: Option<impl AsRef<Path>>,
     revision_1: Option<String>,
     revision_2: Option<String>,
-) -> Result<CompareResult, OxenError> {
+) -> Result<DiffResult, OxenError> {
     log::debug!(
-        "diff_tabular called with keys: {:?} and targets: {:?}",
+        "diff called with keys: {:?} and targets: {:?}",
         keys,
         targets,
     );
@@ -107,7 +107,7 @@ pub fn diff_commits(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-) -> Result<CompareResult, OxenError> {
+) -> Result<DiffResult, OxenError> {
     log::debug!(
         "Compare command called with: {:?} and {:?}",
         cpath_1,
@@ -115,15 +115,8 @@ pub fn diff_commits(
     );
 
     // TODONOW - anything we can clean up with this mut initialization?
-    let mut compare_entry_1 = CompareEntry {
-        commit_entry: None,
-        path: cpath_1.path.clone(),
-    };
-
-    let mut compare_entry_2 = CompareEntry {
-        commit_entry: None,
-        path: cpath_2.path.clone(),
-    };
+    let mut path_1 = cpath_1.path.clone();
+    let mut path_2 = cpath_2.path.clone();
 
     if let Some(commit_1) = cpath_1.commit {
         let entry_1 = api::local::entries::get_commit_entry(repo, &commit_1, &cpath_1.path)?
@@ -133,7 +126,7 @@ pub fn diff_commits(
                 )
             })?;
 
-        compare_entry_1.commit_entry = Some(entry_1);
+        path_1 = util::fs::version_path(repo, &entry_1);
     };
 
     if let Some(mut commit_2) = cpath_2.commit {
@@ -151,25 +144,10 @@ pub fn diff_commits(
                 )
             })?;
 
-        compare_entry_2.commit_entry = Some(entry_2);
+        path_2 = util::fs::version_path(repo, &entry_2);
     };
 
-    let mut display_by_column: Vec<String> = vec![];
-
-    for col in display {
-        display_by_column.push(format!("{}.left", col));
-        display_by_column.push(format!("{}.right", col));
-    }
-
-    let compare_result = api::local::compare::compare_files(
-        repo,
-        None,
-        compare_entry_1,
-        compare_entry_2,
-        keys,
-        targets,
-        display_by_column,
-    )?;
+    let compare_result = api::local::diff::tabular(path_1, path_2, keys, targets, display)?;
 
     log::debug!("compare result: {:?}", compare_result);
 
@@ -186,9 +164,10 @@ mod tests {
 
     use crate::command;
     use crate::error::OxenError;
+    use crate::model::diff::DiffResult;
     use crate::model::entry::commit_entry::CommitPath;
     use crate::test;
-    use crate::view::compare::CompareResult;
+
     #[tokio::test]
     async fn test_compare_same_dataframe_no_keys_no_targets() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
@@ -219,7 +198,8 @@ mod tests {
             let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
 
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 0);
                 }
                 _ => panic!("expected tabular result"),
@@ -261,7 +241,8 @@ mod tests {
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 2);
                     assert_eq!(df.width(), 4); // 3 (inferred) key columns + diff status
                     let added_df = df
@@ -327,7 +308,8 @@ mod tests {
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 4);
                     assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
                     let added_df = df
@@ -397,7 +379,8 @@ mod tests {
 
             let diff_col = ".oxen.diff.status";
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 3);
                     assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
                     let added_df = df
@@ -465,7 +448,8 @@ mod tests {
             // Should return empty df
             let diff_col = ".oxen.diff.status";
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 0);
                     assert_eq!(df.width(), 7); // 2 key columns, 2 targets * 2(right+left) + diff status
                     let added_df = df
@@ -527,7 +511,8 @@ mod tests {
             // Should return empty df
             let diff_col = ".oxen.diff.status";
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 4);
                     let added_df = df
                         .clone()
@@ -597,7 +582,8 @@ mod tests {
             // Should return empty df
             let diff_col = ".oxen.diff.status";
             match compare_result {
-                CompareResult::Tabular((_ct, df)) => {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
                     assert_eq!(df.height(), 3);
                     let added_df = df
                         .clone()

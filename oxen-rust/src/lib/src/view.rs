@@ -23,6 +23,7 @@ pub mod repository;
 pub mod schema;
 pub mod sql_parse_error;
 pub mod status_message;
+pub mod tabular_diff_view;
 pub mod version;
 
 pub use crate::view::compare::CompareEntriesResponse;
@@ -73,3 +74,5 @@ pub use crate::view::remote_staged_status::{
 };
 
 pub use crate::view::sql_parse_error::SQLParseError;
+
+pub use crate::view::tabular_diff_view::TabularDiffView;
