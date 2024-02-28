@@ -7,9 +7,9 @@ use serde::{Deserialize, Serialize};
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
+use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::opts::DFOpts;
-use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
 use crate::{
     api,

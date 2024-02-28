@@ -1,10 +1,12 @@
 use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT};
 use crate::core::df::tabular::{self};
 use crate::error::OxenError;
+use crate::model::diff::schema_diff::SchemaDiff;
 use crate::model::entry::commit_entry::CompareEntry;
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 
+use crate::api::local::diff::utf8_diff;
 use crate::view::compare::{
     CompareDupes, CompareResult, CompareSchemaDiff, CompareSourceSchemas, CompareSummary,
     CompareTabular, CompareTabularWithDF,
@@ -15,20 +17,7 @@ use polars::prelude::DataFrame;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-pub mod join_compare;
-pub mod utf8_compare;
-
-pub enum CompareStrategy {
-    Hash,
-    Join,
-}
-
-#[derive(Debug, Clone)]
-pub struct SchemaDiff {
-    added_cols: Vec<String>,
-    removed_cols: Vec<String>,
-    unchanged_cols: Vec<String>,
-}
+use super::diff::join_diff;
 
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
@@ -64,7 +53,7 @@ pub fn compare_files(
 
         Ok(CompareResult::Tabular(result))
     } else if is_files_utf8(&file_1, &file_2) {
-        let result = utf8_compare::compare(&file_1, &file_2)?;
+        let result = utf8_diff::compare(&file_1, &file_2)?;
 
         Ok(CompareResult::Text(result))
     } else {
@@ -73,6 +62,35 @@ pub fn compare_files(
             compare_entry_1.path, compare_entry_2.path
         )))
     }
+}
+
+fn compare_dfs(
+    file_1: &Path,
+    file_2: &Path,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<CompareTabularWithDF, OxenError> {
+    let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
+    let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
+
+    let schema_1 = Schema::from_polars(&df_1.schema());
+    let schema_2 = Schema::from_polars(&df_2.schema());
+
+    validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
+
+    let keys = keys.iter().map(|key| key.as_str()).collect::<Vec<&str>>();
+    let targets = targets
+        .iter()
+        .map(|target| target.as_str())
+        .collect::<Vec<&str>>();
+    let display = display
+        .iter()
+        .map(|display| display.as_str())
+        .collect::<Vec<&str>>();
+
+    let compare = compute_row_comparison(&df_1, &df_2, &keys, &targets, &display)?;
+    Ok(compare)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -87,26 +105,8 @@ fn compare_tabular(
     targets: Vec<String>,
     display: Vec<String>,
 ) -> Result<(CompareTabular, DataFrame), OxenError> {
-    let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
-    let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
-
-    let schema_1 = Schema::from_polars(&df_1.schema());
-    let schema_2 = Schema::from_polars(&df_2.schema());
-
-    validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
-
-    // TODO: Clean this up
-    let keys = keys.iter().map(|key| key.as_str()).collect::<Vec<&str>>();
-    let targets = targets
-        .iter()
-        .map(|target| target.as_str())
-        .collect::<Vec<&str>>();
-    let display = display
-        .iter()
-        .map(|display| display.as_str())
-        .collect::<Vec<&str>>();
-
-    let mut compare_tabular_raw = compute_row_comparison(&df_1, &df_2, &keys, &targets, &display)?;
+    let mut compare_tabular_raw =
+        compare_dfs(file_1, file_2, keys.clone(), targets.clone(), display)?;
 
     let compare = CompareTabular::from_with_df(&compare_tabular_raw);
 
@@ -146,17 +146,17 @@ pub fn get_cached_compare(
 
     // TODONOW this should be cached
     let left_full_df = tabular::read_df(
-        api::local::diff::get_version_file_from_commit_id(
+        api::local::revisions::get_version_file_from_commit_id(
             repo,
-            &left_commit.commit_id,
+            left_commit.commit_id,
             &compare_entry_1.path,
         )?,
         DFOpts::empty(),
     )?;
     let right_full_df = tabular::read_df(
-        api::local::diff::get_version_file_from_commit_id(
+        api::local::revisions::get_version_file_from_commit_id(
             repo,
-            &right_commit.commit_id,
+            right_commit.commit_id,
             &compare_entry_2.path,
         )?,
         DFOpts::empty(),
@@ -337,13 +337,21 @@ fn compute_row_comparison(
     let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff)?;
     let display = get_display_smart_defaults(display, &schema_diff, &keys, &targets);
 
-    let keys = keys.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
-    let targets = targets.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
+    let keys = keys.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let targets = targets
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
     let display = display.iter().map(|s| s.as_str()).collect::<Vec<&str>>();
 
     let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), keys.clone(), targets.clone())?;
 
-    let mut compare = join_compare::compare(&df_1, &df_2, schema_diff, targets, keys, display)?;
+    let keys = keys.iter().map(|s| s.to_string()).collect::<Vec<String>>();
+    let targets = targets
+        .iter()
+        .map(|s| s.to_string())
+        .collect::<Vec<String>>();
+    let mut compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
 
     compare.dupes = CompareDupes {
         left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
@@ -391,14 +399,14 @@ fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
 fn hash_dfs(
     mut left_df: DataFrame,
     mut right_df: DataFrame,
-    keys: Vec<&str>,
-    targets: Vec<&str>,
+    keys: Vec<String>,
+    targets: Vec<String>,
 ) -> Result<(DataFrame, DataFrame), OxenError> {
-    left_df = tabular::df_hash_rows_on_cols(left_df, targets.clone(), TARGETS_HASH_COL)?;
-    right_df = tabular::df_hash_rows_on_cols(right_df, targets.clone(), TARGETS_HASH_COL)?;
+    left_df = tabular::df_hash_rows_on_cols(left_df, &targets, TARGETS_HASH_COL)?;
+    right_df = tabular::df_hash_rows_on_cols(right_df, &targets, TARGETS_HASH_COL)?;
 
-    left_df = tabular::df_hash_rows_on_cols(left_df, keys.clone(), KEYS_HASH_COL)?;
-    right_df = tabular::df_hash_rows_on_cols(right_df, keys.clone(), KEYS_HASH_COL)?;
+    left_df = tabular::df_hash_rows_on_cols(left_df, &keys, KEYS_HASH_COL)?;
+    right_df = tabular::df_hash_rows_on_cols(right_df, &keys, KEYS_HASH_COL)?;
     Ok((left_df, right_df))
 }
 
@@ -407,7 +415,7 @@ fn get_version_file(
     compare_entry: &CompareEntry,
 ) -> Result<PathBuf, OxenError> {
     if let Some(commit_entry) = &compare_entry.commit_entry {
-        api::local::diff::get_version_file_from_commit_id(
+        api::local::revisions::get_version_file_from_commit_id(
             repo,
             &commit_entry.commit_id,
             &commit_entry.path,
@@ -426,20 +434,17 @@ fn validate_required_fields(
     // Keys must be in both dfs
     #[allow(clippy::map_clone)]
     if !schema_1.has_field_names(&keys) {
-        return Err(OxenError::incompatible_schemas(keys, schema_1));
+        return Err(OxenError::incompatible_schemas(&keys, schema_1));
     };
 
     if !schema_2.has_field_names(&keys) {
-        return Err(OxenError::incompatible_schemas(keys, schema_2));
+        return Err(OxenError::incompatible_schemas(&keys, schema_2));
     };
 
     // Targets must be in either df
-    for target in &targets {
-        if !schema_1.has_field_name(target) && !schema_2.has_field_name(target) {
-            return Err(OxenError::incompatible_schemas(
-                vec![target.to_string()],
-                schema_1,
-            ));
+    for target in targets {
+        if !schema_1.has_field_name(&target) && !schema_2.has_field_name(&target) {
+            return Err(OxenError::incompatible_schemas(&[target], schema_1));
         }
     }
 
