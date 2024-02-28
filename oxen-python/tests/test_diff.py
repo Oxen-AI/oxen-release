@@ -14,6 +14,9 @@ def test_diff_added_row(shared_datadir):
     )
 
     print(diff)
+    
+    df = diff.data
+    print(df)
 
-    assert diff.shape[0] == 1
-    assert diff.shape[1] == 3
+    assert df.shape[0] == 1
+    assert df.shape[1] == 3
