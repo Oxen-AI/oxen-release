@@ -96,6 +96,19 @@ impl CommitEntryReader {
         Ok(paths)
     }
 
+    pub fn list_dirs_set(&self) -> Result<HashSet<PathBuf>, OxenError> {
+        let root = PathBuf::from("");
+        let mut paths = path_db::list_paths(&self.dir_db, &root)?;
+        if !paths.contains(&root) {
+            paths.push(root);
+        }
+        let mut set = HashSet::new();
+        for path in paths {
+            set.insert(path);
+        }
+        Ok(set)
+    }
+
     /// Lists all the parents of directories that are in the commit dir db
     pub fn list_dir_parents(&self, path: impl AsRef<Path>) -> Result<Vec<PathBuf>, OxenError> {
         // A little hacky, we just filter by starts_with because we aren't representing the parents in the db
