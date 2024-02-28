@@ -1,5 +1,10 @@
+use rayon::vec;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde::{Deserialize, Serialize};
 
+use crate::constants::MAX_DISPLAY_DIRS;
+use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::{self, path_db};
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
 use crate::core::index::CommitDirEntryReader;
@@ -9,16 +14,16 @@ use crate::model::diff::generic_diff::GenericDiff;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::view::compare::AddRemoveModifyCounts;
+use crate::view::diff::{DirDiffChildrenSummary, DirDiffStatus};
 use crate::view::Pagination;
 use crate::{constants, util};
 
 use crate::core::index::CommitEntryReader;
 use colored::Colorize;
 use difference::{Changeset, Difference};
-use polars::export::ahash::HashMap;
 use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -649,6 +654,288 @@ pub fn list_diff_entries_in_dir(
         pagination,
     })
 }
+
+// TODO: Right now, this grabs all dirs and their full DiffEntries when they have changes.
+// this assumes we need that info on the sidebar - if we don't, we can utilize a much more efficient
+// direct traversal of the merkle tree to only get changed dirs and the fact that they were added,
+// removed, or modified.
+
+pub fn get_changed_dirs_tree(
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    head_commit: &Commit,
+    page: usize,
+    page_size: usize,
+) -> Result<Vec<DirDiffChildrenSummary>, OxenError> {
+    let mut changed_dirs: Vec<DirDiffStatus> = vec![];
+    let object_reader = ObjectDBReader::new(repo)?;
+
+    let base_entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
+    let head_entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader)?;
+
+    let base_dirs = base_entry_reader.list_dirs_set()?;
+    let head_dirs = head_entry_reader.list_dirs_set()?;
+
+    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+
+    // open these two for read only
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let added_dirs = head_dirs.difference(&base_dirs).collect::<HashSet<_>>();
+    let removed_dirs = base_dirs.difference(&head_dirs).collect::<HashSet<_>>();
+    let modified_or_unchanged_dirs = head_dirs.intersection(&base_dirs).collect::<HashSet<_>>();
+
+    for dir in added_dirs.iter() {
+        changed_dirs.push(DirDiffStatus {
+            name: dir.to_path_buf(),
+            status: DiffEntryStatus::Added,
+        });
+    }
+
+    for dir in removed_dirs.iter() {
+        changed_dirs.push(DirDiffStatus {
+            name: dir.to_path_buf(),
+            status: DiffEntryStatus::Removed,
+        });
+    }
+
+    for dir in modified_or_unchanged_dirs.iter() {
+        let base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, dir)?;
+        let head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, dir)?;
+
+        let base_dir_hash = match base_dir_hash {
+            Some(base_dir_hash) => base_dir_hash,
+            None => {
+                return Err(OxenError::basic_str(
+                    format!("Could not calculate dir diff tree: base_dir_hash not found for dir {:?} in commit {}",
+                    dir, base_commit.id)
+                ))
+            }
+        };
+
+        let head_dir_hash = match head_dir_hash {
+            Some(head_dir_hash) => head_dir_hash,
+            None => {
+                return Err(OxenError::basic_str(
+                    format!("Could not calculate dir diff tree: head_dir_hash not found for dir {:?} in commit {}",
+                    dir, head_commit.id)
+                ))
+            }
+        };
+
+        let base_dir_hash = base_dir_hash.to_string();
+        let head_dir_hash = head_dir_hash.to_string();
+
+        if base_dir_hash != head_dir_hash {
+            changed_dirs.push(DirDiffStatus {
+                name: dir.to_path_buf(),
+                status: DiffEntryStatus::Modified,
+            });
+        }
+    }
+
+    let mut dir_diff_map: HashMap<PathBuf, Vec<DirDiffStatus>> = HashMap::new();
+    for dir_with_status in changed_dirs {
+        // Only root has no parent
+        if dir_with_status.name == Path::new("") {
+            continue;
+        }
+
+        let parent = dir_with_status.name.parent().unwrap_or(Path::new(""));
+        let parent = parent.to_path_buf();
+        if !dir_diff_map.contains_key(&parent) {
+            dir_diff_map.insert(parent.clone(), vec![]);
+        }
+        dir_diff_map.get_mut(&parent).unwrap().push(dir_with_status);
+    }
+
+    let mut dir_tree: Vec<DirDiffChildrenSummary> = vec![];
+    for (dir, entries) in dir_diff_map {
+        let num_subdirs = entries.len();
+        let can_display = num_subdirs > MAX_DISPLAY_DIRS;
+        let summary = DirDiffChildrenSummary {
+            name: dir.clone(),
+            num_subdirs,
+            can_display,
+            children: entries,
+        };
+        dir_tree.push(summary);
+    }
+
+    Ok(dir_tree)
+}
+
+// pub fn r_get_changed_dirs_tree(
+//     dir: PathBuf,
+//     maybe_base_node: Option<TreeObject>,
+//     maybe_head_node: Option<TreeObject>,
+//     changed_dirs: &mut Vec<(PathBuf, &str)>,
+//     object_reader: &ObjectDBReader,
+// ) -> Result<(), OxenError> {
+//     match (maybe_base_node, maybe_head_node) {
+//         // ADDED
+//         (None, Some(head_node)) => match head_node {
+//             TreeObject::Dir { hash, children } => {
+//                 changed_dirs.push((dir, "added"));
+//                 for child_node in children.iter() {
+//                     let child_dir = child_node.path().clone();
+//                     let maybe_child_head_node = object_reader.get_node_from_child(child_node)?;
+//                     r_get_changed_dirs_tree(
+//                         child_dir,
+//                         None,
+//                         maybe_child_head_node,
+//                         changed_dirs,
+//                         object_reader,
+//                     )?;
+//                 }
+//             }
+//             _ => {}
+//         },
+//         // REMOVED
+//         (Some(base_node), None) => match base_node {
+//             TreeObject::Dir { hash, children } => {
+//                 changed_dirs.push((dir, "removed"));
+//                 for child_node in children.iter() {
+//                     let child_dir = child_node.path().clone();
+//                     let maybe_child_base_node = object_reader.get_node_from_child(child_node)?;
+//                     r_get_changed_dirs_tree(
+//                         child_dir,
+//                         maybe_child_base_node,
+//                         None,
+//                         changed_dirs,
+//                         object_reader,
+//                     )?;
+//                 }
+//             }
+//             _ => {}
+//         },
+//         // MODIFIED OR UNCHANGED
+//         (Some(base_node), Some(head_node)) => match (base_node, head_node) {
+//             (
+//                 TreeObject::Dir {
+//                     hash: base_hash,
+//                     children: base_children,
+//                 },
+//                 TreeObject::Dir {
+//                     hash: head_hash,
+//                     children: head_children,
+//                 },
+//             ) => {
+//                 if base_hash == head_hash {
+//                     return Ok(());
+//                 }
+//                 changed_dirs.push((dir, "modified"));
+//                 let mut base_children_map: HashMap<PathBuf, TreeObjectChild> = HashMap::new();
+//                 for child in base_children.iter() {
+//                     base_children_map.insert(child.path().clone(), child.clone());
+//                 }
+//                 for child in head_children.iter() {
+//                     let child_dir = child.path().clone();
+//                     let maybe_child_base_node = base_children_map.get(&child_dir);
+//                     let maybe_child_head_node = object_reader.get_node_from_child(child)?;
+//                     r_get_changed_dirs_tree(
+//                         child_dir,
+//                         maybe_child_base_node.cloned(),
+//                         maybe_child_head_node,
+//                         changed_dirs,
+//                         object_reader,
+//                     )?;
+//                 }
+//             }
+//             _ => {}
+//         },
+//     }
+
+//     Ok(())
+// }
+
+// pub fn get_changed_dirs_tree(
+//     repo: &LocalRepository,
+//     base_commit: &Commit,
+//     head_commit: &Commit,
+//     page: usize,
+//     page_size: usize,
+// ) -> Result<Vec<DirDiffChildrenSummary>, OxenError> {
+//     log::debug!(
+//         "list_diff_entries base_commit: '{}', head_commit: '{}'",
+//         base_commit,
+//         head_commit
+//     );
+
+//     let head_dirs = read_dirs_from_commit(repo, head_commit)?;
+//     log::debug!("Got {} head_dirs", head_dirs.len());
+
+//     let base_dirs = read_dirs_from_commit(repo, base_commit)?;
+//     log::debug!("Got {} base_dirs", base_dirs.len());
+
+//     let mut dir_entries: Vec<DiffEntry> = vec![];
+//     collect_added_directories(
+//         repo,
+//         &base_dirs,
+//         base_commit,
+//         &head_dirs,
+//         head_commit,
+//         &mut dir_entries,
+//     )?;
+//     log::debug!("Collected {} added_dirs dir_entries", dir_entries.len());
+//     collect_removed_directories(
+//         repo,
+//         &base_dirs,
+//         base_commit,
+//         &head_dirs,
+//         head_commit,
+//         &mut dir_entries,
+//     )?;
+//     log::debug!("Collected {} removed_dirs dir_entries", dir_entries.len());
+//     collect_modified_directories(
+//         repo,
+//         &base_dirs,
+//         base_commit,
+//         &head_dirs,
+//         head_commit,
+//         &mut dir_entries,
+//     )?;
+
+//     // Group the diff entries into a tree structure
+//     let mut dir_diff_map: HashMap<PathBuf, Vec<DiffEntry>> = HashMap::new();
+//     for entry in dir_entries {
+//         let path = PathBuf::from(entry.filename.clone());
+//         let parent = path.parent().unwrap_or(Path::new(""));
+//         let parent = parent.to_path_buf();
+//         if !dir_diff_map.contains_key(&parent) {
+//             dir_diff_map.insert(parent.clone(), vec![]);
+//         }
+//         dir_diff_map.get_mut(&parent).unwrap().push(entry);
+//     }
+
+//     let mut dir_tree: Vec<DirDiffChildrenSummary> = vec![];
+//     for (dir, entries) in dir_diff_map.iter() {
+//         let num_subdirs = entries.len();
+
+//         dir_tree.push(DirDiffChildrenSummary {
+//             name: dir.to_string_lossy().to_string(),
+//             num_subdirs: num_subdirs as u64,
+//             can_display: true,
+//             children: entries.clone(),
+//         })
+//     }
+
+//     log::debug!("Got {:#?} dir_tree", dir_tree);
+
+//     Ok(dir_tree)
+// }
 
 /// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
 pub fn list_diff_entries(
