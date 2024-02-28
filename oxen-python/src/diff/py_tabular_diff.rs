@@ -19,18 +19,18 @@ pub struct PyTabularDiffSummary {
 #[pyclass]
 pub struct PyTabularDiff {
     pub summary: PyTabularDiffSummary,
-    pub data: PyDataFrame,
+    pub contents: PyDataFrame,
 }
 
 #[pymethods]
 impl PyTabularDiff {
     fn __repr__(&self) -> String {
-        let df = self.data.as_ref();
-        format!("PyTabularDiff(shape=({},{}))", df.height(), df.width())
+        let df = self.contents.as_ref();
+        format!("PyTabularDiff(shape=({},{}))\n{:?}", df.height(), df.width(), df)
     }
 
     #[getter]
-    fn data(&self) -> PyResult<PyDataFrame> {
-        Ok(self.data.clone())
+    fn contents(&self) -> PyResult<PyDataFrame> {
+        Ok(self.contents.clone())
     }
 }

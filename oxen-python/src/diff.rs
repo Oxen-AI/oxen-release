@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use liboxen::command;
 use liboxen::model::schema::Schema;
 use liboxen::model::diff::AddRemoveModifyCounts;
-use liboxen::view::compare::CompareResult;
+use liboxen::model::diff::DiffResult;
 use liboxen::error::OxenError;
 use crate::error::PyOxenError;
 
@@ -15,24 +15,35 @@ pub mod py_tabular_diff;
 pub use py_tabular_diff::{PyTabularDiff, PyTabularDiffSummary, PyTabularDiffMods};
 
 #[pyfunction]
-pub fn diff_tabular(
-    left: PathBuf,
-    right: PathBuf,
+pub fn diff_paths(
+    path_1: PathBuf,
     keys: Vec<String>,
     targets: Vec<String>,
+    path_2: Option<PathBuf>,
+    repo_dir: Option<PathBuf>,
+    revision_1: Option<String>,
+    revision_2: Option<String>
 ) -> Result<PyTabularDiff, PyOxenError> {
-    let displays: Vec<String> = vec![];
-    let result = command::diff::diff_tabular(&left, &right, keys, targets, displays)?;
+    let result = command::diff(
+        path_1,
+        path_2,
+        keys,
+        targets,
+        repo_dir,
+        revision_1,
+        revision_2
+    )?;
 
-    // TODO: This should be a DiffResult or GenericDiff or something 
+    // TODO: This should be a DiffResult or GenericDiff or something
     // - get rid of the references to "compare" in the codebase
     match result {
-        CompareResult::Tabular((ct, df)) => {
-            let summary = ct.summary.unwrap();
+        DiffResult::Tabular(result) => {
+            let df = result.contents;
+            let summary = result.summary;
             let rows = AddRemoveModifyCounts {
-                added: summary.modifications.added_rows,
-                removed: summary.modifications.removed_rows,
-                modified: summary.modifications.modified_rows,
+                added: summary.modifications.row_counts.added,
+                removed: summary.modifications.row_counts.removed,
+                modified: summary.modifications.row_counts.modified,
             };
             let mods = PyTabularDiffMods {
                 rows,
@@ -41,10 +52,10 @@ pub fn diff_tabular(
                 modifications: mods,
                 schema: Schema::from_polars(&df.schema()),
             };
-            let data = PyDataFrame(df);
-            Ok(PyTabularDiff { summary, data })
+            let contents = PyDataFrame(df);
+            Ok(PyTabularDiff { summary, contents })
         }
-        CompareResult::Text(_) => {
+        DiffResult::Text(_) => {
             Err(PyOxenError::from(OxenError::basic_str("Text files are not supported")))
         }
     }
