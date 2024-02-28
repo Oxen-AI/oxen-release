@@ -5,6 +5,7 @@ pub mod branch;
 pub mod commit;
 pub mod compare;
 pub mod data_type_count;
+pub mod diff;
 pub mod entry;
 pub mod entry_metadata;
 pub mod file_metadata;

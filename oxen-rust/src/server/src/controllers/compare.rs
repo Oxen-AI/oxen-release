@@ -1,4 +1,5 @@
-use std::path::PathBuf;
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 
 use crate::errors::OxenHttpError;
 
@@ -8,6 +9,7 @@ use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
 use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
+use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
@@ -15,6 +17,7 @@ use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse, CompareResult,
     CompareTabularResponse,
 };
+use liboxen::view::diff::{DirDiffStatus, DirDiffTreeSummary, DirTreeDiffResponse};
 use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
 use liboxen::view::{
     CompareEntriesResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
@@ -121,6 +124,34 @@ pub async fn entries(
         pagination,
     };
     Ok(HttpResponse::Ok().json(view))
+}
+
+pub async fn dir_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let base_head = path_param(&req, "base_head")?;
+
+    // Get the repository or return error
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    // Parse the base and head from the base..head string
+    let (base, head) = parse_base_head(&base_head)?;
+    let (base_commit, head_commit) = resolve_base_head(&repository, &base, &head)?;
+
+    let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
+    let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
+
+    let dir_diffs = api::local::diff::list_changed_dirs(&repository, &base_commit, &head_commit)?;
+
+    let dir_diff_tree = group_dir_diffs_by_dir(dir_diffs);
+
+    let response = DirTreeDiffResponse {
+        dirs: dir_diff_tree,
+        status: StatusMessage::resource_found(),
+    };
+
+    Ok(HttpResponse::Ok().json(response))
 }
 
 pub async fn dir_entries(
@@ -684,6 +715,60 @@ fn get_targets_from_req(targets: Vec<TabularCompareTargetBody>) -> Vec<String> {
         }
     }
     out_targets
+}
+
+fn group_dir_diffs_by_dir(dir_diffs: Vec<(PathBuf, DiffEntryStatus)>) -> Vec<DirDiffTreeSummary> {
+    // For attaching status to parent in response
+    let mut dir_status_map: HashMap<PathBuf, DiffEntryStatus> = HashMap::new();
+    for (dir, status) in dir_diffs.iter() {
+        dir_status_map.insert(dir.clone(), status.clone());
+    }
+    // Group by parent
+    let mut dir_parent_map: HashMap<PathBuf, Vec<DirDiffStatus>> = HashMap::new();
+    for (dir, status) in dir_diffs {
+        // Only root has no parent
+        if dir == Path::new("") {
+            continue;
+        }
+        let parent = dir.parent().unwrap_or(Path::new(""));
+        let parent = parent.to_path_buf();
+        if !dir_parent_map.contains_key(&parent) {
+            dir_parent_map.insert(parent.clone(), vec![]);
+        }
+        dir_parent_map
+            .get_mut(&parent)
+            .unwrap()
+            .push(DirDiffStatus {
+                name: dir.clone(),
+                status,
+            });
+    }
+
+    // If we're over the entity display limit (defaults to 10), only send back 10
+    let mut dir_tree: Vec<DirDiffTreeSummary> = vec![];
+    for (dir, entries) in dir_parent_map {
+        let num_subdirs = entries.len();
+        let can_display = num_subdirs > constants::MAX_DISPLAY_DIRS;
+        let status = dir_status_map
+            .get(&dir)
+            .unwrap_or(&DiffEntryStatus::Modified)
+            .clone();
+        let cropped_entries = if can_display {
+            entries[..constants::MAX_DISPLAY_DIRS].to_vec()
+        } else {
+            entries
+        };
+        let summary = DirDiffTreeSummary {
+            name: dir.clone(),
+            status,
+            num_subdirs,
+            can_display,
+            children: cropped_entries,
+        };
+        dir_tree.push(summary);
+    }
+
+    dir_tree
 }
 
 #[cfg(test)]

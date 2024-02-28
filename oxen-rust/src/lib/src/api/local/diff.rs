@@ -1,5 +1,7 @@
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 use serde::{Deserialize, Serialize};
 
+use crate::core::db::{self, path_db};
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
 use crate::core::index::CommitDirEntryReader;
@@ -15,10 +17,9 @@ use crate::{constants, util};
 use crate::core::index::CommitEntryReader;
 use colored::Colorize;
 use difference::{Changeset, Difference};
-use polars::export::ahash::HashMap;
 use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -648,6 +649,86 @@ pub fn list_diff_entries_in_dir(
         counts,
         pagination,
     })
+}
+
+pub fn list_changed_dirs(
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    head_commit: &Commit,
+) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
+    let mut changed_dirs: Vec<(PathBuf, DiffEntryStatus)> = vec![];
+    let object_reader = ObjectDBReader::new(repo)?;
+
+    let base_entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
+    let head_entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader)?;
+
+    let base_dirs = base_entry_reader.list_dirs_set()?;
+    let head_dirs = head_entry_reader.list_dirs_set()?;
+
+    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let added_dirs = head_dirs.difference(&base_dirs).collect::<HashSet<_>>();
+    let removed_dirs = base_dirs.difference(&head_dirs).collect::<HashSet<_>>();
+    let modified_or_unchanged_dirs = head_dirs.intersection(&base_dirs).collect::<HashSet<_>>();
+
+    for dir in added_dirs.iter() {
+        changed_dirs.push((dir.to_path_buf(), DiffEntryStatus::Added));
+    }
+
+    for dir in removed_dirs.iter() {
+        changed_dirs.push((dir.to_path_buf(), DiffEntryStatus::Removed));
+    }
+
+    for dir in modified_or_unchanged_dirs.iter() {
+        let base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, dir)?;
+        let head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, dir)?;
+
+        let base_dir_hash = match base_dir_hash {
+            Some(base_dir_hash) => base_dir_hash,
+            None => {
+                return Err(OxenError::basic_str(
+                    format!("Could not calculate dir diff tree: base_dir_hash not found for dir {:?} in commit {}",
+                    dir, base_commit.id)
+                ))
+            }
+        };
+
+        let head_dir_hash = match head_dir_hash {
+            Some(head_dir_hash) => head_dir_hash,
+            None => {
+                return Err(OxenError::basic_str(
+                    format!("Could not calculate dir diff tree: head_dir_hash not found for dir {:?} in commit {}",
+                    dir, head_commit.id)
+                ))
+            }
+        };
+
+        let base_dir_hash = base_dir_hash.to_string();
+        let head_dir_hash = head_dir_hash.to_string();
+
+        if base_dir_hash != head_dir_hash {
+            changed_dirs.push((dir.to_path_buf(), DiffEntryStatus::Modified));
+        }
+    }
+
+    // Sort by path for consistency
+    changed_dirs.sort_by(|a, b| a.0.cmp(&b.0));
+
+    Ok(changed_dirs)
 }
 
 /// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
