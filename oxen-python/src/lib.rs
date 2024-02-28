@@ -5,6 +5,7 @@ pub mod error;
 pub mod py_branch;
 
 pub mod auth;
+pub mod df;
 pub mod diff;
 pub mod py_commit;
 pub mod py_dataset;
@@ -76,8 +77,13 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
 
     // Diff Module
     let diff_module = PyModule::new(py, "diff")?;
-    diff_module.add_function(wrap_pyfunction!(diff::diff_tabular, diff_module)?)?;
+    diff_module.add_function(wrap_pyfunction!(diff::diff_paths, diff_module)?)?;
     m.add_submodule(diff_module)?;
+
+    // DataFrame (df) Module
+    let df_module = PyModule::new(py, "df")?;
+    df_module.add_function(wrap_pyfunction!(df::save, df_module)?)?;
+    m.add_submodule(df_module)?;
 
     Ok(())
 }

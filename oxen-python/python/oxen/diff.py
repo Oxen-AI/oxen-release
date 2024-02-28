@@ -1,35 +1,53 @@
+"""
+Oxen can be used to compare data frames and return a tabular diff.
+
+```python
+import os
+import oxen
+
+result = oxen.diff("dataset_1.csv", "dataset_2.csv" keys=["id"], targets=["name", "age"])
+print(result.data)
+```
+"""
+
 from .oxen import diff
+from oxen import df
 
 import os
 from typing import Optional
 
-# TODO: make the interface take the same arguments as the CLI
-# Optional:
-# - repo_dir: os.PathLike = "."
-# - revision_left: Option[str] = None
-# - revision_right: Option[str] = None
-# - output: Option[os.PathLike] = None
-def diff_tabular(
-    left: os.PathLike,
-    right: os.PathLike,
-    keys: list[str],
-    targets: list[str],
+def compare(
+    path: os.PathLike,
+    to: Optional[os.PathLike] = None,
+    keys: list[str] = [],
+    targets: list[str] = [],
     repo_dir: Optional[os.PathLike] = None,
     revision_left: Optional[str] = None,
     revision_right: Optional[str] = None,
     output: Optional[os.PathLike] = None,
 ):
     """
-    Compares two data frames and returns a tabular diff.
+    Compares data from two paths and returns a diff respecting the type of data.
 
     Args:
-        left: `os.PathLike`
-            The left path to compare.
-        right: `os.PathLike`
-            The right path to compare.
+        path: `os.PathLike`
+            The path to diff. If `compare_to` is not provided, this will compare the data frame to the previous commit.
+        to: `os.PathLike`
+            The path to compare. If provided this will be the right side of the diff.
         keys: `list[str]`
             The keys to compare on. This is used to join the two data frames. Keys will be combined and hashed to create a identifier for each row.
         targets: `list[str]`
             The targets to compare on. This is used to compare the values of the two data frames.
+        repo_dir: `os.PathLike`
+            The path to the oxen repository. Must be provided if `compare_to` is not provided, or if `revision_left` or `revision_right` is provided.
+        revision_left: `str`
+            The left revision to compare. Can be a commit hash or branch name.
+        revision_right: `str`
+            The right revision to compare. Can be a commit hash or branch name.
+        output: `os.PathLike`
+            The path to save the diff to. If not provided, the diff will not be saved.
     """
-    return diff.diff_tabular(left, right, keys, targets)
+    result = diff.diff_paths(path, keys, targets, to, repo_dir, revision_left, revision_right)
+    if output:
+        df.save(result, output)
+    return result
