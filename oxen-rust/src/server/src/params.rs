@@ -126,7 +126,6 @@ pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branc
 }
 
 fn user_cli_is_out_of_date(user_agent: &str) -> bool {
-    log::debug!("Here's user agent {:?}", user_agent);
     // check if the user agent contains oxen
     if !user_agent.to_lowercase().contains("oxen") {
         // Not an oxen user agent
