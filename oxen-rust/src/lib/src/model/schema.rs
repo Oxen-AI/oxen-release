@@ -143,15 +143,16 @@ impl Schema {
             .any(|f| f.name == field.name && f.dtype == field.dtype)
     }
 
-    pub fn has_field_names(&self, fields: &[String]) -> bool {
+    pub fn has_field_names(&self, fields: &[impl AsRef<str>]) -> bool {
         fields.iter().all(|field| self.has_field_name(field))
     }
 
-    pub fn has_field_name(&self, name: &str) -> bool {
+    pub fn has_field_name(&self, name: impl AsRef<str>) -> bool {
+        let name = name.as_ref();
         self.fields.iter().any(|f| f.name == name)
     }
 
-    pub fn get_field<S: AsRef<str>>(&self, name: S) -> Option<&Field> {
+    pub fn get_field(&self, name: impl AsRef<str>) -> Option<&Field> {
         let name = name.as_ref();
         self.fields.iter().find(|f| f.name == name)
     }

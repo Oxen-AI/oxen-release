@@ -113,19 +113,19 @@ pub enum OxenError {
 }
 
 impl OxenError {
-    pub fn basic_str<T: AsRef<str>>(s: T) -> Self {
+    pub fn basic_str(s: impl AsRef<str>) -> Self {
         OxenError::Basic(StringError::from(s.as_ref()))
     }
 
-    pub fn authentication<T: AsRef<str>>(s: T) -> Self {
+    pub fn authentication(s: impl AsRef<str>) -> Self {
         OxenError::Authentication(StringError::from(s.as_ref()))
     }
 
-    pub fn migration_required<T: AsRef<str>>(s: T) -> Self {
+    pub fn migration_required(s: impl AsRef<str>) -> Self {
         OxenError::MigrationRequired(StringError::from(s.as_ref()))
     }
 
-    pub fn oxen_update_required<T: AsRef<str>>(s: T) -> Self {
+    pub fn oxen_update_required(s: impl AsRef<str>) -> Self {
         OxenError::OxenUpdateRequired(StringError::from(s.as_ref()))
     }
 
@@ -137,7 +137,8 @@ impl OxenError {
         OxenError::RepoNotFound(Box::new(repo))
     }
 
-    pub fn remote_not_set(name: &str) -> Self {
+    pub fn remote_not_set(name: impl AsRef<str>) -> Self {
+        let name = name.as_ref();
         OxenError::basic_str(
             format!("Remote not set, you can set a remote by running:\n\noxen config --set-remote {} <url>\n", name)
         )
@@ -183,11 +184,11 @@ impl OxenError {
         OxenError::PathDoesNotExist(Box::new(path.as_ref().into()))
     }
 
-    pub fn image_metadata_error<T: AsRef<str>>(s: T) -> Self {
+    pub fn image_metadata_error(s: impl AsRef<str>) -> Self {
         OxenError::ImageMetadataParseError(StringError::from(s.as_ref()))
     }
 
-    pub fn sql_parse_error<T: AsRef<str>>(s: T) -> Self {
+    pub fn sql_parse_error(s: impl AsRef<str>) -> Self {
         OxenError::SQLParseError(StringError::from(s.as_ref()))
     }
 
@@ -219,7 +220,7 @@ impl OxenError {
         OxenError::basic_str(AUTH_TOKEN_NOT_FOUND)
     }
 
-    pub fn remote_repo_not_found<T: AsRef<str>>(url: T) -> OxenError {
+    pub fn remote_repo_not_found(url: impl AsRef<str>) -> OxenError {
         let err = format!("Remote repository does not exist {}", url.as_ref());
         OxenError::basic_str(err)
     }
@@ -248,17 +249,17 @@ impl OxenError {
         )
     }
 
-    pub fn schema_does_not_exist_for_file<P: AsRef<Path>>(path: P) -> OxenError {
+    pub fn schema_does_not_exist_for_file(path: impl AsRef<Path>) -> OxenError {
         let err = format!("Schema does not exist for file {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn schema_does_not_exist<S: AsRef<str>>(schema_ref: S) -> OxenError {
+    pub fn schema_does_not_exist(schema_ref: impl AsRef<str>) -> OxenError {
         let err = format!("Schema does not exist {:?}", schema_ref.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn schema_does_not_have_field<S: AsRef<str>>(field: S) -> OxenError {
+    pub fn schema_does_not_have_field(field: impl AsRef<str>) -> OxenError {
         let err = format!("Schema does not have field {:?}", field.as_ref());
         OxenError::basic_str(err)
     }
@@ -269,19 +270,19 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn remote_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
+    pub fn remote_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
         log::warn!("{}", err);
         OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
     }
 
-    pub fn local_branch_not_found<T: AsRef<str>>(name: T) -> OxenError {
+    pub fn local_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Branch '{}' not found", name.as_ref());
         log::warn!("{}", err);
         OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
-    pub fn commit_db_corrupted<T: AsRef<str>>(commit_id: T) -> OxenError {
+    pub fn commit_db_corrupted(commit_id: impl AsRef<str>) -> OxenError {
         let err = format!(
             "Commit db corrupted, could not find commit: {}",
             commit_id.as_ref()
@@ -289,27 +290,27 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn commit_id_does_not_exist<T: AsRef<str>>(commit_id: T) -> OxenError {
+    pub fn commit_id_does_not_exist(commit_id: impl AsRef<str>) -> OxenError {
         let err = format!("Could not find commit: {}", commit_id.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn local_parent_link_broken<T: AsRef<str>>(commit_id: T) -> OxenError {
+    pub fn local_parent_link_broken(commit_id: impl AsRef<str>) -> OxenError {
         let err = format!("Broken link to parent commit: {}", commit_id.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn entry_does_not_exist<T: AsRef<Path>>(path: T) -> OxenError {
+    pub fn entry_does_not_exist(path: impl AsRef<Path>) -> OxenError {
         let err = format!("Entry does not exist: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn file_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+    pub fn file_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
         let err = format!("File does not exist: {:?} error {:?}", path.as_ref(), error);
         OxenError::basic_str(err)
     }
 
-    pub fn file_create_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+    pub fn file_create_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
         let err = format!(
             "Could not create file: {:?} error {:?}",
             path.as_ref(),
@@ -318,7 +319,7 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn dir_create_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+    pub fn dir_create_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
         let err = format!(
             "Could not create directory: {:?} error {:?}",
             path.as_ref(),
@@ -327,17 +328,17 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn file_open_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+    pub fn file_open_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
         let err = format!("Could not open file: {:?} error {:?}", path.as_ref(), error,);
         OxenError::basic_str(err)
     }
 
-    pub fn file_read_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+    pub fn file_read_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
         let err = format!("Could not read file: {:?} error {:?}", path.as_ref(), error,);
         OxenError::basic_str(err)
     }
 
-    pub fn file_metadata_error<T: AsRef<Path>>(path: T, error: std::io::Error) -> OxenError {
+    pub fn file_metadata_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
         let err = format!(
             "Could not get file metadata: {:?} error {:?}",
             path.as_ref(),
@@ -380,9 +381,9 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn entry_does_not_exist_in_commit<P: AsRef<Path>, S: AsRef<str>>(
-        path: P,
-        commit_id: S,
+    pub fn entry_does_not_exist_in_commit(
+        path: impl AsRef<Path>,
+        commit_id: impl AsRef<str>,
     ) -> OxenError {
         let err = format!(
             "Entry {:?} does not exist in commit {}",
@@ -392,22 +393,22 @@ impl OxenError {
         OxenError::CommitEntryNotFound(err.into())
     }
 
-    pub fn file_has_no_parent<T: AsRef<Path>>(path: T) -> OxenError {
+    pub fn file_has_no_parent(path: impl AsRef<Path>) -> OxenError {
         let err = format!("File has no parent: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn file_has_no_name<T: AsRef<Path>>(path: T) -> OxenError {
+    pub fn file_has_no_name(path: impl AsRef<Path>) -> OxenError {
         let err = format!("File has no file_name: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn could_not_convert_path_to_str<T: AsRef<Path>>(path: T) -> OxenError {
+    pub fn could_not_convert_path_to_str(path: impl AsRef<Path>) -> OxenError {
         let err = format!("File has no name: {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn local_revision_not_found<T: AsRef<str>>(name: T) -> OxenError {
+    pub fn local_revision_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!(
             "Local branch or commit reference `{}` not found",
             name.as_ref()
@@ -415,7 +416,7 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn could_not_find_merge_conflict<P: AsRef<Path>>(path: P) -> OxenError {
+    pub fn could_not_find_merge_conflict(path: impl AsRef<Path>) -> OxenError {
         let err = format!(
             "Could not find merge conflict for path: {:?}",
             path.as_ref()
@@ -423,27 +424,27 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn could_not_decode_value_for_key_error<S: AsRef<str>>(key: S) -> OxenError {
+    pub fn could_not_decode_value_for_key_error(key: impl AsRef<str>) -> OxenError {
         let err = format!("Could not decode value for key: {:?}", key.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn invalid_agg_query<S: AsRef<str>>(query: S) -> OxenError {
+    pub fn invalid_agg_query(query: impl AsRef<str>) -> OxenError {
         let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn invalid_set_remote_url<S: AsRef<str>>(url: S) -> OxenError {
+    pub fn invalid_set_remote_url(url: impl AsRef<str>) -> OxenError {
         let err = format!("\nRemote invalid, must be fully qualified URL, got: {:?}\n\n  oxen config --set-remote origin https://hub.oxen.ai/<namespace>/<reponame>\n", url.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn invalid_file_type<S: AsRef<str>>(file_type: S) -> OxenError {
+    pub fn invalid_file_type(file_type: impl AsRef<str>) -> OxenError {
         let err = format!("Invalid file type: {:?}", file_type.as_ref());
         OxenError::InvalidFileType(StringError::from(err))
     }
 
-    pub fn incompatible_schemas(cols: Vec<String>, schema: Schema) -> OxenError {
+    pub fn incompatible_schemas(cols: &[String], schema: Schema) -> OxenError {
         let err = format!(
             "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
             cols, schema
@@ -451,12 +452,12 @@ impl OxenError {
         OxenError::IncompatibleSchemas(StringError::from(err))
     }
 
-    pub fn parse_error<S: AsRef<str>>(value: S) -> OxenError {
+    pub fn parse_error(value: impl AsRef<str>) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
         OxenError::basic_str(err)
     }
 
-    pub fn unknown_agg_fn<S: AsRef<str>>(name: S) -> OxenError {
+    pub fn unknown_agg_fn(name: impl AsRef<str>) -> OxenError {
         let err = format!("Unknown aggregation function: {:?}", name.as_ref());
         OxenError::basic_str(err)
     }

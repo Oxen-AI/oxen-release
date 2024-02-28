@@ -769,7 +769,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
 // Maybe pass in fields here?
 pub fn df_hash_rows_on_cols(
     df: DataFrame,
-    hash_fields: Vec<&str>,
+    hash_fields: &[String],
     out_col_name: &str,
 ) -> Result<DataFrame, OxenError> {
     let num_rows = df.height() as i64;
@@ -778,7 +778,7 @@ pub fn df_hash_rows_on_cols(
     let mut col_names = vec![];
     let schema = df.schema();
     for field in schema.iter_fields() {
-        let field_name = field.name().as_str();
+        let field_name = field.name().to_string();
         if hash_fields.contains(&field_name) {
             col_names.push(col(field.name()));
         }

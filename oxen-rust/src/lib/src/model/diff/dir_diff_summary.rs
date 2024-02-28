@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::view::compare::AddRemoveModifyCounts;
+use crate::model::diff::AddRemoveModifyCounts;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirDiffSummary {

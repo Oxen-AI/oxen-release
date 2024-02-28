@@ -519,6 +519,16 @@ pub async fn diff(
     output: Option<PathBuf>,
     is_remote: bool,
 ) -> Result<(), OxenError> {
+    // If the user specifies two files without revisions, we will compare the files on disk
+    if revision_1.is_none() && revision_2.is_none() && file_2.is_some() {
+        // If we do not have revisions set, just compare the files on disk
+        let mut result = command::diff_tabular(&file_1, file_2.unwrap(), keys, targets, display)?;
+
+        print_compare_result(&result)?;
+        maybe_save_compare_output(&mut result, output)?;
+        return Ok(());
+    }
+
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     check_repo_migration_needed(&repository)?;
@@ -580,7 +590,7 @@ pub async fn diff(
         // TODO: Allow them to save a remote diff to disk
     } else {
         let mut compare_result =
-            command::compare(&repository, cpath_1, cpath_2, keys, targets, display)?;
+            command::diff_commits(&repository, cpath_1, cpath_2, keys, targets, display)?;
         print_compare_result(&compare_result)?;
         maybe_save_compare_output(&mut compare_result, output)?;
     };

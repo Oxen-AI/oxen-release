@@ -1,208 +1,228 @@
-use serde::{Deserialize, Serialize};
+//! # api::local::diff
+//!
+//! Compare two files to find changes between them.
+//!
 
-use crate::core::df::tabular;
-use crate::core::index::object_db_reader::ObjectDBReader;
-use crate::core::index::CommitDirEntryReader;
-use crate::error::OxenError;
-use crate::model::diff::diff_entry_status::DiffEntryStatus;
-use crate::model::diff::generic_diff::GenericDiff;
-use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
-use crate::opts::DFOpts;
-use crate::view::compare::AddRemoveModifyCounts;
-use crate::view::Pagination;
-use crate::{constants, util};
-
-use crate::core::index::CommitEntryReader;
-use colored::Colorize;
-use difference::{Changeset, Difference};
-use polars::export::ahash::HashMap;
-use polars::prelude::DataFrame;
-use polars::prelude::IntoLazy;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-pub struct EntriesDiff {
-    pub entries: Vec<DiffEntry>,
-    pub counts: AddRemoveModifyCounts,
-    pub pagination: Pagination,
+use polars::frame::DataFrame;
+use polars::prelude::IntoLazy;
+
+use crate::core::df::tabular;
+use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
+use crate::error::OxenError;
+use crate::model::diff::diff_commit_entry::DiffCommitEntry;
+use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
+use crate::model::diff::schema_diff::SchemaDiff;
+use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
+use crate::opts::DFOpts;
+use crate::view::compare::{CompareDupes, CompareTabular, CompareTabularWithDF};
+use crate::view::CompareResult;
+use crate::{constants, util};
+
+use crate::model::diff::diff_entry_status::DiffEntryStatus;
+
+pub mod join_diff;
+pub mod utf8_diff;
+
+const TARGETS_HASH_COL: &str = "_targets_hash";
+const KEYS_HASH_COL: &str = "_keys_hash";
+
+pub fn tabular(
+    file_1: impl AsRef<Path>,
+    file_2: impl AsRef<Path>,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<CompareResult, OxenError> {
+    let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
+    let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
+
+    let schema_1 = Schema::from_polars(&df_1.schema());
+    let schema_2 = Schema::from_polars(&df_2.schema());
+
+    validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
+
+    let compare_df = compare_dfs(&df_1, &df_2, keys, targets, display)?;
+    let compare_tabular = CompareTabular::from_with_df(&compare_df);
+    let result = CompareResult::Tabular((compare_tabular, compare_df.diff_df));
+    Ok(result)
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
-struct DiffCommitEntry {
-    pub status: DiffEntryStatus,
-    // path for sorting so we don't have to dive into the optional commit entries
-    pub path: PathBuf,
-
-    // CommitEntry
-    pub head_entry: Option<CommitEntry>,
-    pub base_entry: Option<CommitEntry>,
-}
-
-/// Get a String representation of a diff between two commits given a file
-pub fn diff_one(
-    repo: &LocalRepository,
-    original: &Commit,
-    compare: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<String, OxenError> {
-    let base_path = get_version_file_from_commit(repo, original, &path)?;
-    let head_path = get_version_file_from_commit(repo, compare, &path)?;
-    diff_files(base_path, head_path)
-}
-
-/// Compare a file between commits
-pub fn diff_one_2(
-    repo: &LocalRepository,
-    original: &Commit,
-    compare: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<GenericDiff, OxenError> {
-    let base_path = get_version_file_from_commit(repo, original, &path)?;
-    let head_path = get_version_file_from_commit(repo, compare, &path)?;
-    diff_files_2(base_path, head_path)
-}
-
-pub fn get_version_file_from_commit(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<PathBuf, OxenError> {
-    get_version_file_from_commit_id(repo, &commit.id, path)
-}
-
-pub fn get_version_file_from_commit_id(
-    repo: &LocalRepository,
-    commit_id: &str,
-    path: impl AsRef<Path>,
-) -> Result<PathBuf, OxenError> {
-    let path = path.as_ref();
-    let parent = match path.parent() {
-        Some(parent) => parent,
-        None => return Err(OxenError::file_has_no_parent(path)),
+fn validate_required_fields(
+    schema_1: Schema,
+    schema_2: Schema,
+    keys: Vec<String>,
+    targets: Vec<String>,
+) -> Result<(), OxenError> {
+    // Keys must be in both dfs
+    if !schema_1.has_field_names(&keys) {
+        return Err(OxenError::incompatible_schemas(&keys, schema_1));
     };
 
-    let object_reader = ObjectDBReader::new(repo)?;
-
-    // Instantiate CommitDirEntryReader to fetch entry
-    let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader =
-        CommitDirEntryReader::new(repo, commit_id, &relative_parent, object_reader)?;
-    let file_name = match path.file_name() {
-        Some(file_name) => file_name,
-        None => return Err(OxenError::file_has_no_name(path)),
+    if !schema_2.has_field_names(&keys) {
+        return Err(OxenError::incompatible_schemas(&keys, schema_2));
     };
 
-    let entry = match commit_entry_reader.get_entry(file_name) {
-        Ok(Some(entry)) => entry,
-        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, commit_id)),
-    };
-
-    Ok(util::fs::version_path(repo, &entry))
-}
-
-pub fn diff_files(
-    original: impl AsRef<Path>,
-    compare: impl AsRef<Path>,
-) -> Result<String, OxenError> {
-    let original = original.as_ref();
-    let compare = compare.as_ref();
-    if util::fs::is_tabular(original) && util::fs::is_tabular(compare) {
-        let tabular_diff = diff_tabular(original, compare)?;
-        return Ok(tabular_diff.to_string());
-    } else if util::fs::is_utf8(original) && util::fs::is_utf8(compare) {
-        return diff_utf8(original, compare);
-    }
-    Err(OxenError::basic_str(format!(
-        "Diff not supported for files: {original:?} and {compare:?}"
-    )))
-}
-
-// TODO: this should be the one that is returned instead of a string
-pub fn diff_files_2(
-    original: impl AsRef<Path>,
-    compare: impl AsRef<Path>,
-) -> Result<GenericDiff, OxenError> {
-    let original = original.as_ref();
-    let compare = compare.as_ref();
-    if util::fs::is_tabular(original) && util::fs::is_tabular(compare) {
-        // TODO: consolidate TabularDiff and DataFrameDiff
-        // let tabular_diff = diff_tabular(original, compare)?;
-        // return Ok(GenericDiff::TabularDiff(tabular_diff));
-    }
-    Err(OxenError::basic_str(format!(
-        "Diff not supported for files: {original:?} and {compare:?}"
-    )))
-}
-
-pub fn diff_utf8(
-    original: impl AsRef<Path>,
-    compare: impl AsRef<Path>,
-) -> Result<String, OxenError> {
-    let original = original.as_ref();
-    let compare = compare.as_ref();
-    let original_data = util::fs::read_from_path(original)?;
-    let compare_data = util::fs::read_from_path(compare)?;
-    let Changeset { diffs, .. } = Changeset::new(&original_data, &compare_data, "\n");
-
-    let mut outputs: Vec<String> = vec![];
-    for diff in diffs {
-        match diff {
-            Difference::Same(ref x) => {
-                for split in x.split('\n') {
-                    outputs.push(format!(" {split}\n").normal().to_string());
-                }
-            }
-            Difference::Add(ref x) => {
-                for split in x.split('\n') {
-                    outputs.push(format!("+{split}\n").green().to_string());
-                }
-            }
-            Difference::Rem(ref x) => {
-                for split in x.split('\n') {
-                    outputs.push(format!("-{split}\n").red().to_string());
-                }
-            }
+    // Targets must be in either df
+    for target in targets {
+        if !schema_1.has_field_name(&target) && !schema_2.has_field_name(&target) {
+            return Err(OxenError::incompatible_schemas(&[target], schema_1));
         }
     }
 
-    Ok(outputs.join(""))
+    Ok(())
 }
 
-pub fn diff_tabular(
-    base_path: impl AsRef<Path>,
-    head_path: impl AsRef<Path>,
-) -> Result<DataFrameDiff, OxenError> {
-    let base_path = base_path.as_ref();
-    let head_path = head_path.as_ref();
-    // Make sure files exist
-    if !base_path.exists() {
-        return Err(OxenError::entry_does_not_exist(base_path));
+fn compare_dfs(
+    df_1: &DataFrame,
+    df_2: &DataFrame,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<CompareTabularWithDF, OxenError> {
+    let schema_diff = get_schema_diff(df_1, df_2);
+
+    let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff)?;
+    let display = get_display_smart_defaults(&keys, &targets, display, &schema_diff);
+
+    let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), &keys, &targets)?;
+
+    let mut compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
+
+    compare.dupes = CompareDupes {
+        left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
+        right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
+    };
+
+    Ok(compare)
+}
+
+fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
+    let df1_cols = df1.get_column_names();
+    let df2_cols = df2.get_column_names();
+
+    let mut df1_set = HashSet::new();
+    let mut df2_set = HashSet::new();
+
+    for col in df1_cols.iter() {
+        df1_set.insert(col);
     }
 
-    if !head_path.exists() {
-        return Err(OxenError::entry_does_not_exist(head_path));
+    for col in df2_cols.iter() {
+        df2_set.insert(col);
     }
 
-    // Read DFs and get schemas
-    let base_df = tabular::read_df(base_path, DFOpts::empty())?;
-    let head_df = tabular::read_df(head_path, DFOpts::empty())?;
-    let base_schema = Schema::from_polars(&base_df.schema());
-    let head_schema = Schema::from_polars(&head_df.schema());
+    let added_cols: Vec<String> = df2_set
+        .difference(&df1_set)
+        .map(|s| (*s).to_string())
+        .collect();
+    let removed_cols: Vec<String> = df1_set
+        .difference(&df2_set)
+        .map(|s| (*s).to_string())
+        .collect();
+    let unchanged_cols: Vec<String> = df1_set
+        .intersection(&df2_set)
+        .map(|s| (*s).to_string())
+        .collect();
 
+    SchemaDiff {
+        added_cols,
+        removed_cols,
+        unchanged_cols,
+    }
+}
+
+fn get_keys_targets_smart_defaults(
+    keys: Vec<String>,
+    targets: Vec<String>,
+    schema_diff: &SchemaDiff,
+) -> Result<(Vec<String>, Vec<String>), OxenError> {
     log::debug!(
-        "Original df {} {base_path:?}\n{base_df:?}",
-        base_schema.hash
+        "get_keys_targets_smart_defaults keys {:?} targets {:?}",
+        keys,
+        targets
     );
-    log::debug!("Compare df {} {head_path:?}\n{head_df:?}", head_schema.hash);
+    let has_keys = !keys.is_empty();
+    let has_targets = !targets.is_empty();
 
-    // If schemas don't match, figure out which columns are different
-    if base_schema.hash != head_schema.hash {
-        compute_new_columns_from_paths(base_path, head_path, &base_schema, &head_schema)
-    } else {
-        log::debug!("Computing diff for {base_path:?} to {head_path:?}");
-        compute_new_rows(&base_df, &head_df, &base_schema)
+    match (has_keys, has_targets) {
+        (true, true) => Ok((keys, targets)),
+        (true, false) => {
+            let filled_targets = schema_diff
+                .unchanged_cols
+                .iter()
+                .filter(|c| !keys.contains(c))
+                .cloned()
+                .collect();
+            Ok((keys, filled_targets))
+        }
+        (false, true) => Err(OxenError::basic_str(
+            "Must specify at least one key column if specifying target columns.",
+        )),
+        (false, false) => {
+            let filled_keys = schema_diff.unchanged_cols.to_vec();
+
+            let filled_targets = schema_diff
+                .added_cols
+                .iter()
+                .chain(schema_diff.removed_cols.iter())
+                .cloned()
+                .collect();
+            Ok((filled_keys, filled_targets))
+        }
     }
+}
+
+fn get_display_smart_defaults(
+    keys: &[String],
+    targets: &[String],
+    display: Vec<String>,
+    schema_diff: &SchemaDiff,
+) -> Vec<String> {
+    if !display.is_empty() {
+        return display;
+    }
+
+    // All non-key non-target columns, with the appropriate suffix(es)
+    let mut display_default = vec![];
+    for col in &schema_diff.unchanged_cols {
+        if !keys.contains(col) && !targets.contains(col) {
+            display_default.push(format!("{}.left", col));
+            display_default.push(format!("{}.right", col));
+        }
+    }
+
+    for col in &schema_diff.removed_cols {
+        if !keys.contains(col) && !targets.contains(col) {
+            display_default.push(format!("{}.left", col));
+        }
+    }
+
+    for col in &schema_diff.added_cols {
+        if !keys.contains(col) && !targets.contains(col) {
+            display_default.push(format!("{}.right", col));
+        }
+    }
+
+    display_default
+}
+
+fn hash_dfs(
+    mut left_df: DataFrame,
+    mut right_df: DataFrame,
+    keys: &[String],
+    targets: &[String],
+) -> Result<(DataFrame, DataFrame), OxenError> {
+    left_df = tabular::df_hash_rows_on_cols(left_df, targets, TARGETS_HASH_COL)?;
+    right_df = tabular::df_hash_rows_on_cols(right_df, targets, TARGETS_HASH_COL)?;
+
+    left_df = tabular::df_hash_rows_on_cols(left_df, keys, KEYS_HASH_COL)?;
+    right_df = tabular::df_hash_rows_on_cols(right_df, keys, KEYS_HASH_COL)?;
+    Ok((left_df, right_df))
 }
 
 pub fn count_added_rows(base_df: DataFrame, head_df: DataFrame) -> Result<usize, OxenError> {
@@ -407,51 +427,6 @@ pub fn compute_new_rows_proj(
     })
 }
 
-pub fn compute_new_columns_from_paths(
-    base_path: &Path,
-    head_path: &Path,
-    base_schema: &Schema,
-    head_schema: &Schema,
-) -> Result<DataFrameDiff, OxenError> {
-    let added_fields = head_schema.added_fields(base_schema);
-    let removed_fields = head_schema.removed_fields(base_schema);
-
-    let added_cols = if !added_fields.is_empty() {
-        let opts = DFOpts::from_columns(added_fields);
-        let df_added = tabular::read_df(head_path, opts)?;
-        log::debug!("Got added col df: {}", df_added);
-        if df_added.width() > 0 {
-            Some(df_added)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    let removed_cols = if !removed_fields.is_empty() {
-        let opts = DFOpts::from_columns(removed_fields);
-        let df_removed = tabular::read_df(base_path, opts)?;
-        log::debug!("Got removed col df: {}", df_removed);
-        if df_removed.width() > 0 {
-            Some(df_removed)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
-    Ok(DataFrameDiff {
-        head_schema: Some(base_schema.to_owned()),
-        base_schema: Some(base_schema.to_owned()),
-        added_rows: None,
-        removed_rows: None,
-        added_cols,
-        removed_cols,
-    })
-}
-
 pub fn compute_new_columns_from_dfs(
     base_df: DataFrame,
     head_df: DataFrame,
@@ -547,7 +522,7 @@ pub fn list_diff_entries_in_dir(
     head_commit: &Commit,
     page: usize,
     page_size: usize,
-) -> Result<EntriesDiff, OxenError> {
+) -> Result<DiffEntriesCounts, OxenError> {
     log::debug!(
         "list_top_level_diff_entries base_commit: '{}', head_commit: '{}'",
         base_commit,
@@ -643,21 +618,21 @@ pub fn list_diff_entries_in_dir(
 
     let all = dirs.into_iter().chain(diff_entries).collect();
 
-    Ok(EntriesDiff {
+    Ok(DiffEntriesCounts {
         entries: all,
         counts,
         pagination,
     })
 }
 
-/// TODO this is insane. Need more efficient data structure or to use a database like duckdb.
+/// TODO this is very ugly...
 pub fn list_diff_entries(
     repo: &LocalRepository,
     base_commit: &Commit,
     head_commit: &Commit,
     page: usize,
     page_size: usize,
-) -> Result<EntriesDiff, OxenError> {
+) -> Result<DiffEntriesCounts, OxenError> {
     log::debug!(
         "list_diff_entries base_commit: '{}', head_commit: '{}'",
         base_commit,
@@ -782,34 +757,11 @@ pub fn list_diff_entries(
 
     let all = dirs.into_iter().chain(diff_entries).collect();
 
-    Ok(EntriesDiff {
+    Ok(DiffEntriesCounts {
         entries: all,
         counts,
         pagination,
     })
-}
-
-// TODO: linear scan is not the most efficient way to do this
-pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCounts {
-    let mut added = 0;
-    let mut removed = 0;
-    let mut modified = 0;
-    for entry in entries {
-        if entry.is_dir {
-            continue;
-        }
-
-        match DiffEntryStatus::from_str(&entry.status).unwrap() {
-            DiffEntryStatus::Added => added += 1,
-            DiffEntryStatus::Removed => removed += 1,
-            DiffEntryStatus::Modified => modified += 1,
-        }
-    }
-    AddRemoveModifyCounts {
-        added,
-        removed,
-        modified,
-    }
 }
 
 // Find the directories that are in HEAD but not in BASE
@@ -981,6 +933,29 @@ fn collect_modified_entries(
         }
     }
     Ok(())
+}
+
+// TODO: linear scan is not the most efficient way to do this
+pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCounts {
+    let mut added = 0;
+    let mut removed = 0;
+    let mut modified = 0;
+    for entry in entries {
+        if entry.is_dir {
+            continue;
+        }
+
+        match DiffEntryStatus::from_str(&entry.status).unwrap() {
+            DiffEntryStatus::Added => added += 1,
+            DiffEntryStatus::Removed => removed += 1,
+            DiffEntryStatus::Modified => modified += 1,
+        }
+    }
+    AddRemoveModifyCounts {
+        added,
+        removed,
+        modified,
+    }
 }
 
 fn read_dirs_from_commit(
@@ -1180,7 +1155,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let new_root_filename = Path::new("READMENOW.md");
 
-            let new_root_file = repo.path.join(&new_root_filename);
+            let new_root_file = repo.path.join(new_root_filename);
 
             let add_dir = PathBuf::from("annotations").join("schmannotations");
             let add_dir_added_file = PathBuf::from("annotations")
@@ -1190,16 +1165,13 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let add_root_dir = PathBuf::from("not_annotations");
             let add_root_dir_added_file = PathBuf::from("not_annotations").join("added_file.txt");
 
-            util::fs::create_dir_all(&repo.path.join(add_dir))?;
-            util::fs::create_dir_all(&repo.path.join(add_root_dir))?;
+            util::fs::create_dir_all(repo.path.join(add_dir))?;
+            util::fs::create_dir_all(repo.path.join(add_root_dir))?;
 
             test::write_txt_file_to_path(&new_root_file, "Hello,world")?;
             test::write_txt_file_to_path(&new_bbox_file, "Hello,world")?;
-            test::write_txt_file_to_path(&repo.path.join(add_dir_added_file), "Hello,world!!")?;
-            test::write_txt_file_to_path(
-                &repo.path.join(add_root_dir_added_file),
-                "Hello,world!!",
-            )?;
+            test::write_txt_file_to_path(repo.path.join(add_dir_added_file), "Hello,world!!")?;
+            test::write_txt_file_to_path(repo.path.join(add_root_dir_added_file), "Hello,world!!")?;
 
             // get og commit
             let base_commit = api::local::commits::head_commit(&repo)?;
