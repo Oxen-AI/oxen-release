@@ -81,8 +81,7 @@ class LocalRepo:
         return self._repo.list_branches()
 
     def branch(self, name: str, delete=False):
-        """
-        """
+        """ """
         return self._repo.branch(name, delete)
 
     def checkout(self, revision: str, create=False):
@@ -169,7 +168,9 @@ class LocalRepo:
     def create_remote(self, name: str):
         self._repo.create_remote(name)
 
-    def push(self, remote_name: str = "origin", branch: str = "main", delete: bool = False):
+    def push(
+        self, remote_name: str = "origin", branch: str = "main", delete: bool = False
+    ):
         """
         Push data to a remote repo from a local repo.
 

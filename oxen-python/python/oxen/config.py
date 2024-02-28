@@ -1,8 +1,6 @@
-from .oxen import auth, util
-from oxen.user import config_user
-from typing import Optional
+from .oxen import util
 import os
-import requests
+
 
 def is_configured():
     """
