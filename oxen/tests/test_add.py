@@ -7,8 +7,8 @@ def test_add(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "CelebA")
     repo = LocalRepo(repo_dir)
     repo.init()
-    image_file = "annotations"
-    full_path = os.path.join(repo_dir, image_file)
+    annotations_dir = "annotations"
+    full_path = os.path.join(repo_dir, annotations_dir)
     repo.add(full_path)
     staged_data = repo.status()
 
