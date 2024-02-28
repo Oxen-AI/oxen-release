@@ -19,21 +19,85 @@ use crate::view::compare::CompareResult;
 
 pub fn diff_tabular(
     path_1: impl AsRef<Path>,
-    path_2: impl AsRef<Path>,
+    path_2: Option<impl AsRef<Path>>,
     keys: Vec<String>,
     targets: Vec<String>,
-    display: Vec<String>,
+    repo_dir: Option<impl AsRef<Path>>,
+    revision_1: Option<String>,
+    revision_2: Option<String>,
 ) -> Result<CompareResult, OxenError> {
     log::debug!(
-        "Compare command called with: {:?} and {:?} with keys: {:?} and targets: {:?} and display: {:?}",
-        path_1.as_ref(),
-        path_2.as_ref(),
+        "diff_tabular called with keys: {:?} and targets: {:?}",
         keys,
         targets,
-        display
     );
 
-    api::local::diff::tabular(path_1, path_2, keys, targets, display)
+    // If the user specifies two files without revisions, we will compare the files on disk
+    if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
+        // If we do not have revisions set, just compare the files on disk
+        let result = api::local::diff::tabular(path_1, path_2.unwrap(), keys, targets, vec![])?;
+
+        return Ok(result);
+    }
+
+    // Make sure we have a repository to look up the revisions
+    let Some(repo_dir) = repo_dir else {
+        return Err(OxenError::basic_str(
+            "Specifying a revision requires a repository",
+        ));
+    };
+
+    let repository = LocalRepository::new(repo_dir.as_ref())?;
+
+    // TODONOW: might be able to clean this logic up - pull out into function so we can early return and be less confusing
+    let (cpath_1, cpath_2) = if let Some(path_2) = path_2 {
+        let cpath_1 = if let Some(revison) = revision_1 {
+            let commit_1 = api::local::revisions::get(&repository, revison)?;
+            CommitPath {
+                commit: commit_1,
+                path: path_1.as_ref().to_path_buf(),
+            }
+        } else {
+            CommitPath {
+                commit: None,
+                path: path_1.as_ref().to_path_buf(),
+            }
+        };
+
+        let cpath_2 = if let Some(revison) = revision_2 {
+            let commit = api::local::revisions::get(&repository, revison)?;
+
+            CommitPath {
+                commit,
+                path: path_2.as_ref().to_path_buf(),
+            }
+        } else {
+            CommitPath {
+                commit: None,
+                path: path_2.as_ref().to_path_buf(),
+            }
+        };
+
+        (cpath_1, cpath_2)
+    } else {
+        // If no file2, compare with file1 at head.
+        let commit = Some(api::local::commits::head_commit(&repository)?);
+
+        (
+            CommitPath {
+                commit,
+                path: path_1.as_ref().to_path_buf(),
+            },
+            CommitPath {
+                commit: None,
+                path: path_1.as_ref().to_path_buf(),
+            },
+        )
+    };
+
+    let result = diff_commits(&repository, cpath_1, cpath_2, keys, targets, vec![])?;
+
+    Ok(result)
 }
 
 pub fn diff_commits(

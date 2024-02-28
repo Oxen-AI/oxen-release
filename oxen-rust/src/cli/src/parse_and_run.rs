@@ -983,16 +983,10 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
         None => Vec::new(),
     };
 
-    let maybe_display = sub_matches.get_many::<String>("display");
-    let display = match maybe_display {
-        Some(values) => values.cloned().collect(),
-        None => Vec::new(),
-    };
-
     let output = sub_matches.get_one::<String>("output").map(PathBuf::from);
 
     match dispatch::diff(
-        file1, revision1, file2, revision2, keys, targets, display, output, is_remote,
+        file1, revision1, file2, revision2, keys, targets, output, is_remote,
     )
     .await
     {
@@ -1211,10 +1205,10 @@ pub async fn load(sub_matches: &ArgMatches) {
     dispatch::load(src_path, dest_path, no_working_dir).expect("Error loading repo from backup.");
 }
 
-fn parse_file_and_revision(file_revision: &str) -> (String, Option<&str>) {
+fn parse_file_and_revision(file_revision: &str) -> (String, Option<String>) {
     let parts: Vec<&str> = file_revision.split(':').collect();
     if parts.len() == 2 {
-        (parts[0].to_string(), Some(parts[1]))
+        (parts[0].to_string(), Some(parts[1].to_string()))
     } else {
         (parts[0].to_string(), None)
     }
