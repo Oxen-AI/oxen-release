@@ -4,6 +4,7 @@ from typing import Optional
 import os
 import requests
 
+
 def config_auth(token: str, host: str = "hub.oxen.ai", path: Optional[str] = None):
     """
     Configures authentication for a host.

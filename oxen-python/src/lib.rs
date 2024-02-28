@@ -5,6 +5,7 @@ pub mod error;
 pub mod py_branch;
 
 pub mod auth;
+pub mod diff;
 pub mod py_commit;
 pub mod py_dataset;
 pub mod py_diff;
@@ -72,6 +73,11 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     remote_module.add_function(wrap_pyfunction!(remote::get_repo, remote_module)?)?;
     remote_module.add_function(wrap_pyfunction!(remote::create_repo, remote_module)?)?;
     m.add_submodule(remote_module)?;
+
+    // Diff Module
+    let diff_module = PyModule::new(py, "diff")?;
+    diff_module.add_function(wrap_pyfunction!(diff::diff_tabular, diff_module)?)?;
+    m.add_submodule(diff_module)?;
 
     Ok(())
 }
