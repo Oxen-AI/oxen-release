@@ -1,6 +1,6 @@
 from ..oxen import PyTextDiff, PyLineDiff, PyChangeType
 
-from oxen.diff_paths.change_type import ChangeType
+from oxen.diff.change_type import ChangeType
 
 
 class LineDiff:
@@ -45,6 +45,9 @@ class LineDiff:
 
 
 class TextDiff:
+    """
+    A class representing a text diff.
+    """
     def __init__(self, diff: PyTextDiff):
         self._diff = diff
 
