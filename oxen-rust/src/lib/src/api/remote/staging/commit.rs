@@ -35,6 +35,7 @@ pub async fn commit(
                 is_head: false
             };
             api::remote::commits::post_push_complete(remote_repo, &branch, &commit.id).await?;
+            api::remote::repositories::post_push(remote_repo, &branch, &commit.id).await?;
             Ok(commit)
         },
         Err(err) => Err(OxenError::basic_str(format!(
