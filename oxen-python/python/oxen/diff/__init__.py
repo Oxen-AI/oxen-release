@@ -10,11 +10,15 @@ print(result.data)
 ```
 """
 
-from .oxen import diff
+from ..oxen import diff
+from ..oxen import PyDiff
 from oxen import df
+from oxen.diff.tabular_diff import TabularDiff
+from oxen.diff.text_diff import TextDiff
 
 import os
 from typing import Optional
+
 
 def compare(
     path: os.PathLike,
@@ -47,7 +51,40 @@ def compare(
         output: `os.PathLike`
             The path to save the diff to. If not provided, the diff will not be saved.
     """
-    result = diff.diff_paths(path, keys, targets, to, repo_dir, revision_left, revision_right)
+    result = diff.diff_paths(
+        path, keys, targets, to, repo_dir, revision_left, revision_right
+    )
     if output:
         df.save(result, output)
-    return result
+    return Diff(result)
+
+
+# TODO: Write a class that wraps our PyDiff class, documents it, and provides a more user-friendly interface.
+
+
+class Diff:
+    """
+    Diff class wraps the PyDiff class and helps convert to the variety of diff types.
+
+    ```python
+    import os
+    import oxen
+
+    result = oxen.diff("dataset_1.csv", "dataset_2.csv" keys=["id"], targets=["name", "age"])
+    print(result.diff.contents)
+    ```
+    """
+
+    def __init__(self, py_diff: PyDiff):
+        self._py_diff = py_diff
+
+    @property
+    def diff(self):
+        # TODO: Create classes for each type of diff to document them.
+        match self._py_diff.format:
+            case "tabular":
+                return TabularDiff(self._py_diff.tabular)
+            case "text":
+                return TextDiff(self._py_diff.text)
+            case "unknown":
+                raise ValueError("The diff type is unknown.")

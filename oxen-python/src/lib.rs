@@ -46,6 +46,10 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<py_commit::PyCommit>()?;
     m.add_class::<py_dataset::PyDataset>()?;
     m.add_class::<py_diff::PyDiff>()?;
+    m.add_class::<diff::py_tabular_diff::PyTabularDiff>()?;
+    m.add_class::<diff::py_text_diff::PyTextDiff>()?;
+    m.add_class::<diff::py_text_diff::PyLineDiff>()?;
+    m.add_class::<diff::py_text_diff::PyChangeType>()?;
     m.add_class::<py_local_repo::PyLocalRepo>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;

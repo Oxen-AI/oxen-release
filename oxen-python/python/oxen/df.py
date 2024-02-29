@@ -3,6 +3,7 @@ from .oxen import df
 import os
 from polars import DataFrame
 
+
 def save(
     data_frame: DataFrame,
     path: os.PathLike,
