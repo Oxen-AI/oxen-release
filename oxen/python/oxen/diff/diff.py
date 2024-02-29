@@ -128,7 +128,7 @@ class Diff:
 
     def get(self):
         """
-        Resolves the diff type and returns the appropriate diff.
+        Resolves the diff type and returns the appropriate diff object.
         """
         match self._py_diff.format:
             case "tabular":
