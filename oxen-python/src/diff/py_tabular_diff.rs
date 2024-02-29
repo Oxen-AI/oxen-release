@@ -20,19 +20,19 @@ pub struct PyTabularDiffSummary {
 #[pyclass]
 pub struct PyTabularDiff {
     pub summary: PyTabularDiffSummary,
-    pub contents: PyDataFrame,
+    pub data: PyDataFrame,
 }
 
 #[pymethods]
 impl PyTabularDiff {
     fn __repr__(&self) -> String {
-        let df = self.contents.as_ref();
+        let df = self.data.as_ref();
         format!("PyTabularDiff(shape=({},{}))\n{:?}", df.height(), df.width(), df)
     }
 
     #[getter]
-    fn contents(&self) -> PyResult<PyDataFrame> {
-        Ok(self.contents.clone())
+    fn data(&self) -> PyResult<PyDataFrame> {
+        Ok(self.data.clone())
     }
 }
 
@@ -52,8 +52,8 @@ impl From<&TabularDiff> for PyTabularDiff {
             modifications: mods,
             schema: Schema::from_polars(&df.schema()),
         };
-        let contents = PyDataFrame(df.clone());
-        Self { summary, contents }
+        let data = PyDataFrame(df.clone());
+        Self { summary, data }
     }
 }
 
