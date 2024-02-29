@@ -8,7 +8,7 @@
 //! oxen diff <file_1> <file_2> [options]
 //! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::index::MergeConflictReader;
 use crate::error::OxenError;
@@ -19,10 +19,10 @@ use crate::{api, util};
 
 pub fn diff(
     path_1: impl AsRef<Path>,
-    path_2: Option<impl AsRef<Path>>,
+    path_2: Option<PathBuf>,
     keys: Vec<String>,
     targets: Vec<String>,
-    repo_dir: Option<impl AsRef<Path>>,
+    repo_dir: Option<PathBuf>,
     revision_1: Option<String>,
     revision_2: Option<String>,
 ) -> Result<DiffResult, OxenError> {
@@ -35,7 +35,7 @@ pub fn diff(
     // If the user specifies two files without revisions, we will compare the files on disk
     if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
         // If we do not have revisions set, just compare the files on disk
-        let result = api::local::diff::tabular(path_1, path_2.unwrap(), keys, targets, vec![])?;
+        let result = api::local::diff::diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
 
         return Ok(result);
     }
@@ -69,12 +69,12 @@ pub fn diff(
 
             CommitPath {
                 commit,
-                path: path_2.as_ref().to_path_buf(),
+                path: path_2.clone(),
             }
         } else {
             CommitPath {
                 commit: None,
-                path: path_2.as_ref().to_path_buf(),
+                path: path_2.clone(),
             }
         };
 
@@ -147,7 +147,7 @@ pub fn diff_commits(
         path_2 = util::fs::version_path(repo, &entry_2);
     };
 
-    let compare_result = api::local::diff::tabular(path_1, path_2, keys, targets, display)?;
+    let compare_result = api::local::diff::diff_files(path_1, path_2, keys, targets, display)?;
 
     log::debug!("compare result: {:?}", compare_result);
 
@@ -164,9 +164,50 @@ mod tests {
 
     use crate::command;
     use crate::error::OxenError;
-    use crate::model::diff::DiffResult;
+    use crate::model::diff::{ChangeType, DiffResult};
     use crate::model::entry::commit_entry::CommitPath;
     use crate::test;
+    use crate::util;
+
+    #[test]
+    fn test_command_diff_txt_files() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            let file1 = dir.join("file1.txt");
+            let file2 = dir.join("file2.txt");
+
+            util::fs::write_to_path(&file1, "hello\nhi\nhow are you?")?;
+            util::fs::write_to_path(&file2, "hello\nhi\nhow are you doing?")?;
+
+            let diff = command::diff(&file1, Some(file2), vec![], vec![], None, None, None)?;
+
+            match diff {
+                DiffResult::Text(result) => {
+                    let lines = result.lines;
+
+                    for line in &lines {
+                        println!("{:?}", line);
+                    }
+
+                    assert_eq!(lines.len(), 4);
+
+                    // should be 2 unchanged
+                    assert_eq!(lines[0].modification, ChangeType::Unchanged);
+                    assert_eq!(&lines[0].text, "hello");
+                    assert_eq!(lines[1].modification, ChangeType::Unchanged);
+                    assert_eq!(&lines[1].text, "hi");
+                    // 1 removed
+                    assert_eq!(lines[2].modification, ChangeType::Removed);
+                    assert_eq!(&lines[2].text, "how are you?");
+                    // 1 added
+                    assert_eq!(lines[3].modification, ChangeType::Added);
+                    assert_eq!(&lines[3].text, "how are you doing?");
+                }
+                _ => panic!("expected text result"),
+            }
+
+            Ok(())
+        })
+    }
 
     #[tokio::test]
     async fn test_compare_same_dataframe_no_keys_no_targets() -> Result<(), OxenError> {

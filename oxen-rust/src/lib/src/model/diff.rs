@@ -22,6 +22,9 @@ pub mod dir_diff_summary;
 pub mod schema_diff;
 
 pub mod tabular_diff;
+pub use tabular_diff::TabularDiff;
+
 pub mod tabular_diff_summary;
 
 pub mod text_diff;
+pub use text_diff::TextDiff;
