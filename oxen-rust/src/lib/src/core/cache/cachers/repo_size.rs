@@ -123,6 +123,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // Recursively compute the size of the directory children
         let children = reader.list_dir_children(&dir)?;
+
         for child in children {
             // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
 
