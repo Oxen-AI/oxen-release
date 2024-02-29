@@ -1,308 +1,654 @@
 //! # oxen diff
 //!
-//! Compare files and directories between versions
+//! Compare two files to find changes between them.
 //!
+//! ## Usage
+//!
+//! ```shell
+//! oxen diff <file_1> <file_2> [options]
+//! ```
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use crate::api;
 use crate::core::index::MergeConflictReader;
 use crate::error::OxenError;
+use crate::model::diff::DiffResult;
+use crate::model::entry::commit_entry::CommitPath;
 use crate::model::LocalRepository;
+use crate::{api, util};
 
-/// Diff a file from a commit or compared to another file
-/// `resource` can be a None, commit id, branch name, or another path.
-///    None: compare `path` to the last commit versioned of the file. If a merge conflict with compare to the merge conflict
-///    commit id: compare `path` to the version of `path` from that commit
-///    branch name: compare `path` to the version of `path` from that branch
-///    another path: compare `path` to the other `path` provided
-/// `path` is the path you want to compare the resource to
 pub fn diff(
-    repo: &LocalRepository,
-    resource: Option<&str>,
-    path: impl AsRef<Path>,
-) -> Result<String, OxenError> {
-    if let Some(resource) = resource {
-        // `resource` is Some(resource)
-        if let Some(compare_commit) = api::local::commits::get_by_id(repo, resource)? {
-            // `resource` is a commit id
-            let original_commit = api::local::commits::head_commit(repo)?;
-            api::local::diff::diff_one(repo, &original_commit, &compare_commit, path)
-        } else if let Some(branch) = api::local::branches::get_by_name(repo, resource)? {
-            // `resource` is a branch name
-            let compare_commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-            let original_commit = api::local::commits::head_commit(repo)?;
+    path_1: impl AsRef<Path>,
+    path_2: Option<PathBuf>,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    repo_dir: Option<PathBuf>,
+    revision_1: Option<String>,
+    revision_2: Option<String>,
+) -> Result<DiffResult, OxenError> {
+    log::debug!(
+        "diff called with keys: {:?} and targets: {:?}",
+        keys,
+        targets,
+    );
 
-            api::local::diff::diff_one(repo, &original_commit, &compare_commit, path)
-        } else if Path::new(resource).exists() {
-            // `resource` is another path
-            api::local::diff::diff_files(resource, path)
-        } else {
-            Err(OxenError::basic_str(format!(
-                "Could not find resource: {resource:?}"
-            )))
-        }
-    } else {
-        // `resource` is None
-        // First check if there are merge conflicts
-        let merger = MergeConflictReader::new(repo)?;
-        if merger.has_conflicts()? {
-            match merger.get_conflict_commit() {
-                Ok(Some(commit)) => {
-                    let current_path = path.as_ref();
-                    let version_path = api::local::diff::get_version_file_from_commit(
-                        repo,
-                        &commit,
-                        current_path,
-                    )?;
-                    api::local::diff::diff_files(current_path, version_path)
-                }
-                err => {
-                    log::error!("{err:?}");
-                    Err(OxenError::basic_str(format!(
-                        "Could not find merge resource: {resource:?}"
-                    )))
-                }
+    // If the user specifies two files without revisions, we will compare the files on disk
+    if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
+        // If we do not have revisions set, just compare the files on disk
+        let result = api::local::diff::diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
+
+        return Ok(result);
+    }
+
+    // Make sure we have a repository to look up the revisions
+    let Some(repo_dir) = repo_dir else {
+        return Err(OxenError::basic_str(
+            "Specifying a revision requires a repository",
+        ));
+    };
+
+    let repository = LocalRepository::new(repo_dir.as_ref())?;
+
+    // TODONOW: might be able to clean this logic up - pull out into function so we can early return and be less confusing
+    let (cpath_1, cpath_2) = if let Some(path_2) = path_2 {
+        let cpath_1 = if let Some(revison) = revision_1 {
+            let commit_1 = api::local::revisions::get(&repository, revison)?;
+            CommitPath {
+                commit: commit_1,
+                path: path_1.as_ref().to_path_buf(),
             }
         } else {
-            // No merge conflicts, compare to last version committed of the file
-            let current_path = path.as_ref();
-            let commit = api::local::commits::head_commit(repo)?;
-            let version_path =
-                api::local::diff::get_version_file_from_commit(repo, &commit, current_path)?;
-            api::local::diff::diff_files(version_path, current_path)
+            CommitPath {
+                commit: None,
+                path: path_1.as_ref().to_path_buf(),
+            }
+        };
+
+        let cpath_2 = if let Some(revison) = revision_2 {
+            let commit = api::local::revisions::get(&repository, revison)?;
+
+            CommitPath {
+                commit,
+                path: path_2.clone(),
+            }
+        } else {
+            CommitPath {
+                commit: None,
+                path: path_2.clone(),
+            }
+        };
+
+        (cpath_1, cpath_2)
+    } else {
+        // If no file2, compare with file1 at head.
+        let commit = Some(api::local::commits::head_commit(&repository)?);
+
+        (
+            CommitPath {
+                commit,
+                path: path_1.as_ref().to_path_buf(),
+            },
+            CommitPath {
+                commit: None,
+                path: path_1.as_ref().to_path_buf(),
+            },
+        )
+    };
+
+    let result = diff_commits(&repository, cpath_1, cpath_2, keys, targets, vec![])?;
+
+    Ok(result)
+}
+
+pub fn diff_commits(
+    repo: &LocalRepository,
+    cpath_1: CommitPath,
+    cpath_2: CommitPath,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<DiffResult, OxenError> {
+    log::debug!(
+        "Compare command called with: {:?} and {:?}",
+        cpath_1,
+        cpath_2
+    );
+
+    // TODONOW - anything we can clean up with this mut initialization?
+    let mut path_1 = cpath_1.path.clone();
+    let mut path_2 = cpath_2.path.clone();
+
+    if let Some(commit_1) = cpath_1.commit {
+        let entry_1 = api::local::entries::get_commit_entry(repo, &commit_1, &cpath_1.path)?
+            .ok_or_else(|| {
+                OxenError::ResourceNotFound(
+                    format!("{}@{}", cpath_1.path.display(), commit_1.id).into(),
+                )
+            })?;
+
+        path_1 = util::fs::version_path(repo, &entry_1);
+    };
+
+    if let Some(mut commit_2) = cpath_2.commit {
+        // if there are merge conflicts, compare against the conflict commit instead
+        let merger = MergeConflictReader::new(repo)?;
+
+        if merger.has_conflicts()? {
+            commit_2 = merger.get_conflict_commit()?.unwrap();
         }
-    }
+
+        let entry_2 = api::local::entries::get_commit_entry(repo, &commit_2, &cpath_2.path)?
+            .ok_or_else(|| {
+                OxenError::ResourceNotFound(
+                    format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
+                )
+            })?;
+
+        path_2 = util::fs::version_path(repo, &entry_2);
+    };
+
+    let compare_result = api::local::diff::diff_files(path_1, path_2, keys, targets, display)?;
+
+    log::debug!("compare result: {:?}", compare_result);
+
+    Ok(compare_result)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
 
-    use crate::api;
+    use std::path::PathBuf;
+
+    use polars::lazy::dsl::{col, lit};
+    use polars::lazy::frame::IntoLazy;
+
     use crate::command;
     use crate::error::OxenError;
-    use crate::model::ContentType;
-    use crate::opts::DFOpts;
+    use crate::model::diff::{ChangeType, DiffResult};
+    use crate::model::entry::commit_entry::CommitPath;
     use crate::test;
     use crate::util;
 
-    // Test diff during a merge conflict should show conflicts for a dataframe
+    #[test]
+    fn test_command_diff_txt_files() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            let file1 = dir.join("file1.txt");
+            let file2 = dir.join("file2.txt");
+
+            util::fs::write_to_path(&file1, "hello\nhi\nhow are you?")?;
+            util::fs::write_to_path(&file2, "hello\nhi\nhow are you doing?")?;
+
+            let diff = command::diff(&file1, Some(file2), vec![], vec![], None, None, None)?;
+
+            match diff {
+                DiffResult::Text(result) => {
+                    let lines = result.lines;
+
+                    for line in &lines {
+                        println!("{:?}", line);
+                    }
+
+                    assert_eq!(lines.len(), 4);
+
+                    // should be 2 unchanged
+                    assert_eq!(lines[0].modification, ChangeType::Unchanged);
+                    assert_eq!(&lines[0].text, "hello");
+                    assert_eq!(lines[1].modification, ChangeType::Unchanged);
+                    assert_eq!(&lines[1].text, "hi");
+                    // 1 removed
+                    assert_eq!(lines[2].modification, ChangeType::Removed);
+                    assert_eq!(&lines[2].text, "how are you?");
+                    // 1 added
+                    assert_eq!(lines[3].modification, ChangeType::Added);
+                    assert_eq!(&lines[3].text, "how are you doing?");
+                }
+                _ => panic!("expected text result"),
+            }
+
+            Ok(())
+        })
+    }
+
     #[tokio::test]
-    async fn test_has_diff_merge_conflicts() -> Result<(), OxenError> {
+    async fn test_compare_same_dataframe_no_keys_no_targets() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
-            let data_path = repo.path.join("data.csv");
-            util::fs::write_to_path(&data_path, "file,label\nimages/0.png,dog\n")?;
-            command::add(&repo, &data_path)?;
-            command::commit(&repo, "Add initial data.csv file with dog")?;
+            let csv1 = "a,b,c\n1,2,3\n4,5,6\n";
+            let csv2 = "a,b,c\n1,2,3\n4,5,6\n";
 
-            // Add a fish label to the file on a branch
-            let fish_branch_name = "add-fish-label";
-            api::local::branches::create_checkout(&repo, fish_branch_name)?;
-            let data_path = test::append_line_txt_file(data_path, "images/fish.png,fish\n")?;
-            command::add(&repo, &data_path)?;
-            command::commit(&repo, "Adding fish to data.csv file")?;
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
 
-            // Checkout main, and branch from it to another branch to add a cat label
-            command::checkout(&repo, &og_branch.name).await?;
-            let cat_branch_name = "add-cat-label";
-            api::local::branches::create_checkout(&repo, cat_branch_name)?;
-            let data_path = test::append_line_txt_file(data_path, "images/cat.png,cat\n")?;
-            command::add(&repo, &data_path)?;
-            command::commit(&repo, "Adding cat to data.csv file")?;
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            // Checkout main again
-            command::checkout(&repo, &og_branch.name).await?;
+            command::add(&repo, repo.path.clone())?;
 
-            // Merge the fish branch in
-            let result = command::merge(&repo, fish_branch_name)?;
-            assert!(result.is_some());
+            let commit = command::commit(&repo, "two files")?;
 
-            // And then the cat branch should have conflicts
-            let result = command::merge(&repo, cat_branch_name)?;
-            assert!(result.is_none());
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
 
-            // Make sure we can access the conflicts in the status command
-            let status = command::status(&repo)?;
-            assert_eq!(status.merge_conflicts.len(), 1);
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
 
-            // Get the diff dataframe
-            let diff = command::diff(&repo, None, &data_path)?;
-            log::debug!("{diff:?}");
+            let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
 
-            assert_eq!(
-                diff,
-                r"Added Rows
-
-shape: (1, 2)
-┌────────────────┬───────┐
-│ file           ┆ label │
-│ ---            ┆ ---   │
-│ str            ┆ str   │
-╞════════════════╪═══════╡
-│ images/cat.png ┆ cat   │
-└────────────────┴───────┘
-
-
-Removed Rows
-
-shape: (1, 2)
-┌─────────────────┬───────┐
-│ file            ┆ label │
-│ ---             ┆ ---   │
-│ str             ┆ str   │
-╞═════════════════╪═══════╡
-│ images/fish.png ┆ fish  │
-└─────────────────┴───────┘
-
-"
-            );
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 0);
+                }
+                _ => panic!("expected tabular result"),
+            }
 
             Ok(())
         })
         .await
     }
 
-    #[test]
-    fn test_diff_tabular_add_col() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(bbox_filename);
+    #[tokio::test]
+    async fn test_compare_one_added_one_removed_no_keys_no_targets() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let csv1 = "a,b,c\n1,2,3\n4,5,6\n";
+            let csv2 = "a,b,c\n1,2,3\n4,5,2\n";
 
-            let mut opts = DFOpts::empty();
-            // Add Column
-            opts.add_col = Some(String::from("is_cute:unknown:str"));
-            // Save to Output
-            opts.output = Some(bbox_file.clone());
-            // Perform df transform
-            command::df(&bbox_file, opts)?;
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
 
-            let diff = command::diff(&repo, None, &bbox_file);
-            println!("{:?}", diff);
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            assert!(diff.is_ok());
-            let diff = diff.unwrap();
-            assert_eq!(
-                diff,
-                r"Added Columns
+            command::add(&repo, repo.path.clone())?;
 
-shape: (6, 1)
-┌─────────┐
-│ is_cute │
-│ ---     │
-│ str     │
-╞═════════╡
-│ unknown │
-│ unknown │
-│ unknown │
-│ unknown │
-│ unknown │
-│ unknown │
-└─────────┘
+            let commit = command::commit(&repo, "two files")?;
 
-"
-            );
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
 
-            Ok(())
-        })
-    }
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
 
-    #[test]
-    fn test_diff_tabular_add_row() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(bbox_filename);
+            let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
 
-            let mut opts = DFOpts::empty();
-            // Add Row
-            opts.add_row = Some(String::from("train/cat_100.jpg,cat,100.0,100.0,100,100"));
-            opts.content_type = ContentType::Csv;
-            // Save to Output
-            opts.output = Some(bbox_file.clone());
-            // Perform df transform
-            command::df(&bbox_file, opts)?;
-
-            match command::diff(&repo, None, &bbox_file) {
-                Ok(diff) => {
-                    println!("{diff}");
-
-                    assert_eq!(
-                        diff,
-                        r"Added Rows
-
-shape: (1, 6)
-┌───────────────────┬───────┬───────┬───────┬───────┬────────┐
-│ file              ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
-│ ---               ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
-│ str               ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
-╞═══════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
-│ train/cat_100.jpg ┆ cat   ┆ 100.0 ┆ 100.0 ┆ 100   ┆ 100    │
-└───────────────────┴───────┴───────┴───────┴───────┴────────┘
-
-"
-                    );
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 2);
+                    assert_eq!(df.width(), 4); // 3 (inferred) key columns + diff status
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 1);
                 }
-                Err(err) => {
-                    panic!("Error diffing: {}", err);
-                }
+                _ => panic!("expected tabular result"),
             }
 
             Ok(())
         })
+        .await
     }
+    #[tokio::test]
+    async fn test_compare_all_types_with_keys_and_targets() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // Keying on "a" and "b" with target "c"
+            // Removed: -> 5,6 and 7,8
+            // Added: 9,10
+            // Modified: 3,4 (1 -> 1234)
+            // Unchanged: 1,2 (not included)
 
-    #[test]
-    fn test_diff_tabular_remove_row() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let bbox_filename = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let bbox_file = repo.path.join(bbox_filename);
+            let csv1 = "a,b,c\n1,2,1\n3,4,1\n5,6,1\n7,8,1";
+            let csv2 = "a,b,c\n1,2,1\n3,4,1234\n9,10,1";
 
-            // Remove a row
-            let bbox_file = test::modify_txt_file(
-                bbox_file,
-                r"
-file,label,min_x,min_y,width,height
-train/dog_1.jpg,dog,101.5,32.0,385,330
-train/dog_2.jpg,dog,7.0,29.5,246,247
-train/cat_2.jpg,cat,30.5,44.0,333,396
-",
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::diff_commits(
+                &repo,
+                c1,
+                c2,
+                vec!["a".to_string(), "b".to_string()],
+                vec!["c".to_string()],
+                vec![],
             )?;
 
-            match command::diff(&repo, None, bbox_file) {
-                Ok(diff) => {
-                    println!("{diff}");
-
-                    assert_eq!(
-                        diff,
-                        r"Removed Rows
-
-shape: (3, 6)
-┌─────────────────┬───────┬───────┬───────┬───────┬────────┐
-│ file            ┆ label ┆ min_x ┆ min_y ┆ width ┆ height │
-│ ---             ┆ ---   ┆ ---   ┆ ---   ┆ ---   ┆ ---    │
-│ str             ┆ str   ┆ f64   ┆ f64   ┆ i64   ┆ i64    │
-╞═════════════════╪═══════╪═══════╪═══════╪═══════╪════════╡
-│ train/dog_1.jpg ┆ dog   ┆ 102.5 ┆ 31.0  ┆ 386   ┆ 330    │
-│ train/dog_3.jpg ┆ dog   ┆ 19.0  ┆ 63.5  ┆ 376   ┆ 421    │
-│ train/cat_1.jpg ┆ cat   ┆ 57.0  ┆ 35.5  ┆ 304   ┆ 427    │
-└─────────────────┴───────┴───────┴───────┴───────┴────────┘
-
-"
-                    );
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 4);
+                    assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 2);
+                    assert_eq!(modified_df.height(), 1);
                 }
-                Err(err) => {
-                    panic!("Error diffing: {}", err);
-                }
+                _ => panic!("expected tabular result"),
             }
 
             Ok(())
         })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_all_types_with_keys_and_same_targets() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // If all the targets are 1 - aka, using targets but none are unchanged, we want to make sure that
+            // the column namings of .left and .right are consistently handled
+
+            let csv1 = "a,b,c\n1,2,1\n3,4,1\n5,6,1\n7,8,1";
+            let csv2 = "a,b,c\n1,2,1\n3,4,1\n9,10,1";
+
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::diff_commits(
+                &repo,
+                c1,
+                c2,
+                vec!["a".to_string(), "b".to_string()],
+                vec!["c".to_string()],
+                vec![],
+            )?;
+
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 3);
+                    assert_eq!(df.width(), 5); // 2 key columns, 1 target column * 2 views each, and diff status
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 2);
+                    assert_eq!(modified_df.height(), 0);
+                }
+                _ => panic!("expected tabular result"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_same_files_with_targets() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n";
+            let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n";
+
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::diff_commits(
+                &repo,
+                c1,
+                c2,
+                vec!["a".to_string(), "b".to_string()],
+                vec!["c".to_string(), "d".to_string()],
+                vec![],
+            )?;
+
+            // Should return empty df
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 0);
+                    assert_eq!(df.width(), 7); // 2 key columns, 2 targets * 2(right+left) + diff status
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 0);
+                    assert_eq!(removed_df.height(), 0);
+                    assert_eq!(modified_df.height(), 0);
+                }
+                _ => panic!("expected tabular result"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn compare_no_keys_no_targets_added_column() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n8,7,6,5";
+            let csv2 = "a,b,c,d,e\n1,2,3,4,5\n4,5,6,7,8\n9,8,7,6,5";
+            // 2 modified (added row) 1 added 1 removed
+
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
+
+            // Should return empty df
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 4);
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 1);
+                    assert_eq!(modified_df.height(), 2);
+                }
+                _ => panic!("expected tabular result"),
+            }
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_compare_keys_no_targets_implies_modified() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async move {
+            // We'll key on a, b, and c.
+            // D will then be an implicit target bc it's a shared column
+            // (1 added, 1 removed, 1 modified)
+            let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n0,0,0,0\n";
+            let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,8\n1,1,1,1\n";
+
+            let path_1 = PathBuf::from("file1.csv");
+            let path_2 = PathBuf::from("file2.csv");
+
+            // Write to file
+            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+
+            command::add(&repo, repo.path.clone())?;
+
+            let commit = command::commit(&repo, "two files")?;
+
+            let c1 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_1.clone(),
+            };
+
+            let c2 = CommitPath {
+                commit: Some(commit.clone()),
+                path: path_2.clone(),
+            };
+
+            let compare_result = command::diff_commits(
+                &repo,
+                c1,
+                c2,
+                vec!["a".to_string(), "b".to_string(), "c".to_string()],
+                vec![],
+                vec![],
+            )?;
+
+            // Should return empty df
+            let diff_col = ".oxen.diff.status";
+            match compare_result {
+                DiffResult::Tabular(result) => {
+                    let df = result.contents;
+                    assert_eq!(df.height(), 3);
+                    let added_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("added")))
+                        .collect()?;
+                    let removed_df = df
+                        .clone()
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("removed")))
+                        .collect()?;
+                    let modified_df = df
+                        .lazy()
+                        .filter(col(diff_col).eq(lit("modified")))
+                        .collect()?;
+                    assert_eq!(added_df.height(), 1);
+                    assert_eq!(removed_df.height(), 1);
+                    assert_eq!(modified_df.height(), 1);
+                }
+                _ => panic!("expected tabular result"),
+            }
+
+            Ok(())
+        })
+        .await
     }
 }

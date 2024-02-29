@@ -29,19 +29,24 @@ const DIFF_STATUS_REMOVED: &str = "removed";
 const DIFF_STATUS_MODIFIED: &str = "modified";
 const DIFF_STATUS_UNCHANGED: &str = "unchanged";
 
-pub fn compare(
+pub fn diff(
     df_1: &DataFrame,
     df_2: &DataFrame,
     schema_diff: SchemaDiff,
-    targets: Vec<&str>,
-    keys: Vec<&str>,
-    display: Vec<&str>,
+    keys: &[impl AsRef<str>],
+    targets: &[impl AsRef<str>],
+    display: &[impl AsRef<str>],
 ) -> Result<CompareTabularWithDF, OxenError> {
     if !targets.is_empty() && keys.is_empty() {
+        let targets = targets.iter().map(|k| k.as_ref()).collect::<Vec<&str>>();
         return Err(OxenError::basic_str(
-            "Must specifiy at least one key column if specifying target columns.",
+            format!("Must specify at least one key column if specifying target columns. Targets: {targets:?}"),
         ));
     }
+
+    let keys: Vec<&str> = keys.iter().map(|k| k.as_ref()).collect();
+    let targets: Vec<&str> = targets.iter().map(|k| k.as_ref()).collect();
+    let display: Vec<&str> = display.iter().map(|k| k.as_ref()).collect();
 
     let output_columns = get_output_columns(
         &Schema::from_polars(&df_2.schema()),
@@ -221,6 +226,7 @@ fn order_columns_by_schema<'a>(
 
     ordered_columns
 }
+
 fn join_hashed_dfs(
     left_df: &DataFrame,
     right_df: &DataFrame,
