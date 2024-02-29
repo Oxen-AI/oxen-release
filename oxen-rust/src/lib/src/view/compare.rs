@@ -5,17 +5,12 @@ use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::message::{MessageLevel, OxenMessage};
 use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareTargetBody};
+use crate::model::diff::text_diff::TextDiff;
+use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::{Commit, DiffEntry, Schema};
 use crate::view::Pagination;
 
 use super::StatusMessage;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AddRemoveModifyCounts {
-    pub added: usize,
-    pub removed: usize,
-    pub modified: usize,
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareCommits {
@@ -130,7 +125,7 @@ pub struct CompareSchemaColumn {
 #[derive(Debug)]
 pub enum CompareResult {
     Tabular((CompareTabular, DataFrame)),
-    Text(String),
+    Text(TextDiff),
 }
 
 #[derive(Serialize, Deserialize, Debug)]

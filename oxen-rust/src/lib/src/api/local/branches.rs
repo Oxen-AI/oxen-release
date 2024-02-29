@@ -30,9 +30,10 @@ pub fn get_by_name(repo: &LocalRepository, name: &str) -> Result<Option<Branch>,
 /// Get branch by name or fall back the current
 pub fn get_by_name_or_current(
     repo: &LocalRepository,
-    branch_name: Option<&str>,
+    branch_name: Option<impl AsRef<str>>,
 ) -> Result<Branch, OxenError> {
     if let Some(branch_name) = branch_name {
+        let branch_name = branch_name.as_ref();
         match api::local::branches::get_by_name(repo, branch_name)? {
             Some(branch) => Ok(branch),
             None => Err(OxenError::local_branch_not_found(branch_name)),

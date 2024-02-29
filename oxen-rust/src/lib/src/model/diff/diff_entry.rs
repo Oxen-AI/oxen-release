@@ -7,10 +7,11 @@ use serde::{Deserialize, Serialize};
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
+use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::opts::DFOpts;
-use crate::view::compare::AddRemoveModifyCounts;
 use crate::view::entry::ResourceVersion;
+use crate::view::TabularDiffView;
 use crate::{
     api,
     model::{CommitEntry, LocalRepository},
@@ -21,7 +22,6 @@ use super::diff_entry_status::DiffEntryStatus;
 use super::dir_diff_summary::DirDiffSummary;
 use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
-use super::tabular_diff::TabularDiff;
 use super::tabular_diff_summary::TabularDiffWrapper;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -163,7 +163,7 @@ impl DiffEntry {
         if let Some(df_opts) = df_opts {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
-                    TabularDiff::from_commit_entries(repo, &base_entry, &head_entry, df_opts);
+                    TabularDiffView::from_commit_entries(repo, &base_entry, &head_entry, df_opts);
                 return DiffEntry {
                     status: status.to_string(),
                     data_type: data_type.clone(),

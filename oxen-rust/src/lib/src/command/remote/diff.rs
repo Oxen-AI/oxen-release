@@ -14,7 +14,7 @@ use crate::model::LocalRepository;
 
 pub async fn diff(
     repo: &LocalRepository,
-    branch_name: Option<&str>,
+    branch_name: Option<impl AsRef<str>>,
     path: &Path,
 ) -> Result<String, OxenError> {
     let branch = api::local::branches::get_by_name_or_current(repo, branch_name)?;
