@@ -726,8 +726,12 @@ fn group_dir_diffs_by_dir(dir_diffs: Vec<(PathBuf, DiffEntryStatus)>) -> Vec<Dir
     // Group by parent
     let mut dir_parent_map: HashMap<PathBuf, Vec<DirDiffStatus>> = HashMap::new();
     for (dir, status) in dir_diffs {
-        // Only root has no parent
+        // Root should not be mapped to itself as a parent, but should exist in the result
+        // to handle top-level changes
         if dir == Path::new("") {
+            if !dir_parent_map.contains_key(&dir) {
+                dir_parent_map.insert(dir.clone(), vec![]);
+            }
             continue;
         }
         let parent = dir.parent().unwrap_or(Path::new(""));
