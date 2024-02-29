@@ -80,11 +80,6 @@ pub fn meta_entry_from_dir(
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
 
-    log::debug!(
-        "latest_commit_path is at {:?}",
-        latest_commit_path.display()
-    );
-
     let latest_commit = match util::fs::read_from_path(latest_commit_path) {
         Ok(id) => commit_reader.get_commit_by_id(id)?,
         Err(_) => {
@@ -93,17 +88,12 @@ pub fn meta_entry_from_dir(
     };
 
     let total_size_path = core::cache::cachers::repo_size::dir_size_path(repo, commit, path);
-    log::debug!("total_size_path is at {:?}", total_size_path.display());
     let total_size = match util::fs::read_from_path(total_size_path) {
-        Ok(total_size_str) => {
-            log::debug!("cache hit for dir size at path");
-            total_size_str
-                .parse::<u64>()
-                .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?
-        }
+        Ok(total_size_str) => total_size_str
+            .parse::<u64>()
+            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
         Err(_) => {
             // cache failed, go compute it
-            log::debug!("cache miss for dir size");
             compute_dir_size(repo, object_reader.clone(), commit, path)?
         }
     };
@@ -377,7 +367,6 @@ pub fn list_directory(
     }
 
     let metadata = get_dir_entry_metadata(repo, commit, directory)?;
-    log::debug!("dir metadata is {:?}", metadata);
     let dir = meta_entry_from_dir(
         repo,
         object_reader,
@@ -386,7 +375,6 @@ pub fn list_directory(
         &commit_reader,
         revision,
     )?;
-    log::debug!("dir is {:?}", dir);
 
     Ok((
         PaginatedDirEntries {
