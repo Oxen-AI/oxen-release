@@ -1,5 +1,4 @@
 from oxen.dataset import Dataset
-import os
 
 
 def test_dataset_load_celeba_train_download_df(
