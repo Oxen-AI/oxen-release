@@ -2,8 +2,6 @@ from ..oxen import PyTextDiff, PyLineDiff, PyChangeType
 
 from oxen.diff.change_type import ChangeType
 
-from polars import DataFrame
-
 
 class LineDiff:
     """

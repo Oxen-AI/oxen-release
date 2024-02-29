@@ -5,8 +5,8 @@ Oxen can be used to compare data frames and return a tabular diff.
 import os
 import oxen
 
-result = oxen.diff("dataset_1.csv", "dataset_2.csv" keys=["id"], targets=["name", "age"])
-print(result.data)
+result = oxen.diff("dataset_1.csv", "dataset_2.csv")
+print(result.diff)
 ```
 """
 
@@ -35,15 +35,19 @@ def compare(
 
     Args:
         path: `os.PathLike`
-            The path to diff. If `compare_to` is not provided, this will compare the data frame to the previous commit.
+            The path to diff. If `compare_to` is not provided,
+            this will compare the data frame to the previous commit.
         to: `os.PathLike`
             The path to compare. If provided this will be the right side of the diff.
         keys: `list[str]`
-            The keys to compare on. This is used to join the two data frames. Keys will be combined and hashed to create a identifier for each row.
+            The keys to compare on. This is used to join the two data frames.
+            Keys will be combined and hashed to create a identifier for each row.
         targets: `list[str]`
-            The targets to compare on. This is used to compare the values of the two data frames.
+            The targets to compare on. This is used to compare the values of the
+            two data frames.
         repo_dir: `os.PathLike`
-            The path to the oxen repository. Must be provided if `compare_to` is not provided, or if `revision_left` or `revision_right` is provided.
+            The path to the oxen repository. Must be provided if `compare_to` is
+            not provided, or if `revision_left` or `revision_right` is provided.
         revision_left: `str`
             The left revision to compare. Can be a commit hash or branch name.
         revision_right: `str`
@@ -59,9 +63,6 @@ def compare(
     return Diff(result)
 
 
-# TODO: Write a class that wraps our PyDiff class, documents it, and provides a more user-friendly interface.
-
-
 class Diff:
     """
     Diff class wraps the PyDiff class and helps convert to the variety of diff types.
@@ -70,8 +71,8 @@ class Diff:
     import os
     import oxen
 
-    result = oxen.diff("dataset_1.csv", "dataset_2.csv" keys=["id"], targets=["name", "age"])
-    print(result.diff.contents)
+    result = oxen.diff("dataset_1.csv", "dataset_2.csv")
+    print(result.diff)
     ```
     """
 
