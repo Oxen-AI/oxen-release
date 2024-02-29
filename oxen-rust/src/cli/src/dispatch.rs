@@ -532,8 +532,10 @@ pub async fn diff(
         let mut compare_result = if revision_1.is_none() && revision_2.is_none() && path_2.is_some()
         {
             // If we do not have revisions set, just compare the files on disk
-            api::local::diff::tabular(path_1, path_2.unwrap(), keys, targets, vec![])?
+            command::diff(path_1, path_2, keys, targets, None, revision_1, revision_2)?
         } else {
+            // If we have revisions set, pass in the repo_dir to be able
+            // to compare the files at those revisions within the .oxen repo
             let repo_dir = env::current_dir().unwrap();
             command::diff(
                 path_1,
