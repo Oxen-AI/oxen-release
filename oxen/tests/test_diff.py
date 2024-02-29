@@ -11,9 +11,9 @@ def test_tabular_diff_added_row(shared_datadir):
         os.path.join(repo_dir, "prompts_added_row.csv"),
     )
 
-    print(result.diff)
+    print(result.get())
 
-    df = result.diff.data
+    df = result.tabular.data
     assert df.shape[0] == 1
     assert df.shape[1] == 3
 
@@ -26,7 +26,7 @@ def test_text_diff_added_row(shared_datadir):
         os.path.join(repo_dir, "prompts_added_row.txt"),
     )
 
-    print(result.diff)
+    print(result.get())
 
-    assert result.diff.num_added == 3
-    assert result.diff.num_removed == 1
+    assert result.text.num_added == 3
+    assert result.text.num_removed == 1

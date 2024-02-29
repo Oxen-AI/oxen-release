@@ -13,7 +13,7 @@ from oxen.op import Op
 from oxen import auth
 from oxen import loaders
 from oxen.clone import clone
-from oxen.diff_paths.diff_paths import diff_paths as diff
+from oxen.diff.diff import diff
 from oxen.init import init
 from oxen.config import is_configured
 
