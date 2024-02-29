@@ -5,9 +5,14 @@ use crate::model::diff::text_diff::TextDiff;
 use crate::util;
 
 use difference::{Changeset, Difference};
-use std::path::PathBuf;
+use std::path::Path;
 
-pub fn diff(version_file_1: &PathBuf, version_file_2: &PathBuf) -> Result<TextDiff, OxenError> {
+pub fn diff(
+    version_file_1: impl AsRef<Path>,
+    version_file_2: impl AsRef<Path>,
+) -> Result<TextDiff, OxenError> {
+    let version_file_1 = version_file_1.as_ref();
+    let version_file_2 = version_file_2.as_ref();
     let original_data = util::fs::read_from_path(version_file_1)?;
     let compare_data = util::fs::read_from_path(version_file_2)?;
     let Changeset { diffs, .. } = Changeset::new(&original_data, &compare_data, "\n");

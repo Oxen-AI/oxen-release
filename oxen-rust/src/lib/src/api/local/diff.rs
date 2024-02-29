@@ -42,6 +42,35 @@ pub mod utf8_diff;
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
 
+fn is_files_tabular(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
+    util::fs::is_tabular(file_1.as_ref()) && util::fs::is_tabular(file_2.as_ref())
+}
+fn is_files_utf8(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
+    util::fs::is_utf8(file_1.as_ref()) && util::fs::is_utf8(file_2.as_ref())
+}
+
+pub fn diff_files(
+    file_1: impl AsRef<Path>,
+    file_2: impl AsRef<Path>,
+    keys: Vec<String>,
+    targets: Vec<String>,
+    display: Vec<String>,
+) -> Result<DiffResult, OxenError> {
+    if is_files_tabular(&file_1, &file_2) {
+        let result = tabular(file_1, file_2, keys, targets, display)?;
+        Ok(result)
+    } else if is_files_utf8(&file_1, &file_2) {
+        let result = utf8_diff::diff(file_1, file_2)?;
+        Ok(DiffResult::Text(result))
+    } else {
+        Err(OxenError::invalid_file_type(format!(
+            "Compare not supported for files, found {:?} and {:?}",
+            file_1.as_ref(),
+            file_2.as_ref()
+        )))
+    }
+}
+
 pub fn tabular(
     file_1: impl AsRef<Path>,
     file_2: impl AsRef<Path>,
