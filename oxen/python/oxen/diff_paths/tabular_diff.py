@@ -8,11 +8,11 @@ class TabularDiff:
         self._diff = diff
 
     def __repr__(self) -> str:
-        return f"TabularDiff(shape={self._diff.contents.shape})\n{self._diff.contents}"
+        return f"TabularDiff(shape={self._diff.data.shape})\n{self._diff.data}"
 
     @property
-    def contents(self) -> DataFrame:
+    def data(self) -> DataFrame:
         """
-        Returns the contents of the diff as a polars data frame.
+        Returns the data of the diff as a polars data frame.
         """
-        return self._diff.contents
+        return self._diff.data
