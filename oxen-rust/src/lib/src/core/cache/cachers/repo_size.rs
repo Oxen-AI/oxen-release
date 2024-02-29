@@ -62,7 +62,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let object_reader = ObjectDBReader::new(repo)?;
 
     for dir in dirs {
-        log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
+        // log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
 
         // Start with the size of all the entries in this dir
         let entries = {
@@ -124,7 +124,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         // Recursively compute the size of the directory children
         let children = reader.list_dir_children(&dir)?;
 
-        log::debug!("got dir children {:#?} for dir {:?}", children, dir);
         for child in children {
             // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
 
@@ -142,8 +141,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             }
 
             let size = api::local::entries::compute_entries_size(&entries)?;
-
-            log::debug!("Size of child {:?} is {} for dir {:?}", child, size, dir);
 
             total_size += size;
 
