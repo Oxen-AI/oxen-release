@@ -8,10 +8,13 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::metadata::metadata_dir::MetadataDirImpl;
+use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::opts::DFOpts;
 use crate::view::entry::ResourceVersion;
-use crate::view::TabularDiffView;
+use crate::view::{DataTypeCount, TabularDiffView};
 use crate::{
     api,
     model::{CommitEntry, LocalRepository},
@@ -19,7 +22,7 @@ use crate::{
 };
 
 use super::diff_entry_status::DiffEntryStatus;
-use super::dir_diff_summary::DirDiffSummary;
+use super::dir_diff_summary::{AddRemoveDataTypeCounts, DirDiffSummary};
 use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
 use super::tabular_diff_summary::TabularDiffWrapper;
@@ -133,15 +136,26 @@ impl DiffEntry {
                 util::fs::version_path(repo, &base_entry.clone().unwrap()),
             )
         };
+
+        log::debug!("trying to infer datatype");
         let data_type = util::fs::file_data_type(&version_path);
+        log::debug!("got data type {:?}", data_type);
 
         let base_resource = DiffEntry::resource_from_entry(base_entry.clone());
         let head_resource = DiffEntry::resource_from_entry(head_entry.clone());
 
+        log::debug!(
+            "got resource versions {:?} and {:?}",
+            base_resource,
+            head_resource
+        );
+
         let mut base_meta_entry =
             MetadataEntry::from_commit_entry(repo, base_entry.clone(), base_commit);
+        log::debug!("got base entry {:?}", base_meta_entry);
         let mut head_meta_entry =
             MetadataEntry::from_commit_entry(repo, head_entry.clone(), head_commit);
+        log::debug!("got head entry {:?}", head_meta_entry);
 
         if base_entry.is_some() {
             base_meta_entry.as_mut().unwrap().resource = base_resource.clone();
@@ -160,6 +174,9 @@ impl DiffEntry {
         //     should_do_full_diff,
         //     pagination.is_some()
         // );
+
+        log::debug!("df_opts: {:?}", df_opts);
+        log::debug!("should_do_full_diff {}", should_do_full_diff);
         if let Some(df_opts) = df_opts {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
@@ -279,6 +296,12 @@ impl DiffEntry {
         let base_commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
         let head_commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
 
+        log::debug!(
+            "in all files we have base_dir: {:?} and head_dir {:?}",
+            base_dir,
+            head_dir
+        );
+
         // base and head path will be the same so just choose base
         let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
 
@@ -301,10 +324,6 @@ impl DiffEntry {
 
         // Uniq them
         let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs);
-
-        // What base_commit_id and head_commit_id are happening here?
-        log::debug!("base_commit_id 284 is {:?}", base_commit_id);
-        log::debug!("head_commit_id 285 is {:?}", head_commit_id);
 
         for dir in dirs {
             let base_dir_reader =
@@ -330,6 +349,10 @@ impl DiffEntry {
                 .collect::<HashSet<_>>();
             num_added += added_entries.len();
 
+            for entry in added_entries.iter() {
+                // Get the metadataentry
+            }
+
             // Find the removed entries
             let removed_entries = base_entries
                 .difference(&head_entries)
@@ -346,6 +369,8 @@ impl DiffEntry {
             }
         }
 
+        let data_type_counts = find_data_type_differences(Some(base_dir), Some(head_dir));
+
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             dir: DirDiffSummaryImpl {
                 file_counts: AddRemoveModifyCounts {
@@ -353,6 +378,7 @@ impl DiffEntry {
                     removed: num_removed,
                     modified: num_modified,
                 },
+                data_type_counts: Some(data_type_counts),
             },
         })))
     }
@@ -365,6 +391,8 @@ impl DiffEntry {
         let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
         let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
         log::debug!("r_compute_removed_files base_dir: {:?}", path);
+
+        log::debug!("in removed files we have base_dir: {:?}", base_dir);
 
         // Count all removals in the directory and its children
         let commit_entry_reader =
@@ -384,6 +412,8 @@ impl DiffEntry {
             num_removed += count;
         }
 
+        let data_type_counts = find_data_type_differences(Some(base_dir), None);
+
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             dir: DirDiffSummaryImpl {
                 file_counts: AddRemoveModifyCounts {
@@ -391,6 +421,7 @@ impl DiffEntry {
                     removed: num_removed,
                     modified: 0,
                 },
+                data_type_counts: Some(data_type_counts), // TODO: add data type counts diff
             },
         })))
     }
@@ -403,6 +434,8 @@ impl DiffEntry {
         let commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
         let path = PathBuf::from(&head_dir.resource.clone().unwrap().path);
         log::debug!("r_compute_added_files base_dir: {:?}", path);
+
+        log::debug!("in added files we have head_dir {:?}", head_dir);
 
         // Count all removals in the directory and its children
         let commit_entry_reader =
@@ -422,6 +455,8 @@ impl DiffEntry {
             num_added += count;
         }
 
+        let data_type_counts = find_data_type_differences(None, Some(head_dir));
+
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             dir: DirDiffSummaryImpl {
                 file_counts: AddRemoveModifyCounts {
@@ -429,6 +464,7 @@ impl DiffEntry {
                     removed: 0,
                     modified: 0,
                 },
+                data_type_counts: Some(data_type_counts), // TODO: add data type counts diff
             },
         })))
     }
@@ -440,6 +476,7 @@ impl DiffEntry {
         head_entry: &Option<CommitEntry>,
     ) -> Option<GenericDiffSummary> {
         // TODO match on type, and create the appropriate summary
+        log::debug!("getting diff summary from file");
         match data_type {
             EntryDataType::Tabular => Some(GenericDiffSummary::TabularDiffWrapper(
                 TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry),
@@ -447,4 +484,72 @@ impl DiffEntry {
             _ => None,
         }
     }
+}
+
+fn find_data_type_differences(
+    left_entry: Option<&MetadataEntry>,
+    right_entry: Option<&MetadataEntry>,
+) -> AddRemoveDataTypeCounts {
+    // Extract data types from the optional MetadataEntry - these will be default vec if is none
+    let extract_data_types = |entry: Option<&MetadataEntry>| -> Vec<DataTypeCount> {
+        entry
+            .and_then(|entry| match &entry.metadata {
+                Some(GenericMetadata::MetadataDir(MetadataDir {
+                    dir: MetadataDirImpl { data_types, .. },
+                    ..
+                })) => Some(
+                    data_types
+                        .iter()
+                        .map(|dtc| DataTypeCount {
+                            data_type: dtc.data_type.clone(),
+                            count: dtc.count,
+                        })
+                        .collect(),
+                ),
+                _ => None,
+            })
+            .unwrap_or_default()
+    };
+
+    let left_data_types = extract_data_types(left_entry);
+    let right_data_types = extract_data_types(right_entry);
+
+    log::debug!("got left data types {:?}", left_data_types);
+    log::debug!("got right data types {:?}", right_data_types);
+
+    let added: Vec<DataTypeCount> = right_data_types
+        .iter()
+        .filter_map(|rdtc| {
+            match left_data_types
+                .iter()
+                .find(|&ldtc| ldtc.data_type == rdtc.data_type)
+            {
+                Some(ldtc) if ldtc.count < rdtc.count => Some(DataTypeCount {
+                    data_type: rdtc.data_type.clone(),
+                    count: rdtc.count - ldtc.count, // Safe as rdtc.count > ldtc.count
+                }),
+                None => Some(rdtc.clone()), // Entirely new data type added
+                _ => None,                  // No change or not an addition
+            }
+        })
+        .collect();
+
+    let removed: Vec<DataTypeCount> = left_data_types
+        .iter()
+        .filter_map(|ldtc| {
+            match right_data_types
+                .iter()
+                .find(|&rdtc| rdtc.data_type == ldtc.data_type)
+            {
+                Some(rdtc) if ldtc.count > rdtc.count => Some(DataTypeCount {
+                    data_type: ldtc.data_type.clone(),
+                    count: ldtc.count - rdtc.count, // Safe as ldtc.count > rdtc.count
+                }),
+                None => Some(ldtc.clone()), // Data type no longer present
+                _ => None,                  // No change or not a removal
+            }
+        })
+        .collect();
+
+    AddRemoveDataTypeCounts { added, removed }
 }
