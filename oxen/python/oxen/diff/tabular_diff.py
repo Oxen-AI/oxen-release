@@ -7,6 +7,7 @@ class TabularDiff:
     """
     This class returns a polars data frame that represents a tabular diff.
     """
+
     def __init__(self, diff: PyTabularDiff):
         self._diff = diff
 
