@@ -193,7 +193,7 @@ class RemoteRepo:
             if directory and not os.path.exists(directory):
                 os.makedirs(directory, exist_ok=True)
 
-        if revision == None:
+        if revision is None:
             self._repo.download(src, dst, self.revision)
         else:
             self._repo.download(src, dst, revision)
