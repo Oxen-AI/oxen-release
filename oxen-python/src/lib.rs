@@ -87,6 +87,7 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     // DataFrame (df) Module
     let df_module = PyModule::new(py, "df")?;
     df_module.add_function(wrap_pyfunction!(df::save, df_module)?)?;
+    df_module.add_function(wrap_pyfunction!(df::load, df_module)?)?;
     m.add_submodule(df_module)?;
 
     Ok(())

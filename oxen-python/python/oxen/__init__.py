@@ -35,5 +35,5 @@ __all__ = [
     "auth",
     "loaders",
     "util",
-    "diff"
+    "diff",
 ]
