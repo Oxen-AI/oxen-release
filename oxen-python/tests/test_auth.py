@@ -24,6 +24,7 @@ def test_add_host(shared_datadir):
     assert "test_host" in set([c["host"] for c in config["host_configs"]])
     assert "abcdefghijklmnop" in set([c["auth_token"] for c in config["host_configs"]])
 
+
 def test_double_create_should_update(shared_datadir):
     path = os.path.join(shared_datadir, "config", "user_config.toml")
     os.makedirs(os.path.dirname(path), exist_ok=True)

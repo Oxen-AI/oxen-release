@@ -5,6 +5,8 @@ pub mod error;
 pub mod py_branch;
 
 pub mod auth;
+pub mod df;
+pub mod diff;
 pub mod py_commit;
 pub mod py_dataset;
 pub mod py_diff;
@@ -44,6 +46,10 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<py_commit::PyCommit>()?;
     m.add_class::<py_dataset::PyDataset>()?;
     m.add_class::<py_diff::PyDiff>()?;
+    m.add_class::<diff::py_tabular_diff::PyTabularDiff>()?;
+    m.add_class::<diff::py_text_diff::PyTextDiff>()?;
+    m.add_class::<diff::py_text_diff::PyLineDiff>()?;
+    m.add_class::<diff::py_text_diff::PyChangeType>()?;
     m.add_class::<py_local_repo::PyLocalRepo>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
@@ -72,6 +78,16 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     remote_module.add_function(wrap_pyfunction!(remote::get_repo, remote_module)?)?;
     remote_module.add_function(wrap_pyfunction!(remote::create_repo, remote_module)?)?;
     m.add_submodule(remote_module)?;
+
+    // Diff Module
+    let diff_module = PyModule::new(py, "diff")?;
+    diff_module.add_function(wrap_pyfunction!(diff::diff_paths, diff_module)?)?;
+    m.add_submodule(diff_module)?;
+
+    // DataFrame (df) Module
+    let df_module = PyModule::new(py, "df")?;
+    df_module.add_function(wrap_pyfunction!(df::save, df_module)?)?;
+    m.add_submodule(df_module)?;
 
     Ok(())
 }
