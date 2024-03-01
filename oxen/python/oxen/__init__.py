@@ -13,6 +13,7 @@ from oxen.op import Op
 from oxen import auth
 from oxen import loaders
 from oxen.clone import clone
+from oxen.diff.diff import diff
 from oxen.init import init
 from oxen.config import is_configured
 
@@ -34,4 +35,5 @@ __all__ = [
     "auth",
     "loaders",
     "util",
+    "diff"
 ]
