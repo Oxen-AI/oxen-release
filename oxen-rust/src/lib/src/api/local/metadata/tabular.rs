@@ -11,9 +11,10 @@ use std::path::Path;
 /// Detects the tabular metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError> {
     let path = path.as_ref();
-    let opts = DFOpts::empty();
-    let df = tabular::read_df(path, opts)?;
-    Ok(MetadataTabular::new(df.width(), df.height()))
+    log::debug!("getting df size for {:?}", path);
+    let size = tabular::get_size(path)?;
+    log::debug!("got df size {:?}", size);
+    Ok(MetadataTabular::new(size.width, size.height))
 }
 
 #[cfg(test)]

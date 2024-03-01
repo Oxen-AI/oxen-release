@@ -654,16 +654,32 @@ pub fn list_diff_entries_in_dir(
         &mut dir_entries,
     )?;
 
+    log::debug!("here are our dir diff entries: {:?}", dir_entries);
+
     dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
 
     let mut added_commit_entries: Vec<DiffCommitEntry> = vec![];
+    log::debug!("about to collect added entries");
     collect_added_entries(&base_entries, &head_entries, &mut added_commit_entries)?;
+    log::debug!(
+        "collected added entries and they are {:?}",
+        added_commit_entries
+    );
 
     let mut removed_commit_entries: Vec<DiffCommitEntry> = vec![];
     collect_removed_entries(&base_entries, &head_entries, &mut removed_commit_entries)?;
+    log::debug!(
+        "collected removed entries and they are {:?}",
+        removed_commit_entries
+    );
 
     let mut modified_commit_entries: Vec<DiffCommitEntry> = vec![];
     collect_modified_entries(&base_entries, &head_entries, &mut modified_commit_entries)?;
+
+    log::debug!(
+        "collected modified entries and they are {:?}",
+        modified_commit_entries
+    );
 
     let counts = AddRemoveModifyCounts {
         added: added_commit_entries.len(),
@@ -685,6 +701,7 @@ pub fn list_diff_entries_in_dir(
     let diff_entries: Vec<DiffEntry> = files
         .into_iter()
         .map(|entry| {
+            log::debug!("calling from_commit_entry for entry: {:?}", entry);
             DiffEntry::from_commit_entry(
                 repo,
                 entry.base_entry,
