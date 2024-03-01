@@ -1,6 +1,9 @@
 """
 Oxen can be used to compare data frames and return a tabular diff.
 
+There is more information about the diff in the 
+[Diff Getting Started Documentation](/concepts/diffs).
+
 For example comparing two data frames will give you an output data frame,
 where the `.oxen.diff.status` column shows if the row was `added`, `removed`, 
 or `modified`.
@@ -43,6 +46,7 @@ from oxen.diff.text_diff import TextDiff
 import os
 from typing import Optional
 
+
 def diff(
     path: os.PathLike,
     to: Optional[os.PathLike] = None,
@@ -61,12 +65,13 @@ def diff(
             The path to diff. If `to` is not provided,
             this will compare the data frame to the previous commit.
         to: `os.PathLike`
-            An optional second path to compare to. 
+            An optional second path to compare to.
             If provided this will be the right side of the diff.
         repo_dir: `os.PathLike`
             The path to the oxen repository. Must be provided if `compare_to` is
             not provided, or if `revision_left` or `revision_right` is provided.
-            If not provided, the repository will be searched for in the current working directory.
+            If not provided, the repository will be searched for in the current 
+            working directory.
         revision_left: `str`
             The left revision to compare. Can be a commit hash or branch name.
         revision_right: `str`
@@ -74,11 +79,11 @@ def diff(
         output: `os.PathLike`
             The path to save the diff to. If not provided, the diff will not be saved.
         keys: `list[str]`
-            Only for tabular diffs. The keys to compare on. 
+            Only for tabular diffs. The keys to compare on.
             This is used to join the two data frames.
             Keys will be combined and hashed to create a identifier for each row.
         targets: `list[str]`
-            Only for tabular diffs. The targets to compare on. 
+            Only for tabular diffs. The targets to compare on.
             This is used to compare the values of the two data frames.
     """
     result = py_diff.diff_paths(
@@ -88,10 +93,11 @@ def diff(
         df.save(result, output)
     return Diff(result)
 
+
 class Diff:
     """
-    Diff class wraps many types of diffs and provides a consistent interface. 
-    For example the diff can be tabular or text. Eventually we will extend this 
+    Diff class wraps many types of diffs and provides a consistent interface.
+    For example the diff can be tabular or text. Eventually we will extend this
     to support other types of diffs such as images, audio, etc.
     """
 
@@ -116,7 +122,7 @@ class Diff:
         if self.format == "tabular":
             return TabularDiff(self._py_diff.tabular)
         return None
-    
+
     @property
     def text(self) -> Optional[TextDiff]:
         """
@@ -137,4 +143,3 @@ class Diff:
                 return TextDiff(self._py_diff.text)
             case "unknown":
                 raise ValueError("The diff type is unknown.")
-
