@@ -1,7 +1,10 @@
 use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
+use crate::core::cache::cachers;
 use crate::core::df::tabular;
+use crate::core::index::CommitReader;
+use crate::error::OxenError;
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;
 use crate::util;
@@ -40,14 +43,40 @@ impl TabularDiffWrapper {
         repo: &LocalRepository,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
-    ) -> TabularDiffWrapper {
+    ) -> Result<TabularDiffWrapper, OxenError> {
         match (base_entry, head_entry) {
             (Some(base_entry), Some(head_entry)) => {
+                let commit_reader = CommitReader::new(repo)?;
+
                 let base_version_file = util::fs::version_path(repo, base_entry);
                 let head_version_file = util::fs::version_path(repo, head_entry);
 
-                let base_size = tabular::get_size(base_version_file).unwrap();
-                let head_size = tabular::get_size(head_version_file).unwrap();
+                let base_commit = commit_reader.get_commit_by_id(&base_entry.commit_id)?;
+                let head_commit = commit_reader.get_commit_by_id(&head_entry.commit_id)?;
+
+                let base_commit = if let Some(commit) = base_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(base_entry.commit_id.clone()));
+                };
+
+                let head_commit = if let Some(commit) = head_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(head_entry.commit_id.clone()));
+                };
+
+                let base_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &base_commit,
+                    &base_version_file,
+                )?;
+
+                let head_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &head_commit,
+                    &head_version_file,
+                )?;
 
                 // TODO - this can be made less naive
                 let schema_has_changed = base_size.width != head_size.width;
@@ -76,7 +105,7 @@ impl TabularDiffWrapper {
                     0
                 };
 
-                TabularDiffWrapper {
+                Ok(TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
                         num_added_rows,
                         num_added_cols,
@@ -84,13 +113,13 @@ impl TabularDiffWrapper {
                         num_removed_cols,
                         schema_has_changed,
                     },
-                }
+                })
             }
             (Some(base_entry), None) => {
                 let base_version_file = util::fs::version_path(repo, base_entry);
                 let base_size = tabular::get_size(base_version_file).unwrap();
 
-                TabularDiffWrapper {
+                Ok(TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
                         num_added_rows: 0,
                         num_added_cols: 0,
@@ -98,14 +127,14 @@ impl TabularDiffWrapper {
                         num_removed_cols: base_size.width,
                         schema_has_changed: false,
                     },
-                }
+                })
             }
 
             (None, Some(head_entry)) => {
                 let head_version_file = util::fs::version_path(repo, head_entry);
                 let head_size = tabular::get_size(head_version_file).unwrap();
 
-                TabularDiffWrapper {
+                Ok(TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
                         num_added_rows: head_size.height,
                         num_added_cols: head_size.width,
@@ -113,10 +142,10 @@ impl TabularDiffWrapper {
                         num_removed_cols: 0,
                         schema_has_changed: false,
                     },
-                }
+                })
             }
 
-            (None, None) => TabularDiffWrapper {
+            (None, None) => Ok(TabularDiffWrapper {
                 tabular: TabularDiffSummaryImpl {
                     num_added_rows: 0,
                     num_added_cols: 0,
@@ -124,7 +153,7 @@ impl TabularDiffWrapper {
                     num_removed_cols: 0,
                     schema_has_changed: false,
                 },
-            },
+            }),
         }
     }
 

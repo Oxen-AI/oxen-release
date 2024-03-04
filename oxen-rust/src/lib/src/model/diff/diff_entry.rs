@@ -123,7 +123,7 @@ impl DiffEntry {
         status: DiffEntryStatus,
         should_do_full_diff: bool,
         df_opts: Option<DFOpts>, // only for tabular
-    ) -> DiffEntry {
+    ) -> Result<DiffEntry, OxenError> {
         // Need to check whether we have the head or base entry to check data about the file
         let (current_entry, version_path) = if let Some(entry) = &head_entry {
             (entry.clone(), util::fs::version_path(repo, entry))
@@ -178,7 +178,7 @@ impl DiffEntry {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
                     TabularDiffView::from_commit_entries(repo, &base_entry, &head_entry, df_opts);
-                return DiffEntry {
+                return Ok(DiffEntry {
                     status: status.to_string(),
                     data_type: data_type.clone(),
                     filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
@@ -192,11 +192,11 @@ impl DiffEntry {
                         diff.clone().tabular.summary.to_wrapper(),
                     )),
                     diff: Some(GenericDiff::TabularDiff(diff)),
-                };
+                });
             }
         }
 
-        DiffEntry {
+        Ok(DiffEntry {
             status: status.to_string(),
             data_type: data_type.clone(),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
@@ -211,9 +211,9 @@ impl DiffEntry {
                 data_type,
                 &base_entry,
                 &head_entry,
-            ),
+            )?,
             diff: None, // TODO: other full diffs...
-        }
+        })
     }
 
     fn resource_from_entry(entry: Option<CommitEntry>) -> Option<ResourceVersion> {
@@ -458,14 +458,14 @@ impl DiffEntry {
         data_type: EntryDataType,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
-    ) -> Option<GenericDiffSummary> {
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
         // TODO match on type, and create the appropriate summary
         log::debug!("getting diff summary from file");
         match data_type {
-            EntryDataType::Tabular => Some(GenericDiffSummary::TabularDiffWrapper(
-                TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry),
-            )),
-            _ => None,
+            EntryDataType::Tabular => Ok(Some(GenericDiffSummary::TabularDiffWrapper(
+                TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry)?,
+            ))),
+            _ => Ok(None),
         }
     }
 }
