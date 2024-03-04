@@ -1,8 +1,10 @@
 use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
-use crate::api;
+use crate::core::cache::cachers;
 use crate::core::df::tabular;
+use crate::core::index::CommitReader;
+use crate::error::OxenError;
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;
 use crate::util;
@@ -41,33 +43,144 @@ impl TabularDiffWrapper {
         repo: &LocalRepository,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
-    ) -> TabularDiffWrapper {
-        let base_df = TabularDiffWrapper::maybe_get_df(repo, base_entry);
-        let head_df = TabularDiffWrapper::maybe_get_df(repo, head_entry);
+    ) -> Result<TabularDiffWrapper, OxenError> {
+        match (base_entry, head_entry) {
+            (Some(base_entry), Some(head_entry)) => {
+                let commit_reader = CommitReader::new(repo)?;
 
-        let schema_has_changed = TabularDiffWrapper::schema_has_changed(&base_df, &head_df);
+                let base_version_file = util::fs::version_path(repo, base_entry);
+                let head_version_file = util::fs::version_path(repo, head_entry);
 
-        // log::debug!("TabularDiffSummary::from_commit_entries: schema_has_changed: {}", schema_has_changed);
-        // log::debug!("TabularDiffSummary::from_commit_entries: base_df: {:?}", base_df);
-        // log::debug!("TabularDiffSummary::from_commit_entries: head_df: {:?}", head_df);
-        let mut num_added_rows = 0;
-        let mut num_removed_rows = 0;
-        if !schema_has_changed {
-            num_added_rows = TabularDiffWrapper::maybe_count_added_rows(&base_df, &head_df);
-            num_removed_rows = TabularDiffWrapper::maybe_count_removed_rows(&base_df, &head_df);
-        }
+                let base_commit = commit_reader.get_commit_by_id(&base_entry.commit_id)?;
+                let head_commit = commit_reader.get_commit_by_id(&head_entry.commit_id)?;
 
-        let num_added_cols = TabularDiffWrapper::compute_num_added_cols(&base_df, &head_df);
-        let num_removed_cols = TabularDiffWrapper::compute_num_removed_cols(&base_df, &head_df);
+                let base_commit = if let Some(commit) = base_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(base_entry.commit_id.clone()));
+                };
 
-        TabularDiffWrapper {
-            tabular: TabularDiffSummaryImpl {
-                num_added_rows,
-                num_added_cols,
-                num_removed_rows,
-                num_removed_cols,
-                schema_has_changed,
-            },
+                let head_commit = if let Some(commit) = head_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(head_entry.commit_id.clone()));
+                };
+
+                let base_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &base_commit,
+                    &base_version_file,
+                )?;
+
+                let head_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &head_commit,
+                    &head_version_file,
+                )?;
+
+                // TODO - this can be made less naive
+                let schema_has_changed = base_size.width != head_size.width;
+
+                let num_added_rows = if base_size.height < head_size.height {
+                    head_size.height - base_size.height
+                } else {
+                    0
+                };
+
+                let num_removed_rows = if base_size.height > head_size.height {
+                    base_size.height - head_size.height
+                } else {
+                    0
+                };
+
+                let num_added_cols = if base_size.width < head_size.width {
+                    head_size.width - base_size.width
+                } else {
+                    0
+                };
+
+                let num_removed_cols = if base_size.width > head_size.width {
+                    base_size.width - head_size.width
+                } else {
+                    0
+                };
+
+                Ok(TabularDiffWrapper {
+                    tabular: TabularDiffSummaryImpl {
+                        num_added_rows,
+                        num_added_cols,
+                        num_removed_rows,
+                        num_removed_cols,
+                        schema_has_changed,
+                    },
+                })
+            }
+            (Some(base_entry), None) => {
+                let base_version_file = util::fs::version_path(repo, base_entry);
+                let base_commit =
+                    CommitReader::new(repo)?.get_commit_by_id(&base_entry.commit_id)?;
+
+                let base_commit = if let Some(commit) = base_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(base_entry.commit_id.clone()));
+                };
+
+                let base_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &base_commit,
+                    &base_version_file,
+                )?;
+
+                Ok(TabularDiffWrapper {
+                    tabular: TabularDiffSummaryImpl {
+                        num_added_rows: 0,
+                        num_added_cols: 0,
+                        num_removed_rows: base_size.height,
+                        num_removed_cols: base_size.width,
+                        schema_has_changed: false,
+                    },
+                })
+            }
+
+            (None, Some(head_entry)) => {
+                let head_version_file = util::fs::version_path(repo, head_entry);
+
+                let head_commit =
+                    CommitReader::new(repo)?.get_commit_by_id(&head_entry.commit_id)?;
+
+                let head_commit = if let Some(commit) = head_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(head_entry.commit_id.clone()));
+                };
+
+                let head_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &head_commit,
+                    &head_version_file,
+                )?;
+
+                Ok(TabularDiffWrapper {
+                    tabular: TabularDiffSummaryImpl {
+                        num_added_rows: head_size.height,
+                        num_added_cols: head_size.width,
+                        num_removed_rows: 0,
+                        num_removed_cols: 0,
+                        schema_has_changed: false,
+                    },
+                })
+            }
+
+            (None, None) => Ok(TabularDiffWrapper {
+                tabular: TabularDiffSummaryImpl {
+                    num_added_rows: 0,
+                    num_added_cols: 0,
+                    num_removed_rows: 0,
+                    num_removed_cols: 0,
+                    schema_has_changed: false,
+                },
+            }),
         }
     }
 
@@ -81,44 +194,6 @@ impl TabularDiffWrapper {
                 }
             }
             None => None,
-        }
-    }
-
-    pub fn maybe_count_added_rows(
-        base_df: &Option<DataFrame>,
-        head_df: &Option<DataFrame>,
-    ) -> usize {
-        match (base_df, head_df) {
-            (Some(base_df), Some(head_df)) => {
-                match api::local::diff::count_added_rows(base_df.clone(), head_df.clone()) {
-                    Ok(count) => count,
-                    Err(err) => {
-                        log::error!("Error counting added rows: {}", err);
-                        0
-                    }
-                }
-            }
-            (None, Some(head_df)) => head_df.height(),
-            _ => 0,
-        }
-    }
-
-    pub fn maybe_count_removed_rows(
-        base_df: &Option<DataFrame>,
-        head_df: &Option<DataFrame>,
-    ) -> usize {
-        match (base_df, head_df) {
-            (Some(base_df), Some(head_df)) => {
-                match api::local::diff::count_removed_rows(base_df.clone(), head_df.clone()) {
-                    Ok(count) => count,
-                    Err(err) => {
-                        log::error!("Error counting added rows: {}", err);
-                        0
-                    }
-                }
-            }
-            (None, Some(head_df)) => head_df.height(),
-            _ => 0,
         }
     }
 
@@ -150,73 +225,5 @@ impl TabularDiffWrapper {
 
         // compare the schemas
         base_schema != head_schema
-    }
-
-    pub fn compute_num_added_cols(
-        base_df: &Option<DataFrame>,
-        head_df: &Option<DataFrame>,
-    ) -> usize {
-        if base_df.is_none() || head_df.is_none() {
-            // Both dataframes are empty so no columns were added
-            return 0;
-        }
-
-        if base_df.is_none() && head_df.is_some() {
-            // All columns were added because base is none
-            return head_df.as_ref().unwrap().width();
-        }
-
-        if base_df.is_some() && head_df.is_none() {
-            // All columns were removed because head is none
-            return 0;
-        }
-
-        let base_schema = base_df.as_ref().unwrap().schema();
-        let head_schema = head_df.as_ref().unwrap().schema();
-
-        let head_cols = head_schema.iter_fields();
-
-        let mut num_added_cols = 0;
-        for col in head_cols {
-            if base_schema.get_field(&col.name).is_none() {
-                num_added_cols += 1;
-            }
-        }
-
-        num_added_cols
-    }
-
-    pub fn compute_num_removed_cols(
-        base_df: &Option<DataFrame>,
-        head_df: &Option<DataFrame>,
-    ) -> usize {
-        if base_df.is_none() || head_df.is_none() {
-            // Both dataframes are empty so no columns were removed
-            return 0;
-        }
-
-        if base_df.is_none() && head_df.is_some() {
-            // All columns were added because base is none
-            return 0;
-        }
-
-        if base_df.is_some() && head_df.is_none() {
-            // All columns were removed because head is none
-            return base_df.as_ref().unwrap().width();
-        }
-
-        let base_schema = base_df.as_ref().unwrap().schema();
-        let head_schema = head_df.as_ref().unwrap().schema();
-
-        let base_cols = base_schema.iter_fields();
-
-        let mut num_removed_cols = 0;
-        for col in base_cols {
-            if head_schema.get_field(&col.name).is_none() {
-                num_removed_cols += 1;
-            }
-        }
-
-        num_removed_cols
     }
 }

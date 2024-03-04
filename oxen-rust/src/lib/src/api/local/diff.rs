@@ -595,7 +595,7 @@ pub fn diff_entries(
         status,
         should_do_full_diff,
         Some(df_opts),
-    );
+    )?;
 
     Ok(entry)
 }
@@ -696,7 +696,7 @@ pub fn list_diff_entries_in_dir(
                 None,
             )
         })
-        .collect();
+        .collect::<Result<Vec<DiffEntry>, OxenError>>()?;
 
     let (dirs, _) =
         util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
@@ -788,6 +788,72 @@ pub fn list_changed_dirs(
     changed_dirs.sort_by(|a, b| a.0.cmp(&b.0));
 
     Ok(changed_dirs)
+}
+
+// For a rollup summary presented alongside the diffs WITHIN a dir
+pub fn get_dir_diff_entry(
+    repo: &LocalRepository,
+    dir: PathBuf,
+    base_commit: &Commit,
+    head_commit: &Commit,
+) -> Result<Option<DiffEntry>, OxenError> {
+    // Dir hashes db is cheaper to open than objects reader
+    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
+    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
+
+    match (maybe_base_dir_hash, maybe_head_dir_hash) {
+        (Some(base_dir_hash), Some(head_dir_hash)) => {
+            let base_dir_hash = base_dir_hash.to_string();
+            let head_dir_hash = head_dir_hash.to_string();
+
+            if base_dir_hash == head_dir_hash {
+                Ok(None)
+            } else {
+                Ok(Some(DiffEntry::from_dir(
+                    repo,
+                    Some(&dir),
+                    base_commit,
+                    Some(&dir),
+                    head_commit,
+                    DiffEntryStatus::Modified,
+                )?))
+            }
+        }
+        (None, Some(_)) => Ok(Some(DiffEntry::from_dir(
+            repo,
+            None,
+            base_commit,
+            Some(&dir),
+            head_commit,
+            DiffEntryStatus::Added,
+        )?)),
+        (Some(_), None) => Ok(Some(DiffEntry::from_dir(
+            repo,
+            Some(&dir),
+            base_commit,
+            None,
+            head_commit,
+            DiffEntryStatus::Removed,
+        )?)),
+        (None, None) => Err(OxenError::basic_str(
+            "Could not calculate dir diff tree: dir does not exist in either commit.",
+        )),
+    }
 }
 
 /// TODO this is very ugly...
@@ -913,7 +979,7 @@ pub fn list_diff_entries(
                 None,
             )
         })
-        .collect();
+        .collect::<Result<Vec<DiffEntry>, OxenError>>()?;
 
     let (dirs, _) =
         util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
