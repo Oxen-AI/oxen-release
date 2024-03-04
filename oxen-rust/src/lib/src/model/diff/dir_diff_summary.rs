@@ -1,11 +1,6 @@
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    model::{diff::AddRemoveModifyCounts, EntryDataType},
-    view::DataTypeCount,
-};
+use crate::{model::diff::AddRemoveModifyCounts, view::DataTypeCount};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirDiffSummary {

@@ -422,7 +422,7 @@ pub fn get_dir_entry_metadata(
             .into_no_null_iter()
             .collect();
 
-        let mut data_types: Vec<DataTypeCount> = dt_series
+        let data_types: Vec<DataTypeCount> = dt_series
             .iter()
             .zip(count_series.iter())
             .map(|(&data_type, &count)| DataTypeCount {
