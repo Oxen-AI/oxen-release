@@ -117,7 +117,20 @@ impl TabularDiffWrapper {
             }
             (Some(base_entry), None) => {
                 let base_version_file = util::fs::version_path(repo, base_entry);
-                let base_size = tabular::get_size(base_version_file).unwrap();
+                let base_commit =
+                    CommitReader::new(repo)?.get_commit_by_id(&base_entry.commit_id)?;
+
+                let base_commit = if let Some(commit) = base_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(base_entry.commit_id.clone()));
+                };
+
+                let base_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &base_commit,
+                    &base_version_file,
+                )?;
 
                 Ok(TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
@@ -132,7 +145,21 @@ impl TabularDiffWrapper {
 
             (None, Some(head_entry)) => {
                 let head_version_file = util::fs::version_path(repo, head_entry);
-                let head_size = tabular::get_size(head_version_file).unwrap();
+
+                let head_commit =
+                    CommitReader::new(repo)?.get_commit_by_id(&head_entry.commit_id)?;
+
+                let head_commit = if let Some(commit) = head_commit {
+                    commit
+                } else {
+                    return Err(OxenError::resource_not_found(head_entry.commit_id.clone()));
+                };
+
+                let head_size = cachers::df_size::get_cache_for_version(
+                    repo,
+                    &head_commit,
+                    &head_version_file,
+                )?;
 
                 Ok(TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
