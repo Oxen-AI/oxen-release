@@ -8,13 +8,10 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::diff::AddRemoveModifyCounts;
-use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::metadata::metadata_dir::MetadataDirImpl;
-use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::opts::DFOpts;
 use crate::view::entry::ResourceVersion;
-use crate::view::{DataTypeCount, TabularDiffView};
+use crate::view::TabularDiffView;
 use crate::{
     api,
     model::{CommitEntry, LocalRepository},
@@ -22,7 +19,7 @@ use crate::{
 };
 
 use super::diff_entry_status::DiffEntryStatus;
-use super::dir_diff_summary::{AddRemoveDataTypeCounts, DirDiffSummary};
+use super::dir_diff_summary::DirDiffSummary;
 use super::generic_diff::GenericDiff;
 use super::generic_diff_summary::GenericDiffSummary;
 use super::tabular_diff_summary::TabularDiffWrapper;
@@ -349,10 +346,6 @@ impl DiffEntry {
                 .collect::<HashSet<_>>();
             num_added += added_entries.len();
 
-            for entry in added_entries.iter() {
-                // Get the metadataentry
-            }
-
             // Find the removed entries
             let removed_entries = base_entries
                 .difference(&head_entries)
@@ -475,72 +468,4 @@ impl DiffEntry {
             _ => None,
         }
     }
-}
-
-fn find_data_type_differences(
-    left_entry: Option<&MetadataEntry>,
-    right_entry: Option<&MetadataEntry>,
-) -> AddRemoveDataTypeCounts {
-    // Extract data types from the optional MetadataEntry - these will be default vec if is none
-    let extract_data_types = |entry: Option<&MetadataEntry>| -> Vec<DataTypeCount> {
-        entry
-            .and_then(|entry| match &entry.metadata {
-                Some(GenericMetadata::MetadataDir(MetadataDir {
-                    dir: MetadataDirImpl { data_types, .. },
-                    ..
-                })) => Some(
-                    data_types
-                        .iter()
-                        .map(|dtc| DataTypeCount {
-                            data_type: dtc.data_type.clone(),
-                            count: dtc.count,
-                        })
-                        .collect(),
-                ),
-                _ => None,
-            })
-            .unwrap_or_default()
-    };
-
-    let left_data_types = extract_data_types(left_entry);
-    let right_data_types = extract_data_types(right_entry);
-
-    log::debug!("got left data types {:?}", left_data_types);
-    log::debug!("got right data types {:?}", right_data_types);
-
-    let added: Vec<DataTypeCount> = right_data_types
-        .iter()
-        .filter_map(|rdtc| {
-            match left_data_types
-                .iter()
-                .find(|&ldtc| ldtc.data_type == rdtc.data_type)
-            {
-                Some(ldtc) if ldtc.count < rdtc.count => Some(DataTypeCount {
-                    data_type: rdtc.data_type.clone(),
-                    count: rdtc.count - ldtc.count, // Safe as rdtc.count > ldtc.count
-                }),
-                None => Some(rdtc.clone()), // Entirely new data type added
-                _ => None,                  // No change or not an addition
-            }
-        })
-        .collect();
-
-    let removed: Vec<DataTypeCount> = left_data_types
-        .iter()
-        .filter_map(|ldtc| {
-            match right_data_types
-                .iter()
-                .find(|&rdtc| rdtc.data_type == ldtc.data_type)
-            {
-                Some(rdtc) if ldtc.count > rdtc.count => Some(DataTypeCount {
-                    data_type: ldtc.data_type.clone(),
-                    count: ldtc.count - rdtc.count, // Safe as ldtc.count > rdtc.count
-                }),
-                None => Some(ldtc.clone()), // Data type no longer present
-                _ => None,                  // No change or not a removal
-            }
-        })
-        .collect();
-
-    AddRemoveDataTypeCounts { added, removed }
 }

@@ -4,7 +4,6 @@
 use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::model::metadata::MetadataTabular;
-use crate::opts::DFOpts;
 
 use std::path::Path;
 

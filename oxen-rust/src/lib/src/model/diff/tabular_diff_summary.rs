@@ -1,7 +1,6 @@
 use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
-use crate::api;
 use crate::core::df::tabular;
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;
@@ -77,7 +76,7 @@ impl TabularDiffWrapper {
                     0
                 };
 
-                return TabularDiffWrapper {
+                TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
                         num_added_rows,
                         num_added_cols,
@@ -85,13 +84,13 @@ impl TabularDiffWrapper {
                         num_removed_cols,
                         schema_has_changed,
                     },
-                };
+                }
             }
             (Some(base_entry), None) => {
                 let base_version_file = util::fs::version_path(repo, base_entry);
                 let base_size = tabular::get_size(base_version_file).unwrap();
 
-                return TabularDiffWrapper {
+                TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
                         num_added_rows: 0,
                         num_added_cols: 0,
@@ -99,14 +98,14 @@ impl TabularDiffWrapper {
                         num_removed_cols: base_size.width,
                         schema_has_changed: false,
                     },
-                };
+                }
             }
 
             (None, Some(head_entry)) => {
                 let head_version_file = util::fs::version_path(repo, head_entry);
                 let head_size = tabular::get_size(head_version_file).unwrap();
 
-                return TabularDiffWrapper {
+                TabularDiffWrapper {
                     tabular: TabularDiffSummaryImpl {
                         num_added_rows: head_size.height,
                         num_added_cols: head_size.width,
@@ -114,20 +113,18 @@ impl TabularDiffWrapper {
                         num_removed_cols: 0,
                         schema_has_changed: false,
                     },
-                };
+                }
             }
 
-            (None, None) => {
-                return TabularDiffWrapper {
-                    tabular: TabularDiffSummaryImpl {
-                        num_added_rows: 0,
-                        num_added_cols: 0,
-                        num_removed_rows: 0,
-                        num_removed_cols: 0,
-                        schema_has_changed: false,
-                    },
-                };
-            }
+            (None, None) => TabularDiffWrapper {
+                tabular: TabularDiffSummaryImpl {
+                    num_added_rows: 0,
+                    num_added_cols: 0,
+                    num_removed_rows: 0,
+                    num_removed_cols: 0,
+                    schema_has_changed: false,
+                },
+            },
         }
     }
 
