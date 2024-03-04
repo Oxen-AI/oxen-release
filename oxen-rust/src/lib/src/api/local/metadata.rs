@@ -71,23 +71,16 @@ pub fn from_commit_entry(
     entry: &CommitEntry,
     commit: &Commit,
 ) -> Result<MetadataEntry, OxenError> {
-    log::debug!("in from_commit_entry");
     let path = util::fs::version_path(repo, entry);
     let base_name = entry
         .path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&path))?;
-    log::debug!("getting file size");
     let size = get_file_size(&path)?;
-    log::debug!("getting mime type");
     let mime_type = util::fs::file_mime_type(&path);
-    log::debug!("getting data type");
     let data_type = util::fs::datatype_from_mimetype(&path, mime_type.as_str());
-    log::debug!("getting data extension");
     let extension = util::fs::file_extension(&path);
-    log::debug!("getting metadata");
     let metadata = get_file_metadata(&path, &data_type)?;
-    log::debug!("got metadata");
 
     Ok(MetadataEntry {
         filename: base_name.to_string_lossy().to_string(),

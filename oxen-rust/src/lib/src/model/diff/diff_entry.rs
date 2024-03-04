@@ -369,8 +369,6 @@ impl DiffEntry {
             }
         }
 
-        let data_type_counts = find_data_type_differences(Some(base_dir), Some(head_dir));
-
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             dir: DirDiffSummaryImpl {
                 file_counts: AddRemoveModifyCounts {
@@ -378,7 +376,6 @@ impl DiffEntry {
                     removed: num_removed,
                     modified: num_modified,
                 },
-                data_type_counts: Some(data_type_counts),
             },
         })))
     }
@@ -412,8 +409,6 @@ impl DiffEntry {
             num_removed += count;
         }
 
-        let data_type_counts = find_data_type_differences(Some(base_dir), None);
-
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             dir: DirDiffSummaryImpl {
                 file_counts: AddRemoveModifyCounts {
@@ -421,7 +416,6 @@ impl DiffEntry {
                     removed: num_removed,
                     modified: 0,
                 },
-                data_type_counts: Some(data_type_counts), // TODO: add data type counts diff
             },
         })))
     }
@@ -455,8 +449,6 @@ impl DiffEntry {
             num_added += count;
         }
 
-        let data_type_counts = find_data_type_differences(None, Some(head_dir));
-
         Ok(Some(GenericDiffSummary::DirDiffSummary(DirDiffSummary {
             dir: DirDiffSummaryImpl {
                 file_counts: AddRemoveModifyCounts {
@@ -464,7 +456,6 @@ impl DiffEntry {
                     removed: 0,
                     modified: 0,
                 },
-                data_type_counts: Some(data_type_counts), // TODO: add data type counts diff
             },
         })))
     }

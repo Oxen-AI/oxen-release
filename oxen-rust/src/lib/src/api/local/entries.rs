@@ -406,6 +406,7 @@ pub fn get_dir_entry_metadata(
         data_types_path.display()
     );
     if let Ok(data_type_df) = core::df::tabular::read_df(&data_types_path, DFOpts::empty()) {
+        log::debug!("got this data_type_df {:?}", data_type_df);
         let dt_series: Vec<&str> = data_type_df
             .column("data_type")
             .unwrap()
