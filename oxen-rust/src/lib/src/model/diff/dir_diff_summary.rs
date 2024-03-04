@@ -16,7 +16,6 @@ pub struct DirDiffSummary {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirDiffSummaryImpl {
     pub file_counts: AddRemoveModifyCounts,
-    pub data_type_counts: Option<AddRemoveDataTypeCounts>,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

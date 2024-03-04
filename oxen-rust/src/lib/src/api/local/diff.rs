@@ -654,32 +654,16 @@ pub fn list_diff_entries_in_dir(
         &mut dir_entries,
     )?;
 
-    log::debug!("here are our dir diff entries: {:?}", dir_entries);
-
     dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
 
     let mut added_commit_entries: Vec<DiffCommitEntry> = vec![];
-    log::debug!("about to collect added entries");
     collect_added_entries(&base_entries, &head_entries, &mut added_commit_entries)?;
-    log::debug!(
-        "collected added entries and they are {:?}",
-        added_commit_entries
-    );
 
     let mut removed_commit_entries: Vec<DiffCommitEntry> = vec![];
     collect_removed_entries(&base_entries, &head_entries, &mut removed_commit_entries)?;
-    log::debug!(
-        "collected removed entries and they are {:?}",
-        removed_commit_entries
-    );
 
     let mut modified_commit_entries: Vec<DiffCommitEntry> = vec![];
     collect_modified_entries(&base_entries, &head_entries, &mut modified_commit_entries)?;
-
-    log::debug!(
-        "collected modified entries and they are {:?}",
-        modified_commit_entries
-    );
 
     let counts = AddRemoveModifyCounts {
         added: added_commit_entries.len(),
@@ -701,7 +685,6 @@ pub fn list_diff_entries_in_dir(
     let diff_entries: Vec<DiffEntry> = files
         .into_iter()
         .map(|entry| {
-            log::debug!("calling from_commit_entry for entry: {:?}", entry);
             DiffEntry::from_commit_entry(
                 repo,
                 entry.base_entry,
@@ -805,6 +788,72 @@ pub fn list_changed_dirs(
     changed_dirs.sort_by(|a, b| a.0.cmp(&b.0));
 
     Ok(changed_dirs)
+}
+
+// For a rollup summary presented alongside the diffs WITHIN a dir
+pub fn get_dir_diff_entry(
+    repo: &LocalRepository,
+    dir: PathBuf,
+    base_commit: &Commit,
+    head_commit: &Commit,
+) -> Result<Option<DiffEntry>, OxenError> {
+    // Dir hashes db is cheaper to open than objects reader
+    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
+    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
+
+    match (maybe_base_dir_hash, maybe_head_dir_hash) {
+        (Some(base_dir_hash), Some(head_dir_hash)) => {
+            let base_dir_hash = base_dir_hash.to_string();
+            let head_dir_hash = head_dir_hash.to_string();
+
+            if base_dir_hash == head_dir_hash {
+                Ok(None)
+            } else {
+                Ok(Some(DiffEntry::from_dir(
+                    repo,
+                    Some(&dir),
+                    base_commit,
+                    Some(&dir),
+                    head_commit,
+                    DiffEntryStatus::Modified,
+                )?))
+            }
+        }
+        (None, Some(_)) => Ok(Some(DiffEntry::from_dir(
+            repo,
+            None,
+            base_commit,
+            Some(&dir),
+            head_commit,
+            DiffEntryStatus::Added,
+        )?)),
+        (Some(_), None) => Ok(Some(DiffEntry::from_dir(
+            repo,
+            Some(&dir),
+            base_commit,
+            None,
+            head_commit,
+            DiffEntryStatus::Removed,
+        )?)),
+        (None, None) => Err(OxenError::basic_str(
+            "Could not calculate dir diff tree: dir does not exist in either commit.",
+        )),
+    }
 }
 
 /// TODO this is very ugly...

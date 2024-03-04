@@ -78,11 +78,11 @@ pub async fn commits(
     Ok(HttpResponse::Ok().json(view))
 }
 
+// TODO: Deprecate?
 pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    log::debug!("in the compare entries controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -117,6 +117,7 @@ pub async fn entries(
         head_commit,
         counts: entries_diff.counts,
         entries,
+        self_diff: None,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
@@ -181,12 +182,16 @@ pub async fn dir_entries(
 
     let entries_diff = api::local::diff::list_diff_entries_in_dir(
         &repository,
-        dir,
+        dir.clone(),
         &base_commit,
         &head_commit,
         page,
         page_size,
     )?;
+
+    let self_entry =
+        api::local::diff::get_dir_diff_entry(&repository, dir, &base_commit, &head_commit)?;
+
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;
 
@@ -195,6 +200,7 @@ pub async fn dir_entries(
         head_commit,
         counts: entries_diff.counts,
         entries,
+        self_diff: self_entry,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
