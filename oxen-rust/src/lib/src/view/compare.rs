@@ -35,6 +35,8 @@ pub struct CompareEntries {
     pub head_commit: Commit,
     pub counts: AddRemoveModifyCounts,
     pub entries: Vec<DiffEntry>,
+    #[serde(rename = "self")]
+    pub self_diff: Option<DiffEntry>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

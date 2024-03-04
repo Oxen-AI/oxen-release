@@ -123,7 +123,7 @@ impl DiffEntry {
         status: DiffEntryStatus,
         should_do_full_diff: bool,
         df_opts: Option<DFOpts>, // only for tabular
-    ) -> DiffEntry {
+    ) -> Result<DiffEntry, OxenError> {
         // Need to check whether we have the head or base entry to check data about the file
         let (current_entry, version_path) = if let Some(entry) = &head_entry {
             (entry.clone(), util::fs::version_path(repo, entry))
@@ -133,6 +133,7 @@ impl DiffEntry {
                 util::fs::version_path(repo, &base_entry.clone().unwrap()),
             )
         };
+
         let data_type = util::fs::file_data_type(&version_path);
 
         let base_resource = DiffEntry::resource_from_entry(base_entry.clone());
@@ -160,11 +161,12 @@ impl DiffEntry {
         //     should_do_full_diff,
         //     pagination.is_some()
         // );
+
         if let Some(df_opts) = df_opts {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
                     TabularDiffView::from_commit_entries(repo, &base_entry, &head_entry, df_opts);
-                return DiffEntry {
+                return Ok(DiffEntry {
                     status: status.to_string(),
                     data_type: data_type.clone(),
                     filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
@@ -178,11 +180,11 @@ impl DiffEntry {
                         diff.clone().tabular.summary.to_wrapper(),
                     )),
                     diff: Some(GenericDiff::TabularDiff(diff)),
-                };
+                });
             }
         }
 
-        DiffEntry {
+        Ok(DiffEntry {
             status: status.to_string(),
             data_type: data_type.clone(),
             filename: current_entry.path.as_os_str().to_str().unwrap().to_string(),
@@ -197,9 +199,9 @@ impl DiffEntry {
                 data_type,
                 &base_entry,
                 &head_entry,
-            ),
+            )?,
             diff: None, // TODO: other full diffs...
-        }
+        })
     }
 
     fn resource_from_entry(entry: Option<CommitEntry>) -> Option<ResourceVersion> {
@@ -302,10 +304,6 @@ impl DiffEntry {
         // Uniq them
         let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs);
 
-        // What base_commit_id and head_commit_id are happening here?
-        log::debug!("base_commit_id 284 is {:?}", base_commit_id);
-        log::debug!("head_commit_id 285 is {:?}", head_commit_id);
-
         for dir in dirs {
             let base_dir_reader =
                 CommitDirEntryReader::new(repo, base_commit_id, &dir, object_reader.clone())?;
@@ -364,15 +362,12 @@ impl DiffEntry {
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
         let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
         let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
-        log::debug!("r_compute_removed_files base_dir: {:?}", path);
 
         // Count all removals in the directory and its children
         let commit_entry_reader =
             CommitEntryReader::new_from_commit_id(repo, commit_id, object_reader.clone())?;
         let mut dirs = commit_entry_reader.list_dir_children(&path)?;
         dirs.push(path);
-
-        log::debug!("r_compute_removed_files got dirs: {:?}", dirs.len());
 
         let mut num_removed = 0;
         for dir in dirs {
@@ -438,13 +433,13 @@ impl DiffEntry {
         data_type: EntryDataType,
         base_entry: &Option<CommitEntry>,
         head_entry: &Option<CommitEntry>,
-    ) -> Option<GenericDiffSummary> {
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
         // TODO match on type, and create the appropriate summary
         match data_type {
-            EntryDataType::Tabular => Some(GenericDiffSummary::TabularDiffWrapper(
-                TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry),
-            )),
-            _ => None,
+            EntryDataType::Tabular => Ok(Some(GenericDiffSummary::TabularDiffWrapper(
+                TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry)?,
+            ))),
+            _ => Ok(None),
         }
     }
 }
