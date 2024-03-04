@@ -595,7 +595,7 @@ pub fn diff_entries(
         status,
         should_do_full_diff,
         Some(df_opts),
-    );
+    )?;
 
     Ok(entry)
 }
@@ -696,7 +696,7 @@ pub fn list_diff_entries_in_dir(
                 None,
             )
         })
-        .collect();
+        .collect::<Result<Vec<DiffEntry>, OxenError>>()?;
 
     let (dirs, _) =
         util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
@@ -979,7 +979,7 @@ pub fn list_diff_entries(
                 None,
             )
         })
-        .collect();
+        .collect::<Result<Vec<DiffEntry>, OxenError>>()?;
 
     let (dirs, _) =
         util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
