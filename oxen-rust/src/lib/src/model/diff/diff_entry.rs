@@ -134,25 +134,15 @@ impl DiffEntry {
             )
         };
 
-        log::debug!("trying to infer datatype");
         let data_type = util::fs::file_data_type(&version_path);
-        log::debug!("got data type {:?}", data_type);
 
         let base_resource = DiffEntry::resource_from_entry(base_entry.clone());
         let head_resource = DiffEntry::resource_from_entry(head_entry.clone());
 
-        log::debug!(
-            "got resource versions {:?} and {:?}",
-            base_resource,
-            head_resource
-        );
-
         let mut base_meta_entry =
             MetadataEntry::from_commit_entry(repo, base_entry.clone(), base_commit);
-        log::debug!("got base entry {:?}", base_meta_entry);
         let mut head_meta_entry =
             MetadataEntry::from_commit_entry(repo, head_entry.clone(), head_commit);
-        log::debug!("got head entry {:?}", head_meta_entry);
 
         if base_entry.is_some() {
             base_meta_entry.as_mut().unwrap().resource = base_resource.clone();
@@ -172,8 +162,6 @@ impl DiffEntry {
         //     pagination.is_some()
         // );
 
-        log::debug!("df_opts: {:?}", df_opts);
-        log::debug!("should_do_full_diff {}", should_do_full_diff);
         if let Some(df_opts) = df_opts {
             if data_type == EntryDataType::Tabular && should_do_full_diff {
                 let diff =
@@ -293,12 +281,6 @@ impl DiffEntry {
         let base_commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
         let head_commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
 
-        log::debug!(
-            "in all files we have base_dir: {:?} and head_dir {:?}",
-            base_dir,
-            head_dir
-        );
-
         // base and head path will be the same so just choose base
         let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
 
@@ -380,17 +362,12 @@ impl DiffEntry {
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
         let commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
         let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
-        log::debug!("r_compute_removed_files base_dir: {:?}", path);
-
-        log::debug!("in removed files we have base_dir: {:?}", base_dir);
 
         // Count all removals in the directory and its children
         let commit_entry_reader =
             CommitEntryReader::new_from_commit_id(repo, commit_id, object_reader.clone())?;
         let mut dirs = commit_entry_reader.list_dir_children(&path)?;
         dirs.push(path);
-
-        log::debug!("r_compute_removed_files got dirs: {:?}", dirs.len());
 
         let mut num_removed = 0;
         for dir in dirs {
@@ -421,8 +398,6 @@ impl DiffEntry {
         let commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
         let path = PathBuf::from(&head_dir.resource.clone().unwrap().path);
         log::debug!("r_compute_added_files base_dir: {:?}", path);
-
-        log::debug!("in added files we have head_dir {:?}", head_dir);
 
         // Count all removals in the directory and its children
         let commit_entry_reader =
@@ -460,7 +435,6 @@ impl DiffEntry {
         head_entry: &Option<CommitEntry>,
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
         // TODO match on type, and create the appropriate summary
-        log::debug!("getting diff summary from file");
         match data_type {
             EntryDataType::Tabular => Ok(Some(GenericDiffSummary::TabularDiffWrapper(
                 TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry)?,
