@@ -107,10 +107,15 @@ pub fn create_remote() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("remote")
-                .long("remote")
-                .short('r')
+            Arg::new("host")
+                .long("host")
                 .help("The host you want to create the remote repository on. For example: 'hub.oxen.ai'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("scheme")
+                .long("scheme")
+                .help("The scheme for the url of the remote repository. For example: 'https' or 'http'")
                 .action(clap::ArgAction::Set),
         )
         .arg(
