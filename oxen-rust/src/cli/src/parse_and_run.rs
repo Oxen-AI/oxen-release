@@ -981,7 +981,8 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
         None => Vec::new(),
     };
 
-    let maybe_targets = sub_matches.get_many::<String>("targets");
+    // We changed the external name to compares, need to refactor internals still
+    let maybe_targets = sub_matches.get_many::<String>("compares");
 
     let targets = match maybe_targets {
         Some(values) => values.cloned().collect(),
