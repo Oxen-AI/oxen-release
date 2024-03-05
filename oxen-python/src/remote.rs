@@ -10,7 +10,8 @@ use crate::error::PyOxenError;
 use crate::py_remote_repo::PyRemoteRepo;
 
 #[pyfunction]
-pub fn get_repo(name: String, host: String) -> Result<Option<PyRemoteRepo>, PyOxenError> {
+#[pyo3(signature = (name, host, scheme="https"))]
+pub fn get_repo(name: String, host: String, scheme: &str) -> Result<Option<PyRemoteRepo>, PyOxenError> {
     let result = pyo3_asyncio::tokio::get_runtime().block_on(async {
         liboxen::api::remote::repositories::get_by_name_and_host(name, &host).await
     })?;
@@ -20,6 +21,7 @@ pub fn get_repo(name: String, host: String) -> Result<Option<PyRemoteRepo>, PyOx
             repo: repo.clone(),
             host: host.clone(),
             revision: DEFAULT_BRANCH_NAME.to_string(),
+            scheme: scheme.to_string(),
         }));
     }
 
@@ -32,6 +34,7 @@ pub fn create_repo(
     description: String,
     is_public: bool,
     host: String,
+    scheme: String,
     files: Vec<(String, String)>
 ) -> Result<PyRemoteRepo, PyOxenError> {
     // Check that name is valid ex: :namespace/:repo_name
@@ -78,5 +81,6 @@ pub fn create_repo(
         repo: result.clone(),
         host: host.clone(),
         revision: DEFAULT_BRANCH_NAME.to_string(),
+        scheme: scheme.to_string(),
     })
 }
