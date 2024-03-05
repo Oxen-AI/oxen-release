@@ -1,5 +1,5 @@
 """
-The `df` module provides a consistent interface for working with data frames.
+The `df_utils` module provides a consistent interface for loading data frames and saving them to disk.
 
 Supported types: csv, parquet, json, jsonl, arrow
 
@@ -7,20 +7,19 @@ Example usage:
 
 ```python
 import os
-from oxen import df
+from oxen import df_utils
 
 # load a data frame
-data_frame = df.load("path/to/data.csv")
+data_frame = df_utils.load("path/to/data.csv")
 
 # save a data frame
-df.save(data_frame, "path/to/save.csv")
+df_utils.save(data_frame, "path/to/save.csv")
 ```
 """
 
-from .oxen import df
+from .oxen import df_utils
 
 import os
-import sys
 from polars import DataFrame
 
 
@@ -47,7 +46,7 @@ def load(
         path: `os.PathLike`
             The path to the file to read.
     """
-    return df.load(path)
+    return df_utils.load(path)
 
 
 def save(
@@ -63,7 +62,4 @@ def save(
         path: `os.PathLike`
             The path to save the data frame to.
     """
-    return df.save(data_frame, path)
-
-
-sys.modules[__name__] = load_df_call()
+    return df_utils.save(data_frame, path)

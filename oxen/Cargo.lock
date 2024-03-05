@@ -2517,9 +2517,9 @@ checksum = "f7012b1bbb0719e1097c47611d3898568c546d597c2e74d66f6087edd5233ff4"
 
 [[package]]
 name = "liboxen"
-version = "0.11.1"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a1f09e99f92c828142ce4cae9d7711053d7e18c57844549d58f15e8a305be39c"
+checksum = "c073e4ef30c9a23b4bb6b992e9938e334a83daed5d768f4f9c4bc74ab9dee7c9"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -3760,9 +3760,9 @@ dependencies = [
 
 [[package]]
 name = "qsv-dateparser"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b36efc8e07bbf9e63709a3b309fdc6e11a667342028ebbbbe4529ae4369d018a"
+checksum = "cdda4c930de275e38f0a82c242ecfb6b0f9ac94f3055c21a1ed95063c65b0c1e"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3771,9 +3771,9 @@ dependencies = [
 
 [[package]]
 name = "qsv-sniffer"
-version = "0.10.0"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24767907573772c600f5029ab23a7d896e271b21795ecc98d0e02b6083297936"
+checksum = "b58087514eb36f80b0b0e9a84ebb309f586567796e9ca393e8ea67b4aeb35a6e"
 dependencies = [
  "bitflags 2.4.0",
  "bytecount",
