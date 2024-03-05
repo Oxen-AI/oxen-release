@@ -1,5 +1,3 @@
-use std::ops::Add;
-
 use clap::{arg, Arg, Command};
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,

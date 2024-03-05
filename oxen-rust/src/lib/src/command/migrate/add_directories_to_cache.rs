@@ -1,19 +1,11 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use jwalk::WalkDir;
-
-use crate::constants;
-use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
-
+use crate::api;
 use crate::core::cache;
-use crate::core::index::{CommitEntryReader, CommitReader};
+use crate::core::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::util::fs::version_dir_from_hash;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, util};
 
 use super::Migrate;
 
@@ -45,7 +37,7 @@ impl Migrate for AddDirectoriesToCacheMigration {
         Ok(())
     }
 
-    fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
+    fn is_needed(&self, _repo: &LocalRepository) -> Result<bool, OxenError> {
         // Server migration only, no client-side migration needed
         Ok(false)
     }
@@ -54,16 +46,16 @@ impl Migrate for AddDirectoriesToCacheMigration {
 pub fn add_directories_to_cache_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let reader = CommitReader::new(repo)?;
 
-    let mut all_commits = reader.list_all()?;
+    let all_commits = reader.list_all()?;
 
     for commit in all_commits {
-        cache::cachers::repo_size::compute(repo, &commit)?;
+        cache::cachers::content_stats::compute(repo, &commit)?;
     }
 
     Ok(())
 }
 
-pub fn add_directories_to_cache_down(repo: &LocalRepository) -> Result<(), OxenError> {
+pub fn add_directories_to_cache_down(_repo: &LocalRepository) -> Result<(), OxenError> {
     println!("Nothing to do here.");
     Ok(())
 }
@@ -106,7 +98,9 @@ pub fn add_directories_to_cache_for_all_repos_up(path: &Path) -> Result<(), Oxen
             namespace_path.canonicalize()?
         );
         let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        log::debug!("🐂 Migrating {} repos", repos.len());
         for repo in repos {
+            log::debug!("Migrating repo {:?}", repo.path);
             match add_directories_to_cache_up(&repo) {
                 Ok(_) => {}
                 Err(err) => {
