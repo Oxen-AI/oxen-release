@@ -167,8 +167,9 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
     let namespace = repo.namespace.as_ref();
     let repo_name = repo.name.as_ref();
     let host = repo.host();
+    let scheme = repo.scheme();
 
-    let url = api::endpoint::url_from_host(&host, "");
+    let url = api::endpoint::url_from_host_and_scheme(&host, "", scheme);
     let params = json!({
         "name": repo_name,
         "namespace": namespace,
@@ -204,7 +205,8 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
 
 pub async fn create(repo_new: RepoNew) -> Result<RemoteRepository, OxenError> {
     let host = repo_new.host();
-    let url = api::endpoint::url_from_host(&host, "");
+    let scheme = repo_new.scheme();
+    let url = api::endpoint::url_from_host_and_scheme(&host, "", scheme);
 
     // convert repo_new to json with serde
     log::debug!("Create remote: {}\n{:?}", url, repo_new);
@@ -551,6 +553,7 @@ mod tests {
             }];
             let mut repo_new = RepoNew::from_files(namespace, &name, files);
             repo_new.host = Some(test::test_host());
+            repo_new.scheme = Some("http".to_string());
             let repository = api::remote::repositories::create(repo_new).await?;
             println!("got repository: {repository:?}");
             assert_eq!(repository.name, name);
