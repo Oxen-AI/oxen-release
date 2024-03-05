@@ -102,10 +102,15 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
     // The format is namespace/name
     let namespace_name = sub_matches.get_one::<String>("name").expect("required");
     // Default the host to the oxen.ai hub
-    let remote_host = sub_matches
-        .get_one::<String>("remote")
+    let host = sub_matches
+        .get_one::<String>("host")
         .map(String::from)
         .unwrap_or(DEFAULT_HOST.to_string());
+    // Default scheme
+    let scheme = sub_matches
+        .get_one::<String>("scheme")
+        .map(String::from)
+        .unwrap_or("https".to_string());
 
     // Validate the format
     let parts: Vec<&str> = namespace_name.split('/').collect();
@@ -119,7 +124,7 @@ pub async fn create_remote(sub_matches: &ArgMatches) {
     let empty = !sub_matches.get_flag("add_readme");
     let is_public = sub_matches.get_flag("is_public");
 
-    match dispatch::create_remote(namespace, name, remote_host, empty, is_public).await {
+    match dispatch::create_remote(namespace, name, host, scheme, empty, is_public).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
