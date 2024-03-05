@@ -24,13 +24,15 @@ pub struct PyRemoteRepo {
     pub host: String,
     #[pyo3(get)]
     pub revision: String,
+    #[pyo3(get)]
+    pub scheme: String,
 }
 
 #[pymethods]
 impl PyRemoteRepo {
     #[new]
-    #[pyo3(signature = (repo, host, revision="main"))]
-    fn py_new(repo: String, host: String, revision: &str) -> PyResult<Self> {
+    #[pyo3(signature = (repo, host, revision="main", scheme="https"))]
+    fn py_new(repo: String, host: String, revision: &str, scheme: &str) -> PyResult<Self> {
         let (namespace, repo_name) = match repo.split_once('/') {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
@@ -45,13 +47,14 @@ impl PyRemoteRepo {
                 namespace: namespace.to_owned(),
                 name: repo_name.to_owned(),
                 remote: Remote {
-                    url: liboxen::api::endpoint::remote_url_from_namespace_name(
-                        &host, &namespace, &repo_name,
+                    url: liboxen::api::endpoint::remote_url_from_namespace_name_scheme(
+                        &host, &namespace, &repo_name, scheme
                     ),
                     name: String::from(liboxen::constants::DEFAULT_REMOTE_NAME),
                 },
             },
             revision: revision.to_string(),
+            scheme: scheme.to_string(),
             host,
         })
     }
@@ -93,6 +96,7 @@ impl PyRemoteRepo {
                     self.host.clone(),
                 );
                 repo.is_public = Some(is_public);
+                repo.scheme = Some(self.scheme.clone());
                 api::remote::repositories::create_empty(repo).await
             } else {
                 let config = UserConfig::get()?;
@@ -104,6 +108,7 @@ impl PyRemoteRepo {
                 }];
                 let mut repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);
                 repo.is_public = Some(is_public);
+                repo.scheme = Some(self.scheme.clone());
                 api::remote::repositories::create(repo).await
             }
         })?;
@@ -114,6 +119,7 @@ impl PyRemoteRepo {
             repo: self.repo.clone(),
             host: self.host.clone(),
             revision: self.revision.clone(),
+            scheme: self.scheme.clone(),
         })
     }
 
