@@ -166,8 +166,6 @@ mod tests {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("");
 
-            let head = api::local::commits::head_commit(&local_repo)?;
-
             let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
                     .await?;
