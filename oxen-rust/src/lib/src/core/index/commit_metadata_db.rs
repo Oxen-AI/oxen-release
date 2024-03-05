@@ -70,7 +70,7 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
 
     let metas = meta_entries
         .into_iter()
-        .chain(meta_dirs.into_iter())
+        .chain(meta_dirs)
         .collect::<Vec<_>>();
 
     bar.finish();
@@ -261,7 +261,7 @@ pub fn full_size(
 mod tests {
     use std::path::PathBuf;
 
-    use crate::core::index::{commit_metadata_db, CommitEntryReader};
+    use crate::core::index::commit_metadata_db;
     use crate::error::OxenError;
     use crate::test;
     use crate::{api, command, util};
