@@ -553,6 +553,7 @@ mod tests {
             }];
             let mut repo_new = RepoNew::from_files(namespace, &name, files);
             repo_new.host = Some(test::test_host());
+            repo_new.scheme = Some("http".to_string());
             let repository = api::remote::repositories::create(repo_new).await?;
             println!("got repository: {repository:?}");
             assert_eq!(repository.name, name);
