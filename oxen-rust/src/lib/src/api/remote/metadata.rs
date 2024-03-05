@@ -143,18 +143,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_metadata_table_list_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("train");
 
             let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::list_dir(&remote_repo, branch, directory).await?;
-            println!("meta: {:?}", meta);
 
             let df = meta.data_frame.view.to_df();
-            println!("df: {:?}", df);
 
-            assert_eq!(meta.data_frame.source.size.width, 10);
+            assert_eq!(meta.data_frame.source.size.width, 11);
             assert_eq!(meta.data_frame.source.size.height, 5);
 
             Ok(remote_repo)
@@ -164,9 +162,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_metadata_table_agg_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("");
+
+            let head = api::local::commits::head_commit(&local_repo)?;
+            let commit_entry_reader = CommitEntryReader::new(&local_repo, &head)?;
+            let all_dirs = commit_entry_reader.list_dirs()?;
+
+            log::debug!("all_dirs: {:#?}", all_dirs);
 
             let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
@@ -176,21 +180,20 @@ mod tests {
             let df = meta.data_frame.view.to_df();
             println!("df: {:?}", df);
 
-            /*
-            df: shape: (3, 2)
-            ┌───────────┬───────┐
-            │ data_type ┆ count │
-            │ ---       ┆ ---   │
-            │ str       ┆ i64   │
-            ╞═══════════╪═══════╡
-            │ tabular   ┆ 7     │
-            │ image     ┆ 5     │
-            │ text      ┆ 4     │
-            └───────────┴───────┘
-            */
+            // df: shape: (4, 2)
+            // ┌───────────┬───────┐
+            // │ data_type ┆ count │
+            // │ ---       ┆ ---   │
+            // │ str       ┆ i64   │
+            // ╞═══════════╪═══════╡
+            // │ directory ┆ 8     │
+            // │ image     ┆ 5     │
+            // │ tabular   ┆ 7     │
+            // │ text      ┆ 4     │
+            // └───────────┴───────┘
 
             assert_eq!(meta.data_frame.source.size.width, 2);
-            assert_eq!(meta.data_frame.source.size.height, 3);
+            assert_eq!(meta.data_frame.source.size.height, 4);
 
             Ok(remote_repo)
         })

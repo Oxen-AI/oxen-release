@@ -14,6 +14,9 @@ pub use update_version_files::UpdateVersionFilesMigration;
 pub mod cache_dataframe_size;
 pub use cache_dataframe_size::CacheDataFrameSizeMigration;
 
+pub mod add_directories_to_cache;
+pub use add_directories_to_cache::AddDirectoriesToCacheMigration;
+
 pub trait Migrate {
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError>;
     fn down(&self, path: &Path, all: bool) -> Result<(), OxenError>;

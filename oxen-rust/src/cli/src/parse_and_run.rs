@@ -8,8 +8,8 @@ use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTO
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::command::migrate::{
-    CacheDataFrameSizeMigration, CreateMerkleTreesMigration, Migrate, PropagateSchemasMigration,
-    UpdateVersionFilesMigration,
+    AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
+    Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
@@ -1107,6 +1107,13 @@ pub async fn migrate(sub_matches: &ArgMatches) {
                     } else if migration == CreateMerkleTreesMigration.name() {
                         if let Err(err) =
                             run_migration(&CreateMerkleTreesMigration, direction, sub_matches)
+                        {
+                            eprintln!("Error running migration: {}", err);
+                            std::process::exit(1);
+                        }
+                    } else if migration == AddDirectoriesToCacheMigration.name() {
+                        if let Err(err) =
+                            run_migration(&AddDirectoriesToCacheMigration, direction, sub_matches)
                         {
                             eprintln!("Error running migration: {}", err);
                             std::process::exit(1);
