@@ -295,10 +295,6 @@ mod tests {
 
             let directory = PathBuf::from("");
 
-            let commit_entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            let dirs = commit_entry_reader.list_dirs()?;
-            log::debug!("all_dirs: {:?}", dirs);
-
             let df = commit_metadata_db::aggregate_col(&repo, &commit, directory, "data_type")?;
 
             let df_str = format!("{:?}", df);

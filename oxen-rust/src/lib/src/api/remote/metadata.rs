@@ -167,10 +167,6 @@ mod tests {
             let directory = Path::new("");
 
             let head = api::local::commits::head_commit(&local_repo)?;
-            let commit_entry_reader = CommitEntryReader::new(&local_repo, &head)?;
-            let all_dirs = commit_entry_reader.list_dirs()?;
-
-            log::debug!("all_dirs: {:#?}", all_dirs);
 
             let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")

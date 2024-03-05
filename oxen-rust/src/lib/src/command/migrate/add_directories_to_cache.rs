@@ -44,6 +44,10 @@ impl Migrate for AddDirectoriesToCacheMigration {
 }
 
 pub fn add_directories_to_cache_up(repo: &LocalRepository) -> Result<(), OxenError> {
+    // Lock repo, releases when goes out of scope at the end of this
+    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
+    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+
     let reader = CommitReader::new(repo)?;
 
     let all_commits = reader.list_all()?;
@@ -72,7 +76,7 @@ pub fn add_directories_to_cache_for_all_repos_down(path: &Path) -> Result<(), Ox
                 Ok(_) => {}
                 Err(err) => {
                     log::error!(
-                        "Could not down-migrate version files for repo {:?}\nErr: {}",
+                        "Could not down-migrate cache files for repo {:?}\nErr: {}",
                         repo.path,
                         err
                     )
@@ -105,7 +109,7 @@ pub fn add_directories_to_cache_for_all_repos_up(path: &Path) -> Result<(), Oxen
                 Ok(_) => {}
                 Err(err) => {
                     log::error!(
-                        "Could not migrate version files for repo {:?}\nErr: {}",
+                        "Could not migrate directory cache for repo {:?}\nErr: {}",
                         repo.path.canonicalize(),
                         err
                     )
