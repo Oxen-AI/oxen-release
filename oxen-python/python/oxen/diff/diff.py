@@ -1,11 +1,11 @@
 """
 Oxen can be used to compare data frames and return a tabular diff.
 
-There is more information about the diff in the 
+There is more information about the diff in the
 [Diff Getting Started Documentation](/concepts/diffs).
 
 For example comparing two data frames will give you an output data frame,
-where the `.oxen.diff.status` column shows if the row was `added`, `removed`, 
+where the `.oxen.diff.status` column shows if the row was `added`, `removed`,
 or `modified`.
 
 ```
@@ -39,7 +39,7 @@ print(result.get())
 from ..oxen import PyDiff
 from ..oxen import diff as py_diff
 
-from oxen import df
+from oxen import df_utils
 from oxen.diff.tabular_diff import TabularDiff
 from oxen.diff.text_diff import TextDiff
 
@@ -70,7 +70,7 @@ def diff(
         repo_dir: `os.PathLike`
             The path to the oxen repository. Must be provided if `compare_to` is
             not provided, or if `revision_left` or `revision_right` is provided.
-            If not provided, the repository will be searched for in the current 
+            If not provided, the repository will be searched for in the current
             working directory.
         revision_left: `str`
             The left revision to compare. Can be a commit hash or branch name.
@@ -90,7 +90,7 @@ def diff(
         path, keys, targets, to, repo_dir, revision_left, revision_right
     )
     if output:
-        df.save(result, output)
+        df_utils.save(result, output)
     return Diff(result)
 
 
