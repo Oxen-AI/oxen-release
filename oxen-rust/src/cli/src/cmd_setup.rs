@@ -1,7 +1,9 @@
+use std::ops::Add;
+
 use clap::{arg, Arg, Command};
 use liboxen::command::migrate::{
-    CacheDataFrameSizeMigration, CreateMerkleTreesMigration, Migrate, PropagateSchemasMigration,
-    UpdateVersionFilesMigration,
+    AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
+    Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -939,6 +941,24 @@ pub fn migrate() -> Command {
                             .action(clap::ArgAction::SetTrue),
                     ),
                 )
+                .subcommand(
+                    Command::new(AddDirectoriesToCacheMigration.name())
+                    .about("SERVER ONLY: Re-caches past commits to include directories in the cache")
+                    .arg(
+                        Arg::new("PATH")
+                            .help("Directory in which to apply the migration")
+                            .required(true),
+                    )
+                    .arg(
+                        Arg::new("all")
+                            .long("all")
+                            .short('a')
+                            .help(
+                                "Run the migration for all oxen repositories in this directory",
+                            )
+                            .action(clap::ArgAction::SetTrue),
+                    ),
+                )
         )
         .subcommand(
             Command::new("down")
@@ -1001,6 +1021,24 @@ pub fn migrate() -> Command {
                 .subcommand(
                     Command::new(CreateMerkleTreesMigration.name())
                     .about("Reformats the underlying data model into merkle trees for storage and lookup efficiency")
+                    .arg(
+                        Arg::new("PATH")
+                            .help("Directory in which to apply the migration")
+                            .required(true),
+                    )
+                    .arg(
+                        Arg::new("all")
+                            .long("all")
+                            .short('a')
+                            .help(
+                                "Run the migration for all oxen repositories in this directory",
+                            )
+                            .action(clap::ArgAction::SetTrue),
+                    ),
+                )
+                .subcommand(
+                    Command::new(AddDirectoriesToCacheMigration.name())
+                    .about("SERVER ONLY: Re-caches past commits to include directories in the cache")
                     .arg(
                         Arg::new("PATH")
                             .help("Directory in which to apply the migration")
