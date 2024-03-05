@@ -64,7 +64,7 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
         .filter(|dir| *dir != &PathBuf::from(""))
         .map(|dir| {
             // Takes some time to compute from_dir
-            DirMetadataItem::from_dir(repo, dir, commit, &commit_reader)
+            DirMetadataItem::from_dir(dir, commit)
         })
         .collect::<Vec<_>>();
 

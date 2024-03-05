@@ -143,14 +143,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_metadata_table_list_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("train");
 
             let meta: JsonDataFrameViewResponse =
                 api::remote::metadata::list_dir(&remote_repo, branch, directory).await?;
 
-            let df = meta.data_frame.view.to_df();
+            let _df = meta.data_frame.view.to_df();
 
             assert_eq!(meta.data_frame.source.size.width, 11);
             assert_eq!(meta.data_frame.source.size.height, 5);

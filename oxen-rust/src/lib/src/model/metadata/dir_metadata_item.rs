@@ -42,12 +42,7 @@ impl DirMetadataItem {
         Schema::new("metadata", fields)
     }
 
-    pub fn from_dir(
-        repo: &LocalRepository,
-        dir: &Path,
-        commit: &Commit,
-        commit_reader: &CommitReader,
-    ) -> Self {
+    pub fn from_dir(dir: &Path, commit: &Commit) -> Self {
         let path = dir.to_string_lossy();
         let mime_type = "directory".to_string();
         let data_type = "directory".to_string();
