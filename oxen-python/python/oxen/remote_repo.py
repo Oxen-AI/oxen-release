@@ -26,6 +26,7 @@ def create_repo(
     description="",
     is_public: bool = True,
     host: str = "hub.oxen.ai",
+    scheme: str = "https",
     files: List[Tuple[str, str]] = [],
 ):
     """
@@ -42,13 +43,15 @@ def create_repo(
             Only applicable to [OxenHub](https://oxen.ai).
         host: `str`
             The host to connect to. Defaults to 'hub.oxen.ai'
+        scheme: `str`
+            The scheme to use for the remote url. Default: 'https'
         files: `List[Tuple[str, str]]`
             A list of tuples containing the path to the file and the contents
             of the file that you would like to seed the repository with.
     Returns:
         [RemoteRepo](/python-api/remote_repo)
     """
-    return remote.create_repo(name, description, is_public, host, files)
+    return remote.create_repo(name, description, is_public, host, scheme, files)
 
 
 class RemoteRepo:
@@ -92,7 +95,13 @@ class RemoteRepo:
     ```
     """
 
-    def __init__(self, path: str, host: Optional[str] = None, revision: str = "main"):
+    def __init__(
+        self,
+        path: str,
+        host: Optional[str] = None,
+        revision: str = "main",
+        scheme="https",
+    ):
         """
         Create a new RemoteRepo object to interact with.
 
@@ -108,7 +117,7 @@ class RemoteRepo:
         if host is None:
             host = "hub.oxen.ai"
 
-        self._repo = PyRemoteRepo(path, host, revision)
+        self._repo = PyRemoteRepo(path, host, revision, scheme)
 
     def __repr__(self):
         return f"RemoteRepo({self._repo.url()})"
@@ -122,6 +131,8 @@ class RemoteRepo:
                 Whether to create an empty repo or not. Default: False
             is_public: `bool`
                 Whether the repository is public or private. Default: False
+            scheme: `str`
+                The scheme to use for the remote url. Default: 'https'
         """
         self._repo.create(empty, is_public)
 
