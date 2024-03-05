@@ -15,6 +15,8 @@ pub struct RepoNew {
     pub is_public: Option<bool>,
     // Host is where you are going to create the repo
     pub host: Option<String>,
+    // scheme is the http scheme to use ie: http or https
+    pub scheme: Option<String>,
     // Root commit to create on the server
     pub root_commit: Option<Commit>,
     // Description of the repo on the hub
@@ -46,6 +48,12 @@ impl RepoNew {
             .unwrap_or_else(|| String::from(DEFAULT_HOST))
     }
 
+    pub fn scheme(&self) -> String {
+        self.scheme
+            .clone()
+            .unwrap_or_else(|| RepoNew::scheme_default(self.host()))
+    }
+
     /// repo_id is the "{namespace}/{repo_name}"
     pub fn new(repo_id: String) -> Result<RepoNew, OxenError> {
         if !repo_id.contains('/') {
@@ -62,10 +70,20 @@ impl RepoNew {
             name: repo_name,
             is_public: None,
             host: Some(String::from(DEFAULT_HOST)),
+            scheme: Some(RepoNew::scheme_default(String::from(DEFAULT_HOST))),
             root_commit: None,
             description: None,
             files: None,
         })
+    }
+
+    pub fn scheme_default(host: impl AsRef<str>) -> String {
+        let host = host.as_ref();
+        if host.contains("localhost") || host.contains("127.0.0.1") {
+            "http".to_string()
+        } else {
+            "https".to_string()
+        }
     }
 
     pub fn from_namespace_name(namespace: impl AsRef<str>, name: impl AsRef<str>) -> RepoNew {
@@ -73,6 +91,7 @@ impl RepoNew {
             namespace: String::from(namespace.as_ref()),
             name: String::from(name.as_ref()),
             host: Some(String::from(DEFAULT_HOST)),
+            scheme: Some(RepoNew::scheme_default(String::from(DEFAULT_HOST))),
             is_public: None,
             root_commit: None,
             description: None,
@@ -90,6 +109,7 @@ impl RepoNew {
             name: String::from(name.as_ref()),
             is_public: None,
             host: Some(String::from(host.as_ref())),
+            scheme: Some(RepoNew::scheme_default(host)),
             root_commit: None,
             description: None,
             files: None,
@@ -106,6 +126,7 @@ impl RepoNew {
             name: String::from(name.as_ref()),
             is_public: None,
             host: Some(String::from(DEFAULT_HOST)),
+            scheme: Some(RepoNew::scheme_default(String::from(DEFAULT_HOST))),
             root_commit: Some(root_commit),
             description: None,
             files: None,
@@ -122,6 +143,7 @@ impl RepoNew {
             name: String::from(name.as_ref()),
             is_public: None,
             host: Some(String::from(DEFAULT_HOST)),
+            scheme: Some(RepoNew::scheme_default(String::from(DEFAULT_HOST))),
             root_commit: None,
             description: None,
             files: Some(files),
@@ -144,6 +166,7 @@ impl RepoNew {
             name: repo_name.to_string(),
             is_public: None,
             host: Some(uri.host().unwrap().to_string()),
+            scheme: Some(uri.scheme().unwrap().to_string()),
             root_commit: None,
             description: None,
             files: None,

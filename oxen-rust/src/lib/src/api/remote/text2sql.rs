@@ -15,8 +15,8 @@ pub async fn convert(query: &str, schema: &str, host: Option<String>) -> Result<
         Some(host) => host,
         None => DEFAULT_HOST.to_string(),
     };
-    let protocol = endpoint::get_protocol(&host);
-    let url = format!("{protocol}://{host}/api/df/text2sql?query={query}&schema={schema}");
+    let scheme = endpoint::get_scheme(&host);
+    let url = format!("{scheme}://{host}/api/df/text2sql?query={query}&schema={schema}");
     log::debug!("text2sql url: {}", url);
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {

@@ -2,31 +2,47 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::{Remote, RemoteRepository};
+use crate::model::{Remote, RemoteRepository, RepoNew};
 use url::Url;
 
 const API_NAMESPACE: &str = "/api/repos";
 
-pub fn get_protocol(host: impl AsRef<str>) -> String {
-    let host = host.as_ref();
-    // if localhost use http, otherwise use https
-    if host.contains("localhost") {
-        "http".to_string()
-    } else {
-        "https".to_string()
-    }
+pub fn get_scheme(host: impl AsRef<str>) -> String {
+    RepoNew::scheme_default(host.as_ref())
+}
+
+pub fn url_from_host_and_scheme(
+    host: impl AsRef<str>,
+    uri: impl AsRef<str>,
+    scheme: impl AsRef<str>,
+) -> String {
+    format!(
+        "{}://{}{API_NAMESPACE}{}",
+        scheme.as_ref(),
+        host.as_ref(),
+        uri.as_ref()
+    )
 }
 
 pub fn url_from_host(host: &str, uri: &str) -> String {
-    format!("{}://{host}{API_NAMESPACE}{uri}", get_protocol(host))
+    format!("{}://{host}{API_NAMESPACE}{uri}", get_scheme(host))
 }
 
 pub fn remote_url_from_namespace_name(host: &str, namespace: &str, name: &str) -> String {
-    format!("{}://{host}/{namespace}/{name}", get_protocol(host))
+    format!("{}://{host}/{namespace}/{name}", get_scheme(host))
+}
+
+pub fn remote_url_from_namespace_name_scheme(
+    host: &str,
+    namespace: &str,
+    name: &str,
+    scheme: &str,
+) -> String {
+    format!("{scheme}://{host}/{namespace}/{name}")
 }
 
 pub fn remote_url_from_name(host: &str, name: &str) -> String {
-    format!("{}://{host}/{name}", get_protocol(host))
+    format!("{}://{host}/{name}", get_scheme(host))
 }
 
 pub fn url_from_remote_url(url: &str) -> Result<String, OxenError> {

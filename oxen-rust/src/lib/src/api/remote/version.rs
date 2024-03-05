@@ -5,8 +5,8 @@ use crate::view::version::VersionResponse;
 use crate::view::StatusMessage;
 
 pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
-    let protocol = endpoint::get_protocol(host);
-    let url = format!("{protocol}://{host}/api/version");
+    let scheme = endpoint::get_scheme(host);
+    let url = format!("{scheme}://{host}/api/version");
     log::debug!("Checking version at url {}", url);
 
     let client = client::new_for_url(&url)?;
@@ -28,8 +28,8 @@ pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
 }
 
 pub async fn get_min_cli_version(host: &str) -> Result<String, OxenError> {
-    let protocol = endpoint::get_protocol(host);
-    let url = format!("{protocol}://{host}/api/min_version");
+    let scheme = endpoint::get_scheme(host);
+    let url = format!("{scheme}://{host}/api/min_version");
     log::debug!("Checking min cli version at url {}", url);
 
     let client = client::new_for_url(&url)?;
