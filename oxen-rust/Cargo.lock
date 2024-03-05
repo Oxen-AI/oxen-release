@@ -3997,9 +3997,9 @@ dependencies = [
 
 [[package]]
 name = "qsv-dateparser"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b36efc8e07bbf9e63709a3b309fdc6e11a667342028ebbbbe4529ae4369d018a"
+checksum = "cdda4c930de275e38f0a82c242ecfb6b0f9ac94f3055c21a1ed95063c65b0c1e"
 dependencies = [
  "anyhow",
  "chrono",
@@ -4008,9 +4008,9 @@ dependencies = [
 
 [[package]]
 name = "qsv-sniffer"
-version = "0.10.1"
+version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "16b77ad5c8e60f875ff6907937fe143093febbf481c29f2b3132c353ed69bbaf"
+checksum = "b58087514eb36f80b0b0e9a84ebb309f586567796e9ca393e8ea67b4aeb35a6e"
 dependencies = [
  "bitflags 2.4.2",
  "bytecount",

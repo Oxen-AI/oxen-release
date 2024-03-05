@@ -1,4 +1,4 @@
-FROM rust:1.74.1 as builder
+FROM rust:1.76.0 as builder
 
 USER root
 RUN apt-get update
