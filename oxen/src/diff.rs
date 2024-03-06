@@ -17,7 +17,7 @@ pub use py_text_diff::PyTextDiff;
 pub fn diff_paths(
     path_1: PathBuf,
     keys: Vec<String>,
-    targets: Vec<String>,
+    compares: Vec<String>,
     path_2: Option<PathBuf>,
     repo_dir: Option<PathBuf>,
     revision_1: Option<String>,
@@ -27,7 +27,7 @@ pub fn diff_paths(
         path_1,
         path_2,
         keys,
-        targets,
+        compares,
         repo_dir,
         revision_1,
         revision_2
