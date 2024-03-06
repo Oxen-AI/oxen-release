@@ -55,7 +55,7 @@ def diff(
     revision_right: Optional[str] = None,
     output: Optional[os.PathLike] = None,
     keys: list[str] = [],
-    targets: list[str] = [],
+    compares: list[str] = [],
 ):
     """
     Compares data from two paths and returns a diff respecting the type of data.
@@ -82,12 +82,12 @@ def diff(
             Only for tabular diffs. The keys to compare on.
             This is used to join the two data frames.
             Keys will be combined and hashed to create a identifier for each row.
-        targets: `list[str]`
-            Only for tabular diffs. The targets to compare on.
+        compares: `list[str]`
+            Only for tabular diffs. The compares to compare on.
             This is used to compare the values of the two data frames.
     """
     result = py_diff.diff_paths(
-        path, keys, targets, to, repo_dir, revision_left, revision_right
+        path, keys, compares, to, repo_dir, revision_left, revision_right
     )
     if output:
         df_utils.save(result, output)
