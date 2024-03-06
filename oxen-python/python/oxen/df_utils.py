@@ -10,10 +10,10 @@ import os
 from oxen import df_utils
 
 # load a data frame
-data_frame = df_utils.load("path/to/data.csv")
+df = df_utils.load("path/to/data.csv")
 
 # save a data frame
-df_utils.save(data_frame, "path/to/save.csv")
+df_utils.save(df, "path/to/save.csv")
 ```
 """
 

@@ -21,17 +21,17 @@ class LineDiff:
         """
         Returns the modification of the line diff.
         """
-        match self._diff.modification:
-            case PyChangeType.Added:
-                return ChangeType.ADDED
-            case PyChangeType.Removed:
-                return ChangeType.REMOVED
-            case PyChangeType.Modified:
-                return ChangeType.MODIFIED
-            case PyChangeType.Unchanged:
-                return ChangeType.UNCHANGED
-            case _:
-                raise ValueError(f"Invalid modification: {self._diff.modification}")
+        mod_type = self._diff.modification
+        if PyChangeType.Added == mod_type:
+            return ChangeType.ADDED
+        elif PyChangeType.Removed == mod_type:
+            return ChangeType.REMOVED
+        elif PyChangeType.Modified == mod_type:
+            return ChangeType.MODIFIED
+        elif PyChangeType.Unchanged == mod_type:
+            return ChangeType.UNCHANGED
+        else:
+            raise ValueError(f"Invalid modification: {mod_type}")
 
     @property
     def text(self) -> str:
