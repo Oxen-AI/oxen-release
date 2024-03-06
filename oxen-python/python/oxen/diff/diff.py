@@ -136,10 +136,10 @@ class Diff:
         """
         Resolves the diff type and returns the appropriate diff object.
         """
-        match self._py_diff.format:
-            case "tabular":
-                return TabularDiff(self._py_diff.tabular)
-            case "text":
-                return TextDiff(self._py_diff.text)
-            case "unknown":
-                raise ValueError("The diff type is unknown.")
+        format = self._py_diff.format
+        if "tabular" == format:
+            return TabularDiff(self._py_diff.tabular)
+        elif "text" == format:
+            return TextDiff(self._py_diff.text)
+        else:
+            raise ValueError("The diff type is unknown.")
