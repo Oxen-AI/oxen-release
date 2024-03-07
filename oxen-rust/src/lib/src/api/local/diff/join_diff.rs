@@ -86,8 +86,19 @@ pub fn diff(
 
     let modifications = calculate_compare_mods(&joined_df)?;
 
-    let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
-    let joined_df = joined_df.sort(&keys, descending, false)?;
+    // Sort by any keys whose datatypes are primtivie
+
+    let mut sort_cols = vec![];
+    for key in keys.iter() {
+        if let Ok(col) = joined_df.column(key) {
+            if col.dtype().is_primitive() {
+                sort_cols.push(key);
+            }
+        }
+    }
+    let descending = sort_cols.iter().map(|_| false).collect::<Vec<bool>>();
+
+    let joined_df = joined_df.sort(&sort_cols, descending, false)?;
 
     let result_fields =
         prepare_response_fields(&schema_diff, keys.clone(), targets.clone(), display);
