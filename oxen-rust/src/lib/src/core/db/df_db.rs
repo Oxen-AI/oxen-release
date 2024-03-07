@@ -1,12 +1,14 @@
 //! Abstraction over DuckDB database to write and read dataframes from disk.
 //!
 
+use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::model;
 use crate::model::schema::Field;
 use crate::model::Schema;
 
 use duckdb::arrow::record_batch::RecordBatch;
+use duckdb::ToSql;
 use polars::prelude::*;
 use std::io::Cursor;
 use std::path::Path;
@@ -150,6 +152,54 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
     log::debug!("result df: {:?}", df);
 
     Ok(df)
+}
+
+/// Insert a row from a polars dataframe into a duckdb table.
+pub fn insert_polars_df(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    df: &DataFrame,
+) -> Result<(), OxenError> {
+    let table_name = table_name.as_ref();
+    if df.height() == 0 {
+        return Err(OxenError::basic_str("DataFrame is empty"));
+    }
+
+    let schema = df.schema();
+    let column_names: Vec<String> = schema
+        .iter_fields()
+        .map(|f| f.name().to_string().clone())
+        .collect();
+    let placeholders: String = column_names
+        .iter()
+        .map(|_| "?".to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "INSERT INTO {} ({}) VALUES ({})",
+        table_name,
+        column_names.join(", "),
+        placeholders
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+
+    for idx in 0..df.height() {
+        let row = df.get(idx).unwrap();
+        let boxed_values: Vec<Box<dyn ToSql>> = row
+            .iter()
+            .map(|v| tabular::value_to_tosql(v.to_owned()))
+            .collect();
+
+        let params: Vec<&dyn ToSql> = boxed_values
+            .iter()
+            .map(|boxed_value| &**boxed_value as &dyn ToSql)
+            .collect();
+
+        stmt.execute(params.as_slice())?;
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
