@@ -162,7 +162,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_metadata_table_agg_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             let branch = DEFAULT_BRANCH_NAME;
             let directory = Path::new("");
 

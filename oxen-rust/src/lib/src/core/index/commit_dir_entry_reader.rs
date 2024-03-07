@@ -78,7 +78,12 @@ impl CommitDirEntryReader {
             Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
                 Some(dir) => dir,
                 None => {
-                    log::error!("Could not get dir by hash: {} for path {:?} and commit_id {}", dir_hash, base_path, commit_id);
+                    log::error!(
+                        "Could not get dir by hash: {} for path {:?} and commit_id {}",
+                        dir_hash,
+                        base_path,
+                        commit_id
+                    );
                     // Creating dummy dir object
                     TreeObject::Dir {
                         children: Vec::new(),
