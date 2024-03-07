@@ -86,8 +86,7 @@ pub fn diff(
 
     let modifications = calculate_compare_mods(&joined_df)?;
 
-    // Sort by any keys whose datatypes are primtivie
-
+    // Sort by all keys with primitive dtypes
     let joined_df = sort_df_on_keys(joined_df, keys.clone())?;
 
     let result_fields =
