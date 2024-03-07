@@ -36,6 +36,25 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     // that we can serve up.
     let reader = CommitEntryReader::new(repo, commit)?;
     let dirs = reader.list_dirs()?;
+
+    // // Get a count of all descendent dirs of each dir
+    // let mut tree = HashMap::new();
+    // for dir in dirs {
+    //     let components: Vec<&str> = dir.split('/').collect();
+    //     let mut current_path = String::new();
+    //     for (i, component) in components.iter().enumerate() {
+    //         if i > 0 {
+    //             current_path.push('/');
+    //         }
+    //         current_path.push_str(component);
+    //         if i < components.len() - 1 {
+    //             tree.entry(current_path.clone())
+    //                 .or_insert_with(Vec::new)
+    //                 .push(format!("{}/{}", current_path, components[i + 1]));
+    //         }
+    //     }
+    // }
+
     log::debug!("Computing size of {} dirs", dirs.len());
     let columns = ["data_type", "mime_type"];
     for dir in dirs {
@@ -46,8 +65,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             if let Some(parent) = path.parent() {
                 std::fs::create_dir_all(parent)?;
             }
-            log::debug!("Writing cached df {} to {}", column, path.display());
-            // log::debug!("df {}", df);
             tabular::write_df(&mut df, &path)?;
         }
     }
