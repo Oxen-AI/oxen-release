@@ -40,6 +40,7 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
 
     let entry_reader = CommitEntryReader::new(repo, commit)?;
     let entries = entry_reader.list_entries()?;
+    let dirs = entry_reader.list_dirs()?;
 
     let commit_reader = CommitReader::new(repo)?;
     let num_entries = entries.len();
@@ -48,13 +49,28 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
     log::debug!("compute metadata for {num_entries} entries in commit: {commit:?}");
 
     // Compute the metadata in parallel
-    let metas = entries
+    let meta_entries = entries
         .par_iter()
         .map(|entry| {
             // Takes some time to compute from_entry
             bar.inc(1);
             DirMetadataItem::from_entry(repo, entry, &commit_reader)
         })
+        .collect::<Vec<_>>();
+
+    // Gather dirs, except root to avoid double counting
+    let meta_dirs = dirs
+        .par_iter()
+        .filter(|dir| *dir != &PathBuf::from(""))
+        .map(|dir| {
+            // Takes some time to compute from_dir
+            DirMetadataItem::from_dir(dir, commit)
+        })
+        .collect::<Vec<_>>();
+
+    let metas = meta_entries
+        .into_iter()
+        .chain(meta_dirs)
         .collect::<Vec<_>>();
 
     bar.finish();
@@ -283,15 +299,18 @@ mod tests {
 
             let df_str = format!("{:?}", df);
 
+            log::debug!("df: {:#?}", df);
+
             // Add assert here
             assert_eq!(
                 df_str,
-                r"shape: (3, 2)
+                r"shape: (4, 2)
 ┌───────────┬───────┐
 │ data_type ┆ count │
 │ ---       ┆ ---   │
 │ str       ┆ i64   │
 ╞═══════════╪═══════╡
+│ directory ┆ 9     │
 │ image     ┆ 7     │
 │ tabular   ┆ 7     │
 │ text      ┆ 4     │
@@ -326,15 +345,18 @@ mod tests {
             let df_str = format!("{:?}", df);
             println!("df:\n{:?}", df_str);
 
+            log::debug!("df: {:#?}", df);
+
             // Add assert here
             assert_eq!(
                 df_str,
-                r"shape: (1, 2)
+                r"shape: (2, 2)
 ┌───────────┬───────┐
 │ data_type ┆ count │
 │ ---       ┆ ---   │
 │ str       ┆ i64   │
 ╞═══════════╪═══════╡
+│ directory ┆ 1     │
 │ text      ┆ 10    │
 └───────────┴───────┘"
             );
