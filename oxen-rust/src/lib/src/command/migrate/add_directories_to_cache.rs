@@ -50,7 +50,9 @@ pub fn add_directories_to_cache_up(repo: &LocalRepository) -> Result<(), OxenErr
 
     let reader = CommitReader::new(repo)?;
 
-    let all_commits = reader.list_all()?;
+    let mut all_commits = reader.list_all()?;
+
+    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
     for commit in all_commits {
         cache::cachers::content_stats::compute(repo, &commit)?;
@@ -64,28 +66,8 @@ pub fn add_directories_to_cache_down(_repo: &LocalRepository) -> Result<(), Oxen
     Ok(())
 }
 
-pub fn add_directories_to_cache_for_all_repos_down(path: &Path) -> Result<(), OxenError> {
-    let namespaces = api::local::repositories::list_namespaces(path)?;
-    let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
-    println!("🐂 Migrating {} namespaces", namespaces.len());
-    for namespace in namespaces {
-        let namespace_path = path.join(namespace);
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
-        for repo in repos {
-            match add_directories_to_cache_down(&repo) {
-                Ok(_) => {}
-                Err(err) => {
-                    log::error!(
-                        "Could not down-migrate cache files for repo {:?}\nErr: {}",
-                        repo.path,
-                        err
-                    )
-                }
-            }
-        }
-        bar.inc(1);
-    }
-
+pub fn add_directories_to_cache_for_all_repos_down(_path: &Path) -> Result<(), OxenError> {
+    println!("Nothing to do here.");
     Ok(())
 }
 
