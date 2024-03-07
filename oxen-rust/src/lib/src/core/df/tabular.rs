@@ -918,13 +918,21 @@ pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
 
     match extension {
         Some(extension) => match extension {
-            "csv" | "tsv" | "data" | "jsonl" | "ndjson" => {
+            "csv" | "tsv" => {
                 let mut opts = CountLinesOpts::empty();
                 opts.remove_trailing_blank_line = true;
 
-                // Remove one line to account for CSV headers
+                // Remove one line to account for CSV/TSV headers
                 let (mut height, _) = fs::count_lines(path, opts)?;
-                height -= 1;
+                height -= 1; // Adjusting for header
+
+                Ok(DataFrameSize { width, height })
+            }
+            "data" | "jsonl" | "ndjson" => {
+                let mut opts = CountLinesOpts::empty();
+                opts.remove_trailing_blank_line = true;
+
+                let (height, _) = fs::count_lines(path, opts)?;
 
                 Ok(DataFrameSize { width, height })
             }

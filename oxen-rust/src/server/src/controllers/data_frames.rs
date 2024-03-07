@@ -54,6 +54,9 @@ pub async fn get(
         data_frame_size
     );
 
+    let manual_df_size = tabular::get_size(&version_path)?;
+    log::debug!("manual size is {:?}", manual_df_size);
+
     // Parse the query params
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -143,6 +146,8 @@ pub async fn get(
             slice_schema.update_metadata_from_schema(&og_schema);
             log::debug!("Slice schema {:?}", slice_schema);
             let opts_view = DFOptsView::from_df_opts(&opts);
+
+            log::debug!("view_height is {}", view_height);
 
             let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_found(),
