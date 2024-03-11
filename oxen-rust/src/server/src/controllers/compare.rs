@@ -10,6 +10,8 @@ use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
 use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
+use liboxen::model::diff::dir_diff_summary::{DirDiffSummary, DirDiffSummaryImpl};
+use liboxen::model::diff::generic_diff_summary::GenericDiffSummary;
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
@@ -106,6 +108,7 @@ pub async fn entries(
         &repository,
         &base_commit,
         &head_commit,
+        PathBuf::from(""),
         page,
         page_size,
     )?;
@@ -180,17 +183,28 @@ pub async fn dir_entries(
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let dir = PathBuf::from(dir);
 
-    let entries_diff = api::local::diff::list_diff_entries_in_dir(
+    let entries_diff = api::local::diff::list_diff_entries(
         &repository,
-        dir.clone(),
         &base_commit,
         &head_commit,
+        dir.clone(),
         page,
         page_size,
     )?;
 
-    let self_entry =
-        api::local::diff::get_dir_diff_entry(&repository, dir, &base_commit, &head_commit)?;
+    let summary = GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+        dir: DirDiffSummaryImpl {
+            file_counts: entries_diff.counts.clone(),
+        },
+    });
+
+    let self_entry = api::local::diff::get_dir_diff_entry_with_summary(
+        &repository,
+        dir,
+        &base_commit,
+        &head_commit,
+        summary,
+    )?;
 
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;

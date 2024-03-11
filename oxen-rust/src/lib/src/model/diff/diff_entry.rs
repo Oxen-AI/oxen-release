@@ -74,11 +74,6 @@ impl DiffEntry {
         let mut base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
         let mut head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
 
-        log::debug!("from_dir base_entry: {:?}", base_entry);
-        log::debug!("from_dir head_entry: {:?}", head_entry);
-
-        log::debug!("from_dir base_dir: {:?}", base_dir);
-        log::debug!("from_dir head_dir: {:?}", head_dir);
         // Need to check whether we have the head or base entry to check data about the file
         let (current_dir, current_entry) = if let Some(dir) = head_dir {
             (dir, head_entry.to_owned().unwrap())
@@ -86,7 +81,13 @@ impl DiffEntry {
             (base_dir.unwrap(), base_entry.to_owned().unwrap())
         };
 
-        let diff_summary = DiffEntry::diff_summary_from_dir(repo, &base_entry, &head_entry)?;
+        let diff_summary = DiffEntry::diff_summary_from_dir(
+            repo,
+            &base_entry,
+            &head_entry,
+            base_commit,
+            head_commit,
+        )?;
         let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
         let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
 
@@ -110,6 +111,58 @@ impl DiffEntry {
             base_entry,
             diff_summary,
             diff: None, // TODO: Come back to what we want a full directory diff to look like
+        })
+    }
+
+    // If the summary for a dir diff is already calculated (such as when wanting a self diff for a directory)
+    // this prevents re-traversing through the directory structure.
+    pub fn from_dir_with_summary(
+        repo: &LocalRepository,
+        base_dir: Option<&PathBuf>,
+        base_commit: &Commit,
+        head_dir: Option<&PathBuf>,
+        head_commit: &Commit,
+        summary: GenericDiffSummary,
+        status: DiffEntryStatus,
+    ) -> Result<DiffEntry, OxenError> {
+        let mut base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
+        let mut head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
+
+        log::debug!("from_dir base_entry: {:?}", base_entry);
+        log::debug!("from_dir head_entry: {:?}", head_entry);
+
+        log::debug!("from_dir base_dir: {:?}", base_dir);
+        log::debug!("from_dir head_dir: {:?}", head_dir);
+        // Need to check whether we have the head or base entry to check data about the file
+        let (current_dir, current_entry) = if let Some(dir) = head_dir {
+            (dir, head_entry.to_owned().unwrap())
+        } else {
+            (base_dir.unwrap(), base_entry.to_owned().unwrap())
+        };
+
+        let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
+        let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
+
+        if base_entry.is_some() {
+            base_entry.as_mut().unwrap().resource = base_resource.clone();
+        }
+
+        if head_entry.is_some() {
+            head_entry.as_mut().unwrap().resource = head_resource.clone();
+        }
+
+        Ok(DiffEntry {
+            status: status.to_string(),
+            data_type: EntryDataType::Dir,
+            filename: current_dir.as_os_str().to_str().unwrap().to_string(),
+            is_dir: true,
+            size: current_entry.size,
+            head_resource,
+            base_resource,
+            head_entry,
+            base_entry,
+            diff_summary: Some(summary),
+            diff: None,
         })
     }
 
@@ -237,6 +290,8 @@ impl DiffEntry {
         repo: &LocalRepository,
         base_dir: &Option<MetadataEntry>,
         head_dir: &Option<MetadataEntry>,
+        base_commit: &Commit,
+        head_commit: &Commit,
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
         log::debug!("diff_summary_from_dir base_dir: {:?}", base_dir);
         log::debug!("diff_summary_from_dir head_dir: {:?}", head_dir);
@@ -268,23 +323,24 @@ impl DiffEntry {
 
         // if both base_dir and head_dir are some, then we need to compare the two
         let base_dir = base_dir.as_ref().unwrap();
-        let head_dir = head_dir.as_ref().unwrap();
 
-        DiffEntry::r_compute_diff_all_files(repo, base_dir, head_dir)
+        DiffEntry::r_compute_diff_all_files(repo, base_dir, base_commit, head_commit)
     }
 
     fn r_compute_diff_all_files(
         repo: &LocalRepository,
         base_dir: &MetadataEntry,
-        head_dir: &MetadataEntry,
+        base_commit: &Commit,
+        head_commit: &Commit,
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
-        let base_commit_id = &base_dir.latest_commit.as_ref().unwrap().id;
-        let head_commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
+        let base_commit_id = &base_commit.id;
+        let head_commit_id = &head_commit.id;
 
         // base and head path will be the same so just choose base
         let path = PathBuf::from(&base_dir.resource.clone().unwrap().path);
 
         let mut num_removed = 0;
+
         let mut num_added = 0;
         let mut num_modified = 0;
 
@@ -313,6 +369,7 @@ impl DiffEntry {
             // List the entries in hash sets
             let head_entries = head_dir_reader.list_entries_set()?;
             let base_entries = base_dir_reader.list_entries_set()?;
+
             log::debug!(
                 "diff_summary_from_dir head_entries: {:?}",
                 head_entries.len()
@@ -326,6 +383,7 @@ impl DiffEntry {
             let added_entries = head_entries
                 .difference(&base_entries)
                 .collect::<HashSet<_>>();
+
             num_added += added_entries.len();
 
             // Find the removed entries
