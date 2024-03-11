@@ -74,11 +74,6 @@ impl DiffEntry {
         let mut base_entry = DiffEntry::metadata_from_dir(repo, base_dir, base_commit);
         let mut head_entry = DiffEntry::metadata_from_dir(repo, head_dir, head_commit);
 
-        log::debug!("from_dir base_entry: {:?}", base_entry);
-        log::debug!("from_dir head_entry: {:?}", head_entry);
-
-        log::debug!("from_dir base_dir: {:?}", base_dir);
-        log::debug!("from_dir head_dir: {:?}", head_dir);
         // Need to check whether we have the head or base entry to check data about the file
         let (current_dir, current_entry) = if let Some(dir) = head_dir {
             (dir, head_entry.to_owned().unwrap())
@@ -90,8 +85,8 @@ impl DiffEntry {
             repo,
             &base_entry,
             &head_entry,
-            &base_commit,
-            &head_commit,
+            base_commit,
+            head_commit,
         )?;
         let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
         let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
@@ -328,15 +323,13 @@ impl DiffEntry {
 
         // if both base_dir and head_dir are some, then we need to compare the two
         let base_dir = base_dir.as_ref().unwrap();
-        let head_dir = head_dir.as_ref().unwrap();
 
-        DiffEntry::r_compute_diff_all_files(repo, base_dir, head_dir, base_commit, head_commit)
+        DiffEntry::r_compute_diff_all_files(repo, base_dir, base_commit, head_commit)
     }
 
     fn r_compute_diff_all_files(
         repo: &LocalRepository,
         base_dir: &MetadataEntry,
-        head_dir: &MetadataEntry,
         base_commit: &Commit,
         head_commit: &Commit,
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
@@ -367,17 +360,6 @@ impl DiffEntry {
         // Uniq them
         let dirs: HashSet<PathBuf> = HashSet::from_iter(dirs);
 
-        log::debug!(
-            "got base commit id {:?} for base_dir {:?}",
-            base_commit_id,
-            base_dir
-        );
-        log::debug!(
-            "got head commit id {:?} for head_dir {:?}",
-            head_commit_id,
-            head_dir
-        );
-
         for dir in dirs {
             let base_dir_reader =
                 CommitDirEntryReader::new(repo, base_commit_id, &dir, object_reader.clone())?;
@@ -388,8 +370,6 @@ impl DiffEntry {
             let head_entries = head_dir_reader.list_entries_set()?;
             let base_entries = base_dir_reader.list_entries_set()?;
 
-            log::debug!("got head entries {:#?} for dir {:?}", head_entries, dir);
-            log::debug!("got base entries {:#?} for dir {:?}", base_entries, dir);
             log::debug!(
                 "diff_summary_from_dir head_entries: {:?}",
                 head_entries.len()
@@ -404,27 +384,20 @@ impl DiffEntry {
                 .difference(&base_entries)
                 .collect::<HashSet<_>>();
 
-            log::debug!("got added entries {:?}", added_entries.len());
             num_added += added_entries.len();
 
             // Find the removed entries
             let removed_entries = base_entries
                 .difference(&head_entries)
                 .collect::<HashSet<_>>();
-            log::debug!("got removed entries {:?}", removed_entries.len());
             num_removed += removed_entries.len();
 
             // Find the modified entries
             for base_entry in base_entries {
-                log::debug!("got base mod entry {:?}", base_entry);
                 if let Some(head_entry) = head_entries.get(&base_entry) {
-                    log::debug!("got head mod entry {:?}", head_entry);
                     if head_entry.hash != base_entry.hash {
-                        log::debug!("FOUND MOD ENTRY FOR {:?}", base_entry.path);
                         num_modified += 1;
                     }
-                } else {
-                    log::debug!("could not get head for base entry {:?}", base_entry);
                 }
             }
         }

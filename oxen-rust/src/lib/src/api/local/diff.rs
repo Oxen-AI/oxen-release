@@ -950,7 +950,6 @@ pub fn list_diff_entries(
         head_commit.id,
         head_commit.message
     );
-    // let head_entries = read_entries_from_commit(repo, head_commit)?;
     let object_reader = ObjectDBReader::new(repo)?;
 
     let base_reader =
@@ -973,11 +972,8 @@ pub fn list_diff_entries(
 
     log::debug!("Got {} base entries", base_entries.len());
 
-    // let head_dirs = read_dirs_from_commit(repo, head_commit)?;
-
     log::debug!("Got {} head_dirs", head_dirs.len());
 
-    // let base_dirs = read_dirs_from_commit(repo, base_commit)?;
     log::debug!("Got {} base_dirs", base_dirs.len());
 
     let mut dir_entries: Vec<DiffEntry> = vec![];
@@ -1274,26 +1270,6 @@ pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCou
         modified,
     }
 }
-
-// fn read_dirs_from_commit(
-//     repo: &LocalRepository,
-//     commit: &Commit,
-// ) -> Result<HashSet<PathBuf>, OxenError> {
-//     let reader = CommitEntryReader::new(repo, commit)?;
-//     let entries = reader.list_dirs()?;
-//     Ok(HashSet::from_iter(
-//         entries.into_iter().filter(|p| p != Path::new("")),
-//     ))
-// }
-
-// fn read_entries_from_commit(
-//     repo: &LocalRepository,
-//     commit: &Commit,
-// ) -> Result<HashSet<CommitEntry>, OxenError> {
-//     let reader = CommitEntryReader::new(repo, commit)?;
-//     let entries = reader.list_entries_set()?;
-//     Ok(entries)
-// }
 
 #[cfg(test)]
 mod tests {

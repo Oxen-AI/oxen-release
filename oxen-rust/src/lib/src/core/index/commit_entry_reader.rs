@@ -268,7 +268,7 @@ impl CommitEntryReader {
     pub fn list_directory_set(&self, dir: &Path) -> Result<HashSet<CommitEntry>, OxenError> {
         log::debug!("CommitEntryReader::list_directory_set() dir: {:?}", dir);
         let entries = self.list_directory(dir)?;
-        let entries_set: HashSet<CommitEntry> = HashSet::from_iter(entries.into_iter());
+        let entries_set: HashSet<CommitEntry> = HashSet::from_iter(entries);
         Ok(entries_set)
     }
 
