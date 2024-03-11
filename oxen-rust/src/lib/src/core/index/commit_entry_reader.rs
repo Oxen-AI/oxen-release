@@ -126,14 +126,30 @@ impl CommitEntryReader {
         // A little hacky, we just filter by starts_with because we aren't representing the parents in the db
         // Shouldn't be a problem unless we have repos with hundreds of thousands of directories?
         let path = path.as_ref();
-        let parents = path_db::list_paths(&self.dir_db, Path::new(""))?
+        let children = path_db::list_paths(&self.dir_db, Path::new(""))?
             .into_iter()
             .filter(|dir| {
                 (path == Path::new("") && dir != Path::new(""))
                     || (dir.starts_with(path) && dir != path)
             })
             .collect();
-        Ok(parents)
+        Ok(children)
+    }
+
+    /// Lists all the child directories that are in the commit dir db and returns them as a HashSet
+    pub fn list_dir_children_set(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<HashSet<PathBuf>, OxenError> {
+        let path = path.as_ref();
+        let children = path_db::list_paths(&self.dir_db, Path::new(""))?
+            .into_iter()
+            .filter(|dir| {
+                (path == Path::new("") && dir != Path::new(""))
+                    || (dir.starts_with(path) && dir != path)
+            })
+            .collect::<HashSet<PathBuf>>();
+        Ok(children)
     }
 
     pub fn has_dir<P: AsRef<Path>>(&self, path: P) -> bool {
@@ -247,6 +263,13 @@ impl CommitEntryReader {
             }
         }
         Ok(entries)
+    }
+
+    pub fn list_directory_set(&self, dir: &Path) -> Result<HashSet<CommitEntry>, OxenError> {
+        log::debug!("CommitEntryReader::list_directory_set() dir: {:?}", dir);
+        let entries = self.list_directory(dir)?;
+        let entries_set: HashSet<CommitEntry> = HashSet::from_iter(entries.into_iter());
+        Ok(entries_set)
     }
 
     pub fn list_entries_per_directory(
