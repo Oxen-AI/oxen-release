@@ -4,6 +4,7 @@
 //!
 
 use crate::core::db::{self, path_db};
+use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core::df::tabular;
@@ -790,7 +791,7 @@ pub fn list_changed_dirs(
     Ok(changed_dirs)
 }
 
-// For a rollup summary presented alongside the diffs WITHIN a dir
+// For a rollup summary presented alongside the diffs WITHIN a dir, calculating added / removed / modified files from scratch
 pub fn get_dir_diff_entry(
     repo: &LocalRepository,
     dir: PathBuf,
@@ -856,11 +857,82 @@ pub fn get_dir_diff_entry(
     }
 }
 
+// Abbreviated version for when summary is known (e.g. computing top-level self node of an already-calculated dir diff)
+pub fn get_dir_diff_entry_with_summary(
+    repo: &LocalRepository,
+    dir: PathBuf,
+    base_commit: &Commit,
+    head_commit: &Commit,
+    summary: GenericDiffSummary,
+) -> Result<Option<DiffEntry>, OxenError> {
+    // Dir hashes db is cheaper to open than objects reader
+    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+
+    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&base_dir_hashes_db_path),
+        false,
+    )?;
+
+    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+        &db::opts::default(),
+        dunce::simplified(&head_dir_hashes_db_path),
+        false,
+    )?;
+
+    let maybe_base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, &dir)?;
+    let maybe_head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, &dir)?;
+
+    match (maybe_base_dir_hash, maybe_head_dir_hash) {
+        (Some(base_dir_hash), Some(head_dir_hash)) => {
+            let base_dir_hash = base_dir_hash.to_string();
+            let head_dir_hash = head_dir_hash.to_string();
+
+            if base_dir_hash == head_dir_hash {
+                Ok(None)
+            } else {
+                Ok(Some(DiffEntry::from_dir_with_summary(
+                    repo,
+                    Some(&dir),
+                    base_commit,
+                    Some(&dir),
+                    head_commit,
+                    summary,
+                    DiffEntryStatus::Modified,
+                )?))
+            }
+        }
+        (None, Some(_)) => Ok(Some(DiffEntry::from_dir_with_summary(
+            repo,
+            None,
+            base_commit,
+            Some(&dir),
+            head_commit,
+            summary,
+            DiffEntryStatus::Added,
+        )?)),
+        (Some(_), None) => Ok(Some(DiffEntry::from_dir_with_summary(
+            repo,
+            Some(&dir),
+            base_commit,
+            None,
+            head_commit,
+            summary,
+            DiffEntryStatus::Removed,
+        )?)),
+        (None, None) => Err(OxenError::basic_str(
+            "Could not calculate dir diff tree: dir does not exist in either commit.",
+        )),
+    }
+}
+
 /// TODO this is very ugly...
 pub fn list_diff_entries(
     repo: &LocalRepository,
     base_commit: &Commit,
     head_commit: &Commit,
+    dir: PathBuf,
     page: usize,
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
@@ -878,20 +950,34 @@ pub fn list_diff_entries(
         head_commit.id,
         head_commit.message
     );
-    let head_entries = read_entries_from_commit(repo, head_commit)?;
+    // let head_entries = read_entries_from_commit(repo, head_commit)?;
+    let object_reader = ObjectDBReader::new(repo)?;
+
+    let base_reader =
+        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
+    let head_reader =
+        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader.clone())?;
+
+    let head_entries = head_reader.list_directory_set(&dir)?;
+    let base_entries = base_reader.list_directory_set(&dir)?;
+
+    let head_dirs = head_reader.list_dir_children_set(&dir)?;
+    let base_dirs = base_reader.list_dir_children_set(&dir)?;
+
     log::debug!("Got {} head entries", head_entries.len());
     log::debug!(
         "Reading entries from base commit {} -> {}",
         base_commit.id,
         base_commit.message
     );
-    let base_entries = read_entries_from_commit(repo, base_commit)?;
+
     log::debug!("Got {} base entries", base_entries.len());
 
-    let head_dirs = read_dirs_from_commit(repo, head_commit)?;
+    // let head_dirs = read_dirs_from_commit(repo, head_commit)?;
+
     log::debug!("Got {} head_dirs", head_dirs.len());
 
-    let base_dirs = read_dirs_from_commit(repo, base_commit)?;
+    // let base_dirs = read_dirs_from_commit(repo, base_commit)?;
     log::debug!("Got {} base_dirs", base_dirs.len());
 
     let mut dir_entries: Vec<DiffEntry> = vec![];
@@ -1189,25 +1275,25 @@ pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCou
     }
 }
 
-fn read_dirs_from_commit(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<HashSet<PathBuf>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    let entries = reader.list_dirs()?;
-    Ok(HashSet::from_iter(
-        entries.into_iter().filter(|p| p != Path::new("")),
-    ))
-}
+// fn read_dirs_from_commit(
+//     repo: &LocalRepository,
+//     commit: &Commit,
+// ) -> Result<HashSet<PathBuf>, OxenError> {
+//     let reader = CommitEntryReader::new(repo, commit)?;
+//     let entries = reader.list_dirs()?;
+//     Ok(HashSet::from_iter(
+//         entries.into_iter().filter(|p| p != Path::new("")),
+//     ))
+// }
 
-fn read_entries_from_commit(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<HashSet<CommitEntry>, OxenError> {
-    let reader = CommitEntryReader::new(repo, commit)?;
-    let entries = reader.list_entries_set()?;
-    Ok(entries)
-}
+// fn read_entries_from_commit(
+//     repo: &LocalRepository,
+//     commit: &Commit,
+// ) -> Result<HashSet<CommitEntry>, OxenError> {
+//     let reader = CommitEntryReader::new(repo, commit)?;
+//     let entries = reader.list_entries_set()?;
+//     Ok(entries)
+// }
 
 #[cfg(test)]
 mod tests {
@@ -1238,8 +1324,14 @@ mod tests {
             command::add(&repo, &world_file)?;
             let head_commit = command::commit(&repo, "Adding two files")?;
 
-            let entries =
-                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = api::local::diff::list_diff_entries(
+                &repo,
+                &base_commit,
+                &head_commit,
+                PathBuf::from(""),
+                0,
+                10,
+            )?;
             let entries = entries.entries;
             assert_eq!(2, entries.len());
             assert_eq!(DiffEntryStatus::Added.to_string(), entries[0].status);
@@ -1274,8 +1366,14 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::add(&repo, bbox_file)?;
             let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
 
-            let entries =
-                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = api::local::diff::list_diff_entries(
+                &repo,
+                &base_commit,
+                &head_commit,
+                PathBuf::from(""),
+                0,
+                10,
+            )?;
             let entries = entries.entries;
             // Recursively marks parent dirs as modified
             assert_eq!(3, entries.len());
@@ -1304,8 +1402,14 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
-            let entries =
-                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = api::local::diff::list_diff_entries(
+                &repo,
+                &base_commit,
+                &head_commit,
+                PathBuf::from(""),
+                0,
+                10,
+            )?;
 
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
@@ -1353,8 +1457,14 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
 
-            let entries =
-                api::local::diff::list_diff_entries(&repo, &base_commit, &head_commit, 0, 10)?;
+            let entries = api::local::diff::list_diff_entries(
+                &repo,
+                &base_commit,
+                &head_commit,
+                PathBuf::from(""),
+                0,
+                10,
+            )?;
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
