@@ -282,6 +282,7 @@ impl CommitWriter {
         let mut df = df::tabular::read_df(path, DFOpts::empty())?;
         let schema_fields = Schema::from_polars(&df.schema()).fields_names().join(",");
         let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry)?;
+
         log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
         log::debug!("og df {:?}", df);
         if let Some(rows) = mods_df.added_rows {

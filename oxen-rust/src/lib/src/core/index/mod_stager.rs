@@ -6,7 +6,12 @@
 
 use std::path::{Path, PathBuf};
 
+use polars::frame::DataFrame;
+use polars::lazy::dsl::{col, lit};
+use polars::lazy::frame::IntoLazy;
+use polars::series::ChunkCompare;
 use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
+use sql_query_builder::Select;
 use time::OffsetDateTime;
 
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
@@ -16,6 +21,7 @@ use crate::error::OxenError;
 use crate::model::entry::mod_entry::{ModType, NewMod};
 use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry, Schema};
 use crate::{api, current_function, util};
+use staged_df_db::{OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL};
 
 use super::{remote_dir_stager, SchemaReader};
 
@@ -205,6 +211,26 @@ pub fn list_mods_df(
     } else {
         Err(OxenError::schema_does_not_exist_for_file(&entry.path))
     }
+}
+
+pub fn list_mods_df_new(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identity: &str,
+    entry: &CommitEntry,
+) -> Result<DataFrameDiff, OxenError> {
+    // Read the full df to polars from mods_duckdb_path
+    let db_path = mods_duckdb_path(repo, branch, identity, &entry.path);
+    let conn = df_db::get_connection(&db_path)?;
+    let select_stmt = Select::new().select("*").from("mods"); // TODONOW make this a const
+    let df = df_db::select(&conn, &select_stmt)?;
+
+    let cols_to_drop = vec![OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL];
+
+    let added_df = df.lazy().filter(col(OXEN_MOD_STATUS_COL).eq(lit("added")));
+    let added_df = added_df.drop_many(&cols_to_drop).collect()?;
+
+    Ok(df)
 }
 
 pub fn list_mod_entries(
