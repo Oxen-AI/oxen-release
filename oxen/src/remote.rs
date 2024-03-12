@@ -58,6 +58,7 @@ pub fn create_repo(
                 repo.description = Some(description);
             }
             repo.is_public = Some(is_public);
+            repo.scheme = Some(scheme.clone());
 
             liboxen::api::remote::repositories::create_empty(repo).await
         } else {
@@ -73,6 +74,7 @@ pub fn create_repo(
                 repo.description = Some(description);
             }
             repo.is_public = Some(is_public);
+            repo.scheme = Some(scheme.clone());
 
             liboxen::api::remote::repositories::create(repo).await
         }
