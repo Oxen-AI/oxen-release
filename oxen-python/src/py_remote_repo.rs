@@ -21,6 +21,7 @@ use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 #[pyclass]
 pub struct PyRemoteRepo {
     pub repo: RemoteRepository,
+    #[pyo3(get)]
     pub host: String,
     #[pyo3(get)]
     pub revision: String,
@@ -107,6 +108,7 @@ impl PyRemoteRepo {
                     user: user.clone()
                 }];
                 let mut repo = RepoNew::from_files(&self.repo.namespace, &self.repo.name, files);
+                repo.host = Some(self.host.clone());
                 repo.is_public = Some(is_public);
                 repo.scheme = Some(self.scheme.clone());
                 api::remote::repositories::create(repo).await
