@@ -113,6 +113,8 @@ class RemoteRepo:
                 The host to connect to. Defaults to 'hub.oxen.ai'
             revision: `str`
                 The branch name or commit id to checkout. Defaults to 'main'
+            scheme: `str`
+                The scheme to use for the remote url. Default: 'https'
         """
         if host is None:
             host = "hub.oxen.ai"
@@ -131,8 +133,6 @@ class RemoteRepo:
                 Whether to create an empty repo or not. Default: False
             is_public: `bool`
                 Whether the repository is public or private. Default: False
-            scheme: `str`
-                The scheme to use for the remote url. Default: 'https'
         """
         self._repo.create(empty, is_public)
 
