@@ -9,7 +9,6 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
-use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
@@ -601,7 +600,9 @@ pub fn diff_entries(
     Ok(entry)
 }
 
-pub fn list_diff_entries_in_dir(
+// Filters out the entries that are not direct children of the provided dir, but
+// still provides accurate recursive counts - TODO: can dedupe this with list_diff_entries somewhat
+pub fn list_diff_entries_in_dir_top_level(
     repo: &LocalRepository,
     dir: PathBuf,
     base_commit: &Commit,
@@ -616,15 +617,16 @@ pub fn list_diff_entries_in_dir(
     );
 
     let object_reader = ObjectDBReader::new(repo)?;
-    let base_dir_reader =
-        CommitDirEntryReader::new(repo, &base_commit.id, &dir, object_reader.clone())?;
-    let head_dir_reader = CommitDirEntryReader::new(repo, &head_commit.id, &dir, object_reader)?;
+    let base_reader =
+        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
+    let head_reader =
+        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader.clone())?;
 
-    let base_entries = base_dir_reader.list_entries_set()?;
-    let head_entries = head_dir_reader.list_entries_set()?;
+    let head_entries = head_reader.list_directory_set(&dir)?;
+    let base_entries = base_reader.list_directory_set(&dir)?;
 
-    let base_dirs = base_dir_reader.list_dirs_set()?;
-    let head_dirs = head_dir_reader.list_dirs_set()?;
+    let head_dirs = head_reader.list_dir_children_set(&dir)?;
+    let base_dirs = base_reader.list_dir_children_set(&dir)?;
 
     // TODO TBD: If the logic is an exact match, this can be deduped with list_diff_entries
     let mut dir_entries: Vec<DiffEntry> = vec![];
@@ -655,6 +657,8 @@ pub fn list_diff_entries_in_dir(
         &mut dir_entries,
     )?;
 
+    dir_entries = subset_dir_diffs_to_direct_children(dir_entries, dir.clone())?;
+
     dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
 
     let mut added_commit_entries: Vec<DiffCommitEntry> = vec![];
@@ -677,6 +681,9 @@ pub fn list_diff_entries_in_dir(
         .chain(removed_commit_entries)
         .chain(modified_commit_entries)
         .collect();
+
+    // Filter out the entries that are not direct children of the provided dir
+    combined = subset_file_diffs_to_direct_children(combined, dir)?;
 
     combined.sort_by(|a, b| a.path.cmp(&b.path));
 
@@ -1271,6 +1278,54 @@ pub fn get_add_remove_modify_counts(entries: &[DiffEntry]) -> AddRemoveModifyCou
     }
 }
 
+fn subset_dir_diffs_to_direct_children(
+    entries: Vec<DiffEntry>,
+    dir: PathBuf,
+) -> Result<Vec<DiffEntry>, OxenError> {
+    let mut filtered_entries: Vec<DiffEntry> = vec![];
+
+    for entry in entries {
+        let status = DiffEntryStatus::from_str(&entry.status)?;
+        let relevant_entry = match status {
+            DiffEntryStatus::Added | DiffEntryStatus::Modified => entry.head_entry.as_ref(),
+            DiffEntryStatus::Removed => entry.base_entry.as_ref(),
+        };
+
+        if let Some(meta_entry) = relevant_entry {
+            if let Some(resource) = &meta_entry.resource {
+                let path = PathBuf::from(&resource.path);
+                if path.parent() == Some(dir.as_path()) {
+                    filtered_entries.push(entry);
+                }
+            }
+        }
+    }
+
+    Ok(filtered_entries)
+}
+
+fn subset_file_diffs_to_direct_children(
+    entries: Vec<DiffCommitEntry>,
+    dir: PathBuf,
+) -> Result<Vec<DiffCommitEntry>, OxenError> {
+    let mut filtered_entries: Vec<DiffCommitEntry> = vec![];
+
+    for entry in entries {
+        let relevant_entry = match entry.status {
+            DiffEntryStatus::Added | DiffEntryStatus::Modified => entry.head_entry.as_ref(),
+            DiffEntryStatus::Removed => entry.base_entry.as_ref(),
+        };
+
+        if let Some(commit_entry) = relevant_entry {
+            if commit_entry.path.parent() == Some(dir.as_path()) {
+                filtered_entries.push(entry);
+            }
+        }
+    }
+
+    Ok(filtered_entries)
+}
+
 #[cfg(test)]
 mod tests {
     use std::path::Path;
@@ -1500,7 +1555,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             command::rm(&repo, &opts).await?;
             command::add(&repo, &repo.path)?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
-            let entries = api::local::diff::list_diff_entries_in_dir(
+            let entries = api::local::diff::list_diff_entries_in_dir_top_level(
                 &repo,
                 PathBuf::from(""),
                 &base_commit,
@@ -1511,7 +1566,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let entries = entries.entries;
 
-            let annotation_diff_entries = api::local::diff::list_diff_entries_in_dir(
+            let annotation_diff_entries = api::local::diff::list_diff_entries_in_dir_top_level(
                 &repo,
                 PathBuf::from("annotations"),
                 &base_commit,
@@ -1572,7 +1627,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
             let head_commit = command::commit(&repo, "Removing a the training data file")?;
-            let entries = api::local::diff::list_diff_entries_in_dir(
+            let entries = api::local::diff::list_diff_entries_in_dir_top_level(
                 &repo,
                 PathBuf::from(""),
                 &base_commit,
