@@ -112,6 +112,7 @@ pub async fn entries(
         page,
         page_size,
     )?;
+
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;
 
@@ -183,20 +184,23 @@ pub async fn dir_entries(
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let dir = PathBuf::from(dir);
 
-    let entries_diff = api::local::diff::list_diff_entries(
+    let entries_diff = api::local::diff::list_diff_entries_in_dir_top_level(
         &repository,
+        dir.clone(),
         &base_commit,
         &head_commit,
-        dir.clone(),
         page,
         page_size,
     )?;
 
+    // For this view, exclude anything that isn't a direct child of the directory in question
     let summary = GenericDiffSummary::DirDiffSummary(DirDiffSummary {
         dir: DirDiffSummaryImpl {
             file_counts: entries_diff.counts.clone(),
         },
     });
+
+    // let filtered_diff = subset_diff_to_direct_children(entries_diff, dir.clone())?;
 
     let self_entry = api::local::diff::get_dir_diff_entry_with_summary(
         &repository,
@@ -206,20 +210,17 @@ pub async fn dir_entries(
         summary,
     )?;
 
-    let entries = entries_diff.entries;
-    let pagination = entries_diff.pagination;
-
     let compare = CompareEntries {
         base_commit,
         head_commit,
         counts: entries_diff.counts,
-        entries,
+        entries: entries_diff.entries,
         self_diff: self_entry,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
         compare,
-        pagination,
+        pagination: entries_diff.pagination,
     };
     Ok(HttpResponse::Ok().json(view))
 }
