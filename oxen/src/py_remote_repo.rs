@@ -149,15 +149,15 @@ impl PyRemoteRepo {
         Ok(())
     }
 
-    fn add(&self, directory_name: String, path: PathBuf) -> Result<(), PyOxenError> {
+    fn add(&self, src: PathBuf, dst: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::staging::add_file(
                 &self.repo,
                 &self.revision,
                 &user_id,
-                &directory_name,
-                path,
+                &dst,
+                src,
             )
             .await
         })?;
