@@ -22,18 +22,6 @@ from .oxen import df_utils
 import os
 from polars import DataFrame
 
-
-class load_df_call:
-    """
-    Reads a file into a data frame. The file format is inferred from the file extension.
-
-    Supported types: csv, parquet, json, jsonl, arrow
-    """
-
-    def __call__(self, path: os.PathLike):
-        return load(path)
-
-
 def load(
     path: os.PathLike,
 ):
