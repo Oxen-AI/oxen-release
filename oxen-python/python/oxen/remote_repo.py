@@ -209,17 +209,17 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def add(self, local_path: str, directory: str = ""):
+    def add(self, src: str, dst: str = ""):
         """
         Stage a file to the remote workspace
 
         Args:
-            path: `str`
+            src: `str`
                 The path to the local file to be staged
-            directory: `str`
+            dst: `str`
                 The path in the remote repo where the file will be added
         """
-        self._repo.add(directory, local_path)
+        self._repo.add(src, dst)
 
     def remove(self, path: str):
         """
