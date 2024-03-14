@@ -13,7 +13,7 @@ def load_dataset(
     revision=None
 ):
     """
-    Load a dataset from a repo.
+    Load a dataset from a repo into memory.
 
     Parameters
     ----------
