@@ -5,7 +5,7 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::core::index::{CommitReader, Merger};
+use liboxen::core::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
 use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
@@ -242,8 +242,18 @@ pub async fn file(
     //   main..feature/add-data/path/to/file.txt
     let (base_commit, head_commit, resource) = parse_base_head_resource(&repository, &base_head)?;
 
-    let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
-    let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
+    // Make sure we're not comparing dirs - not yet supported
+    let base_entry_reader = CommitEntryReader::new(&repository, &base_commit)?;
+    let head_entry_reader = CommitEntryReader::new(&repository, &head_commit)?;
+
+    if base_entry_reader.has_dir(&resource) || head_entry_reader.has_dir(&resource) {
+        return Err(OxenHttpError::BadRequest(
+            "Directory compare not supported here.".to_string().into(),
+        ));
+    }
+
+    let base_entry = base_entry_reader.get_entry(&resource)?;
+    let head_entry = head_entry_reader.get_entry(&resource)?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
