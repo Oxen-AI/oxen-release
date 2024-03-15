@@ -12,6 +12,7 @@ use liboxen::util::oxen_version::OxenVersion;
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 
+
 pub mod aggregate_query;
 pub use aggregate_query::AggregateQuery;
 
@@ -37,6 +38,7 @@ pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
         // Invalid user agent, so we can't check the version
         return get_app_data(req);
     };
+
 
     if user_cli_is_out_of_date(user_agent_str) {
         return Err(OxenHttpError::UpdateRequired(
@@ -75,7 +77,8 @@ pub fn parse_resource(
     repo: &LocalRepository,
 ) -> Result<ParsedResource, OxenHttpError> {
     let resource: PathBuf = PathBuf::from(req.match_info().query("resource"));
-    parse_resource_from_path(repo, &resource)?
+    let decoded_resource = PathBuf::from(urlencoding::decode(&resource.to_string_lossy())?.to_string());
+    parse_resource_from_path(repo, &decoded_resource)?
         .ok_or(OxenError::path_does_not_exist(resource).into())
 }
 
