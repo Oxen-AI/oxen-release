@@ -4,7 +4,7 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, INDEX_DATASET, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 use clap::ArgMatches;
 use liboxen::command::migrate::{
@@ -172,6 +172,12 @@ pub async fn remote(sub_matches: &ArgMatches) {
                     eprintln!("{err}")
                 }
             },
+            (INDEX_DATASET, sub_matches) => match remote_index_dataset(sub_matches).await {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
+                }
+            }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
             }
@@ -297,6 +303,17 @@ async fn remote_metadata(sub_matches: &ArgMatches) -> Result<(), OxenError> {
             Err(err) => {
                 eprintln!("{err}")
             }
+        }
+    }
+    Ok(())
+}
+
+async fn remote_index_dataset(sub_matches: &ArgMatches) -> Result<(), OxenError> {
+    let path = PathBuf::from(sub_matches.get_one::<String>("path").expect("Path is required"));
+    match dispatch::remote_index_dataset(path).await {
+        Ok(_) => {},
+        Err(err) => {
+            eprintln!("{err}")
         }
     }
     Ok(())

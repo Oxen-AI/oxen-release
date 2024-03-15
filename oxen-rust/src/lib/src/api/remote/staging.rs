@@ -6,6 +6,7 @@ pub mod restore_df;
 pub mod rm_df_mod;
 pub mod rm_file;
 pub mod status;
+pub mod dataset;
 
 pub use add_file::{add_file, add_files};
 pub use commit::commit;

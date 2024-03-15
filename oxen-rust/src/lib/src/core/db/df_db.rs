@@ -40,6 +40,16 @@ pub fn create_table_if_not_exists(
     }
 }
 
+/// Drop a table in a duckdb database. 
+pub fn drop_table(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<(), OxenError> {
+    let table_name = table_name.as_ref();
+    let sql = format!("DROP TABLE IF EXISTS {}", table_name);
+    log::debug!("drop_table sql: {}", sql);
+    conn.execute(&sql, []).map_err(|e| OxenError::from(e))?;
+    Ok(())
+}
+
+
 /// Create a table from a set of oxen fields with data types.
 fn p_create_table_if_not_exists(
     conn: &duckdb::Connection,

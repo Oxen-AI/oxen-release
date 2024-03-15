@@ -92,3 +92,25 @@ pub async fn delete_staged_row(
         ))
     }
 }
+
+pub async fn index_dataset(
+    repository: &LocalRepository,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
+    if let Some(branch) = api::local::branches::current_branch(repository)? {
+        let user_id = UserConfig::identifier()?;
+
+        api::remote::staging::dataset::index_dataset(
+            &remote_repo,
+            &branch.name,
+            &user_id,
+            path.as_ref(),
+        )
+        .await
+    } else {
+        Err(OxenError::basic_str(
+            "Must be on a branch to stage remote changes.",
+        ))
+    }
+}

@@ -507,7 +507,43 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
         }
     }
+    
 }
+
+pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    log::debug!(
+        "{} indexing dataset for resource {namespace}/{repo_name}/{resource}",
+        liboxen::current_function!()
+    );
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Initialize the branch repository before any operations
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    match liboxen::core::index::remote_df_stager::index_dataset(&repo, &branch_repo, &branch, &resource.file_path, &identifier) {
+        Ok(_) => {
+            log::info!("Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}");
+            Ok(HttpResponse::Ok().json(StatusMessage::success("Dataset indexed successfully")))
+        },
+        Err(err) => {
+            log::error!("Failed to index dataset for {namespace}/{repo_name}/{resource}: {err}");
+            Err(OxenHttpError::InternalServerError)
+        }
+    }
+}
+
 
 fn clear_staged_modifications_on_branch(
     repo: &LocalRepository,
@@ -676,3 +712,4 @@ fn get_dir_status_for_branch(
     };
     Ok(HttpResponse::Ok().json(response))
 }
+
