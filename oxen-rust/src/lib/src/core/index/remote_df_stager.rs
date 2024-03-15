@@ -46,21 +46,6 @@ pub fn index_dataset(
     // Get version path for entry 
 
     let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, &entry.path);
-    // Clean house 
-    
-
-    // TODONOW: behavior here? 
-    // drop it if it exists 
-
-    // TODONOW this should actually be drop table
-
-    // if db_path.exists() {
-    //     util::fs::remove_dir_all(&db_path)?;
-    // }
-
-    // // Create the directory 
-    // util::fs::create_dir_all(&db_path)?;
-
 
 
     let conn = df_db::get_connection(&db_path)?;
@@ -70,8 +55,18 @@ pub fn index_dataset(
 
     log::debug!("index_dataset() got version path: {:?}", version_path);
 
-
-    index_csv(&version_path, &conn)?;
+    // TODO: Stubbed these out here because we will eventually want to parse the actual type, not just the extension. 
+    // For v0, just treat the extension as gospel
+    match entry.path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some("csv") => index_csv(&version_path, &conn)?,
+            Some("tsv") => index_tsv(&version_path, &conn)?,
+            Some("json") | Some("jsonl") | Some("ndjson") => index_json(&version_path, &conn)?,
+            Some("parquet") => index_parquet(&version_path, &conn)?,
+            _ => return Err(OxenError::basic_str("File format not supported, must be tabular.")),
+        },
+        None => return Err(OxenError::basic_str("File format not supported, must be tabular.")),
+    }
 
     Ok(())
 }
@@ -92,5 +87,49 @@ fn index_csv(
 
     Ok(())
 }
+
+fn index_tsv(
+    path: &Path,
+    conn: &Connection,
+) -> Result<(), OxenError> {
+    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    conn.execute(&query, [])?;
+
+    // TODONOW delete 
+    let select_all = Select::new().select("*").from(TABLE_NAME);
+    let data = df_db::select(&conn, &select_all)?;
+    log::debug!("index_tsv() got data: {:?}", data);
+
+    Ok(())
+}
+
+fn index_json(
+    path: &Path, 
+    conn: &Connection
+) -> Result<(), OxenError> {
+    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    conn.execute(&query, [])?;
+
+    // TODONOW delete 
+    let select_all = Select::new().select("*").from(TABLE_NAME);
+    let data = df_db::select(&conn, &select_all)?;
+    log::debug!("index_json() got data: {:?}", data);
+
+    Ok(())
+}
+
+fn index_parquet(
+    path: &Path, 
+    conn: &Connection
+) -> Result<(), OxenError> {
+    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    conn.execute(&query, [])?;
+
+    // TODONOW delete 
+    let select_all = Select::new().select("*").from(TABLE_NAME);
+    let data = df_db::select(&conn, &select_all)?;
+    log::debug!("index_json() got data: {:?}", data);
+    Ok(())
+}   
 
 
