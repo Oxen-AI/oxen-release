@@ -237,6 +237,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::stager::df_add_row),
         )
         .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/index/{resource:.*}",
+            web::post().to(controllers::stager::index_dataset),
+        )
+        .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",
             web::delete().to(controllers::stager::df_delete_row),
         )

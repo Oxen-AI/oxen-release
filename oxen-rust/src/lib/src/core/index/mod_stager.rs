@@ -40,7 +40,7 @@ fn mods_db_path(
         .join(path_hash)
 }
 
-fn mods_duckdb_path(
+pub fn mods_duckdb_path(
     repo: &LocalRepository,
     branch: &Branch,
     identifier: &str,
@@ -213,25 +213,25 @@ pub fn list_mods_df(
     }
 }
 
-pub fn list_mods_df_new(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    entry: &CommitEntry,
-) -> Result<DataFrameDiff, OxenError> {
-    // Read the full df to polars from mods_duckdb_path
-    let db_path = mods_duckdb_path(repo, branch, identity, &entry.path);
-    let conn = df_db::get_connection(&db_path)?;
-    let select_stmt = Select::new().select("*").from("mods"); // TODONOW make this a const
-    let df = df_db::select(&conn, &select_stmt)?;
+// pub fn list_mods_df_new(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     entry: &CommitEntry,
+// ) -> Result<DataFrameDiff, OxenError> {
+//     // Read the full df to polars from mods_duckdb_path
+//     let db_path = mods_duckdb_path(repo, branch, identity, &entry.path);
+//     let conn = df_db::get_connection(&db_path)?;
+//     let select_stmt = Select::new().select("*").from("mods"); // TODONOW make this a const
+//     let df = df_db::select(&conn, &select_stmt)?;
 
-    let cols_to_drop = vec![OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL];
+//     let cols_to_drop = vec![OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL];
 
-    let added_df = df.lazy().filter(col(OXEN_MOD_STATUS_COL).eq(lit("added")));
-    let added_df = added_df.drop_many(&cols_to_drop).collect()?;
+//     let added_df = df.lazy().filter(col(OXEN_MOD_STATUS_COL).eq(lit("added")));
+//     // let added_df = added_df.drop_many(&cols_to_drop).collect()?;
 
-    Ok(df)
-}
+//     Ok(df)
+// }
 
 pub fn list_mod_entries(
     repo: &LocalRepository,

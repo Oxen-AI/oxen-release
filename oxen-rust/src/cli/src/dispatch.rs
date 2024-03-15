@@ -325,6 +325,15 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     Ok(())
 }
 
+pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    command::remote::df::index_dataset(&repository, path).await?;
+    Ok(())
+}
+
 /// Download allows the user to download a file or files without cloning the repo
 pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
     let paths = &opts.paths;

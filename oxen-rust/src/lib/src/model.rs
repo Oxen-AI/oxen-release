@@ -17,6 +17,7 @@ pub mod object_id;
 pub mod parsed_resource;
 pub mod remote;
 pub mod remote_branch;
+pub mod remote_dataset;
 pub mod repository;
 pub mod schema;
 pub mod staged_data;
@@ -77,3 +78,6 @@ pub use crate::model::schema::staged_schema::StagedSchema;
 pub use crate::model::schema::Schema;
 
 pub use crate::model::namespace::Namespace;
+
+// Dataset
+pub use crate::model::remote_dataset::RemoteDataset;
