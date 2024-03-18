@@ -15,13 +15,18 @@ pub async fn download(
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
+    // Ping server telling it we are about to download
+    api::remote::repositories::pre_download(repo).await?;
     api::remote::entries::download_entry(
         repo,
         remote_path.as_ref(),
         local_path.as_ref(),
         revision.as_ref(),
     )
-    .await
+    .await?;
+    // Ping server telling it we finished downloading
+    api::remote::repositories::post_download(repo).await?;
+    Ok(())
 }
 
 #[cfg(test)]
