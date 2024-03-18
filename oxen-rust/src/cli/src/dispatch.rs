@@ -67,7 +67,7 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             let local_version: &str = constants::OXEN_VERSION;
 
             if remote_version != local_version {
-                let warning = format!("Warning: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n").yellow();
+                let warning = format!("Warning: 🐂 Oxen remote version mismatch.\n\nCLI Version: {local_version}\nServer Version: {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n").yellow();
                 eprintln!("{warning}");
             }
         }
