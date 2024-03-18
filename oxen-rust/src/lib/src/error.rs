@@ -599,3 +599,9 @@ impl From<ParseIntError> for OxenError {
         OxenError::basic_str(error.to_string())
     }
 }
+
+impl From<std::string::FromUtf8Error> for OxenError {
+    fn from(error: std::string::FromUtf8Error) -> Self {
+        OxenError::basic_str(format!("UTF8 conversion error: {}", error))
+    }
+}
