@@ -222,10 +222,11 @@ pub async fn create(repo_new: RepoNew) -> Result<RemoteRepository, OxenError> {
             Ok(response) => Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name(
+                    url: api::endpoint::remote_url_from_namespace_name_scheme(
                         &host,
                         &repo_new.namespace,
                         &repo_new.name,
+                        &repo_new.scheme(),
                     ),
                     name: String::from(DEFAULT_REMOTE_NAME),
                 },
