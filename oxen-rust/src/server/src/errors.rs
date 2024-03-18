@@ -56,6 +56,12 @@ impl From<serde_json::Error> for OxenHttpError {
     }
 }
 
+impl From<std::string::FromUtf8Error> for OxenHttpError {
+    fn from(error: std::string::FromUtf8Error) -> Self {
+        OxenHttpError::BadRequest(StringError::new(error.to_string()))
+    }
+}
+
 impl error::ResponseError for OxenHttpError {
     fn error_response(&self) -> HttpResponse {
         match self {
