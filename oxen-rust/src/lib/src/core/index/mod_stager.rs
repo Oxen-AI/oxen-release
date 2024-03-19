@@ -14,9 +14,10 @@ use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 use sql_query_builder::Select;
 use time::OffsetDateTime;
 
-use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
+use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, TABLE_NAME};
 use crate::core::db::{self, df_db, staged_df_db, str_json_db};
 use crate::core::df::tabular;
+use crate::core::index::{self, mod_stager, remote_df_stager};
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::{ModType, NewMod};
 use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry, Schema};
@@ -300,27 +301,27 @@ fn stage_mod_new(
 }
 
 // We need to create a duckdb data table from a schema.
-fn create_duckdb_table_from_schema(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    schema: &Schema,
-    path: impl AsRef<Path>,
-) -> Result<(), OxenError> {
-    // Check if mods_db_path already exists
-    let db_path = mods_duckdb_path(repo, branch, identity, path);
-    if db_path.exists() {
-        return Ok(());
-    }
+// fn create_duckdb_table_from_schema(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     schema: &Schema,
+//     path: impl AsRef<Path>,
+// ) -> Result<(), OxenError> {
+//     // Check if mods_db_path already exists
+//     let db_path = mods_duckdb_path(repo, branch, identity, path);
+//     if db_path.exists() {
+//         return Ok(());
+//     }
 
-    let conn = df_db::get_connection(&db_path)?;
+//     let conn = df_db::get_connection(&db_path)?;
 
-    let hello = staged_df_db::create_staged_table_if_not_exists(&schema, db_path)?;
+//     let hello = staged_df_db::create_staged_table_if_not_exists(&schema, db_path)?;
 
-    log::debug!("got creation of table with hello: {:?}", hello);
+//     log::debug!("got creation of table with hello: {:?}", hello);
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 fn stage_tabular_mod_new(
     repo: &LocalRepository,
@@ -343,10 +344,15 @@ fn stage_tabular_mod_new(
             ..schema
         };
 
-        create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
+        
+        // create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
 
         let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
         let conn = df_db::get_connection(&db_path)?;
+
+        // TODONOW: don't reindex every time
+        remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identity)?;
+
 
         match new_mod.mod_type {
             ModType::Append => {
@@ -362,6 +368,7 @@ fn stage_tabular_mod_new(
                 log::debug!("here's our append df {:?}", df);
 
                 let mod_row = staged_df_db::append_row(&conn, &df)?;
+
             }
             ModType::Delete => {
                 let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
@@ -455,6 +462,7 @@ fn stage_tabular_mod(
     );
     let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
+        log::debug!("got schema as {:?}", schema);
         // Parse the data into DF
         match tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned()) {
             Ok(df) => {

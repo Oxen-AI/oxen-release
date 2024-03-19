@@ -5,16 +5,14 @@ use polars::prelude::NamedFrom;
 use sql_query_builder as sql;
 
 use crate::{
-    error::OxenError,
-    model::{
+    constants::TABLE_NAME, error::OxenError, model::{
         entry::mod_entry::ModType,
         schema::{DataType, Field},
         Schema,
-    },
+    }
 };
 
 use super::df_db;
-const TABLE_NAME: &str = "staged";
 
 /// Builds on df_db, but for specific use cases involving remote staging -
 /// i.e., handling additional virtual columns beyond what's in the formal schema
@@ -57,20 +55,57 @@ pub fn create_staged_table_if_not_exists(
     Ok(table_name.to_owned())
 }
 
+
+// pub fn add_row(
+//     conn: &duckdb::Connection,
+//     remote_dataset: RemoteDataset,
+// )
+// pub fn append_row(
+//     conn: &duckdb::Connection,
+//     df: &polars::frame::DataFrame,
+// ) -> Result<(), OxenError> {
+//     let mod_type_series = polars::prelude::Series::new(
+//         OXEN_MOD_STATUS_COL,
+//         vec![ModType::Append.to_string(); df.height()],
+//     );
+//     let row_idx_series = polars::prelude::Series::new(OXEN_ROW_INDEX_COL, vec![0; df.height()]);
+
+//     let new_df = polars::prelude::DataFrame::new(vec![mod_type_series, row_idx_series])
+//         .and_then(|df_new| df_new.hstack(&df.get_columns()))?;
+
+//     df_db::insert_polars_df(conn, TABLE_NAME, &new_df)?;
+
+//     // Print the db
+
+//     let stmt = sql::Select::new().select(&format!("*")).from(&TABLE_NAME);
+
+//     let res = df_db::select(conn, &stmt)?;
+
+//     log::debug!("res df: {:?}", res);
+
+//     Ok(())
+
+//     // Proceed with appending `new_df` to the database
+// }
+
 pub fn append_row(
     conn: &duckdb::Connection,
     df: &polars::frame::DataFrame,
 ) -> Result<(), OxenError> {
-    let mod_type_series = polars::prelude::Series::new(
-        OXEN_MOD_STATUS_COL,
-        vec![ModType::Append.to_string(); df.height()],
-    );
-    let row_idx_series = polars::prelude::Series::new(OXEN_ROW_INDEX_COL, vec![0; df.height()]);
 
-    let new_df = polars::prelude::DataFrame::new(vec![mod_type_series, row_idx_series])
-        .and_then(|df_new| df_new.hstack(&df.get_columns()))?;
+    // Add in a check that the df has the same schema as the table
+    
+    let table_schema = df_db::get_schema(&conn, TABLE_NAME)?;
+    let df_schema = df.schema();
 
-    df_db::insert_polars_df(conn, TABLE_NAME, &new_df)?;
+    if !table_schema.has_same_field_names(&df_schema) {
+        return Err(OxenError::incompatible_schemas(
+            &df_schema.iter_fields().map(|f| f.name.to_string()).collect::<Vec<String>>(),
+            table_schema
+        ));
+    }
+
+    df_db::insert_polars_df(conn, TABLE_NAME, &df)?;
 
     // Print the db
 

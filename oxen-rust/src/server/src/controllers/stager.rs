@@ -9,12 +9,13 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::NewMod;
-use liboxen::model::DataFrameSize;
+use liboxen::model::{DataFrameSize, RemoteDataset};
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitEntry, ContentType, LocalRepository, NewCommitBody,
     ObjectID, Schema,
 };
 use liboxen::opts::DFOpts;
+use liboxen::view::remote_dataset::RemoteDatasetResponse;
 use liboxen::view::remote_staged_status::{
     ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
 };
@@ -161,11 +162,12 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Have to initialize this branch repo before we can do any operations on it
-    index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
     log::debug!(
         "stager::df_add_row repo {resource} -> staged repo path {:?}",
         repo.path
     );
+    log::debug!("stager::df_add_row branch repo {resource} -> staged repo path {:?}", branch_repo.path);
 
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
         OxenError::revision_not_found(branch.commit_id.to_owned().into()),
@@ -532,10 +534,17 @@ pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpErr
     // Initialize the branch repository before any operations
     let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    match liboxen::core::index::remote_df_stager::index_dataset(&repo, &branch_repo, &branch, &resource.file_path, &identifier) {
+    match liboxen::core::index::remote_df_stager::index_dataset(&repo, &branch, &resource.file_path, &identifier) {
         Ok(_) => {
             log::info!("Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}");
-            Ok(HttpResponse::Ok().json(StatusMessage::success("Dataset indexed successfully")))
+            let remote_dataset = RemoteDataset {
+                path: resource.file_path, 
+                identifier,
+            };
+            Ok(HttpResponse::Ok().json(RemoteDatasetResponse {
+                status: StatusMessage::resource_created(),
+                dataset: remote_dataset,
+            }))
         },
         Err(err) => {
             log::error!("Failed to index dataset for {namespace}/{repo_name}/{resource}: {err}");

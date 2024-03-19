@@ -137,6 +137,17 @@ impl Schema {
         has_all_fields
     }
 
+    pub fn has_same_field_names(&self, schema: &polars::prelude::Schema) -> bool {
+        let self_field_names: std::collections::HashSet<String> = self.fields.iter().map(|f| f.name.clone()).collect();
+        let schema_field_names: std::collections::HashSet<String> = schema.iter_fields().map(|f| f.name().to_string()).collect();
+
+        log::debug!("Comparing field names between self and provided schema");
+        if self_field_names != schema_field_names {
+            return false;
+        } 
+        true
+    }
+
     pub fn has_field(&self, field: &Field) -> bool {
         self.fields
             .iter()
