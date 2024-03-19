@@ -187,23 +187,26 @@ pub fn insert_polars_df(
     if df.height() == 0 {
         return Err(OxenError::basic_str("DataFrame is empty"));
     }
-
     let schema = df.schema();
     let column_names: Vec<String> = schema
         .iter_fields()
-        .map(|f| f.name().to_string().clone())
+        .map(|f| format!("\"{}\"", f.name()))
         .collect();
+
+    log::debug!("column names are {:?}", column_names);
     let placeholders: String = column_names
         .iter()
         .map(|_| "?".to_string())
         .collect::<Vec<_>>()
         .join(", ");
+    log::debug!("placeholders are {}", placeholders);
     let sql = format!(
         "INSERT INTO {} ({}) VALUES ({})",
         table_name,
         column_names.join(", "),
         placeholders
     );
+    log::debug!("sql statement is {}", sql);
 
     let mut stmt = conn.prepare(&sql)?;
 

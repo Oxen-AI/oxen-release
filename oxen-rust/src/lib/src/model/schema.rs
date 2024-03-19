@@ -142,6 +142,8 @@ impl Schema {
         let schema_field_names: std::collections::HashSet<String> = schema.iter_fields().map(|f| f.name().to_string()).collect();
 
         log::debug!("Comparing field names between self and provided schema");
+        log::debug!("self are {:?}", self_field_names);
+        log::debug!("schema are {:?}", schema_field_names);
         if self_field_names != schema_field_names {
             return false;
         } 
