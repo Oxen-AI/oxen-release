@@ -64,7 +64,7 @@ fn files_db_path(repo: &LocalRepository, branch: &Branch, identifier: &str) -> P
         .join(FILES_DIR)
 }
 
-pub fn create_mod_new(
+pub fn create_mod(
     repo: &LocalRepository,
     branch: &Branch,
     identifier: &str,
@@ -79,21 +79,21 @@ pub fn create_mod_new(
     Ok(mod_entry)
 }
 
-pub fn create_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
-    new_mod: &NewMod,
-) -> Result<ModEntry, OxenError> {
-    // Try to track the mod
-    log::debug!("here's our newmod {:?}", new_mod);
-    let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
-    log::debug!("here's our mod entry {:?}", mod_entry);
-    // Track the file that the mod is on
-    track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
-    // TODO: Roll back if second operation fails
-    Ok(mod_entry)
-}
+// pub fn create_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identifier: &str,
+//     new_mod: &NewMod,
+// ) -> Result<ModEntry, OxenError> {
+//     // Try to track the mod
+//     log::debug!("here's our newmod {:?}", new_mod);
+//     let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
+//     log::debug!("here's our mod entry {:?}", mod_entry);
+//     // Track the file that the mod is on
+//     track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
+//     // TODO: Roll back if second operation fails
+//     Ok(mod_entry)
+// }
 
 pub fn delete_mod_from_path(
     repo: &LocalRepository,
@@ -260,25 +260,25 @@ fn track_mod_commit_entry(
     str_json_db::put(&db, &key, &key)
 }
 
-fn stage_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    new_mod: &NewMod,
-) -> Result<ModEntry, OxenError> {
-    let version_path = util::fs::version_path(repo, &new_mod.entry);
+// fn stage_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     new_mod: &NewMod,
+// ) -> Result<ModEntry, OxenError> {
+//     let version_path = util::fs::version_path(repo, &new_mod.entry);
 
-    log::debug!("Here's the mod for {:?}: {:?}", version_path, new_mod);
+//     log::debug!("Here's the mod for {:?}: {:?}", version_path, new_mod);
 
-    if util::fs::is_tabular(&version_path) {
-        stage_tabular_mod(repo, branch, identity, new_mod)
-    } else {
-        Err(OxenError::basic_str(format!(
-            "{:?} not supported for file type",
-            new_mod.mod_type
-        )))
-    }
-}
+//     if util::fs::is_tabular(&version_path) {
+//         stage_tabular_mod(repo, branch, identity, new_mod)
+//     } else {
+//         Err(OxenError::basic_str(format!(
+//             "{:?} not supported for file type",
+//             new_mod.mod_type
+//         )))
+//     }
+// }
 
 fn stage_mod_new(
     repo: &LocalRepository,
@@ -448,84 +448,84 @@ fn stage_tabular_mod_new(
 }
 
 /// Throws an error if the content cannot be parsed into the proper tabular schema
-fn stage_tabular_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    new_mod: &NewMod,
-) -> Result<ModEntry, OxenError> {
-    // Read the schema of the data frame
-    log::debug!(
-        "Looking for schema on commit [{}] for entry {:?}",
-        new_mod.entry.commit_id,
-        new_mod.entry.path
-    );
-    let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
-        log::debug!("got schema as {:?}", schema);
-        // Parse the data into DF
-        match tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned()) {
-            Ok(df) => {
-                log::debug!("Successfully parsed df {:?}", df);
-                // Make sure it contains each field
-                let polars_schema = df.schema();
-                if schema.has_all_field_names(&polars_schema) {
-                    // hash uuid to make a smaller key
-                    let uuid =
-                        util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
-                    let timestamp = OffsetDateTime::now_utc();
+// fn stage_tabular_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     new_mod: &NewMod,
+// ) -> Result<ModEntry, OxenError> {
+//     // Read the schema of the data frame
+//     log::debug!(
+//         "Looking for schema on commit [{}] for entry {:?}",
+//         new_mod.entry.commit_id,
+//         new_mod.entry.path
+//     );
+//     let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
+//     if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
+//         log::debug!("got schema as {:?}", schema);
+//         // Parse the data into DF
+//         match tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned()) {
+//             Ok(df) => {
+//                 log::debug!("Successfully parsed df {:?}", df);
+//                 // Make sure it contains each field
+//                 let polars_schema = df.schema();
+//                 if schema.has_all_field_names(&polars_schema) {
+//                     // hash uuid to make a smaller key
+//                     let uuid =
+//                         util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
+//                     let timestamp = OffsetDateTime::now_utc();
 
-                    let mod_entry = ModEntry {
-                        uuid,
-                        data: new_mod.data.to_owned(),
-                        schema: Some(schema),
-                        modification_type: new_mod.mod_type.to_owned(),
-                        content_type: new_mod.content_type.to_owned(),
-                        path: new_mod.entry.path.to_owned(),
-                        timestamp,
-                    };
+//                     let mod_entry = ModEntry {
+//                         uuid,
+//                         data: new_mod.data.to_owned(),
+//                         schema: Some(schema),
+//                         modification_type: new_mod.mod_type.to_owned(),
+//                         content_type: new_mod.content_type.to_owned(),
+//                         path: new_mod.entry.path.to_owned(),
+//                         timestamp,
+//                     };
 
-                    stage_raw_mod_content(repo, branch, identity, &new_mod.entry, mod_entry)
-                } else {
-                    Err(OxenError::InvalidSchema(Box::new(Schema::from_polars(
-                        &polars_schema,
-                    ))))
-                }
-            }
-            Err(err) => {
-                log::error!("Error parsing content: {err}");
-                Err(OxenError::ParsingError(Box::new(
-                    new_mod.data.clone().into(),
-                )))
-            }
-        }
-    } else {
-        let err = format!("Schema not found for file {:?}", new_mod.entry.path);
-        Err(OxenError::basic_str(err))
-    }
-}
+//                     stage_raw_mod_content(repo, branch, identity, &new_mod.entry, mod_entry)
+//                 } else {
+//                     Err(OxenError::InvalidSchema(Box::new(Schema::from_polars(
+//                         &polars_schema,
+//                     ))))
+//                 }
+//             }
+//             Err(err) => {
+//                 log::error!("Error parsing content: {err}");
+//                 Err(OxenError::ParsingError(Box::new(
+//                     new_mod.data.clone().into(),
+//                 )))
+//             }
+//         }
+//     } else {
+//         let err = format!("Schema not found for file {:?}", new_mod.entry.path);
+//         Err(OxenError::basic_str(err))
+//     }
+// }
 
-fn stage_raw_mod_content(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    commit_entry: &CommitEntry,
-    entry: ModEntry,
-) -> Result<ModEntry, OxenError> {
-    let db_path = mods_db_path(repo, branch, identity, &commit_entry.path);
-    log::debug!(
-        "{} Opening mods_db_path at: {:?}",
-        current_function!(),
-        db_path
-    );
+// fn stage_raw_mod_content(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     commit_entry: &CommitEntry,
+//     entry: ModEntry,
+// ) -> Result<ModEntry, OxenError> {
+//     let db_path = mods_db_path(repo, branch, identity, &commit_entry.path);
+//     log::debug!(
+//         "{} Opening mods_db_path at: {:?}",
+//         current_function!(),
+//         db_path
+//     );
 
-    let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+//     let opts = db::opts::default();
+//     let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
 
-    str_json_db::put(&db, &entry.uuid, &entry)?;
+//     str_json_db::put(&db, &entry.uuid, &entry)?;
 
-    Ok(entry)
-}
+//     Ok(entry)
+// }
 
 pub fn clear_mods(
     repo: &LocalRepository,

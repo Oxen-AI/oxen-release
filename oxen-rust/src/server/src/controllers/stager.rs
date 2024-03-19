@@ -188,7 +188,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     let row = liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
 
     let otherrow =
-        liboxen::core::index::mod_stager::create_mod_new(&repo, &branch, &identifier, &new_mod)?;
+        liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
 
     log::debug!("successfully created otherrow");
 
