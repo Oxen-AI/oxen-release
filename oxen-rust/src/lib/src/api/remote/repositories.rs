@@ -11,6 +11,7 @@ use std::fmt;
 
 const CLONE: &str = "clone";
 const PUSH: &str = "push";
+const DOWNLOAD: &str = "download";
 
 enum ActionEventState {
     Started,
@@ -364,6 +365,16 @@ pub async fn pre_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
 
 pub async fn post_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
     let action_name = CLONE;
+    action_hook(repository, action_name, ActionEventState::Completed, None).await
+}
+
+pub async fn pre_download(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = DOWNLOAD;
+    action_hook(repository, action_name, ActionEventState::Started, None).await
+}
+
+pub async fn post_download(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = DOWNLOAD;
     action_hook(repository, action_name, ActionEventState::Completed, None).await
 }
 
