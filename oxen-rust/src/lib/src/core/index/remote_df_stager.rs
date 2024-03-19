@@ -1,20 +1,22 @@
 use duckdb::Connection;
 use sql_query_builder::Select;
 
+use crate::constants::TABLE_NAME;
 use crate::core::db::df_db;
+use crate::core::df::tabular;
 use crate::core::index::mod_stager;
 use crate::model::entry::commit_entry::Entry;
+use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
-use crate::model::{LocalRepository, Branch};
+use crate::model::{Branch, CommitEntry, LocalRepository};
 use std::path::Path;
 
 use super::{CommitEntryReader, CommitReader};
 
-const TABLE_NAME: &str = "STAGED_DATA";
 
 pub fn index_dataset(
     repo: &LocalRepository,
-    branch_repo: &LocalRepository, 
+    // branch_repo: &LocalRepository, 
     branch: &Branch, 
     path: &Path, 
     identifier: &str, 
@@ -71,13 +73,45 @@ pub fn index_dataset(
     Ok(())
 }
 
+pub fn extract_dataset_to_versions_dir(
+    repo: &LocalRepository, 
+    branch: &Branch, 
+    entry: &CommitEntry, 
+    identity: &str, 
+) -> Result<(), OxenError> {
+    let version_path = util::fs::version_path(repo, entry);
+    let mods_duckdb_path = mod_stager::mods_duckdb_path(repo, branch, identity, entry.path.clone());
+    let conn = df_db::get_connection(&mods_duckdb_path)?;
+    // Match on the extension 
+
+    let df_before = tabular::read_df(&version_path, DFOpts::empty())?;
+    log::debug!("extract_dataset_to_versions_dir() got df_before: {:?}", df_before);
+
+    match entry.path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some("csv") | Some("tsv") | Some("json") | Some("jsonl") | Some("ndjson") => export_rest(&version_path, &conn)?,
+            Some("parquet") => export_parquet(&version_path, &conn)?,
+            _ => return Err(OxenError::basic_str("File format not supported, must be tabular.")),
+        },
+        None => return Err(OxenError::basic_str("File format not supported, must be tabular.")),
+    }
 
 
+    let df_after = tabular::read_df(&version_path, DFOpts::empty())?;
+    log::debug!("extract_dataset_to_versions_dir() got df_after: {:?}", df_after);
+
+    Ok(())
+}
+
+
+
+// TODONOW: we should manually pass column names from our schema. 
+// their sniffer is worse than the one we're using and will give inconsistent results. 
 fn index_csv(
     path: &Path,
     conn: &Connection,
 ) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    let query = format!("CREATE TABLE {} AS SELECT * FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, path.to_string_lossy());
     conn.execute(&query, [])?;
 
     // TODONOW delete 
@@ -88,11 +122,13 @@ fn index_csv(
     Ok(())
 }
 
+// TODONOW: we should manually pass column names from our schema. 
+// their sniffer is worse than the one we're using and will give inconsistent results. 
 fn index_tsv(
     path: &Path,
     conn: &Connection,
 ) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    let query = format!("CREATE TABLE {} AS SELECT * FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, path.to_string_lossy());
     conn.execute(&query, [])?;
 
     // TODONOW delete 
@@ -132,4 +168,20 @@ fn index_parquet(
     Ok(())
 }   
 
+fn export_rest(
+    path: &Path, 
+    conn: &Connection
+) -> Result<(), OxenError> {
+    let query = format!("COPY '{}' to '{}';", TABLE_NAME, path.to_string_lossy());
+    conn.execute(&query, [])?;
+    Ok(())
+}
 
+fn export_parquet(
+    path: &Path, 
+    conn: &Connection
+) -> Result<(), OxenError> {
+    let query = format!("COPY '{}' to '{}' (FORMAT PARQUET);", TABLE_NAME, path.to_string_lossy());
+    conn.execute(&query, [])?;
+    Ok(())
+}

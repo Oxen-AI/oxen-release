@@ -54,6 +54,7 @@ mod tests {
 
                 // Remote stage row
                 let path = test::test_nlp_classification_csv();
+                log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();
                 opts.add_row = Some("I am a new row,neutral".to_string());
                 opts.content_type = ContentType::Csv;

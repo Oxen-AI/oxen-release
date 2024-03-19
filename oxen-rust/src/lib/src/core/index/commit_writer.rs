@@ -3,8 +3,7 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
-    self, mod_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader, CommitEntryReader,
-    CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
+    self, mod_stager, remote_df_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -230,9 +229,66 @@ impl CommitWriter {
                 version_path,
                 entry_path
             );
+
+            // IF tabular, want to index. 
+
+            if util::fs::is_tabular(&entry_path) {
+                remote_df_stager::extract_dataset_to_versions_dir(&self.repository, branch, &entry, user_id)?;
+            }
+
+
+
             util::fs::copy(&version_path, &entry_path)?;
 
-            self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
+            // self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
+            remote_dir_stager::stage_file(
+                &self.repository,
+                &branch_repo,
+                branch,
+                user_id,
+                &entry_path,
+            )?;
+        }
+
+        // Have to recompute staged data
+        let staged_data = command::status(&branch_repo)?;
+        log::debug!("APPLY MODS got new staged_data");
+        staged_data.print_stdout();
+
+        Ok(staged_data)
+    }
+
+
+    pub fn apply_mods_new(
+        &self,
+        branch: &Branch,
+        user_id: &str,
+        entries: &[CommitEntry],
+    ) -> Result<StagedData, OxenError> {
+        let branch_staging_dir =
+            remote_dir_stager::branch_staging_dir(&self.repository, branch, user_id);
+        let branch_repo =
+            remote_dir_stager::init_or_get(&self.repository, branch, user_id).unwrap();
+
+        log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
+        for entry in entries.iter() {
+            // Copy the version file to the staging dir and make the mods
+            let version_path = util::fs::version_path(&self.repository, entry);
+            let entry_path = branch_staging_dir.join(&entry.path);
+            if let Some(parent) = entry_path.parent() {
+                if !parent.exists() {
+                    std::fs::create_dir_all(parent)?;
+                }
+            }
+
+            log::debug!(
+                "apply_mods Copy file to mod {:?} -> {:?}",
+                version_path,
+                entry_path
+            );
+            util::fs::copy(&version_path, &entry_path)?;
+
+            // self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
             remote_dir_stager::stage_file(
                 &self.repository,
                 &branch_repo,
@@ -271,6 +327,8 @@ impl CommitWriter {
             ))
         }
     }
+
+
 
     fn apply_tabular_mods(
         &self,

@@ -4,6 +4,7 @@ use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::ContentType;
 use crate::model::{ModEntry, RemoteRepository};
+use crate::view::remote_dataset::RemoteDatasetResponse;
 use crate::view::StagedFileModResponse;
 
 use std::path::Path;
@@ -23,11 +24,11 @@ pub async fn index_dataset(
     match client.post(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            let response: Result<(), serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<RemoteDatasetResponse, serde_json::Error> = serde_json::from_str(&body);
             match response {
-                Ok(val) => Ok(()),
+                Ok(remote_dataset_response) => Ok(()),
                 Err(err) => {
-                    let err = format!("api::staging::index_dataset error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("api::staging::index_dataset error parsing RemoteDatasetResponse from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }

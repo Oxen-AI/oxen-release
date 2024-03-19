@@ -19,6 +19,7 @@ pub mod namespace;
 pub mod oxen_response;
 pub mod pagination;
 pub mod remote_staged_status;
+pub mod remote_dataset;
 pub mod repository;
 pub mod schema;
 pub mod sql_parse_error;

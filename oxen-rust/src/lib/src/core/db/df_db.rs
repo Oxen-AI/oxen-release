@@ -8,7 +8,7 @@ use crate::model::schema::Field;
 use crate::model::Schema;
 
 use duckdb::arrow::record_batch::RecordBatch;
-use duckdb::ToSql;
+use duckdb::{params, ToSql};
 use polars::prelude::*;
 use std::io::Cursor;
 use std::path::Path;
@@ -164,6 +164,19 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
     Ok(df)
 }
 
+/// Determine if a table already exists in the index 
+// pub fn table_exists(conn: &duckdb::Connection, table_name: &str) -> Result<bool, OxenError> {
+//     let query = "SELECT EXISTS (
+//                     SELECT 1
+//                     FROM information_schema.tables
+//                     WHERE table_name = ?
+//                     AND table_schema = 'public'
+//                  )";
+//     let mut stmt = conn.prepare(query)?;
+//     let exists: bool = stmt.query_row(&[table_name], |row| row.get(0))?;
+//     log::debug!("got exists: {}", exists);
+//     Ok(exists)
+// }
 /// Insert a row from a polars dataframe into a duckdb table.
 pub fn insert_polars_df(
     conn: &duckdb::Connection,
@@ -211,6 +224,7 @@ pub fn insert_polars_df(
 
     Ok(())
 }
+
 
 #[cfg(test)]
 mod tests {
