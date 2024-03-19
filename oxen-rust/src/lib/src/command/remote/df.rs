@@ -65,8 +65,10 @@ async fn add_row(
             ModType::Append,
         )
         .await?;
-        println!("{:?}", modification.to_df()?);
-        modification.to_df()
+
+        let df = modification.data_frame.view.to_df();
+        println!("{:?}", df);
+        Ok(df)
     } else {
         Err(OxenError::basic_str(
             "Must be on a branch to stage remote changes.",

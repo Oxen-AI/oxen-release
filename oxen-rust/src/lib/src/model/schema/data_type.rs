@@ -140,7 +140,7 @@ impl DataType {
             DataType::Time => "TIME",     // time of day (no time zone)
             DataType::List(_) => panic!("TODO: implement list type for SQL"), // https://duckdb.org/docs/sql/data_types/list
             DataType::Null => "NULL",                                         // null value
-            DataType::Unknown => panic!("TODO: unknown SQL type"),
+            DataType::Unknown => panic!("TODO: unknown SQL type: {}", self),
         }
     }
 
@@ -161,7 +161,8 @@ impl DataType {
             "DATE" => DataType::Date,     // calendar date (year, month day)
             "TIME" => DataType::Time,     // time of day (no time zone)
             "NULL" => DataType::Null,     // null value
-            _ => panic!("TODO: unknown SQL type"),
+            "UUID" => DataType::String,
+            other => panic!("TODO: unknown SQL type: {}", other),
         }
     }
 }

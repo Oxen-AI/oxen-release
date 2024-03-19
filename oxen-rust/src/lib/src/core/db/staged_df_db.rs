@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 
 use duckdb::ToSql;
+use polars::frame::DataFrame;
 use polars::prelude::NamedFrom;
 use sql_query_builder as sql;
+
+use crate::constants::OXEN_ID_COL;
 
 use crate::{
     constants::TABLE_NAME, error::OxenError, model::{
@@ -91,11 +94,11 @@ pub fn create_staged_table_if_not_exists(
 pub fn append_row(
     conn: &duckdb::Connection,
     df: &polars::frame::DataFrame,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
 
     // Add in a check that the df has the same schema as the table
     
-    let table_schema = df_db::get_schema(&conn, TABLE_NAME)?;
+    let table_schema = df_db::get_schema_without_id(&conn, TABLE_NAME)?;
     let df_schema = df.schema();
 
     if !table_schema.has_same_field_names(&df_schema) {
@@ -105,17 +108,17 @@ pub fn append_row(
         ));
     }
 
-    df_db::insert_polars_df(conn, TABLE_NAME, &df)?;
+    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df)?;
 
     // Print the db
 
-    let stmt = sql::Select::new().select(&format!("*")).from(&TABLE_NAME);
+    let stmt = sql::Select::new().select(&format!("* EXCLUDE {}", OXEN_ID_COL)).from(&TABLE_NAME);
 
     let res = df_db::select(conn, &stmt)?;
 
     log::debug!("res df: {:?}", res);
 
-    Ok(())
+    Ok(inserted_df)
 
     // Proceed with appending `new_df` to the database
 }
