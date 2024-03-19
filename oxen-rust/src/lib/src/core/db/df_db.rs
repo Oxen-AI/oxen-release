@@ -6,7 +6,7 @@ use crate::error::OxenError;
 use crate::model;
 use crate::model::schema::Field;
 use crate::model::Schema;
-
+use crate::constants::OXEN_ID_COL;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
@@ -74,6 +74,37 @@ pub fn get_schema(
     let sql = format!(
         "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}'",
         table_name
+    );
+    let mut stmt = conn.prepare(&sql)?;
+
+    let mut fields = vec![];
+    let rows = stmt.query_map([], |row| {
+        let column_name: String = row.get(0)?;
+        let data_type: String = row.get(1)?;
+
+        Ok((column_name, data_type))
+    })?;
+
+    for row in rows {
+        let (column_name, data_type) = row?;
+        fields.push(Field::new(
+            &column_name,
+            model::schema::DataType::from_sql(data_type).as_str(),
+        ));
+    }
+
+    Ok(Schema::new(table_name, fields))
+}
+
+
+pub fn get_schema_without_id(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<Schema, OxenError> {
+    let table_name = table_name.as_ref();
+    let sql = format!(
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name != '{}'",
+        table_name, OXEN_ID_COL
     );
     let mut stmt = conn.prepare(&sql)?;
 
@@ -182,7 +213,7 @@ pub fn insert_polars_df(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     df: &DataFrame,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
     if df.height() == 0 {
         return Err(OxenError::basic_str("DataFrame is empty"));
@@ -201,15 +232,18 @@ pub fn insert_polars_df(
         .join(", ");
     log::debug!("placeholders are {}", placeholders);
     let sql = format!(
-        "INSERT INTO {} ({}) VALUES ({})",
+        "INSERT INTO {} ({}) VALUES ({}) RETURNING *, {}",
         table_name,
         column_names.join(", "),
-        placeholders
+        placeholders,
+        OXEN_ID_COL
     );
     log::debug!("sql statement is {}", sql);
 
     let mut stmt = conn.prepare(&sql)?;
 
+    // TODONOW: THIS SHOULD BULK INSERT! 
+    let mut result_df = DataFrame::default();
     for idx in 0..df.height() {
         let row = df.get(idx).unwrap();
         let boxed_values: Vec<Box<dyn ToSql>> = row
@@ -222,10 +256,27 @@ pub fn insert_polars_df(
             .map(|boxed_value| &**boxed_value as &dyn ToSql)
             .collect();
 
-        stmt.execute(params.as_slice())?;
+        let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
+        let result_set: Vec<&RecordBatch> = result_set.iter().collect();
+        let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
+        log::debug!("got json: {:?}", json);
+
+        let json_str = serde_json::to_string(&json).unwrap();
+        log::debug!("got json str: {:?}", json_str);
+
+        let content = Cursor::new(json_str.as_bytes());
+        let df = polars::io::json::JsonReader::new(content).finish().unwrap();
+
+        result_df = if df.height() == 0 {
+            df
+        } else {
+            result_df.vstack(&df).unwrap()
+        };
     }
 
-    Ok(())
+    log::debug!("returning df {:?} on add_row", result_df);
+
+    Ok(result_df)
 }
 
 

@@ -1,7 +1,7 @@
 use duckdb::Connection;
 use sql_query_builder::Select;
 
-use crate::constants::TABLE_NAME;
+use crate::constants::{TABLE_NAME, OXEN_ID_COL};
 use crate::core::db::df_db;
 use crate::core::df::tabular;
 use crate::core::index::mod_stager;
@@ -111,8 +111,11 @@ fn index_csv(
     path: &Path,
     conn: &Connection,
 ) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT * FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, path.to_string_lossy());
+    let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
     conn.execute(&query, [])?;
+
+    let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
+    conn.execute(&add_default_query, [])?;
 
     // TODONOW delete 
     let select_all = Select::new().select("*").from(TABLE_NAME);
@@ -122,14 +125,18 @@ fn index_csv(
     Ok(())
 }
 
-// TODONOW: we should manually pass column names from our schema. 
+// TODONOW: we should manually pass column names from our schema.
+// TODONOW: consolidate these alter table statements too. and maybe bring the uuid logic to the oxen side.  
 // their sniffer is worse than the one we're using and will give inconsistent results. 
 fn index_tsv(
     path: &Path,
     conn: &Connection,
 ) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT * FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, path.to_string_lossy());
+    let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
     conn.execute(&query, [])?;
+
+    let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
+    conn.execute(&add_default_query, [])?;
 
     // TODONOW delete 
     let select_all = Select::new().select("*").from(TABLE_NAME);
@@ -143,9 +150,11 @@ fn index_json(
     path: &Path, 
     conn: &Connection
 ) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM '{}';", TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
     conn.execute(&query, [])?;
 
+    let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
+    conn.execute(&add_default_query, [])?;
     // TODONOW delete 
     let select_all = Select::new().select("*").from(TABLE_NAME);
     let data = df_db::select(&conn, &select_all)?;
@@ -158,13 +167,15 @@ fn index_parquet(
     path: &Path, 
     conn: &Connection
 ) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT * FROM '{}';", TABLE_NAME, path.to_string_lossy());
+    let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM '{}';", TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
     conn.execute(&query, [])?;
 
+    let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
+    conn.execute(&add_default_query, [])?;
     // TODONOW delete 
     let select_all = Select::new().select("*").from(TABLE_NAME);
     let data = df_db::select(&conn, &select_all)?;
-    log::debug!("index_json() got data: {:?}", data);
+    log::debug!("index_parquet() got data: {:?}", data);
     Ok(())
 }   
 
@@ -172,7 +183,7 @@ fn export_rest(
     path: &Path, 
     conn: &Connection
 ) -> Result<(), OxenError> {
-    let query = format!("COPY '{}' to '{}';", TABLE_NAME, path.to_string_lossy());
+    let query = format!("COPY (SELECT * EXCLUDE {} FROM '{}') to '{}';", OXEN_ID_COL, TABLE_NAME, path.to_string_lossy());
     conn.execute(&query, [])?;
     Ok(())
 }
@@ -181,7 +192,7 @@ fn export_parquet(
     path: &Path, 
     conn: &Connection
 ) -> Result<(), OxenError> {
-    let query = format!("COPY '{}' to '{}' (FORMAT PARQUET);", TABLE_NAME, path.to_string_lossy());
+    let query = format!("COPY (SELECT * EXCLUDE {} FROM '{}') to '{}' (FORMAT PARQUET);", OXEN_ID_COL, TABLE_NAME, path.to_string_lossy());
     conn.execute(&query, [])?;
     Ok(())
 }

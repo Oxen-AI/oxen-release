@@ -14,13 +14,16 @@ use liboxen::model::{
     entry::mod_entry::ModType, Branch, CommitEntry, ContentType, LocalRepository, NewCommitBody,
     ObjectID, Schema,
 };
+use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
+use liboxen::view::entry::ResourceVersion;
+use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::remote_dataset::RemoteDatasetResponse;
 use liboxen::view::remote_staged_status::{
     ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
 };
 use liboxen::view::{
-    CommitResponse, FilePathsResponse, JsonDataFrame, RemoteStagedStatusResponse, StatusMessage,
+    CommitResponse, FilePathsResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, Pagination, RemoteStagedStatusResponse, StatusMessage
 };
 use liboxen::{api, constants, core::index};
 
@@ -151,6 +154,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
+
     // TODO: better error handling for content-types
     let content_type_str = get_content_type(&req).unwrap_or("text/plain");
     let content_type = ContentType::from_http_content_type(content_type_str)?;
@@ -176,7 +180,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     // If entry does not exist, create it, and stage it with the first row being the data.
 
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
-        .ok_or(OxenError::entry_does_not_exist(resource.file_path))?;
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
     let new_mod = NewMod {
         content_type,
@@ -185,18 +189,50 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         data,
     };
 
-    let row = liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
+    // TODONOW: this is extremely painful
+    let mut row = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
 
-    let otherrow =
-        liboxen::core::index::mod_stager::create_mod(&repo, &branch, &identifier, &new_mod)?;
+    let oxen_schema = liboxen::model::Schema::from_polars(&row.schema().clone());
+    let size =  DataFrameSize {
+        width: row.height(), 
+        height: row.width(),
+    };
 
-    log::debug!("successfully created otherrow");
+    let df = JsonDataFrame::from_df(&mut row);
 
-    Ok(HttpResponse::Ok().json(StagedFileModResponse {
+    let source_df = JsonDataFrameSource {
+        schema: oxen_schema.clone(), 
+        size: size.clone(),
+    };
+    
+    let view_df = JsonDataFrameView {
+        data: df.data,
+        schema: oxen_schema.clone(),
+        size: size.clone(),
+        pagination: Pagination {
+            page_number: 1,
+            page_size: 100,
+            total_pages: 1,
+            total_entries: df.view_size.height,
+        },
+        opts: DFOptsView::empty(),
+    };
+
+    Ok(HttpResponse::Ok().json(JsonDataFrameViewResponse {
         status: StatusMessage::resource_created(),
-        modification: row,
+        data_frame: JsonDataFrameViews {
+            source: source_df,
+            view: view_df,
+        },
+        commit: Some(commit.clone()),
+        resource: Some(ResourceVersion {
+            path: resource.file_path.to_string_lossy().into(),
+            version: commit.id.to_owned(),
+        }),
+        derived_resource: None,
     }))
 }
+
 
 pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
     let app_data = app_data(&req).unwrap();

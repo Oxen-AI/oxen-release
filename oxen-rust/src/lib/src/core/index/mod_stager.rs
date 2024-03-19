@@ -79,6 +79,54 @@ pub fn create_mod(
     Ok(mod_entry)
 }
 
+pub fn add_row(
+    repo: &LocalRepository, 
+    branch: &Branch, 
+    identifier: &str, 
+    new_mod: &NewMod,
+) -> Result<DataFrame, OxenError> {
+
+    let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
+    if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
+        // Add a name to the schema - todo probably should be an impl on a struct
+        let schema = Schema {
+            name: Some("todo".to_string()), // TODONOW
+            ..schema
+        };
+
+        
+        // create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
+
+        let db_path = mods_duckdb_path(repo, branch, identifier, &new_mod.entry.path);
+        let conn = df_db::get_connection(&db_path)?;
+
+        // TODONOW: don't reindex every time
+        remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identifier)?;
+
+        let db_path = mods_duckdb_path(repo, branch, identifier, &new_mod.entry.path);
+        let conn = df_db::get_connection(&db_path)?;
+
+        let df = tabular::parse_data_into_df(
+            &new_mod.data,
+            &schema,
+            new_mod.content_type.to_owned(),
+        )?;
+
+        log::debug!("here's our append df {:?}", df);
+
+        let result = staged_df_db::append_row(&conn, &df)?;
+
+        log::debug!("tracking mod commit entry");
+        track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
+
+        Ok(result)
+    } else {
+        let err = format!("Schema not found for file {:?}", new_mod.entry.path);
+        Err(OxenError::basic_str(err))
+    }
+}
+
+
 // pub fn create_mod(
 //     repo: &LocalRepository,
 //     branch: &Branch,
@@ -322,6 +370,8 @@ fn stage_mod_new(
 
 //     Ok(())
 // }
+
+
 
 fn stage_tabular_mod_new(
     repo: &LocalRepository,
