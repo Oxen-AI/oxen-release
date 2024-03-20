@@ -417,6 +417,12 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("get-row")
+                .long("get-row")
+                .help("Retrieve a specific row from the data frame by row id.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("content-type")
                 .long("content-type")
                 .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")

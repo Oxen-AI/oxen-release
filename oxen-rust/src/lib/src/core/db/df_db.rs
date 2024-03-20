@@ -49,6 +49,15 @@ pub fn drop_table(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Res
     Ok(())
 }
 
+pub fn table_exists(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<bool, OxenError> {
+    let table_name = table_name.as_ref();
+    let sql = "SELECT EXISTS (SELECT 1 FROM duckdb_tables WHERE table_name = ?) AS table_exists";
+    let mut stmt = conn.prepare(&sql)?;
+    let exists: bool = stmt.query_row(params![table_name], |row| row.get(0))?;
+    log::debug!("got exists: {}", exists);
+    Ok(exists)
+}
+
 
 /// Create a table from a set of oxen fields with data types.
 fn p_create_table_if_not_exists(

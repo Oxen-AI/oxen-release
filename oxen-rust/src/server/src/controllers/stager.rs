@@ -76,6 +76,9 @@ pub async fn diff_file(
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
+    // Need resource to have a branch
+    let branch = resource.branch.clone().ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
     log::debug!(
         "{} resource {namespace}/{repo_name}/{resource}",
         liboxen::current_function!()
@@ -85,12 +88,10 @@ pub async fn diff_file(
         api::local::entries::get_commit_entry(&repo, &resource.commit, &resource.file_path)?
             .ok_or(OxenHttpError::NotFound)?;
 
+
     Ok(df_mods_response(
         &repo,
-        &resource
-            .branch
-            .to_owned()
-            .ok_or(OxenError::parsed_resource_not_found(resource))?,
+        &branch,
         &identifier,
         &entry,
         query,
@@ -145,6 +146,51 @@ fn get_content_type(req: &HttpRequest) -> Option<&str> {
     req.headers().get("content-type")?.to_str().ok()
 }
 
+// TODONOW fill this out
+pub async fn df_get_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in df get row controller");
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let row_id = path_param(&req, "row_id")?;
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Have to initialize this branch repo before we can do any operations on it
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    // TODONOW: error handling if it has not been indexed 
+
+    let row_df = index::remote_df_stager::get_row_by_id(&repo, &branch, resource.file_path, &identifier,  &row_id)?;
+
+    let opts = DFOpts::empty();
+    let row_schema = Schema::from_polars(&row_df.schema().clone());
+    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
+    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
+    
+    let response = JsonDataFrameViewResponse {
+        data_frame: JsonDataFrameViews {
+            source: row_df_source,
+            view: row_df_view,
+        },
+        commit: None,
+        derived_resource: None, 
+        status: StatusMessage::resource_found(),
+        resource: None,
+    };
+
+
+    Ok(HttpResponse::Ok().json(response))
+    
+}
+
 pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
@@ -190,47 +236,25 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     };
 
     // TODONOW: this is extremely painful
-    let mut row = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
+    let row_df = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
 
-    let oxen_schema = liboxen::model::Schema::from_polars(&row.schema().clone());
-    let size =  DataFrameSize {
-        width: row.height(), 
-        height: row.width(),
-    };
-
-    let df = JsonDataFrame::from_df(&mut row);
-
-    let source_df = JsonDataFrameSource {
-        schema: oxen_schema.clone(), 
-        size: size.clone(),
-    };
+    let opts = DFOpts::empty();
+    let row_schema = Schema::from_polars(&row_df.schema().clone());
+    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
+    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
     
-    let view_df = JsonDataFrameView {
-        data: df.data,
-        schema: oxen_schema.clone(),
-        size: size.clone(),
-        pagination: Pagination {
-            page_number: 1,
-            page_size: 100,
-            total_pages: 1,
-            total_entries: df.view_size.height,
+    let response = JsonDataFrameViewResponse {
+        data_frame: JsonDataFrameViews {
+            source: row_df_source,
+            view: row_df_view,
         },
-        opts: DFOptsView::empty(),
+        commit: None,
+        derived_resource: None, 
+        status: StatusMessage::resource_found(),
+        resource: None,
     };
 
-    Ok(HttpResponse::Ok().json(JsonDataFrameViewResponse {
-        status: StatusMessage::resource_created(),
-        data_frame: JsonDataFrameViews {
-            source: source_df,
-            view: view_df,
-        },
-        commit: Some(commit.clone()),
-        resource: Some(ResourceVersion {
-            path: resource.file_path.to_string_lossy().into(),
-            version: commit.id.to_owned(),
-        }),
-        derived_resource: None,
-    }))
+    Ok(HttpResponse::Ok().json(response))
 }
 
 

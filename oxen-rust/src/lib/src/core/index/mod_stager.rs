@@ -101,10 +101,10 @@ pub fn add_row(
         let conn = df_db::get_connection(&db_path)?;
 
         // TODONOW: don't reindex every time
-        remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identifier)?;
-
-        let db_path = mods_duckdb_path(repo, branch, identifier, &new_mod.entry.path);
-        let conn = df_db::get_connection(&db_path)?;
+        let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
+        if !table_exists {
+            remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identifier)?;
+        }
 
         let df = tabular::parse_data_into_df(
             &new_mod.data,
@@ -401,8 +401,11 @@ fn stage_tabular_mod_new(
         let conn = df_db::get_connection(&db_path)?;
 
         // TODONOW: don't reindex every time
+        let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
+        log::debug!("pre index table exists: {}", table_exists);
         remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identity)?;
-
+        let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
+        log::debug!("post index table exists: {}", table_exists);
 
         match new_mod.mod_type {
             ModType::Append => {
