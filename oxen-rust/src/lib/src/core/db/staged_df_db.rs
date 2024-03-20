@@ -123,4 +123,3 @@ pub fn append_row(
     // Proceed with appending `new_df` to the database
 }
 
-

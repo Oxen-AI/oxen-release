@@ -237,6 +237,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::stager::df_add_row),
         )
         .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
+            web::get().to(controllers::stager::df_get_row),
+        )
+        .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/index/{resource:.*}",
             web::post().to(controllers::stager::index_dataset),
         )
@@ -256,7 +260,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/dir/{resource:.*}",
             web::get().to(controllers::dir::get),
-        )
+    )
         // ----- File (returns raw file data) ----- //
         .route(
             "/{namespace}/{repo_name}/file/{resource:.*}",

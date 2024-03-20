@@ -1,4 +1,5 @@
 use duckdb::Connection;
+use polars::frame::DataFrame;
 use sql_query_builder::Select;
 
 use crate::constants::{TABLE_NAME, OXEN_ID_COL};
@@ -9,7 +10,7 @@ use crate::model::entry::commit_entry::Entry;
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use crate::model::{Branch, CommitEntry, LocalRepository};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{CommitEntryReader, CommitReader};
 
@@ -101,6 +102,25 @@ pub fn extract_dataset_to_versions_dir(
     log::debug!("extract_dataset_to_versions_dir() got df_after: {:?}", df_after);
 
     Ok(())
+}
+
+// Get a single row by the _oxen_id val 
+pub fn get_row_by_id(
+    repo: &LocalRepository, 
+    branch: &Branch, 
+    path: PathBuf,
+    identifier: &str,
+    row_id: &str,
+) -> Result<DataFrame, OxenError> {
+
+    let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, &path);
+    let conn = df_db::get_connection(&db_path)?;
+
+    let query = Select::new().select("*").from(TABLE_NAME).where_clause(&format!("{} = '{}'", OXEN_ID_COL, row_id));
+    let data = df_db::select(&conn, &query)?;
+    log::debug!("get_row_by_id() got data: {:?}", data);
+    Ok(data)
+
 }
 
 

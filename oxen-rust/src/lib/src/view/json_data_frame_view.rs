@@ -66,7 +66,7 @@ pub struct DerivedDFResource {
 }
 
 impl JsonDataFrameSource {
-    pub fn from_df(data_frame_size: &DataFrameSize, schema: &Schema) -> JsonDataFrameSource {
+    pub fn from_df_size(data_frame_size: &DataFrameSize, schema: &Schema) -> JsonDataFrameSource {
         JsonDataFrameSource {
             schema: schema.to_owned(),
             size: DataFrameSize {
@@ -75,6 +75,15 @@ impl JsonDataFrameSource {
             },
         }
     }
+    pub fn from_df(df: &DataFrame, schema: &Schema) -> JsonDataFrameSource {
+        JsonDataFrameSource {
+            schema: schema.to_owned(),
+            size: DataFrameSize {
+                height: df.height(),
+                width: df.width(),
+            },
+        }
+    }    
 }
 
 impl JsonDataFrameView {
