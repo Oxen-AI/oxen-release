@@ -23,3 +23,11 @@ pub struct MergeableResponse {
     #[serde(flatten)]
     pub mergeable: Mergeable,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MergeSuccessResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub head_commit: String,
+    pub base_commit: String,
+}
