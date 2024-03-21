@@ -250,7 +250,11 @@ pub fn fetch() -> Command {
 pub fn ls() -> Command {
     Command::new(LS)
         .about("List the files in an oxen repo, used for remote repos you do not have locally.")
-        .arg(Arg::new("paths").action(clap::ArgAction::Append))
+        .arg(
+            Arg::new("paths")
+                .default_missing_value("./")
+                .action(clap::ArgAction::Append),
+        )
         .arg(
             Arg::new("host")
                 .long("host")
@@ -264,10 +268,10 @@ pub fn ls() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("Branch to list from")
+            Arg::new("revision")
+                .long("revision")
+                .short('r')
+                .help("Commit id or branch name to list from")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -573,17 +577,9 @@ pub fn download() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("Branch to download from")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("commit-id")
-                .long("commit-id")
-                .short('c')
-                .help("Commit to download from, overrides branch")
+            Arg::new("revision")
+                .long("revision")
+                .help("The branch or commit id to download the data from. Defaults to main branch. If a branch is specified, it will download the latest commit from that branch.")
                 .action(clap::ArgAction::Set),
         )
 }
