@@ -791,7 +791,7 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
         api::remote::repositories::get_by_name_host_and_remote(name, &opts.host, &opts.remote)
             .await?
     {
-        let branch = api::remote::branches::get_by_name(&remote_repo, &opts.branch_name)
+        let branch = api::remote::branches::get_by_name(&remote_repo, &opts.revision)
             .await?
             .ok_or_else(OxenError::must_be_on_valid_branch)?;
         let directory = if paths.len() > 1 {
