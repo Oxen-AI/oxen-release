@@ -536,8 +536,9 @@ pub async fn diff(
         let repository = LocalRepository::from_dir(&repo_dir)?;
         check_repo_migration_needed(&repository)?;
 
-        let remote_diff = command::remote::diff(&repository, revision_1, &path_1).await?;
-        println!("{remote_diff}");
+        let mut remote_diff = command::remote::diff(&repository, revision_1, &path_1).await?;
+        print_compare_result(&remote_diff)?;
+        maybe_save_compare_output(&mut remote_diff, output)?;
 
         // TODO: Allow them to save a remote diff to disk
     } else {

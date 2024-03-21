@@ -162,7 +162,7 @@ fn validate_required_fields(
     Ok(())
 }
 
-fn compare_dfs(
+pub fn compare_dfs(
     df_1: &DataFrame,
     df_2: &DataFrame,
     keys: Vec<String>,

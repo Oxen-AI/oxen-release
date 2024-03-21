@@ -26,3 +26,13 @@ pub struct TabularDiff {
     pub summary: TabularDiffSummary,
     pub contents: DataFrame,
 }
+
+
+impl Default for TabularSchemaDiff {
+    fn default() -> Self {
+        TabularSchemaDiff {
+            added: Vec::new(),
+            removed: Vec::new(),
+        }
+    }
+}

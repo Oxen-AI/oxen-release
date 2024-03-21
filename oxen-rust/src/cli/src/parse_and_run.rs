@@ -560,6 +560,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
         content_type = c;
     }
 
+    
     liboxen::opts::DFOpts {
         output: sub_matches
             .get_one::<String>("output")

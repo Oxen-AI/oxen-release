@@ -8,6 +8,7 @@ use liboxen::core::cache::commit_cacher;
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
+use liboxen::model::diff::{DiffResult, TabularDiff};
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{DataFrameSize, RemoteDataset};
 use liboxen::model::{
@@ -16,6 +17,8 @@ use liboxen::model::{
 };
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
+use liboxen::util;
+use liboxen::view::compare::{CompareDupes, CompareTabular, CompareTabularResponseWithDF};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::remote_dataset::RemoteDatasetResponse;
@@ -79,23 +82,64 @@ pub async fn diff_file(
     // Need resource to have a branch
     let branch = resource.branch.clone().ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    log::debug!(
-        "{} resource {namespace}/{repo_name}/{resource}",
-        liboxen::current_function!()
-    );
+    // Get the branch repo for remote staging
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     let entry =
-        api::local::entries::get_commit_entry(&repo, &resource.commit, &resource.file_path)?
-            .ok_or(OxenHttpError::NotFound)?;
+    api::local::entries::get_commit_entry(&repo, &resource.commit, &resource.file_path)?
+        .ok_or(OxenHttpError::NotFound)?;
+
+    // Extract the WIP dataframe to the working directory of the branch repo
+    let staged_path = index::remote_df_stager::extract_dataset_to_working_dir(&repo, &branch_repo, &branch, &entry,&identifier)?;
+
+    log::debug!("got staged path: {:?}", staged_path);
+    // Get the working directory path for the new row 
+    let committed_path = util::fs::version_path(&repo, &entry);
+
+    log::debug!("got committed path: {:?}", committed_path);
+
+    let staged_df = tabular::read_df(&staged_path, DFOpts::empty())?;
+    let committed_df = tabular::read_df(&committed_path, DFOpts::empty())?;
+
+    let with_df = api::local::diff::compare_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
+    let diff = CompareTabular::from_with_df(&with_df);
+    let diff_df = with_df.diff_df;
+
+    // TODO: Oxen schema vs polars inferred schema
+    
+    let diff_schema = Schema::from_polars(&diff_df.schema().clone());
+
+    let opts = DFOpts::empty();
+    let diff_json_df = JsonDataFrameViews::from_df_and_opts(diff_df, diff_schema, &opts);
+
+    let response = CompareTabularResponseWithDF {
+        data: diff_json_df,
+        dfs: diff,
+        status: StatusMessage::resource_found(),
+        messages: vec![],
+    };
+
+    log::debug!("got response: {:?}", response);
+
+    Ok(HttpResponse::Ok().json(response))
 
 
-    Ok(df_mods_response(
-        &repo,
-        &branch,
-        &identifier,
-        &entry,
-        query,
-    ))
+
+    // log::debug!(
+    //     "{} resource {namespace}/{repo_name}/{resource}",
+    //     liboxen::current_function!()
+    // );
+
+
+
+
+    // Ok(df_mods_response(
+    //     &repo,
+    //     &branch,
+    //     &identifier,
+    //     &entry,
+    //     query,
+    // ))
 }
 
 async fn save_parts(

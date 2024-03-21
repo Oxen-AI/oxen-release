@@ -1,8 +1,14 @@
+use nom::Compare;
+
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
+use crate::model::diff::tabular_diff::{TabularDiffMods, TabularDiffSummary, TabularSchemaDiff};
+// use crate::model::diff::tabular_diff_summary::{TabularDiffSummaryImpl};
+use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use crate::model::Schema;
 use crate::model::{DataFrameDiff, RemoteRepository};
+use crate::view::compare::{CompareTabularMods, CompareTabularResponseWithDF};
 use crate::view::ListStagedFileModResponseDF;
 
 use std::path::Path;
@@ -14,7 +20,7 @@ pub async fn diff(
     path: impl AsRef<Path>,
     page: usize,
     page_size: usize,
-) -> Result<DataFrameDiff, OxenError> {
+) -> Result<DiffResult, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
     let uri = format!(
         "/staging/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
@@ -26,23 +32,58 @@ pub async fn diff(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("diff got body: {}", body);
-            let response: Result<ListStagedFileModResponseDF, serde_json::Error> =
+            let response: Result<CompareTabularResponseWithDF, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
-                Ok(val) => {
-                    let mods = val.modifications;
-                    let added_rows = mods.added_rows.map(|added| added.to_df());
-                    let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
+                Ok(ct) => {
+                //     let mods = val.modifications;
+                //     let added_rows = mods.added_rows.map(|added| added.to_df());
+                //     let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
 
-                    Ok(DataFrameDiff {
-                        head_schema: Some(schema.clone()),
-                        base_schema: Some(schema),
-                        added_rows,
-                        removed_rows: None,
-                        added_cols: None,
-                        removed_cols: None,
-                    })
-                }
+                //     Ok(DataFrameDiff {
+                //         head_schema: Some(schema.clone()),
+                //         base_schema: Some(schema),
+                //         added_rows,
+                //         removed_rows: None,
+                //         added_cols: None,
+                //         removed_cols: None,
+                //     })
+                // }
+
+                // Get df from the json view 
+                let df = ct.data.view.to_df();
+                let schema = Schema::from_polars(&df.schema().clone());
+                let schema_diff = match ct.dfs.schema_diff {
+                    Some(diff) => diff.to_tabular_schema_diff(),
+                    None => TabularSchemaDiff::default()
+                };
+
+
+                let mods = match ct.dfs.summary {
+                    Some(summary) => summary.modifications,
+                    None => CompareTabularMods::default() 
+                };
+
+
+                let summary = TabularDiffSummary {
+                    modifications: TabularDiffMods {
+                        row_counts: AddRemoveModifyCounts {
+                            added: mods.added_rows,
+                            removed: mods.removed_rows,
+                            modified: mods.modified_rows
+                        },
+                        col_changes: schema_diff
+                    }, 
+                    schema: schema
+                };
+                
+                let tdiff = TabularDiff {
+                    summary: summary, 
+                    contents: df
+                };
+                Ok(DiffResult::Tabular(tdiff))
+            }
+                
                 Err(err) => Err(OxenError::basic_str(format!(
                     "api::staging::diff error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
@@ -61,6 +102,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
+    use crate::model::diff::DiffResult;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
     use crate::test;
@@ -98,9 +140,14 @@ mod tests {
                 DEFAULT_PAGE_SIZE
             ).await?;
 
-            let added_rows = diff.added_rows.unwrap();
-            assert_eq!(added_rows.height(), 1);
-            assert_eq!(added_rows.width(), 7); // 6+1 for _id
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                },
+                _ => assert!(false, "Diff result is not of tabular type."),
+            }
+
 
             Ok(remote_repo)
         })
