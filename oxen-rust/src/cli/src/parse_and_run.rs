@@ -410,9 +410,7 @@ async fn remote_ls(sub_matches: &ArgMatches) {
     let paths = sub_matches.get_many::<String>("paths");
 
     let paths = if let Some(paths) = paths {
-        paths
-            .map(PathBuf::from)
-            .collect()
+        paths.map(PathBuf::from).collect()
     } else {
         vec![PathBuf::from(".")]
     };
