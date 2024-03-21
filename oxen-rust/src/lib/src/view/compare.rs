@@ -5,12 +5,14 @@ use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::message::{MessageLevel, OxenMessage};
 use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareTargetBody};
+use crate::model::diff::tabular_diff::TabularSchemaDiff;
 use crate::model::diff::text_diff::TextDiff;
 use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::schema::Field;
 use crate::model::{Commit, DiffEntry, Schema};
 use crate::view::Pagination;
 
-use super::StatusMessage;
+use super::{JsonDataFrame, JsonDataFrameViews, StatusMessage};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareCommits {
@@ -63,6 +65,17 @@ pub struct CompareTabularResponse {
     pub messages: Vec<OxenMessage>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompareTabularResponseWithDF {
+    pub dfs: CompareTabular,
+    pub data: JsonDataFrameViews,
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub messages: Vec<OxenMessage>,
+}
+
+
+
 #[derive(Debug)]
 pub struct CompareTabularWithDF {
     pub diff_df: DataFrame,
@@ -79,6 +92,16 @@ pub struct CompareTabularWithDF {
 pub struct CompareSchemaDiff {
     pub added_cols: Vec<CompareSchemaColumn>,
     pub removed_cols: Vec<CompareSchemaColumn>,
+}
+
+impl CompareSchemaDiff {
+    pub fn to_tabular_schema_diff(self) -> TabularSchemaDiff {
+        TabularSchemaDiff {
+            added: self.added_cols.into_iter().map(|col| col.to_field()).collect(),
+            removed: self.removed_cols.into_iter().map(|col| col.to_field()).collect(),
+        }
+        
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -106,6 +129,17 @@ pub struct CompareDupes {
     pub right: u64,
 }
 
+impl Default for CompareTabularMods {
+    fn default() -> Self {
+        CompareTabularMods {
+            added_rows: 0,
+            removed_rows: 0,
+            modified_rows: 0,
+        }
+    }
+}
+
+
 // #[derive(Serialize, Deserialize, Debug)]
 // pub struct CompareSourceDF {
 //     pub name: String,
@@ -121,6 +155,14 @@ pub struct CompareSchemaColumn {
     pub key: String,
     pub dtype: String,
 }
+
+impl CompareSchemaColumn {
+    fn to_field(self) -> Field {
+        Field::new(&self.name, &self.dtype)
+    }
+}
+
+
 
 // TODONOW these should maybe be moved to a model
 

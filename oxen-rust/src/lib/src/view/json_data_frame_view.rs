@@ -179,3 +179,14 @@ impl JsonDataFrameView {
         serde_json::from_str(json_str).unwrap()
     }
 }
+
+impl JsonDataFrameViews {
+    pub fn from_df_and_opts(df: DataFrame, og_schema: Schema, opts: &DFOpts) -> JsonDataFrameViews {
+        let source = JsonDataFrameSource::from_df(&df, &og_schema);
+        let view = JsonDataFrameView::from_df_opts(df, og_schema, opts);
+        JsonDataFrameViews {
+            source,
+            view,
+        }
+    }
+}

@@ -104,6 +104,39 @@ pub fn extract_dataset_to_versions_dir(
     Ok(())
 }
 
+pub fn extract_dataset_to_working_dir(
+    repo: &LocalRepository, 
+    branch_repo: &LocalRepository,
+    branch: &Branch, 
+    entry: &CommitEntry, 
+    identity: &str, 
+) -> Result<PathBuf, OxenError> {
+    let working_path = branch_repo.path.join(entry.path.clone());
+    log::debug!("got working path as: {:?}", working_path);
+    let mods_duckdb_path = mod_stager::mods_duckdb_path(repo, branch, identity, entry.path.clone());
+    let conn = df_db::get_connection(&mods_duckdb_path)?;
+    // Match on the extension 
+
+    if !working_path.exists() {
+        std::fs::create_dir_all(&working_path.parent().expect("Failed to get parent directory"))?;
+    }
+
+    match entry.path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some("csv") | Some("tsv") | Some("json") | Some("jsonl") | Some("ndjson") => export_rest(&working_path, &conn)?,
+            Some("parquet") => export_parquet(&working_path, &conn)?,
+            _ => return Err(OxenError::basic_str("File format not supported, must be tabular.")),
+        },
+        None => return Err(OxenError::basic_str("File format not supported, must be tabular.")),
+    }
+
+
+    let df_after = tabular::read_df(&working_path, DFOpts::empty())?;
+    log::debug!("extract_dataset_to_versions_dir() got df_after: {:?}", df_after);
+
+    Ok(working_path)
+}
+
 // Get a single row by the _oxen_id val 
 pub fn get_row_by_id(
     repo: &LocalRepository, 
@@ -137,11 +170,6 @@ fn index_csv(
     let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
     conn.execute(&add_default_query, [])?;
 
-    // TODONOW delete 
-    let select_all = Select::new().select("*").from(TABLE_NAME);
-    let data = df_db::select(&conn, &select_all)?;
-    log::debug!("index_csv() got data: {:?}", data);
-
     Ok(())
 }
 
@@ -158,10 +186,6 @@ fn index_tsv(
     let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
     conn.execute(&add_default_query, [])?;
 
-    // TODONOW delete 
-    let select_all = Select::new().select("*").from(TABLE_NAME);
-    let data = df_db::select(&conn, &select_all)?;
-    log::debug!("index_tsv() got data: {:?}", data);
 
     Ok(())
 }
@@ -175,10 +199,7 @@ fn index_json(
 
     let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
     conn.execute(&add_default_query, [])?;
-    // TODONOW delete 
-    let select_all = Select::new().select("*").from(TABLE_NAME);
-    let data = df_db::select(&conn, &select_all)?;
-    log::debug!("index_json() got data: {:?}", data);
+
 
     Ok(())
 }
@@ -192,10 +213,7 @@ fn index_parquet(
 
     let add_default_query = format!("ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);", TABLE_NAME, OXEN_ID_COL);
     conn.execute(&add_default_query, [])?;
-    // TODONOW delete 
-    let select_all = Select::new().select("*").from(TABLE_NAME);
-    let data = df_db::select(&conn, &select_all)?;
-    log::debug!("index_parquet() got data: {:?}", data);
+
     Ok(())
 }   
 
@@ -204,7 +222,9 @@ fn export_rest(
     conn: &Connection
 ) -> Result<(), OxenError> {
     let query = format!("COPY (SELECT * EXCLUDE {} FROM '{}') to '{}';", OXEN_ID_COL, TABLE_NAME, path.to_string_lossy());
+    log::debug!("executing query: {}", query);
     conn.execute(&query, [])?;
+    log::debug!("done query: {}", query);
     Ok(())
 }
 
