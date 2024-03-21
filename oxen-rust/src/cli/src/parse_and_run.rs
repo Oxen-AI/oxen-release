@@ -212,8 +212,7 @@ pub async fn download(sub_matches: &ArgMatches) {
             .get_one::<String>("host")
             .map(String::from)
             .unwrap_or(DEFAULT_HOST.to_string()),
-        branch: sub_matches.get_one::<String>("branch").map(String::from),
-        commit_id: sub_matches.get_one::<String>("commit-id").map(String::from),
+        revision: sub_matches.get_one::<String>("revision").map(String::from),
     };
 
     // `oxen download $namespace/$repo_name $path`
@@ -244,8 +243,7 @@ async fn remote_download(sub_matches: &ArgMatches) {
             .get_one::<String>("host")
             .map(String::from)
             .unwrap_or(DEFAULT_HOST.to_string()),
-        branch: sub_matches.get_one::<String>("branch").map(String::from),
-        commit_id: sub_matches.get_one::<String>("commit-id").map(String::from),
+        revision: sub_matches.get_one::<String>("revision").map(String::from),
     };
 
     // Make `oxen remote download $path` work
@@ -409,12 +407,16 @@ async fn remote_status(sub_matches: &ArgMatches) {
 }
 
 async fn remote_ls(sub_matches: &ArgMatches) {
+    let paths = sub_matches.get_many::<String>("paths");
+
+    let paths = if let Some(paths) = paths {
+        paths.map(PathBuf::from).collect()
+    } else {
+        vec![PathBuf::from(".")]
+    };
+
     let opts = ListOpts {
-        paths: sub_matches
-            .get_many::<String>("paths")
-            .expect("Must supply paths")
-            .map(PathBuf::from)
-            .collect(),
+        paths,
         remote: sub_matches
             .get_one::<String>("remote")
             .map(String::from)
@@ -423,8 +425,8 @@ async fn remote_ls(sub_matches: &ArgMatches) {
             .get_one::<String>("host")
             .map(String::from)
             .unwrap_or(DEFAULT_HOST.to_string()),
-        branch_name: sub_matches
-            .get_one::<String>("branch")
+        revision: sub_matches
+            .get_one::<String>("revision")
             .map(String::from)
             .unwrap_or(DEFAULT_BRANCH_NAME.to_string()),
         page_num: sub_matches
