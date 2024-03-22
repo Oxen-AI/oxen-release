@@ -3,7 +3,7 @@ use nom::Compare;
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::diff::tabular_diff::{TabularDiffMods, TabularDiffSummary, TabularSchemaDiff};
+use crate::model::diff::tabular_diff::{TabularDiffMods, TabularDiffParameters, TabularDiffSummary, TabularSchemaDiff};
 // use crate::model::diff::tabular_diff_summary::{TabularDiffSummaryImpl};
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use crate::model::Schema;
@@ -61,14 +61,21 @@ pub async fn diff(
                             removed: mods.removed_rows,
                             modified: mods.modified_rows
                         },
-                        col_changes: schema_diff
+                        col_changes: schema_diff,
+                        
                     }, 
-                    schema: schema
+                    schema: schema,
+                    dupes: ct.dfs.dupes.to_tabular_diff_dupes(),
                 };
                 
                 let tdiff = TabularDiff {
                     summary: summary, 
-                    contents: df
+                    contents: df,
+                    parameters: TabularDiffParameters {
+                        keys: ct.dfs.keys.unwrap_or_default().iter().map(|k| k.to_string()).collect(),
+                        targets: ct.dfs.targets.unwrap_or_default().iter().map(|t| t.to_string()).collect::<Result<Vec<String>, OxenError>>()?,
+                        display: ct.dfs.display.unwrap_or_default().iter().map(|d| d.to_string()).collect::<Result<Vec<String>, OxenError>>()?,
+                    }
                 };
                 Ok(DiffResult::Tabular(tdiff))
             }

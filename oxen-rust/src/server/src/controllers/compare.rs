@@ -10,12 +10,12 @@ use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
 use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
+use liboxen::model::diff::DiffResult;
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
-    CompareCommits, CompareCommitsResponse, CompareEntries, CompareEntryResponse, CompareResult,
-    CompareTabularResponse,
+    CompareCommits, CompareCommitsResponse, CompareDupes, CompareEntries, CompareEntryResponse, CompareResult, CompareTabular, CompareTabularResponse
 };
 use liboxen::view::diff::{DirDiffStatus, DirDiffTreeSummary, DirTreeDiffResponse};
 use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
@@ -333,16 +333,19 @@ pub async fn create_df_compare(
     )?;
 
     let view = match result {
-        CompareResult::Tabular((compare, _)) => {
+        DiffResult::Tabular(diff ) => {
             let mut messages: Vec<OxenMessage> = vec![];
 
-            if compare.dupes.left > 0 || compare.dupes.right > 0 {
-                messages.push(compare.dupes.clone().to_message());
+            if diff.summary.dupes.left > 0 || diff.summary.dupes.right > 0 {
+                let cdupes = CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes);
+                messages.push(cdupes.to_message());
             }
+
+
 
             CompareTabularResponse {
                 status: StatusMessage::resource_found(),
-                dfs: compare,
+                dfs: CompareTabular::from(diff),
                 messages,
             }
         }
@@ -427,16 +430,17 @@ pub async fn update_df_compare(
     )?;
 
     let view = match result {
-        CompareResult::Tabular((compare, _)) => {
+        DiffResult::Tabular(diff) => {
             let mut messages: Vec<OxenMessage> = vec![];
 
-            if compare.dupes.left > 0 || compare.dupes.right > 0 {
-                messages.push(compare.dupes.clone().to_message());
+            if diff.summary.dupes.left > 0 || diff.summary.dupes.right > 0 {
+                let cdupes = CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes);
+                messages.push(cdupes.to_message());
             }
 
             CompareTabularResponse {
                 status: StatusMessage::resource_found(),
-                dfs: compare,
+                dfs: CompareTabular::from(diff),
                 messages,
             }
         }

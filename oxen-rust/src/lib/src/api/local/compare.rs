@@ -2,6 +2,8 @@ use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPA
 use crate::core::df::tabular::{self};
 use crate::error::OxenError;
 use crate::model::diff::schema_diff::SchemaDiff;
+use crate::model::diff::tabular_diff::TabularDiffDupes;
+use crate::model::diff::DiffResult;
 use crate::model::entry::commit_entry::CompareEntry;
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
@@ -32,7 +34,7 @@ pub fn compare_files(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-) -> Result<CompareResult, OxenError> {
+) -> Result<DiffResult, OxenError> {
     log::debug!("comparing files");
     // Assert that the files exist in their respective commits.
     let file_1 = get_version_file(repo, &compare_entry_1)?;
@@ -51,11 +53,11 @@ pub fn compare_files(
             display,
         )?;
 
-        Ok(CompareResult::Tabular(result))
+        Ok(result)
     } else if is_files_utf8(&file_1, &file_2) {
         let result = utf8_diff::diff(&file_1, &file_2)?;
 
-        Ok(CompareResult::Text(result))
+        Ok(DiffResult::Text(result))
     } else {
         Err(OxenError::invalid_file_type(format!(
             "Compare not supported for files, found {:?} and {:?}",
@@ -70,7 +72,7 @@ fn compare_dfs(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-) -> Result<CompareTabularWithDF, OxenError> {
+) -> Result<DiffResult, OxenError> {
     let df_1 = tabular::read_df(file_1, DFOpts::empty())?;
     let df_2 = tabular::read_df(file_2, DFOpts::empty())?;
 
@@ -104,11 +106,11 @@ fn compare_tabular(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-) -> Result<(CompareTabular, DataFrame), OxenError> {
+) -> Result<DiffResult, OxenError> {
     let mut compare_tabular_raw =
         compare_dfs(file_1, file_2, keys.clone(), targets.clone(), display)?;
 
-    let compare = CompareTabular::from_with_df(&compare_tabular_raw);
+    // let compare = CompareTabular::from_with_df(&compare_tabular_raw);
 
     maybe_write_cache(
         repo,
@@ -118,7 +120,7 @@ fn compare_tabular(
         &mut compare_tabular_raw,
     )?;
 
-    Ok((compare, compare_tabular_raw.diff_df))
+    Ok(compare_tabular_raw)
 }
 
 pub fn get_cached_compare(
@@ -219,7 +221,7 @@ fn get_compare_diff_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
 fn maybe_write_dupes(
     repo: &LocalRepository,
     compare_id: &str,
-    dupes: &CompareDupes,
+    dupes: &TabularDiffDupes,
 ) -> Result<(), OxenError> {
     let compare_dir = get_compare_dir(repo, compare_id);
 
@@ -250,22 +252,20 @@ fn read_dupes(repo: &LocalRepository, compare_id: &str) -> Result<CompareDupes, 
 fn write_compare_dfs(
     repo: &LocalRepository,
     compare_id: &str,
-    compare_tabular_raw: &mut CompareTabularWithDF,
+    compare_tabular_raw: &mut DiffResult,
 ) -> Result<(), OxenError> {
     let compare_dir = get_compare_dir(repo, compare_id);
-
     if !compare_dir.exists() {
         std::fs::create_dir_all(&compare_dir)?;
     }
-
-    // TODONOW expensive clone
-    let mut df = compare_tabular_raw.diff_df.clone();
-
-    // TODONOW fix path
+    // TODO: Expensive clone
+    let mut df = if let DiffResult::Tabular(diff) = compare_tabular_raw {
+        diff.contents.clone()
+    } else {
+        return Err(OxenError::basic_str("Invalid diff type: expected tabular diff"));
+    };
     let diff_path = get_compare_diff_path(repo, compare_id);
-
     tabular::write_df(&mut df, &diff_path)?;
-
     Ok(())
 }
 
@@ -327,7 +327,7 @@ fn compute_row_comparison(
     keys: &[&str],
     targets: &[&str],
     display: &[&str],
-) -> Result<CompareTabularWithDF, OxenError> {
+) -> Result<DiffResult, OxenError> {
     let schema_diff = get_schema_diff(df_1, df_2);
 
     let targets = targets.to_owned();
@@ -351,12 +351,12 @@ fn compute_row_comparison(
         .iter()
         .map(|s| s.to_string())
         .collect::<Vec<String>>();
-    let mut compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
+    let compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
 
-    compare.dupes = CompareDupes {
-        left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
-        right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
-    };
+    // compare.dupes = CompareDupes {
+    //     left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
+    //     right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
+    // };
 
     Ok(compare)
 }
@@ -456,7 +456,7 @@ fn maybe_write_cache(
     compare_id: Option<&str>,
     compare_entry_1: CompareEntry,
     compare_entry_2: CompareEntry,
-    compare_tabular_raw: &mut CompareTabularWithDF,
+    compare_tabular_raw: &mut DiffResult,
 ) -> Result<(), OxenError> {
     if let Some(compare_id) = compare_id {
         write_compare_commit_ids(
@@ -466,7 +466,9 @@ fn maybe_write_cache(
             &compare_entry_2.commit_entry,
         )?;
         write_compare_dfs(repo, compare_id, compare_tabular_raw)?;
-        maybe_write_dupes(repo, compare_id, &compare_tabular_raw.dupes)?;
+        if let DiffResult::Tabular(result) = compare_tabular_raw {
+            maybe_write_dupes(repo, compare_id, &result.summary.dupes)?;
+        }
     }
 
     Ok(())
@@ -571,6 +573,7 @@ mod tests {
     use crate::command;
     use crate::core::df::tabular;
     use crate::error::OxenError;
+    use crate::model::diff::DiffResult;
     use crate::model::entry::commit_entry::CompareEntry;
     use crate::opts::DFOpts;
     use crate::test;
@@ -668,7 +671,7 @@ mod tests {
 
             // Should be: 2 removed, 1 added, 6 unchanged, 5 modified
 
-            if let CompareResult::Tabular((_compare, _)) = result {
+            if let DiffResult::Tabular(result) = result {
                 // Get the actual df for this compare
                 let df_path = get_compare_diff_path(&repo, compare_id);
                 let df = tabular::read_df(df_path, DFOpts::empty())?;
