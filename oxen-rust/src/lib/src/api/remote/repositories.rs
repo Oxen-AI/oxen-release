@@ -190,7 +190,9 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
             Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name_scheme(&host, namespace, repo_name, &scheme),
+                    url: api::endpoint::remote_url_from_namespace_name_scheme(
+                        &host, namespace, repo_name, &scheme,
+                    ),
                     name: String::from("origin"),
                 },
             ))
