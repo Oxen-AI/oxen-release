@@ -169,7 +169,7 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
     let host = repo.host();
     let scheme = repo.scheme();
 
-    let url = api::endpoint::url_from_host_and_scheme(&host, "", scheme);
+    let url = api::endpoint::url_from_host_and_scheme(&host, "", &scheme);
     let params = json!({
         "name": repo_name,
         "namespace": namespace,
@@ -190,7 +190,7 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
             Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name(&host, namespace, repo_name),
+                    url: api::endpoint::remote_url_from_namespace_name_scheme(&host, namespace, repo_name, &scheme),
                     name: String::from("origin"),
                 },
             ))
