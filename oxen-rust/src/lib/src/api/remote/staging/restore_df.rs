@@ -35,6 +35,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
+    use crate::model::diff::DiffResult;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
 
@@ -55,6 +56,9 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+
             let result_1 = api::remote::staging::modify_df(
                     &remote_repo,
                     branch_name,
@@ -87,9 +91,14 @@ mod tests {
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
             ).await?;
-            let added_rows = diff.added_rows.unwrap();
-            assert_eq!(added_rows.height(), 2);
 
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 2);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
             // Delete result_2
             let result_delete = api::remote::staging::restore_df(
                 &remote_repo,
@@ -108,8 +117,13 @@ mod tests {
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
             ).await?;
-            let added_rows = diff.added_rows.unwrap();
-            assert_eq!(added_rows.height(), 0);
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 0);
+                }
+                _ => assert!(false, "Expected tabular diff result."),
+            }
 
             Ok(remote_repo)
         })

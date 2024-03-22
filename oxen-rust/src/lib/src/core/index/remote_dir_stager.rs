@@ -27,13 +27,15 @@ use super::CommitWriter;
 
 pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
     // Just in case they pass in the email or some other random string, hash it for nice dir name
-    let user_id_hash = util::hasher::hash_str(user_id);
+    // This does double-hash right now, since `identifier` is already hash ed
+    let user_id_hash = util::hasher::hash_str_sha256(user_id);
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(&branch.name)
         .join(user_id_hash)
 }
+
 
 pub fn init_or_get(
     repo: &LocalRepository,
@@ -42,9 +44,13 @@ pub fn init_or_get(
 ) -> Result<LocalRepository, OxenError> {
     // Cleans up the staging dir if there is an error at any point
     match p_init_or_get(repo, branch, user_id) {
-        Ok(repo) => Ok(repo),
+        Ok(repo) => {
+            log::debug!("Got branch staging dir for userid {:?} at path {:?}", user_id, repo.path);
+            Ok(repo)
+        }
         Err(e) => {
             let staging_dir = branch_staging_dir(repo, branch, user_id);
+            log::debug!("error branch staging dir for userid {:?} at path {:?}", user_id, staging_dir);
             util::fs::remove_dir_all(staging_dir)?;
             Err(e)
         }

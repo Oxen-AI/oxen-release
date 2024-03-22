@@ -4,6 +4,7 @@ use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::ContentType;
 use crate::model::{ModEntry, RemoteRepository};
+use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
 use crate::view::{JsonDataFrameViewResponse, StagedFileModResponse};
 
 use std::path::Path;
@@ -16,7 +17,7 @@ pub async fn modify_df(
     data: String,
     content_type: ContentType,
     mod_type: ModType,
-) -> Result<JsonDataFrameViewResponse, OxenError> {
+) -> Result<JsonDataFrameRowResponse, OxenError> {
     if mod_type != ModType::Append {
         return Err(OxenError::basic_str(
             "api::staging::modify_df only supports ModType::Append",
@@ -38,7 +39,7 @@ pub async fn modify_df(
     {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
+            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(val) => Ok(val),

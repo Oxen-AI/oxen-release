@@ -20,7 +20,7 @@ use liboxen::opts::DFOpts;
 use liboxen::util;
 use liboxen::view::compare::{CompareDupes, CompareTabular, CompareTabularResponseWithDF};
 use liboxen::view::entry::ResourceVersion;
-use liboxen::view::json_data_frame_view::JsonDataFrameSource;
+use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
 use liboxen::view::remote_dataset::RemoteDatasetResponse;
 use liboxen::view::remote_staged_status::{
     ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
@@ -31,6 +31,7 @@ use liboxen::view::{
 use liboxen::{api, constants, core::index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
+use polars::frame::DataFrame;
 use std::io::Write;
 
 use actix_multipart::Multipart;
@@ -71,10 +72,12 @@ pub async fn diff_file(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    log::debug!("Here's the request {:?}", req);
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
+    log::debug!("diff got identifier: {}", identifier);
 
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
@@ -214,12 +217,14 @@ pub async fn df_get_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
 
     let row_df = index::remote_df_stager::get_row_by_id(&repo, &branch, resource.file_path, &identifier,  &row_id)?;
 
+    let row_id = get_row_id(&row_df)?;
+
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
     let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
     let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
     
-    let response = JsonDataFrameViewResponse {
+    let response = JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: row_df_source,
             view: row_df_view,
@@ -228,6 +233,7 @@ pub async fn df_get_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         derived_resource: None, 
         status: StatusMessage::resource_found(),
         resource: None,
+        row_id,
     };
 
 
@@ -236,6 +242,7 @@ pub async fn df_get_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
 }
 
 pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    log::debug!("in the df add row controller");
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -248,6 +255,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     // TODO: better error handling for content-types
     let content_type_str = get_content_type(&req).unwrap_or("text/plain");
     let content_type = ContentType::from_http_content_type(content_type_str)?;
+
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
 
     let branch = resource
@@ -279,15 +287,16 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         data,
     };
 
-    // TODONOW: this is extremely painful
+    
     let row_df = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
+    let row_id: Option<String> = get_row_id(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
     let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
     let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
-    
-    let response = JsonDataFrameViewResponse {
+
+    let response = JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: row_df_source,
             view: row_df_view,
@@ -296,6 +305,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         derived_resource: None, 
         status: StatusMessage::resource_found(),
         resource: None,
+        row_id,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -824,5 +834,13 @@ fn get_dir_status_for_branch(
         staged: RemoteStagedStatus::from_staged(&branch_repo, &staged, page_num, page_size),
     };
     Ok(HttpResponse::Ok().json(response))
+}
+
+fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenHttpError> {
+    if row_df.height() == 1 && row_df.get_column_names().contains(&"_oxen_id") {
+        Ok(row_df.column("_oxen_id").unwrap().get(0).map(|val| val.to_string().trim_matches('"').to_string()).ok())
+    } else {
+        Ok(None)
+    }
 }
 

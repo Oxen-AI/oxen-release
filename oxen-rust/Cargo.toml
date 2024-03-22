@@ -107,6 +107,7 @@ serde = { version = "1.0.188", features = ["derive"] }
 serde_derive = "1.0.188"
 serde_json = "1.0.106"
 serde_url_params = "0.2.1"
+sha2 = "0.10.8"
 signal-hook = "0.3.17"
 simdutf8 = "0.1.4"
 sql_query_builder = { version = "1.1.4", features = ["postgresql"] }

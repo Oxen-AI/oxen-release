@@ -50,6 +50,18 @@ pub struct JsonDataFrameViewResponse {
     pub derived_resource: Option<DerivedDFResource>,
 }
 
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct JsonDataFrameRowResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub data_frame: JsonDataFrameViews,
+    pub commit: Option<Commit>,
+    pub resource: Option<ResourceVersion>,
+    pub derived_resource: Option<DerivedDFResource>,
+    pub row_id: Option<String>,
+}
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum DFResourceType {

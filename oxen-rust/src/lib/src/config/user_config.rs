@@ -61,7 +61,10 @@ impl UserConfig {
     }
 
     pub fn identifier() -> Result<String, OxenError> {
-        Ok(util::hasher::hash_str(UserConfig::get()?.to_user().email))
+        log::debug!("user email is {}", UserConfig::get()?.to_user().email);
+
+        log::debug!("user email hashed is {}", util::hasher::hash_str_sha256(UserConfig::get()?.to_user().email));
+        Ok(util::hasher::hash_str_sha256(UserConfig::get()?.to_user().email))
     }
 
     pub fn get_or_create() -> Result<UserConfig, OxenError> {
