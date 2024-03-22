@@ -5,6 +5,7 @@ use liboxen::view::http::{MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 use serde_json::json;
 use std::io;
+use polars::error::PolarsError;
 
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
@@ -24,11 +25,18 @@ pub enum OxenHttpError {
     ActixError(actix_web::Error),
     SerdeError(serde_json::Error),
     RedisError(redis::RedisError),
+    PolarsError(polars::error::PolarsError),
 }
 
 impl From<OxenError> for OxenHttpError {
     fn from(error: OxenError) -> Self {
         OxenHttpError::InternalOxenError(error)
+    }
+}
+
+impl From<polars::error::PolarsError> for OxenHttpError {
+    fn from(error: polars::error::PolarsError) -> Self {
+        OxenHttpError::PolarsError(error)
     }
 }
 
@@ -89,6 +97,10 @@ impl error::ResponseError for OxenHttpError {
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
             }
             OxenHttpError::ActixError(_) => {
+                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            }
+            OxenHttpError::PolarsError(error) => {
+                log::error!("Polars processing error: {}", error);
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
             OxenHttpError::SerdeError(_) => {
@@ -206,6 +218,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::RedisError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            OxenHttpError::PolarsError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::InternalOxenError(error) => match error {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,

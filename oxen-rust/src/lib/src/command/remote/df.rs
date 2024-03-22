@@ -53,6 +53,9 @@ async fn add_row(
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+
+    let data = format!(r#"{{"data": {}}}"#, data);
+
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
         let modification = api::remote::staging::modify_df(
@@ -60,11 +63,15 @@ async fn add_row(
             &branch.name,
             &user_id,
             path,
-            data.to_string(),
+            data,
             opts.content_type.to_owned(),
             ModType::Append,
         )
         .await?;
+
+        if let Some(row_id) = modification.row_id {
+            println!("\nAdded row: {row_id:?}");
+        }
 
         let df = modification.data_frame.view.to_df();
         println!("{:?}", df);

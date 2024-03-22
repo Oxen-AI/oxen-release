@@ -76,6 +76,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_url_params",
+ "sha2",
  "signal-hook",
  "simdutf8",
  "sql_query_builder",
@@ -2818,6 +2819,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "serde_url_params",
+ "sha2",
  "signal-hook",
  "simdutf8",
  "sql_query_builder",
@@ -3373,6 +3375,7 @@ dependencies = [
  "liboxen",
  "log",
  "lru",
+ "polars",
  "r2d2",
  "rand",
  "redis",
@@ -4604,6 +4607,17 @@ name = "sha1_smol"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ae1a47186c03a32177042e55dbc5fd5aee900b8e0069a8d70fba96a9375cd012"
+
+[[package]]
+name = "sha2"
+version = "0.10.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
 
 [[package]]
 name = "shlex"

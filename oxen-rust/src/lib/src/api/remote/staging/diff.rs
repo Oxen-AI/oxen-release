@@ -7,9 +7,8 @@ use crate::model::diff::tabular_diff::{TabularDiffMods, TabularDiffSummary, Tabu
 // use crate::model::diff::tabular_diff_summary::{TabularDiffSummaryImpl};
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use crate::model::Schema;
-use crate::model::{DataFrameDiff, RemoteRepository};
+use crate::model::{RemoteRepository};
 use crate::view::compare::{CompareTabularMods, CompareTabularResponseWithDF};
-use crate::view::ListStagedFileModResponseDF;
 
 use std::path::Path;
 
@@ -22,10 +21,13 @@ pub async fn diff(
     page_size: usize,
 ) -> Result<DiffResult, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
+    log::debug!("sending this identifier for remote diff: {}", identifier);
     let uri = format!(
         "/staging/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
     );
+    log::debug!("uri is {}", uri);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("url is {}", url);
 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
@@ -36,19 +38,6 @@ pub async fn diff(
                 serde_json::from_str(&body);
             match response {
                 Ok(ct) => {
-                //     let mods = val.modifications;
-                //     let added_rows = mods.added_rows.map(|added| added.to_df());
-                //     let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
-
-                //     Ok(DataFrameDiff {
-                //         head_schema: Some(schema.clone()),
-                //         base_schema: Some(schema),
-                //         added_rows,
-                //         removed_rows: None,
-                //         added_cols: None,
-                //         removed_cols: None,
-                //     })
-                // }
 
                 // Get df from the json view 
                 let df = ct.data.view.to_df();
@@ -121,6 +110,9 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+
             api::remote::staging::modify_df(
                 &remote_repo,
                 branch_name,
