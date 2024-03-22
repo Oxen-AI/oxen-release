@@ -104,9 +104,15 @@ pub async fn diff_file(
     let staged_df = tabular::read_df(&staged_path, DFOpts::empty())?;
     let committed_df = tabular::read_df(&committed_path, DFOpts::empty())?;
 
-    let with_df = api::local::diff::compare_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
-    let diff = CompareTabular::from_with_df(&with_df);
-    let diff_df = with_df.diff_df;
+    let diff_result = api::local::diff::compare_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
+    let diff = match diff_result {
+        DiffResult::Tabular(diff) => diff,
+        _ => return Err(OxenHttpError::BadRequest("Expected tabular diff result".into())),
+    };
+    // TODONOW expensive clone
+    let diff_df = diff.contents.clone(); 
+    let diff_view = CompareTabular::from(diff);
+    
 
     // TODO: Oxen schema vs polars inferred schema
     
@@ -117,7 +123,7 @@ pub async fn diff_file(
 
     let response = CompareTabularResponseWithDF {
         data: diff_json_df,
-        dfs: diff,
+        dfs: diff_view,
         status: StatusMessage::resource_found(),
         messages: vec![],
     };

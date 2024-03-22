@@ -4,6 +4,9 @@ use crate::error::OxenError;
 use crate::model::compare::tabular_compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
 };
+use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSummary, TabularSchemaDiff};
+use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
+use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::view::compare::{
     CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSourceSchemas, CompareSummary,
@@ -18,7 +21,7 @@ use polars::prelude::ChunkCompare;
 use polars::prelude::{DataFrame, DataFrameJoinOps};
 use polars::series::IntoSeries;
 
-use super::SchemaDiff;
+use super::{tabular, SchemaDiff};
 
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
@@ -36,7 +39,7 @@ pub fn diff(
     keys: &[impl AsRef<str>],
     targets: &[impl AsRef<str>],
     display: &[impl AsRef<str>],
-) -> Result<CompareTabularWithDF, OxenError> {
+) -> Result<DiffResult, OxenError> {
     if !targets.is_empty() && keys.is_empty() {
         let targets = targets.iter().map(|k| k.as_ref()).collect::<Vec<&str>>();
         return Err(OxenError::basic_str(
@@ -90,64 +93,69 @@ pub fn diff(
     let joined_df = joined_df.sort(&keys, descending, false)?;
 
     let result_fields =
-        prepare_response_fields(&schema_diff, keys.clone(), targets.clone(), display);
+        prepare_response_fields(&schema_diff, keys.clone(), targets.clone(), display.clone());
 
     let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
 
-    let source_schemas = CompareSourceSchemas {
-        left: Schema::from_polars(&df_1.schema()),
-        right: Schema::from_polars(&df_2.schema()),
+    let dupes = TabularDiffDupes {
+        left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
+        right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
     };
 
-    Ok(CompareTabularWithDF {
-        diff_df: joined_df.select(output_columns)?,
-        dupes: CompareDupes { left: 0, right: 0 },
-        schema_diff: Some(schema_diff),
-        source_schemas,
-        summary: Some(CompareSummary {
-            modifications,
+
+    let diff = TabularDiff {
+        summary: TabularDiffSummary {
+            modifications: TabularDiffMods {
+                row_counts: modifications,
+                col_changes: schema_diff,
+            },
             schema: Schema::from_polars(&joined_df.schema()),
-        }),
-        keys: result_fields.keys,
-        targets: result_fields.targets,
-        display: result_fields.display,
-    })
+            dupes,
+        },
+        contents: joined_df.select(output_columns)?,
+        parameters: TabularDiffParameters {
+            keys: keys.iter().map(|s| s.to_string()).collect(),
+            targets: targets.iter().map(|s| s.to_string()).collect(),
+            display: display.iter().map(|s| s.to_string()).collect(),
+        },
+    };
+    Ok(DiffResult::Tabular(diff))
 }
 
 fn build_compare_schema_diff(
     schema_diff: SchemaDiff,
     df_1: &DataFrame,
     df_2: &DataFrame,
-) -> Result<CompareSchemaDiff, OxenError> {
+) -> Result<TabularSchemaDiff, OxenError> {
     let added_cols = schema_diff
         .added_cols
         .iter()
         .map(|col| {
             let dtype = df_2.column(col)?;
-            Ok(CompareSchemaColumn {
+            Ok(Field {
                 name: col.clone(),
-                key: format!("{}.right", col),
                 dtype: dtype.dtype().to_string(),
+                metadata: None,
             })
         })
-        .collect::<Result<Vec<CompareSchemaColumn>, OxenError>>()?;
+        .collect::<Result<Vec<Field>, OxenError>>()?;
 
     let removed_cols = schema_diff
         .removed_cols
         .iter()
         .map(|col| {
             let dtype = df_1.column(col)?;
-            Ok(CompareSchemaColumn {
+            Ok(Field {
                 name: col.clone(),
-                key: format!("{}.left", col),
                 dtype: dtype.dtype().to_string(),
+                metadata: None,   
             })
         })
-        .collect::<Result<Vec<CompareSchemaColumn>, OxenError>>()?;
+        .collect::<Result<Vec<Field>, OxenError>>()?;
 
-    Ok(CompareSchemaDiff {
-        added_cols,
-        removed_cols,
+    Ok(TabularSchemaDiff {
+        added: added_cols,
+        removed: removed_cols,
     })
 }
 
@@ -344,7 +352,7 @@ fn add_diff_status_column(
     Ok(joined_df)
 }
 
-fn calculate_compare_mods(joined_df: &DataFrame) -> Result<CompareTabularMods, OxenError> {
+fn calculate_compare_mods(joined_df: &DataFrame) -> Result<AddRemoveModifyCounts, OxenError> {
     // TODO: for reasons which are unclear to me it is ridiculously unclear how
     // to use the polars DSL to get the added, removed, and modified rows as a scalary without
     // filtering down into sub-dataframes or cloning them. This is a workaround for now.
@@ -361,10 +369,10 @@ fn calculate_compare_mods(joined_df: &DataFrame) -> Result<CompareTabularMods, O
             _ => (),
         }
     }
-    Ok(CompareTabularMods {
-        added_rows,
-        removed_rows,
-        modified_rows,
+    Ok(AddRemoveModifyCounts {
+        added: added_rows,
+        removed: removed_rows,
+        modified: modified_rows,
     })
 }
 

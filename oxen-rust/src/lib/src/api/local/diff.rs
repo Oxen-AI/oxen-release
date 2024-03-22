@@ -86,55 +86,7 @@ pub fn tabular(
 
     validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
 
-    let compare_df = compare_dfs(&df_1, &df_2, keys, targets, display)?;
-    let compare_tabular = CompareTabular::from_with_df(&compare_df);
-
-    let df = compare_df.diff_df;
-    let summary = compare_tabular.summary.unwrap();
-    let schema_diff = compare_df.schema_diff.unwrap();
-
-    let col_changes = TabularSchemaDiff {
-        added: schema_diff
-            .added_cols
-            .into_iter()
-            .map(|c| Field {
-                name: c.name,
-                dtype: c.dtype,
-                metadata: None,
-            })
-            .collect(),
-        removed: schema_diff
-            .removed_cols
-            .into_iter()
-            .map(|c| Field {
-                name: c.name,
-                dtype: c.dtype,
-                metadata: None,
-            })
-            .collect(),
-    };
-
-    let mods = TabularDiffMods {
-        col_changes,
-        row_counts: AddRemoveModifyCounts {
-            added: summary.modifications.added_rows,
-            removed: summary.modifications.removed_rows,
-            modified: summary.modifications.modified_rows,
-        },
-    };
-
-    let diff_summary = TabularDiffSummary {
-        modifications: mods,
-        schema: Schema::from_polars(&df.schema()),
-    };
-
-    let tabular_diff = TabularDiff {
-        summary: diff_summary,
-        contents: df,
-    };
-
-    let result = DiffResult::Tabular(tabular_diff);
-    Ok(result)
+    compare_dfs(&df_1, &df_2, keys, targets, display)
 }
 
 fn validate_required_fields(
@@ -168,7 +120,7 @@ pub fn compare_dfs(
     keys: Vec<String>,
     targets: Vec<String>,
     display: Vec<String>,
-) -> Result<CompareTabularWithDF, OxenError> {
+) -> Result<DiffResult, OxenError> {
     let schema_diff = get_schema_diff(df_1, df_2);
 
     let (keys, targets) = get_keys_targets_smart_defaults(keys, targets, &schema_diff)?;
@@ -178,10 +130,6 @@ pub fn compare_dfs(
 
     let mut compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
 
-    compare.dupes = CompareDupes {
-        left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
-        right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
-    };
 
     Ok(compare)
 }

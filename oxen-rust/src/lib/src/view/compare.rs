@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::message::{MessageLevel, OxenMessage};
-use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareTargetBody};
-use crate::model::diff::tabular_diff::TabularSchemaDiff;
+use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody};
+use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularSchemaDiff};
 use crate::model::diff::text_diff::TextDiff;
-use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::diff::{AddRemoveModifyCounts, TabularDiff};
 use crate::model::schema::Field;
 use crate::model::{Commit, DiffEntry, Schema};
 use crate::view::Pagination;
@@ -129,6 +129,16 @@ pub struct CompareDupes {
     pub right: u64,
 }
 
+impl CompareDupes {
+    pub fn to_tabular_diff_dupes(&self) -> TabularDiffDupes {
+        TabularDiffDupes {
+            left: self.left,
+            right: self.right,
+        }
+    }
+}
+
+
 impl Default for CompareTabularMods {
     fn default() -> Self {
         CompareTabularMods {
@@ -213,6 +223,13 @@ pub struct CompareSourceSchemas {
 impl CompareDupes {
     pub fn empty() -> CompareDupes {
         CompareDupes { left: 0, right: 0 }
+    }
+
+    pub fn from_tabular_diff_dupes(diff_dupes: &TabularDiffDupes) -> CompareDupes {
+        CompareDupes {
+            left: diff_dupes.left,
+            right: diff_dupes.right,
+        }
     }
 
     pub fn to_message(&self) -> OxenMessage {
@@ -376,6 +393,52 @@ impl CompareTabular {
             targets: Some(with_df.targets.clone()),
             display: Some(with_df.display.clone()),
             source_schemas: with_df.source_schemas.clone(),
+        }
+    }
+}
+
+
+impl From<TabularDiff> for CompareTabular {
+    fn from(diff: TabularDiff) -> Self {
+
+        let fields = TabularCompareFields::from_lists_and_schema_diff(
+            &diff.summary.modifications.col_changes,
+            diff.parameters.keys.iter().map(|k| k.as_str()).collect(),
+            diff.parameters.targets.iter().map(|t| t.as_str()).collect(),
+            diff.parameters.display.iter().map(|d| d.as_str()).collect(),
+        );
+
+
+        CompareTabular {
+            dupes: CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes),
+            schema_diff: Some(CompareSchemaDiff {
+                added_cols: diff.summary.modifications.col_changes.added.iter().map(|field| CompareSchemaColumn {
+                    name: field.name.clone(),
+                    key: format!("{}.{}", field.name, "added"),
+                    dtype: field.dtype.to_string(),
+                }).collect(),
+                removed_cols: diff.summary.modifications.col_changes.removed.iter().map(|field| CompareSchemaColumn {
+                    name: field.name.clone(),
+                    key: format!("{}.{}", field.name, "removed"),
+                    dtype: field.dtype.to_string(),
+                }).collect(),
+            }),
+            summary: Some(CompareSummary {
+                modifications: CompareTabularMods {
+                    added_rows: diff.summary.modifications.row_counts.added,
+                    removed_rows: diff.summary.modifications.row_counts.removed,
+                    modified_rows: diff.summary.modifications.row_counts.modified,
+                },
+                schema: diff.summary.schema.clone(),
+            }),
+            keys: Some(fields.keys),
+            targets: Some(fields.targets),
+            display: Some(fields.display),
+            // TODOIMMEDIATELY fix
+            source_schemas: CompareSourceSchemas {
+                left: diff.summary.schema.clone(),
+                right: diff.summary.schema.clone(),
+            },
         }
     }
 }
