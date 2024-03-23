@@ -1,9 +1,11 @@
 use crate::api::remote::client;
-use crate::constants::{AVG_CHUNK_SIZE, OBJECTS_DIR, OXEN_HIDDEN_DIR};
+use crate::config::UserConfig;
+use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, OBJECTS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
-use crate::model::{MetadataEntry, RemoteRepository};
+use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
+use crate::opts::UploadOpts;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
@@ -32,6 +34,62 @@ pub async fn get_entry(
     let entry = response.entry;
 
     Ok(entry)
+}
+
+pub async fn upload_entries(
+    remote_repo: &RemoteRepository,
+    opts: &UploadOpts,
+) -> Result<(), OxenError> {
+    if opts.paths.is_empty() {
+        return Err(OxenError::basic_str("No files to upload"));
+    }
+
+    // Filter down to only files
+    let mut file_paths: Vec<PathBuf> = Vec::new();
+    for path in &opts.paths {
+        if path.is_dir() {
+            eprintln!("Directory upload not yet supported: {:?}", path);
+            continue;
+        }
+
+        file_paths.push(path.to_owned());
+    }
+
+    let branch_name = if let Some(branch) = &opts.branch {
+        api::remote::branches::create_from_or_get(remote_repo, branch, DEFAULT_BRANCH_NAME).await?;
+        branch.to_owned()
+    } else {
+        DEFAULT_BRANCH_NAME.to_string()
+    };
+
+    log::debug!("Uploading to {}", branch_name);
+
+    // Stage all the files
+    let identifier = UserConfig::identifier()?;
+    api::remote::staging::add_files(
+        remote_repo,
+        &branch_name,
+        &identifier,
+        &opts.dst.to_string_lossy(),
+        file_paths,
+    )
+    .await?;
+
+    log::debug!("Committing on {}", branch_name);
+
+    // Commit the data
+    let user = UserConfig::get()?.to_user();
+    let commit = NewCommitBody {
+        message: opts.message.clone(),
+        author: user.name,
+        email: user.email,
+    };
+    let commit =
+        api::remote::staging::commit(remote_repo, &branch_name, &identifier, &commit).await?;
+
+    println!("Commit {} done.", commit.id);
+
+    Ok(())
 }
 
 /// Pings the remote server first to see if the entry exists

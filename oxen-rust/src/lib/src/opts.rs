@@ -14,6 +14,7 @@ pub mod paginate_opts;
 pub mod pull_opts;
 pub mod restore_opts;
 pub mod rm_opts;
+pub mod upload_opts;
 
 pub use crate::opts::add_opts::AddOpts;
 pub use crate::opts::clone_opts::CloneOpts;
@@ -27,3 +28,4 @@ pub use crate::opts::paginate_opts::PaginateOpts;
 pub use crate::opts::pull_opts::PullOpts;
 pub use crate::opts::restore_opts::RestoreOpts;
 pub use crate::opts::rm_opts::RmOpts;
+pub use crate::opts::upload_opts::UploadOpts;

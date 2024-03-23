@@ -4,6 +4,7 @@ use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::FilePathsResponse;
 
+use bytesize::ByteSize;
 use std::path::PathBuf;
 
 pub async fn add_file(
@@ -62,6 +63,21 @@ pub async fn add_files(
     directory_name: &str,
     paths: Vec<PathBuf>,
 ) -> Result<Vec<PathBuf>, OxenError> {
+    // Check if the total size of the files is too large (over 100mb for now)
+    let limit = 100_000_000;
+    let total_size: u64 = paths.iter().map(|p| p.metadata().unwrap().len()).sum();
+    if total_size > limit {
+        return Err(OxenError::basic_str("Total size of files to upload is too large. Consider using `oxen push` instead for now until upload supports bulk push."));
+    }
+
+    let plural_files = if paths.len() > 1 { "files" } else { "file" };
+    println!(
+        "Uploading {} from {} {}",
+        ByteSize(total_size),
+        paths.len(),
+        plural_files
+    );
+
     let uri = format!("/staging/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 

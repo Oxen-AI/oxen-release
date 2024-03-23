@@ -36,6 +36,7 @@ pub const RM: &str = "rm";
 pub const SAVE: &str = "save";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
+pub const UPLOAD: &str = "upload";
 
 pub fn init() -> Command {
     Command::new(INIT)
@@ -584,12 +585,56 @@ pub fn download() -> Command {
         )
 }
 
-pub fn commit() -> Command {
-    Command::new(COMMIT)
-        .about("Commit the staged files to the repository")
+pub fn upload() -> Command {
+    Command::new(UPLOAD)
+        .about("Upload a specific file to the remote repository.")
+        .arg(
+            Arg::new("paths")
+                .required(true)
+                .action(clap::ArgAction::Append),
+        )
+        .arg(
+            Arg::new("dst")
+                .long("destination")
+                .short('d')
+                .help("The destination directory to upload the data to. Defaults to the root './' of the repository.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("branch")
+                .long("branch")
+                .short('b')
+                .help("The branch to upload the data to. Defaults to main branch.")
+                .action(clap::ArgAction::Set),
+        )
         .arg(
             Arg::new("message")
-                .help("Use the given <message> as the commit message.")
+                .help("The message for the commit. Should be descriptive about what changed.")
+                .long("message")
+                .short('m')
+                .required(true)
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("host")
+                .long("host")
+                .help("Host to upload the data to, for example: 'hub.oxen.ai'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("Remote to up the data to, for example: 'origin'")
+                .action(clap::ArgAction::Set),
+        )
+}
+
+pub fn commit() -> Command {
+    Command::new(COMMIT)
+        .about("Commit the staged files to the repository.")
+        .arg(
+            Arg::new("message")
+                .help("The message for the commit. Should be descriptive about what changed.")
                 .long("message")
                 .short('m')
                 .required(true)
