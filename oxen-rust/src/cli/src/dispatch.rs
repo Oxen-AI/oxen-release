@@ -27,6 +27,7 @@ use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
+use liboxen::opts::UploadOpts;
 use liboxen::util;
 use liboxen::util::oxen_version::OxenVersion;
 
@@ -346,6 +347,38 @@ pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
         for path in remote_paths {
             command::remote::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
         }
+    } else {
+        eprintln!("Repository does not exist {}", name);
+    }
+
+    Ok(())
+}
+
+/// Download allows the user to download a file or files without cloning the repo
+pub async fn upload(opts: UploadOpts) -> Result<(), OxenError> {
+    let paths = &opts.paths;
+    if paths.is_empty() {
+        return Err(OxenError::basic_str(
+            "Must supply repository and a file to upload.",
+        ));
+    }
+
+    check_remote_version_blocking(opts.clone().host).await?;
+
+    // Check if the first path is a valid remote repo
+    let name = paths[0].to_string_lossy();
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
+            .await?
+    {
+        // Remove the repo name from the list of paths
+        let remote_paths = paths[1..].to_vec();
+        let opts = UploadOpts {
+            paths: remote_paths,
+            ..opts
+        };
+
+        command::remote::upload(&remote_repo, &opts).await?;
     } else {
         eprintln!("Repository does not exist {}", name);
     }

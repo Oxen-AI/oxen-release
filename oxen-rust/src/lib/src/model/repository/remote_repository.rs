@@ -2,6 +2,7 @@ use crate::api;
 use crate::view::repository::RepositoryDataTypesView;
 use crate::view::RepositoryView;
 use crate::{error::OxenError, model::Remote};
+use http::Uri;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -35,6 +36,13 @@ impl RemoteRepository {
     /// Ex) http://localhost:3000/namespace/name
     pub fn url(&self) -> &str {
         &self.remote.url
+    }
+
+    // Host of the remote repository
+    pub fn host(&self) -> String {
+        // parse it from the url
+        let uri = self.remote.url.parse::<Uri>().unwrap();
+        uri.host().unwrap().to_string()
     }
 
     /// Underlying api url for the remote repository
