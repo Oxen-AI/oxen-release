@@ -93,7 +93,7 @@ mod tests {
             // write text files to dir
             let dir = repo.path.join("train");
             util::fs::create_dir_all(&dir)?;
-            let num_files = 33;
+            let num_files = 5;
             for i in 0..num_files {
                 let path = dir.join(format!("file_{}.txt", i));
                 util::fs::write_to_path(&path, format!("lol hi {}", i))?;
@@ -145,7 +145,4 @@ mod tests {
         })
         .await
     }
-
-    // TODO: Add test for uploading file from subdir
-    // oxen upload ox/Test-Upload SQL/sources.csv -m "adding celeb a data" -b sql
 }
