@@ -67,7 +67,8 @@ pub async fn add_files(
     let limit = 100_000_000;
     let total_size: u64 = paths.iter().map(|p| p.metadata().unwrap().len()).sum();
     if total_size > limit {
-        return Err(OxenError::basic_str("Total size of files to upload is too large. Consider using `oxen push` instead for now until upload supports bulk push."));
+        let error_msg = format!("Total size of files to upload is too large. {} > {} Consider using `oxen push` instead for now until upload supports bulk push.", ByteSize::b(total_size), ByteSize::b(limit));
+        return Err(OxenError::basic_str(error_msg));
     }
 
     let plural_files = if paths.len() > 1 { "files" } else { "file" };
