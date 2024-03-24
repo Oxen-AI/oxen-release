@@ -16,7 +16,9 @@ use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
-use liboxen::opts::{AddOpts, CloneOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts};
+use liboxen::opts::{
+    AddOpts, CloneOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts,
+};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -189,6 +191,41 @@ pub async fn remote(sub_matches: &ArgMatches) {
             Err(err) => {
                 eprintln!("{err}")
             }
+        }
+    }
+}
+
+pub async fn upload(sub_matches: &ArgMatches) {
+    let opts = UploadOpts {
+        paths: sub_matches
+            .get_many::<String>("paths")
+            .expect("Must supply paths")
+            .map(PathBuf::from)
+            .collect(),
+        dst: sub_matches
+            .get_one::<String>("dst")
+            .map(PathBuf::from)
+            .unwrap_or(PathBuf::from(".")),
+        message: sub_matches
+            .get_one::<String>("message")
+            .map(String::from)
+            .expect("Must supply a commit message"),
+        branch: sub_matches.get_one::<String>("branch").map(String::from),
+        remote: sub_matches
+            .get_one::<String>("remote")
+            .map(String::from)
+            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
+        host: sub_matches
+            .get_one::<String>("host")
+            .map(String::from)
+            .unwrap_or(DEFAULT_HOST.to_string()),
+    };
+
+    // `oxen download $namespace/$repo_name $path`
+    match dispatch::upload(opts).await {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{err}")
         }
     }
 }
