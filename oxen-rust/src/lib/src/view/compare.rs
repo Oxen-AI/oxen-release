@@ -1,10 +1,11 @@
+use std::collections::HashSet;
+
 use polars::frame::DataFrame;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::message::{MessageLevel, OxenMessage};
-use crate::model::compare::tabular_compare::{TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody};
 use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularSchemaDiff};
 use crate::model::diff::text_diff::TextDiff;
 use crate::model::diff::{AddRemoveModifyCounts, TabularDiff};
@@ -12,6 +13,7 @@ use crate::model::schema::Field;
 use crate::model::{Commit, DiffEntry, Schema};
 use crate::view::Pagination;
 
+use super::schema::SchemaWithPath;
 use super::{JsonDataFrame, JsonDataFrameViews, StatusMessage};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -20,6 +22,18 @@ pub struct CompareCommits {
     pub head_commit: Commit,
     pub commits: Vec<Commit>,
 }
+
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareSummary {
+    pub num_left_only_rows: usize,
+    pub num_right_only_rows: usize,
+    pub num_diff_rows: usize,
+    pub num_match_rows: usize,
+}
+
+
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareCommitsResponse {
@@ -240,6 +254,149 @@ impl CompareDupes {
         }
     }
 }
+
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct TabularCompare {
+    pub summary: TabularCompareSummary,
+
+    pub schema_left: Option<SchemaWithPath>,
+    pub schema_right: Option<SchemaWithPath>,
+
+    pub keys: Vec<String>,
+    pub targets: Vec<String>,
+    pub match_rows: Option<JsonDataFrame>,
+    pub diff_rows: Option<JsonDataFrame>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareBody {
+    pub compare_id: String,
+    pub left: TabularCompareResourceBody,
+    pub right: TabularCompareResourceBody,
+    pub keys: Vec<TabularCompareFieldBody>,
+    pub compare: Vec<TabularCompareTargetBody>,
+    pub display: Vec<TabularCompareTargetBody>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareResourceBody {
+    pub path: String,
+    pub version: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareFieldBody {
+    pub left: String,
+    pub right: String,
+    pub alias_as: Option<String>,
+    pub compare_method: Option<String>,
+}
+
+impl TabularCompareFieldBody {
+    pub fn to_string(&self) -> String {
+        self.left.clone()
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareFields {
+    pub keys: Vec<TabularCompareFieldBody>,
+    pub targets: Vec<TabularCompareTargetBody>,
+    pub display: Vec<TabularCompareTargetBody>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct TabularCompareTargetBody {
+    pub left: Option<String>,
+    pub right: Option<String>,
+    pub compare_method: Option<String>,
+}
+impl TabularCompareTargetBody {
+    pub fn to_string(&self) -> Result<String, OxenError> {
+        self.left.clone()
+            .or_else(|| self.right.clone())
+            .ok_or(OxenError::basic_str("Both 'left' and 'right' fields are None"))
+    }
+}
+
+impl TabularCompareFields {
+    pub fn from_lists_and_schema_diff(
+        schema_diff: &TabularSchemaDiff,
+        keys: Vec<&str>,
+        targets: Vec<&str>,
+        display: Vec<&str>,
+    ) -> Self {
+        let res_keys = keys
+        .iter()
+        .map(|key| TabularCompareFieldBody {
+            left: key.to_string(),
+            right: key.to_string(),
+            alias_as: None,
+            compare_method: None,
+        })
+        .collect::<Vec<TabularCompareFieldBody>>();
+
+    let mut res_targets: Vec<TabularCompareTargetBody> = vec![];
+
+    // Get added and removed as sets of strings
+    let added_set: HashSet<String> = schema_diff.added.iter().map(|f| f.name.clone()).collect();
+    let removed_set: HashSet<String> = schema_diff.removed.iter().map(|f| f.name.clone()).collect();
+
+    for target in targets.iter() {
+        if added_set.contains(&target.to_string()) {
+            res_targets.push(TabularCompareTargetBody {
+                left: None,
+                right: Some(target.to_string()),
+                compare_method: None,
+            });
+        } else if removed_set.contains(&target.to_string()) {
+            res_targets.push(TabularCompareTargetBody {
+                left: Some(target.to_string()),
+                right: None,
+                compare_method: None,
+            });
+        } else {
+            res_targets.push(TabularCompareTargetBody {
+                left: Some(target.to_string()),
+                right: Some(target.to_string()),
+                compare_method: None,
+            });
+        }
+    }
+
+    let mut res_display: Vec<TabularCompareTargetBody> = vec![];
+    for disp in display.iter() {
+        if added_set.contains(&disp.to_string()) {
+            res_display.push(TabularCompareTargetBody {
+                left: None,
+                right: Some(disp.to_string()),
+                compare_method: None,
+            });
+        } else if removed_set.contains(&disp.to_string()) {
+            res_display.push(TabularCompareTargetBody {
+                left: Some(disp.to_string()),
+                right: None,
+                compare_method: None,
+            });
+        } else {
+            res_display.push(TabularCompareTargetBody {
+                left: Some(disp.to_string()),
+                right: Some(disp.to_string()),
+                compare_method: None,
+            });
+        }
+    }
+
+    TabularCompareFields {
+        keys: res_keys,
+        targets: res_targets,
+        display: res_display,
+
+    }
+}
+}
+
 
 // impl CompareSourceDF {
 //     pub fn from_name_df_entry_schema(

@@ -2,8 +2,7 @@ use crate::model::{EntryDataType, MetadataEntry};
 use crate::view::entry::ResourceVersion;
 use serde::{Deserialize, Serialize};
 
-use super::tabular_compare::TabularCompare;
-use super::tabular_compare_summary::TabularCompareSummary;
+use crate::view::compare::{TabularCompare, TabularCompareSummary};
 #[derive(Deserialize, Serialize, Debug)]
 
 pub struct CompareFiles {

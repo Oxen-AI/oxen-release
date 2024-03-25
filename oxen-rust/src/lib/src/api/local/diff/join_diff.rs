@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::error::OxenError;
-use crate::model::compare::tabular_compare::{
+use crate::view::compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
 };
 use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas, TabularDiffSummary, TabularSchemaDiff};
