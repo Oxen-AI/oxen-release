@@ -8,7 +8,7 @@ use liboxen::core::df::tabular;
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
-use liboxen::model::compare::tabular_compare::{TabularCompareBody, TabularCompareTargetBody};
+use liboxen::view::compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};

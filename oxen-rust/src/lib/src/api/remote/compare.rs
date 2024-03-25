@@ -1,6 +1,6 @@
 use crate::api;
 use crate::error::OxenError;
-use crate::model::compare::tabular_compare::{
+use crate::view::compare::{
     TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
     TabularCompareTargetBody,
 };
@@ -146,8 +146,7 @@ mod tests {
     use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
 
-    use crate::model::compare::tabular_compare::TabularCompareFieldBody;
-    use crate::model::compare::tabular_compare::TabularCompareTargetBody;
+    use crate::view::compare::{TabularCompareFieldBody, TabularCompareTargetBody};
     use crate::test;
     use polars::lazy::dsl::col;
     use polars::lazy::dsl::lit;

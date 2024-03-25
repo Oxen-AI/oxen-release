@@ -104,7 +104,7 @@ pub async fn diff_file(
     let staged_df = tabular::read_df(&staged_path, DFOpts::empty())?;
     let committed_df = tabular::read_df(&committed_path, DFOpts::empty())?;
 
-    let diff_result = api::local::diff::compare_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
+    let diff_result = api::local::diff::diff_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
     let diff = match diff_result {
         DiffResult::Tabular(diff) => diff,
         _ => return Err(OxenHttpError::BadRequest("Expected tabular diff result".into())),
