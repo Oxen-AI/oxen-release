@@ -4,7 +4,7 @@ use crate::error::OxenError;
 use crate::model::compare::tabular_compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
 };
-use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSummary, TabularSchemaDiff};
+use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas, TabularDiffSummary, TabularSchemaDiff};
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use crate::model::schema::Field;
 use crate::model::Schema;
@@ -102,6 +102,11 @@ pub fn diff(
         right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
     };
 
+    let schemas = TabularDiffSchemas {
+        left: Schema::from_polars(&df_1.schema()),
+        right: Schema::from_polars(&df_2.schema()),
+        diff: Schema::from_polars(&joined_df.schema()),
+    };
 
     let diff = TabularDiff {
         summary: TabularDiffSummary {
@@ -109,7 +114,7 @@ pub fn diff(
                 row_counts: modifications,
                 col_changes: schema_diff,
             },
-            schema: Schema::from_polars(&joined_df.schema()),
+            schemas: schemas,
             dupes,
         },
         contents: joined_df.select(output_columns)?,

@@ -3,6 +3,7 @@
 //! Compare two files to find changes between them.
 //!
 
+use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT};
 use crate::core::db::{self, path_db};
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
@@ -12,12 +13,12 @@ use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
-    TabularDiff, TabularDiffMods, TabularDiffSummary, TabularSchemaDiff,
+    TabularDiff, TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas, TabularDiffSummary, TabularSchemaDiff
 };
 use crate::model::schema::Field;
 use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema};
 
-use crate::{constants, util};
+use crate::{api, constants, util};
 
 use crate::core::index::CommitEntryReader;
 use polars::prelude::DataFrame;
@@ -41,6 +42,7 @@ pub mod utf8_diff;
 
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
+const DUPES_PATH: &str = "dupes.json";
 
 fn is_files_tabular(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
     util::fs::is_tabular(file_1.as_ref()) && util::fs::is_tabular(file_2.as_ref())
@@ -48,6 +50,44 @@ fn is_files_tabular(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool 
 fn is_files_utf8(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
     util::fs::is_utf8(file_1.as_ref()) && util::fs::is_utf8(file_2.as_ref())
 }
+
+// pub fn diff_files_with_cache(
+//         repo: &LocalRepository,
+//         compare_id: Option<&str>,
+//         commit_entry_1: CommitEntry,
+//         commit_entry_2: CommitEntry,
+//         keys: Vec<String>,
+//         targets: Vec<String>,
+//         display: Vec<String>,
+// ) -> Result<DiffResult, OxenError> {
+//     let file_1 = get_version_file(repo, &commit_entry_1)?;
+//     let file_2 = get_version_file(repo, &commit_entry_2)?;
+
+//     if is_files_tabular(&file_1, &file_2) {
+//         let result = tabular(
+//             &file_1,
+//             &file_2,
+//             compare_entry_1,
+//             compare_entry_2,
+//             repo,
+//             compare_id,
+//             keys,
+//             targets,
+//             display,
+//         )?;
+
+//         Ok(result)
+//     } else if is_files_utf8(&file_1, &file_2) {
+//         let result = utf8_diff::diff(&file_1, &file_2)?;
+
+//         Ok(DiffResult::Text(result))
+//     } else {
+//         Err(OxenError::invalid_file_type(format!(
+//             "Compare not supported for files, found {:?} and {:?}",
+//             compare_entry_1.path, compare_entry_2.path
+//         )))
+//     }
+// }
 
 pub fn diff_files(
     file_1: impl AsRef<Path>,
@@ -86,7 +126,7 @@ pub fn tabular(
 
     validate_required_fields(schema_1, schema_2, keys.clone(), targets.clone())?;
 
-    compare_dfs(&df_1, &df_2, keys, targets, display)
+    diff_dfs(&df_1, &df_2, keys, targets, display)
 }
 
 fn validate_required_fields(
@@ -114,7 +154,7 @@ fn validate_required_fields(
     Ok(())
 }
 
-pub fn compare_dfs(
+pub fn diff_dfs(
     df_1: &DataFrame,
     df_2: &DataFrame,
     keys: Vec<String>,
@@ -128,7 +168,7 @@ pub fn compare_dfs(
 
     let (df_1, df_2) = hash_dfs(df_1.clone(), df_2.clone(), &keys, &targets)?;
 
-    let mut compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
+    let compare = join_diff::diff(&df_1, &df_2, schema_diff, &keys, &targets, &display)?;
 
 
     Ok(compare)
@@ -738,6 +778,57 @@ pub fn list_changed_dirs(
     Ok(changed_dirs)
 }
 
+pub fn cache_tabular_diff(
+    repo: &LocalRepository,
+    compare_id: &str,
+    commit_entry_1: CommitEntry,
+    commit_entry_2: CommitEntry,
+    diff: &TabularDiff,
+) -> Result<(), OxenError> {
+        write_diff_commit_ids(
+            repo,
+            compare_id,
+            &Some(commit_entry_1),
+            &Some(commit_entry_2),
+        )?;
+        write_diff_df_cache(repo, compare_id, diff)?;
+        write_diff_dupes(repo, compare_id, &diff.summary.dupes)?;
+
+
+    Ok(())
+}
+
+pub fn delete_df_diff(repo: &LocalRepository, compare_id: &str) -> Result<(), OxenError> {
+    let compare_dir = get_diff_dir(repo, compare_id);
+
+    if compare_dir.exists() {
+        log::debug!(
+            "delete_df_compare() found compare_dir, deleting: {:?}",
+            compare_dir
+        );
+        std::fs::remove_dir_all(&compare_dir)?;
+    }
+    Ok(())
+}
+
+fn write_diff_dupes(
+    repo: &LocalRepository,
+    compare_id: &str,
+    dupes: &TabularDiffDupes,
+) -> Result<(), OxenError> {
+    let compare_dir = get_diff_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        std::fs::create_dir_all(&compare_dir)?;
+    }
+
+    let dupes_path = compare_dir.join(DUPES_PATH);
+
+    std::fs::write(dupes_path, serde_json::to_string(&dupes)?)?;
+
+    Ok(())
+}
+
 // For a rollup summary presented alongside the diffs WITHIN a dir
 pub fn get_dir_diff_entry(
     repo: &LocalRepository,
@@ -802,6 +893,98 @@ pub fn get_dir_diff_entry(
             "Could not calculate dir diff tree: dir does not exist in either commit.",
         )),
     }
+}
+
+pub fn get_cached_diff(
+    repo: &LocalRepository,
+    compare_id: &str,
+    compare_entry_1: Option<CommitEntry>,
+    compare_entry_2: Option<CommitEntry>,
+) -> Result<Option<DiffResult>, OxenError> {
+    // Check if commits have cahnged since LEFT and RIGHT files were last cached
+    let (cached_left_id, cached_right_id) = get_diff_commit_ids(repo, compare_id)?;
+
+    // If commits cache files do not exist or have changed since last hash (via branch name) then return None to recompute
+    if cached_left_id.is_none() || cached_right_id.is_none() {
+        return Ok(None);
+    }
+
+    if compare_entry_1.is_none() || compare_entry_2.is_none() {
+        return Ok(None);
+    }
+
+    // Checked these above
+    let left_entry = compare_entry_1.unwrap();
+    let right_entry = compare_entry_2.unwrap();
+
+    // TODONOW this should be cached
+    let left_full_df = tabular::read_df(
+        api::local::revisions::get_version_file_from_commit_id(
+            repo,
+            left_entry.commit_id,
+            &left_entry.path,
+        )?,
+        DFOpts::empty(),
+    )?;
+    let right_full_df = tabular::read_df(
+        api::local::revisions::get_version_file_from_commit_id(
+            repo,
+            right_entry.commit_id,
+            &right_entry.path,
+        )?,
+        DFOpts::empty(),
+    )?;
+
+    let schema_diff = TabularSchemaDiff::from_schemas(
+        &Schema::from_polars(&left_full_df.schema()),
+        &Schema::from_polars(&right_full_df.schema()),
+    )?;
+
+
+
+    let diff_df = tabular::read_df(get_diff_cache_path(repo, compare_id), DFOpts::empty())?;
+
+    let schemas = TabularDiffSchemas {
+        left: Schema::from_polars(&left_full_df.schema()),
+        right: Schema::from_polars(&right_full_df.schema()),
+        diff: Schema::from_polars(&diff_df.schema()),
+    };
+
+    let row_mods = AddRemoveModifyCounts::from_diff_df(&diff_df)?;
+
+    let tab_diff_summary = TabularDiffSummary {
+        schemas, 
+        modifications: TabularDiffMods {
+            row_counts: row_mods,
+            col_changes: schema_diff,
+        },
+        dupes: read_dupes(repo, compare_id)?,
+    };
+
+    
+    let diff_results = TabularDiff {
+        summary: tab_diff_summary,
+        // Don't have or need server-updated keys, targets, display on cache hit
+        parameters: TabularDiffParameters::empty(),
+        contents: diff_df
+        
+    };
+
+    Ok(Some(DiffResult::Tabular(diff_results)))
+}
+
+
+fn read_dupes(repo: &LocalRepository, compare_id: &str) -> Result<TabularDiffDupes, OxenError> {
+    let compare_dir = get_diff_dir(repo, compare_id);
+    let dupes_path = compare_dir.join(DUPES_PATH);
+
+    if !dupes_path.exists() {
+        return Ok(TabularDiffDupes::empty());
+    }
+
+    let dupes: TabularDiffDupes = serde_json::from_str(&std::fs::read_to_string(dupes_path)?)?;
+
+    Ok(dupes)
 }
 
 /// TODO this is very ugly...
@@ -1156,6 +1339,93 @@ fn read_entries_from_commit(
     let entries = reader.list_entries_set()?;
     Ok(entries)
 }
+
+
+fn write_diff_df_cache(
+    repo: &LocalRepository,
+    compare_id: &str,
+    diff: &TabularDiff,
+) -> Result<(), OxenError> {
+    let compare_dir = get_diff_dir(repo, compare_id);
+    if !compare_dir.exists() {
+        std::fs::create_dir_all(&compare_dir)?;
+    }
+    // TODO: Expensive clone
+    let mut df = diff.contents.clone();
+
+    log::debug!("getting diff cache path");
+    let diff_path = get_diff_cache_path(repo, compare_id);
+    log::debug!("about to create at path {:?}", diff_path);
+    tabular::write_df(&mut df, &diff_path)?;
+    Ok(())
+}
+
+
+fn get_diff_commit_ids(
+    repo: &LocalRepository,
+    compare_id: &str,
+) -> Result<(Option<String>, Option<String>), OxenError> {
+    let compare_dir = get_diff_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        return Ok((None, None));
+    }
+
+    let left_path = compare_dir.join(LEFT_COMPARE_COMMIT);
+    let right_path = compare_dir.join(RIGHT_COMPARE_COMMIT);
+
+    // Should exist together or not at all, but recalculate if for some reaosn one not present
+    if !left_path.exists() || !right_path.exists() {
+        return Ok((None, None));
+    }
+
+    let left_id = std::fs::read_to_string(left_path)?;
+    let right_id = std::fs::read_to_string(right_path)?;
+
+    Ok((Some(left_id), Some(right_id)))
+}
+fn write_diff_commit_ids(
+    repo: &LocalRepository,
+    compare_id: &str,
+    left_entry: &Option<CommitEntry>,
+    right_entry: &Option<CommitEntry>,
+) -> Result<(), OxenError> {
+    let compare_dir = get_diff_dir(repo, compare_id);
+
+    if !compare_dir.exists() {
+        std::fs::create_dir_all(&compare_dir)?;
+    }
+
+    let left_path = compare_dir.join(LEFT_COMPARE_COMMIT);
+    let right_path = compare_dir.join(RIGHT_COMPARE_COMMIT);
+
+    if let Some(commit_entry) = left_entry {
+        let left_id = &commit_entry.commit_id;
+        std::fs::write(left_path, left_id)?;
+    }
+
+    if let Some(commit_entry) = right_entry {
+        let right_id = &commit_entry.commit_id;
+        std::fs::write(right_path, right_id)?;
+    }
+
+    Ok(())
+}
+
+
+fn get_diff_cache_path(repo: &LocalRepository, compare_id: &str) -> PathBuf {
+    let compare_dir = get_diff_dir(repo, compare_id);
+    compare_dir.join("diff.parquet")
+}
+
+pub fn get_diff_dir(repo: &LocalRepository, compare_id: &str) -> PathBuf {
+    util::fs::oxen_hidden_dir(&repo.path)
+        .join(CACHE_DIR)
+        .join(COMPARES_DIR)
+        .join(compare_id)
+}
+
+
 
 #[cfg(test)]
 mod tests {

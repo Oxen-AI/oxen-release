@@ -429,15 +429,14 @@ impl From<TabularDiff> for CompareTabular {
                     removed_rows: diff.summary.modifications.row_counts.removed,
                     modified_rows: diff.summary.modifications.row_counts.modified,
                 },
-                schema: diff.summary.schema.clone(),
+                schema: diff.summary.schemas.diff.clone(),
             }),
             keys: Some(fields.keys),
             targets: Some(fields.targets),
             display: Some(fields.display),
-            // TODOIMMEDIATELY fix
             source_schemas: CompareSourceSchemas {
-                left: diff.summary.schema.clone(),
-                right: diff.summary.schema.clone(),
+                left: diff.summary.schemas.left.clone(),
+                right: diff.summary.schemas.right.clone(),
             },
         }
     }
