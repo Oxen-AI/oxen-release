@@ -1,4 +1,4 @@
-use crate::model::schema::{Field, Schema};
+use crate::{constants::DIFF_STATUS_COL, error::OxenError, model::schema::{Field, Schema}};
 use polars::frame::DataFrame;
 use serde::{Deserialize, Serialize};
 
@@ -19,7 +19,7 @@ pub struct TabularDiffMods {
 #[derive(Debug, Clone)]
 pub struct TabularDiffSummary {
     pub modifications: TabularDiffMods,
-    pub schema: Schema,
+    pub schemas: TabularDiffSchemas,
     pub dupes: TabularDiffDupes,
 }
 
@@ -28,6 +28,13 @@ pub struct TabularDiff {
     pub summary: TabularDiffSummary,
     pub parameters: TabularDiffParameters,
     pub contents: DataFrame,
+}
+
+#[derive(Debug, Clone)]
+pub struct TabularDiffSchemas {
+    pub left: Schema,
+    pub right: Schema,
+    pub diff: Schema,
 }
 
 #[derive(Debug, Clone)]
@@ -43,7 +50,24 @@ pub struct TabularDiffDupes {
     pub left: u64,
     pub right: u64,
 }
+impl TabularDiffDupes {
+    pub fn empty() -> Self {
+        TabularDiffDupes {
+            left: 0,
+            right: 0,
+        }
+    }
+}
 
+impl TabularDiffParameters {
+    pub fn empty() -> Self {
+        TabularDiffParameters {
+            keys: Vec::new(),
+            targets: Vec::new(),
+            display: Vec::new(),
+        }
+    }
+}
 
 
 impl Default for TabularSchemaDiff {
@@ -54,3 +78,26 @@ impl Default for TabularSchemaDiff {
         }
     }
 }
+
+impl TabularSchemaDiff {
+    pub fn from_schemas(s1: &Schema, s2: &Schema) -> Result<TabularSchemaDiff, OxenError> {
+        let added = s2
+            .fields
+            .iter()
+            .filter(|field| !s1.fields.contains(field))
+            .cloned()
+            .collect::<Vec<Field>>();
+
+        let removed = s1
+            .fields
+            .iter()
+            .filter(|field| !s2.fields.contains(field))
+            .cloned()
+            .collect::<Vec<Field>>();
+
+        Ok(TabularSchemaDiff {
+            added,
+            removed,
+        })
+    }
+} 

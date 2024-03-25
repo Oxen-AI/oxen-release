@@ -3,7 +3,7 @@ use nom::Compare;
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::diff::tabular_diff::{TabularDiffMods, TabularDiffParameters, TabularDiffSummary, TabularSchemaDiff};
+use crate::model::diff::tabular_diff::{TabularDiffMods, TabularDiffParameters, TabularDiffSchemas, TabularDiffSummary, TabularSchemaDiff};
 // use crate::model::diff::tabular_diff_summary::{TabularDiffSummaryImpl};
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use crate::model::Schema;
@@ -53,6 +53,12 @@ pub async fn diff(
                     None => CompareTabularMods::default() 
                 };
 
+                let schemas = TabularDiffSchemas {
+                    left: ct.dfs.source_schemas.left,
+                    right: ct.dfs.source_schemas.right,
+                    diff: schema,
+                };
+
 
                 let summary = TabularDiffSummary {
                     modifications: TabularDiffMods {
@@ -64,7 +70,7 @@ pub async fn diff(
                         col_changes: schema_diff,
                         
                     }, 
-                    schema: schema,
+                    schemas: schemas,
                     dupes: ct.dfs.dupes.to_tabular_diff_dupes(),
                 };
                 
