@@ -71,6 +71,27 @@ impl PyLocalRepo {
         Ok(())
     }
 
+    pub fn add_schema_metadata(&self, path: &str, column: &str, metadata: &str) -> Result<(), PyOxenError> {
+        let repo = LocalRepository::from_dir(&self.path)?;
+
+        // make sure metadata is valid json, return oxen error if not
+        let metadata: serde_json::Value = serde_json::from_str(metadata.as_ref()).map_err(|e| {
+            OxenError::basic_str(format!(
+                "Metadata must be valid JSON: ''\n{}",
+                // metadata.as_ref(),
+                e
+            ))
+        })?;
+    
+        for (path, schema) in
+            command::schemas::add_column_metadata(&repo, path, column, &metadata)?
+        {
+            println!("{:?}\n{}", path, schema.verbose_str());
+        }
+    
+        Ok(())
+    }
+
     pub fn rm(&self, path: PathBuf, recursive: bool, staged: bool, remote: bool) -> Result<(), PyOxenError> {
         let repo = LocalRepository::from_dir(&self.path)?;
         let rm_opts = RmOpts {
