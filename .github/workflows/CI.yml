@@ -31,6 +31,10 @@ jobs:
             name: "cp311-cp311",
             version: "3.11"
           },
+          {
+            name: "cp312-cp312",
+            version: "3.12"
+          },
         ]
         rust: [stable]
         platform: [
