@@ -6,6 +6,7 @@ use std::collections::HashSet;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
+use os_path::OsPath;
 
 use crate::core::db::str_json_db;
 
@@ -17,8 +18,12 @@ pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(db: &DBWithThreadMode<T>, path: 
     // strip trailing / if exists for looking up directories
     let path_str = path.to_str().map(|s| s.trim_end_matches('/'));
 
-    // log::debug!("path_db::has_entry?({:?}) from db {:?}", path, db.path());
+    log::debug!("path_db::has_entry?({:?}) from db {:?}", path_str, db.path());
     if let Some(key) = path_str {
+        // Check if the path_str has windows \\ in it, all databases use / so we are consistent across OS's
+        let key = key.replace("\\", "/");
+        log::debug!("path_db::has_entry?({:?}) converted key", key);
+
         return str_json_db::has_key(db, key);
     }
 
@@ -34,8 +39,11 @@ where
     D: de::DeserializeOwned,
 {
     let path = path.as_ref();
-    // log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
+    log::debug!("path_db::get_entry({:?}) from db {:?}", path, db.path());
     if let Some(key) = path.to_str() {
+        let key = key.replace("\\", "/");
+        log::debug!("path_db::get_entry({:?}) converted key", key);
+
         return str_json_db::get(db, key);
     }
     Err(OxenError::could_not_convert_path_to_str(path))
@@ -52,6 +60,8 @@ where
 {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
+        // make sure we write `/` instead of `\\`
+        let key = key.replace("\\", "/");
         str_json_db::put(db, key, entry)
     } else {
         Err(OxenError::could_not_convert_path_to_str(path))
@@ -65,6 +75,7 @@ pub fn delete<T: ThreadMode, P: AsRef<Path>>(
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
     if let Some(key) = path.to_str() {
+        let key = key.replace("\\", "/");
         str_json_db::delete(db, key)
     } else {
         Err(OxenError::could_not_convert_path_to_str(path))
@@ -85,8 +96,14 @@ pub fn list_paths<T: ThreadMode>(
             Ok((key, _value)) => {
                 match str::from_utf8(&key) {
                     Ok(key) => {
-                        // return full path
-                        paths.push(base_dir.join(String::from(key)));
+                        // return path with native slashes
+                        let os_path = OsPath::from(key);
+                        let new_path = os_path.to_pathbuf();
+
+                        log::debug!("list_paths converted {:?} -> {:?}", key, new_path);
+
+                        
+                        paths.push(base_dir.join(new_path));
                     }
                     _ => {
                         log::error!("list_added_paths() Could not decode key {:?}", key)
