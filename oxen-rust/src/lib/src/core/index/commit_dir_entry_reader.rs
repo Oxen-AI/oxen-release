@@ -11,12 +11,12 @@ use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
+use os_path::OsPath;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
-use os_path::OsPath;
 
 use super::{CommitEntryWriter, ObjectDBReader};
 
@@ -129,13 +129,13 @@ impl CommitDirEntryReader {
 
     pub fn has_file<P: AsRef<Path>>(&self, path: P) -> bool {
         let path = path.as_ref();
-        log::debug!("CommitDirEntryReader.has_file({:?})", path);
+        // log::debug!("CommitDirEntryReader.has_file({:?})", path);
 
         let full_path = self.dir.join(path);
         // we have to make sure the full_path is `/` instead of `\\` to get the correct hashes
-        let full_path_str = full_path.to_str().unwrap().replace("\\", "/");
+        let full_path_str = full_path.to_str().unwrap().replace('\\', "/");
 
-        let path_hash_prefix = util::hasher::hash_path(&full_path_str)[0..2].to_string();
+        let path_hash_prefix = util::hasher::hash_path(full_path_str)[0..2].to_string();
         // log::debug!("CommitDirEntryReader.has_file({:?}) {:?} {}", path, full_path_str, path_hash_prefix);
 
         // Binary search for the appropriate vnode
@@ -145,10 +145,7 @@ impl CommitDirEntryReader {
             .unwrap();
 
         let Some(vnode_child) = vnode_child else {
-            log::info!(
-                "could not get Some(vnode_child) for path {:?}",
-                path
-            );
+            log::info!("could not get Some(vnode_child) for path {:?}", path);
             return false;
         };
 
