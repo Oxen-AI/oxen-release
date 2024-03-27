@@ -163,3 +163,25 @@ jobs:
           cp user_config.toml data/test/config/user_config.toml
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=1
+
+  test:
+    name: Test Suite Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install latest rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          default: true
+          override: true
+
+      - name: Run Tests
+        run: |
+          cargo build
+          mkdir .\data\test\runs
+          .\target\debug\oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+          cp user_config.toml data\test\config\user_config.toml
+          START /B .\target\debug\oxen-server start
+          cargo test -- --test-threads=1
