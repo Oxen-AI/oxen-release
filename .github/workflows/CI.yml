@@ -16,10 +16,6 @@ jobs:
       matrix:
         python: [
           {
-            name: "cp38-cp38",
-            version: "3.8"
-          },
-          {
             name: "cp39-cp39",
             version: "3.9"
           },
