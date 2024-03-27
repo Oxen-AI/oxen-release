@@ -121,7 +121,7 @@ jobs:
           command: clippy
           args: --no-deps -- -D warnings
 
-  test:
+  test_macos:
     name: Test Suite
     runs-on: macos-latest
     steps:
@@ -164,7 +164,7 @@ jobs:
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=1
 
-  test:
+  test_windows:
     name: Test Suite Windows
     runs-on: windows-latest
     steps:
