@@ -183,5 +183,5 @@ jobs:
           mkdir .\data\test\runs
           .\target\debug\oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
           cp user_config.toml data\test\config\user_config.toml
-          START /B .\target\debug\oxen-server start
+          START /B .\target\debug\oxen-server.exe start
           cargo test -- --test-threads=1
