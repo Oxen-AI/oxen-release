@@ -16,6 +16,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
+use os_path::OsPath;
 
 use super::{CommitEntryWriter, ObjectDBReader};
 
@@ -157,6 +158,8 @@ impl CommitDirEntryReader {
 
         // Now binary search within the vnode for the appropriate file
         let full_path = self.dir.join(path.as_ref());
+        log::debug!("Looking for full path: {:?}", full_path);
+
         let Ok(maybe_file) = vnode.binary_search_on_path(&full_path.to_path_buf()) else {
             log::info!("could not get Ok(file) for path {:?}", path.as_ref());
             return false;
@@ -272,8 +275,13 @@ impl CommitDirEntryReader {
                 if let TreeObjectChild::File { path, .. } = entry {
                     // Get file object by hash
                     let file_object = self.object_reader.get_file(entry.hash())?.unwrap();
+
+                    // return path with native slashes
+                    let os_path = OsPath::from(path);
+                    let new_path = os_path.to_pathbuf();
+
                     // Get commit entry from file object
-                    let entry = file_object.to_commit_entry(path, &self.commit_id);
+                    let entry = file_object.to_commit_entry(&new_path, &self.commit_id);
                     entries.push(entry);
                 }
             }
