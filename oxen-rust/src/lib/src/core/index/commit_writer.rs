@@ -3,7 +3,9 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::path_db;
 use crate::core::df::tabular;
 use crate::core::index::{
-    self, mod_stager, remote_df_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter
+    self, mod_stager, remote_df_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
+    CommitEntryReader, CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader,
+    RefWriter,
 };
 use crate::core::{db, df};
 use crate::error::OxenError;
@@ -230,62 +232,27 @@ impl CommitWriter {
                 entry_path
             );
 
-            // IF tabular, want to index. 
-
+            // IF tabular, want to index.
             if util::fs::is_tabular(&entry_path) {
-                remote_df_stager::extract_dataset_to_versions_dir(&self.repository, branch, &entry, user_id)?;
-            }
-
-
-
-            util::fs::copy(&version_path, &entry_path)?;
-
-            // self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
-            remote_dir_stager::stage_file(
-                &self.repository,
-                &branch_repo,
-                branch,
-                user_id,
-                &entry_path,
-            )?;
-        }
-
-        // Have to recompute staged data
-        let staged_data = command::status(&branch_repo)?;
-        log::debug!("APPLY MODS got new staged_data");
-        staged_data.print_stdout();
-
-        Ok(staged_data)
-    }
-
-
-    pub fn apply_mods_new(
-        &self,
-        branch: &Branch,
-        user_id: &str,
-        entries: &[CommitEntry],
-    ) -> Result<StagedData, OxenError> {
-        let branch_staging_dir =
-            remote_dir_stager::branch_staging_dir(&self.repository, branch, user_id);
-        let branch_repo =
-            remote_dir_stager::init_or_get(&self.repository, branch, user_id).unwrap();
-
-        log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
-        for entry in entries.iter() {
-            // Copy the version file to the staging dir and make the mods
-            let version_path = util::fs::version_path(&self.repository, entry);
-            let entry_path = branch_staging_dir.join(&entry.path);
-            if let Some(parent) = entry_path.parent() {
-                if !parent.exists() {
-                    std::fs::create_dir_all(parent)?;
+                if mod_stager::branch_is_ahead_of_staging(
+                    &self.repository,
+                    branch,
+                    user_id,
+                    &entry.path,
+                )? {
+                    return Err(OxenError::basic_str(format!(
+                        "Could not commit, remote staging area is out of date with branch {}",
+                        branch.name
+                    )));
                 }
+                remote_df_stager::extract_dataset_to_versions_dir(
+                    &self.repository,
+                    branch,
+                    &entry,
+                    user_id,
+                )?;
             }
 
-            log::debug!(
-                "apply_mods Copy file to mod {:?} -> {:?}",
-                version_path,
-                entry_path
-            );
             util::fs::copy(&version_path, &entry_path)?;
 
             // self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
@@ -306,63 +273,108 @@ impl CommitWriter {
         Ok(staged_data)
     }
 
-    fn apply_mods_to_file(
-        &self,
-        branch: &Branch,
-        user_id: &str,
-        entry: &CommitEntry,
-        path: &Path,
-    ) -> Result<String, OxenError> {
-        log::debug!(
-            "apply_mods_to_file [{}] {:?} -> {:?}",
-            branch.name,
-            entry.path,
-            path
-        );
-        if util::fs::is_tabular(path) {
-            self.apply_tabular_mods(branch, user_id, entry, path)
-        } else {
-            Err(OxenError::basic_str(
-                "File type not supported for modifications",
-            ))
-        }
-    }
+    // pub fn apply_mods_new(
+    //     &self,
+    //     branch: &Branch,
+    //     user_id: &str,
+    //     entries: &[CommitEntry],
+    // ) -> Result<StagedData, OxenError> {
+    //     let branch_staging_dir =
+    //         remote_dir_stager::branch_staging_dir(&self.repository, branch, user_id);
+    //     let branch_repo =
+    //         remote_dir_stager::init_or_get(&self.repository, branch, user_id).unwrap();
 
+    //     log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
+    //     for entry in entries.iter() {
+    //         // Copy the version file to the staging dir and make the mods
+    //         let version_path = util::fs::version_path(&self.repository, entry);
+    //         let entry_path = branch_staging_dir.join(&entry.path);
+    //         if let Some(parent) = entry_path.parent() {
+    //             if !parent.exists() {
+    //                 std::fs::create_dir_all(parent)?;
+    //             }
+    //         }
 
+    //         log::debug!(
+    //             "apply_mods Copy file to mod {:?} -> {:?}",
+    //             version_path,
+    //             entry_path
+    //         );
+    //         util::fs::copy(&version_path, &entry_path)?;
 
-    fn apply_tabular_mods(
-        &self,
-        branch: &Branch,
-        user_id: &str,
-        entry: &CommitEntry,
-        path: &Path,
-    ) -> Result<String, OxenError> {
-        let mut df = df::tabular::read_df(path, DFOpts::empty())?;
-        let schema_fields = Schema::from_polars(&df.schema()).fields_names().join(",");
-        let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry)?;
+    //         // self.apply_mods_to_file(branch, user_id, entry, &entry_path)?;
+    //         remote_dir_stager::stage_file(
+    //             &self.repository,
+    //             &branch_repo,
+    //             branch,
+    //             user_id,
+    //             &entry_path,
+    //         )?;
+    //     }
 
-        log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
-        log::debug!("og df {:?}", df);
-        if let Some(rows) = mods_df.added_rows {
-            // TODO: More robust check for schema match
-            if rows.width() != df.width() + 1 {
-                return Err(OxenError::basic_str(format!(
-                    "Could not commit, schema has changed on file {}",
-                    entry.path.to_string_lossy()
-                )));
-            }
+    //     // Have to recompute staged data
+    //     let staged_data = command::status(&branch_repo)?;
+    //     log::debug!("APPLY MODS got new staged_data");
+    //     staged_data.print_stdout();
 
-            let mut df_opts = DFOpts::empty();
-            df_opts.columns = Some(schema_fields);
-            let filtered = tabular::transform(rows, df_opts)?;
-            log::debug!("Add filtered {}", filtered);
-            df = df.vstack(&filtered).unwrap();
-        }
-        log::debug!("Full DF {}", df);
-        df::tabular::write_df(&mut df, path)?;
-        let new_hash = util::hasher::hash_file_contents(path)?;
-        Ok(new_hash)
-    }
+    //     Ok(staged_data)
+    // }
+
+    // fn apply_mods_to_file(
+    //     &self,
+    //     branch: &Branch,
+    //     user_id: &str,
+    //     entry: &CommitEntry,
+    //     path: &Path,
+    // ) -> Result<String, OxenError> {
+    //     log::debug!(
+    //         "apply_mods_to_file [{}] {:?} -> {:?}",
+    //         branch.name,
+    //         entry.path,
+    //         path
+    //     );
+    //     if util::fs::is_tabular(path) {
+    //         self.apply_tabular_mods(branch, user_id, entry, path)
+    //     } else {
+    //         Err(OxenError::basic_str(
+    //             "File type not supported for modifications",
+    //         ))
+    //     }
+    // }
+
+    // fn apply_tabular_mods(
+    //     &self,
+    //     branch: &Branch,
+    //     user_id: &str,
+    //     entry: &CommitEntry,
+    //     path: &Path,
+    // ) -> Result<String, OxenError> {
+    //     let mut df = df::tabular::read_df(path, DFOpts::empty())?;
+    //     let schema_fields = Schema::from_polars(&df.schema()).fields_names().join(",");
+    //     let mods_df = mod_stager::list_mods_df(&self.repository, branch, user_id, entry)?;
+
+    //     log::debug!("apply_tabular_mods [{}] {:?}", branch.name, path);
+    //     log::debug!("og df {:?}", df);
+    //     if let Some(rows) = mods_df.added_rows {
+    //         // TODO: More robust check for schema match
+    //         if rows.width() != df.width() + 1 {
+    //             return Err(OxenError::basic_str(format!(
+    //                 "Could not commit, schema has changed on file {}",
+    //                 entry.path.to_string_lossy()
+    //             )));
+    //         }
+
+    //         let mut df_opts = DFOpts::empty();
+    //         df_opts.columns = Some(schema_fields);
+    //         let filtered = tabular::transform(rows, df_opts)?;
+    //         log::debug!("Add filtered {}", filtered);
+    //         df = df.vstack(&filtered).unwrap();
+    //     }
+    //     log::debug!("Full DF {}", df);
+    //     df::tabular::write_df(&mut df, path)?;
+    //     let new_hash = util::hasher::hash_file_contents(path)?;
+    //     Ok(new_hash)
+    // }
 
     fn gen_commit(&self, commit_data: &NewCommit, status: &StagedData) -> Commit {
         log::debug!("gen_commit from {} files", status.staged_files.len());

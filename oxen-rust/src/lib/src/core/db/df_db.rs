@@ -1,12 +1,14 @@
 //! Abstraction over DuckDB database to write and read dataframes from disk.
 //!
 
+use crate::constants::{DEFAULT_PAGE_SIZE, OXEN_ID_COL};
+use crate::core::db::df_db;
 use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::model;
 use crate::model::schema::Field;
 use crate::model::Schema;
-use crate::constants::OXEN_ID_COL;
+use crate::opts::DFOpts;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
@@ -40,7 +42,7 @@ pub fn create_table_if_not_exists(
     }
 }
 
-/// Drop a table in a duckdb database. 
+/// Drop a table in a duckdb database.
 pub fn drop_table(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<(), OxenError> {
     let table_name = table_name.as_ref();
     let sql = format!("DROP TABLE IF EXISTS {}", table_name);
@@ -49,7 +51,11 @@ pub fn drop_table(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Res
     Ok(())
 }
 
-pub fn table_exists(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<bool, OxenError> {
+pub fn table_exists(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<bool, OxenError> {
+    log::debug!("checking exists in path {:?}", conn);
     let table_name = table_name.as_ref();
     let sql = "SELECT EXISTS (SELECT 1 FROM duckdb_tables WHERE table_name = ?) AS table_exists";
     let mut stmt = conn.prepare(&sql)?;
@@ -57,7 +63,6 @@ pub fn table_exists(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> R
     log::debug!("got exists: {}", exists);
     Ok(exists)
 }
-
 
 /// Create a table from a set of oxen fields with data types.
 fn p_create_table_if_not_exists(
@@ -105,7 +110,6 @@ pub fn get_schema(
     Ok(Schema::new(table_name, fields))
 }
 
-
 pub fn get_schema_without_id(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
@@ -115,7 +119,15 @@ pub fn get_schema_without_id(
         "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name != '{}'",
         table_name, OXEN_ID_COL
     );
+    log::debug!("get_schema_without_id sql: {}", sql);
     let mut stmt = conn.prepare(&sql)?;
+
+    log::debug!("and we are reading fields from this conn: {:?}", conn);
+
+    let select = sql::Select::new().select("*").from(table_name);
+    // let mut s_select = conn.prepare(&select.as_string())?;
+    let records = df_db::select(&conn, &select)?;
+    log::debug!("got records here as : {:?}", records);
 
     let mut fields = vec![];
     let rows = stmt.query_map([], |row| {
@@ -204,19 +216,48 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
     Ok(df)
 }
 
-/// Determine if a table already exists in the index 
-// pub fn table_exists(conn: &duckdb::Connection, table_name: &str) -> Result<bool, OxenError> {
-//     let query = "SELECT EXISTS (
-//                     SELECT 1
-//                     FROM information_schema.tables
-//                     WHERE table_name = ?
-//                     AND table_schema = 'public'
-//                  )";
-//     let mut stmt = conn.prepare(query)?;
-//     let exists: bool = stmt.query_row(&[table_name], |row| row.get(0))?;
-//     log::debug!("got exists: {}", exists);
-//     Ok(exists)
-// }
+pub fn select_with_opts(
+    conn: &duckdb::Connection,
+    stmt: &sql::Select,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let mut sql = stmt.as_string();
+
+    if let Some(sort_by) = &opts.sort_by {
+        sql.push_str(&format!(" ORDER BY {}", sort_by));
+    }
+
+    let pagination_clause = if let Some(page) = opts.page {
+        let page = if page == 0 { 1 } else { page };
+        let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+        format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size)
+    } else {
+        format!(" LIMIT {}", DEFAULT_PAGE_SIZE)
+    };
+
+    // push it to the sql
+
+    log::debug!("select sql with opts: {}", sql);
+    let mut stmt = conn.prepare(&sql)?;
+    let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+    log::debug!("got records with opts: {:?}", records.len());
+
+    if records.is_empty() {
+        return Ok(DataFrame::default());
+    }
+
+    // Convert to Vec<&RecordBatch>
+    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
+    let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
+    // log::debug!("got json: {:?}", json);
+
+    let json_str = serde_json::to_string(&json).unwrap();
+
+    let content = Cursor::new(json_str.as_bytes());
+    let df = JsonReader::new(content).finish().unwrap();
+    Ok(df)
+}
+
 /// Insert a row from a polars dataframe into a duckdb table.
 pub fn insert_polars_df(
     conn: &duckdb::Connection,
@@ -251,7 +292,7 @@ pub fn insert_polars_df(
 
     let mut stmt = conn.prepare(&sql)?;
 
-    // TODONOW: THIS SHOULD BULK INSERT! 
+    // TODONOW: THIS SHOULD BULK INSERT!
     let mut result_df = DataFrame::default();
     for idx in 0..df.height() {
         let row = df.get(idx).unwrap();
@@ -287,7 +328,6 @@ pub fn insert_polars_df(
 
     Ok(result_df)
 }
-
 
 #[cfg(test)]
 mod tests {

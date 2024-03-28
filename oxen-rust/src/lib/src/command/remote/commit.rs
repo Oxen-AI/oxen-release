@@ -54,8 +54,13 @@ mod tests {
 
                 // Remote stage row
                 let path = test::test_nlp_classification_csv();
+
+                // Index the dataset
+                command::remote::df::index_dataset(&cloned_repo, &path).await?;
+
                 log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();
+
                 opts.add_row = Some("I am a new row,neutral".to_string());
                 opts.content_type = ContentType::Csv;
                 command::remote::df(&cloned_repo, &path, opts).await?;

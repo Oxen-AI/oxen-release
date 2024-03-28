@@ -229,6 +229,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // END DEPRECIATED STAGING
         // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
         .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/{resource:.*}",
+            web::get().to(controllers::stager::get_staged_df),
+        )
+        .route(
             "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
             web::get().to(controllers::stager::diff_file),
         )
@@ -260,7 +264,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         .route(
             "/{namespace}/{repo_name}/dir/{resource:.*}",
             web::get().to(controllers::dir::get),
-    )
+        )
         // ----- File (returns raw file data) ----- //
         .route(
             "/{namespace}/{repo_name}/file/{resource:.*}",

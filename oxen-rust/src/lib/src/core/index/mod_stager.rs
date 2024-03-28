@@ -12,6 +12,7 @@ use polars::lazy::frame::IntoLazy;
 use polars::series::ChunkCompare;
 use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 use sql_query_builder::Select;
+
 use time::OffsetDateTime;
 
 use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, TABLE_NAME};
@@ -19,8 +20,10 @@ use crate::core::db::{self, df_db, staged_df_db, str_json_db};
 use crate::core::df::tabular;
 use crate::core::index::{self, mod_stager, remote_df_stager};
 use crate::error::OxenError;
+use crate::model::diff::DiffResult::Tabular;
 use crate::model::entry::mod_entry::{ModType, NewMod};
 use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry, Schema};
+
 use crate::{api, current_function, util};
 use staged_df_db::{OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL};
 
@@ -54,6 +57,23 @@ pub fn mods_duckdb_path(
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
+        .join("db")
+}
+
+pub fn mods_commit_ref_path(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identifier: &str,
+    path: impl AsRef<Path>,
+) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    remote_dir_stager::branch_staging_dir(repo, branch, identifier)
+        .join(OXEN_HIDDEN_DIR)
+        .join(STAGED_DIR)
+        .join(MODS_DIR)
+        .join("duckdb")
+        .join(path_hash)
+        .join("COMMIT_ID")
 }
 
 fn files_db_path(repo: &LocalRepository, branch: &Branch, identifier: &str) -> PathBuf {
@@ -71,7 +91,7 @@ pub fn create_mod(
     new_mod: &NewMod,
 ) -> Result<ModEntry, OxenError> {
     // Try to track the mod
-    let mod_entry = stage_mod_new(repo, branch, identifier, new_mod)?;
+    let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
 
     // Track the parent file
     track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
@@ -80,12 +100,11 @@ pub fn create_mod(
 }
 
 pub fn add_row(
-    repo: &LocalRepository, 
-    branch: &Branch, 
-    identifier: &str, 
+    repo: &LocalRepository,
+    branch: &Branch,
+    identifier: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-
     let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
     if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
         // Add a name to the schema - todo probably should be an impl on a struct
@@ -94,23 +113,26 @@ pub fn add_row(
             ..schema
         };
 
-        
         // create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
 
         let db_path = mods_duckdb_path(repo, branch, identifier, &new_mod.entry.path);
         let conn = df_db::get_connection(&db_path)?;
 
         // TODONOW: don't reindex every time
+        log::debug!("checking table exists");
         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
         if !table_exists {
+            log::debug!("table doesn't exist, indexing");
             remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identifier)?;
         }
 
-        let df = tabular::parse_data_into_df(
-            &new_mod.data,
-            &schema,
-            new_mod.content_type.to_owned(),
-        )?;
+        log::debug!(
+            "after indexing, table exists? {}",
+            df_db::table_exists(&conn, TABLE_NAME)?
+        );
+
+        let df =
+            tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned())?;
 
         log::debug!("here's our append df {:?}", df);
 
@@ -126,86 +148,104 @@ pub fn add_row(
     }
 }
 
-
-// pub fn create_mod(
+// pub fn delete_mod_from_path(
 //     repo: &LocalRepository,
 //     branch: &Branch,
-//     identifier: &str,
-//     new_mod: &NewMod,
+//     identity: &str,
+//     file_path: &Path,
+//     uuid: &str,
 // ) -> Result<ModEntry, OxenError> {
-//     // Try to track the mod
-//     log::debug!("here's our newmod {:?}", new_mod);
-//     let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
-//     log::debug!("here's our mod entry {:?}", mod_entry);
-//     // Track the file that the mod is on
-//     track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
-//     // TODO: Roll back if second operation fails
-//     Ok(mod_entry)
+//     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
+//     match api::local::entries::get_commit_entry(repo, &commit, file_path)? {
+//         Some(_) => match delete_mod(repo, branch, identity, file_path, uuid) {
+//             Ok(mod_entry) => Ok(mod_entry),
+//             Err(e) => {
+//                 log::error!("Error deleting mod [{}]: {}", uuid, e);
+//                 Err(e)
+//             }
+//         },
+//         None => Err(OxenError::entry_does_not_exist_in_commit(
+//             file_path, &commit.id,
+//         )),
+//     }
 // }
 
-pub fn delete_mod_from_path(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    file_path: &Path,
-    uuid: &str,
-) -> Result<ModEntry, OxenError> {
-    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-    match api::local::entries::get_commit_entry(repo, &commit, file_path)? {
-        Some(_) => match delete_mod(repo, branch, identity, file_path, uuid) {
-            Ok(mod_entry) => Ok(mod_entry),
-            Err(e) => {
-                log::error!("Error deleting mod [{}]: {}", uuid, e);
-                Err(e)
-            }
-        },
-        None => Err(OxenError::entry_does_not_exist_in_commit(
-            file_path, &commit.id,
-        )),
-    }
-}
-
-pub fn delete_mod(
+pub fn delete_row(
     repo: &LocalRepository,
     branch: &Branch,
     identity: &str,
     path: &Path,
     uuid: &str,
-) -> Result<ModEntry, OxenError> {
-    // TODO: put these actions in a queue or lock to prevent race conditions
-    let db_path = mods_db_path(repo, branch, identity, path);
-    log::debug!(
-        "{} Opening mods_db_path at: {:?}",
-        current_function!(),
-        db_path
-    );
+) -> Result<DataFrame, OxenError> {
+    let db_path = mods_duckdb_path(repo, branch, identity, path);
+    let conn = df_db::get_connection(&db_path)?;
+    let deleted_row = staged_df_db::delete_row(&conn, uuid)?;
 
-    let opts = db::opts::default();
-    let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    // TODO: Better way of tracking when a file is restored to its original state without diffing
+    let diff = api::local::diff::diff_staged_df(repo, branch, PathBuf::from(path), identity)?;
 
-    match str_json_db::get(&db, uuid) {
-        Ok(Some(mod_entry)) => {
-            str_json_db::delete(&db, uuid)?;
-
-            // If there are no more mods for this file, remove the file from the db
-            let remaining = list_mods_raw_from_db(&db)?;
-            if remaining.is_empty() {
+    match diff {
+        Tabular(diff) => {
+            log::debug!("in tabular diff");
+            if !diff.has_changes() {
+                log::debug!("no changes, deleting file from staged db");
+                // Restored to original state == delete file from staged db
+                let opts = db::opts::default();
                 let files_db_path = files_db_path(repo, branch, identity);
                 let files_db: DBWithThreadMode<MultiThreaded> =
                     rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
                 let key = path.to_string_lossy();
                 str_json_db::delete(&files_db, key)?;
+            } else {
+                log::debug!("has change,s here's the diff: {:?}", diff);
             }
-
-            Ok(mod_entry)
         }
-        Ok(None) => Err(OxenError::basic_str(format!(
-            "uuid {} does not exist",
-            uuid
-        ))),
-        Err(e) => Err(e),
+        _ => {}
     }
+    Ok(deleted_row)
 }
+
+// pub fn delete_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     path: &Path,
+//     uuid: &str,
+// ) -> Result<ModEntry, OxenError> {
+//     // TODO: put these actions in a queue or lock to prevent race conditions
+//     let db_path = mods_db_path(repo, branch, identity, path);
+//     log::debug!(
+//         "{} Opening mods_db_path at: {:?}",
+//         current_function!(),
+//         db_path
+//     );
+
+//     let opts = db::opts::default();
+//     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+
+//     match str_json_db::get(&db, uuid) {
+//         Ok(Some(mod_entry)) => {
+//             str_json_db::delete(&db, uuid)?;
+
+//             // If there are no more mods for this file, remove the file from the db
+//             let remaining = list_mods_raw_from_db(&db)?;
+//             if remaining.is_empty() {
+//                 let files_db_path = files_db_path(repo, branch, identity);
+//                 let files_db: DBWithThreadMode<MultiThreaded> =
+//                     rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+//                 let key = path.to_string_lossy();
+//                 str_json_db::delete(&files_db, key)?;
+//             }
+
+//             Ok(mod_entry)
+//         }
+//         Ok(None) => Err(OxenError::basic_str(format!(
+//             "uuid {} does not exist",
+//             uuid
+//         ))),
+//         Err(e) => Err(e),
+//     }
+// }
 
 pub fn list_mods_raw(
     repo: &LocalRepository,
@@ -262,26 +302,6 @@ pub fn list_mods_df(
     }
 }
 
-// pub fn list_mods_df_new(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     entry: &CommitEntry,
-// ) -> Result<DataFrameDiff, OxenError> {
-//     // Read the full df to polars from mods_duckdb_path
-//     let db_path = mods_duckdb_path(repo, branch, identity, &entry.path);
-//     let conn = df_db::get_connection(&db_path)?;
-//     let select_stmt = Select::new().select("*").from("mods"); // TODONOW make this a const
-//     let df = df_db::select(&conn, &select_stmt)?;
-
-//     let cols_to_drop = vec![OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL];
-
-//     let added_df = df.lazy().filter(col(OXEN_MOD_STATUS_COL).eq(lit("added")));
-//     // let added_df = added_df.drop_many(&cols_to_drop).collect()?;
-
-//     Ok(df)
-// }
-
 pub fn list_mod_entries(
     repo: &LocalRepository,
     branch: &Branch,
@@ -308,27 +328,7 @@ fn track_mod_commit_entry(
     str_json_db::put(&db, &key, &key)
 }
 
-// fn stage_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     new_mod: &NewMod,
-// ) -> Result<ModEntry, OxenError> {
-//     let version_path = util::fs::version_path(repo, &new_mod.entry);
-
-//     log::debug!("Here's the mod for {:?}: {:?}", version_path, new_mod);
-
-//     if util::fs::is_tabular(&version_path) {
-//         stage_tabular_mod(repo, branch, identity, new_mod)
-//     } else {
-//         Err(OxenError::basic_str(format!(
-//             "{:?} not supported for file type",
-//             new_mod.mod_type
-//         )))
-//     }
-// }
-
-fn stage_mod_new(
+fn stage_mod(
     repo: &LocalRepository,
     branch: &Branch,
     identifier: &str,
@@ -339,7 +339,7 @@ fn stage_mod_new(
     log::debug!("Here's the mod for {:?}: {:?}", version_path, new_mod);
 
     if util::fs::is_tabular(&version_path) {
-        stage_tabular_mod_new(repo, branch, identifier, new_mod)
+        stage_tabular_mod(repo, branch, identifier, new_mod)
     } else {
         Err(OxenError::basic_str(format!(
             "{:?} not supported for file type",
@@ -348,32 +348,7 @@ fn stage_mod_new(
     }
 }
 
-// We need to create a duckdb data table from a schema.
-// fn create_duckdb_table_from_schema(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     schema: &Schema,
-//     path: impl AsRef<Path>,
-// ) -> Result<(), OxenError> {
-//     // Check if mods_db_path already exists
-//     let db_path = mods_duckdb_path(repo, branch, identity, path);
-//     if db_path.exists() {
-//         return Ok(());
-//     }
-
-//     let conn = df_db::get_connection(&db_path)?;
-
-//     let hello = staged_df_db::create_staged_table_if_not_exists(&schema, db_path)?;
-
-//     log::debug!("got creation of table with hello: {:?}", hello);
-
-//     Ok(())
-// }
-
-
-
-fn stage_tabular_mod_new(
+fn stage_tabular_mod(
     repo: &LocalRepository,
     branch: &Branch,
     identity: &str,
@@ -394,7 +369,6 @@ fn stage_tabular_mod_new(
             ..schema
         };
 
-        
         // create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
 
         let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
@@ -421,7 +395,6 @@ fn stage_tabular_mod_new(
                 log::debug!("here's our append df {:?}", df);
 
                 let mod_row = staged_df_db::append_row(&conn, &df)?;
-
             }
             ModType::Delete => {
                 let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
@@ -457,153 +430,72 @@ fn stage_tabular_mod_new(
         };
 
         Ok(dummy_mod)
-
-    //     // Parse the data into DF
-    //     match tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned()) {
-    //         Ok(df) => {
-    //             log::debug!("Successfully parsed df {:?}", df);
-    //             // Make sure it contains each field
-    //             let polars_schema = df.schema();
-    //             if schema.has_all_field_names(&polars_schema) {
-    //                 // hash uuid to make a smaller key
-    //                 let uuid =
-    //                     util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
-    //                 let timestamp = OffsetDateTime::now_utc();
-
-    //                 let mod_entry = ModEntry {
-    //                     uuid,
-    //                     data: new_mod.data.to_owned(),
-    //                     schema: Some(schema),
-    //                     modification_type: new_mod.mod_type.to_owned(),
-    //                     content_type: new_mod.content_type.to_owned(),
-    //                     path: new_mod.entry.path.to_owned(),
-    //                     timestamp,
-    //                 };
-
-    //                 stage_raw_mod_content(repo, branch, identity, &new_mod.entry, mod_entry)
-    //             } else {
-    //                 Err(OxenError::InvalidSchema(Box::new(Schema::from_polars(
-    //                     &polars_schema,
-    //                 ))))
-    //             }
-    //         }
-    //         Err(err) => {
-    //             log::error!("Error parsing content: {err}");
-    //             Err(OxenError::ParsingError(Box::new(
-    //                 new_mod.data.clone().into(),
-    //             )))
-    //         }
-    //     }
     } else {
         let err = format!("Schema not found for file {:?}", new_mod.entry.path);
         Err(OxenError::basic_str(err))
     }
 }
 
-/// Throws an error if the content cannot be parsed into the proper tabular schema
-// fn stage_tabular_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     new_mod: &NewMod,
-// ) -> Result<ModEntry, OxenError> {
-//     // Read the schema of the data frame
-//     log::debug!(
-//         "Looking for schema on commit [{}] for entry {:?}",
-//         new_mod.entry.commit_id,
-//         new_mod.entry.path
-//     );
-//     let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
-//     if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
-//         log::debug!("got schema as {:?}", schema);
-//         // Parse the data into DF
-//         match tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned()) {
-//             Ok(df) => {
-//                 log::debug!("Successfully parsed df {:?}", df);
-//                 // Make sure it contains each field
-//                 let polars_schema = df.schema();
-//                 if schema.has_all_field_names(&polars_schema) {
-//                     // hash uuid to make a smaller key
-//                     let uuid =
-//                         util::hasher::hash_buffer(uuid::Uuid::new_v4().to_string().as_bytes());
-//                     let timestamp = OffsetDateTime::now_utc();
-
-//                     let mod_entry = ModEntry {
-//                         uuid,
-//                         data: new_mod.data.to_owned(),
-//                         schema: Some(schema),
-//                         modification_type: new_mod.mod_type.to_owned(),
-//                         content_type: new_mod.content_type.to_owned(),
-//                         path: new_mod.entry.path.to_owned(),
-//                         timestamp,
-//                     };
-
-//                     stage_raw_mod_content(repo, branch, identity, &new_mod.entry, mod_entry)
-//                 } else {
-//                     Err(OxenError::InvalidSchema(Box::new(Schema::from_polars(
-//                         &polars_schema,
-//                     ))))
-//                 }
-//             }
-//             Err(err) => {
-//                 log::error!("Error parsing content: {err}");
-//                 Err(OxenError::ParsingError(Box::new(
-//                     new_mod.data.clone().into(),
-//                 )))
-//             }
-//         }
-//     } else {
-//         let err = format!("Schema not found for file {:?}", new_mod.entry.path);
-//         Err(OxenError::basic_str(err))
-//     }
-// }
-
-// fn stage_raw_mod_content(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     commit_entry: &CommitEntry,
-//     entry: ModEntry,
-// ) -> Result<ModEntry, OxenError> {
-//     let db_path = mods_db_path(repo, branch, identity, &commit_entry.path);
-//     log::debug!(
-//         "{} Opening mods_db_path at: {:?}",
-//         current_function!(),
-//         db_path
-//     );
-
-//     let opts = db::opts::default();
-//     let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-
-//     str_json_db::put(&db, &entry.uuid, &entry)?;
-
-//     Ok(entry)
-// }
-
-pub fn clear_mods(
+pub fn unindex_df(
     repo: &LocalRepository,
     branch: &Branch,
     identity: &str,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
-    log::debug!("clear_mods for {path:?}");
-    // Remove all mods from mod db
-    let db_path = mods_db_path(repo, branch, identity, path);
-    log::debug!("clear_mods mods_db_path for {db_path:?}");
-
-    let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-    str_json_db::clear(&db)?;
+    let mods_duckdb_path = mods_duckdb_path(repo, branch, identity, path);
+    let conn = df_db::get_connection(&mods_duckdb_path)?;
+    df_db::drop_table(&conn, &TABLE_NAME)?;
 
     // Remove file from files db
+    let opts = db::opts::default();
     let files_db_path = files_db_path(repo, branch, identity);
-    log::debug!("clear_mods files_db_path for {files_db_path:?}");
-
     let files_db: DBWithThreadMode<MultiThreaded> =
         rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
     let key = path.to_string_lossy();
-    str_json_db::delete(&files_db, key)
+    str_json_db::delete(&files_db, key)?;
+
+    Ok(())
+}
+
+// pub fn clear_mods(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     path: impl AsRef<Path>,
+// ) -> Result<(), OxenError> {
+//     let path = path.as_ref();
+//     log::debug!("clear_mods for {path:?}");
+//     // Remove all mods from mod db
+//     let db_path = mods_db_path(repo, branch, identity, path);
+//     log::debug!("clear_mods mods_db_path for {db_path:?}");
+
+//     let opts = db::opts::default();
+//     let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+//     str_json_db::clear(&db)?;
+
+//     // Remove file from files db
+//     let files_db_path = files_db_path(repo, branch, identity);
+//     log::debug!("clear_mods files_db_path for {files_db_path:?}");
+
+//     let files_db: DBWithThreadMode<MultiThreaded> =
+//         rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+//     let key = path.to_string_lossy();
+//     str_json_db::delete(&files_db, key)
+// }
+
+pub fn branch_is_ahead_of_staging(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identity: &str,
+    path: impl AsRef<Path>,
+) -> Result<bool, OxenError> {
+    let commit_path = mods_commit_ref_path(repo, branch, identity, path);
+    let commit_id = std::fs::read_to_string(&commit_path)?;
+
+    log::debug!("read commit id {:?}", commit_id);
+    log::debug!("branch commit id {:?}", branch.commit_id);
+    Ok(commit_id != branch.commit_id)
 }
 
 #[cfg(test)]
@@ -612,8 +504,11 @@ mod tests {
 
     use crate::api;
     use crate::config::UserConfig;
+    use crate::constants::OXEN_ID_COL;
     use crate::core::index::mod_stager;
+    use crate::core::index::remote_df_stager;
     use crate::error::OxenError;
+    use crate::model::diff::DiffResult;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::entry::mod_entry::NewMod;
     use crate::model::ContentType;
@@ -640,15 +535,22 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
+            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             assert_eq!(commit_entries.len(), 1);
 
-            // List the staged mods
-            let mods = mod_stager::list_mods_df(&repo, &branch, &identity, &commit_entry)?;
-            assert_eq!(mods.added_rows.unwrap().height(), 1);
+            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
+
             Ok(())
         })
     }
@@ -674,15 +576,25 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Csv,
             };
-            mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
+
+            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             assert_eq!(commit_entries.len(), 1);
 
-            // List the staged mods
-            let mods = mod_stager::list_mods_df(&repo, &branch, &identity, &commit_entry)?;
-            assert_eq!(mods.added_rows.unwrap().height(), 1);
+            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
+
             Ok(())
         })
     }
@@ -708,7 +620,12 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Csv,
             };
-            let append_entry_1 = mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
+
+            let append_entry_1 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?.to_string();
+            let append_1_id = append_1_id.replace("\"", "");
 
             let data = "dawg2.jpg,dog,13,14,100,100".to_string();
             let new_mod = NewMod {
@@ -717,28 +634,41 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Csv,
             };
-            let _append_entry_2 = mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+            let _append_entry_2 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &identity, &commit_entry.path)?;
-            assert_eq!(mods.len(), 2);
+            let diff =
+                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 2);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
 
             // Delete the first append
-            mod_stager::delete_mod(
+            mod_stager::delete_row(
                 &repo,
                 &branch,
                 &identity,
                 commit_entries.first().unwrap(),
-                &append_entry_1.uuid,
+                &append_1_id,
             )?;
 
             // Should only be one mod now
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &identity, &commit_entry.path)?;
-            assert_eq!(mods.len(), 1);
+            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
 
             Ok(())
         })
@@ -765,7 +695,10 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Csv,
             };
-            mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
+
+            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
 
             let data = "dawg2.jpg,dog,13,14,100,100".to_string();
             let new_mod = NewMod {
@@ -774,27 +707,40 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Csv,
             };
-            mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &identity, &commit_entry.path)?;
-            assert_eq!(mods.len(), 2);
+            let diff =
+                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
 
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 2);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
             // Delete the first append
-            mod_stager::clear_mods(&repo, &branch, &identity, &file_path)?;
+            mod_stager::unindex_df(&repo, &branch, &identity, &file_path)?;
 
             // Should be zero staged files
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             assert_eq!(commit_entries.len(), 0);
 
             // Should be zero mods left
-            let mods = mod_stager::list_mods_raw(&repo, &branch, &identity, &commit_entry.path)?;
-            assert_eq!(mods.len(), 0);
+            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
 
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 0);
+                }
+                _ => assert!(false, "Expected tabular diff result"),
+            }
             Ok(())
         })
     }
