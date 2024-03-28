@@ -53,11 +53,6 @@ pub fn get_meta_entry(
         let dir_entry_reader =
             CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
 
-        // TODO REMOVE
-        let all_entries = dir_entry_reader.list_entries()?;
-
-        // list all the entries
-        log::debug!("entries: {:?}", all_entries);
         // load all commit entry readers once
         let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
 

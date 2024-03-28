@@ -54,44 +54,6 @@ fn is_files_utf8(file_1: impl AsRef<Path>, file_2: impl AsRef<Path>) -> bool {
     util::fs::is_utf8(file_1.as_ref()) && util::fs::is_utf8(file_2.as_ref())
 }
 
-// pub fn diff_files_with_cache(
-//         repo: &LocalRepository,
-//         compare_id: Option<&str>,
-//         commit_entry_1: CommitEntry,
-//         commit_entry_2: CommitEntry,
-//         keys: Vec<String>,
-//         targets: Vec<String>,
-//         display: Vec<String>,
-// ) -> Result<DiffResult, OxenError> {
-//     let file_1 = get_version_file(repo, &commit_entry_1)?;
-//     let file_2 = get_version_file(repo, &commit_entry_2)?;
-
-//     if is_files_tabular(&file_1, &file_2) {
-//         let result = tabular(
-//             &file_1,
-//             &file_2,
-//             compare_entry_1,
-//             compare_entry_2,
-//             repo,
-//             compare_id,
-//             keys,
-//             targets,
-//             display,
-//         )?;
-
-//         Ok(result)
-//     } else if is_files_utf8(&file_1, &file_2) {
-//         let result = utf8_diff::diff(&file_1, &file_2)?;
-
-//         Ok(DiffResult::Text(result))
-//     } else {
-//         Err(OxenError::invalid_file_type(format!(
-//             "Compare not supported for files, found {:?} and {:?}",
-//             compare_entry_1.path, compare_entry_2.path
-//         )))
-//     }
-// }
-
 pub fn diff_files(
     file_1: impl AsRef<Path>,
     file_2: impl AsRef<Path>,
