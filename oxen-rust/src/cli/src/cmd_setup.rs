@@ -241,16 +241,16 @@ pub fn metadata() -> Command {
 
 pub fn index_dataset() -> Command {
     Command::new(INDEX_DATASET)
-        .about("Index a tabular dataset file to make it editable in the remote staging environment.")
+        .about(
+            "Index a tabular dataset file to make it editable in the remote staging environment.",
+        )
         .arg(
             Arg::new("path")
                 .help("Path to the dataset to be indexed")
                 .required(true)
                 .action(clap::ArgAction::Set),
         )
-
 }
-
 
 pub fn log() -> Command {
     Command::new(LOG).about("See log of commits").arg(
@@ -442,6 +442,12 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("committed")
+                .long("committed")
+                .help("Show the committed version of the dataframe on the current branch, not any remotely staged data.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("text2sql")
                 .long("text2sql")
                 .help("Run a text query that translates to sql on the data frame.")
@@ -484,7 +490,6 @@ pub fn df() -> Command {
                 .help("Print the full list of columns and data types within the schema.")
                 .action(clap::ArgAction::SetTrue),
         )
-
 }
 
 pub fn schemas() -> Command {

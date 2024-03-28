@@ -128,6 +128,8 @@ mod tests {
                 let mut opts = DFOpts::empty();
                 opts.add_row = Some("I am a new row,neutral".to_string());
                 opts.content_type = ContentType::Csv;
+
+                command::remote::df::index_dataset(&cloned_repo, &path).await?;
                 command::remote::df(&cloned_repo, path, opts).await?;
 
                 // Make sure it is listed as modified
@@ -171,6 +173,10 @@ mod tests {
 
                 // Remote add row
                 let path = test::test_nlp_classification_csv();
+
+                // Index dataset
+                command::remote::df::index_dataset(&cloned_repo, &path).await?;
+
                 let mut opts = DFOpts::empty();
                 opts.add_row = Some("I am a new row,neutral".to_string());
                 opts.content_type = ContentType::Csv;

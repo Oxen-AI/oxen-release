@@ -320,7 +320,7 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::delete_staged_row(&repository, path, uuid).await?;
+    command::remote::df::delete_row(&repository, path, uuid).await?;
 
     Ok(())
 }
@@ -895,7 +895,12 @@ pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), Oxe
     let host = get_host_from_repo(&repo)?;
     check_remote_version(host).await?;
 
-    command::remote::df(&repo, input, opts).await?;
+    if opts.committed {
+        command::remote::df(&repo, input, opts).await?;
+    } else {
+        command::remote::staged_df(&repo, input, opts).await?;
+    }
+
     Ok(())
 }
 

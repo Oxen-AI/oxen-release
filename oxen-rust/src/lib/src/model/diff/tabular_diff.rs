@@ -1,4 +1,8 @@
-use crate::{constants::DIFF_STATUS_COL, error::OxenError, model::schema::{Field, Schema}};
+use crate::{
+    constants::DIFF_STATUS_COL,
+    error::OxenError,
+    model::schema::{Field, Schema},
+};
 use polars::frame::DataFrame;
 use serde::{Deserialize, Serialize};
 
@@ -52,10 +56,7 @@ pub struct TabularDiffDupes {
 }
 impl TabularDiffDupes {
     pub fn empty() -> Self {
-        TabularDiffDupes {
-            left: 0,
-            right: 0,
-        }
+        TabularDiffDupes { left: 0, right: 0 }
     }
 }
 
@@ -68,7 +69,6 @@ impl TabularDiffParameters {
         }
     }
 }
-
 
 impl Default for TabularSchemaDiff {
     fn default() -> Self {
@@ -95,9 +95,16 @@ impl TabularSchemaDiff {
             .cloned()
             .collect::<Vec<Field>>();
 
-        Ok(TabularSchemaDiff {
-            added,
-            removed,
-        })
+        Ok(TabularSchemaDiff { added, removed })
     }
-} 
+}
+
+impl TabularDiff {
+    pub fn has_changes(&self) -> bool {
+        self.summary.modifications.row_counts.added > 0
+            || self.summary.modifications.row_counts.removed > 0
+            || self.summary.modifications.row_counts.modified > 0
+            || self.summary.modifications.col_changes.added.len() > 0
+            || self.summary.modifications.col_changes.removed.len() > 0
+    }
+}

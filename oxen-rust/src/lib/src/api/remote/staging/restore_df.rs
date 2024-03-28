@@ -82,6 +82,7 @@ mod tests {
                 ).await;
             assert!(result_2.is_ok());
 
+
             // Make sure both got staged
             let diff = api::remote::staging::diff(
                 &remote_repo,
@@ -91,6 +92,8 @@ mod tests {
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
             ).await?;
+
+            log::debug!("Got this diff {:?}", diff);
 
             match diff {
                 DiffResult::Tabular(tabular_diff) => {

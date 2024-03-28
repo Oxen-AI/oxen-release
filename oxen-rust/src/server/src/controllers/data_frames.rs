@@ -86,7 +86,6 @@ pub async fn get(
         opts.slice = Some(format!("{}..{}", start, end));
     }
 
-    // Scan the data frame, but don't read it all into memory
     let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
 
     // Try to get the schema from disk

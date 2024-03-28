@@ -36,7 +36,6 @@ pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str
         .join(user_id_hash)
 }
 
-
 pub fn init_or_get(
     repo: &LocalRepository,
     branch: &Branch,
@@ -45,12 +44,20 @@ pub fn init_or_get(
     // Cleans up the staging dir if there is an error at any point
     match p_init_or_get(repo, branch, user_id) {
         Ok(repo) => {
-            log::debug!("Got branch staging dir for userid {:?} at path {:?}", user_id, repo.path);
+            log::debug!(
+                "Got branch staging dir for userid {:?} at path {:?}",
+                user_id,
+                repo.path
+            );
             Ok(repo)
         }
         Err(e) => {
             let staging_dir = branch_staging_dir(repo, branch, user_id);
-            log::debug!("error branch staging dir for userid {:?} at path {:?}", user_id, staging_dir);
+            log::debug!(
+                "error branch staging dir for userid {:?} at path {:?}",
+                user_id,
+                staging_dir
+            );
             util::fs::remove_dir_all(staging_dir)?;
             Err(e)
         }
@@ -91,10 +98,18 @@ fn local_staging_dir_is_up_to_date(
     staging_dir: &Path,
     branch: &Branch,
 ) -> Result<bool, OxenError> {
+    log::debug!("local_staging_dir_is_up_to_date path {:?}", staging_dir);
     let staging_repo = LocalRepository::new(staging_dir)?;
+    log::debug!(
+        "local_staging_dir_is_up_to_date staging_repo {:?}",
+        staging_repo
+    );
 
     let oxen_commits = api::local::commits::list_from(repo, &branch.commit_id)?;
     let staging_commits = api::local::commits::list(&staging_repo)?;
+
+    log::debug!("oxen commits {:?}", oxen_commits);
+    log::debug!("staging commits {:?}", staging_commits);
 
     // If the number of commits is different, then we know we need to update
     Ok(oxen_commits.len() == staging_commits.len())
@@ -288,7 +303,9 @@ fn add_mod_entries(
     uuid: &str,
     status: &mut StagedData,
 ) -> Result<(), OxenError> {
+    log::debug!("Listing mod entries...");
     let mod_entries = index::mod_stager::list_mod_entries(repo, branch, uuid)?;
+    log::debug!("got mod entries, {:?}", mod_entries);
 
     for path in mod_entries {
         status.modified_files.push(path.to_owned());
