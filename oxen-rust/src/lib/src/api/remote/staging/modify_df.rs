@@ -1,3 +1,5 @@
+use polars::frame::DataFrame;
+
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
@@ -17,7 +19,7 @@ pub async fn modify_df(
     data: String,
     content_type: ContentType,
     mod_type: ModType,
-) -> Result<JsonDataFrameRowResponse, OxenError> {
+) -> Result<(DataFrame, Option<String>), OxenError> {
     if mod_type != ModType::Append {
         return Err(OxenError::basic_str(
             "api::staging::modify_df only supports ModType::Append",
@@ -42,7 +44,7 @@ pub async fn modify_df(
             let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
-                Ok(val) => Ok(val),
+                Ok(val) => Ok((val.data_frame.view.to_df(), val.row_id)),
                 Err(err) => {
                     let err = format!("api::staging::modify_df error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))

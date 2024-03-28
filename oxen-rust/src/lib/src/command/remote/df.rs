@@ -91,7 +91,7 @@ async fn add_row(
 
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
-        let modification = api::remote::staging::modify_df(
+        let (df, row_id) = api::remote::staging::modify_df(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -102,11 +102,10 @@ async fn add_row(
         )
         .await?;
 
-        if let Some(row_id) = modification.row_id {
+        if let Some(row_id) = row_id {
             println!("\nAdded row: {row_id:?}");
         }
 
-        let df = modification.data_frame.view.to_df();
         println!("{:?}", df);
         Ok(df)
     } else {
