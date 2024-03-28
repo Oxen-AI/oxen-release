@@ -28,31 +28,25 @@ pub fn index_dataset(
             "File format not supported, must be tabular.must be tabular.",
         ));
     }
-
     // need to init or get the remote staging env - for if this was called from API? todo
     let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     // Get the version path
     let commit_reader = CommitReader::new(repo)?;
-
     let commit = commit_reader.get_commit_by_id(&branch.commit_id)?;
-
     let commit = match commit {
         Some(commit) => commit,
         None => return Err(OxenError::resource_not_found(&branch.commit_id)),
     };
 
     let reader = CommitEntryReader::new(repo, &commit)?;
-
     let entry = reader.get_entry(path)?;
     let entry = match entry {
         Some(entry) => entry,
         None => return Err(OxenError::resource_not_found(&path.to_string_lossy())),
     };
 
-    // Get version path for entry
-
-    let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, &entry.path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &entry.path);
 
     let conn = df_db::get_connection(&db_path)?;
 
@@ -64,7 +58,7 @@ pub fn index_dataset(
     log::debug!("index_dataset() got version path: {:?}", version_path);
 
     // TODO: We will eventually want to parse the actual type, not just the extension.
-    // For v0, just treat the extension as gospel
+    // For now, just treat the extension as law
     match entry.path.extension() {
         Some(ext) => match ext.to_str() {
             Some("csv") => index_csv(&version_path, &conn)?,
@@ -105,7 +99,7 @@ pub fn dataset_is_indexed(
     identifier: &str,
     path: &Path,
 ) -> Result<bool, OxenError> {
-    let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
     let conn = df_db::get_connection(&db_path)?;
     let table_exists = df_db::table_exists(&conn, TABLE_NAME)?;
     Ok(table_exists)
@@ -118,8 +112,8 @@ pub fn extract_dataset_to_versions_dir(
     identity: &str,
 ) -> Result<(), OxenError> {
     let version_path = util::fs::version_path(repo, entry);
-    let mods_duckdb_path = mod_stager::mods_duckdb_path(repo, branch, identity, entry.path.clone());
-    let conn = df_db::get_connection(&mods_duckdb_path)?;
+    let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
+    let conn = df_db::get_connection(&mods_df_db_path)?;
     // Match on the extension
 
     let df_before = tabular::read_df(&version_path, DFOpts::empty())?;
@@ -166,8 +160,8 @@ pub fn extract_dataset_to_working_dir(
 ) -> Result<PathBuf, OxenError> {
     let working_path = branch_repo.path.join(entry.path.clone());
     log::debug!("got working path as: {:?}", working_path);
-    let mods_duckdb_path = mod_stager::mods_duckdb_path(repo, branch, identity, entry.path.clone());
-    let conn = df_db::get_connection(&mods_duckdb_path)?;
+    let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
+    let conn = df_db::get_connection(&mods_df_db_path)?;
     // Match on the extension
 
     if !working_path.exists() {
@@ -214,7 +208,7 @@ pub fn get_row_by_id(
     identifier: &str,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, &path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &path);
     let conn = df_db::get_connection(&db_path)?;
 
     let query = Select::new()
@@ -233,7 +227,7 @@ pub fn query_staged_df(
     identifier: &str,
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, &path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &path);
     let conn = df_db::get_connection(&db_path)?;
 
     let select = Select::new().select("*").from(TABLE_NAME);
@@ -248,7 +242,7 @@ pub fn count(
     path: PathBuf,
     identifier: &str,
 ) -> Result<usize, OxenError> {
-    let db_path = mod_stager::mods_duckdb_path(repo, branch, identifier, &path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &path);
     let conn = df_db::get_connection(&db_path)?;
 
     let count = df_db::count(&conn, TABLE_NAME)?;

@@ -818,7 +818,8 @@ mod tests {
     use crate::config::UserConfig;
     use crate::core::df;
     use crate::core::index::{
-        self, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter, SchemaReader,
+        self, remote_df_stager, remote_dir_stager, CommitDBReader, CommitEntryReader, CommitWriter,
+        SchemaReader,
     };
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::{ModType, NewMod};
@@ -901,6 +902,7 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
             let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
@@ -908,7 +910,8 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let result = index::mod_stager::create_mod(&repo, &branch, &identity, &new_mod);
+
+            let result = index::mod_stager::add_row(&repo, &branch, &identity, &new_mod);
             // Should be an error
             assert!(result.is_err());
 
@@ -939,7 +942,8 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            index::mod_stager::create_mod(&repo, &branch, &identity, &new_mod)?;
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
+            index::mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),
                 email: user.email,
