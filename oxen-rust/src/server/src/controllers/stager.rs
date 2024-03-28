@@ -69,16 +69,11 @@ pub async fn status_dir(
     )
 }
 
-pub async fn diff_file(
-    req: HttpRequest,
-    query: web::Query<DFOptsQuery>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    log::debug!("Here's the request {:?}", req);
+pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
-    log::debug!("diff got identifier: {}", identifier);
 
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
@@ -102,7 +97,7 @@ pub async fn diff_file(
             ))
         }
     };
-    // TODONOW expensive clone
+    // TODO expensive clone
     let diff_df = diff.contents.clone();
     let diff_view = CompareTabular::from(diff);
 
@@ -173,9 +168,7 @@ fn get_content_type(req: &HttpRequest) -> Option<&str> {
     req.headers().get("content-type")?.to_str().ok()
 }
 
-// TODONOW fill this out
-pub async fn df_get_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("in df get row controller");
+pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -369,42 +362,6 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     }
 }
 
-// fn delete_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     user_id: &str,
-//     file: &Path,
-//     uuid: String,
-// ) -> Result<HttpResponse, Error> {
-//     match liboxen::core::index::mod_stager::delete_mod_from_path(repo, branch, user_id, file, &uuid)
-//     {
-//         Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
-//             status: StatusMessage::resource_deleted(),
-//             modification: entry,
-//         })),
-//         Err(OxenError::Basic(err)) => {
-//             log::error!(
-//                 "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
-//                 branch.name,
-//                 file,
-//                 uuid,
-//                 err
-//             );
-//             Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())))
-//         }
-//         Err(err) => {
-//             log::error!(
-//                 "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
-//                 branch.name,
-//                 file,
-//                 uuid,
-//                 err
-//             );
-//             Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("{err:?}"))))
-//         }
-//     }
-// }
-
 fn delete_row(
     repo: &LocalRepository,
     branch: &Branch,
@@ -413,10 +370,6 @@ fn delete_row(
     uuid: String,
 ) -> Result<HttpResponse, Error> {
     match liboxen::core::index::mod_stager::delete_row(repo, branch, user_id, file, &uuid) {
-        // Ok(entry) => Ok(HttpResponse::Ok().json(StagedFileModResponse {
-        //     status: StatusMessage::resource_deleted(),
-        //     modification: entry,
-        // })),
         Ok(df) => {
             let schema = Schema::from_polars(&df.schema());
             Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -734,7 +687,6 @@ pub async fn get_staged_df(
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
-    // TODONOW: This should roll to getting the entire file
     if index::remote_df_stager::dataset_is_indexed(
         &repo,
         &branch,

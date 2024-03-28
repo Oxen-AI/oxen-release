@@ -27,6 +27,7 @@ use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
+use liboxen::opts::UploadOpts;
 use liboxen::util;
 use liboxen::util::oxen_version::OxenVersion;
 
@@ -67,7 +68,7 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             let local_version: &str = constants::OXEN_VERSION;
 
             if remote_version != local_version {
-                let warning = format!("Warning: 🐂 Oxen remote version mismatch. Expected {local_version} but got {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n").yellow();
+                let warning = format!("Warning: 🐂 Oxen remote version mismatch.\n\nCLI Version: {local_version}\nServer Version: {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n").yellow();
                 eprintln!("{warning}");
             }
         }
@@ -355,6 +356,38 @@ pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
         for path in remote_paths {
             command::remote::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
         }
+    } else {
+        eprintln!("Repository does not exist {}", name);
+    }
+
+    Ok(())
+}
+
+/// Download allows the user to download a file or files without cloning the repo
+pub async fn upload(opts: UploadOpts) -> Result<(), OxenError> {
+    let paths = &opts.paths;
+    if paths.is_empty() {
+        return Err(OxenError::basic_str(
+            "Must supply repository and a file to upload.",
+        ));
+    }
+
+    check_remote_version_blocking(opts.clone().host).await?;
+
+    // Check if the first path is a valid remote repo
+    let name = paths[0].to_string_lossy();
+    if let Some(remote_repo) =
+        api::remote::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
+            .await?
+    {
+        // Remove the repo name from the list of paths
+        let remote_paths = paths[1..].to_vec();
+        let opts = UploadOpts {
+            paths: remote_paths,
+            ..opts
+        };
+
+        command::remote::upload(&remote_repo, &opts).await?;
     } else {
         eprintln!("Repository does not exist {}", name);
     }
@@ -801,7 +834,7 @@ pub async fn remote_ls(opts: &ListOpts) -> Result<(), OxenError> {
         api::remote::repositories::get_by_name_host_and_remote(name, &opts.host, &opts.remote)
             .await?
     {
-        let branch = api::remote::branches::get_by_name(&remote_repo, &opts.branch_name)
+        let branch = api::remote::branches::get_by_name(&remote_repo, &opts.revision)
             .await?
             .ok_or_else(OxenError::must_be_on_valid_branch)?;
         let directory = if paths.len() > 1 {

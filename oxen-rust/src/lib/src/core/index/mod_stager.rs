@@ -84,20 +84,21 @@ fn files_db_path(repo: &LocalRepository, branch: &Branch, identifier: &str) -> P
         .join(FILES_DIR)
 }
 
-pub fn create_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
-    new_mod: &NewMod,
-) -> Result<ModEntry, OxenError> {
-    // Try to track the mod
-    let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
+// pub fn create_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identifier: &str,
+//     new_mod: &NewMod,
+// ) -> Result<ModEntry, OxenError> {
+//     // Try to track the mod
+//     let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
 
-    // Track the parent file
-    track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
+//     // Track the parent file
+//     track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
+//     // TODO: Roll back if second operation fails
 
-    Ok(mod_entry)
-}
+//     Ok(mod_entry)
+// }
 
 pub fn add_row(
     repo: &LocalRepository,
@@ -113,32 +114,19 @@ pub fn add_row(
             ..schema
         };
 
-        // create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
-
         let db_path = mods_duckdb_path(repo, branch, identifier, &new_mod.entry.path);
         let conn = df_db::get_connection(&db_path)?;
 
-        // TODONOW: don't reindex every time
-        log::debug!("checking table exists");
         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
         if !table_exists {
-            log::debug!("table doesn't exist, indexing");
             remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identifier)?;
         }
-
-        log::debug!(
-            "after indexing, table exists? {}",
-            df_db::table_exists(&conn, TABLE_NAME)?
-        );
 
         let df =
             tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned())?;
 
-        log::debug!("here's our append df {:?}", df);
-
         let result = staged_df_db::append_row(&conn, &df)?;
 
-        log::debug!("tracking mod commit entry");
         track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
 
         Ok(result)
@@ -147,28 +135,6 @@ pub fn add_row(
         Err(OxenError::basic_str(err))
     }
 }
-
-// pub fn delete_mod_from_path(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     file_path: &Path,
-//     uuid: &str,
-// ) -> Result<ModEntry, OxenError> {
-//     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?.unwrap();
-//     match api::local::entries::get_commit_entry(repo, &commit, file_path)? {
-//         Some(_) => match delete_mod(repo, branch, identity, file_path, uuid) {
-//             Ok(mod_entry) => Ok(mod_entry),
-//             Err(e) => {
-//                 log::error!("Error deleting mod [{}]: {}", uuid, e);
-//                 Err(e)
-//             }
-//         },
-//         None => Err(OxenError::entry_does_not_exist_in_commit(
-//             file_path, &commit.id,
-//         )),
-//     }
-// }
 
 pub fn delete_row(
     repo: &LocalRepository,
@@ -204,48 +170,6 @@ pub fn delete_row(
     }
     Ok(deleted_row)
 }
-
-// pub fn delete_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     path: &Path,
-//     uuid: &str,
-// ) -> Result<ModEntry, OxenError> {
-//     // TODO: put these actions in a queue or lock to prevent race conditions
-//     let db_path = mods_db_path(repo, branch, identity, path);
-//     log::debug!(
-//         "{} Opening mods_db_path at: {:?}",
-//         current_function!(),
-//         db_path
-//     );
-
-//     let opts = db::opts::default();
-//     let db = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-
-//     match str_json_db::get(&db, uuid) {
-//         Ok(Some(mod_entry)) => {
-//             str_json_db::delete(&db, uuid)?;
-
-//             // If there are no more mods for this file, remove the file from the db
-//             let remaining = list_mods_raw_from_db(&db)?;
-//             if remaining.is_empty() {
-//                 let files_db_path = files_db_path(repo, branch, identity);
-//                 let files_db: DBWithThreadMode<MultiThreaded> =
-//                     rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-//                 let key = path.to_string_lossy();
-//                 str_json_db::delete(&files_db, key)?;
-//             }
-
-//             Ok(mod_entry)
-//         }
-//         Ok(None) => Err(OxenError::basic_str(format!(
-//             "uuid {} does not exist",
-//             uuid
-//         ))),
-//         Err(e) => Err(e),
-//     }
-// }
 
 pub fn list_mods_raw(
     repo: &LocalRepository,
@@ -328,113 +252,109 @@ fn track_mod_commit_entry(
     str_json_db::put(&db, &key, &key)
 }
 
-fn stage_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
-    new_mod: &NewMod,
-) -> Result<ModEntry, OxenError> {
-    let version_path = util::fs::version_path(repo, &new_mod.entry);
+// fn stage_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identifier: &str,
+//     new_mod: &NewMod,
+// ) -> Result<ModEntry, OxenError> {
+//     let version_path = util::fs::version_path(repo, &new_mod.entry);
 
-    log::debug!("Here's the mod for {:?}: {:?}", version_path, new_mod);
+//     if util::fs::is_tabular(&version_path) {
+//         stage_tabular_mod(repo, branch, identifier, new_mod)
+//     } else {
+//         Err(OxenError::basic_str(format!(
+//             "{:?} not supported for file type",
+//             new_mod.mod_type
+//         )))
+//     }
+// }
 
-    if util::fs::is_tabular(&version_path) {
-        stage_tabular_mod(repo, branch, identifier, new_mod)
-    } else {
-        Err(OxenError::basic_str(format!(
-            "{:?} not supported for file type",
-            new_mod.mod_type
-        )))
-    }
-}
+// fn stage_tabular_mod(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     identity: &str,
+//     new_mod: &NewMod,
+// ) -> Result<ModEntry, OxenError> {
+//     // Read the schema of the data frame
+//     log::debug!(
+//         "staging tabmodnew for commit [{}] for entry {:?}",
+//         new_mod.entry.commit_id,
+//         new_mod.entry.path
+//     );
 
-fn stage_tabular_mod(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    new_mod: &NewMod,
-) -> Result<ModEntry, OxenError> {
-    // Read the schema of the data frame
-    log::debug!(
-        "staging tabmodnew for commit [{}] for entry {:?}",
-        new_mod.entry.commit_id,
-        new_mod.entry.path
-    );
+//     let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
+//     if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
+//         // Add a name to the schema - todo probably should be an impl on a struct
+//         let schema = Schema {
+//             name: Some("todo".to_string()), // TODONOW
+//             ..schema
+//         };
 
-    let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
-        // Add a name to the schema - todo probably should be an impl on a struct
-        let schema = Schema {
-            name: Some("todo".to_string()), // TODONOW
-            ..schema
-        };
+//         let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
+//         let conn = df_db::get_connection(&db_path)?;
 
-        // create_duckdb_table_from_schema(repo, branch, identity, &schema, &new_mod.entry.path)?;
+//         // TODONOW: don't reindex every time
+//         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
+//         log::debug!("pre index table exists: {}", table_exists);
+//         remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identity)?;
+//         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
+//         log::debug!("post index table exists: {}", table_exists);
 
-        let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
-        let conn = df_db::get_connection(&db_path)?;
+//         match new_mod.mod_type {
+//             ModType::Append => {
+//                 let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
+//                 let conn = df_db::get_connection(&db_path)?;
 
-        // TODONOW: don't reindex every time
-        let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
-        log::debug!("pre index table exists: {}", table_exists);
-        remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identity)?;
-        let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
-        log::debug!("post index table exists: {}", table_exists);
+//                 let df = tabular::parse_data_into_df(
+//                     &new_mod.data,
+//                     &schema,
+//                     new_mod.content_type.to_owned(),
+//                 )?;
 
-        match new_mod.mod_type {
-            ModType::Append => {
-                let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
-                let conn = df_db::get_connection(&db_path)?;
+//                 log::debug!("here's our append df {:?}", df);
 
-                let df = tabular::parse_data_into_df(
-                    &new_mod.data,
-                    &schema,
-                    new_mod.content_type.to_owned(),
-                )?;
+//                 let mod_row = staged_df_db::append_row(&conn, &df)?;
+//             }
+//             ModType::Delete => {
+//                 let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
+//                 let conn = df_db::get_connection(&db_path)?;
 
-                log::debug!("here's our append df {:?}", df);
+//                 let df = tabular::parse_data_into_df(
+//                     &new_mod.data,
+//                     &schema,
+//                     new_mod.content_type.to_owned(),
+//                 )?;
 
-                let mod_row = staged_df_db::append_row(&conn, &df)?;
-            }
-            ModType::Delete => {
-                let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
-                let conn = df_db::get_connection(&db_path)?;
+//                 le
+//             }
+//             ModType::Modify => {
+//                 let df = tabular::parse_data_into_df(
+//                     &new_mod.data,
+//                     &schema,
+//                     new_mod.content_type.to_owned(),
+//                 )?;
 
-                let df = tabular::parse_data_into_df(
-                    &new_mod.data,
-                    &schema,
-                    new_mod.content_type.to_owned(),
-                )?;
+//                 // let mod_row = staged_df_db::modify_row(&conn, &df)?;
+//             }
+//         }
 
-                // let mod_row = staged_df_db::delete_row(&conn, &df)?;
-            }
-            ModType::Modify => {
-                let df = tabular::parse_data_into_df(
-                    &new_mod.data,
-                    &schema,
-                    new_mod.content_type.to_owned(),
-                )?;
+//         let dummy_mod = ModEntry {
+//             uuid: "dummy".to_string(),
+//             data: "".to_string(),
+//             schema: Some(schema),
+//             modification_type: new_mod.mod_type.to_owned(),
+//             content_type: new_mod.content_type.to_owned(),
+//             path: new_mod.entry.path.to_owned(),
+//             timestamp: OffsetDateTime::now_utc(),
+//         };
 
-                // let mod_row = staged_df_db::modify_row(&conn, &df)?;
-            }
-        }
-
-        let dummy_mod = ModEntry {
-            uuid: "dummy".to_string(),
-            data: "".to_string(),
-            schema: Some(schema),
-            modification_type: new_mod.mod_type.to_owned(),
-            content_type: new_mod.content_type.to_owned(),
-            path: new_mod.entry.path.to_owned(),
-            timestamp: OffsetDateTime::now_utc(),
-        };
-
-        Ok(dummy_mod)
-    } else {
-        let err = format!("Schema not found for file {:?}", new_mod.entry.path);
-        Err(OxenError::basic_str(err))
-    }
-}
+//         Ok(dummy_mod)
+//     } else {
+//         let err = format!("Schema not found for file {:?}", new_mod.entry.path);
+//         Err(OxenError::basic_str(err))
+//     }
+// }
 
 pub fn unindex_df(
     repo: &LocalRepository,
@@ -457,32 +377,6 @@ pub fn unindex_df(
 
     Ok(())
 }
-
-// pub fn clear_mods(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     path: impl AsRef<Path>,
-// ) -> Result<(), OxenError> {
-//     let path = path.as_ref();
-//     log::debug!("clear_mods for {path:?}");
-//     // Remove all mods from mod db
-//     let db_path = mods_db_path(repo, branch, identity, path);
-//     log::debug!("clear_mods mods_db_path for {db_path:?}");
-
-//     let opts = db::opts::default();
-//     let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-//     str_json_db::clear(&db)?;
-
-//     // Remove file from files db
-//     let files_db_path = files_db_path(repo, branch, identity);
-//     log::debug!("clear_mods files_db_path for {files_db_path:?}");
-
-//     let files_db: DBWithThreadMode<MultiThreaded> =
-//         rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-//     let key = path.to_string_lossy();
-//     str_json_db::delete(&files_db, key)
-// }
 
 pub fn branch_is_ahead_of_staging(
     repo: &LocalRepository,

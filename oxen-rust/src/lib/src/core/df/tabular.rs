@@ -707,7 +707,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         //     }
         // },
         AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => val.to_le_bytes().to_vec(),
-        _ => Vec::<u8>::new(),
+        _ => value.to_string().as_bytes().to_vec(),
     }
 }
 
@@ -719,7 +719,7 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
         AnyValue::Float32(f) => Box::new(f),
         AnyValue::Float64(f) => Box::new(f),
         AnyValue::Boolean(b) => Box::new(b),
-        _ => panic!("Unsupported dtype"), // TODONOW HANDLE!
+        _ => panic!("Unsupported dtype"),
     }
 }
 
@@ -932,13 +932,21 @@ pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
 
     match extension {
         Some(extension) => match extension {
-            "csv" | "tsv" | "data" | "jsonl" | "ndjson" => {
+            "csv" | "tsv" => {
                 let mut opts = CountLinesOpts::empty();
                 opts.remove_trailing_blank_line = true;
 
-                // Remove one line to account for CSV headers
+                // Remove one line to account for CSV/TSV headers
                 let (mut height, _) = fs::count_lines(path, opts)?;
-                height -= 1;
+                height -= 1; // Adjusting for header
+
+                Ok(DataFrameSize { width, height })
+            }
+            "data" | "jsonl" | "ndjson" => {
+                let mut opts = CountLinesOpts::empty();
+                opts.remove_trailing_blank_line = true;
+
+                let (height, _) = fs::count_lines(path, opts)?;
 
                 Ok(DataFrameSize { width, height })
             }

@@ -4,7 +4,6 @@
 pub mod base_head;
 pub mod branch;
 pub mod commit;
-pub mod compare;
 pub mod content_type;
 pub mod data_frame_size;
 pub mod diff;
@@ -52,9 +51,6 @@ pub use crate::model::entry::mod_entry::ModEntry;
 pub use crate::model::entry::remote_entry::RemoteEntry;
 pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 pub use crate::model::entry::ContentHashable;
-
-// Compare
-pub use crate::model::compare::compare_files::CompareFiles;
 
 // Metadata
 pub use crate::model::metadata::dir_metadata_item::DirMetadataItem;

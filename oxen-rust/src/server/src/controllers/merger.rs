@@ -6,7 +6,7 @@ use actix_web::{HttpRequest, HttpResponse};
 
 use liboxen::core::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
-use liboxen::view::merge::{MergeConflictFile, Mergeable, MergeableResponse};
+use liboxen::view::merge::{MergeConflictFile, MergeSuccessResponse, Mergeable, MergeableResponse};
 use liboxen::view::StatusMessage;
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -71,8 +71,23 @@ pub async fn merge(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
     // Check if mergeable
     let merger = Merger::new(&repository)?;
-    merger.merge_into_base(&head, &base)?;
+    match merger.merge_into_base(&head, &base) {
+        Ok(Some(_merge_commit)) => {
+            let response = MergeSuccessResponse {
+                status: StatusMessage::resource_found(),
+                base_commit: base.commit_id,
+                head_commit: head.commit_id,
+            };
 
-    let response = StatusMessage::resource_created();
-    Ok(HttpResponse::Ok().json(response))
+            Ok(HttpResponse::Ok().json(response))
+        }
+        Ok(None) => {
+            log::debug!("Merge has conflicts");
+            Ok(HttpResponse::BadRequest().json(StatusMessage::bad_request()))
+        }
+        Err(err) => {
+            log::debug!("Err merging branches {:?}", err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+        }
+    }
 }

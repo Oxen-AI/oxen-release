@@ -1,7 +1,7 @@
 use clap::{arg, Arg, Command};
 use liboxen::command::migrate::{
-    CacheDataFrameSizeMigration, CreateMerkleTreesMigration, Migrate, PropagateSchemasMigration,
-    UpdateVersionFilesMigration,
+    AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
+    Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
@@ -37,6 +37,7 @@ pub const RM: &str = "rm";
 pub const SAVE: &str = "save";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
+pub const UPLOAD: &str = "upload";
 
 pub fn init() -> Command {
     Command::new(INIT)
@@ -265,7 +266,11 @@ pub fn fetch() -> Command {
 pub fn ls() -> Command {
     Command::new(LS)
         .about("List the files in an oxen repo, used for remote repos you do not have locally.")
-        .arg(Arg::new("paths").action(clap::ArgAction::Append))
+        .arg(
+            Arg::new("paths")
+                .default_missing_value("./")
+                .action(clap::ArgAction::Append),
+        )
         .arg(
             Arg::new("host")
                 .long("host")
@@ -279,10 +284,10 @@ pub fn ls() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("Branch to list from")
+            Arg::new("revision")
+                .long("revision")
+                .short('r')
+                .help("Commit id or branch name to list from")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -600,27 +605,63 @@ pub fn download() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("Branch to download from")
+            Arg::new("revision")
+                .long("revision")
+                .help("The branch or commit id to download the data from. Defaults to main branch. If a branch is specified, it will download the latest commit from that branch.")
+                .action(clap::ArgAction::Set),
+        )
+}
+
+pub fn upload() -> Command {
+    Command::new(UPLOAD)
+        .about("Upload a specific file to the remote repository.")
+        .arg(
+            Arg::new("paths")
+                .required(true)
+                .action(clap::ArgAction::Append),
+        )
+        .arg(
+            Arg::new("dst")
+                .long("destination")
+                .short('d')
+                .help("The destination directory to upload the data to. Defaults to the root './' of the repository.")
                 .action(clap::ArgAction::Set),
         )
         .arg(
-            Arg::new("commit-id")
-                .long("commit-id")
-                .short('c')
-                .help("Commit to download from, overrides branch")
+            Arg::new("branch")
+                .long("branch")
+                .short('b')
+                .help("The branch to upload the data to. Defaults to main branch.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("message")
+                .help("The message for the commit. Should be descriptive about what changed.")
+                .long("message")
+                .short('m')
+                .required(true)
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("host")
+                .long("host")
+                .help("Host to upload the data to, for example: 'hub.oxen.ai'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("remote")
+                .long("remote")
+                .help("Remote to up the data to, for example: 'origin'")
                 .action(clap::ArgAction::Set),
         )
 }
 
 pub fn commit() -> Command {
     Command::new(COMMIT)
-        .about("Commit the staged files to the repository")
+        .about("Commit the staged files to the repository.")
         .arg(
             Arg::new("message")
-                .help("Use the given <message> as the commit message.")
+                .help("The message for the commit. Should be descriptive about what changed.")
                 .long("message")
                 .short('m')
                 .required(true)
@@ -971,6 +1012,24 @@ pub fn migrate() -> Command {
                             .action(clap::ArgAction::SetTrue),
                     ),
                 )
+                .subcommand(
+                    Command::new(AddDirectoriesToCacheMigration.name())
+                    .about("SERVER ONLY: Re-caches past commits to include directories in the cache")
+                    .arg(
+                        Arg::new("PATH")
+                            .help("Directory in which to apply the migration")
+                            .required(true),
+                    )
+                    .arg(
+                        Arg::new("all")
+                            .long("all")
+                            .short('a')
+                            .help(
+                                "Run the migration for all oxen repositories in this directory",
+                            )
+                            .action(clap::ArgAction::SetTrue),
+                    ),
+                )
         )
         .subcommand(
             Command::new("down")
@@ -1033,6 +1092,24 @@ pub fn migrate() -> Command {
                 .subcommand(
                     Command::new(CreateMerkleTreesMigration.name())
                     .about("Reformats the underlying data model into merkle trees for storage and lookup efficiency")
+                    .arg(
+                        Arg::new("PATH")
+                            .help("Directory in which to apply the migration")
+                            .required(true),
+                    )
+                    .arg(
+                        Arg::new("all")
+                            .long("all")
+                            .short('a')
+                            .help(
+                                "Run the migration for all oxen repositories in this directory",
+                            )
+                            .action(clap::ArgAction::SetTrue),
+                    ),
+                )
+                .subcommand(
+                    Command::new(AddDirectoriesToCacheMigration.name())
+                    .about("SERVER ONLY: Re-caches past commits to include directories in the cache")
                     .arg(
                         Arg::new("PATH")
                             .help("Directory in which to apply the migration")

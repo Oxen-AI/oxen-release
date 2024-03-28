@@ -11,7 +11,7 @@ pub fn parse_resource(
     repo: &LocalRepository,
     path: &Path,
 ) -> Result<Option<(String, String, PathBuf)>, OxenError> {
-    // Decode first 
+    // Decode first
     let decoded_path = PathBuf::from(urlencoding::decode(&path.to_string_lossy())?.to_string());
     let mut components = decoded_path.components().collect::<Vec<_>>();
     let commit_reader = CommitReader::new(repo)?;

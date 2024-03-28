@@ -89,8 +89,8 @@ pub fn diff(
 
     let modifications = calculate_compare_mods(&joined_df)?;
 
-    let descending = keys.iter().map(|_| false).collect::<Vec<bool>>();
-    let joined_df = joined_df.sort(&keys, descending, false)?;
+    // Sort by all keys with primitive dtypes
+    let joined_df = sort_df_on_keys(joined_df, keys.clone())?;
 
     let result_fields =
         prepare_response_fields(&schema_diff, keys.clone(), targets.clone(), display.clone());
@@ -125,6 +125,23 @@ pub fn diff(
         },
     };
     Ok(DiffResult::Tabular(diff))
+}
+
+fn sort_df_on_keys(df: DataFrame, keys: Vec<&str>) -> Result<DataFrame, OxenError> {
+    let mut sort_cols = vec![];
+    for key in keys.iter() {
+        if let Ok(col) = df.column(key) {
+            if col.dtype().is_primitive() {
+                sort_cols.push(key);
+            }
+        }
+    }
+    let descending = sort_cols.iter().map(|_| false).collect::<Vec<bool>>();
+
+    if !sort_cols.is_empty() {
+        return Ok(df.sort(&sort_cols, descending, false)?);
+    }
+    Ok(df)
 }
 
 fn build_compare_schema_diff(

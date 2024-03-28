@@ -5,18 +5,21 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::core::index::{CommitReader, Merger};
+use liboxen::core::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::message::OxenMessage;
-use liboxen::view::compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
+use liboxen::model::diff::dir_diff_summary::{DirDiffSummary, DirDiffSummaryImpl};
+use liboxen::model::diff::generic_diff_summary::GenericDiffSummary;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::{Commit, DataFrameSize, LocalRepository, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
-    CompareCommits, CompareCommitsResponse, CompareDupes, CompareEntries, CompareEntryResponse, CompareResult, CompareTabular, CompareTabularResponse
+    CompareCommits, CompareCommitsResponse, CompareDupes, CompareEntries, CompareEntryResponse,
+    CompareResult, CompareTabular, CompareTabularResponse,
 };
+use liboxen::view::compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::view::diff::{DirDiffStatus, DirDiffTreeSummary, DirTreeDiffResponse};
 use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
 use liboxen::view::{
@@ -106,9 +109,11 @@ pub async fn entries(
         &repository,
         &base_commit,
         &head_commit,
+        PathBuf::from(""),
         page,
         page_size,
     )?;
+
     let entries = entries_diff.entries;
     let pagination = entries_diff.pagination;
 
@@ -180,7 +185,7 @@ pub async fn dir_entries(
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let dir = PathBuf::from(dir);
 
-    let entries_diff = api::local::diff::list_diff_entries_in_dir(
+    let entries_diff = api::local::diff::list_diff_entries_in_dir_top_level(
         &repository,
         dir.clone(),
         &base_commit,
@@ -189,23 +194,34 @@ pub async fn dir_entries(
         page_size,
     )?;
 
-    let self_entry =
-        api::local::diff::get_dir_diff_entry(&repository, dir, &base_commit, &head_commit)?;
+    // For this view, exclude anything that isn't a direct child of the directory in question
+    let summary = GenericDiffSummary::DirDiffSummary(DirDiffSummary {
+        dir: DirDiffSummaryImpl {
+            file_counts: entries_diff.counts.clone(),
+        },
+    });
 
-    let entries = entries_diff.entries;
-    let pagination = entries_diff.pagination;
+    // let filtered_diff = subset_diff_to_direct_children(entries_diff, dir.clone())?;
+
+    let self_entry = api::local::diff::get_dir_diff_entry_with_summary(
+        &repository,
+        dir,
+        &base_commit,
+        &head_commit,
+        summary,
+    )?;
 
     let compare = CompareEntries {
         base_commit,
         head_commit,
         counts: entries_diff.counts,
-        entries,
+        entries: entries_diff.entries,
         self_diff: self_entry,
     };
     let view = CompareEntriesResponse {
         status: StatusMessage::resource_found(),
         compare,
-        pagination,
+        pagination: entries_diff.pagination,
     };
     Ok(HttpResponse::Ok().json(view))
 }
@@ -227,8 +243,18 @@ pub async fn file(
     //   main..feature/add-data/path/to/file.txt
     let (base_commit, head_commit, resource) = parse_base_head_resource(&repository, &base_head)?;
 
-    let base_entry = api::local::entries::get_commit_entry(&repository, &base_commit, &resource)?;
-    let head_entry = api::local::entries::get_commit_entry(&repository, &head_commit, &resource)?;
+    // Make sure we're not comparing dirs - not yet supported
+    let base_entry_reader = CommitEntryReader::new(&repository, &base_commit)?;
+    let head_entry_reader = CommitEntryReader::new(&repository, &head_commit)?;
+
+    if base_entry_reader.has_dir(&resource) || head_entry_reader.has_dir(&resource) {
+        return Err(OxenHttpError::BadRequest(
+            "Directory compare not supported here.".to_string().into(),
+        ));
+    }
+
+    let base_entry = base_entry_reader.get_entry(&resource)?;
+    let head_entry = head_entry_reader.get_entry(&resource)?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -312,8 +338,16 @@ pub async fn create_df_diff(
     let keys = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
-    let file_1 = api::local::revisions::get_version_file_from_commit_id(&repository, &commit_1.id, &resource_1)?;
-    let file_2 = api::local::revisions::get_version_file_from_commit_id(&repository, &commit_2.id, &resource_2)?;
+    let file_1 = api::local::revisions::get_version_file_from_commit_id(
+        &repository,
+        &commit_1.id,
+        &resource_1,
+    )?;
+    let file_2 = api::local::revisions::get_version_file_from_commit_id(
+        &repository,
+        &commit_2.id,
+        &resource_2,
+    )?;
     let diff_result = api::local::diff::diff_files(
         file_1,
         file_2,
@@ -324,9 +358,14 @@ pub async fn create_df_diff(
 
     let view = match diff_result {
         DiffResult::Tabular(diff) => {
-
             // Cache the diff on the server
-            api::local::diff::cache_tabular_diff(&repository, &compare_id, entry_1, entry_2, &diff)?;
+            api::local::diff::cache_tabular_diff(
+                &repository,
+                &compare_id,
+                entry_1,
+                entry_2,
+                &diff,
+            )?;
 
             let mut messages: Vec<OxenMessage> = vec![];
 
@@ -335,8 +374,6 @@ pub async fn create_df_diff(
                 messages.push(cdupes.to_message());
             }
 
-            // Get rid of the mutable borrow after done writing stuff 
-        
             CompareTabularResponse {
                 status: StatusMessage::resource_found(),
                 dfs: CompareTabular::from(diff),
@@ -403,8 +440,16 @@ pub async fn update_df_diff(
     let keys = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
-    let file_1 = api::local::revisions::get_version_file_from_commit_id(&repository, &commit_1.id, &resource_1)?;
-    let file_2 = api::local::revisions::get_version_file_from_commit_id(&repository, &commit_2.id, &resource_2)?;
+    let file_1 = api::local::revisions::get_version_file_from_commit_id(
+        &repository,
+        &commit_1.id,
+        &resource_1,
+    )?;
+    let file_2 = api::local::revisions::get_version_file_from_commit_id(
+        &repository,
+        &commit_2.id,
+        &resource_2,
+    )?;
     let diff_result = api::local::diff::diff_files(
         file_1,
         file_2,
@@ -415,9 +460,14 @@ pub async fn update_df_diff(
 
     let view = match diff_result {
         DiffResult::Tabular(diff) => {
-
-            // Cache the diff on the server 
-            api::local::diff::cache_tabular_diff(&repository, &compare_id, entry_1, entry_2, &diff)?;
+            // Cache the diff on the server
+            api::local::diff::cache_tabular_diff(
+                &repository,
+                &compare_id,
+                entry_1,
+                entry_2,
+                &diff,
+            )?;
 
             let mut messages: Vec<OxenMessage> = vec![];
 
@@ -426,8 +476,8 @@ pub async fn update_df_diff(
                 messages.push(cdupes.to_message());
             }
 
-            // Get rid of the mutable borrow after done writing stuff 
-        
+            // Get rid of the mutable borrow after done writing stuff
+
             CompareTabularResponse {
                 status: StatusMessage::resource_found(),
                 dfs: CompareTabular::from(diff),
@@ -475,7 +525,6 @@ pub async fn get_df_diff(
         OxenError::ResourceNotFound(format!("{}@{}", data.right.path, right_commit).into())
     })?;
 
-
     let maybe_cached_diff = api::local::diff::get_cached_diff(
         &repository,
         &compare_id,
@@ -492,7 +541,7 @@ pub async fn get_df_diff(
                     let cdupes = CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes);
                     messages.push(cdupes.to_message());
                 }
-        
+
                 let view = CompareTabularResponse {
                     status: StatusMessage::resource_found(),
                     dfs: CompareTabular::from(diff),
@@ -502,8 +551,6 @@ pub async fn get_df_diff(
             }
             _ => Err(OxenHttpError::NotFound),
         }
-
-        
     } else {
         Err(OxenHttpError::NotFound)
     }

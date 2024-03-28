@@ -3,9 +3,9 @@ use derive_more::{Display, Error};
 use liboxen::error::{OxenError, StringError};
 use liboxen::view::http::{MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
+use polars::error::PolarsError;
 use serde_json::json;
 use std::io;
-use polars::error::PolarsError;
 
 #[derive(Debug, Display, Error)]
 pub enum OxenHttpError {
@@ -69,7 +69,6 @@ impl From<std::string::FromUtf8Error> for OxenHttpError {
         OxenHttpError::BadRequest(StringError::new(error.to_string()))
     }
 }
-
 
 impl error::ResponseError for OxenHttpError {
     fn error_response(&self) -> HttpResponse {
