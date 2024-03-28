@@ -25,7 +25,6 @@ use crate::model::entry::mod_entry::{ModType, NewMod};
 use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry, Schema};
 
 use crate::{api, current_function, util};
-use staged_df_db::{OXEN_MOD_STATUS_COL, OXEN_ROW_INDEX_COL};
 
 use super::{remote_dir_stager, SchemaReader};
 
@@ -44,7 +43,7 @@ fn mods_db_path(
         .join(path_hash)
 }
 
-pub fn mods_duckdb_path(
+pub fn mods_df_db_path(
     repo: &LocalRepository,
     branch: &Branch,
     identifier: &str,
@@ -84,22 +83,6 @@ fn files_db_path(repo: &LocalRepository, branch: &Branch, identifier: &str) -> P
         .join(FILES_DIR)
 }
 
-// pub fn create_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identifier: &str,
-//     new_mod: &NewMod,
-// ) -> Result<ModEntry, OxenError> {
-//     // Try to track the mod
-//     let mod_entry = stage_mod(repo, branch, identifier, new_mod)?;
-
-//     // Track the parent file
-//     track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
-//     // TODO: Roll back if second operation fails
-
-//     Ok(mod_entry)
-// }
-
 pub fn add_row(
     repo: &LocalRepository,
     branch: &Branch,
@@ -114,7 +97,7 @@ pub fn add_row(
             ..schema
         };
 
-        let db_path = mods_duckdb_path(repo, branch, identifier, &new_mod.entry.path);
+        let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
         let conn = df_db::get_connection(&db_path)?;
 
         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
@@ -143,7 +126,7 @@ pub fn delete_row(
     path: &Path,
     uuid: &str,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mods_duckdb_path(repo, branch, identity, path);
+    let db_path = mods_df_db_path(repo, branch, identity, path);
     let conn = df_db::get_connection(&db_path)?;
     let deleted_row = staged_df_db::delete_row(&conn, uuid)?;
 
@@ -252,110 +235,6 @@ fn track_mod_commit_entry(
     str_json_db::put(&db, &key, &key)
 }
 
-// fn stage_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identifier: &str,
-//     new_mod: &NewMod,
-// ) -> Result<ModEntry, OxenError> {
-//     let version_path = util::fs::version_path(repo, &new_mod.entry);
-
-//     if util::fs::is_tabular(&version_path) {
-//         stage_tabular_mod(repo, branch, identifier, new_mod)
-//     } else {
-//         Err(OxenError::basic_str(format!(
-//             "{:?} not supported for file type",
-//             new_mod.mod_type
-//         )))
-//     }
-// }
-
-// fn stage_tabular_mod(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     identity: &str,
-//     new_mod: &NewMod,
-// ) -> Result<ModEntry, OxenError> {
-//     // Read the schema of the data frame
-//     log::debug!(
-//         "staging tabmodnew for commit [{}] for entry {:?}",
-//         new_mod.entry.commit_id,
-//         new_mod.entry.path
-//     );
-
-//     let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
-//     if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
-//         // Add a name to the schema - todo probably should be an impl on a struct
-//         let schema = Schema {
-//             name: Some("todo".to_string()), // TODONOW
-//             ..schema
-//         };
-
-//         let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
-//         let conn = df_db::get_connection(&db_path)?;
-
-//         // TODONOW: don't reindex every time
-//         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
-//         log::debug!("pre index table exists: {}", table_exists);
-//         remote_df_stager::index_dataset(&repo, &branch, &new_mod.entry.path, identity)?;
-//         let table_exists = df_db::table_exists(&conn, &TABLE_NAME)?;
-//         log::debug!("post index table exists: {}", table_exists);
-
-//         match new_mod.mod_type {
-//             ModType::Append => {
-//                 let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
-//                 let conn = df_db::get_connection(&db_path)?;
-
-//                 let df = tabular::parse_data_into_df(
-//                     &new_mod.data,
-//                     &schema,
-//                     new_mod.content_type.to_owned(),
-//                 )?;
-
-//                 log::debug!("here's our append df {:?}", df);
-
-//                 let mod_row = staged_df_db::append_row(&conn, &df)?;
-//             }
-//             ModType::Delete => {
-//                 let db_path = mods_duckdb_path(repo, branch, identity, &new_mod.entry.path);
-//                 let conn = df_db::get_connection(&db_path)?;
-
-//                 let df = tabular::parse_data_into_df(
-//                     &new_mod.data,
-//                     &schema,
-//                     new_mod.content_type.to_owned(),
-//                 )?;
-
-//                 le
-//             }
-//             ModType::Modify => {
-//                 let df = tabular::parse_data_into_df(
-//                     &new_mod.data,
-//                     &schema,
-//                     new_mod.content_type.to_owned(),
-//                 )?;
-
-//                 // let mod_row = staged_df_db::modify_row(&conn, &df)?;
-//             }
-//         }
-
-//         let dummy_mod = ModEntry {
-//             uuid: "dummy".to_string(),
-//             data: "".to_string(),
-//             schema: Some(schema),
-//             modification_type: new_mod.mod_type.to_owned(),
-//             content_type: new_mod.content_type.to_owned(),
-//             path: new_mod.entry.path.to_owned(),
-//             timestamp: OffsetDateTime::now_utc(),
-//         };
-
-//         Ok(dummy_mod)
-//     } else {
-//         let err = format!("Schema not found for file {:?}", new_mod.entry.path);
-//         Err(OxenError::basic_str(err))
-//     }
-// }
-
 pub fn unindex_df(
     repo: &LocalRepository,
     branch: &Branch,
@@ -363,8 +242,8 @@ pub fn unindex_df(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
-    let mods_duckdb_path = mods_duckdb_path(repo, branch, identity, path);
-    let conn = df_db::get_connection(&mods_duckdb_path)?;
+    let mods_df_db_path = mods_df_db_path(repo, branch, identity, path);
+    let conn = df_db::get_connection(&mods_df_db_path)?;
     df_db::drop_table(&conn, &TABLE_NAME)?;
 
     // Remove file from files db
