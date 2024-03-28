@@ -132,25 +132,6 @@ pub async fn delete_row(
     }
 }
 
-// pub async fn delete_staged_row(
-//     repository: &LocalRepository,
-//     path: impl AsRef<Path>,
-//     uuid: &str,
-// ) -> Result<DataFrame, OxenError> {
-//     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-//     if let Some(branch) = api::local::branches::current_branch(repository)? {
-//         let user_id = UserConfig::identifier()?;
-//         let modification =
-//             api::remote::staging::rm_df_mod(&remote_repo, &branch.name, &user_id, path, uuid)
-//                 .await?;
-//         modification.to_df()
-//     } else {
-//         Err(OxenError::basic_str(
-//             "Must be on a branch to stage remote changes.",
-//         ))
-//     }
-// }
-
 pub async fn index_dataset(
     repository: &LocalRepository,
     path: impl AsRef<Path>,

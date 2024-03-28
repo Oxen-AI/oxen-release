@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::{model::diff::AddRemoveModifyCounts, view::DataTypeCount};
+use crate::model::diff::AddRemoveModifyCounts;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirDiffSummary {
@@ -11,10 +11,4 @@ pub struct DirDiffSummary {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DirDiffSummaryImpl {
     pub file_counts: AddRemoveModifyCounts,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct AddRemoveDataTypeCounts {
-    pub added: Vec<DataTypeCount>,
-    pub removed: Vec<DataTypeCount>,
 }

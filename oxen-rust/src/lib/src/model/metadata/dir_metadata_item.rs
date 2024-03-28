@@ -2,9 +2,9 @@ use crate::api;
 use crate::core::index::CommitReader;
 use crate::model::metadata::to_duckdb_sql::ToDuckDBSql;
 use crate::model::schema::{DataType, Field};
-use crate::model::CommitEntry;
 use crate::model::LocalRepository;
 use crate::model::Schema;
+use crate::model::{Commit, CommitEntry};
 use crate::util;
 
 use duckdb::types::ToSql;
@@ -21,6 +21,7 @@ pub struct DirMetadataItem {
     data_type: String,
     mime_type: String,
     extension: String,
+    is_dir: bool,
 }
 
 impl DirMetadataItem {
@@ -36,8 +37,39 @@ impl DirMetadataItem {
             Field::new("data_type", DataType::String.to_string().as_str()),
             Field::new("mime_type", DataType::String.to_string().as_str()),
             Field::new("extension", DataType::String.to_string().as_str()),
+            Field::new("is_dir", DataType::Boolean.to_string().as_str()),
         ];
         Schema::new("metadata", fields)
+    }
+
+    pub fn from_dir(dir: &Path, commit: &Commit) -> Self {
+        let path = dir.to_string_lossy();
+        let mime_type = "directory".to_string();
+        let data_type = "directory".to_string();
+        let size = 0;
+        let directory = dir.parent().unwrap_or(Path::new("")).to_string_lossy();
+        log::debug!("trying to get filename for {:?}", dir);
+        let filename = dir.file_name().unwrap().to_str().unwrap();
+        log::debug!("got filename {:?}", filename);
+        let extension = "".to_string();
+        let timestamp = commit
+            .timestamp
+            .format(&time::format_description::well_known::Rfc3339)
+            .unwrap();
+
+        DirMetadataItem {
+            hash: "".to_string(),
+            directory: directory.to_string(),
+            filename: filename.to_string(),
+            path: path.to_string(),
+            num_bytes: size,
+            commit_id: commit.id.clone(),
+            timestamp,
+            data_type,
+            mime_type,
+            extension,
+            is_dir: true,
+        }
     }
 
     pub fn from_entry(
@@ -78,6 +110,7 @@ impl DirMetadataItem {
             data_type,
             mime_type,
             extension,
+            is_dir: false,
         }
     }
 }
@@ -95,6 +128,7 @@ impl ToDuckDBSql for DirMetadataItem {
             &self.data_type,
             &self.mime_type,
             &self.extension,
+            &self.is_dir,
         ]
     }
 }

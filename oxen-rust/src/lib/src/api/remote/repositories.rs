@@ -11,6 +11,7 @@ use std::fmt;
 
 const CLONE: &str = "clone";
 const PUSH: &str = "push";
+const DOWNLOAD: &str = "download";
 
 enum ActionEventState {
     Started,
@@ -169,7 +170,7 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
     let host = repo.host();
     let scheme = repo.scheme();
 
-    let url = api::endpoint::url_from_host_and_scheme(&host, "", scheme);
+    let url = api::endpoint::url_from_host_and_scheme(&host, "", &scheme);
     let params = json!({
         "name": repo_name,
         "namespace": namespace,
@@ -190,7 +191,9 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
             Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name(&host, namespace, repo_name),
+                    url: api::endpoint::remote_url_from_namespace_name_scheme(
+                        &host, namespace, repo_name, &scheme,
+                    ),
                     name: String::from("origin"),
                 },
             ))
@@ -222,10 +225,11 @@ pub async fn create(repo_new: RepoNew) -> Result<RemoteRepository, OxenError> {
             Ok(response) => Ok(RemoteRepository::from_view(
                 &response.repository,
                 &Remote {
-                    url: api::endpoint::remote_url_from_namespace_name(
+                    url: api::endpoint::remote_url_from_namespace_name_scheme(
                         &host,
                         &repo_new.namespace,
                         &repo_new.name,
+                        &repo_new.scheme(),
                     ),
                     name: String::from(DEFAULT_REMOTE_NAME),
                 },
@@ -363,6 +367,16 @@ pub async fn pre_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
 
 pub async fn post_clone(repository: &RemoteRepository) -> Result<(), OxenError> {
     let action_name = CLONE;
+    action_hook(repository, action_name, ActionEventState::Completed, None).await
+}
+
+pub async fn pre_download(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = DOWNLOAD;
+    action_hook(repository, action_name, ActionEventState::Started, None).await
+}
+
+pub async fn post_download(repository: &RemoteRepository) -> Result<(), OxenError> {
+    let action_name = DOWNLOAD;
     action_hook(repository, action_name, ActionEventState::Completed, None).await
 }
 

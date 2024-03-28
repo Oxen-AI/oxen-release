@@ -27,7 +27,7 @@ use super::CommitWriter;
 
 pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
     // Just in case they pass in the email or some other random string, hash it for nice dir name
-    // This does double-hash right now, since `identifier` is already hash ed
+    // This does double-hash right now, since `identifier` is already hashed
     let user_id_hash = util::hasher::hash_str_sha256(user_id);
     repo.path
         .join(OXEN_HIDDEN_DIR)
@@ -107,9 +107,6 @@ fn local_staging_dir_is_up_to_date(
 
     let oxen_commits = api::local::commits::list_from(repo, &branch.commit_id)?;
     let staging_commits = api::local::commits::list(&staging_repo)?;
-
-    log::debug!("oxen commits {:?}", oxen_commits);
-    log::debug!("staging commits {:?}", staging_commits);
 
     // If the number of commits is different, then we know we need to update
     Ok(oxen_commits.len() == staging_commits.len())
@@ -303,9 +300,7 @@ fn add_mod_entries(
     uuid: &str,
     status: &mut StagedData,
 ) -> Result<(), OxenError> {
-    log::debug!("Listing mod entries...");
     let mod_entries = index::mod_stager::list_mod_entries(repo, branch, uuid)?;
-    log::debug!("got mod entries, {:?}", mod_entries);
 
     for path in mod_entries {
         status.modified_files.push(path.to_owned());

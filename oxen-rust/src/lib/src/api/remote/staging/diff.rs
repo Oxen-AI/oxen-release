@@ -28,9 +28,7 @@ pub async fn diff(
     let uri = format!(
         "/staging/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
     );
-    log::debug!("uri is {}", uri);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("url is {}", url);
 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {

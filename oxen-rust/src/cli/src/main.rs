@@ -42,7 +42,8 @@ async fn main() {
         .subcommand(cmd_setup::rm())
         .subcommand(cmd_setup::save())
         .subcommand(cmd_setup::schemas())
-        .subcommand(cmd_setup::status());
+        .subcommand(cmd_setup::status())
+        .subcommand(cmd_setup::upload());
 
     let matches = command.get_matches();
 
@@ -79,9 +80,10 @@ async fn main() {
         Some((cmd_setup::SAVE, sub_matches)) => parse_and_run::save(sub_matches).await,
         Some((cmd_setup::SCHEMAS, sub_matches)) => parse_and_run::schemas(sub_matches),
         Some((cmd_setup::STATUS, sub_matches)) => parse_and_run::status(sub_matches).await,
+        Some((cmd_setup::UPLOAD, sub_matches)) => parse_and_run::upload(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
         Some((ext, _sub_matches)) => {
-            println!("Unknown command {ext}");
+            println!("Unknown command `oxen {ext}`");
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable!()
     }
