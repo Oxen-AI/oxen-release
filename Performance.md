@@ -2,7 +2,7 @@
 
 ## CelebA Dataset
 
-The CelebA dataset has 202,599 images of celebrity faces and their attributes. 
+The CelebA dataset has 202,599 images of celebrity faces and their attributes.
 
 ~ TLDR ~
 
@@ -56,7 +56,7 @@ Push to GitHub had a transfer speed anywhere from 80-100 kb/s
 $ git remote add origin git@github.com:Oxen-AI/GitLFS-CelebA.git
 $ git push origin main # ~264 mins
 
-Uploading LFS objects: 100% (202468/202468), 1.4 GB | 99 KB/s, done.                                                                                                             
+Uploading LFS objects: 100% (202468/202468), 1.4 GB | 99 KB/s, done.
 ________________________________________________________
 Executed in  264.55 mins    fish           external
 
@@ -78,3 +78,45 @@ dvc push -r origin # ~160.95 mins
 
 ![dvc push fail](images/DVC_Dagshub_Fail.png)
 
+
+# DVC Workflow - Food 101
+
+```
+git init
+dvc init
+dvc add images/ # Executed in  249.16 secs
+git add images.dvc .gitignore
+git commit -m "adding images"
+git remote add origin https://github.com/owner/repository.git
+dvc remote add --default datastore s3://my-bucket
+git push origin main
+dvc push # Executed in  719.79 secs
+```
+
+Total: 968.95 = 16 min
+
+# Oxen.ai Workflow Food 101
+
+```
+oxen init
+oxen add images # Executed in   12.90 secs
+oxen commit -m "adding images" # Executed in   34.77 secs
+oxen push # Executed in  150.22 secs
+```
+
+Total: 3.8 mins
+
+
+# Git LFS - Food 101
+
+```
+git init
+git lfs install
+git lfs track "*.jpg"
+git add .gitattributes
+git add images # Executed in  132.82 secs
+git commit -m "adding images"
+git push origin main # 79.96 min
+```
+
+Total: 82+ min
