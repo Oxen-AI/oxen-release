@@ -153,7 +153,7 @@ pub async fn get_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let (df, id) = api::remote::staging::get_row(
+        let (df, _id) = api::remote::staging::get_row(
             &remote_repo,
             &branch.name,
             &user_id,

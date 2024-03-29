@@ -3,8 +3,7 @@ use polars::frame::DataFrame;
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::entry::mod_entry::ModType;
-use crate::model::ContentType;
+
 use crate::model::RemoteRepository;
 use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
 
