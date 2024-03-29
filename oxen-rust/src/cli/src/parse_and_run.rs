@@ -611,6 +611,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
         index: sub_matches.get_flag("index"),
         add_col: sub_matches.get_one::<String>("add-col").map(String::from),
         add_row: sub_matches.get_one::<String>("add-row").map(String::from),
+        get_row: sub_matches.get_one::<String>("get-row").map(String::from),
         delete_row: sub_matches
             .get_one::<String>("delete-row")
             .map(String::from),

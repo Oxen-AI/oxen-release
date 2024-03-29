@@ -22,7 +22,6 @@ pub async fn df<P: AsRef<Path>>(
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
-
     if let Some(row) = &opts.add_row {
         add_row(repo, input.as_ref(), row, &opts).await
     } else if let Some(uuid) = &opts.delete_row {
@@ -52,6 +51,8 @@ pub async fn df<P: AsRef<Path>>(
     }
 }
 
+// TODO: Only difference between this and `df` is for `get` operations - everything above
+// the "else" can be factored into a shared method
 pub async fn staged_df<P: AsRef<Path>>(
     repo: &LocalRepository,
     input: P,
@@ -63,6 +64,8 @@ pub async fn staged_df<P: AsRef<Path>>(
         add_row(repo, input.as_ref(), row, &opts).await
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, input, uuid).await
+    } else if let Some(row_id) = &opts.get_row {
+        get_row(repo, input, row_id).await
     } else if opts.index {
         let df = index_dataset(repo, input).await?;
         println!("Dataset successfully indexed ✅");
@@ -134,6 +137,31 @@ pub async fn delete_row(
         let user_id = UserConfig::identifier()?;
         let df = api::remote::staging::rm_df_mod(&remote_repo, &branch.name, &user_id, path, uuid)
             .await?;
+        Ok(df)
+    } else {
+        Err(OxenError::basic_str(
+            "Must be on a branch to stage remote changes.",
+        ))
+    }
+}
+
+pub async fn get_row(
+    repository: &LocalRepository,
+    path: impl AsRef<Path>,
+    row_id: &str,
+) -> Result<DataFrame, OxenError> {
+    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
+    if let Some(branch) = api::local::branches::current_branch(repository)? {
+        let user_id = UserConfig::identifier()?;
+        let (df, id) = api::remote::staging::get_row(
+            &remote_repo,
+            &branch.name,
+            &user_id,
+            path.as_ref(),
+            row_id,
+        )
+        .await?;
+        println!("{:?}", df);
         Ok(df)
     } else {
         Err(OxenError::basic_str(

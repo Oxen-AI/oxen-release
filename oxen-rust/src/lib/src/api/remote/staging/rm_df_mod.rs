@@ -16,15 +16,15 @@ pub async fn rm_df_mod(
     uuid: &str,
 ) -> Result<DataFrame, OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/{identifier}/df/rows/{branch_name}/{file_name}");
+    let uri = format!("/staging/{identifier}/df/rows/{uuid}/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_df_mod [{}] {}", uuid, url);
     let client = client::new_for_url(&url)?;
-    let id = ObjectID {
-        id: uuid.to_string(),
-    };
-    let json_id = serde_json::to_string(&id).unwrap();
-    match client.delete(&url).body(json_id).send().await {
+    // let id = ObjectID {
+    //     id: uuid.to_string(),
+    // };
+    // let json_id = serde_json::to_string(&id).unwrap();
+    match client.delete(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("rm_df_mod got body: {}", body);
