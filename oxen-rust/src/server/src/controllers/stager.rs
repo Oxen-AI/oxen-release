@@ -12,8 +12,7 @@ use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::DataFrameSize;
 use liboxen::model::{
-    entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, ObjectID,
-    Schema,
+    entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::{DFOpts, PaginateOpts};
@@ -286,7 +285,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     Ok(HttpResponse::Ok().json(response))
 }
 
-pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Error> {
+pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Error> {
     let app_data = app_data(&req).unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
