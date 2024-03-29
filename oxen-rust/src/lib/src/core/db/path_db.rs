@@ -1,12 +1,12 @@
 use crate::error::OxenError;
 use serde::{de, Serialize};
 
+use os_path::OsPath;
 use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
 use std::collections::HashSet;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
-use os_path::OsPath;
 
 use crate::core::db::str_json_db;
 
@@ -18,7 +18,11 @@ pub fn has_entry<T: ThreadMode, P: AsRef<Path>>(db: &DBWithThreadMode<T>, path: 
     // strip trailing / if exists for looking up directories
     let path_str = path.to_str().map(|s| s.trim_end_matches('/'));
 
-    log::debug!("path_db::has_entry?({:?}) from db {:?}", path_str, db.path());
+    log::debug!(
+        "path_db::has_entry?({:?}) from db {:?}",
+        path_str,
+        db.path()
+    );
     if let Some(key) = path_str {
         // Check if the path_str has windows \\ in it, all databases use / so we are consistent across OS's
         let key = key.replace("\\", "/");
@@ -102,7 +106,6 @@ pub fn list_paths<T: ThreadMode>(
 
                         log::debug!("list_paths converted {:?} -> {:?}", key, new_path);
 
-                        
                         paths.push(base_dir.join(new_path));
                     }
                     _ => {

@@ -749,13 +749,23 @@ impl EntryIndexer {
             DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
 
         dir_entries.par_iter().for_each(|(dir, entries)| {
-            log::debug!("unpack_version_files_to_working_dir unpacking dir {:?} with {} entries", dir, entries.len()   );
+            log::debug!(
+                "unpack_version_files_to_working_dir unpacking dir {:?} with {} entries",
+                dir,
+                entries.len()
+            );
 
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(entry.path());
-                log::debug!("unpack_version_files_to_working_dir found filepath {:?}", filepath);
+                log::debug!(
+                    "unpack_version_files_to_working_dir found filepath {:?}",
+                    filepath
+                );
                 if versioner::should_unpack_entry(entry, &filepath) {
-                    log::debug!("unpack_version_files_to_working_dir unpack! {:?}", entry.path());
+                    log::debug!(
+                        "unpack_version_files_to_working_dir unpack! {:?}",
+                        entry.path()
+                    );
                     let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
                         Ok(_) => {}
@@ -764,7 +774,10 @@ impl EntryIndexer {
                         }
                     }
                 } else {
-                    log::debug!("unpack_version_files_to_working_dir do not unpack :( {:?}", entry.path());
+                    log::debug!(
+                        "unpack_version_files_to_working_dir do not unpack :( {:?}",
+                        entry.path()
+                    );
                 }
 
                 if let Entry::CommitEntry(file) = entry {
