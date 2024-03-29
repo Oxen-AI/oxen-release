@@ -47,7 +47,7 @@ pub fn drop_table(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Res
     let table_name = table_name.as_ref();
     let sql = format!("DROP TABLE IF EXISTS {}", table_name);
     log::debug!("drop_table sql: {}", sql);
-    conn.execute(&sql, []).map_err(|e| OxenError::from(e))?;
+    conn.execute(&sql, []).map_err(OxenError::from)?;
     Ok(())
 }
 
@@ -58,7 +58,7 @@ pub fn table_exists(
     log::debug!("checking exists in path {:?}", conn);
     let table_name = table_name.as_ref();
     let sql = "SELECT EXISTS (SELECT 1 FROM duckdb_tables WHERE table_name = ?) AS table_exists";
-    let mut stmt = conn.prepare(&sql)?;
+    let mut stmt = conn.prepare(sql)?;
     let exists: bool = stmt.query_row(params![table_name], |row| row.get(0))?;
     log::debug!("got exists: {}", exists);
     Ok(exists)
@@ -123,7 +123,7 @@ pub fn get_schema_without_id(
 
     let select = sql::Select::new().select("*").from(table_name);
     // let mut s_select = conn.prepare(&select.as_string())?;
-    let records = df_db::select(&conn, &select)?;
+    let _records = df_db::select(conn, &select)?;
 
     let mut fields = vec![];
     let rows = stmt.query_map([], |row| {
@@ -223,7 +223,7 @@ pub fn select_with_opts(
         sql.push_str(&format!(" ORDER BY {}", sort_by));
     }
 
-    let pagination_clause = if let Some(page) = opts.page {
+    let _pagination_clause = if let Some(page) = opts.page {
         let page = if page == 0 { 1 } else { page };
         let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
         format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size)

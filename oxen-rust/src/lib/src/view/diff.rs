@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::diff::{diff_entry_status::DiffEntryStatus, DiffResult};
+use crate::model::diff::diff_entry_status::DiffEntryStatus;
 
 use super::StatusMessage;
 #[derive(Deserialize, Serialize, Debug)]

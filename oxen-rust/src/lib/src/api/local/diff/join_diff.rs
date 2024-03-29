@@ -1,16 +1,15 @@
 use std::collections::{HashMap, HashSet};
 
 use crate::error::OxenError;
-use crate::view::compare::{
-    TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
+use crate::model::diff::tabular_diff::{
+    TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
+    TabularDiffSummary, TabularSchemaDiff,
 };
-use crate::model::diff::tabular_diff::{TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas, TabularDiffSummary, TabularSchemaDiff};
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::view::compare::{
-    CompareDupes, CompareSchemaColumn, CompareSchemaDiff, CompareSourceSchemas, CompareSummary,
-    CompareTabularMods, CompareTabularWithDF,
+    TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
 };
 
 use polars::datatypes::{AnyValue, StringChunked};
@@ -92,14 +91,14 @@ pub fn diff(
     // Sort by all keys with primitive dtypes
     let joined_df = sort_df_on_keys(joined_df, keys.clone())?;
 
-    let result_fields =
+    let _result_fields =
         prepare_response_fields(&schema_diff, keys.clone(), targets.clone(), display.clone());
 
     let schema_diff = build_compare_schema_diff(schema_diff, df_1, df_2)?;
 
     let dupes = TabularDiffDupes {
-        left: tabular::n_duped_rows(&df_1, &[KEYS_HASH_COL])?,
-        right: tabular::n_duped_rows(&df_2, &[KEYS_HASH_COL])?,
+        left: tabular::n_duped_rows(df_1, &[KEYS_HASH_COL])?,
+        right: tabular::n_duped_rows(df_2, &[KEYS_HASH_COL])?,
     };
 
     let schemas = TabularDiffSchemas {
@@ -114,7 +113,7 @@ pub fn diff(
                 row_counts: modifications,
                 col_changes: schema_diff,
             },
-            schemas: schemas,
+            schemas,
             dupes,
         },
         contents: joined_df.select(output_columns)?,
@@ -170,7 +169,7 @@ fn build_compare_schema_diff(
             Ok(Field {
                 name: col.clone(),
                 dtype: dtype.dtype().to_string(),
-                metadata: None,   
+                metadata: None,
             })
         })
         .collect::<Result<Vec<Field>, OxenError>>()?;

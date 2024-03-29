@@ -1,12 +1,13 @@
 use duckdb::Connection;
 use polars::frame::DataFrame;
+use rocksdb::DBWithThreadMode;
 use sql_query_builder::Select;
 
-use crate::constants::{DEFAULT_PAGE_SIZE, OXEN_ID_COL, TABLE_NAME};
-use crate::core::db::df_db;
+use crate::constants::{OXEN_ID_COL, TABLE_NAME};
+use crate::core::db::{self, df_db};
 use crate::core::df::tabular;
 use crate::core::index::{mod_stager, remote_dir_stager};
-use crate::model::entry::commit_entry::Entry;
+
 use crate::model::{Branch, CommitEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
@@ -20,16 +21,17 @@ pub fn index_dataset(
     branch: &Branch,
     path: &Path,
     identifier: &str,
-) -> Result<(), OxenError> {
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
     // TODONOW: this should return a RemoteDataset struct
 
-    if !util::fs::is_tabular(&path) {
+    if !util::fs::is_tabular(path) {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.must be tabular.",
         ));
     }
     // need to init or get the remote staging env - for if this was called from API? todo
-    let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
 
     // Get the version path
     let commit_reader = CommitReader::new(repo)?;
@@ -43,17 +45,25 @@ pub fn index_dataset(
     let entry = reader.get_entry(path)?;
     let entry = match entry {
         Some(entry) => entry,
-        None => return Err(OxenError::resource_not_found(&path.to_string_lossy())),
+        None => return Err(OxenError::resource_not_found(path.to_string_lossy())),
     };
 
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &entry.path);
 
-    let conn = df_db::get_connection(&db_path)?;
+    if !db_path
+        .parent()
+        .expect("Failed to get parent directory")
+        .exists()
+    {
+        std::fs::create_dir_all(db_path.parent().expect("Failed to get parent directory"))?;
+    }
+
+    let conn = df_db::get_connection(db_path)?;
 
     if df_db::table_exists(&conn, TABLE_NAME)? {
         df_db::drop_table(&conn, TABLE_NAME)?;
     }
-    let version_path = util::fs::version_path(&repo, &entry);
+    let version_path = util::fs::version_path(repo, &entry);
 
     log::debug!("index_dataset() got version path: {:?}", version_path);
 
@@ -79,16 +89,26 @@ pub fn index_dataset(
     }
 
     let commit_path = mod_stager::mods_commit_ref_path(repo, branch, identifier, &entry.path);
-    std::fs::write(&commit_path, branch.commit_id.as_str())?;
+    std::fs::write(commit_path, branch.commit_id.as_str())?;
+
+    // Print whole table after index for debugging
 
     let select_all = Select::new().select("*").from(TABLE_NAME);
-    let all_data = df_db::select(&conn, &select_all)?;
-    log::debug!("we selected it using this conn: {:?}", conn);
-    log::debug!(
-        "All data in table from parent {}: {:?}",
-        TABLE_NAME,
-        all_data
-    );
+    let inserted_data = df_db::select_with_opts(&conn, &select_all, opts)?;
+
+    Ok(inserted_data)
+}
+
+pub fn unindex_df(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identity: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, path);
+    let conn = df_db::get_connection(mods_df_db_path)?;
+    df_db::drop_table(&conn, TABLE_NAME)?;
 
     Ok(())
 }
@@ -100,7 +120,7 @@ pub fn dataset_is_indexed(
     path: &Path,
 ) -> Result<bool, OxenError> {
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
-    let conn = df_db::get_connection(&db_path)?;
+    let conn = df_db::get_connection(db_path)?;
     let table_exists = df_db::table_exists(&conn, TABLE_NAME)?;
     Ok(table_exists)
 }
@@ -113,7 +133,7 @@ pub fn extract_dataset_to_versions_dir(
 ) -> Result<(), OxenError> {
     let version_path = util::fs::version_path(repo, entry);
     let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
-    let conn = df_db::get_connection(&mods_df_db_path)?;
+    let conn = df_db::get_connection(mods_df_db_path)?;
     // Match on the extension
 
     let df_before = tabular::read_df(&version_path, DFOpts::empty())?;
@@ -161,12 +181,12 @@ pub fn extract_dataset_to_working_dir(
     let working_path = branch_repo.path.join(entry.path.clone());
     log::debug!("got working path as: {:?}", working_path);
     let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
-    let conn = df_db::get_connection(&mods_df_db_path)?;
+    let conn = df_db::get_connection(mods_df_db_path)?;
     // Match on the extension
 
     if !working_path.exists() {
         std::fs::create_dir_all(
-            &working_path
+            working_path
                 .parent()
                 .expect("Failed to get parent directory"),
         )?;
@@ -208,8 +228,8 @@ pub fn get_row_by_id(
     identifier: &str,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &path);
-    let conn = df_db::get_connection(&db_path)?;
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    let conn = df_db::get_connection(db_path)?;
 
     let query = Select::new()
         .select("*")
@@ -227,8 +247,8 @@ pub fn query_staged_df(
     identifier: &str,
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &path);
-    let conn = df_db::get_connection(&db_path)?;
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    let conn = df_db::get_connection(db_path)?;
 
     let select = Select::new().select("*").from(TABLE_NAME);
     let df = df_db::select_with_opts(&conn, &select, opts)?;
@@ -242,8 +262,8 @@ pub fn count(
     path: PathBuf,
     identifier: &str,
 ) -> Result<usize, OxenError> {
-    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &path);
-    let conn = df_db::get_connection(&db_path)?;
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    let conn = df_db::get_connection(db_path)?;
 
     let count = df_db::count(&conn, TABLE_NAME)?;
     Ok(count)
@@ -259,11 +279,9 @@ fn index_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     );
     conn.execute(&add_default_query, [])?;
 
-    log::debug!("it was written to this conn: {:?}", conn);
-
-    let select_all = Select::new().select("*").from(TABLE_NAME);
-    let all_data = df_db::select(&conn, &select_all)?;
-    log::debug!("All data in table {}: {:?}", TABLE_NAME, all_data);
+    // let select_all = Select::new().select("*").from(TABLE_NAME);
+    // let all_data = df_db::select(conn, &select_all)?;
+    // log::debug!("All data in table {}: {:?}", TABLE_NAME, all_data);
 
     Ok(())
 }
@@ -326,14 +344,11 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
         path.to_string_lossy()
     );
 
-    let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_rest() got df: {:?}", temp_res);
 
-    let temp_res = df_db::select(conn, &temp_select_query)?;
-    log::debug!("got temp_res {:?}", temp_res);
-
-    log::debug!("executing query: {}", query);
     conn.execute(&query, [])?;
-    log::debug!("done query: {}", query);
     Ok(())
 }
 
@@ -346,14 +361,13 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
         path.to_string_lossy()
     );
 
-    let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
 
-    let temp_res = df_db::select(conn, &temp_select_query)?;
-    log::debug!("got temp_res {:?}", temp_res);
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_csv() got df: {:?}", temp_res);
 
-    log::debug!("executing query: {}", query);
     conn.execute(&query, [])?;
-    log::debug!("done query: {}", query);
+
     Ok(())
 }
 
@@ -366,14 +380,12 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
         path.to_string_lossy()
     );
 
-    let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
 
-    let temp_res = df_db::select(conn, &temp_select_query)?;
-    log::debug!("got temp_res {:?}", temp_res);
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_tsv() got df: {:?}", temp_res);
 
-    log::debug!("executing query: {}", query);
     conn.execute(&query, [])?;
-    log::debug!("done query: {}", query);
     Ok(())
 }
 

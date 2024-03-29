@@ -3,9 +3,8 @@ use polars::frame::DataFrame;
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
-use crate::model::{ModEntry, ObjectID, RemoteRepository};
+use crate::model::{ObjectID, RemoteRepository};
 use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
-use crate::view::{StagedFileModResponse, StatusMessage};
 
 use std::path::Path;
 

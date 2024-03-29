@@ -1,4 +1,3 @@
-use duckdb::types::ToSqlOutput;
 use duckdb::ToSql;
 use polars::prelude::*;
 use polars_sql::SQLContext;

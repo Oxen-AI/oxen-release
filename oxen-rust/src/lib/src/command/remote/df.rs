@@ -22,10 +22,16 @@ pub async fn df<P: AsRef<Path>>(
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
+
     if let Some(row) = &opts.add_row {
         add_row(repo, input.as_ref(), row, &opts).await
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, input, uuid).await
+    } else if opts.index {
+        let df = index_dataset(repo, input).await?;
+        println!("Dataset successfully indexed ✅");
+        println!("{df:?}");
+        Ok(df)
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
@@ -52,12 +58,16 @@ pub async fn staged_df<P: AsRef<Path>>(
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
-    log::debug!("df got opts {:?}", opts);
     let identifier = UserConfig::identifier()?;
     if let Some(row) = &opts.add_row {
         add_row(repo, input.as_ref(), row, &opts).await
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, input, uuid).await
+    } else if opts.index {
+        let df = index_dataset(repo, input).await?;
+        println!("Dataset successfully indexed ✅");
+        println!("{df:?}");
+        Ok(df)
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
@@ -135,11 +145,10 @@ pub async fn delete_row(
 pub async fn index_dataset(
     repository: &LocalRepository,
     path: impl AsRef<Path>,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-
         api::remote::staging::dataset::index_dataset(
             &remote_repo,
             &branch.name,

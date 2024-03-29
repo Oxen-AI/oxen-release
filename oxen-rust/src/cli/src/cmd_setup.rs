@@ -19,7 +19,6 @@ pub const DIFF: &str = "diff";
 pub const DOWNLOAD: &str = "download";
 pub const INFO: &str = "info";
 pub const INIT: &str = "init";
-pub const INDEX_DATASET: &str = "index-dataset";
 pub const FETCH: &str = "fetch";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const LOAD: &str = "load";
@@ -158,7 +157,6 @@ pub fn remote() -> Command {
         .subcommand(rm())
         .subcommand(status())
         .subcommand(metadata())
-        .subcommand(index_dataset())
         .arg(
             Arg::new("verbose")
                 .long("verbose")
@@ -237,19 +235,6 @@ pub fn metadata() -> Command {
                 .arg(Arg::new("type").required(true))
                 .arg(Arg::new("column").required(true))
                 .arg(Arg::new("path").required(false)),
-        )
-}
-
-pub fn index_dataset() -> Command {
-    Command::new(INDEX_DATASET)
-        .about(
-            "Index a tabular dataset file to make it editable in the remote staging environment.",
-        )
-        .arg(
-            Arg::new("path")
-                .help("Path to the dataset to be indexed")
-                .required(true)
-                .action(clap::ArgAction::Set),
         )
 }
 
@@ -402,6 +387,12 @@ pub fn df() -> Command {
                 .short('t')
                 .help("A comma separated set of row indices to look at. Ex 1,22,313")
                 .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("index")
+                .long("index")
+                .help("Indexes the dataframe for editing via Oxen's remote staging environment.")
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("add-col")

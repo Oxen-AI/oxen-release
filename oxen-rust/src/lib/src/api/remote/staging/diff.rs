@@ -1,5 +1,3 @@
-use nom::Compare;
-
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
@@ -67,12 +65,12 @@ pub async fn diff(
                             },
                             col_changes: schema_diff,
                         },
-                        schemas: schemas,
+                        schemas,
                         dupes: ct.dfs.dupes.to_tabular_diff_dupes(),
                     };
 
                     let tdiff = TabularDiff {
-                        summary: summary,
+                        summary,
                         contents: df,
                         parameters: TabularDiffParameters {
                             keys: ct
@@ -80,7 +78,7 @@ pub async fn diff(
                                 .keys
                                 .unwrap_or_default()
                                 .iter()
-                                .map(|k| k.to_string())
+                                .map(|k| k.as_string())
                                 .collect(),
                             targets: ct
                                 .dfs
@@ -165,7 +163,7 @@ mod tests {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
                     assert_eq!(added_rows, 1);
                 },
-                _ => assert!(false, "Diff result is not of tabular type."),
+                _ => panic!("Diff result is not of tabular type."),
             }
 
 
@@ -189,7 +187,7 @@ mod tests {
 
             api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
 
-            let (df_1, row_id_1) = api::remote::staging::modify_df(
+            let (_df_1, _row_id_1) = api::remote::staging::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -200,7 +198,7 @@ mod tests {
                 ).await?;
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let (df_2, row_id_2) = api::remote::staging::modify_df(
+            let (_df_2, row_id_2) = api::remote::staging::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -225,7 +223,7 @@ mod tests {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
                     assert_eq!(added_rows, 2);
                 },
-                _ => assert!(false, "Diff result is not of tabular type."),
+                _ => panic!("Diff result is not of tabular type."),
             }
 
             let uuid_2 = row_id_2.unwrap();
@@ -253,7 +251,7 @@ mod tests {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
                     assert_eq!(added_rows, 1);
                 },
-                _ => assert!(false, "Diff result is not of tabular type."),
+                _ => panic!("Diff result is not of tabular type."),
             }
 
             Ok(remote_repo)

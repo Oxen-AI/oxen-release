@@ -23,7 +23,6 @@ pub struct CompareCommits {
     pub commits: Vec<Commit>,
 }
 
-
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct TabularCompareSummary {
     pub num_left_only_rows: usize,
@@ -31,9 +30,6 @@ pub struct TabularCompareSummary {
     pub num_diff_rows: usize,
     pub num_match_rows: usize,
 }
-
-
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompareCommitsResponse {
@@ -88,8 +84,6 @@ pub struct CompareTabularResponseWithDF {
     pub messages: Vec<OxenMessage>,
 }
 
-
-
 #[derive(Debug)]
 pub struct CompareTabularWithDF {
     pub diff_df: DataFrame,
@@ -111,10 +105,17 @@ pub struct CompareSchemaDiff {
 impl CompareSchemaDiff {
     pub fn to_tabular_schema_diff(self) -> TabularSchemaDiff {
         TabularSchemaDiff {
-            added: self.added_cols.into_iter().map(|col| col.to_field()).collect(),
-            removed: self.removed_cols.into_iter().map(|col| col.to_field()).collect(),
+            added: self
+                .added_cols
+                .into_iter()
+                .map(|col| col.to_field())
+                .collect(),
+            removed: self
+                .removed_cols
+                .into_iter()
+                .map(|col| col.to_field())
+                .collect(),
         }
-        
     }
 }
 
@@ -124,7 +125,7 @@ pub struct CompareSummary {
     pub schema: Schema,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct CompareTabularMods {
     pub added_rows: usize,
     pub removed_rows: usize,
@@ -152,27 +153,6 @@ impl CompareDupes {
     }
 }
 
-
-impl Default for CompareTabularMods {
-    fn default() -> Self {
-        CompareTabularMods {
-            added_rows: 0,
-            removed_rows: 0,
-            modified_rows: 0,
-        }
-    }
-}
-
-
-// #[derive(Serialize, Deserialize, Debug)]
-// pub struct CompareSourceDF {
-//     pub name: String,
-//     pub path: PathBuf,
-//     pub version: String, // Commit id or branch name
-//     pub schema: Schema,
-//     pub size: DataFrameSize,
-// }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct CompareSchemaColumn {
     pub name: String,
@@ -181,12 +161,10 @@ pub struct CompareSchemaColumn {
 }
 
 impl CompareSchemaColumn {
-    fn to_field(self) -> Field {
+    fn to_field(&self) -> Field {
         Field::new(&self.name, &self.dtype)
     }
 }
-
-
 
 // TODONOW these should maybe be moved to a model
 
@@ -255,7 +233,6 @@ impl CompareDupes {
     }
 }
 
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TabularCompare {
     pub summary: TabularCompareSummary,
@@ -294,7 +271,7 @@ pub struct TabularCompareFieldBody {
 }
 
 impl TabularCompareFieldBody {
-    pub fn to_string(&self) -> String {
+    pub fn as_string(&self) -> String {
         self.left.clone()
     }
 }
@@ -314,9 +291,12 @@ pub struct TabularCompareTargetBody {
 }
 impl TabularCompareTargetBody {
     pub fn to_string(&self) -> Result<String, OxenError> {
-        self.left.clone()
+        self.left
+            .clone()
             .or_else(|| self.right.clone())
-            .ok_or(OxenError::basic_str("Both 'left' and 'right' fields are None"))
+            .ok_or(OxenError::basic_str(
+                "Both 'left' and 'right' fields are None",
+            ))
     }
 }
 
@@ -328,75 +308,74 @@ impl TabularCompareFields {
         display: Vec<&str>,
     ) -> Self {
         let res_keys = keys
-        .iter()
-        .map(|key| TabularCompareFieldBody {
-            left: key.to_string(),
-            right: key.to_string(),
-            alias_as: None,
-            compare_method: None,
-        })
-        .collect::<Vec<TabularCompareFieldBody>>();
-
-    let mut res_targets: Vec<TabularCompareTargetBody> = vec![];
-
-    // Get added and removed as sets of strings
-    let added_set: HashSet<String> = schema_diff.added.iter().map(|f| f.name.clone()).collect();
-    let removed_set: HashSet<String> = schema_diff.removed.iter().map(|f| f.name.clone()).collect();
-
-    for target in targets.iter() {
-        if added_set.contains(&target.to_string()) {
-            res_targets.push(TabularCompareTargetBody {
-                left: None,
-                right: Some(target.to_string()),
+            .iter()
+            .map(|key| TabularCompareFieldBody {
+                left: key.to_string(),
+                right: key.to_string(),
+                alias_as: None,
                 compare_method: None,
-            });
-        } else if removed_set.contains(&target.to_string()) {
-            res_targets.push(TabularCompareTargetBody {
-                left: Some(target.to_string()),
-                right: None,
-                compare_method: None,
-            });
-        } else {
-            res_targets.push(TabularCompareTargetBody {
-                left: Some(target.to_string()),
-                right: Some(target.to_string()),
-                compare_method: None,
-            });
+            })
+            .collect::<Vec<TabularCompareFieldBody>>();
+
+        let mut res_targets: Vec<TabularCompareTargetBody> = vec![];
+
+        // Get added and removed as sets of strings
+        let added_set: HashSet<String> = schema_diff.added.iter().map(|f| f.name.clone()).collect();
+        let removed_set: HashSet<String> =
+            schema_diff.removed.iter().map(|f| f.name.clone()).collect();
+
+        for target in targets.iter() {
+            if added_set.contains(&target.to_string()) {
+                res_targets.push(TabularCompareTargetBody {
+                    left: None,
+                    right: Some(target.to_string()),
+                    compare_method: None,
+                });
+            } else if removed_set.contains(&target.to_string()) {
+                res_targets.push(TabularCompareTargetBody {
+                    left: Some(target.to_string()),
+                    right: None,
+                    compare_method: None,
+                });
+            } else {
+                res_targets.push(TabularCompareTargetBody {
+                    left: Some(target.to_string()),
+                    right: Some(target.to_string()),
+                    compare_method: None,
+                });
+            }
+        }
+
+        let mut res_display: Vec<TabularCompareTargetBody> = vec![];
+        for disp in display.iter() {
+            if added_set.contains(&disp.to_string()) {
+                res_display.push(TabularCompareTargetBody {
+                    left: None,
+                    right: Some(disp.to_string()),
+                    compare_method: None,
+                });
+            } else if removed_set.contains(&disp.to_string()) {
+                res_display.push(TabularCompareTargetBody {
+                    left: Some(disp.to_string()),
+                    right: None,
+                    compare_method: None,
+                });
+            } else {
+                res_display.push(TabularCompareTargetBody {
+                    left: Some(disp.to_string()),
+                    right: Some(disp.to_string()),
+                    compare_method: None,
+                });
+            }
+        }
+
+        TabularCompareFields {
+            keys: res_keys,
+            targets: res_targets,
+            display: res_display,
         }
     }
-
-    let mut res_display: Vec<TabularCompareTargetBody> = vec![];
-    for disp in display.iter() {
-        if added_set.contains(&disp.to_string()) {
-            res_display.push(TabularCompareTargetBody {
-                left: None,
-                right: Some(disp.to_string()),
-                compare_method: None,
-            });
-        } else if removed_set.contains(&disp.to_string()) {
-            res_display.push(TabularCompareTargetBody {
-                left: Some(disp.to_string()),
-                right: None,
-                compare_method: None,
-            });
-        } else {
-            res_display.push(TabularCompareTargetBody {
-                left: Some(disp.to_string()),
-                right: Some(disp.to_string()),
-                compare_method: None,
-            });
-        }
-    }
-
-    TabularCompareFields {
-        keys: res_keys,
-        targets: res_targets,
-        display: res_display,
-
-    }
 }
-}
-
 
 // impl CompareSourceDF {
 //     pub fn from_name_df_entry_schema(
@@ -554,10 +533,8 @@ impl CompareTabular {
     }
 }
 
-
 impl From<TabularDiff> for CompareTabular {
     fn from(diff: TabularDiff) -> Self {
-
         let fields = TabularCompareFields::from_lists_and_schema_diff(
             &diff.summary.modifications.col_changes,
             diff.parameters.keys.iter().map(|k| k.as_str()).collect(),
@@ -565,20 +542,33 @@ impl From<TabularDiff> for CompareTabular {
             diff.parameters.display.iter().map(|d| d.as_str()).collect(),
         );
 
-
         CompareTabular {
             dupes: CompareDupes::from_tabular_diff_dupes(&diff.summary.dupes),
             schema_diff: Some(CompareSchemaDiff {
-                added_cols: diff.summary.modifications.col_changes.added.iter().map(|field| CompareSchemaColumn {
-                    name: field.name.clone(),
-                    key: format!("{}.{}", field.name, "added"),
-                    dtype: field.dtype.to_string(),
-                }).collect(),
-                removed_cols: diff.summary.modifications.col_changes.removed.iter().map(|field| CompareSchemaColumn {
-                    name: field.name.clone(),
-                    key: format!("{}.{}", field.name, "removed"),
-                    dtype: field.dtype.to_string(),
-                }).collect(),
+                added_cols: diff
+                    .summary
+                    .modifications
+                    .col_changes
+                    .added
+                    .iter()
+                    .map(|field| CompareSchemaColumn {
+                        name: field.name.clone(),
+                        key: format!("{}.{}", field.name, "added"),
+                        dtype: field.dtype.to_string(),
+                    })
+                    .collect(),
+                removed_cols: diff
+                    .summary
+                    .modifications
+                    .col_changes
+                    .removed
+                    .iter()
+                    .map(|field| CompareSchemaColumn {
+                        name: field.name.clone(),
+                        key: format!("{}.{}", field.name, "removed"),
+                        dtype: field.dtype.to_string(),
+                    })
+                    .collect(),
             }),
             summary: Some(CompareSummary {
                 modifications: CompareTabularMods {

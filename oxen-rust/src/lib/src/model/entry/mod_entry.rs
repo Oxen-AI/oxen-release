@@ -67,4 +67,3 @@ impl ToString for ModType {
         }
     }
 }
-

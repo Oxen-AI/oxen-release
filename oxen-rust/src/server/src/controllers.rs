@@ -1,8 +1,8 @@
 pub mod action;
 pub mod branches;
 pub mod commits;
-pub mod diff;
 pub mod data_frames;
+pub mod diff;
 pub mod dir;
 pub mod entries;
 pub mod file;

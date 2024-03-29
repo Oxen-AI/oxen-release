@@ -10,14 +10,14 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
-use crate::core::index::{self, remote_dir_stager, CommitDirEntryReader};
+use crate::core::index::{self, remote_dir_stager};
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
     TabularDiff, TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
     TabularDiffSummary, TabularSchemaDiff,
 };
-use crate::model::schema::Field;
+
 use crate::model::{
     Branch, Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepository, Schema,
 };
@@ -39,7 +39,6 @@ use crate::model::diff::AddRemoveModifyCounts;
 use crate::model::diff::DiffResult;
 
 use crate::opts::DFOpts;
-use crate::view::compare::{CompareDupes, CompareTabular, CompareTabularWithDF};
 
 pub mod join_diff;
 pub mod utf8_diff;
@@ -151,30 +150,27 @@ pub fn diff_staged_df(
 ) -> Result<DiffResult, OxenError> {
     // Get commit for the branch head
     log::debug!("diff_staged_df got repo at path {:?}", repo.path);
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+    let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?
         .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
 
     let entry = api::local::entries::get_commit_entry(repo, &commit, &path)?
         .ok_or(OxenError::entry_does_not_exist(&path))?;
 
-    log::debug!("trying to init remote_dir-Stager with branch {:?}", branch);
-    let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
-    log::debug!("nailed it");
-    let base_path = util::fs::version_path(&repo, &entry);
-    let head_path =
-        if index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &path)? {
-            let out_path = index::remote_df_stager::extract_dataset_to_working_dir(
-                &repo,
-                &branch_repo,
-                &branch,
-                &entry,
-                &identifier,
-            )?;
-            out_path
-        } else {
-            // TODO: Early return here an empty diff result instead
-            base_path.clone()
-        };
+    let branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
+    let base_path = util::fs::version_path(repo, &entry);
+    let head_path = if index::remote_df_stager::dataset_is_indexed(repo, branch, identifier, &path)?
+    {
+        index::remote_df_stager::extract_dataset_to_working_dir(
+            repo,
+            &branch_repo,
+            branch,
+            &entry,
+            identifier,
+        )?
+    } else {
+        // TODO: Early return here an empty diff result instead
+        base_path.clone()
+    };
 
     let staged_df = tabular::read_df(&head_path, DFOpts::empty())?;
     let committed_df = tabular::read_df(&base_path, DFOpts::empty())?;

@@ -125,7 +125,7 @@ mod tests {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
                     assert_eq!(added_rows, 0);
                 }
-                _ => assert!(false, "Expected tabular diff result."),
+                _ => panic!("Expected tabular diff result."),
             }
 
             Ok(remote_repo)

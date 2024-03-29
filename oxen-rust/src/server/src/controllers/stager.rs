@@ -8,25 +8,22 @@ use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
-use liboxen::model::diff::{DiffResult, TabularDiff};
+use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::{
-    entry::mod_entry::ModType, Branch, CommitEntry, ContentType, LocalRepository, NewCommitBody,
-    ObjectID, Schema,
+    entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, ObjectID,
+    Schema,
 };
 use liboxen::model::{DataFrameSize, RemoteDataset};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::{DFOpts, PaginateOpts};
 use liboxen::util;
-use liboxen::view::compare::{CompareDupes, CompareTabular, CompareTabularResponseWithDF};
+use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
-use liboxen::view::remote_dataset::RemoteDatasetResponse;
-use liboxen::view::remote_staged_status::{
-    ListStagedFileModResponseDF, RemoteStagedStatus, StagedDFModifications, StagedFileModResponse,
-};
+use liboxen::view::remote_staged_status::RemoteStagedStatus;
 use liboxen::view::{
-    CommitResponse, FilePathsResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
+    CommitResponse, FilePathsResponse, JsonDataFrameView, JsonDataFrameViewResponse,
     JsonDataFrameViews, Pagination, RemoteStagedStatusResponse, StatusMessage,
 };
 use liboxen::{api, constants, core::index};
@@ -75,7 +72,7 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
 
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
     // Need resource to have a branch
@@ -85,7 +82,7 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Get the branch repo for remote staging
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     let diff_result =
         api::local::diff::diff_staged_df(&repo, &branch, resource.file_path.clone(), &identifier)?;
@@ -184,7 +181,7 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Have to initialize this branch repo before we can do any operations on it
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     // TODONOW: error handling if it has not been indexed
 
@@ -611,7 +608,10 @@ pub async fn delete_file(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+pub async fn index_dataset(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -631,26 +631,45 @@ pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpErr
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Initialize the branch repository before any operations
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
 
     match liboxen::core::index::remote_df_stager::index_dataset(
         &repo,
         &branch,
         &resource.file_path,
         &identifier,
+        &opts,
     ) {
-        Ok(_) => {
+        Ok(df) => {
             log::info!(
                 "Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}"
             );
-            let remote_dataset = RemoteDataset {
-                path: resource.file_path,
-                identifier,
-            };
-            Ok(HttpResponse::Ok().json(RemoteDatasetResponse {
+            let schema = Schema::from_polars(&df.schema());
+            let full_height = index::remote_df_stager::count(
+                &repo,
+                &branch,
+                resource.file_path.clone(),
+                &identifier,
+            )?;
+            let response = JsonDataFrameViewResponse {
                 status: StatusMessage::resource_created(),
-                dataset: remote_dataset,
-            }))
+                data_frame: JsonDataFrameViews::from_df_and_opts_unpaginated(
+                    df,
+                    schema,
+                    full_height,
+                    &opts,
+                ),
+                commit: None,
+                resource: Some(ResourceVersion {
+                    path: resource.file_path.to_string_lossy().to_string(),
+                    version: resource.version(),
+                }),
+                derived_resource: None,
+            };
+            Ok(HttpResponse::Ok().json(response))
         }
         Err(err) => {
             log::error!("Failed to index dataset for {namespace}/{repo_name}/{resource}: {err}");
@@ -682,7 +701,7 @@ pub async fn get_staged_df(
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -881,7 +900,7 @@ fn clear_staged_modifications_on_branch(
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
             index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
-            match mod_stager::unindex_df(repo, &branch, user_id, path) {
+            match mod_stager::unstage_df(repo, &branch, user_id, path) {
                 Ok(_) => {
                     log::debug!("clear_staged_modifications_on_branch success!");
                     HttpResponse::Ok().json(StatusMessage::resource_deleted())
