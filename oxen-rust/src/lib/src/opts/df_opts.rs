@@ -36,6 +36,7 @@ pub struct DFOpts {
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
     pub filter: Option<String>,
+    pub get_row: Option<String>,
     pub head: Option<usize>,
     pub host: Option<String>,
     pub index: bool,
@@ -85,6 +86,7 @@ impl DFOpts {
             page_size: None,
             page: None,
             row: None,
+            get_row: None,
             should_randomize: false,
             should_reverse: false,
             slice: None,
@@ -164,6 +166,7 @@ impl DFOpts {
             || self.page_size.is_some()
             || self.page.is_some()
             || self.row.is_some()
+            || self.get_row.is_some()
             || self.should_randomize
             || self.should_reverse
             || self.sort_by.is_some()

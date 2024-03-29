@@ -292,24 +292,22 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let user_id: &str = req.match_info().get("identifier").unwrap();
+    let row_id: &str = req.match_info().get("row_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
 
-    let body_err_msg = "Invalid Body, must be valid json in the format {\"id\": \"<id>\"}";
-    let body = String::from_utf8(bytes.to_vec());
-    if body.is_err() {
-        log::error!("stager::df_delete_row could not parse body as utf8");
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
-    }
+    // let body_err_msg = "Invalid Body, must be valid json in the format {\"id\": \"<id>\"}";
+    // let body = String::from_utf8(bytes.to_vec());
+    // if body.is_err() {
+    //     log::error!("stager::df_delete_row could not parse body as utf8");
+    //     return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
+    // }
 
-    let body = body.unwrap();
-    let response: Result<ObjectID, serde_json::Error> = serde_json::from_str(&body);
-    if response.is_err() {
-        log::error!("stager::df_delete_row could not parse body as ObjectID\n{body:?}");
-        return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
-    }
-
-    // Safe to unwrap after checks above
-    let uuid = response.unwrap().id;
+    // let body = body.unwrap();
+    // let response: Result<ObjectID, serde_json::Error> = serde_json::from_str(&body);
+    // if response.is_err() {
+    //     log::error!("stager::df_delete_row could not parse body as ObjectID\n{body:?}");
+    //     return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
+    // }
 
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
@@ -322,9 +320,9 @@ pub async fn df_delete_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
                                 "stager::df_delete_row file branch_name [{}] file_name [{:?}] uuid [{}]",
                                 branch_name,
                                 file_name,
-                                uuid
+                                row_id
                             );
-                            delete_row(&repo, &branch, user_id, &file_name, uuid)
+                            delete_row(&repo, &branch, user_id, &file_name, row_id.to_string())
                         }
                         Ok(None) => {
                             log::debug!("stager::stage could not find branch {:?}", branch_name);

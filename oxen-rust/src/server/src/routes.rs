@@ -229,8 +229,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // END DEPRECIATED STAGING
         // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
         .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/df/{resource:.*}",
-            web::get().to(controllers::stager::get_staged_df),
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
+            web::get().to(controllers::stager::df_get_row),
         )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
@@ -241,16 +241,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::stager::df_add_row),
         )
         .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
-            web::get().to(controllers::stager::df_get_row),
-        )
-        .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/index/{resource:.*}",
             web::post().to(controllers::stager::index_dataset),
         )
         .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
             web::delete().to(controllers::stager::df_delete_row),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/{resource:.*}",
+            web::get().to(controllers::stager::get_staged_df),
         )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/modifications/{resource:.*}",
