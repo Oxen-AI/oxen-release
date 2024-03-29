@@ -11,12 +11,12 @@ use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
+use os_path::OsPath;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
-use os_path::OsPath;
 
 use super::{CommitEntryWriter, ObjectDBReader};
 
@@ -145,10 +145,7 @@ impl CommitDirEntryReader {
             .unwrap();
 
         let Some(vnode_child) = vnode_child else {
-            log::info!(
-                "could not get Some(vnode_child) for path {:?}",
-                path
-            );
+            log::info!("could not get Some(vnode_child) for path {:?}", path);
             return false;
         };
 
