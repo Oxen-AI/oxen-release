@@ -1,16 +1,16 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::path_db;
-use crate::core::df::tabular;
+
+use crate::core::db;
 use crate::core::index::{
     self, mod_stager, remote_df_stager, remote_dir_stager, CommitDBReader, CommitDirEntryReader,
     CommitEntryReader, CommitEntryWriter, CommitReader, EntryIndexer, ObjectDBReader, RefReader,
     RefWriter,
 };
-use crate::core::{db, df};
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, NewCommit, Schema, StagedData, StagedEntry};
-use crate::opts::DFOpts;
+use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry};
+
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{command, util};
 
@@ -248,9 +248,11 @@ impl CommitWriter {
                 remote_df_stager::extract_dataset_to_versions_dir(
                     &self.repository,
                     branch,
-                    &entry,
+                    entry,
                     user_id,
                 )?;
+
+                mod_stager::unstage_df(&self.repository, branch, user_id, &entry.path)?;
             }
 
             util::fs::copy(&version_path, &entry_path)?;
@@ -898,11 +900,13 @@ mod tests {
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let identity = UserConfig::identifier()?;
 
+            let opts = DFOpts::empty();
+
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
             let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
@@ -942,7 +946,8 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
+            let opts = DFOpts::empty();
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
             index::mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),

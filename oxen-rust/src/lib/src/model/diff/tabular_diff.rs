@@ -1,5 +1,4 @@
 use crate::{
-    constants::DIFF_STATUS_COL,
     error::OxenError,
     model::schema::{Field, Schema},
 };
@@ -8,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::AddRemoveModifyCounts;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct TabularSchemaDiff {
     pub added: Vec<Field>,
     pub removed: Vec<Field>,
@@ -70,15 +69,6 @@ impl TabularDiffParameters {
     }
 }
 
-impl Default for TabularSchemaDiff {
-    fn default() -> Self {
-        TabularSchemaDiff {
-            added: Vec::new(),
-            removed: Vec::new(),
-        }
-    }
-}
-
 impl TabularSchemaDiff {
     pub fn from_schemas(s1: &Schema, s2: &Schema) -> Result<TabularSchemaDiff, OxenError> {
         let added = s2
@@ -104,7 +94,7 @@ impl TabularDiff {
         self.summary.modifications.row_counts.added > 0
             || self.summary.modifications.row_counts.removed > 0
             || self.summary.modifications.row_counts.modified > 0
-            || self.summary.modifications.col_changes.added.len() > 0
-            || self.summary.modifications.col_changes.removed.len() > 0
+            || !self.summary.modifications.col_changes.added.is_empty()
+            || !self.summary.modifications.col_changes.removed.is_empty()
     }
 }

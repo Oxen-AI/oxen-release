@@ -10,7 +10,6 @@ pub struct AddRemoveModifyCounts {
     pub modified: usize,
 }
 
-
 impl AddRemoveModifyCounts {
     pub fn from_diff_df(df: &DataFrame) -> Result<AddRemoveModifyCounts, OxenError> {
         let added_rows = df

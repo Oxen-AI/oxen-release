@@ -5,9 +5,8 @@ use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::ContentType;
-use crate::model::{ModEntry, RemoteRepository};
+use crate::model::RemoteRepository;
 use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
-use crate::view::{JsonDataFrameViewResponse, StagedFileModResponse};
 
 use std::path::Path;
 
@@ -61,6 +60,7 @@ pub async fn modify_df(
 #[cfg(test)]
 mod tests {
 
+    use crate::api;
     use crate::config::UserConfig;
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
@@ -68,7 +68,6 @@ mod tests {
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
     use crate::test;
-    use crate::{api, command};
 
     use std::path::Path;
 

@@ -3,7 +3,7 @@ use derive_more::{Display, Error};
 use liboxen::error::{OxenError, StringError};
 use liboxen::view::http::{MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
-use polars::error::PolarsError;
+
 use serde_json::json;
 use std::io;
 

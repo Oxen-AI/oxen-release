@@ -17,7 +17,7 @@ use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::compare::{
     CompareCommits, CompareCommitsResponse, CompareDupes, CompareEntries, CompareEntryResponse,
-    CompareResult, CompareTabular, CompareTabularResponse,
+    CompareTabular, CompareTabularResponse,
 };
 use liboxen::view::compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::view::diff::{DirDiffStatus, DirDiffTreeSummary, DirTreeDiffResponse};
@@ -33,7 +33,6 @@ use crate::params::{
     app_data, df_opts_query, parse_base_head, path_param, resolve_base_head, DFOptsQuery,
     PageNumQuery,
 };
-use liboxen::model::entry::commit_entry::CompareEntry;
 
 pub async fn commits(
     req: HttpRequest,

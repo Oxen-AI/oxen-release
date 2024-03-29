@@ -1,22 +1,10 @@
-use std::path::PathBuf;
-
-use duckdb::ToSql;
 use polars::frame::DataFrame;
-use polars::prelude::NamedFrom;
-use sql::Select;
+// use sql::Select;
 use sql_query_builder as sql;
 
 use crate::constants::OXEN_ID_COL;
 
-use crate::{
-    constants::TABLE_NAME,
-    error::OxenError,
-    model::{
-        entry::mod_entry::ModType,
-        schema::{DataType, Field},
-        Schema,
-    },
-};
+use crate::{constants::TABLE_NAME, error::OxenError};
 
 use super::df_db;
 
@@ -27,14 +15,7 @@ pub fn append_row(
     conn: &duckdb::Connection,
     df: &polars::frame::DataFrame,
 ) -> Result<DataFrame, OxenError> {
-    let select = Select::new().select("*").from(TABLE_NAME);
-    let temp_df = df_db::select(&conn, &select)?;
-    log::debug!("temp df from append_row: {:?}", temp_df);
-    let testing_schema = df_db::get_schema(&conn, TABLE_NAME)?;
-
-    log::debug!("Testing schema: {:?}", testing_schema);
-    log::debug!("called from this conn: {:?}", conn);
-    let table_schema = df_db::get_schema_without_id(&conn, TABLE_NAME)?;
+    let table_schema = df_db::get_schema_without_id(conn, TABLE_NAME)?;
     let df_schema = df.schema();
 
     if !table_schema.has_same_field_names(&df_schema) {
@@ -47,16 +28,7 @@ pub fn append_row(
         ));
     }
 
-    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df)?;
-
-    // Print the db
-    let stmt = sql::Select::new()
-        .select(&format!("* EXCLUDE {}", OXEN_ID_COL))
-        .from(&TABLE_NAME);
-
-    let res = df_db::select(conn, &stmt)?;
-
-    log::debug!("res df: {:?}", res);
+    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, df)?;
 
     Ok(inserted_df)
 
@@ -65,12 +37,12 @@ pub fn append_row(
 
 pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, OxenError> {
     let stmt = sql::Delete::new()
-        .delete_from(&TABLE_NAME)
+        .delete_from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
 
     let select_stmt = sql::Select::new()
         .select("*")
-        .from(&TABLE_NAME)
+        .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
 
     // Select first - duckdb does't support DELETE RETURNING

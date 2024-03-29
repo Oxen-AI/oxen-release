@@ -144,7 +144,7 @@ impl JsonDataFrameView {
         let full_width = df.width();
         let full_height = og_height;
 
-        let opts_view = DFOptsView::from_df_opts(&opts);
+        let opts_view = DFOptsView::from_df_opts(opts);
         let mut sliced_df = tabular::transform(df, opts.clone()).unwrap();
 
         // Merge the metadata from the original schema

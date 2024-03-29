@@ -1359,7 +1359,7 @@ pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
         .join("classification")
         .join("annotations");
     std::fs::create_dir_all(&nlp_annotations_dir)?;
-    let train_data = vec![
+    let train_data = [
         "text\tlabel",
         "My tummy hurts\tnegative",
         "I have a headache\tnegative",
@@ -1372,13 +1372,11 @@ pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
         "I am a lonely example\tnegative",
         "I am adding more examples\tpositive",
         "One more time\tpositive",
-    ].join("\n");
-    write_txt_file_to_path(
-        nlp_annotations_dir.join("train.tsv"),
-        &train_data,
-    )?;
+    ]
+    .join("\n");
+    write_txt_file_to_path(nlp_annotations_dir.join("train.tsv"), &train_data)?;
 
-    let test_data = vec![
+    let test_data = [
         "text\tlabel",
         "My tummy hurts\tnegative",
         "My tummy hurts\tnegative",
@@ -1389,11 +1387,9 @@ pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
         "loving the sunshine\tpositive",
         "I am a lonely example\tnegative",
         "I am a great testing example\tpositive",
-    ].join("\n");
-    write_txt_file_to_path(
-        nlp_annotations_dir.join("test.tsv"),
-        &test_data,
-    )?;
+    ]
+    .join("\n");
+    write_txt_file_to_path(nlp_annotations_dir.join("test.tsv"), &test_data)?;
     Ok(())
 }
 
