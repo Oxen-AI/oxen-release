@@ -96,7 +96,8 @@ impl SchemaReader {
         let parent_dir_obj: TreeObject = self.object_reader.get_dir(&parent_dir_hash)?.unwrap();
 
         // Get the hash of the schema's path
-        let schema_path_hash_prefix = util::hasher::hash_pathbuf(&schema_path)[0..2].to_string();
+        let full_path_str = schema_path.to_str().unwrap().replace('\\', "/");
+        let schema_path_hash_prefix = util::hasher::hash_path(&full_path_str)[0..2].to_string();
 
         // Binary search for the appropriate vnode
         let vnode_child: Option<TreeObjectChild> = parent_dir_obj

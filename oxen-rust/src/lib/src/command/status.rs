@@ -421,8 +421,7 @@ mod tests {
             // Move train to to new_train/train2
             let og_basename = PathBuf::from("train");
             let og_dir = repo.path.join(og_basename);
-            // let new_basename = PathBuf::from("new_train").join("train2");
-            let new_basename = PathBuf::from("train2");
+            let new_basename = PathBuf::from("new_train").join("train2");
             let new_dir = repo.path.join(new_basename);
 
             // Create the dir before move
