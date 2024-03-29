@@ -757,15 +757,15 @@ impl EntryIndexer {
 
             entries.par_iter().for_each(|entry| {
                 let filepath = self.repository.path.join(entry.path());
-                log::debug!(
-                    "unpack_version_files_to_working_dir found filepath {:?}",
-                    filepath
-                );
+                // log::debug!(
+                //     "unpack_version_files_to_working_dir found filepath {:?}",
+                //     filepath
+                // );
                 if versioner::should_unpack_entry(entry, &filepath) {
-                    log::debug!(
-                        "unpack_version_files_to_working_dir unpack! {:?}",
-                        entry.path()
-                    );
+                    // log::debug!(
+                    //     "unpack_version_files_to_working_dir unpack! {:?}",
+                    //     entry.path()
+                    // );
                     let version_path = util::fs::version_path_for_entry(&self.repository, entry);
                     match util::fs::copy_mkdir(version_path, &filepath) {
                         Ok(_) => {}
@@ -897,7 +897,7 @@ impl EntryIndexer {
                                 let one = commit_entry_reader.has_file(path);
                                 let two = untracked_files.contains(&short_path);
                                 let three = util::fs::is_any_parent_in_set(&short_path, &untracked_dirs);
-                                log::debug!("one: {one} two: {two} three {three}");
+                                // log::debug!("one: {one} two: {two} three {three}");
 
                                 if !one && !two && !three
                                 {

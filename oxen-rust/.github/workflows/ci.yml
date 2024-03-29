@@ -121,8 +121,8 @@ jobs:
           command: clippy
           args: --no-deps -- -D warnings
 
-  test:
-    name: Test Suite
+  test_macos:
+    name: Test Suite MacOS
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v2
@@ -164,7 +164,7 @@ jobs:
           ./target/debug/oxen-server start &
           cargo test -- --test-threads=1
 
-  test:
+  test_windows:
     name: Test Suite Windows
     runs-on: windows-latest
     steps:
@@ -183,5 +183,5 @@ jobs:
           mkdir .\data\test\runs
           .\target\debug\oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
           cp user_config.toml data\test\config\user_config.toml
-          START /B .\target\debug\oxen-server start
+          cmd /c "START /B .\target\debug\oxen-server.exe start"
           cargo test -- --test-threads=1
