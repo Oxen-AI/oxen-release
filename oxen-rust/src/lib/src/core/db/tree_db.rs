@@ -245,15 +245,6 @@ impl TreeObject {
             TreeObject::File { .. } => panic!("File does not have children"),
             TreeObject::Schema { .. } => panic!("Schema does not have children"),
             TreeObject::Dir { children, .. } => {
-                // let mut new_c: Vec<TreeObjectChild> = vec![];
-                // for c in children {
-                //     log::debug!("tree_db::binary_search_on_path dir {:?}", c);
-                //     let os_path = OsPath::from(c.path());
-                //     let new_path = os_path.to_pathbuf();
-                //     let n = TreeObjectChild::File { path: new_path, hash: c.hash().to_owned() };
-                //     new_c.push(n);
-                // }
-
                 let result = children.binary_search_by(|probe| {
                     let probe_path = probe.path();
                     let os_path = OsPath::from(probe_path);
@@ -272,27 +263,22 @@ impl TreeObject {
             TreeObject::VNode { children, .. } => {
                 let mut new_c: Vec<TreeObjectChild> = vec![];
                 for c in children {
-                    log::debug!("tree_db::binary_search_on_path dir {:?}", c);
                     let os_path = OsPath::from(c.path());
                     let new_path = os_path.to_pathbuf();
                     let n = TreeObjectChild::File {
                         path: new_path,
                         hash: c.hash().to_owned(),
                     };
-                    log::debug!("tree_db::binary_search_on_path cleaned {:?}", n);
                     new_c.push(n);
                 }
 
                 let result = new_c.binary_search_by(|probe| {
                     let probe_path = probe.path();
-                    // let os_path = OsPath::from(probe_path);
-                    // let new_path = os_path.to_pathbuf();
-
-                    log::debug!(
-                        "tree_db::binary_search_by vnode {:?} -> {:?}",
-                        probe_path,
-                        path
-                    );
+                    // log::debug!(
+                    //     "tree_db::binary_search_by vnode {:?} -> {:?}",
+                    //     probe_path,
+                    //     path
+                    // );
                     probe_path.cmp(path)
                 });
 
