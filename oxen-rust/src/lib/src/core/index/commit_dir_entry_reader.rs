@@ -178,8 +178,11 @@ impl CommitDirEntryReader {
     }
 
     pub fn get_entry<P: AsRef<Path>>(&self, path: P) -> Result<Option<CommitEntry>, OxenError> {
-        let full_path = self.dir.join(path.as_ref());
-        let path_hash_prefix = util::hasher::hash_path(full_path)[0..2].to_string();
+        let path = path.as_ref();
+        let full_path = self.dir.join(path);
+        // we have to make sure the full_path is `/` instead of `\\` to get the correct hashes
+        let full_path_str = full_path.to_str().unwrap().replace('\\', "/");
+        let path_hash_prefix = util::hasher::hash_path(full_path_str)[0..2].to_string();
 
         // Binary search for the appropriate vnode
         let maybe_vnode_child = self
@@ -187,7 +190,7 @@ impl CommitDirEntryReader {
             .binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
 
         let Some(vnode_child) = maybe_vnode_child else {
-            log::debug!("could not find vnode child for path {:?}", path.as_ref());
+            log::debug!("could not find vnode child for path {:?}", path);
             return Ok(None);
         };
 
@@ -195,11 +198,11 @@ impl CommitDirEntryReader {
         let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
 
         // Now binary search within the vnode for the appropriate file
-        let full_path = self.dir.join(path.as_ref());
+        let full_path = self.dir.join(path);
         let maybe_file = vnode.binary_search_on_path(&full_path)?;
 
         let Some(file) = maybe_file else {
-            log::debug!("could not find file for path {:?}", path.as_ref());
+            log::debug!("could not find file for path {:?}", path);
             return Ok(None);
         };
 
@@ -212,7 +215,7 @@ impl CommitDirEntryReader {
                 Ok(Some(entry))
             }
             _ => {
-                log::debug!("wrong type of file node for path {:?}", path.as_ref());
+                log::debug!("wrong type of file node for path {:?}", path);
                 Ok(None)
             }
         }
