@@ -10,11 +10,11 @@ use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
+use liboxen::model::DataFrameSize;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, ObjectID,
     Schema,
 };
-use liboxen::model::{DataFrameSize, RemoteDataset};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::{DFOpts, PaginateOpts};
 use liboxen::util;
