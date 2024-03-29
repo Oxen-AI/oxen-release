@@ -100,7 +100,7 @@ mod tests {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
                     assert_eq!(added_rows, 2);
                 }
-                _ => assert!(false, "Expected tabular diff result"),
+                _ => panic!("Expected tabular diff result"),    
             }
             // Delete result_2
             let result_delete = api::remote::staging::restore_df(

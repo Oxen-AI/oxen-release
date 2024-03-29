@@ -10,17 +10,16 @@ use polars::frame::DataFrame;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 
-use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, TABLE_NAME};
+use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core::db::{self, df_db, staged_df_db, str_json_db};
 use crate::core::df::tabular;
 use crate::core::index::remote_df_stager;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
 use crate::model::entry::mod_entry::NewMod;
-use crate::model::{Branch, CommitEntry, DataFrameDiff, LocalRepository, ModEntry, Schema};
+use crate::model::{Branch, CommitEntry, LocalRepository, Schema};
 
-use crate::opts::DFOpts;
-use crate::{api, current_function, util};
+use crate::{api, util};
 
 use super::{remote_dir_stager, SchemaReader};
 

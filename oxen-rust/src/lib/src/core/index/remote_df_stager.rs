@@ -1,10 +1,10 @@
 use duckdb::Connection;
 use polars::frame::DataFrame;
-use rocksdb::DBWithThreadMode;
+
 use sql_query_builder::Select;
 
 use crate::constants::{OXEN_ID_COL, TABLE_NAME};
-use crate::core::db::{self, df_db};
+use crate::core::db::df_db;
 use crate::core::df::tabular;
 use crate::core::index::{mod_stager, remote_dir_stager};
 
