@@ -77,7 +77,7 @@ mod tests {
             let stats = api::remote::stats::get(&remote_repo).await?;
 
             // Smol but mighty repo
-            assert_eq!(stats.data_size, 183);
+            assert!(stats.data_size == 183 || stats.data_size == 187); // windows vs unix
 
             Ok(())
         })
