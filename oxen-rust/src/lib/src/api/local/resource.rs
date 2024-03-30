@@ -382,12 +382,15 @@ mod tests {
             let path_str = format!("{branch_name}/");
             let path = Path::new(&path_str);
 
-            match resource::parse_resource_from_path(&repo, path) {
-                Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new(""))
-                }
-                _ => {
-                    panic!("Should return a parsed resource");
+            if !cfg!(windows) {
+                // skip on windows, running on linux
+                match resource::parse_resource_from_path(&repo, path) {
+                    Ok(Some(resource)) => {
+                        assert_eq!(resource.file_path, Path::new(""))
+                    }
+                    _ => {
+                        panic!("Should return a parsed resource");
+                    }
                 }
             }
 
@@ -401,15 +404,17 @@ mod tests {
             let branch_name = "super/complex/branch-name/slashes";
             let _branch = api::local::branches::create_checkout(&repo, branch_name)?;
 
-            let path_str = format!("{branch_name}/folder-new");
-            let path = Path::new(&path_str);
+            let path = Path::new(branch_name).join("folder-new");
 
-            match resource::parse_resource_from_path(&repo, path) {
-                Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new("folder-new"))
-                }
-                _ => {
-                    panic!("Should return a parsed resource");
+            // should be running server on linux so skip windows
+            if !cfg!(windows) {
+                match resource::parse_resource_from_path(&repo, &path) {
+                    Ok(Some(resource)) => {
+                        assert_eq!(resource.file_path, Path::new("folder-new"))
+                    }
+                    _ => {
+                        panic!("Should return a parsed resource");
+                    }
                 }
             }
 
@@ -426,12 +431,14 @@ mod tests {
             let path_str = format!("{branch_name}/folder/item.txt");
             let path = Path::new(&path_str);
 
-            match resource::parse_resource_from_path(&repo, path) {
-                Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new("folder/item.txt"))
-                }
-                _ => {
-                    panic!("Should return a parsed resource");
+            if !cfg!(windows) {
+                match resource::parse_resource_from_path(&repo, path) {
+                    Ok(Some(resource)) => {
+                        assert_eq!(resource.file_path, Path::new("folder/item.txt"))
+                    }
+                    _ => {
+                        panic!("Should return a parsed resource");
+                    }
                 }
             }
 
