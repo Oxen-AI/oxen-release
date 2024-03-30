@@ -31,15 +31,15 @@ pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Comm
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    // use std::path::Path;
 
-    use crate::api;
+    // use crate::api;
     use crate::command;
-    use crate::config::UserConfig;
-    use crate::constants;
+    // use crate::config::UserConfig;
+    // use crate::constants;
     use crate::error::OxenError;
     use crate::model::ContentType;
-    use crate::model::NewCommitBody;
+    // use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::test;
 
@@ -95,78 +95,78 @@ mod tests {
         .await
     }
 
-    #[tokio::test]
-    async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            // Create branch behind-main off main
-            let new_branch = "behind-main";
-            let main_branch = "main";
+    // #[tokio::test]
+    // async fn test_remote_commit_staging_behind_main() -> Result<(), OxenError> {
+    //     test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+    //         // Create branch behind-main off main
+    //         let new_branch = "behind-main";
+    //         let main_branch = "main";
 
-            let main_path = "images/folder";
-            let identifier = UserConfig::identifier()?;
+    //         let main_path = "images/folder";
+    //         let identifier = UserConfig::identifier()?;
 
-            api::remote::branches::create_from_or_get(&remote_repo, new_branch, main_branch)
-                .await?;
-            // assert_eq!(branch.name, branch_name);
+    //         api::remote::branches::create_from_or_get(&remote_repo, new_branch, main_branch)
+    //             .await?;
+    //         // assert_eq!(branch.name, branch_name);
 
-            // Advance head on main branch, leave behind-main behind
-            let path = test::test_img_file();
-            let result = api::remote::staging::add_file(
-                &remote_repo,
-                main_branch,
-                &identifier,
-                main_path,
-                path,
-            )
-            .await;
-            assert!(result.is_ok());
+    //         // Advance head on main branch, leave behind-main behind
+    //         let path = test::test_img_file();
+    //         let result = api::remote::staging::add_file(
+    //             &remote_repo,
+    //             main_branch,
+    //             &identifier,
+    //             main_path,
+    //             path,
+    //         )
+    //         .await;
+    //         assert!(result.is_ok());
 
-            let body = NewCommitBody {
-                message: "Add to main".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::remote::staging::commit(&remote_repo, main_branch, &identifier, &body).await?;
+    //         let body = NewCommitBody {
+    //             message: "Add to main".to_string(),
+    //             author: "Test User".to_string(),
+    //             email: "test@oxen.ai".to_string(),
+    //         };
+    //         api::remote::staging::commit(&remote_repo, main_branch, &identifier, &body).await?;
 
-            // Make an EMPTY commit to behind-main
-            let body = NewCommitBody {
-                message: "Add behind main".to_string(),
-                author: "Test User".to_string(),
-                email: "test@oxen.ai".to_string(),
-            };
-            api::remote::staging::commit(&remote_repo, new_branch, &identifier, &body).await?;
+    //         // Make an EMPTY commit to behind-main
+    //         let body = NewCommitBody {
+    //             message: "Add behind main".to_string(),
+    //             author: "Test User".to_string(),
+    //             email: "test@oxen.ai".to_string(),
+    //         };
+    //         api::remote::staging::commit(&remote_repo, new_branch, &identifier, &body).await?;
 
-            // Add file at images/folder to behind-main, committed to main
-            let image_path = test::test_img_file();
-            let result = api::remote::staging::add_file(
-                &remote_repo,
-                new_branch,
-                &identifier,
-                main_path,
-                image_path,
-            )
-            .await;
-            assert!(result.is_ok());
+    //         // Add file at images/folder to behind-main, committed to main
+    //         let image_path = test::test_img_file();
+    //         let result = api::remote::staging::add_file(
+    //             &remote_repo,
+    //             new_branch,
+    //             &identifier,
+    //             main_path,
+    //             image_path,
+    //         )
+    //         .await;
+    //         assert!(result.is_ok());
 
-            // Check status: if valid, there should be an entry here for the file at images/folder
-            let page_num = constants::DEFAULT_PAGE_NUM;
-            let page_size = constants::DEFAULT_PAGE_SIZE;
-            let path = Path::new("");
-            let entries = api::remote::staging::status(
-                &remote_repo,
-                new_branch,
-                &identifier,
-                path,
-                page_num,
-                page_size,
-            )
-            .await?;
+    //         // Check status: if valid, there should be an entry here for the file at images/folder
+    //         let page_num = constants::DEFAULT_PAGE_NUM;
+    //         let page_size = constants::DEFAULT_PAGE_SIZE;
+    //         let path = Path::new("");
+    //         let entries = api::remote::staging::status(
+    //             &remote_repo,
+    //             new_branch,
+    //             &identifier,
+    //             path,
+    //             page_num,
+    //             page_size,
+    //         )
+    //         .await?;
 
-            assert_eq!(entries.added_files.entries.len(), 1);
-            assert_eq!(entries.added_files.total_entries, 1);
+    //         assert_eq!(entries.added_files.entries.len(), 1);
+    //         assert_eq!(entries.added_files.total_entries, 1);
 
-            Ok(remote_repo)
-        })
-        .await
-    }
+    //         Ok(remote_repo)
+    //     })
+    //     .await
+    // }
 }

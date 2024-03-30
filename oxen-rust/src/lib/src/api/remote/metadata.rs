@@ -97,7 +97,10 @@ mod tests {
             assert!(!entry.is_dir);
             assert_eq!(entry.data_type, EntryDataType::Text);
             assert_eq!(entry.mime_type, "text/markdown");
-            assert_eq!(entry.resource.unwrap().path, "annotations/README.md");
+            assert_eq!(
+                Path::new(&entry.resource.unwrap().path),
+                Path::new("annotations").join("README.md")
+            );
 
             Ok(remote_repo)
         })
