@@ -84,8 +84,10 @@ impl SchemaReader {
         let path_parent = path.as_ref().parent().unwrap_or(Path::new(""));
 
         // Get the parent dir hash in which the schema is stored
-        let parent_dir_hash: Option<String> =
-            path_db::get_entry(&self.dir_hashes_db, path_parent.to_str().unwrap())?;
+        let parent_dir_hash: Option<String> = path_db::get_entry(
+            &self.dir_hashes_db,
+            path_parent.to_str().unwrap().replace('\\', "/"),
+        )?;
 
         if parent_dir_hash.is_none() {
             return Ok(None);

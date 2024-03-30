@@ -1130,7 +1130,7 @@ impl Stager {
         &self,
         schema_ref: impl AsRef<str>,
     ) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
-        let schema_ref = schema_ref.as_ref();
+        let schema_ref = schema_ref.as_ref().replace('\\', "/"); // windows
         let mut results = HashMap::new();
         for (path, staged_schema) in
             str_json_db::hash_map::<MultiThreaded, StagedSchema>(&self.schemas_db)?
