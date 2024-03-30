@@ -13,8 +13,11 @@ pub fn parse_resource(
 ) -> Result<Option<(String, String, PathBuf)>, OxenError> {
     // Decode first
     let decoded_path = PathBuf::from(urlencoding::decode(path.to_str().unwrap())?.to_string());
-    log::debug!("parse_resource path {:?} decoded_path {:?}", path, decoded_path);
-
+    log::debug!(
+        "parse_resource path {:?} decoded_path {:?}",
+        path,
+        decoded_path
+    );
 
     let mut components = decoded_path.components().collect::<Vec<_>>();
     let commit_reader = CommitReader::new(repo)?;
@@ -106,7 +109,10 @@ pub fn parse_resource_from_path(
     let commit_reader = CommitReader::new(repo)?;
 
     // See if the first component is the commit id
-    log::debug!("parse_resource_from_path looking for commit id in path {:?}", path);
+    log::debug!(
+        "parse_resource_from_path looking for commit id in path {:?}",
+        path
+    );
 
     if let Some(first_component) = components.first() {
         let base_path: &Path = first_component.as_ref();
