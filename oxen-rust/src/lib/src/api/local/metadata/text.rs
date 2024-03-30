@@ -42,7 +42,8 @@ mod tests {
         };
 
         assert_eq!(metadata.text.num_lines, 3);
-        assert!(metadata.text.num_chars == 44 || metadata.text.num_chars == 46); // unix vs windows
+        assert!(metadata.text.num_chars == 44 || metadata.text.num_chars == 46);
+        // unix vs windows
     }
 
     #[test]
@@ -50,7 +51,7 @@ mod tests {
         let file = test::test_text_file_with_name("README.md");
         let metadata = api::local::metadata::get(file).unwrap();
 
-        assert!(metadata.size >= 50);  // not sure why 53 on windows
+        assert!(metadata.size >= 50); // not sure why 53 on windows
         assert_eq!(metadata.data_type, EntryDataType::Text);
         assert_eq!(metadata.mime_type, "text/markdown");
 
@@ -60,6 +61,7 @@ mod tests {
         };
 
         assert_eq!(metadata.text.num_lines, 4);
-        assert!(metadata.text.num_chars == 50 || metadata.text.num_chars == 53); // unix vs windows
+        assert!(metadata.text.num_chars == 50 || metadata.text.num_chars == 53);
+        // unix vs windows
     }
 }
