@@ -157,7 +157,10 @@ mod tests {
             let entry = compare.head_entry.as_ref().unwrap();
 
             assert_eq!(entry.filename, "cat_2.jpg");
-            assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_2.jpg");
+            assert_eq!(
+                PathBuf::from(&entry.resource.as_ref().unwrap().path),
+                PathBuf::from("images").join("cat_2.jpg")
+            );
             assert_eq!(compare.status, "added");
             assert_eq!(entry.data_type, EntryDataType::Image);
 
@@ -238,7 +241,10 @@ mod tests {
             let entry = compare.head_entry.as_ref().unwrap();
 
             assert_eq!(entry.filename, "cat_1.jpg");
-            assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_1.jpg");
+            assert_eq!(
+                PathBuf::from(&entry.resource.as_ref().unwrap().path),
+                PathBuf::from("images").join("cat_1.jpg")
+            );
             assert_eq!(compare.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Image);
 
@@ -707,7 +713,10 @@ who won the game?,The packers beat up on the bears,packers
             let entry = compare.head_entry.as_ref().unwrap();
 
             assert_eq!(entry.filename, "cat_1.jpg");
-            assert_eq!(entry.resource.as_ref().unwrap().path, "images/cat_1.jpg");
+            assert_eq!(
+                PathBuf::from(&entry.resource.as_ref().unwrap().path),
+                PathBuf::from("images").join("cat_1.jpg")
+            );
             assert_eq!(compare.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Image);
 
@@ -1026,7 +1035,10 @@ who won the game?,The packers beat up on the bears,packers
             }
 
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("cats")
+            );
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1041,7 +1053,10 @@ who won the game?,The packers beat up on the bears,packers
             }
 
             let entry = compare.entries.get(2).unwrap();
-            assert_eq!(entry.filename, "images/dogs");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("dogs")
+            );
             assert_eq!(entry.status, "added");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1144,7 +1159,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/cats
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("cats")
+            );
             assert_eq!(entry.status, "removed");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1249,7 +1267,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/cats
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("cats")
+            );
             assert_eq!(entry.status, "removed");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1354,7 +1375,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/dogs
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/dogs");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("dogs")
+            );
             assert_eq!(entry.status, "added");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1370,7 +1394,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/dogs/puppers
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/dogs");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("dogs")
+            );
             assert_eq!(entry.status, "added");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1482,7 +1509,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/cats
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("cats")
+            );
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1498,7 +1528,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/cats
             let entry = compare.entries.get(2).unwrap();
-            assert_eq!(entry.filename, "images/dogs");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("dogs")
+            );
             assert_eq!(entry.status, "added");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
@@ -1608,7 +1641,10 @@ who won the game?,The packers beat up on the bears,packers
 
             // images/cats
             let entry = compare.entries.get(1).unwrap();
-            assert_eq!(entry.filename, "images/cats");
+            assert_eq!(
+                PathBuf::from(&entry.filename),
+                PathBuf::from("images").join("cats")
+            );
             assert_eq!(entry.status, "modified");
             assert_eq!(entry.data_type, EntryDataType::Dir);
 
