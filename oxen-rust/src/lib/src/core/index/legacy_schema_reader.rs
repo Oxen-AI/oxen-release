@@ -83,7 +83,10 @@ impl LegacySchemaReader {
         &self,
         path: P,
     ) -> Result<Option<String>, OxenError> {
-        str_val_db::get(&self.schema_files_db, path.as_ref().to_str().unwrap())
+        str_val_db::get(
+            &self.schema_files_db,
+            path.as_ref().to_str().unwrap().replace('\\', "/"),
+        )
     }
 
     pub fn get_schema_for_file<P: AsRef<Path>>(
