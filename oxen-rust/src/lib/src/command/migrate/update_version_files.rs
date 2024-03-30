@@ -94,7 +94,7 @@ pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> 
                             VERSION_FILE_NAME.to_owned(),
                         );
                         log::debug!("Renaming {:?} to {:?}", path, new_path);
-                        std::fs::rename(path, new_path)?;
+                        util::fs::rename(path, new_path)?;
                     }
                 } else {
                     log::debug!("No filename found for path {:?}", path);
