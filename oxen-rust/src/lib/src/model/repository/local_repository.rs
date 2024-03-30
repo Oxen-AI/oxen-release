@@ -289,6 +289,7 @@ mod tests {
     use crate::model::{LocalRepository, RepoNew};
     use crate::opts::CloneOpts;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
@@ -384,7 +385,7 @@ mod tests {
 
                 let new_path = dir.join("new_path");
 
-                std::fs::rename(&local_repo.path, &new_path)?;
+                util::fs::rename(&local_repo.path, &new_path)?;
 
                 let new_repo = LocalRepository::from_dir(&new_path)?;
                 command::status(&new_repo)?;
