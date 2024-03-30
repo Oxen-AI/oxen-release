@@ -91,12 +91,12 @@ impl DiffEntry {
         let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
         let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
 
-        if base_entry.is_some() {
-            base_entry.as_mut().unwrap().resource = base_resource.clone();
+        if let Some(base_entry) = &mut base_entry {
+            base_entry.resource.clone_from(&base_resource);
         }
 
-        if head_entry.is_some() {
-            head_entry.as_mut().unwrap().resource = head_resource.clone();
+        if let Some(head_entry) = &mut head_entry {
+            head_entry.resource.clone_from(&head_resource);
         }
 
         Ok(DiffEntry {
@@ -143,12 +143,12 @@ impl DiffEntry {
         let head_resource = DiffEntry::resource_from_dir(head_dir, head_commit);
         let base_resource = DiffEntry::resource_from_dir(base_dir, base_commit);
 
-        if base_entry.is_some() {
-            base_entry.as_mut().unwrap().resource = base_resource.clone();
+        if let Some(base_entry) = &mut base_entry {
+            base_entry.resource.clone_from(&base_resource);
         }
 
-        if head_entry.is_some() {
-            head_entry.as_mut().unwrap().resource = head_resource.clone();
+        if let Some(head_entry) = &mut head_entry {
+            head_entry.resource.clone_from(&head_resource);
         }
 
         Ok(DiffEntry {
@@ -198,11 +198,11 @@ impl DiffEntry {
             MetadataEntry::from_commit_entry(repo, head_entry.clone(), head_commit);
 
         if base_entry.is_some() {
-            base_meta_entry.as_mut().unwrap().resource = base_resource.clone();
+            base_meta_entry.as_mut().unwrap().resource.clone_from(&base_resource);
         }
 
         if head_entry.is_some() {
-            head_meta_entry.as_mut().unwrap().resource = head_resource.clone();
+            head_meta_entry.as_mut().unwrap().resource.clone_from(&head_resource);
         }
 
         // TODO: Clean this up, but want to get a prototype to work first

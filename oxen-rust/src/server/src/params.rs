@@ -77,6 +77,7 @@ pub fn parse_resource(
     let resource: PathBuf = PathBuf::from(req.match_info().query("resource"));
     let decoded_resource =
         PathBuf::from(urlencoding::decode(&resource.to_string_lossy())?.to_string());
+    log::debug!("parse_resource_from_path looking for resource: {:?} decoded_resource: {:?}", resource, decoded_resource);
     parse_resource_from_path(repo, &decoded_resource)?
         .ok_or(OxenError::path_does_not_exist(resource).into())
 }
