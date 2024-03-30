@@ -184,7 +184,7 @@ impl LocalRepository {
         // save LocalRepository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new(REPO_CONFIG_FILENAME));
         let mut local_repo = LocalRepository::from_remote(repo.clone(), repo_path)?;
-        local_repo.path = repo_path.to_owned();
+        repo_path.clone_into(&mut local_repo.path);
         local_repo.set_remote(DEFAULT_REMOTE_NAME, &repo.remote.url);
 
         let toml = toml::to_string(&local_repo)?;

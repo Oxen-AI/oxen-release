@@ -98,7 +98,7 @@ impl Schema {
         for field in schema.fields.iter() {
             if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
                 if field.metadata.is_some() {
-                    f.metadata = field.metadata.clone();
+                    f.metadata.clone_from(&field.metadata);
                 }
             }
         }
