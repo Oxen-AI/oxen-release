@@ -38,17 +38,17 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
         filter_ops.columns = Some(columns);
     }
 
-    filter_ops.aggregate = query.aggregate.clone();
-    filter_ops.delimiter = query.delimiter.clone();
-    filter_ops.filter = query.filter.clone();
+    filter_ops.aggregate.clone_from(&query.aggregate);
+    filter_ops.delimiter.clone_from(&query.delimiter);
+    filter_ops.filter.clone_from(&query.filter);
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;
     filter_ops.should_randomize = query.randomize.unwrap_or(false);
     filter_ops.should_reverse = query.reverse.unwrap_or(false);
-    filter_ops.sort_by = query.sort_by.clone();
-    filter_ops.sql = query.sql.clone();
-    filter_ops.take = query.take.clone();
+    filter_ops.sort_by.clone_from(&query.sort_by);
+    filter_ops.sql.clone_from(&query.sql);
+    filter_ops.take.clone_from(&query.take);
 
     filter_ops.clone()
 }

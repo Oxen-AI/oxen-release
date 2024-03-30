@@ -177,9 +177,8 @@ pub fn transfer_namespace(
         )));
     }
 
-    std::fs::create_dir_all(&new_repo_dir)?;
-
-    std::fs::rename(&repo_dir, &new_repo_dir)?;
+    util::fs::create_dir_all(&new_repo_dir)?;
+    util::fs::rename(&repo_dir, &new_repo_dir)?;
 
     // Update path in config
     let config_path = util::fs::config_filepath(&new_repo_dir);
