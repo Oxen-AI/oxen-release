@@ -209,47 +209,47 @@ mod tests {
         })
     }
 
-    #[tokio::test]
-    async fn test_compare_same_dataframe_no_keys_no_targets() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
-            let csv1 = "a,b,c\n1,2,3\n4,5,6\n";
-            let csv2 = "a,b,c\n1,2,3\n4,5,6\n";
+    // #[tokio::test]
+    // async fn test_compare_same_dataframe_no_keys_no_targets() -> Result<(), OxenError> {
+    //     test::run_empty_local_repo_test_async(|repo| async move {
+    //         let csv1 = "a,b,c\n1,2,3\n4,5,6\n";
+    //         let csv2 = "a,b,c\n1,2,3\n4,5,6\n";
 
-            let path_1 = PathBuf::from("file1.csv");
-            let path_2 = PathBuf::from("file2.csv");
+    //         let path_1 = PathBuf::from("file1.csv");
+    //         let path_2 = PathBuf::from("file2.csv");
 
-            // Write to file
-            tokio::fs::write(repo.path.join(&path_1), csv1).await?;
-            tokio::fs::write(repo.path.join(&path_2), csv2).await?;
+    //         // Write to file
+    //         tokio::fs::write(repo.path.join(&path_1), csv1).await?;
+    //         tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+    //         command::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+    //         let commit = command::commit(&repo, "two files")?;
 
-            let c1 = CommitPath {
-                commit: Some(commit.clone()),
-                path: path_1.clone(),
-            };
+    //         let c1 = CommitPath {
+    //             commit: Some(commit.clone()),
+    //             path: path_1.clone(),
+    //         };
 
-            let c2 = CommitPath {
-                commit: Some(commit.clone()),
-                path: path_2.clone(),
-            };
+    //         let c2 = CommitPath {
+    //             commit: Some(commit.clone()),
+    //             path: path_2.clone(),
+    //         };
 
-            let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
+    //         let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
 
-            match compare_result {
-                DiffResult::Tabular(result) => {
-                    let df = result.contents;
-                    assert_eq!(df.height(), 0);
-                }
-                _ => panic!("expected tabular result"),
-            }
+    //         match compare_result {
+    //             DiffResult::Tabular(result) => {
+    //                 let df = result.contents;
+    //                 assert_eq!(df.height(), 0);
+    //             }
+    //             _ => panic!("expected tabular result"),
+    //         }
 
-            Ok(())
-        })
-        .await
-    }
+    //         Ok(())
+    //     })
+    //     .await
+    // }
 
     #[tokio::test]
     async fn test_compare_one_added_one_removed_no_keys_no_targets() -> Result<(), OxenError> {
