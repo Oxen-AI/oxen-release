@@ -608,7 +608,7 @@ pub async fn download_commit_entries_db_to_path(
             // Move the tmp path to the full path
             log::debug!("renaming {:?} to {:?}", tmp_path, full_unpacked_path);
 
-            std::fs::rename(
+            util::fs::rename(
                 tmp_path.join(HISTORY_DIR).join(commit_id),
                 &full_unpacked_path,
             )?;

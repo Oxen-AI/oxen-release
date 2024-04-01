@@ -602,13 +602,32 @@ pub fn copy(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenErro
 pub fn rename(src: impl AsRef<Path>, dst: impl AsRef<Path>) -> Result<(), OxenError> {
     let src = src.as_ref();
     let dst = dst.as_ref();
-    match std::fs::rename(src, dst) {
-        Ok(_) => Ok(()),
-        Err(err) => {
-            if !src.exists() {
-                Err(OxenError::file_error(src, err))
-            } else {
-                Err(OxenError::file_rename_error(src, dst, err))
+
+    // Platform-specific behavior
+    // This function currently corresponds to the rename function on Unix and the MoveFileEx function with the MOVEFILE_REPLACE_EXISTING flag on Windows.
+    if cfg!(windows) {
+        // If we are moving, make sure to make the parent
+        if let Some(parent) = dst.parent() {
+            create_dir_all(parent)?;
+        }
+
+        // copy then delete on windows :shrug:
+        if src.is_file() {
+            copy(src, dst)?;
+            remove_file(src)
+        } else {
+            copy_dir_all(src, dst)?;
+            remove_dir_all(src)
+        }
+    } else {
+        match std::fs::rename(src, dst) {
+            Ok(_) => Ok(()),
+            Err(err) => {
+                if !src.exists() {
+                    Err(OxenError::file_error(src, err))
+                } else {
+                    Err(OxenError::file_rename_error(src, dst, err))
+                }
             }
         }
     }

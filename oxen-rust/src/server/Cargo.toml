@@ -1,6 +1,6 @@
 [package]
 name = "oxen-server"
-version = "0.13.0"
+version = "0.14.5"
 edition = "2021"
 
 [dependencies]
@@ -17,6 +17,7 @@ clap = { version = "4.2.7", features = ["cargo"] }
 derive_more = "0.99.17"
 dotenv = "0.15.0"
 dunce = "1"
+duckdb = { version = "0.9.2", features = ["bundled"] }
 env_logger = "0.10.0"
 flate2 = "1.0.23"
 futures = "0.3.21"

@@ -184,7 +184,7 @@ impl LocalRepository {
         // save LocalRepository in .oxen directory
         let repo_config_file = oxen_hidden_path.join(Path::new(REPO_CONFIG_FILENAME));
         let mut local_repo = LocalRepository::from_remote(repo.clone(), repo_path)?;
-        local_repo.path = repo_path.to_owned();
+        repo_path.clone_into(&mut local_repo.path);
         local_repo.set_remote(DEFAULT_REMOTE_NAME, &repo.remote.url);
 
         let toml = toml::to_string(&local_repo)?;
@@ -289,6 +289,7 @@ mod tests {
     use crate::model::{LocalRepository, RepoNew};
     use crate::opts::CloneOpts;
     use crate::test;
+    use crate::util;
 
     #[test]
     fn test_get_dirname_from_url() -> Result<(), OxenError> {
@@ -384,7 +385,7 @@ mod tests {
 
                 let new_path = dir.join("new_path");
 
-                std::fs::rename(&local_repo.path, &new_path)?;
+                util::fs::rename(&local_repo.path, &new_path)?;
 
                 let new_repo = LocalRepository::from_dir(&new_path)?;
                 command::status(&new_repo)?;

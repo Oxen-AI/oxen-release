@@ -145,11 +145,11 @@ fn compute_latest_commit_for_dir(
                 };
 
                 if latest_commit.is_none() {
-                    latest_commit = commit.clone();
+                    latest_commit.clone_from(&commit);
                 }
 
                 if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
-                    latest_commit = commit.clone();
+                    latest_commit.clone_from(&commit);
                 }
             }
         }

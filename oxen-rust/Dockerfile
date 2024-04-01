@@ -1,4 +1,4 @@
-FROM rust:1.76.0 as builder
+FROM rustlang/rust:nightly as builder
 
 USER root
 RUN apt-get update

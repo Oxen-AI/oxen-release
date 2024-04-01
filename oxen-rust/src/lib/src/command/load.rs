@@ -178,7 +178,7 @@ mod tests {
                 let hello_dir = repo.path.join("hello_dir");
                 std::fs::create_dir(&hello_dir)?;
                 let moved_hello = hello_dir.join("hello.txt");
-                std::fs::rename(&hello_file, &moved_hello)?;
+                util::fs::rename(&hello_file, &moved_hello)?;
 
                 // Remove goodbye
                 std::fs::remove_file(&goodbye_file)?;
