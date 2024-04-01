@@ -181,7 +181,7 @@ jobs:
         run: cd oxen && maturin build --release --out dist --sdist --interpreter ${PY_LOCATION}/bin/python
         if: matrix.platform.name == 'Ubuntu Latest'
       - name: Upload wheels
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact/merge@v4
         with:
           name: wheels
           path: oxen/dist
