@@ -77,8 +77,8 @@ impl Schema {
 
     /// Checks if the provided schema matches this schema given a hash, path, and name
     pub fn matches_ref(&self, schema_ref: impl AsRef<str>) -> bool {
-        let schema_ref = schema_ref.as_ref();
-        self.hash == schema_ref || self.name.as_ref().unwrap_or(&"".to_string()) == schema_ref
+        let schema_ref = schema_ref.as_ref().replace('\\', "/");
+        self.hash == schema_ref || self.name.as_ref().unwrap_or(&"".to_string()) == &schema_ref
     }
 
     /// Add metadata to a column
@@ -98,7 +98,7 @@ impl Schema {
         for field in schema.fields.iter() {
             if let Some(f) = self.fields.iter_mut().find(|f| f.name == field.name) {
                 if field.metadata.is_some() {
-                    f.metadata = field.metadata.clone();
+                    f.metadata.clone_from(&field.metadata);
                 }
             }
         }

@@ -1130,7 +1130,7 @@ impl Stager {
         &self,
         schema_ref: impl AsRef<str>,
     ) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
-        let schema_ref = schema_ref.as_ref();
+        let schema_ref = schema_ref.as_ref().replace('\\', "/"); // windows
         let mut results = HashMap::new();
         for (path, staged_schema) in
             str_json_db::hash_map::<MultiThreaded, StagedSchema>(&self.schemas_db)?
@@ -1892,7 +1892,7 @@ mod tests {
             let status = stager.status(&entry_reader)?;
             let files = status.staged_files;
             assert_eq!(files.len(), 1);
-            assert!(files.get(&relative_path).is_some());
+            assert!(files.contains_key(&relative_path));
 
             Ok(())
         })

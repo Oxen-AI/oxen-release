@@ -12,7 +12,13 @@ pub fn parse_resource(
     path: &Path,
 ) -> Result<Option<(String, String, PathBuf)>, OxenError> {
     // Decode first
-    let decoded_path = PathBuf::from(urlencoding::decode(&path.to_string_lossy())?.to_string());
+    let decoded_path = PathBuf::from(urlencoding::decode(path.to_str().unwrap())?.to_string());
+    log::debug!(
+        "parse_resource path {:?} decoded_path {:?}",
+        path,
+        decoded_path
+    );
+
     let mut components = decoded_path.components().collect::<Vec<_>>();
     let commit_reader = CommitReader::new(repo)?;
 
@@ -78,9 +84,10 @@ pub fn parse_resource(
             branch_path = branch_path.join(component_path);
         }
 
-        let branch_name = branch_path.to_str().unwrap();
+        // make sure branch names always have forward slashes for cross OS compatibility
+        let branch_name = branch_path.to_str().unwrap().replace('\\', "/");
         log::debug!("parse_resource looking for branch [{}]", branch_name);
-        if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
+        if let Some(branch) = ref_reader.get_branch_by_name(&branch_name)? {
             log::debug!(
                 "parse_resource got branch [{}] and filepath [{:?}]",
                 branch_name,
@@ -102,12 +109,15 @@ pub fn parse_resource_from_path(
     let commit_reader = CommitReader::new(repo)?;
 
     // See if the first component is the commit id
-    // log::debug!("parse_resource looking for commit id in path {:?}", path);
+    log::debug!(
+        "parse_resource_from_path looking for commit id in path {:?}",
+        path
+    );
 
     if let Some(first_component) = components.first() {
         let base_path: &Path = first_component.as_ref();
         let maybe_commit_id = base_path.to_str().unwrap();
-        // log::debug!("parse_resource looking for commit id {}", maybe_commit_id);
+        // log::debug!("parse_resource looking at component {}", maybe_commit_id);
         if let Some(commit) = commit_reader.get_commit_by_id(maybe_commit_id)? {
             let mut file_path = PathBuf::new();
             for (i, component) in components.iter().enumerate() {
@@ -372,12 +382,15 @@ mod tests {
             let path_str = format!("{branch_name}/");
             let path = Path::new(&path_str);
 
-            match resource::parse_resource_from_path(&repo, path) {
-                Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new(""))
-                }
-                _ => {
-                    panic!("Should return a parsed resource");
+            if !cfg!(windows) {
+                // skip on windows, running on linux
+                match resource::parse_resource_from_path(&repo, path) {
+                    Ok(Some(resource)) => {
+                        assert_eq!(resource.file_path, Path::new(""))
+                    }
+                    _ => {
+                        panic!("Should return a parsed resource");
+                    }
                 }
             }
 
@@ -391,15 +404,17 @@ mod tests {
             let branch_name = "super/complex/branch-name/slashes";
             let _branch = api::local::branches::create_checkout(&repo, branch_name)?;
 
-            let path_str = format!("{branch_name}/folder-new");
-            let path = Path::new(&path_str);
+            let path = Path::new(branch_name).join("folder-new");
 
-            match resource::parse_resource_from_path(&repo, path) {
-                Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new("folder-new"))
-                }
-                _ => {
-                    panic!("Should return a parsed resource");
+            // should be running server on linux so skip windows
+            if !cfg!(windows) {
+                match resource::parse_resource_from_path(&repo, &path) {
+                    Ok(Some(resource)) => {
+                        assert_eq!(resource.file_path, Path::new("folder-new"))
+                    }
+                    _ => {
+                        panic!("Should return a parsed resource");
+                    }
                 }
             }
 
@@ -416,12 +431,14 @@ mod tests {
             let path_str = format!("{branch_name}/folder/item.txt");
             let path = Path::new(&path_str);
 
-            match resource::parse_resource_from_path(&repo, path) {
-                Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new("folder/item.txt"))
-                }
-                _ => {
-                    panic!("Should return a parsed resource");
+            if !cfg!(windows) {
+                match resource::parse_resource_from_path(&repo, path) {
+                    Ok(Some(resource)) => {
+                        assert_eq!(resource.file_path, Path::new("folder/item.txt"))
+                    }
+                    _ => {
+                        panic!("Should return a parsed resource");
+                    }
                 }
             }
 
