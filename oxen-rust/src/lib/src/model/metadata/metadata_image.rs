@@ -33,6 +33,12 @@ pub struct MetadataImageImpl {
     pub color_space: ImgColorSpace, // RGB, RGBA, etc.
 }
 
+#[derive(Deserialize, Debug)]
+pub struct ImgResize {
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
+
 impl MetadataImage {
     pub fn new(width: usize, height: usize, color_space: ImgColorSpace) -> Self {
         Self {

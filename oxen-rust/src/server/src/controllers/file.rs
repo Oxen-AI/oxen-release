@@ -4,18 +4,13 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::core::index::ObjectDBReader;
 use liboxen::error::OxenError;
+use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::CommitEntry;
 use liboxen::util;
 
 use actix_files::NamedFile;
 use actix_web::{web, HttpRequest};
 use serde::Deserialize;
-
-#[derive(Deserialize, Debug)]
-pub struct ImgResize {
-    pub width: Option<u32>,
-    pub height: Option<u32>,
-}
 
 /// Download file content
 pub async fn get(
@@ -87,53 +82,67 @@ pub async fn get(
     if img_resize.width.is_some() || img_resize.height.is_some() {
         log::debug!("img_resize {:?}", img_resize);
 
-        log::debug!(
-            "get_file_for_commit_id {:?}x{:?} for {:?} -> {:?}",
-            img_resize.width,
-            img_resize.height,
-            resource.file_path,
-            version_path
-        );
-
         let resized_path = util::fs::resized_path_for_commit_entry(
             &repo,
             &entry,
             img_resize.width,
             img_resize.height,
         )?;
-        log::debug!("get_file_for_commit_id resized_path {:?}", resized_path);
-        if resized_path.exists() {
-            log::debug!("serving cached {:?}", resized_path);
-            return Ok(NamedFile::open(resized_path)?);
-        }
 
-        log::debug!("get_file_for_commit_id resizing: {:?}", resized_path);
+        util::fs::resize_cache_image(&version_path, &resized_path, img_resize)?;
 
-        let img = image::open(&version_path).unwrap();
-        let resized_img = if img_resize.width.is_some() && img_resize.height.is_some() {
-            img.resize_exact(
-                img_resize.width.unwrap(),
-                img_resize.height.unwrap(),
-                image::imageops::FilterType::Lanczos3,
-            )
-        } else if img_resize.width.is_some() {
-            img.resize(
-                img_resize.width.unwrap(),
-                img_resize.width.unwrap(),
-                image::imageops::FilterType::Lanczos3,
-            )
-        } else if img_resize.height.is_some() {
-            img.resize(
-                img_resize.height.unwrap(),
-                img_resize.height.unwrap(),
-                image::imageops::FilterType::Lanczos3,
-            )
-        } else {
-            img
-        };
-        resized_img.save(&resized_path).unwrap();
-        log::debug!("get_file_for_commit_id serving {:?}", resized_path);
+        log::debug!("In the resize cache! {:?}", resized_path);
         return Ok(NamedFile::open(resized_path)?);
+
+        // log::debug!(
+        //     "get_file_for_commit_id {:?}x{:?} for {:?} -> {:?}",
+        //     img_resize.width,
+        //     img_resize.height,
+        //     resource.file_path,
+        //     version_path
+        // );
+
+        // let resized_path = util::fs::resized_path_for_commit_entry(
+        //     &repo,
+        //     &entry,
+        //     img_resize.width,
+        //     img_resize.height,
+        // )?;
+        // log::debug!("get_file_for_commit_id resized_path {:?}", resized_path);
+        // if resized_path.exists() {
+        //     log::debug!("serving cached {:?}", resized_path);
+        //     return Ok(NamedFile::open(resized_path)?);
+        // }
+
+        // log::debug!("get_file_for_commit_id resizing: {:?}", resized_path);
+
+        // let img = image::open(&version_path).unwrap();
+        // let resized_img = if img_resize.width.is_some() && img_resize.height.is_some() {
+        //     img.resize_exact(
+        //         img_resize.width.unwrap(),
+        //         img_resize.height.unwrap(),
+        //         image::imageops::FilterType::Lanczos3,
+        //     )
+        // } else if img_resize.width.is_some() {
+        //     img.resize(
+        //         img_resize.width.unwrap(),
+        //         img_resize.width.unwrap(),
+        //         image::imageops::FilterType::Lanczos3,
+        //     )
+        // } else if img_resize.height.is_some() {
+        //     img.resize(
+        //         img_resize.height.unwrap(),
+        //         img_resize.height.unwrap(),
+        //         image::imageops::FilterType::Lanczos3,
+        //     )
+        // } else {
+        //     img
+        // };
+        // resized_img.save(&resized_path).unwrap();
+        // log::debug!("get_file_for_commit_id serving {:?}", resized_path);
+        // return Ok(NamedFile::open(resized_path)?);
+    } else {
+        log::debug!("did not hit the resize cache");
     }
 
     log::debug!(
