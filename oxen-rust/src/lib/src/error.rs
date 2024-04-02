@@ -100,6 +100,7 @@ pub enum OxenError {
     DB(rocksdb::Error),
     DUCKDB(duckdb::Error),
     ENV(std::env::VarError),
+    ImageError(image::ImageError),
     RedisError(redis::RedisError),
     R2D2Error(r2d2::Error),
     JwalkError(jwalk::Error),
@@ -603,5 +604,11 @@ impl From<ParseIntError> for OxenError {
 impl From<std::string::FromUtf8Error> for OxenError {
     fn from(error: std::string::FromUtf8Error) -> Self {
         OxenError::basic_str(format!("UTF8 conversion error: {}", error))
+    }
+}
+
+impl From<image::ImageError> for OxenError {
+    fn from(error: image::ImageError) -> Self {
+        OxenError::ImageError(error)
     }
 }

@@ -4,12 +4,14 @@ use crate::params::{
     app_data, df_opts_query, parse_resource, path_param, DFOptsQuery, PageNumQuery,
 };
 
+use actix_files::NamedFile;
 use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
+use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::DataFrameSize;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
@@ -65,7 +67,10 @@ pub async fn status_dir(
     )
 }
 
-pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+pub async fn diff_file(
+    req: HttpRequest,
+    query: web::Query<ImgResize>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -111,9 +116,49 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         messages: vec![],
     };
 
-    log::debug!("got response: {:?}", response);
+    // The path to the actual file is just the working directory here...
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn get_file(
+    req: HttpRequest,
+    query: web::Query<ImgResize>,
+) -> Result<NamedFile, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let identifier = path_param(&req, "identifier")?;
+
+    // Remote staged calls must be on a branch
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    // The path in a remote staged context is just the working path of the branch repo
+    let file_path = branch_repo.path.join(resource.file_path);
+
+    log::debug!("got staged file path {:?}", file_path);
+
+    let img_resize = query.into_inner();
+
+    if img_resize.width.is_some() || img_resize.height.is_some() {
+        let resized_path = util::fs::resized_path_for_staged_entry(
+            repo,
+            &file_path,
+            img_resize.width,
+            img_resize.height,
+        )?;
+
+        util::fs::resize_cache_image(&file_path, &resized_path, img_resize)?;
+        return Ok(NamedFile::open(resized_path)?);
+    }
+    Ok(NamedFile::open(file_path)?)
 }
 
 async fn save_parts(
