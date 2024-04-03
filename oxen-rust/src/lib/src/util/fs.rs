@@ -2,7 +2,6 @@
 //! and eventually abstract away the fs implementation
 //!
 
-use actix_files::NamedFile;
 use jwalk::WalkDir;
 
 use simdutf8::compat::from_utf8;
@@ -136,7 +135,7 @@ pub fn resized_path_for_staged_entry(
 ) -> Result<PathBuf, OxenError> {
     let img_hash = util::hasher::hash_file_contents(img_path)?;
     let img_version_path =
-        version_path_from_hash_and_file(&branch_repo.path, img_hash, img_path.to_path_buf());
+        version_path_from_hash_and_file(branch_repo.path, img_hash, img_path.to_path_buf());
     let extension = img_version_path.extension().unwrap().to_str().unwrap();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
@@ -1205,7 +1204,7 @@ pub fn resize_cache_image(
         std::fs::create_dir_all(resize_parent).unwrap();
     }
 
-    resized_img.save(&resize_path).unwrap();
+    resized_img.save(resize_path).unwrap();
     log::debug!("saved {:?}", resize_path);
     Ok(())
 }
