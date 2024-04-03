@@ -10,7 +10,6 @@ use liboxen::util;
 
 use actix_files::NamedFile;
 use actix_web::{web, HttpRequest};
-use serde::Deserialize;
 
 /// Download file content
 pub async fn get(
