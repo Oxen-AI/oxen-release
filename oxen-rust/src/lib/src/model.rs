@@ -4,7 +4,6 @@
 pub mod base_head;
 pub mod branch;
 pub mod commit;
-pub mod compare;
 pub mod content_type;
 pub mod data_frame_size;
 pub mod diff;
@@ -17,6 +16,7 @@ pub mod object_id;
 pub mod parsed_resource;
 pub mod remote;
 pub mod remote_branch;
+pub mod remote_dataset;
 pub mod repository;
 pub mod schema;
 pub mod staged_data;
@@ -52,9 +52,6 @@ pub use crate::model::entry::remote_entry::RemoteEntry;
 pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 pub use crate::model::entry::ContentHashable;
 
-// Compare
-pub use crate::model::compare::compare_files::CompareFiles;
-
 // Metadata
 pub use crate::model::metadata::dir_metadata_item::DirMetadataItem;
 
@@ -77,3 +74,6 @@ pub use crate::model::schema::staged_schema::StagedSchema;
 pub use crate::model::schema::Schema;
 
 pub use crate::model::namespace::Namespace;
+
+// Dataset
+pub use crate::model::remote_dataset::RemoteDataset;

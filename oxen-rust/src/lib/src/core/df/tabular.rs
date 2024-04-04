@@ -1,3 +1,4 @@
+use duckdb::ToSql;
 use polars::prelude::*;
 use polars_sql::SQLContext;
 use std::fs::File;
@@ -706,6 +707,18 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         // },
         AnyValue::Datetime(val, TimeUnit::Milliseconds, _) => val.to_le_bytes().to_vec(),
         _ => value.to_string().as_bytes().to_vec(),
+    }
+}
+
+pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
+    match value {
+        AnyValue::String(s) => Box::new(s.to_string()),
+        AnyValue::Int32(n) => Box::new(n),
+        AnyValue::Int64(n) => Box::new(n),
+        AnyValue::Float32(f) => Box::new(f),
+        AnyValue::Float64(f) => Box::new(f),
+        AnyValue::Boolean(b) => Box::new(b),
+        _ => panic!("Unsupported dtype"),
     }
 }
 

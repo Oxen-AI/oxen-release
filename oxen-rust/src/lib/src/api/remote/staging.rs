@@ -1,6 +1,8 @@
 pub mod add_file;
 pub mod commit;
+pub mod dataset;
 pub mod diff;
+pub mod get_row;
 pub mod modify_df;
 pub mod restore_df;
 pub mod rm_df_mod;
@@ -9,7 +11,9 @@ pub mod status;
 
 pub use add_file::{add_file, add_files};
 pub use commit::commit;
+pub use dataset::index_dataset;
 pub use diff::diff;
+pub use get_row::get_row;
 pub use modify_df::modify_df;
 pub use restore_df::restore_df;
 pub use rm_df_mod::rm_df_mod;

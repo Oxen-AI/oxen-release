@@ -86,7 +86,6 @@ pub async fn get(
         opts.slice = Some(format!("{}..{}", start, end));
     }
 
-    // Scan the data frame, but don't read it all into memory
     let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
 
     // Try to get the schema from disk
@@ -110,7 +109,7 @@ pub async fn get(
     );
 
     // We have to run the query param transforms, then paginate separately
-    let og_df_json = JsonDataFrameSource::from_df(&data_frame_size, &og_schema);
+    let og_df_json = JsonDataFrameSource::from_df_size(&data_frame_size, &og_schema);
 
     log::debug!(
         "controllers::data_frames BEFORE TRANSFORM LAZY {}",

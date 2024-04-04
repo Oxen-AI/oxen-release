@@ -5,6 +5,7 @@ pub mod branch;
 pub mod commit;
 pub mod compare;
 pub mod data_type_count;
+pub mod df;
 pub mod diff;
 pub mod entry;
 pub mod entry_metadata;
@@ -30,6 +31,7 @@ pub use crate::view::compare::CompareEntriesResponse;
 pub use crate::view::data_type_count::DataTypeCount;
 pub use crate::view::file_metadata::{FileMetadata, FileMetadataResponse, FilePathsResponse};
 pub use crate::view::mime_type_count::MimeTypeCount;
+
 pub use crate::view::status_message::{
     IsValidStatusMessage, StatusMessage, StatusMessageDescription,
 };

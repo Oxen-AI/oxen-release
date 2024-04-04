@@ -123,12 +123,14 @@ mod tests {
     //             let cloned_repo =
     //                 command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
-    //             // Remote add row
-    //             let path = test::test_nlp_classification_csv();
-    //             let mut opts = DFOpts::empty();
-    //             opts.add_row = Some("I am a new row,neutral".to_string());
-    //             opts.content_type = ContentType::Csv;
-    //             command::remote::df(&cloned_repo, path, opts).await?;
+    // Remote add row
+    // let path = test::test_nlp_classification_csv();
+    // let mut opts = DFOpts::empty();
+    // opts.add_row = Some("I am a new row,neutral".to_string());
+    // opts.content_type = ContentType::Csv;
+
+    // command::remote::df::index_dataset(&cloned_repo, &path).await?;
+    // command::remote::df(&cloned_repo, path, opts).await?;
 
     //             // Make sure it is listed as modified
     //             let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
@@ -171,6 +173,10 @@ mod tests {
 
                 // Remote add row
                 let path = test::test_nlp_classification_csv();
+
+                // Index dataset
+                command::remote::df::index_dataset(&cloned_repo, &path).await?;
+
                 let mut opts = DFOpts::empty();
                 opts.add_row = Some("I am a new row,neutral".to_string());
                 opts.content_type = ContentType::Csv;

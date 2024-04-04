@@ -1,10 +1,12 @@
+use polars::frame::DataFrame;
+
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::ContentType;
-use crate::model::{ModEntry, RemoteRepository};
-use crate::view::StagedFileModResponse;
+use crate::model::RemoteRepository;
+use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
 
 use std::path::Path;
 
@@ -16,7 +18,7 @@ pub async fn modify_df(
     data: String,
     content_type: ContentType,
     mod_type: ModType,
-) -> Result<ModEntry, OxenError> {
+) -> Result<(DataFrame, Option<String>), OxenError> {
     if mod_type != ModType::Append {
         return Err(OxenError::basic_str(
             "api::staging::modify_df only supports ModType::Append",
@@ -38,10 +40,10 @@ pub async fn modify_df(
     {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            let response: Result<StagedFileModResponse, serde_json::Error> =
+            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
-                Ok(val) => Ok(val.modification),
+                Ok(val) => Ok((val.data_frame.view.to_df(), val.row_id)),
                 Err(err) => {
                     let err = format!("api::staging::modify_df error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
@@ -80,6 +82,7 @@ mod tests {
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            api::remote::staging::index_dataset(&remote_repo, branch_name, &identifier, &path).await?;
             let result =
                 api::remote::staging::modify_df(
                     &remote_repo,
@@ -153,6 +156,8 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let data = "image1.jpg, dog, 13, 14, 100, 100";
+            api::remote::staging::index_dataset(&remote_repo, branch_name, &identifier, &path)
+                .await?;
             let result = api::remote::staging::modify_df(
                 &remote_repo,
                 branch_name,
@@ -184,6 +189,12 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            api::remote::staging::index_dataset(
+                &remote_repo,
+                branch_name,
+                &identifier,
+                &path,
+            ).await?;
             api::remote::staging::modify_df(
                 &remote_repo,
                 branch_name,

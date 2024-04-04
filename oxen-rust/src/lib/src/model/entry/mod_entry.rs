@@ -57,3 +57,13 @@ impl ModEntry {
         Ok(df)
     }
 }
+
+impl ToString for ModType {
+    fn to_string(&self) -> String {
+        match self {
+            ModType::Append => "Append".to_string(),
+            ModType::Delete => "Delete".to_string(),
+            ModType::Modify => "Modify".to_string(),
+        }
+    }
+}
