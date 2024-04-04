@@ -389,6 +389,12 @@ pub fn df() -> Command {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("index")
+                .long("index")
+                .help("Indexes the dataframe for editing via Oxen's remote staging environment.")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("add-col")
                 .long("add-col")
                 .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
@@ -404,6 +410,12 @@ pub fn df() -> Command {
             Arg::new("delete-row")
                 .long("delete-row")
                 .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("get-row")
+                .long("get-row")
+                .help("Retrieve a specific row from the data frame by row id.")
                 .action(clap::ArgAction::Set),
         )
         .arg(
@@ -424,6 +436,12 @@ pub fn df() -> Command {
                 .long("sql")
                 .help("Run a sql query on the data frame.")
                 .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("committed")
+                .long("committed")
+                .help("Show the committed version of the dataframe on the current branch, not any remotely staged data.")
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("text2sql")

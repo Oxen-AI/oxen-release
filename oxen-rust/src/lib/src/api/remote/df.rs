@@ -43,6 +43,45 @@ pub async fn get(
     }
 }
 
+pub async fn get_staged(
+    remote_repo: &RemoteRepository,
+    branch_name: &str,
+    identifier: &str,
+    path: impl AsRef<Path>,
+    opts: DFOpts,
+) -> Result<JsonDataFrameViewResponse, OxenError> {
+    let path_str = path.as_ref().to_str().unwrap();
+    log::debug!("got opts {:?}", opts);
+    let query_str = opts.to_http_query_params();
+    log::debug!("got query string {:?}", query_str);
+
+    let uri = format!("/staging/{identifier}/df/{branch_name}/{path_str}?{query_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("got body: {}", body);
+            let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => {
+                    log::debug!("got JsonDataFrameViewResponse: {:?}", val);
+                    Ok(val)
+                }
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                ))),
+            }
+        }
+        Err(err) => {
+            let err = format!("Request failed: {url}\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

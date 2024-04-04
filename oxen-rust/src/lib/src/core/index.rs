@@ -23,6 +23,7 @@ pub mod pusher;
 pub mod ref_db_reader;
 pub mod ref_reader;
 pub mod ref_writer;
+pub mod remote_df_stager;
 pub mod remote_dir_stager;
 pub mod remote_stager;
 pub mod restore;

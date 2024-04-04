@@ -575,8 +575,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
             None
         };
 
-    // CSV is easier from the CLI, but JSON is easier from API, so default to CSV here.
-    let mut content_type = "csv";
+    let mut content_type = "json";
     let maybe_content_type = sub_matches.get_one::<String>("content-type");
     if let Some(c) = maybe_content_type {
         content_type = c;
@@ -609,8 +608,10 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
         aggregate: sub_matches.get_one::<String>("aggregate").map(String::from),
         col_at: sub_matches.get_one::<String>("col-at").map(String::from),
         vstack,
+        index: sub_matches.get_flag("index"),
         add_col: sub_matches.get_one::<String>("add-col").map(String::from),
         add_row: sub_matches.get_one::<String>("add-row").map(String::from),
+        get_row: sub_matches.get_one::<String>("get-row").map(String::from),
         delete_row: sub_matches
             .get_one::<String>("delete-row")
             .map(String::from),
@@ -622,6 +623,7 @@ fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
         content_type: ContentType::from_str(content_type).unwrap(),
         should_randomize: sub_matches.get_flag("randomize"),
         should_reverse: sub_matches.get_flag("reverse"),
+        committed: sub_matches.get_flag("committed"),
     }
 }
 

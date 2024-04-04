@@ -1,9 +1,15 @@
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
+use crate::model::diff::tabular_diff::{
+    TabularDiffMods, TabularDiffParameters, TabularDiffSchemas, TabularDiffSummary,
+    TabularSchemaDiff,
+};
+// use crate::model::diff::tabular_diff_summary::{TabularDiffSummaryImpl};
+use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
+use crate::model::RemoteRepository;
 use crate::model::Schema;
-use crate::model::{DataFrameDiff, RemoteRepository};
-use crate::view::ListStagedFileModResponseDF;
+use crate::view::compare::{CompareTabularMods, CompareTabularResponseWithDF};
 
 use std::path::Path;
 
@@ -14,8 +20,9 @@ pub async fn diff(
     path: impl AsRef<Path>,
     page: usize,
     page_size: usize,
-) -> Result<DataFrameDiff, OxenError> {
+) -> Result<DiffResult, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
+    log::debug!("sending this identifier for remote diff: {}", identifier);
     let uri = format!(
         "/staging/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
     );
@@ -26,23 +33,72 @@ pub async fn diff(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
             log::debug!("diff got body: {}", body);
-            let response: Result<ListStagedFileModResponseDF, serde_json::Error> =
+            let response: Result<CompareTabularResponseWithDF, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
-                Ok(val) => {
-                    let mods = val.modifications;
-                    let added_rows = mods.added_rows.map(|added| added.to_df());
-                    let schema = Schema::from_polars(&added_rows.as_ref().unwrap().schema());
+                Ok(ct) => {
+                    // Get df from the json view
+                    let df = ct.data.view.to_df();
+                    let schema = Schema::from_polars(&df.schema().clone());
+                    let schema_diff = match ct.dfs.schema_diff {
+                        Some(diff) => diff.to_tabular_schema_diff(),
+                        None => TabularSchemaDiff::default(),
+                    };
 
-                    Ok(DataFrameDiff {
-                        head_schema: Some(schema.clone()),
-                        base_schema: Some(schema),
-                        added_rows,
-                        removed_rows: None,
-                        added_cols: None,
-                        removed_cols: None,
-                    })
+                    let mods = match ct.dfs.summary {
+                        Some(summary) => summary.modifications,
+                        None => CompareTabularMods::default(),
+                    };
+
+                    let schemas = TabularDiffSchemas {
+                        left: ct.dfs.source_schemas.left,
+                        right: ct.dfs.source_schemas.right,
+                        diff: schema,
+                    };
+
+                    let summary = TabularDiffSummary {
+                        modifications: TabularDiffMods {
+                            row_counts: AddRemoveModifyCounts {
+                                added: mods.added_rows,
+                                removed: mods.removed_rows,
+                                modified: mods.modified_rows,
+                            },
+                            col_changes: schema_diff,
+                        },
+                        schemas,
+                        dupes: ct.dfs.dupes.to_tabular_diff_dupes(),
+                    };
+
+                    let tdiff = TabularDiff {
+                        summary,
+                        contents: df,
+                        parameters: TabularDiffParameters {
+                            keys: ct
+                                .dfs
+                                .keys
+                                .unwrap_or_default()
+                                .iter()
+                                .map(|k| k.as_string())
+                                .collect(),
+                            targets: ct
+                                .dfs
+                                .targets
+                                .unwrap_or_default()
+                                .iter()
+                                .map(|t| t.to_string())
+                                .collect::<Result<Vec<String>, OxenError>>()?,
+                            display: ct
+                                .dfs
+                                .display
+                                .unwrap_or_default()
+                                .iter()
+                                .map(|d| d.to_string())
+                                .collect::<Result<Vec<String>, OxenError>>()?,
+                        },
+                    };
+                    Ok(DiffResult::Tabular(tdiff))
                 }
+
                 Err(err) => Err(OxenError::basic_str(format!(
                     "api::staging::diff error parsing response from {url}\n\nErr {err:?} \n\n{body}"
                 ))),
@@ -61,6 +117,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
+    use crate::model::diff::DiffResult;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
     use crate::test;
@@ -79,6 +136,9 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+
             api::remote::staging::modify_df(
                 &remote_repo,
                 branch_name,
@@ -98,9 +158,14 @@ mod tests {
                 DEFAULT_PAGE_SIZE
             ).await?;
 
-            let added_rows = diff.added_rows.unwrap();
-            assert_eq!(added_rows.height(), 1);
-            assert_eq!(added_rows.width(), 7); // 6+1 for _id
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                },
+                _ => panic!("Diff result is not of tabular type."),
+            }
+
 
             Ok(remote_repo)
         })
@@ -119,7 +184,10 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let result_1 = api::remote::staging::modify_df(
+
+            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+
+            let (_df_1, _row_id_1) = api::remote::staging::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -127,11 +195,10 @@ mod tests {
                     data.to_string(),
                     ContentType::Json,
                     ModType::Append
-                ).await;
-            assert!(result_1.is_ok());
+                ).await?;
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let result_2 = api::remote::staging::modify_df(
+            let (_df_2, row_id_2) = api::remote::staging::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -150,16 +217,23 @@ mod tests {
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
             ).await?;
-            let added_rows = diff.added_rows.unwrap();
-            assert_eq!(added_rows.height(), 2);
 
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 2);
+                },
+                _ => panic!("Diff result is not of tabular type."),
+            }
+
+            let uuid_2 = row_id_2.unwrap();
             // Delete result_2
             let result_delete = api::remote::staging::rm_df_mod(
                 &remote_repo,
                 branch_name,
                 &identifier,
                 &path,
-                &result_2.uuid
+                &uuid_2
             ).await;
             assert!(result_delete.is_ok());
 
@@ -172,8 +246,13 @@ mod tests {
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
             ).await?;
-            let added_rows = diff.added_rows.unwrap();
-            assert_eq!(added_rows.height(), 1);
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                },
+                _ => panic!("Diff result is not of tabular type."),
+            }
 
             Ok(remote_repo)
         })

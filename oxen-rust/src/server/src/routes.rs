@@ -148,46 +148,46 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // ----- Compare ----- //
         .route(
             "/{namespace}/{repo_name}/compare/commits/{base_head:.*}",
-            web::get().to(controllers::compare::commits),
+            web::get().to(controllers::diff::commits),
         )
         .route(
             "/{namespace}/{repo_name}/compare/dir_tree/{base_head:.*}",
-            web::get().to(controllers::compare::dir_tree),
+            web::get().to(controllers::diff::dir_tree),
         )
         .route(
             "/{namespace}/{repo_name}/compare/entries/{base_head:.*}/dir/{dir:.*}",
-            web::get().to(controllers::compare::dir_entries),
+            web::get().to(controllers::diff::dir_entries),
         )
         .route(
             "/{namespace}/{repo_name}/compare/entries/{base_head:.*}",
-            web::get().to(controllers::compare::entries),
+            web::get().to(controllers::diff::entries),
         )
         .route(
             "/{namespace}/{repo_name}/compare/file/{base_head:.*}",
-            web::get().to(controllers::compare::file),
+            web::get().to(controllers::diff::file),
         )
         .route(
             "/{namespace}/{repo_name}/compare/data_frame/{compare_id}/{path}/{base_head:.*}",
-            web::get().to(controllers::compare::get_derived_df),
+            web::get().to(controllers::diff::get_derived_df),
         )
         // The below is a POST rather than a GET for two reasons: 1) tesla doesn't allow GET requests to have a body,
         // and 2) for branch revisions (main..staging), this DOES create resources (updating compare cache) if
         // commit heads have changed since last cache
         .route(
             "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
-            web::post().to(controllers::compare::get_df_compare),
+            web::post().to(controllers::diff::get_df_diff),
         )
         .route(
             "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
-            web::put().to(controllers::compare::update_df_compare),
+            web::put().to(controllers::diff::update_df_diff),
         )
         .route(
             "/{namespace}/{repo_name}/compare/data_frame",
-            web::post().to(controllers::compare::create_df_compare),
+            web::post().to(controllers::diff::create_df_diff),
         )
         .route(
             "/{namespace}/{repo_name}/compare/data_frame/{compare_id}",
-            web::delete().to(controllers::compare::delete_df_compare),
+            web::delete().to(controllers::diff::delete_df_diff),
         )
         // ----- Merge ----- //
         // GET merge to test if merge is possible
@@ -229,6 +229,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // END DEPRECIATED STAGING
         // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
         .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
+            web::get().to(controllers::stager::df_get_row),
+        )
+        .route(
             "/{namespace}/{repo_name}/staging/{identifier}/diff/{resource:.*}",
             web::get().to(controllers::stager::diff_file),
         )
@@ -237,8 +241,16 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::post().to(controllers::stager::df_add_row),
         )
         .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",
+            "/{namespace}/{repo_name}/staging/{identifier}/df/index/{resource:.*}",
+            web::post().to(controllers::stager::index_dataset),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
             web::delete().to(controllers::stager::df_delete_row),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/{resource:.*}",
+            web::get().to(controllers::stager::get_staged_df),
         )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/modifications/{resource:.*}",

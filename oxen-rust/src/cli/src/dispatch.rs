@@ -321,8 +321,17 @@ pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(),
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::delete_staged_row(&repository, path, uuid).await?;
+    command::remote::df::delete_row(&repository, path, uuid).await?;
 
+    Ok(())
+}
+
+pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    let path = path.as_ref();
+
+    command::remote::df::index_dataset(&repository, path).await?;
     Ok(())
 }
 
@@ -560,8 +569,9 @@ pub async fn diff(
         let repository = LocalRepository::from_dir(&repo_dir)?;
         check_repo_migration_needed(&repository)?;
 
-        let remote_diff = command::remote::diff(&repository, revision_1, &path_1).await?;
-        println!("{remote_diff}");
+        let mut remote_diff = command::remote::diff(&repository, revision_1, &path_1).await?;
+        print_compare_result(&remote_diff)?;
+        maybe_save_compare_output(&mut remote_diff, output)?;
 
         // TODO: Allow them to save a remote diff to disk
     } else {
@@ -918,7 +928,12 @@ pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), Oxe
     let host = get_host_from_repo(&repo)?;
     check_remote_version(host).await?;
 
-    command::remote::df(&repo, input, opts).await?;
+    if opts.committed {
+        command::remote::df(&repo, input, opts).await?;
+    } else {
+        command::remote::staged_df(&repo, input, opts).await?;
+    }
+
     Ok(())
 }
 

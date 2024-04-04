@@ -31,12 +31,15 @@ pub struct DFOpts {
     pub aggregate: Option<String>,
     pub col_at: Option<String>,
     pub columns: Option<String>,
+    pub committed: bool,
     pub content_type: ContentType,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
     pub filter: Option<String>,
+    pub get_row: Option<String>,
     pub head: Option<usize>,
     pub host: Option<String>,
+    pub index: bool,
     pub output: Option<PathBuf>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
@@ -71,16 +74,19 @@ impl DFOpts {
             aggregate: None,
             col_at: None,
             columns: None,
+            committed: false,
             content_type: ContentType::Json,
             delete_row: None,
             delimiter: None,
             filter: None,
             head: None,
+            index: false,
             host: None,
             output: None,
             page_size: None,
             page: None,
             row: None,
+            get_row: None,
             should_randomize: false,
             should_reverse: false,
             slice: None,
@@ -160,6 +166,7 @@ impl DFOpts {
             || self.page_size.is_some()
             || self.page.is_some()
             || self.row.is_some()
+            || self.get_row.is_some()
             || self.should_randomize
             || self.should_reverse
             || self.sort_by.is_some()
@@ -319,7 +326,7 @@ impl DFOpts {
             ("randomize", randomize),
             ("reverse", should_reverse),
             ("slice", self.slice.clone()),
-            ("sort-by", self.sort_by.clone()),
+            ("sort_by", self.sort_by.clone()),
             ("sql", self.sql.clone()),
             ("take", self.take.clone()),
             ("unique", self.unique.clone()),

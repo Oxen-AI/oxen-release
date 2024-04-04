@@ -15,7 +15,7 @@ pub mod upload;
 
 pub use add::add;
 pub use commit::commit;
-pub use df::df;
+pub use df::{df, staged_df};
 pub use diff::diff;
 pub use download::download;
 pub use ls::ls;

@@ -1,11 +1,11 @@
 use crate::api;
 use crate::error::OxenError;
-use crate::model::compare::tabular_compare::{
+use crate::model::RemoteRepository;
+use crate::view::compare::CompareTabularResponse;
+use crate::view::compare::{
     TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
     TabularCompareTargetBody,
 };
-use crate::model::RemoteRepository;
-use crate::view::compare::CompareTabularResponse;
 use crate::view::JsonDataFrameViewResponse;
 use crate::view::{compare::CompareTabular, JsonDataFrameView};
 
@@ -146,9 +146,8 @@ mod tests {
     use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
 
-    use crate::model::compare::tabular_compare::TabularCompareFieldBody;
-    use crate::model::compare::tabular_compare::TabularCompareTargetBody;
     use crate::test;
+    use crate::view::compare::{TabularCompareFieldBody, TabularCompareTargetBody};
     use polars::lazy::dsl::col;
     use polars::lazy::dsl::lit;
     use polars::lazy::frame::IntoLazy;

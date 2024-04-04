@@ -1359,37 +1359,37 @@ pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
         .join("classification")
         .join("annotations");
     std::fs::create_dir_all(&nlp_annotations_dir)?;
-    write_txt_file_to_path(
-        nlp_annotations_dir.join("train.tsv"),
-        r"text	label
-My tummy hurts	negative
-I have a headache	negative
-My tummy hurts	negative
-I have a headache	negative
-loving the sunshine	positive
-And another unique one	positive
-My tummy hurts	negative
-loving the sunshine	positive
-I am a lonely example	negative
-I am adding more examples	positive
-One more time	positive
-",
-    )?;
+    let train_data = [
+        "text\tlabel",
+        "My tummy hurts\tnegative",
+        "I have a headache\tnegative",
+        "My tummy hurts\tnegative",
+        "I have a headache\tnegative",
+        "loving the sunshine\tpositive",
+        "And another unique one\tpositive",
+        "My tummy hurts\tnegative",
+        "loving the sunshine\tpositive",
+        "I am a lonely example\tnegative",
+        "I am adding more examples\tpositive",
+        "One more time\tpositive",
+    ]
+    .join("\n");
+    write_txt_file_to_path(nlp_annotations_dir.join("train.tsv"), &train_data)?;
 
-    write_txt_file_to_path(
-        nlp_annotations_dir.join("test.tsv"),
-        r"text	label
-My tummy hurts	negative
-My tummy hurts	negative
-My tummy hurts	negative
-I have a headache	negative
-I have a headache	negative
-loving the sunshine	positive
-loving the sunshine	positive
-I am a lonely example	negative
-I am a great testing example	positive
-    ",
-    )?;
+    let test_data = [
+        "text\tlabel",
+        "My tummy hurts\tnegative",
+        "My tummy hurts\tnegative",
+        "My tummy hurts\tnegative",
+        "I have a headache\tnegative",
+        "I have a headache\tnegative",
+        "loving the sunshine\tpositive",
+        "loving the sunshine\tpositive",
+        "I am a lonely example\tnegative",
+        "I am a great testing example\tpositive",
+    ]
+    .join("\n");
+    write_txt_file_to_path(nlp_annotations_dir.join("test.tsv"), &test_data)?;
     Ok(())
 }
 

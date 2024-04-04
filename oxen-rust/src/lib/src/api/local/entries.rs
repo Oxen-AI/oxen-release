@@ -47,10 +47,12 @@ pub fn get_meta_entry(
         )
     } else {
         log::debug!("get_meta_entry has file: {:?}", path);
+
         let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
         let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
         let dir_entry_reader =
             CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
+
         // load all commit entry readers once
         let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
 
