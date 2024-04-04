@@ -22,6 +22,7 @@ use crate::constants::HISTORY_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
+use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
 use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
@@ -118,6 +119,27 @@ pub fn resized_path_for_commit_entry(
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
     let resized_path = path.parent().unwrap().join(format!(
+        "{}x{}.{}",
+        width.unwrap_or("".to_string()),
+        height.unwrap_or("".to_string()),
+        extension
+    ));
+    Ok(resized_path)
+}
+
+pub fn resized_path_for_staged_entry(
+    branch_repo: LocalRepository,
+    img_path: &Path,
+    width: Option<u32>,
+    height: Option<u32>,
+) -> Result<PathBuf, OxenError> {
+    let img_hash = util::hasher::hash_file_contents(img_path)?;
+    let img_version_path =
+        version_path_from_hash_and_file(branch_repo.path, img_hash, img_path.to_path_buf());
+    let extension = img_version_path.extension().unwrap().to_str().unwrap();
+    let width = width.map(|w| w.to_string());
+    let height = height.map(|w| w.to_string());
+    let resized_path = img_version_path.parent().unwrap().join(format!(
         "{}x{}.{}",
         width.unwrap_or("".to_string()),
         height.unwrap_or("".to_string()),
@@ -1139,6 +1161,52 @@ pub fn is_any_parent_in_set(file_path: &Path, path_set: &HashSet<PathBuf>) -> bo
     }
 
     false
+}
+
+// Caller must provide out path because it differs between remote staged vs. committed files
+pub fn resize_cache_image(
+    image_path: &Path,
+    resize_path: &Path,
+    resize: ImgResize,
+) -> Result<(), OxenError> {
+    log::debug!("resize to path {:?} from {:?}", resize_path, image_path);
+    if resize_path.exists() {
+        return Ok(());
+    }
+
+    let img = image::open(image_path)?;
+
+    let resized_img = if resize.width.is_some() && resize.height.is_some() {
+        img.resize_exact(
+            resize.width.unwrap(),
+            resize.height.unwrap(),
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else if resize.width.is_some() {
+        img.resize(
+            resize.width.unwrap(),
+            resize.width.unwrap(),
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else if resize.height.is_some() {
+        img.resize(
+            resize.height.unwrap(),
+            resize.height.unwrap(),
+            image::imageops::FilterType::Lanczos3,
+        )
+    } else {
+        img
+    };
+    log::debug!("about to save {:?}", resize_path);
+
+    let resize_parent = resize_path.parent().unwrap_or(Path::new(""));
+    if !resize_parent.exists() {
+        std::fs::create_dir_all(resize_parent).unwrap();
+    }
+
+    resized_img.save(resize_path).unwrap();
+    log::debug!("saved {:?}", resize_path);
+    Ok(())
 }
 
 #[cfg(test)]

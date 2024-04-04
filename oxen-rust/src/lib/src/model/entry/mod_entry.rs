@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::PathBuf;
 
 use polars::prelude::DataFrame;
@@ -58,12 +59,12 @@ impl ModEntry {
     }
 }
 
-impl ToString for ModType {
-    fn to_string(&self) -> String {
+impl fmt::Display for ModType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ModType::Append => "Append".to_string(),
-            ModType::Delete => "Delete".to_string(),
-            ModType::Modify => "Modify".to_string(),
+            ModType::Append => write!(f, "Append"),
+            ModType::Delete => write!(f, "Delete"),
+            ModType::Modify => write!(f, "Modify"),
         }
     }
 }

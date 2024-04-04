@@ -220,6 +220,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         // DEPRECIATED STAGING
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
+            web::get().to(controllers::stager::get_file),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/file/{resource:.*}",
             web::post().to(controllers::stager::add_file),
         )
         .route(
