@@ -1184,6 +1184,8 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
 
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     // Unpack and compute HASH and save next to the file to speed up computation later
+    log::debug!("unpack_entry_tarball hidden_dir {:?}", hidden_dir);
+
     match archive.entries() {
         Ok(entries) => {
             for file in entries {
@@ -1194,8 +1196,9 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     // load the HASH file later
                     let path = file.path().unwrap();
                     let mut version_path = PathBuf::from(hidden_dir);
+                    log::debug!("unpack_entry_tarball version_path {:?}", version_path);
 
-                    if path.starts_with("versions/files") {
+                    if path.starts_with("versions") && path.to_string_lossy().contains("files") {
                         // Unpack version files to common name (data.extension) regardless of the name sent from the client
                         let new_path = util::fs::replace_file_name_keep_extension(
                             &path,
