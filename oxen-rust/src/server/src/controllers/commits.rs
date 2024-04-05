@@ -774,42 +774,52 @@ fn check_if_upload_complete_and_unpack(
         bytesize::ByteSize::b(total_size as u64)
     );
 
-    if total_size == (uploaded_size as usize) {
-        // std::thread::spawn(move || {
-        // Get tar.gz bytes for history/COMMIT_ID data
-        log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
+    // I think windows has a larger size than linux...so can't do a simple check here
+    // But if we have all the chunks we should be good
 
-        // TODO: Cleanup these if / else / match statements
-        // Combine into actual file data
-        if is_compressed {
-            match unpack_compressed_data(&files, &hidden_dir) {
+    // if total_size >= (uploaded_size as usize) {
+    // std::thread::spawn(move || {
+    // Get tar.gz bytes for history/COMMIT_ID data
+    log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
+
+    // TODO: Cleanup these if / else / match statements
+    // Combine into actual file data
+    if is_compressed {
+        match unpack_compressed_data(&files, &hidden_dir) {
+            Ok(_) => {
+                log::debug!("Unpacked {} files successfully", files.len());
+            }
+            Err(err) => {
+                log::error!("Could not unpack compressed data {:?}", err);
+            }
+        }
+    } else {
+        match filename {
+            Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
                 Ok(_) => {
                     log::debug!("Unpacked {} files successfully", files.len());
                 }
                 Err(err) => {
                     log::error!("Could not unpack compressed data {:?}", err);
                 }
-            }
-        } else {
-            match filename {
-                Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
-                    Ok(_) => {
-                        log::debug!("Unpacked {} files successfully", files.len());
-                    }
-                    Err(err) => {
-                        log::error!("Could not unpack compressed data {:?}", err);
-                    }
-                },
-                None => {
-                    log::error!("Must supply filename if !compressed");
-                }
+            },
+            None => {
+                log::error!("Must supply filename if !compressed");
             }
         }
-
-        // Cleanup tmp files
-        // util::fs::remove_dir_all(tmp_dir).unwrap();
-        // });
     }
+
+    // Cleanup tmp files
+    match util::fs::remove_dir_all(&tmp_dir) {
+        Ok(_) => {
+            log::debug!("Removed tmp dir {:?}", tmp_dir);
+        }
+        Err(err) => {
+            log::error!("Could not remove tmp dir {:?} {:?}", tmp_dir, err);
+        }
+    }
+    // });
+    // }
 }
 
 pub async fn upload_tree(
@@ -1155,8 +1165,15 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
             for file in entries {
                 if let Ok(mut file) = file {
                     let path = file.path().unwrap();
+                    log::debug!("unpack_tree_tarball path {:?}", path);
                     let stripped_path = if path.starts_with(HISTORY_DIR) {
-                        path.strip_prefix(HISTORY_DIR).unwrap()
+                        match path.strip_prefix(HISTORY_DIR) {
+                            Ok(stripped) => stripped,
+                            Err(err) => {
+                                log::error!("Could not strip prefix from path {:?}", err);
+                                return;
+                            }
+                        }
                     } else {
                         &path
                     };
@@ -1169,6 +1186,7 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
                             std::fs::create_dir_all(parent).expect("Could not create parent dir");
                         }
                     }
+                    log::debug!("unpack_tree_tarball new_path {:?}", path);
                     file.unpack(&new_path).unwrap();
                 } else {
                     log::error!("Could not unpack file in archive...");
@@ -1196,7 +1214,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                     // load the HASH file later
                     let path = file.path().unwrap();
                     let mut version_path = PathBuf::from(hidden_dir);
-                    log::debug!("unpack_entry_tarball version_path {:?}", version_path);
+                    log::debug!("unpack_entry_tarball path {:?}", path);
 
                     if path.starts_with("versions") && path.to_string_lossy().contains("files") {
                         // Unpack version files to common name (data.extension) regardless of the name sent from the client
@@ -1205,6 +1223,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                             VERSION_FILE_NAME.to_owned(),
                         );
                         version_path.push(new_path);
+                        log::debug!("unpack_entry_tarball version_path {:?}", version_path);
 
                         if let Some(parent) = version_path.parent() {
                             if !parent.exists() {
@@ -1213,6 +1232,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
                             }
                         }
                         file.unpack(&version_path).unwrap();
+                        log::debug!("unpack_entry_tarball unpacked! {:?}", version_path);
 
                         let hash_dir = version_path.parent().unwrap();
                         let hash_file = hash_dir.join(HASH_FILE);
