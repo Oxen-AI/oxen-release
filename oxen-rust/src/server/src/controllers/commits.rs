@@ -48,6 +48,7 @@ use flate2::Compression;
 use futures_util::stream::StreamExt as _;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
 use std::path::Path;
@@ -654,7 +655,7 @@ pub async fn upload_chunk(
     mut chunk: web::Payload,                   // the chunk of the file body,
     query: web::Query<ChunkedDataUploadQuery>, // gives the file
 ) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("in upload chunk controller");
+    log::debug!("in upload_chunk controller");
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
@@ -675,7 +676,7 @@ pub async fn upload_chunk(
     let total_chunks = query.total_chunks;
 
     log::debug!(
-        "upload_raw got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
+        "upload_chunk got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
     );
 
     // Create a tmp dir for this upload
@@ -684,8 +685,11 @@ pub async fn upload_chunk(
 
     // mkdir if !exists
     if !tmp_dir.exists() {
-        if let Err(err) = std::fs::create_dir_all(&tmp_dir) {
-            log::error!("Could not complete chunk upload, mkdir failed: {:?}", err);
+        if let Err(err) = util::fs::create_dir_all(&tmp_dir) {
+            log::error!(
+                "upload_chunk could not complete chunk upload, mkdir failed: {:?}",
+                err
+            );
             return Ok(
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             );
@@ -699,13 +703,18 @@ pub async fn upload_chunk(
     }
 
     // Write to tmp file
-    log::debug!("upload_raw writing file {:?}", chunk_file);
-    match std::fs::File::create(&chunk_file) {
+    log::debug!("upload_chunk writing file {:?}", chunk_file);
+    match OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&chunk_file)
+    {
         Ok(mut f) => {
             match f.write_all(&bytes) {
                 Ok(_) => {
                     // Successfully wrote chunk
-                    log::debug!("upload_raw successfully wrote chunk {:?}", chunk_file);
+                    log::debug!("upload_chunk successfully wrote chunk {:?}", chunk_file);
 
                     check_if_upload_complete_and_unpack(
                         hidden_dir,
@@ -723,8 +732,9 @@ pub async fn upload_chunk(
                 }
                 Err(err) => {
                     log::error!(
-                        "Could not complete chunk upload, file create failed: {:?}",
-                        err
+                        "upload_chunk could not complete chunk upload, file write_all failed: {:?} -> {:?}",
+                        err,
+                        chunk_file
                     );
                     Ok(HttpResponse::InternalServerError()
                         .json(StatusMessage::internal_server_error()))
@@ -733,8 +743,9 @@ pub async fn upload_chunk(
         }
         Err(err) => {
             log::error!(
-                "Could not complete chunk upload, file create failed: {:?}",
-                err
+                "upload_chunk could not complete chunk upload, file create failed: {:?} -> {:?}",
+                err,
+                chunk_file
             );
             Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
@@ -750,6 +761,12 @@ fn check_if_upload_complete_and_unpack(
     filename: Option<String>,
 ) {
     let mut files = util::fs::list_files_in_dir(&tmp_dir);
+
+    log::debug!(
+        "check_if_upload_complete_and_unpack checking if complete... {} / {}",
+        files.len(),
+        total_chunks
+    );
 
     if total_chunks < files.len() {
         return;
@@ -769,7 +786,7 @@ fn check_if_upload_complete_and_unpack(
     }
 
     log::debug!(
-        "upload_raw checking if complete... {} / {}",
+        "check_if_upload_complete_and_unpack checking if complete... {} / {}",
         uploaded_size,
         total_size
     );
@@ -777,34 +794,48 @@ fn check_if_upload_complete_and_unpack(
     // I think windows has a larger size than linux...so can't do a simple check here
     // But if we have all the chunks we should be good
 
-    if total_size >= (uploaded_size as usize) {
+    if (uploaded_size as usize) >= total_size {
         // std::thread::spawn(move || {
         // Get tar.gz bytes for history/COMMIT_ID data
-        log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
+        log::debug!(
+            "check_if_upload_complete_and_unpack decompressing {} bytes to {:?}",
+            total_size,
+            hidden_dir
+        );
 
         // TODO: Cleanup these if / else / match statements
         // Combine into actual file data
         if is_compressed {
             match unpack_compressed_data(&files, &hidden_dir) {
                 Ok(_) => {
-                    log::debug!("Unpacked {} files successfully", files.len());
+                    log::debug!(
+                        "check_if_upload_complete_and_unpack unpacked {} files successfully",
+                        files.len()
+                    );
                 }
                 Err(err) => {
-                    log::error!("Could not unpack compressed data {:?}", err);
+                    log::error!(
+                        "check_if_upload_complete_and_unpack could not unpack compressed data {:?}",
+                        err
+                    );
                 }
             }
         } else {
             match filename {
-                Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
-                    Ok(_) => {
-                        log::debug!("Unpacked {} files successfully", files.len());
+                Some(filename) => {
+                    match unpack_to_file(&files, &hidden_dir, &filename) {
+                        Ok(_) => {
+                            log::debug!("check_if_upload_complete_and_unpack unpacked {} files successfully", files.len());
+                        }
+                        Err(err) => {
+                            log::error!("check_if_upload_complete_and_unpack could not unpack compressed data {:?}", err);
+                        }
                     }
-                    Err(err) => {
-                        log::error!("Could not unpack compressed data {:?}", err);
-                    }
-                },
+                }
                 None => {
-                    log::error!("Must supply filename if !compressed");
+                    log::error!(
+                        "check_if_upload_complete_and_unpack must supply filename if !compressed"
+                    );
                 }
             }
         }
@@ -812,10 +843,17 @@ fn check_if_upload_complete_and_unpack(
         // Cleanup tmp files
         match util::fs::remove_dir_all(&tmp_dir) {
             Ok(_) => {
-                log::debug!("Removed tmp dir {:?}", tmp_dir);
+                log::debug!(
+                    "check_if_upload_complete_and_unpack removed tmp dir {:?}",
+                    tmp_dir
+                );
             }
             Err(err) => {
-                log::error!("Could not remove tmp dir {:?} {:?}", tmp_dir, err);
+                log::error!(
+                    "check_if_upload_complete_and_unpack could not remove tmp dir {:?} {:?}",
+                    tmp_dir,
+                    err
+                );
             }
         }
         // });
