@@ -985,6 +985,10 @@ fn unpack_to_file(files: &[PathBuf], hidden_dir: &Path, filename: &str) -> Resul
     // Append each buffer to the end of the large file
     // TODO: better error handling...
     log::debug!("Got filename {}", filename);
+
+    // Convert filename from windows to linux
+    let filename = filename.replace('\\', "/");
+
     let mut full_path = hidden_dir.join(filename);
     full_path =
         util::fs::replace_file_name_keep_extension(&full_path, VERSION_FILE_NAME.to_owned());
