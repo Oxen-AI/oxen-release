@@ -770,56 +770,56 @@ fn check_if_upload_complete_and_unpack(
 
     log::debug!(
         "upload_raw checking if complete... {} / {}",
-        bytesize::ByteSize::b(uploaded_size),
-        bytesize::ByteSize::b(total_size as u64)
+        uploaded_size,
+        total_size
     );
 
     // I think windows has a larger size than linux...so can't do a simple check here
     // But if we have all the chunks we should be good
 
-    // if total_size >= (uploaded_size as usize) {
-    // std::thread::spawn(move || {
-    // Get tar.gz bytes for history/COMMIT_ID data
-    log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
+    if total_size >= (uploaded_size as usize) {
+        // std::thread::spawn(move || {
+        // Get tar.gz bytes for history/COMMIT_ID data
+        log::debug!("Decompressing {} bytes to {:?}", total_size, hidden_dir);
 
-    // TODO: Cleanup these if / else / match statements
-    // Combine into actual file data
-    if is_compressed {
-        match unpack_compressed_data(&files, &hidden_dir) {
-            Ok(_) => {
-                log::debug!("Unpacked {} files successfully", files.len());
-            }
-            Err(err) => {
-                log::error!("Could not unpack compressed data {:?}", err);
-            }
-        }
-    } else {
-        match filename {
-            Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
+        // TODO: Cleanup these if / else / match statements
+        // Combine into actual file data
+        if is_compressed {
+            match unpack_compressed_data(&files, &hidden_dir) {
                 Ok(_) => {
                     log::debug!("Unpacked {} files successfully", files.len());
                 }
                 Err(err) => {
                     log::error!("Could not unpack compressed data {:?}", err);
                 }
-            },
-            None => {
-                log::error!("Must supply filename if !compressed");
+            }
+        } else {
+            match filename {
+                Some(filename) => match unpack_to_file(&files, &hidden_dir, &filename) {
+                    Ok(_) => {
+                        log::debug!("Unpacked {} files successfully", files.len());
+                    }
+                    Err(err) => {
+                        log::error!("Could not unpack compressed data {:?}", err);
+                    }
+                },
+                None => {
+                    log::error!("Must supply filename if !compressed");
+                }
             }
         }
-    }
 
-    // Cleanup tmp files
-    match util::fs::remove_dir_all(&tmp_dir) {
-        Ok(_) => {
-            log::debug!("Removed tmp dir {:?}", tmp_dir);
+        // Cleanup tmp files
+        match util::fs::remove_dir_all(&tmp_dir) {
+            Ok(_) => {
+                log::debug!("Removed tmp dir {:?}", tmp_dir);
+            }
+            Err(err) => {
+                log::error!("Could not remove tmp dir {:?} {:?}", tmp_dir, err);
+            }
         }
-        Err(err) => {
-            log::error!("Could not remove tmp dir {:?} {:?}", tmp_dir, err);
-        }
+        // });
     }
-    // });
-    // }
 }
 
 pub async fn upload_tree(
