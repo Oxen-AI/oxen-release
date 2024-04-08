@@ -250,7 +250,7 @@ impl TreeObject {
                     let os_path = OsPath::from(probe_path);
                     let new_path = os_path.to_pathbuf();
 
-                    log::debug!("tree_db::binary_search_by dir {:?} -> {:?}", new_path, path);
+                    // log::debug!("tree_db::binary_search_by dir {:?} -> {:?}", new_path, path);
 
                     new_path.cmp(path)
                 });
