@@ -61,7 +61,7 @@ dependencies = [
  "mp4",
  "nom",
  "num_cpus",
- "os_path",
+ "os_path 0.6.4",
  "pluralizer",
  "polars",
  "polars-sql",
@@ -2806,7 +2806,7 @@ dependencies = [
  "mp4",
  "nom",
  "num_cpus",
- "os_path",
+ "os_path 0.7.0",
  "pluralizer",
  "polars",
  "polars-sql",
@@ -3343,6 +3343,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "os_path"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c0ae9dbc17d4751ae5856da729af04b09bd342657afb416fb95f63e54727459b"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "oxen-cli"
 version = "0.14.7"
 dependencies = [
@@ -3387,6 +3396,7 @@ dependencies = [
  "liboxen",
  "log",
  "lru",
+ "os_path 0.7.0",
  "polars",
  "r2d2",
  "rand",
