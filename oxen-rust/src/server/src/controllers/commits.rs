@@ -31,6 +31,7 @@ use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::PaginatedCommits;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
+use os_path::OsPath;
 
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
@@ -986,10 +987,11 @@ fn unpack_to_file(files: &[PathBuf], hidden_dir: &Path, filename: &str) -> Resul
     // TODO: better error handling...
     log::debug!("Got filename {}", filename);
 
-    // Convert filename from windows to linux
-    let filename = filename.replace('\\', "/");
+    // return path with native slashes
+    let os_path = OsPath::from(filename).to_pathbuf();
+    log::debug!("Got native filename {:?}", os_path);
 
-    let mut full_path = hidden_dir.join(filename);
+    let mut full_path = hidden_dir.join(os_path);
     full_path =
         util::fs::replace_file_name_keep_extension(&full_path, VERSION_FILE_NAME.to_owned());
     log::debug!("Unpack to {:?}", full_path);

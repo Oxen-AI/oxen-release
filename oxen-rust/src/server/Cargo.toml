@@ -28,6 +28,7 @@ jsonwebtoken = "8"
 liboxen = { path = "../lib" }
 log = "0.4.17"
 lru = "0.12.0"
+os_path = "0.7.0"
 polars = "0.36.2"
 r2d2 = "0.8.10"
 rand = "0.8.0"
