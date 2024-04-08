@@ -9,6 +9,7 @@ use crate::opts::DFOpts;
 use crate::view::entry::ResourceVersion;
 use crate::view::DataTypeCount;
 use crate::{api, util};
+use os_path::OsPath;
 use rayon::prelude::*;
 
 use crate::core;
@@ -188,8 +189,15 @@ pub fn get_latest_commit_for_entry(
 ) -> Result<Option<Commit>, OxenError> {
     let mut result: Vec<Commit> = Vec::new();
     let mut seen_hashes: HashSet<String> = HashSet::new();
-    let path = &entry
-        .path
+
+    // turn to native path
+    let os_path = OsPath::from(&entry.path).to_pathbuf();
+    log::debug!(
+        "get_latest_commit_for_entry got native filename {:?}",
+        os_path
+    );
+
+    let path = &os_path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
 
