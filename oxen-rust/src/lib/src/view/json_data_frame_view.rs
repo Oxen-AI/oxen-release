@@ -254,10 +254,7 @@ fn sanitize_df_for_serialization(df: &mut DataFrame) -> Result<(), OxenError> {
         let series = df.select_at_idx(idx).unwrap(); // Index is in bounds, we passed it from the loop
 
         let new_series = match series.dtype() {
-            DataType::Binary => {
-                log::debug!("trying to cast");
-                Some(cast_binary_to_string_with_fallback(series, "[binary]"))
-            }
+            DataType::Binary => Some(cast_binary_to_string_with_fallback(series, "[binary]")),
             DataType::Struct(subfields) => {
                 let mut cast_series = series.clone();
                 for subfield in subfields {
