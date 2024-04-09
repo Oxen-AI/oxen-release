@@ -1,6 +1,6 @@
 [package]
 name = "oxen-server"
-version = "0.14.9"
+version = "0.14.10"
 edition = "2021"
 
 [dependencies]
@@ -17,7 +17,7 @@ clap = { version = "4.2.7", features = ["cargo"] }
 derive_more = "0.99.17"
 dotenv = "0.15.0"
 dunce = "1"
-duckdb = { git = "https://github.com/duckdb/duckdb-rs.git", rev = "ff7d11db7098316efb588bce61406327dae57cc5", features = ["bundled"] }
+duckdb = { version = "0.10.1", features = ["bundled"] }
 env_logger = "0.11.3"
 flate2 = "1.0.23"
 futures = "0.3.21"
