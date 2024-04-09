@@ -17,22 +17,22 @@ clap = { version = "4.2.7", features = ["cargo"] }
 derive_more = "0.99.17"
 dotenv = "0.15.0"
 dunce = "1"
-duckdb = { version = "0.9.2", features = ["bundled"] }
-env_logger = "0.10.0"
+duckdb = { git = "https://github.com/duckdb/duckdb-rs.git", rev = "ff7d11db7098316efb588bce61406327dae57cc5", features = ["bundled"] }
+env_logger = "0.11.3"
 flate2 = "1.0.23"
 futures = "0.3.21"
 futures-util = "0.3.21"
 hex = "0.4.3"
-image = "0.24.6"
+image = "0.24.8"
 jsonwebtoken = "8"
 liboxen = { path = "../lib" }
 log = "0.4.17"
 lru = "0.12.0"
 os_path = "0.7.0"
-polars = "0.36.2"
+polars = "0.38.3"
 r2d2 = "0.8.10"
 rand = "0.8.0"
-redis = { version = "0.23.2", features = ["r2d2"] }
+redis = { version = "0.25.3", features = ["r2d2"] }
 rocksdb = { version = "0.22.0", default-features = false, features = [
     "lz4",
     "snappy",
