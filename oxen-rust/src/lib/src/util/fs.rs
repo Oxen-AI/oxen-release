@@ -12,7 +12,6 @@ use std::io::prelude::*;
 use std::io::BufReader;
 use std::path::Path;
 use std::path::PathBuf;
-use sysinfo::{DiskExt, System, SystemExt};
 
 use crate::constants;
 use crate::constants::CACHE_DIR;
@@ -1111,16 +1110,15 @@ pub fn path_relative_to_dir(
 
 pub fn disk_usage_for_path(path: &Path) -> Result<DiskUsage, OxenError> {
     log::debug!("disk_usage_for_path: {:?}", path);
-    let mut sys = System::new();
-    sys.refresh_disks_list();
+    let disks = sysinfo::Disks::new_with_refreshed_list();
 
-    if sys.disks().is_empty() {
+    if disks.is_empty() {
         return Err(OxenError::basic_str("No disks found"));
     }
 
     // try to choose the disk that the path is on
-    let mut selected_disk = sys.disks().first().unwrap();
-    for disk in sys.disks() {
+    let mut selected_disk = disks.first().unwrap();
+    for disk in &disks {
         let disk_mount_len = disk.mount_point().to_str().unwrap_or_default().len();
         let selected_disk_mount_len = selected_disk
             .mount_point()
