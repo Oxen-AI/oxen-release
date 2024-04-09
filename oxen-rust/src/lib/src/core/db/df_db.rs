@@ -188,6 +188,10 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
     let sql = stmt.as_string();
     log::debug!("select sql: {}", sql);
     let mut stmt = conn.prepare(&sql)?;
+
+    // let pl: Vec<DataFrame> = stmt.query_polars([])?.collect();
+    // let df = accumulate_dataframes_vertical_unchecked(pl);
+
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
     log::debug!("got records: {:?}", records.len());
 
@@ -200,15 +204,16 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
 
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
-    log::debug!("got json: {:?}", json);
+    let buf = Vec::new();
+    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
+    writer.write_batches(&records[..]).unwrap();
+    writer.finish().unwrap();
+    let json_bytes = writer.into_inner();
 
-    let json_str = serde_json::to_string(&json).unwrap();
-
-    let content = Cursor::new(json_str.as_bytes());
+    let content = Cursor::new(json_bytes);
     let df = JsonReader::new(content).finish().unwrap();
-    log::debug!("result df: {:?}", df);
 
+    log::debug!("result df: {:?}", df);
     Ok(df)
 }
 
@@ -251,6 +256,7 @@ pub fn select_with_opts(
 
     let content = Cursor::new(json_str.as_bytes());
     let df = JsonReader::new(content).finish().unwrap();
+
     Ok(df)
 }
 
