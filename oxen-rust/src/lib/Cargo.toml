@@ -1,6 +1,6 @@
 [package]
 name = "liboxen"
-version = "0.14.9"
+version = "0.14.10"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version datasets, written in Rust."
@@ -24,7 +24,7 @@ async-compression = { version = "0.4.0", features = ["futures-io", "gzip"] }
 async-recursion = "1.0.0"
 async-std = { version = "1.12.0", features = ["unstable"] }
 async-tar = "0.4.2"
-arrow-json = "50.0.0"
+arrow-json = "49.0.0"
 blocking = "=1.3.1"
 bytecount = "0.6.3"
 bytes = "1.2.1"
@@ -40,8 +40,7 @@ difference = "2.0.0"
 dirs = "5.0.1"
 dotenv = "0.15.0"
 dunce = "1"
-# duckdb = { version = "0.10.1", features = ["bundled"] }
-duckdb = { git = "https://github.com/duckdb/duckdb-rs.git", rev = "ff7d11db7098316efb588bce61406327dae57cc5", features = ["bundled"] }
+duckdb = { version = "0.10.1", features = ["bundled"] }
 env_logger = "0.11.3"
 # ffmpeg-next = { version = "6.0.0", features = ["codec", "format"] }
 fd-lock = "4.0.1"
