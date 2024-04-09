@@ -10,6 +10,7 @@ use std::io::Cursor;
 use super::StatusMessage;
 use crate::constants;
 use crate::core::df::tabular;
+use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::df_opts::DFOptsView;
@@ -208,13 +209,7 @@ impl JsonDataFrameView {
     pub fn json_from_df(df: &mut DataFrame) -> serde_json::Value {
         log::debug!("Serializing df: [{}]", df);
 
-        log::debug!("Here's our df schema: {:?}", df.schema());
-        let schema = df.schema();
-
-        // let mut fields_to_replace = vec![];
-        for (idx, _field) in schema.iter_fields().enumerate() {
-            sanitize_field_for_serialization(df, idx).unwrap();
-        }
+        sanitize_df_for_serialization(df).expect("Error cleaning df before serialization");
 
         // TODO: catch errors
         let data: Vec<u8> = Vec::new();
@@ -252,38 +247,44 @@ impl JsonDataFrameViews {
     }
 }
 
-fn sanitize_field_for_serialization(df: &mut DataFrame, idx: usize) -> Result<(), PolarsError> {
-    log::debug!("serializing field {}", idx);
-    let series = df.select_at_idx(idx).unwrap(); // Index is in bounds, we passed it from the loop
+fn sanitize_df_for_serialization(df: &mut DataFrame) -> Result<(), OxenError> {
+    let schema = df.schema();
 
-    let new_series = match series.dtype() {
-        DataType::Binary => {
-            log::debug!("trying to cast");
-            Some(cast_binary_to_string_with_fallback(series, "[binary]"))
-        }
-        DataType::Struct(subfields) => {
-            let mut cast_series = series.clone();
-            for subfield in subfields {
-                if let DataType::Binary = subfield.data_type() {
-                    cast_series = cast_binary_to_string_with_fallback(
-                        series,
-                        &format!("struct[{}]", subfields.len()),
-                    );
-                    break;
-                }
+    for (idx, _field) in schema.iter_fields().enumerate() {
+        let series = df.select_at_idx(idx).unwrap(); // Index is in bounds, we passed it from the loop
+
+        let new_series = match series.dtype() {
+            DataType::Binary => {
+                log::debug!("trying to cast");
+                Some(cast_binary_to_string_with_fallback(series, "[binary]"))
             }
-            Some(cast_series)
-        }
-        DataType::List(subtype) => match **subtype {
-            DataType::Binary => Some(cast_binary_to_string_with_fallback(series, "List[binary]")),
+            DataType::Struct(subfields) => {
+                let mut cast_series = series.clone();
+                for subfield in subfields {
+                    if let DataType::Binary = subfield.data_type() {
+                        cast_series = cast_binary_to_string_with_fallback(
+                            series,
+                            &format!("struct[{}]", subfields.len()),
+                        );
+                        break;
+                    }
+                }
+                Some(cast_series)
+            }
+            DataType::List(subtype) => match **subtype {
+                DataType::Binary => {
+                    Some(cast_binary_to_string_with_fallback(series, "List[binary]"))
+                }
+                _ => None,
+            },
             _ => None,
-        },
-        _ => None,
-    };
+        };
 
-    if let Some(new_series) = new_series {
-        df.replace_column(idx, new_series)?;
+        if let Some(new_series) = new_series {
+            df.replace_column(idx, new_series)?;
+        }
     }
+
     Ok(())
 }
 
