@@ -165,7 +165,7 @@ pub fn put_tree_object<T: ThreadMode, P: AsRef<Path>>(
             for child in children.iter_mut() {
                 // replace all \\ in path with /
                 if let Some(path_str) = child.path().to_str() {
-                    let new_path = path_str.replace("\\", "/");
+                    let new_path = path_str.replace('\\', "/");
                     child.set_path(PathBuf::from(new_path));
                 }
             }

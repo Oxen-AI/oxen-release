@@ -1,5 +1,5 @@
 use crate::core::db::tree_db::{self, TreeObject, TreeObjectChild};
-use crate::core::db::{self, path_db};
+use crate::core::db::{self};
 use crate::error::OxenError;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
