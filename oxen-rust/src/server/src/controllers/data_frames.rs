@@ -86,6 +86,11 @@ pub async fn get(
         opts.slice = Some(format!("{}..{}", start, end));
     }
 
+    if let Some(sql) = opts.sql.clone() {
+        let df = tabular::query_df(&version_path, sql)?;
+        log::debug!("got this df: {:?}", df);
+    }
+
     let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
 
     // Try to get the schema from disk

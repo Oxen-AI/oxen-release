@@ -5,10 +5,10 @@ use crate::constants::{DEFAULT_PAGE_SIZE, OXEN_ID_COL};
 use crate::core::db::df_db;
 use crate::core::df::tabular;
 use crate::error::OxenError;
-use crate::model;
 use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::opts::DFOpts;
+use crate::{model, util};
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
@@ -329,6 +329,31 @@ pub fn insert_polars_df(
     log::debug!("returning df {:?} on add_row", result_df);
 
     Ok(result_df)
+}
+
+pub fn from_clause_from_disk_path(path: &Path) -> Result<String, OxenError> {
+    let extension: &str = &util::fs::extension_from_path(path);
+    match extension {
+        "csv" => {
+            let str_path = path.to_string_lossy().to_string();
+            Ok(format!("read_csv('{}')", str_path))
+        }
+        "tsv" => {
+            let str_path = path.to_string_lossy().to_string();
+            Ok(format!("read_tsv('{}')", str_path))
+        }
+        "parquet" => {
+            let str_path = path.to_string_lossy().to_string();
+            Ok(format!("read_parquet('{}')", str_path))
+        }
+        "jsonl" | "json" | "ndjson" => {
+            let str_path = path.to_string_lossy().to_string();
+            Ok(format!("read_json('{}')", str_path))
+        }
+        _ => Err(OxenError::basic_str(
+            "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
+        )),
+    }
 }
 
 #[cfg(test)]
