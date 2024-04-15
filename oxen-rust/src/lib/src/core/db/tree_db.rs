@@ -177,7 +177,7 @@ pub fn put_tree_object<T: ThreadMode, P: AsRef<Path>>(
         }
     };
 
-    path_db::put(db, path, &updated_object)
+    put_tree_object(db, path, &updated_object)
 }
 
 pub fn get_tree_object<T: ThreadMode, P: AsRef<Path>>(

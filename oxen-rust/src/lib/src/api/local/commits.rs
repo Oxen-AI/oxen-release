@@ -489,7 +489,7 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
 
     let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
     for dir in new_dirs {
-        path_db::put(&repo_dirs_db, dir.hash(), &dir)?;
+        tree_db::put_tree_object(&repo_dirs_db, dir.hash(), &dir)?;
     }
 
     let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
