@@ -1,8 +1,11 @@
 use duckdb::ToSql;
 use polars::prelude::*;
 use polars_sql::SQLContext;
+use regex::Regex;
+use sql_query_builder::Select;
 use std::fs::File;
 
+use crate::core::db::df_db;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::error::OxenError;
@@ -916,6 +919,18 @@ pub fn scan_df(
         },
         None => Err(OxenError::basic_str(err)),
     }
+}
+
+pub fn query_df(file_path: impl AsRef<Path>, sql: String) -> Result<DataFrame, OxenError> {
+    let duckdb_path = file_path.as_ref().parent().unwrap().join("duckdb");
+    let conn = df_db::get_connection(&duckdb_path)?;
+    log::debug!("connection created");
+    let from_clause = df_db::from_clause_from_disk_path(&file_path.as_ref())?;
+
+    let select_all = Select::new().select("*").from(&from_clause);
+    log::debug!("About to run select statement {}", select_all);
+    let df = df_db::select(&conn, &select_all)?;
+    Ok(df)
 }
 
 pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {

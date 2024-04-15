@@ -91,6 +91,7 @@ r2d2 = "0.8.10"
 rand = "0.8.5"
 rayon = "1.7.0"
 redis = { version = "0.25.3", features = ["r2d2"] }
+regex = "1.10.4"
 reqwest = { version = "0.12.3", features = [
     "multipart",
     "json",
