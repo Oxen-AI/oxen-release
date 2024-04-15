@@ -1,5 +1,4 @@
 use crate::constants::{self};
-use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{self, tree_db};
 
