@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::tree_db::{self, TreeObject, TreeObjectChild};
 use crate::core::db::{self, path_db};
 use crate::error::OxenError;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -21,14 +21,14 @@ impl CommitTreeReader {
     ) -> Result<Option<TreeObject>, OxenError> {
         match self {
             CommitTreeReader::TreeObjectReader(reader) => reader.get_node_from_child(child),
-            CommitTreeReader::DB(db) => path_db::get_entry(db, child.hash()),
+            CommitTreeReader::DB(db) => tree_db::get_tree_object(db, child.hash()),
         }
     }
 
     pub fn get_root_entry(&self) -> Result<Option<TreeObject>, OxenError> {
         match self {
             CommitTreeReader::TreeObjectReader(reader) => reader.get_root_node(),
-            CommitTreeReader::DB(db) => path_db::get_entry(db, ""),
+            CommitTreeReader::DB(db) => tree_db::get_tree_object(db, ""),
         }
     }
 }

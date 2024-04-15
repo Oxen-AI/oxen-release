@@ -7,7 +7,7 @@ use crate::constants::{
     HISTORY_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, TREE_DIR,
 };
 use crate::core::cache::cachers::content_validator;
-use crate::core::db::tree_db::TreeObject;
+use crate::core::db::tree_db::{self, TreeObject};
 use crate::core::db::{self, path_db};
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
@@ -494,17 +494,17 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
 
     let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
     for file in new_files {
-        path_db::put(&repo_files_db, file.hash(), &file)?;
+        tree_db::put_tree_object(&repo_files_db, file.hash(), &file)?;
     }
 
     let new_schemas: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
     for schema in new_schemas {
-        path_db::put(&repo_schemas_db, schema.hash(), &schema)?;
+        tree_db::put_tree_object(&repo_schemas_db, schema.hash(), &schema)?;
     }
 
     let new_vnodes: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
     for vnode in new_vnodes {
-        path_db::put(&repo_vnodes_db, vnode.hash(), &vnode)?;
+        tree_db::put_tree_object(&repo_vnodes_db, vnode.hash(), &vnode)?;
     }
 
     Ok(())
