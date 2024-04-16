@@ -157,7 +157,6 @@ pub fn put_tree_object<T: ThreadMode, P: AsRef<Path>>(
     path: P,
     object: &TreeObject,
 ) -> Result<(), OxenError> {
-    // TODO: handle lifetimes to return the references here and not clone
     let updated_object = match object {
         TreeObject::File { .. } | TreeObject::Schema { .. } => object.clone(),
         TreeObject::Dir { .. } | TreeObject::VNode { .. } => {
