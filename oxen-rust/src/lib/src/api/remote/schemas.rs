@@ -3,7 +3,7 @@
 //! Interact with remote schemas.
 //!
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::api;
 use crate::error::OxenError;
@@ -170,7 +170,10 @@ mod tests {
             prompt,response,is_correct,response_time,difficulty
             who is it?,issa me,true,0.5,1
             */
-            let schema_ref = &PathBuf::from("csvs").join("test.csv").to_string_lossy().to_string();
+            let schema_ref = &PathBuf::from("csvs")
+                .join("test.csv")
+                .to_string_lossy()
+                .to_string();
 
             let schema_metadata = json!({
                 "task": "chat_bot",
@@ -202,8 +205,7 @@ mod tests {
 
             // Cannot get schema that does not exist
             let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref)
-                    .await?;
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await?;
             assert!(result.is_none());
 
             // Push the repo
@@ -211,8 +213,7 @@ mod tests {
 
             // List the one schema
             let schema =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref)
-                    .await?;
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await?;
 
             assert!(schema.is_some());
             let schema = schema.unwrap().schema;
@@ -260,12 +261,14 @@ mod tests {
             // Create the repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
-            let schema_ref = &PathBuf::from("csvs").join("test.csv").to_string_lossy().to_string();
+            let schema_ref = &PathBuf::from("csvs")
+                .join("test.csv")
+                .to_string_lossy()
+                .to_string();
 
             // Cannot get schema that does not exist
             let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref)
-                    .await?;
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await?;
             assert!(result.is_none());
 
             // Push the repo
@@ -274,12 +277,11 @@ mod tests {
             // Create a new branch
             let branch_name = "new_branch";
             command::create_checkout(&local_repo, branch_name)?;
-
             // Add some metadata to the schema
             /*
             prompt,response,is_correct,response_time,difficulty
             who is it?,issa me,true,0.5,1
-            */;
+            */
             let schema_metadata = json!({
                 "task": "chat_bot",
                 "description": "some generic description",
@@ -305,8 +307,7 @@ mod tests {
             command::push(&local_repo).await?;
 
             // List the one schema
-            let schema =
-                api::remote::schemas::get(&remote_repo, branch_name, schema_ref).await?;
+            let schema = api::remote::schemas::get(&remote_repo, branch_name, schema_ref).await?;
 
             assert!(schema.is_some());
             let schema = schema.unwrap().schema;

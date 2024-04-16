@@ -147,7 +147,6 @@ mod tests {
                 "root": "images"
             });
 
-            log::debug!("about to metadata add");
             command::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
@@ -156,11 +155,8 @@ mod tests {
             )?;
 
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
-            let status = command::status(&local_repo);
 
             command::commit(&local_repo, "add test.csv schema metadata")?;
-
-            let got_schema = command::schemas::get_from_head(&local_repo, schema_ref)?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -439,17 +435,16 @@ mod tests {
             command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
 
             let schema_ref = &PathBuf::from("csvs")
-            .join("test.csv")
-            .to_string_lossy()
-            .to_string();
+                .join("test.csv")
+                .to_string_lossy()
+                .to_string();
             // Create the repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
             let result =
-                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref, opts)
-                    .await;
+                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref, opts).await;
             assert!(result.is_err());
 
             // Push the repo
@@ -488,8 +483,7 @@ mod tests {
 
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
-            let result =
-                api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
+            let result = api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(result.is_err());
 
             // Push the repo
@@ -497,8 +491,7 @@ mod tests {
 
             // List the one schema
             let opts = DFOpts::empty();
-            let results =
-                api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
+            let results = api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(results.is_ok());
 
             let result = results.unwrap();
