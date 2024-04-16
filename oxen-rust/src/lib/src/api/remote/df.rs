@@ -85,6 +85,8 @@ pub async fn get_staged(
 #[cfg(test)]
 mod tests {
 
+    use std::path::PathBuf;
+
     use crate::api;
     use crate::command;
     use crate::constants;
@@ -166,7 +168,7 @@ mod tests {
             let df = api::remote::df::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                "large_files/test.csv",
+                PathBuf::from("large_files").join("test.csv"),
                 opts,
             )
             .await?;
@@ -231,7 +233,7 @@ mod tests {
             let df = api::remote::df::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                "large_files/test.csv",
+                PathBuf::from("large_files").join("test.csv"),
                 opts,
             )
             .await?;
