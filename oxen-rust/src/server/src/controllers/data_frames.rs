@@ -92,8 +92,10 @@ pub async fn get(
     let og_schema = if let Some(schema) =
         api::local::schemas::get_by_path_from_ref(&repo, &resource.commit.id, &resource.file_path)?
     {
+        log::debug!("get_df() got some schema {:?}", schema);
         schema
     } else {
+        log::debug!("get_df() did not find cached schema");
         match df.schema() {
             Ok(schema) => Ok(Schema::from_polars(&schema.to_owned())),
             Err(e) => {

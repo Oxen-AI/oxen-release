@@ -38,7 +38,6 @@ where
     if let Some(key) = path.to_str() {
         // de-windows-ify the path
         let key = key.replace('\\', "/");
-
         return str_json_db::get(db, key);
     }
     Err(OxenError::could_not_convert_path_to_str(path))
@@ -130,11 +129,13 @@ where
                 match (str::from_utf8(&key), str::from_utf8(&value)) {
                     (Ok(key), Ok(value)) => {
                         // Full path given the dir it is in
-                        let path = base_dir.join(String::from(key));
+                        let os_path = OsPath::from(key);
+                        let new_path = os_path.to_pathbuf();
+                        let new_path = base_dir.join(String::from(key));
                         let entry: Result<D, serde_json::error::Error> =
                             serde_json::from_str(value);
                         if let Ok(entry) = entry {
-                            paths.push((path, entry));
+                            paths.push((new_path, entry));
                         }
                     }
                     (Ok(key), _) => {

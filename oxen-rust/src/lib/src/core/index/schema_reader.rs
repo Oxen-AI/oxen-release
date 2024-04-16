@@ -99,6 +99,7 @@ impl SchemaReader {
 
         // Get the hash of the schema's path
         let full_path_str = schema_path.to_str().unwrap().replace('\\', "/");
+        // let full_path_str = schema_path.to_str().unwrap();
         let schema_path_hash_prefix = util::hasher::hash_path(full_path_str)[0..2].to_string();
 
         // Binary search for the appropriate vnode
@@ -136,6 +137,8 @@ impl SchemaReader {
         let schema: Result<Schema, serde_json::Error> =
             serde_json::from_reader(std::fs::File::open(version_path)?);
 
+        log::debug!("get_schema_for_file() got schema {:?}", schema);
+
         match schema {
             Ok(schema) => Ok(Some(schema)),
             Err(_) => Ok(None),
@@ -164,6 +167,7 @@ impl SchemaReader {
         for vnode in dir_node.children() {
             let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
             for child in vnode.children() {
+                log::debug!("got vnode child {:?}", child);
                 match child {
                     TreeObjectChild::Dir { hash, .. } => {
                         let dir_node = self.object_reader.get_dir(hash)?.unwrap();
@@ -171,9 +175,9 @@ impl SchemaReader {
                     }
                     TreeObjectChild::Schema { path, hash, .. } => {
                         let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
-                        // log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
+                        log::debug!("got stripped path {:?} and hash {:?}", stripped_path, hash);
                         let found_schema = self.get_schema_by_hash(hash)?;
-                        // log::debug!("got found schema {:?}", found_schema);
+                        log::debug!("got found schema {:?}", found_schema);
                         path_vals.insert(stripped_path.to_path_buf(), found_schema);
                     }
                     _ => {}
@@ -242,6 +246,9 @@ impl SchemaReader {
     ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
         let all_schemas = self.list_schemas()?;
 
+        log::debug!("list_schemas_for_ref() got all schemas: {:?}", all_schemas);
+
+        log::debug!("looking for ref: {:?}", schema_ref.as_ref());
         let mut found_schemas: HashMap<PathBuf, Schema> = HashMap::new();
 
         for (path, schema) in all_schemas.iter() {

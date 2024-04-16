@@ -110,7 +110,11 @@ mod tests {
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
 
+            log::debug!("about to add");
+
             command::add(&local_repo, &csv_file)?;
+
+            log::debug!("about to commit");
             command::commit(&local_repo, "add test.csv")?;
 
             // Add some metadata to the schema
@@ -134,7 +138,7 @@ mod tests {
                         */
 
             // Add some metadata to the schema
-            let schema_ref = "large_files/test.csv";
+            let schema_ref = &PathBuf::from("large_files").join("test.csv").to_string_lossy().to_string();
             let schema_metadata = json!({
                 "description": "A dataset of faces",
                 "task": "gen_faces"
@@ -143,14 +147,26 @@ mod tests {
             let column_metadata = json!({
                 "root": "images"
             });
+
+            log::debug!("about to metadata add");
             command::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
                 &column_name,
                 &column_metadata,
             )?;
+            log::debug!("about to schema metadata add");
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
+            log::debug!("about to commit seFcond time");
+            let status = command::status(&local_repo);
+            log::debug!("status before committing: {:?}", status);
             command::commit(&local_repo, "add test.csv schema metadata")?;
+
+            let got_schema = command::schemas::get_from_head(
+                &local_repo, 
+                schema_ref
+            )?;
+            log::debug!("in test got schemas: {:?}", got_schema);
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -159,12 +175,14 @@ mod tests {
             // Create the repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
+            log::debug!("about to push");
             // Push the repo
             command::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();
             opts.page_size = Some(10);
+            log::debug!("about to get df");
             let df = api::remote::df::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
@@ -172,6 +190,7 @@ mod tests {
                 opts,
             )
             .await?;
+
             assert_eq!(df.data_frame.source.size.height, 200_000);
             assert_eq!(df.data_frame.source.size.width, 11);
 

@@ -155,7 +155,7 @@ pub fn add_column_metadata(
     column: impl AsRef<str>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    let schema_ref = schema_ref.as_ref().replace('\\', "/");
+    // let schema_ref = schema_ref.as_ref().replace('\\', "/");
     let column = column.as_ref();
     let head_commit = api::local::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
