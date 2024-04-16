@@ -327,11 +327,12 @@ mod tests {
             let last_commit = history.first().unwrap();
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
 
-            let schema_ref = "annotations/train/bounding_box.csv";
+            
+            let schema_ref = &PathBuf::from("annotations").join("train").join("bounding_box.csv").to_string_lossy().to_string();
             let schemas = schema_reader.list_schemas_for_ref(schema_ref)?;
 
             assert_eq!(schemas.len(), 1);
-            assert!(schemas.contains_key(&PathBuf::from("annotations/train/bounding_box.csv")));
+            assert!(schemas.contains_key(&PathBuf::from(schema_ref)));
 
             Ok(())
         })

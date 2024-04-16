@@ -438,13 +438,17 @@ mod tests {
             let remote = test::repo_remote_url_from(&local_repo.dirname());
             command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
 
+            let schema_ref = &PathBuf::from("csvs")
+            .join("test.csv")
+            .to_string_lossy()
+            .to_string();
             // Create the repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
             let result =
-                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv", opts)
+                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref, opts)
                     .await;
             assert!(result.is_err());
 
@@ -460,7 +464,7 @@ mod tests {
             prompt,response,is_correct,response_time,difficulty
             who is it?,issa me,true,0.5,1
             */
-            let schema_ref = "csvs/test.csv";
+
             let schema_metadata = json!({
                 "task": "chat_bot",
                 "description": "some generic description",
@@ -485,7 +489,7 @@ mod tests {
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
             let result =
-                api::remote::df::get(&remote_repo, branch_name, "csvs/test.csv", opts).await;
+                api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(result.is_err());
 
             // Push the repo
@@ -494,7 +498,7 @@ mod tests {
             // List the one schema
             let opts = DFOpts::empty();
             let results =
-                api::remote::df::get(&remote_repo, branch_name, "csvs/test.csv", opts).await;
+                api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(results.is_ok());
 
             let result = results.unwrap();
