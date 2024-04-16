@@ -186,23 +186,20 @@ pub fn get_tree_object<T: ThreadMode, P: AsRef<Path>>(
 ) -> Result<Option<TreeObject>, OxenError> {
     let maybe_object = path_db::get_entry(db, path)?;
     if let Some(object) = maybe_object {
-        log::debug!("get_tree_object() looking at object: {:?}", object);
         match &object {
             TreeObject::Dir { children, .. } | TreeObject::VNode { children, .. } => {
                 // TODO: Lifetime specs to avoid these clones...
                 let mut object = object.clone();
                 let mut children = children.to_owned();
 
-                log::debug!("children were: {:?}", children);
-
                 for child in children.iter_mut() {
                     let os_path = OsPath::from(child.path().to_path_buf());
                     let new_path = os_path.to_pathbuf();
                     child.set_path(new_path);
                 }
-                log::debug!("children are now: {:?}", children);
+
                 object.set_children(children.to_vec());
-                log::debug!("returning object: {:?}", object);
+
                 Ok(Some(object))
             }
             _ => Ok(Some(object)),
