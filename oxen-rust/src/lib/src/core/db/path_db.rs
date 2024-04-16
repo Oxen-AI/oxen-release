@@ -94,7 +94,6 @@ pub fn list_paths<T: ThreadMode>(
                         // return path with native slashes
                         let os_path = OsPath::from(key);
                         let new_path = os_path.to_pathbuf();
-
                         paths.push(base_dir.join(new_path));
                     }
                     _ => {
@@ -131,7 +130,7 @@ where
                         // Full path given the dir it is in
                         let os_path = OsPath::from(key);
                         let new_path = os_path.to_pathbuf();
-                        let new_path = base_dir.join(String::from(key));
+                        let new_path = base_dir.join(new_path);
                         let entry: Result<D, serde_json::error::Error> =
                             serde_json::from_str(value);
                         if let Ok(entry) = entry {
