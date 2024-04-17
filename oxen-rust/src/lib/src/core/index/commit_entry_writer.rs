@@ -1,9 +1,9 @@
 use crate::constants::{
     self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
 };
-use crate::core::db;
 use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
+use crate::core::db::{self, tree_db};
 use crate::core::index::{LegacyCommitDirEntryReader, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
@@ -453,7 +453,8 @@ impl CommitEntryWriter {
                 children: Vec::new(),
                 hash: util::hasher::compute_children_hash(&Vec::new()),
             };
-            path_db::put(&self.dirs_db, root_node.hash(), &root_node)?;
+            tree_db::put_tree_object(&self.dirs_db, root_node.hash(), &root_node)?;
+
             path_db::put(&self.dir_hashes_db, PathBuf::from(""), &root_node.hash())?;
 
             return Ok(());
@@ -491,7 +492,7 @@ impl CommitEntryWriter {
             hash: util::hasher::compute_children_hash(&Vec::new()),
         };
 
-        path_db::put(&self.dirs_db, empty_root.hash(), &empty_root)?;
+        tree_db::put_tree_object(&self.dirs_db, empty_root.hash(), &empty_root)?;
         path_db::put(&self.dir_hashes_db, PathBuf::from(""), &empty_root.hash())?;
 
         Ok(())
@@ -502,17 +503,19 @@ impl CommitEntryWriter {
         child: &TreeObjectChild,
     ) -> Result<Option<TreeObject>, OxenError> {
         match child {
-            TreeObjectChild::File { hash, .. } => path_db::get_entry(&self.files_db, hash),
-            TreeObjectChild::Schema { hash, .. } => path_db::get_entry(&self.schemas_db, hash),
-            TreeObjectChild::Dir { hash, .. } => path_db::get_entry(&self.dirs_db, hash),
-            TreeObjectChild::VNode { hash, .. } => path_db::get_entry(&self.vnodes_db, hash),
+            TreeObjectChild::File { hash, .. } => tree_db::get_tree_object(&self.files_db, hash),
+            TreeObjectChild::Schema { hash, .. } => {
+                tree_db::get_tree_object(&self.schemas_db, hash)
+            }
+            TreeObjectChild::Dir { hash, .. } => tree_db::get_tree_object(&self.dirs_db, hash),
+            TreeObjectChild::VNode { hash, .. } => tree_db::get_tree_object(&self.vnodes_db, hash),
         }
     }
 
     pub fn get_root_node(&self) -> Result<Option<TreeObject>, OxenError> {
         let root_hash: String =
             path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
-        path_db::get_entry(&self.dirs_db, root_hash)
+        tree_db::get_tree_object(&self.dirs_db, root_hash)
     }
 
     fn process_affected_dir(
@@ -525,7 +528,7 @@ impl CommitEntryWriter {
         // STEP 1: If this dir has a hash in the previous commit, grab its node as the starting point
         let prev_dir_hash: Option<String> = path_db::get_entry(parent_hash_db, dir.clone())?;
         let prev_dir_object: TreeObject = if let Some(prev_hash) = prev_dir_hash {
-            path_db::get_entry(&self.dirs_db, prev_hash)?.unwrap()
+            tree_db::get_tree_object(&self.dirs_db, prev_hash)?.unwrap()
         } else {
             TreeObject::Dir {
                 children: Vec::new(),
@@ -578,7 +581,7 @@ impl CommitEntryWriter {
             hash: dir_hash,
         };
 
-        path_db::put(
+        tree_db::put_tree_object(
             &self.dirs_db,
             updated_dir_object.hash(),
             &updated_dir_object,
@@ -602,7 +605,7 @@ impl CommitEntryWriter {
         let mut result: Vec<TreeObjectChild> = Vec::new();
         for vnode_name in all_vnodes {
             let prev_vnode: TreeObject = if prev_vnode_map.contains_key(&vnode_name) {
-                path_db::get_entry(&self.vnodes_db, &prev_vnode_map[&vnode_name])?.unwrap()
+                tree_db::get_tree_object(&self.vnodes_db, &prev_vnode_map[&vnode_name])?.unwrap()
             } else {
                 TreeObject::VNode {
                     children: Vec::new(),
@@ -644,7 +647,7 @@ impl CommitEntryWriter {
             };
 
             if !updated_vnode.children().is_empty() {
-                path_db::put(&self.vnodes_db, updated_vnode.hash(), &updated_vnode)?;
+                tree_db::put_tree_object(&self.vnodes_db, updated_vnode.hash(), &updated_vnode)?;
                 // Add the vnode
                 result.push(updated_vnode_child);
             }
@@ -717,7 +720,7 @@ impl CommitEntryWriter {
                 "putting vnode {:#?} into vnodes_db write gather",
                 vnode_object
             );
-            path_db::put(&self.vnodes_db, vnode_object.hash(), &vnode_object)?;
+            tree_db::put_tree_object(&self.vnodes_db, vnode_object.hash(), &vnode_object)?;
 
             vnodes.push(TreeObjectChild::VNode {
                 hash: combined_hash,
@@ -792,7 +795,7 @@ impl CommitEntryWriter {
 
             // Insert the dir into both the dir objects db and the dir hashes db
             log::debug!("putting dir {:?} into dir_hashes_db from new", dir);
-            path_db::put(&self.dirs_db, dir_object.hash(), &dir_object)?;
+            tree_db::put_tree_object(&self.dirs_db, dir_object.hash(), &dir_object)?;
             path_db::put(&self.dir_hashes_db, dir, &dir_object.hash().to_string())?;
         }
         Ok(())
@@ -885,7 +888,7 @@ impl CommitEntryWriter {
                 last_modified_nanoseconds: file.last_modified_nanoseconds,
                 hash: file.hash.clone(),
             };
-            path_db::put(&self.files_db, file_object.hash(), &file_object)?;
+            tree_db::put_tree_object(&self.files_db, file_object.hash(), &file_object)?;
 
             let file_child = TreeObjectChild::File {
                 path: file.path.clone(),
@@ -914,7 +917,7 @@ impl CommitEntryWriter {
                 hash: schema_node.schema.hash.clone(),
                 num_bytes: schema_node.schema.num_bytes(),
             };
-            path_db::put(&self.schemas_db, schema_object.hash(), &schema_object)?;
+            tree_db::put_tree_object(&self.schemas_db, schema_object.hash(), &schema_object)?;
             // schema_object.write(&self.repository)?;
             schema_objects_map.insert(PathBuf::from(schema_node.path.clone()), schema_object);
         }
@@ -978,7 +981,8 @@ impl CommitEntryWriter {
             DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
         let commit_hash: &String = &self.commit.root_hash.clone().unwrap();
 
-        let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, commit_hash)?.unwrap();
+        let root_dir_node: TreeObject =
+            tree_db::get_tree_object(&self.dirs_db, commit_hash)?.unwrap();
 
         for child in root_dir_node.children() {
             self.r_save_temp_commit_tree(child, &temp_tree_db)?;
@@ -986,7 +990,7 @@ impl CommitEntryWriter {
 
         // Plug the root hash in here at "" to give the server a starting point for traversal.
         // Safe because an empty hash will not collide w/ any in xxhash
-        path_db::put(&temp_tree_db, PathBuf::from(""), &root_dir_node)?;
+        tree_db::put_tree_object(&temp_tree_db, PathBuf::from(""), &root_dir_node)?;
 
         Ok(temp_db_path)
     }
@@ -999,16 +1003,16 @@ impl CommitEntryWriter {
         // Get parent node
         let node: TreeObject = match child_node {
             TreeObjectChild::Dir { .. } => {
-                path_db::get_entry(&self.dirs_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.dirs_db, child_node.hash())?.unwrap()
             }
             TreeObjectChild::File { .. } => {
-                path_db::get_entry(&self.files_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.files_db, child_node.hash())?.unwrap()
             }
             TreeObjectChild::Schema { .. } => {
-                path_db::get_entry(&self.schemas_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.schemas_db, child_node.hash())?.unwrap()
             }
             TreeObjectChild::VNode { .. } => {
-                path_db::get_entry(&self.vnodes_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.vnodes_db, child_node.hash())?.unwrap()
             }
         };
 
@@ -1016,7 +1020,7 @@ impl CommitEntryWriter {
             TreeObject::Dir { children, hash, .. } => {
                 // Add parent to db
                 // log::debug!("adding dir {:?} to db", node);
-                path_db::put(db, hash, &node)?;
+                tree_db::put_tree_object(db, hash, &node)?;
                 for child in children {
                     self.r_save_temp_commit_tree(&child, db)?;
                 }
@@ -1024,8 +1028,7 @@ impl CommitEntryWriter {
             }
             TreeObject::VNode { children, hash, .. } => {
                 // log::debug!("adding vnode {:?} to db", node);
-                path_db::put(db, hash, &node)?;
-                // let vnode_node: TreeObject = path_db::get_entry(&self.vnodes_db, &node.hash())?.unwrap();
+                tree_db::put_tree_object(db, hash, &node)?;
                 for child in children {
                     self.r_save_temp_commit_tree(&child, db)?;
                 }
@@ -1033,7 +1036,7 @@ impl CommitEntryWriter {
             }
             TreeObject::File { hash, .. } | TreeObject::Schema { hash, .. } => {
                 // log::debug!("adding leaf {:?} to db", node);
-                path_db::put(db, hash, &node)?;
+                tree_db::put_tree_object(db, hash, &node)?;
                 // We're at a leaf node, so we're done
                 Ok(())
             }
@@ -1046,7 +1049,8 @@ impl CommitEntryWriter {
             path_db::get_entry(&self.dir_hashes_db, PathBuf::from(""))?.unwrap();
 
         // Get the root dir node (this hash)
-        let root_dir_node: TreeObject = path_db::get_entry(&self.dirs_db, commit_hash)?.unwrap();
+        let root_dir_node: TreeObject =
+            tree_db::get_tree_object(&self.dirs_db, commit_hash)?.unwrap();
 
         log::debug!(
             "\n\nPRINTING TREE DB FOR COMMIT WITH ID {:?} MESSAGE {:?}",
@@ -1081,16 +1085,16 @@ impl CommitEntryWriter {
         // Get parent node
         let node: TreeObject = match child_node {
             TreeObjectChild::Dir { .. } => {
-                path_db::get_entry(&self.dirs_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.dirs_db, child_node.hash())?.unwrap()
             }
             TreeObjectChild::File { .. } => {
-                path_db::get_entry(&self.files_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.files_db, child_node.hash())?.unwrap()
             }
             TreeObjectChild::Schema { .. } => {
-                path_db::get_entry(&self.schemas_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.schemas_db, child_node.hash())?.unwrap()
             }
             TreeObjectChild::VNode { .. } => {
-                path_db::get_entry(&self.vnodes_db, child_node.hash())?.unwrap()
+                tree_db::get_tree_object(&self.vnodes_db, child_node.hash())?.unwrap()
             }
         };
 
@@ -1098,14 +1102,12 @@ impl CommitEntryWriter {
 
         match node {
             TreeObject::Dir { children, .. } => {
-                // let dir_node: TreeObject = path_db::get_entry(&self.dirs_db, hash)?.unwrap();
                 for child in children {
                     self.r_temp_print_tree_db(&child)?;
                 }
                 Ok(())
             }
             TreeObject::VNode { children, .. } => {
-                // let vnode_node: TreeObject = path_db::get_entry(&self.vnodes_db, &node.hash())?.unwrap();
                 for child in children {
                     self.r_temp_print_tree_db(&child)?;
                 }
@@ -1298,7 +1300,8 @@ impl CommitEntryWriter {
                         };
 
                         // Put the full file object into the files objects db by hash
-                        path_db::put(&self.files_db, file_res.hash(), &file_res).unwrap();
+                        tree_db::put_tree_object(&self.files_db, file_res.hash(), &file_res)
+                            .unwrap();
                         file_res
                     }
                     StagedEntryStatus::Removed => {
@@ -1355,7 +1358,7 @@ impl CommitEntryWriter {
             };
 
             log::debug!("putting schema {:?} into schemas_db", schema_object);
-            path_db::put(&self.schemas_db, schema_object.hash(), &schema_object)?;
+            tree_db::put_tree_object(&self.schemas_db, schema_object.hash(), &schema_object)?;
             staged_map
                 .entry(parent)
                 .or_default()
@@ -1441,7 +1444,8 @@ impl CommitEntryWriter {
         files_db: &DBWithThreadMode<MultiThreaded>,
     ) -> Result<(), OxenError> {
         // Update timestamps
-        let file_entry: Option<TreeObject> = path_db::get_entry(files_db, entry.hash.clone())?;
+        let file_entry: Option<TreeObject> =
+            tree_db::get_tree_object(files_db, entry.hash.clone())?;
 
         // Update the local modified timestamps
         let working_path = repo.path.join(path);
@@ -1462,7 +1466,7 @@ impl CommitEntryWriter {
                         last_modified_seconds: mtime.unix_seconds(),
                         last_modified_nanoseconds: mtime.nanoseconds(),
                     };
-                    path_db::put(files_db, hash, &updated_entry)?;
+                    tree_db::put_tree_object(files_db, hash, &updated_entry)?;
                 }
                 _ => {
                     log::error!("Attempting to set timestamps for invalid entry type");

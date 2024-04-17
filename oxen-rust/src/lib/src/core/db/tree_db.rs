@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 
+use super::path_db;
+
 pub struct TreeDB<T: ThreadMode> {
     pub db: DBWithThreadMode<T>,
 }
@@ -116,6 +118,15 @@ impl TreeObjectChild {
             TreeObjectChild::VNode { path, .. } => path.to_str().unwrap(),
         }
     }
+
+    pub fn set_path(&mut self, new_path: PathBuf) {
+        match self {
+            TreeObjectChild::File { path, .. } => *path = new_path,
+            TreeObjectChild::Schema { path, .. } => *path = new_path,
+            TreeObjectChild::Dir { path, .. } => *path = new_path,
+            TreeObjectChild::VNode { path, .. } => *path = new_path,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -139,6 +150,62 @@ pub enum TreeObject {
         hash: String,
         name: String,
     },
+}
+
+pub fn put_tree_object<T: ThreadMode, P: AsRef<Path>>(
+    db: &DBWithThreadMode<T>,
+    path: P,
+    object: &TreeObject,
+) -> Result<(), OxenError> {
+    let updated_object = match object {
+        TreeObject::File { .. } | TreeObject::Schema { .. } => object.clone(),
+        TreeObject::Dir { .. } | TreeObject::VNode { .. } => {
+            let mut children = object.children().to_owned();
+            for child in children.iter_mut() {
+                // replace all \\ in path with /
+                if let Some(path_str) = child.path().to_str() {
+                    let new_path = path_str.replace('\\', "/");
+                    child.set_path(PathBuf::from(new_path));
+                }
+            }
+
+            // TODO: avoid this clone here - take in mut owned treeobject?
+            let mut object = object.clone();
+            object.set_children(children);
+            object
+        }
+    };
+
+    path_db::put(db, path, &updated_object)
+}
+
+pub fn get_tree_object<T: ThreadMode, P: AsRef<Path>>(
+    db: &DBWithThreadMode<T>,
+    path: P,
+) -> Result<Option<TreeObject>, OxenError> {
+    let maybe_object = path_db::get_entry(db, path)?;
+    if let Some(object) = maybe_object {
+        match &object {
+            TreeObject::Dir { children, .. } | TreeObject::VNode { children, .. } => {
+                // TODO: Lifetime specs to avoid these clones...
+                let mut object = object.clone();
+                let mut children = children.to_owned();
+
+                for child in children.iter_mut() {
+                    let os_path = OsPath::from(child.path().to_path_buf());
+                    let new_path = os_path.to_pathbuf();
+                    child.set_path(new_path);
+                }
+
+                object.set_children(children.to_vec());
+
+                Ok(Some(object))
+            }
+            _ => Ok(Some(object)),
+        }
+    } else {
+        Ok(None)
+    }
 }
 
 impl TreeObject {
