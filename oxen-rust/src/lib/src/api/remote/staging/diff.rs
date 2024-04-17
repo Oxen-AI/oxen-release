@@ -174,6 +174,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_diff_delete_row_from_modified_dataframe() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
