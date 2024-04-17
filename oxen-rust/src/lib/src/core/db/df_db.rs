@@ -331,6 +331,48 @@ pub fn insert_polars_df(
     Ok(result_df)
 }
 
+pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
+    let table_name = "df";
+    let extension: &str = &util::fs::extension_from_path(path);
+    let path_str = path.to_string_lossy().to_string();
+    match extension {
+        "csv" => {
+            let query = format!(
+                "CREATE TABLE {} AS SELECT * FROM read_csv('{}')",
+                table_name, path_str
+            );
+            conn.execute(&query, [])?;
+        }
+        "tsv" => {
+            let query = format!(
+                "CREATE TABLE {} AS SELECT * FROM read_tsv('{}')",
+                table_name, path_str
+            );
+            conn.execute(&query, [])?;
+        }
+        "parquet" => {
+            let query = format!(
+                "CREATE TABLE {} AS SELECT * FROM read_parquet('{}')",
+                table_name, path_str
+            );
+            conn.execute(&query, [])?;
+        }
+        "jsonl" | "json" | "ndjson" => {
+            let query = format!(
+                "CREATE TABLE {} AS SELECT * FROM read_json('{}')",
+                table_name, path_str
+            );
+            conn.execute(&query, [])?;
+        }
+        _ => {
+            return Err(OxenError::basic_str(
+                "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
+            ))
+        }
+    }
+    Ok(())
+}
+
 pub fn from_clause_from_disk_path(path: &Path) -> Result<String, OxenError> {
     let extension: &str = &util::fs::extension_from_path(path);
     match extension {
