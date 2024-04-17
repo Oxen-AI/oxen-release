@@ -61,6 +61,8 @@ pub const STAGED_DIR: &str = "staged";
 pub const TABLE_NAME: &str = "STAGED_DATA";
 /// Oxen's internal id column in duckdb remote staging tables
 pub const OXEN_ID_COL: &str = "_oxen_id";
+/// Name of the folder of the cache dir in which dfs are indexed as duckdbs
+pub const DUCKDB_CACHE_DIR: &str = "duckdb";
 /// prefix for the sync status dirs to tell if commits are synced locally
 pub const SYNC_STATUS_DIR: &str = "sync_status";
 /// Flag for if the repository was cloned in a shallow fashion

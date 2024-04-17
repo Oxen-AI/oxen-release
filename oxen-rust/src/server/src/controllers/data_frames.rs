@@ -5,6 +5,7 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::api;
 use liboxen::core::cache::cachers;
+use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::{DataFrameSize, Schema};
 use liboxen::opts::df_opts::DFOptsView;
@@ -13,7 +14,7 @@ use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::{constants, current_function};
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::core::df::tabular;
+use liboxen::core::df::{sql, tabular};
 use liboxen::opts::{DFOpts, PaginateOpts};
 use liboxen::view::{
     JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, Pagination, StatusMessage,
@@ -30,6 +31,11 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let entry_reader = CommitEntryReader::new(&repo, &resource.commit)?;
+    let entry = entry_reader.get_entry(&resource.file_path)?;
+
+    // TODONOW: Don't unwrap, return 404 here
+    let entry = entry.unwrap();
 
     log::debug!(
         "{} resource {}/{}",
@@ -87,7 +93,7 @@ pub async fn get(
     }
 
     if let Some(sql) = opts.sql.clone() {
-        let df = tabular::query_df(&version_path, sql)?;
+        let df = sql::query_df(&version_path, sql)?;
         log::debug!("got this df: {:?}", df);
     }
 
