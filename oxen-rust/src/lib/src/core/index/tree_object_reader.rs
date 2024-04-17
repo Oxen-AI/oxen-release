@@ -1,7 +1,7 @@
 use crate::constants::{self};
-use crate::core::db;
 use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::{self, tree_db};
 
 use crate::error::OxenError;
 
@@ -121,15 +121,17 @@ impl TreeObjectReader {
         child: &TreeObjectChild,
     ) -> Result<Option<TreeObject>, OxenError> {
         match child {
-            TreeObjectChild::File { hash, .. } => path_db::get_entry(&self.files_db, hash),
-            TreeObjectChild::Dir { hash, .. } => path_db::get_entry(&self.dirs_db, hash),
-            TreeObjectChild::VNode { hash, .. } => path_db::get_entry(&self.vnodes_db, hash),
-            TreeObjectChild::Schema { hash, .. } => path_db::get_entry(&self.schemas_db, hash),
+            TreeObjectChild::File { hash, .. } => tree_db::get_tree_object(&self.files_db, hash),
+            TreeObjectChild::Dir { hash, .. } => tree_db::get_tree_object(&self.dirs_db, hash),
+            TreeObjectChild::VNode { hash, .. } => tree_db::get_tree_object(&self.vnodes_db, hash),
+            TreeObjectChild::Schema { hash, .. } => {
+                tree_db::get_tree_object(&self.schemas_db, hash)
+            }
         }
     }
 
     pub fn get_root_node(&self) -> Result<Option<TreeObject>, OxenError> {
         let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.unwrap();
-        path_db::get_entry(&self.dirs_db, root_hash)
+        tree_db::get_tree_object(&self.dirs_db, root_hash)
     }
 }

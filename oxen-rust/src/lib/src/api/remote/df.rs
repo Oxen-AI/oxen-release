@@ -85,6 +85,8 @@ pub async fn get_staged(
 #[cfg(test)]
 mod tests {
 
+    use std::path::PathBuf;
+
     use crate::api;
     use crate::command;
     use crate::constants;
@@ -132,7 +134,10 @@ mod tests {
                         */
 
             // Add some metadata to the schema
-            let schema_ref = "large_files/test.csv";
+            let schema_ref = &PathBuf::from("large_files")
+                .join("test.csv")
+                .to_string_lossy()
+                .to_string();
             let schema_metadata = json!({
                 "description": "A dataset of faces",
                 "task": "gen_faces"
@@ -141,13 +146,16 @@ mod tests {
             let column_metadata = json!({
                 "root": "images"
             });
+
             command::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
                 &column_name,
                 &column_metadata,
             )?;
+
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
+
             command::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Set the proper remote
@@ -163,13 +171,15 @@ mod tests {
             // Get the df
             let mut opts = DFOpts::empty();
             opts.page_size = Some(10);
+
             let df = api::remote::df::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                "large_files/test.csv",
+                PathBuf::from("large_files").join("test.csv"),
                 opts,
             )
             .await?;
+
             assert_eq!(df.data_frame.source.size.height, 200_000);
             assert_eq!(df.data_frame.source.size.width, 11);
 
@@ -231,7 +241,7 @@ mod tests {
             let df = api::remote::df::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                "large_files/test.csv",
+                PathBuf::from("large_files").join("test.csv"),
                 opts,
             )
             .await?;
@@ -424,14 +434,17 @@ mod tests {
             let remote = test::repo_remote_url_from(&local_repo.dirname());
             command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
 
+            let schema_ref = &PathBuf::from("csvs")
+                .join("test.csv")
+                .to_string_lossy()
+                .to_string();
             // Create the repo
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
             let result =
-                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, "csvs/test.csv", opts)
-                    .await;
+                api::remote::df::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref, opts).await;
             assert!(result.is_err());
 
             // Push the repo
@@ -446,7 +459,7 @@ mod tests {
             prompt,response,is_correct,response_time,difficulty
             who is it?,issa me,true,0.5,1
             */
-            let schema_ref = "csvs/test.csv";
+
             let schema_metadata = json!({
                 "task": "chat_bot",
                 "description": "some generic description",
@@ -470,8 +483,7 @@ mod tests {
 
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
-            let result =
-                api::remote::df::get(&remote_repo, branch_name, "csvs/test.csv", opts).await;
+            let result = api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(result.is_err());
 
             // Push the repo
@@ -479,8 +491,7 @@ mod tests {
 
             // List the one schema
             let opts = DFOpts::empty();
-            let results =
-                api::remote::df::get(&remote_repo, branch_name, "csvs/test.csv", opts).await;
+            let results = api::remote::df::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(results.is_ok());
 
             let result = results.unwrap();
