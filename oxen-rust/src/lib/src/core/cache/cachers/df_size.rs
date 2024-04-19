@@ -86,6 +86,11 @@ fn get_from_cache(
         let column_width = df_for_path.column(COL_WIDTH)?.u64()?;
         let column_height = df_for_path.column(COL_HEIGHT)?.u64()?;
 
+        if column_width.is_empty() || column_height.is_empty() {
+            log::debug!("df_size::get_from_cache -> cache miss in df");
+            return Ok(None);
+        }
+
         if let (Some(width), Some(height)) = (column_width.get(0), column_height.get(0)) {
             // Converts to usize since Polars deals mostly with usize
             // TODO: Check if there is a better way to do handle the size while

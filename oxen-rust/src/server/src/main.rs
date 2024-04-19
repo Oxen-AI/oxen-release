@@ -76,7 +76,7 @@ async fn main() -> std::io::Result<()> {
                     log::debug!("finished task {:?}", task);
                 }
                 None => {
-                    log::debug!("No queue items found, sleeping");
+                    // log::debug!("No queue items found, sleeping");
                     sleep(Duration::from_millis(1000)).await;
                 }
             }
