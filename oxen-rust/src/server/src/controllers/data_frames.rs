@@ -21,6 +21,7 @@ use liboxen::view::{
 };
 
 use liboxen::util;
+use polars::frame::DataFrame;
 
 pub async fn get(
     req: HttpRequest,
@@ -93,11 +94,20 @@ pub async fn get(
     }
 
     if let Some(sql) = opts.sql.clone() {
-        let df = sql::query_df(&version_path, sql)?;
-        log::debug!("got this df: {:?}", df);
+        let df = sql::query_df(&repo, &entry, sql)?;
+        log::debug!("sql got this df: {:?}", df);
+        let json_df = format_sql_df_response(&df, &opts, &resource, &schema, &data_frame_size)?;
+        return Ok(HttpResponse::Ok().json(json_df));
     }
 
     let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
+
+    if let Some(text2sql) = opts.text2sql.clone() {
+        let df = sql::text2sql_df(&repo, &entry, &df, text2sql, opts.get_host())?;
+        let json_df = format_sql_df_response(&df, &opts, &resource, &schema, &data_frame_size)?;
+        return Ok(HttpResponse::Ok().json(json_df));
+        
+    }
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
@@ -190,3 +200,42 @@ pub async fn get(
         }
     }
 }
+
+fn format_sql_df_response(
+    df: &DataFrame,
+    opts: &DFOpts,
+    resource: &ResourceVersion,
+    og_schema: &Schema,
+    data_frame_size: &DataFrameSize,
+) -> Result<JsonDataFrameViewResponse, OxenHttpError> {
+
+    let response = JsonDataFrameViewResponse {
+        status: StatusMessage::resource_found(), 
+        data_frame: JsonDataFrameViews {
+            source: JsonDataFrameSource::from_df_size(&data_frame_size, &og_schema),
+            view: JsonDataFrameView {
+                schema: slice_schema,
+                size: DataFrameSize {
+                    height: df.height(),
+                    width: df.width(),
+                },
+                data: JsonDataFrameView::json_from_df(&mut df),
+                pagination: Pagination {
+                    page_number: page_opts.page_num
+
+                }
+            }
+        }
+    }
+
+}
+
+/*
+    size
+    schema (got it)
+    slice schema (should be same)
+    pagination - take from opts or default. 
+    resource.
+
+*/
+
