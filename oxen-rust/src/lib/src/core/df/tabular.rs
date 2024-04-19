@@ -162,7 +162,7 @@ pub fn scan_df_parquet(
     );
     Ok(LazyFrame::scan_parquet(&path, args).unwrap_or_else(|_| {
         panic!(
-            "WHOA UNWRAPPING PARQUET {}: {:?}",
+            "Panic scanning parquet file {}: {:?}",
             READ_ERROR,
             path.as_ref()
         )
