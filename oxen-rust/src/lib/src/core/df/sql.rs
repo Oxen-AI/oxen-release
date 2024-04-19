@@ -1,18 +1,23 @@
 use std::path::{Path, PathBuf};
 
-use polars::frame::DataFrame;
+use futures::executor::LocalPool;
+use polars::{frame::DataFrame, lazy::frame::LazyFrame};
 use sql_query_builder::Select;
 
 use crate::{
+    api,
     constants::{CACHE_DIR, DUCKDB_CACHE_DIR},
     core::db::df_db,
     error::OxenError,
-    model::{CommitEntry, LocalRepository}, util,
+    model::{schema::DataType, CommitEntry, LocalRepository, Schema},
+    util,
 };
+
+use super::tabular;
 
 /// Module for handling the indexing of versioned dfs into duckdbs for SQL querying
 
-pub fn db_cache_path(repo: LocalRepository, entry: CommitEntry) -> PathBuf {
+pub fn db_cache_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     let hash_prefix = &entry.hash[0..2];
     let hash_suffix = &entry.hash[2..];
     let path = repo
@@ -24,36 +29,77 @@ pub fn db_cache_path(repo: LocalRepository, entry: CommitEntry) -> PathBuf {
     path
 }
 
-pub fn index_df(repo: LocalRepository, entry: CommitEntry) -> Result<(), OxenError> {
+pub fn db_cache_dir(repo: &LocalRepository) -> PathBuf {
+    repo.path.join(CACHE_DIR).join(DUCKDB_CACHE_DIR)
+}
+
+pub fn query_df(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+    sql: String,
+) -> Result<DataFrame, OxenError> {
     let duckdb_path = db_cache_path(repo, entry);
-
-    if duckdb_path.exists() {
-        return Ok(());
+    if !duckdb_path.exists() {
+        index_df(repo, entry)?;
     }
+    let conn = df_db::get_connection(&duckdb_path)?;
+    log::debug!("connection created");
 
-    let parent = duckdb_path.parent().unwrap_or(&PathBuf::from(""));
+    let df = df_db::select_raw(&conn, &sql)?;
+    log::debug!("got this query output");
+    Ok(df)
+}
+
+pub fn text2sql_df(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+    df: &LazyFrame,
+    nlp: String,
+    host: String,
+) -> Result<DataFrame, OxenError> {
+    let sql = futures::executor::block_on(get_sql(df, &nlp, host))?;
+    println!("\n{}\n", sql);
+    query_df(repo, entry, sql)
+}
+
+pub fn clear_all_cached_dfs(repo: &LocalRepository) -> Result<(), OxenError> {
+    let db_cache = db_cache_dir(repo);
+    if db_cache.exists() {
+        std::fs::remove_dir_all(&db_cache)?;
+    }
+    Ok(())
+}
+
+pub fn clear_cached_df(repo: &LocalRepository, entry: &CommitEntry) -> Result<(), OxenError> {
+    let duckdb_path = db_cache_path(repo, entry);
+    if duckdb_path.exists() {
+        std::fs::remove_file(&duckdb_path)?;
+    }
+    Ok(())
+}
+
+fn index_df(repo: &LocalRepository, entry: &CommitEntry) -> Result<(), OxenError> {
+    let duckdb_path = db_cache_path(repo, entry);
+    let default_parent = PathBuf::from("");
+    let parent = duckdb_path.parent().unwrap_or(&default_parent);
 
     if !parent.exists() {
         util::fs::create_dir_all(&parent)?;
     }
 
     let conn = df_db::get_connection(&duckdb_path)?;
-    
+
     let version_path = util::fs::version_path(&repo, &entry);
 
-    index_file()
+    df_db::index_file(&version_path, &conn)?;
 
-    Ok(df)
+    log::debug!("file successfully indexed");
+
+    Ok(())
 }
 
-pub fn query_df(file_path: impl AsRef<Path>, sql: String) -> Result<DataFrame, OxenError> {
-    let duckdb_path = file_path.as_ref().parent().unwrap().join("duckdb");
-    let conn = df_db::get_connection(&duckdb_path)?;
-    log::debug!("connection created");
-    let from_clause = df_db::from_clause_from_disk_path(&file_path.as_ref())?;
+async fn get_sql(df: &LazyFrame, q: &str, host: String) -> Result<String, OxenError> {
+    let schema_str = tabular::polars_schema_to_flat_str(&df.schema().unwrap());
 
-    let select_all = Select::new().select("*").from(&from_clause);
-    log::debug!("About to run select statement {}", select_all);
-    let df = df_db::select(&conn, &select_all)?;
-    Ok(df)
+    api::remote::text2sql::convert(q, &schema_str, Some(host.to_string())).await
 }
