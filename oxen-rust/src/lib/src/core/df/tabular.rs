@@ -160,8 +160,13 @@ pub fn scan_df_parquet(
         path.as_ref(),
         args.n_rows
     );
-    Ok(LazyFrame::scan_parquet(&path, args)
-        .unwrap_or_else(|_| panic!("{}: {:?}", READ_ERROR, path.as_ref())))
+    Ok(LazyFrame::scan_parquet(&path, args).unwrap_or_else(|_| {
+        panic!(
+            "Panic scanning parquet file {}: {:?}",
+            READ_ERROR,
+            path.as_ref()
+        )
+    }))
 }
 
 fn read_df_arrow(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
