@@ -30,7 +30,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         let path = util::fs::version_path(repo, &entry);
 
         if util::fs::is_tabular(&path) {
+            // log::debug!("getting size for entry {:?} at path {:?}", entry, path);
             let data_frame_size = tabular::get_size(&path)?;
+            // log::debug!("resulting df size is {:?}", data_frame_size);
 
             let new_df = df!(
                 COL_PATH => [path.to_str()],
@@ -38,6 +40,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 COL_HEIGHT => [data_frame_size.height.to_string()])?;
 
             df = df.vstack(&new_df)?;
+            // log::debug!("df tail now is {:?}", df.tail(Some(1)));
         }
     }
 
@@ -66,6 +69,7 @@ fn get_from_cache(
     let cache_path = df_size_cache_path(repo, commit);
 
     if !cache_path.exists() {
+        log::debug!("cache miss for version at path {:?}", version_path);
         return Ok(None);
     }
 
@@ -73,6 +77,7 @@ fn get_from_cache(
     let num_scan_rows = 10;
     let mut opts = DFOpts::empty();
     opts.slice = Some(format!("0..{}", num_scan_rows));
+
     if let Ok(df) = tabular::scan_df(cache_path, &opts, num_scan_rows) {
         let df_for_path = df
             .select([
@@ -84,7 +89,13 @@ fn get_from_cache(
             .collect()?;
 
         let column_width = df_for_path.column(COL_WIDTH)?.u64()?;
+
         let column_height = df_for_path.column(COL_HEIGHT)?.u64()?;
+
+        if column_width.is_empty() || column_height.is_empty() {
+            log::debug!("df_size::get_from_cache -> cache miss in df");
+            return Ok(None);
+        }
 
         if let (Some(width), Some(height)) = (column_width.get(0), column_height.get(0)) {
             // Converts to usize since Polars deals mostly with usize
@@ -95,7 +106,6 @@ fn get_from_cache(
             return Ok(Some(DataFrameSize { width, height }));
         }
     }
-
     Ok(None)
 }
 

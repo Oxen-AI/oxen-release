@@ -49,6 +49,7 @@ pub async fn get(
     // Get the cached size of the data frame
     let data_frame_size =
         cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
+
     log::debug!(
         "controllers::data_frames got data frame size {:?}",
         data_frame_size
