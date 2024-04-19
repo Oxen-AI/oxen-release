@@ -86,7 +86,11 @@ pub async fn get(
         opts.slice = Some(format!("{}..{}", start, end));
     }
 
+    log::debug!("about to scan the df at path {:?}", version_path);
+
     let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
+
+    log::debug!("got the df");
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =

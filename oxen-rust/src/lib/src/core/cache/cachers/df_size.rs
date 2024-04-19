@@ -30,9 +30,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         let path = util::fs::version_path(repo, &entry);
 
         if util::fs::is_tabular(&path) {
-            log::debug!("getting size for entry {:?} at path {:?}", entry, path);
+            // log::debug!("getting size for entry {:?} at path {:?}", entry, path);
             let data_frame_size = tabular::get_size(&path)?;
-            log::debug!("resulting df size is {:?}", data_frame_size);
+            // log::debug!("resulting df size is {:?}", data_frame_size);
 
             let new_df = df!(
                 COL_PATH => [path.to_str()],
@@ -40,7 +40,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 COL_HEIGHT => [data_frame_size.height.to_string()])?;
 
             df = df.vstack(&new_df)?;
-            log::debug!("df tail now is {:?}", df.tail(Some(1)));
+            // log::debug!("df tail now is {:?}", df.tail(Some(1)));
         }
     }
 
@@ -52,7 +52,6 @@ pub fn get_cache_for_version(
     commit: &Commit,
     version_path: &PathBuf,
 ) -> Result<DataFrameSize, OxenError> {
-    log::debug!("getting cache for version at path {:?}", version_path);
     match get_from_cache(repo, commit, version_path) {
         Ok(result) => match result {
             Some(size) => Ok(size),
@@ -88,8 +87,6 @@ fn get_from_cache(
             ])
             .filter(col(COL_PATH).eq(lit(version_path.to_string_lossy().to_string())))
             .collect()?;
-
-        log::debug!("and got the df");
 
         let column_width = df_for_path.column(COL_WIDTH)?.u64()?;
 
