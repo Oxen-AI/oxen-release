@@ -1,7 +1,7 @@
 //! Abstraction over DuckDB database to write and read dataframes from disk.
 //!
 
-use crate::constants::{DEFAULT_PAGE_SIZE, OXEN_ID_COL};
+use crate::constants::{DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL};
 use crate::core::db::df_db;
 use crate::core::df::tabular;
 use crate::error::OxenError;
@@ -337,35 +337,35 @@ pub fn insert_polars_df(
 }
 
 pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
-    let table_name = "df";
+    log::debug!("df_db() index file {:?}", path);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
     match extension {
         "csv" => {
             let query = format!(
                 "CREATE TABLE {} AS SELECT * FROM read_csv('{}')",
-                table_name, path_str
+                DUCKDB_DF_TABLE_NAME, path_str
             );
             conn.execute(&query, [])?;
         }
         "tsv" => {
             let query = format!(
                 "CREATE TABLE {} AS SELECT * FROM read_tsv('{}')",
-                table_name, path_str
+                DUCKDB_DF_TABLE_NAME, path_str
             );
             conn.execute(&query, [])?;
         }
         "parquet" => {
             let query = format!(
                 "CREATE TABLE {} AS SELECT * FROM read_parquet('{}')",
-                table_name, path_str
+                DUCKDB_DF_TABLE_NAME, path_str
             );
             conn.execute(&query, [])?;
         }
         "jsonl" | "json" | "ndjson" => {
             let query = format!(
                 "CREATE TABLE {} AS SELECT * FROM read_json('{}')",
-                table_name, path_str
+                DUCKDB_DF_TABLE_NAME, path_str
             );
             conn.execute(&query, [])?;
         }

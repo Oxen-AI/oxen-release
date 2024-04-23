@@ -4,10 +4,12 @@ use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::api;
+use liboxen::constants::DUCKDB_DF_TABLE_NAME;
 use liboxen::core::cache::cachers;
+use liboxen::core::db::df_db;
 use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
-use liboxen::model::{DataFrameSize, Schema};
+use liboxen::model::{DataFrameSize, ParsedResource, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
@@ -37,6 +39,8 @@ pub async fn get(
 
     // TODONOW: Don't unwrap, return 404 here
     let entry = entry.unwrap();
+
+    log::debug!("in the df get controller");
 
     log::debug!(
         "{} resource {}/{}",
@@ -72,6 +76,13 @@ pub async fn get(
         page_size: constants::DEFAULT_PAGE_SIZE,
     };
 
+    let resource_version = ResourceVersion {
+        path: resource.file_path.to_string_lossy().into(),
+        version: resource.version().to_owned(),
+    };
+
+    log::debug!("page opts before {:?}", page_opts);
+
     // If we have slice params, use them
     if let Some((start, end)) = opts.slice_indices() {
         log::debug!(
@@ -84,6 +95,9 @@ pub async fn get(
         let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
         let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
+        log::debug!("got page {}", page);
+        log::debug!("got page_size {}", page_size);
+
         page_opts.page_num = page;
         page_opts.page_size = page_size;
 
@@ -93,20 +107,53 @@ pub async fn get(
         opts.slice = Some(format!("{}..{}", start, end));
     }
 
+    log::debug!("page opts after {:?}", page_opts);
+
     if let Some(sql) = opts.sql.clone() {
-        let df = sql::query_df(&repo, &entry, sql)?;
+        log::debug!("doing sql");
+        let mut conn = sql::get_conn(&repo, &entry)?;
+        sql::index_df(&repo, &entry, &mut conn)?;
+        let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
+        let df = sql::query_df(&repo, &entry, sql, &page_opts, &mut conn)?;
+
         log::debug!("sql got this df: {:?}", df);
-        let json_df = format_sql_df_response(&df, &opts, &resource, &schema, &data_frame_size)?;
+        let json_df = format_sql_df_response(
+            df,
+            &opts,
+            &page_opts,
+            &resource,
+            &db_schema,
+            &data_frame_size,
+        )?;
         return Ok(HttpResponse::Ok().json(json_df));
     }
 
     let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
 
     if let Some(text2sql) = opts.text2sql.clone() {
-        let df = sql::text2sql_df(&repo, &entry, &df, text2sql, opts.get_host())?;
-        let json_df = format_sql_df_response(&df, &opts, &resource, &schema, &data_frame_size)?;
+        let mut conn = sql::get_conn(&repo, &entry)?;
+        sql::index_df(&repo, &entry, &mut conn)?;
+        let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
+
+        let mut df = sql::text2sql_df(
+            &repo,
+            &entry,
+            &db_schema,
+            text2sql,
+            &page_opts,
+            &mut conn,
+            opts.get_host(),
+        )?;
+        log::debug!("text2sql got this df");
+        let json_df = format_sql_df_response(
+            df,
+            &opts,
+            &page_opts,
+            &resource,
+            &db_schema,
+            &data_frame_size,
+        )?;
         return Ok(HttpResponse::Ok().json(json_df));
-        
     }
 
     // Try to get the schema from disk
@@ -140,11 +187,6 @@ pub async fn get(
     match tabular::transform_lazy(df, data_frame_size.height, opts.clone()) {
         Ok(df_view) => {
             log::debug!("controllers::data_frames DF view {:?}", df_view);
-
-            let resource_version = ResourceVersion {
-                path: resource.file_path.to_string_lossy().into(),
-                version: resource.version().to_owned(),
-            };
 
             // Have to do the pagination after the transform
             let view_height = if opts.has_filter_transform() {
@@ -202,40 +244,47 @@ pub async fn get(
 }
 
 fn format_sql_df_response(
-    df: &DataFrame,
+    df: DataFrame,
     opts: &DFOpts,
-    resource: &ResourceVersion,
+    page_opts: &PaginateOpts,
+    resource: &ParsedResource,
     og_schema: &Schema,
     data_frame_size: &DataFrameSize,
 ) -> Result<JsonDataFrameViewResponse, OxenHttpError> {
+    let resource_version = ResourceVersion {
+        path: resource.file_path.to_string_lossy().into(),
+        version: resource.version().to_owned(),
+    };
+
+    // For sql, paginate before the view to avoid double-slicing and get correct view size numbers.
+    let og_df_height = df.height();
+    let paginated_df = tabular::paginate_df(df, page_opts)?;
+    log::debug!("paginated df size {:?}", paginated_df.height());
+    let view = JsonDataFrameView::from_df_opts_unpaginated(
+        paginated_df,
+        og_schema.clone(),
+        og_df_height,
+        opts,
+    );
 
     let response = JsonDataFrameViewResponse {
-        status: StatusMessage::resource_found(), 
+        status: StatusMessage::resource_found(),
         data_frame: JsonDataFrameViews {
             source: JsonDataFrameSource::from_df_size(&data_frame_size, &og_schema),
-            view: JsonDataFrameView {
-                schema: slice_schema,
-                size: DataFrameSize {
-                    height: df.height(),
-                    width: df.width(),
-                },
-                data: JsonDataFrameView::json_from_df(&mut df),
-                pagination: Pagination {
-                    page_number: page_opts.page_num
-
-                }
-            }
-        }
-    }
-
+            view,
+        },
+        commit: Some(resource.commit.clone()),
+        resource: Some(resource_version),
+        derived_resource: None,
+    };
+    Ok(response)
 }
 
 /*
     size
     schema (got it)
     slice schema (should be same)
-    pagination - take from opts or default. 
+    pagination - take from opts or default.
     resource.
 
 */
-

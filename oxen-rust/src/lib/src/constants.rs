@@ -63,6 +63,8 @@ pub const TABLE_NAME: &str = "STAGED_DATA";
 pub const OXEN_ID_COL: &str = "_oxen_id";
 /// Name of the folder of the cache dir in which dfs are indexed as duckdbs
 pub const DUCKDB_CACHE_DIR: &str = "duckdb";
+/// Default name for duckdb table used for indexing dataframes
+pub const DUCKDB_DF_TABLE_NAME: &str = "df";
 /// prefix for the sync status dirs to tell if commits are synced locally
 pub const SYNC_STATUS_DIR: &str = "sync_status";
 /// Flag for if the repository was cloned in a shallow fashion
