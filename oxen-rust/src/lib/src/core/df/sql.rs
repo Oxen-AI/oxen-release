@@ -1,16 +1,13 @@
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use futures::executor::LocalPool;
-use polars::{frame::DataFrame, lazy::frame::LazyFrame};
-use sql_query_builder::Select;
+use polars::frame::DataFrame;
 
 use crate::{
     api,
     constants::{CACHE_DIR, DUCKDB_CACHE_DIR, DUCKDB_DF_TABLE_NAME},
     core::db::df_db,
     error::OxenError,
-    model::{schema::DataType, CommitEntry, LocalRepository, Schema},
-    opts::PaginateOpts,
+    model::{CommitEntry, LocalRepository, Schema},
     util,
 };
 
@@ -21,13 +18,12 @@ use super::tabular;
 pub fn db_cache_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     let hash_prefix = &entry.hash[0..2];
     let hash_suffix = &entry.hash[2..];
-    let path = repo
-        .path
+
+    repo.path
         .join(CACHE_DIR)
         .join(DUCKDB_CACHE_DIR)
         .join(hash_prefix)
-        .join(hash_suffix);
-    path
+        .join(hash_suffix)
 }
 
 pub fn get_conn(
@@ -35,7 +31,7 @@ pub fn get_conn(
     entry: &CommitEntry,
 ) -> Result<duckdb::Connection, OxenError> {
     let duckdb_path = db_cache_path(repo, entry);
-    let conn = df_db::get_connection(&duckdb_path)?;
+    let conn = df_db::get_connection(duckdb_path)?;
     Ok(conn)
 }
 
@@ -47,31 +43,12 @@ pub fn query_df(
     repo: &LocalRepository,
     entry: &CommitEntry,
     sql: String,
-    page_opts: &PaginateOpts,
     conn: &mut duckdb::Connection,
 ) -> Result<DataFrame, OxenError> {
     let duckdb_path = db_cache_path(repo, entry);
     index_df(repo, entry, conn)?;
 
-    // let limit_suffix = if page_opts.page_size > 0 {
-    //     format!(" LIMIT {}", page_opts.page_size)
-    // } else {
-    //     "".to_string()
-    // };
-
-    // let offset_suffix = if page_opts.page_num > 0 {
-    //     format!(" OFFSET {}", page_opts.page_size * (page_opts.page_num - 1))
-    // } else {
-    //     "".to_string()
-    // };
-
-    // // Strip a semicolon off the end of sql if it exists, then add limit suffix and offset suffix
-    // let mut sql = sql.strip_suffix(";").unwrap_or(&sql).to_string();
-    // sql.push_str(&limit_suffix);
-    // sql.push_str(&offset_suffix);
-    // sql.push_str(";");
-
-    let conn = df_db::get_connection(&duckdb_path)?;
+    let conn = df_db::get_connection(duckdb_path)?;
     log::debug!("connection created");
 
     let df = df_db::select_raw(&conn, &sql)?;
@@ -84,13 +61,12 @@ pub fn text2sql_df(
     entry: &CommitEntry,
     schema: &Schema,
     nlp: String,
-    page_opts: &PaginateOpts,
     conn: &mut duckdb::Connection,
     host: String,
 ) -> Result<DataFrame, OxenError> {
     let sql = futures::executor::block_on(get_sql(schema, &nlp, host))?;
     println!("\n{}\n", sql);
-    query_df(repo, entry, sql, page_opts, conn)
+    query_df(repo, entry, sql, conn)
 }
 
 pub fn clear_all_cached_dfs(repo: &LocalRepository) -> Result<(), OxenError> {
@@ -128,12 +104,12 @@ pub fn index_df(
     }
 
     if !parent.exists() {
-        util::fs::create_dir_all(&parent)?;
+        util::fs::create_dir_all(parent)?;
     }
 
-    let version_path = util::fs::version_path(&repo, &entry);
+    let version_path = util::fs::version_path(repo, entry);
 
-    df_db::index_file(&version_path, &conn)?;
+    df_db::index_file(&version_path, conn)?;
 
     log::debug!("file successfully indexed");
 

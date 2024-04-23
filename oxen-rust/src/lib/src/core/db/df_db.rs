@@ -192,7 +192,7 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
 
 pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, OxenError> {
     log::debug!("select sql: {}", stmt);
-    let mut stmt = conn.prepare(&stmt)?;
+    let mut stmt = conn.prepare(stmt)?;
 
     // let pl: Vec<DataFrame> = stmt.query_polars([])?.collect();
     // let df = accumulate_dataframes_vertical_unchecked(pl);
