@@ -114,7 +114,7 @@ pub async fn get(
         let mut conn = sql::get_conn(&repo, &entry)?;
         sql::index_df(&repo, &entry, &mut conn)?;
         let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
-        let df = sql::query_df(&repo, &entry, sql, &page_opts, &mut conn)?;
+        let df = sql::query_df(&repo, &entry, sql, &mut conn)?;
 
         log::debug!("sql got this df: {:?}", df);
         let json_df = format_sql_df_response(
@@ -135,12 +135,11 @@ pub async fn get(
         sql::index_df(&repo, &entry, &mut conn)?;
         let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
 
-        let mut df = sql::text2sql_df(
+        let df = sql::text2sql_df(
             &repo,
             &entry,
             &db_schema,
             text2sql,
-            &page_opts,
             &mut conn,
             opts.get_host(),
         )?;
@@ -270,7 +269,7 @@ fn format_sql_df_response(
     let response = JsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
         data_frame: JsonDataFrameViews {
-            source: JsonDataFrameSource::from_df_size(&data_frame_size, &og_schema),
+            source: JsonDataFrameSource::from_df_size(data_frame_size, og_schema),
             view,
         },
         commit: Some(resource.commit.clone()),

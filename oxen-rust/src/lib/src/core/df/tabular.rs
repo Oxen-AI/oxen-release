@@ -1,18 +1,15 @@
 use duckdb::ToSql;
 use polars::prelude::*;
-use polars_sql::SQLContext;
-use sql_query_builder::Select;
 use std::fs::File;
 
-use crate::core::db::df_db;
+use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::{CommitEntry, ContentType, DataFrameSize, LocalRepository};
+use crate::model::{ContentType, DataFrameSize};
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::{fs, hasher};
-use crate::{api, constants};
 
 use colored::Colorize;
 use comfy_table::Table;
