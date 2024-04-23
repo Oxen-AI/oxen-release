@@ -76,12 +76,17 @@ pub async fn get(
         page_size: constants::DEFAULT_PAGE_SIZE,
     };
 
+    // Block big big dfs
+    if opts.sql.is_some() || opts.text2sql.is_some() {
+        if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
+            return Err(OxenHttpError::NotQueryable);
+        }
+    }
+
     let resource_version = ResourceVersion {
         path: resource.file_path.to_string_lossy().into(),
         version: resource.version().to_owned(),
     };
-
-    log::debug!("page opts before {:?}", page_opts);
 
     // If we have slice params, use them
     if let Some((start, end)) = opts.slice_indices() {
@@ -95,9 +100,6 @@ pub async fn get(
         let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
         let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-        log::debug!("got page {}", page);
-        log::debug!("got page_size {}", page_size);
-
         page_opts.page_num = page;
         page_opts.page_size = page_size;
 
@@ -107,16 +109,12 @@ pub async fn get(
         opts.slice = Some(format!("{}..{}", start, end));
     }
 
-    log::debug!("page opts after {:?}", page_opts);
-
     if let Some(sql) = opts.sql.clone() {
-        log::debug!("doing sql");
         let mut conn = sql::get_conn(&repo, &entry)?;
         sql::index_df(&repo, &entry, &mut conn)?;
         let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
         let df = sql::query_df(&repo, &entry, sql, &mut conn)?;
 
-        log::debug!("sql got this df: {:?}", df);
         let json_df = format_sql_df_response(
             df,
             &opts,
@@ -143,7 +141,6 @@ pub async fn get(
             &mut conn,
             opts.get_host(),
         )?;
-        log::debug!("text2sql got this df");
         let json_df = format_sql_df_response(
             df,
             &opts,
@@ -278,12 +275,3 @@ fn format_sql_df_response(
     };
     Ok(response)
 }
-
-/*
-    size
-    schema (got it)
-    slice schema (should be same)
-    pagination - take from opts or default.
-    resource.
-
-*/

@@ -109,7 +109,7 @@ pub fn index_df(
 
     let version_path = util::fs::version_path(repo, entry);
 
-    df_db::index_file(&version_path, conn)?;
+    df_db::index_file_with_id(&version_path, conn)?;
 
     log::debug!("file successfully indexed");
 

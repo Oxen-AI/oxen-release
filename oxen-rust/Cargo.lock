@@ -70,7 +70,6 @@ dependencies = [
  "rand",
  "rayon",
  "redis",
- "regex",
  "reqwest",
  "rocksdb",
  "sanitize-filename",

@@ -470,35 +470,8 @@ pub fn transform_lazy(
         df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
-    // if let Some(query) = &opts.text2sql {
-    //     df = run_text2sql(df, query, opts.get_host())?;
-    // }
-
     // For aggregations, sort by first column, because it is non-deterministic
     let mut should_sort_by_first_column = false;
-    // if let Some(query) = &opts.sql {
-    //     df = run_sql(df, query)?;
-
-    //     if let Some(sql) = &opts.sql {
-    //         if sql.to_lowercase().contains("group by")
-    //             || sql.to_lowercase().contains("count(")
-    //             || sql.to_lowercase().contains("sum(")
-    //             || sql.to_lowercase().contains("avg(")
-    //             || sql.to_lowercase().contains("min(")
-    //             || sql.to_lowercase().contains("max(")
-    //             || sql.to_lowercase().contains("stddev(")
-    //             || sql.to_lowercase().contains("variance(")
-    //             || sql.to_lowercase().contains("group_concat(")
-    //             || sql.to_lowercase().contains("select distinct")
-    //         {
-    //             should_sort_by_first_column = true;
-    //         }
-
-    //         if sql.to_lowercase().contains("order by") {
-    //             should_sort_by_first_column = false;
-    //         }
-    //     }
-    // }
 
     match opts.get_filter() {
         Ok(filter) => {
@@ -607,32 +580,6 @@ pub fn transform_slice_lazy(
         Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
     }
 }
-
-// fn run_sql(df: LazyFrame, q: &str) -> Result<DataFrame, OxenError> {}
-
-// async fn get_sql(df: LazyFrame, q: &str, host: String) -> Result<String, OxenError> {
-//     let schema_str = schema_to_flat_str(&df.schema().unwrap());
-
-//     api::remote::text2sql::convert(q, &schema_str, Some(host.to_string())).await
-// }
-
-// pub fn run_text2sql(df: LazyFrame, q: &str, host: String) -> Result<LazyFrame, OxenError> {
-//     let sql = futures::executor::block_on(get_sql(df.clone(), q, host))?;
-//     println!("\n{}\n", sql);
-//     run_sql(df, &sql)
-// }
-
-// pub fn run_text2sql(
-//     repo: &LocalRepository,
-//     entry: &CommitEntry,
-//     df: DataFrame,
-//     q: &str,
-//     host: String,
-// ) -> Result<LazyFrame, OxenError> {
-//     let sql = futures::executor::block_on(get_sql(df, q, host))?;
-//     println!("\n{}\n", sql);
-//     run_sql(df, &sql)
-// }
 
 fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     if let Some(head) = opts.head {
