@@ -10,7 +10,7 @@ use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::{CommitEntry, ContentType, DataFrameSize, LocalRepository};
-use crate::opts::{CountLinesOpts, DFOpts};
+use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::{fs, hasher};
 use crate::{api, constants};
 
@@ -658,6 +658,18 @@ fn tail(df: LazyFrame, height: usize, opts: &DFOpts) -> LazyFrame {
 pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, OxenError> {
     let mut opts = DFOpts::empty();
     opts.slice = Some(format!("{}..{}", start, end));
+    let df = df.lazy();
+    let df = slice(df, &opts);
+    Ok(df.collect().expect(COLLECT_ERROR))
+}
+
+pub fn paginate_df(df: DataFrame, page_opts: &PaginateOpts) -> Result<DataFrame, OxenError> {
+    let mut opts = DFOpts::empty();
+    opts.slice = Some(format!(
+        "{}..{}",
+        page_opts.page_size * (page_opts.page_num - 1),
+        page_opts.page_size * page_opts.page_num
+    ));
     let df = df.lazy();
     let df = slice(df, &opts);
     Ok(df.collect().expect(COLLECT_ERROR))
