@@ -1,5 +1,6 @@
 use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
+use liboxen::constants;
 use liboxen::error::{OxenError, StringError};
 use liboxen::view::http::{MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
@@ -15,7 +16,7 @@ pub enum OxenHttpError {
     AppDataDoesNotExist,
     PathParamDoesNotExist(StringError),
     SQLParseError(StringError),
-
+    NotQueryable,
     UpdateRequired(StringError),
 
     // Translate OxenError to OxenHttpError
@@ -94,6 +95,20 @@ impl error::ResponseError for OxenHttpError {
             }
             OxenHttpError::NotFound => {
                 HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+            }
+            OxenHttpError::NotQueryable => {
+                let error_json = json!({
+                    "error": {
+                        "type": "not_queryable",
+                        "title": format!(
+                            "DF is too large to query, limit is {}. Upgrade your plan to query larger DFs.",
+                            constants::MAX_QUERYABLE_ROWS
+                        )
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_UPDATE_REQUIRED,
+                });
+                HttpResponse::BadRequest().json(error_json)
             }
             OxenHttpError::ActixError(_) => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
@@ -213,6 +228,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::BadRequest(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
+            OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,

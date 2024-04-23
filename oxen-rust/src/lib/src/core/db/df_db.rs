@@ -191,7 +191,7 @@ pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame
 }
 
 pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, OxenError> {
-    log::debug!("select sql: {}", stmt);
+    log::debug!("select_raw() sql: {}", stmt);
     let mut stmt = conn.prepare(stmt)?;
 
     // let pl: Vec<DataFrame> = stmt.query_polars([])?.collect();
@@ -337,7 +337,7 @@ pub fn insert_polars_df(
 }
 
 pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
-    log::debug!("df_db() index file {:?}", path);
+    log::debug!("df_db:index_file() at path {:?}", path);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
     match extension {
@@ -375,6 +375,48 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
             ))
         }
     }
+    Ok(())
+}
+
+// TODO: We will eventually want to parse the actual type, not just the extension.
+// For now, just treat the extension as law
+pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
+    log::debug!("df_db:index_file() at path {:?}", path);
+    let extension: &str = &util::fs::extension_from_path(path);
+    let path_str = path.to_string_lossy().to_string();
+    match extension {
+        "csv" => {
+            let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
+            conn.execute(&query, [])?;
+        }
+        "tsv" => {
+            let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_tsv('{}', AUTO_DETECT=TRUE, header=True);", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
+            conn.execute(&query, [])?;
+        }
+        "parquet" => {
+            let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_parquet('{}');", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
+            conn.execute(&query, [])?;
+        }
+        "jsonl" | "json" | "ndjson" => {
+            let query = format!(
+                "CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_json('{}');",
+                DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path_str
+            );
+            conn.execute(&query, [])?;
+        }
+        _ => {
+            return Err(OxenError::basic_str(
+                "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
+            ))
+        }
+    }
+
+    let add_default_query = format!(
+        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
+        DUCKDB_DF_TABLE_NAME, OXEN_ID_COL
+    );
+    conn.execute(&add_default_query, [])?;
+
     Ok(())
 }
 
