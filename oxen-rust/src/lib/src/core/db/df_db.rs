@@ -350,7 +350,7 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
         }
         "tsv" => {
             let query = format!(
-                "CREATE TABLE {} AS SELECT * FROM read_tsv('{}')",
+                "CREATE TABLE {} AS SELECT * FROM read_csv('{}')",
                 DUCKDB_DF_TABLE_NAME, path_str
             );
             conn.execute(&query, [])?;
@@ -390,7 +390,7 @@ pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), 
             conn.execute(&query, [])?;
         }
         "tsv" => {
-            let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_tsv('{}', AUTO_DETECT=TRUE, header=True);", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
+            let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
             conn.execute(&query, [])?;
         }
         "parquet" => {
@@ -429,7 +429,7 @@ pub fn from_clause_from_disk_path(path: &Path) -> Result<String, OxenError> {
         }
         "tsv" => {
             let str_path = path.to_string_lossy().to_string();
-            Ok(format!("read_tsv('{}')", str_path))
+            Ok(format!("read_csv('{}')", str_path))
         }
         "parquet" => {
             let str_path = path.to_string_lossy().to_string();
