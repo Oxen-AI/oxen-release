@@ -110,14 +110,15 @@ pub fn get_schema(
     Ok(Schema::new(table_name, fields))
 }
 
-pub fn get_schema_without_id(
+pub fn get_schema_excluding_cols(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
+    cols: &[&str],
 ) -> Result<Schema, OxenError> {
     let table_name = table_name.as_ref();
     let sql = format!(
-        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name != '{}'",
-        table_name, OXEN_ID_COL
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name NOT IN ({})",
+        table_name, cols.iter().map(|col| format!("'{}'", col.replace("'", "''"))).collect::<Vec<String>>().join(", ")
     );
     let mut stmt = conn.prepare(&sql)?;
 
@@ -143,6 +144,40 @@ pub fn get_schema_without_id(
 
     Ok(Schema::new(table_name, fields))
 }
+
+// pub fn get_schema_without_id(
+//     conn: &duckdb::Connection,
+//     table_name: impl AsRef<str>,
+// ) -> Result<Schema, OxenError> {
+//     let table_name = table_name.as_ref();
+//     let sql = format!(
+//         "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name != '{}'",
+//         table_name, OXEN_ID_COL
+//     );
+//     let mut stmt = conn.prepare(&sql)?;
+
+//     let select = sql::Select::new().select("*").from(table_name);
+//     // let mut s_select = conn.prepare(&select.as_string())?;
+//     let _records = df_db::select(conn, &select)?;
+
+//     let mut fields = vec![];
+//     let rows = stmt.query_map([], |row| {
+//         let column_name: String = row.get(0)?;
+//         let data_type: String = row.get(1)?;
+
+//         Ok((column_name, data_type))
+//     })?;
+
+//     for row in rows {
+//         let (column_name, data_type) = row?;
+//         fields.push(Field::new(
+//             &column_name,
+//             model::schema::DataType::from_sql(data_type).as_str(),
+//         ));
+//     }
+
+//     Ok(Schema::new(table_name, fields))
+// }
 
 /// Query number of rows in a table.
 pub fn count(conn: &duckdb::Connection, table_name: impl AsRef<str>) -> Result<usize, OxenError> {
@@ -443,6 +478,16 @@ pub fn from_clause_from_disk_path(path: &Path) -> Result<String, OxenError> {
             "Invalid file type: expected .csv, .tsv, .parquet, .jsonl, .json, .ndjson",
         )),
     }
+}
+
+pub fn preview(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
+    let query = format!("SELECT * FROM {} LIMIT 10", table_name);
+    let df = select_raw(conn, &query)?;
+    Ok(df)
 }
 
 #[cfg(test)]
