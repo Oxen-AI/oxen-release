@@ -32,7 +32,7 @@ pub fn list_from_ref(
     schema_ref: impl AsRef<str>,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     let revision = revision.as_ref();
-    let schema_ref = schema_ref.as_ref().replace('\\', "/");
+    log::debug!("list_from_ref() listing for ref: {:?}", schema_ref.as_ref());
     if let Some(commit) = api::local::revisions::get(repo, revision)? {
         let schema_reader = SchemaReader::new(repo, &commit.id)?;
         schema_reader.list_schemas_for_ref(schema_ref)

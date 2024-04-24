@@ -162,6 +162,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        };
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
 

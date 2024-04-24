@@ -67,11 +67,13 @@ async fn main() -> std::io::Result<()> {
 
     // Polling worker setup
     async fn poll_queue(mut queue: TaskQueue) {
+        log::debug!("Starting queue poller");
         loop {
             match queue.pop() {
                 Some(task) => {
                     log::debug!("Got queue item: {:?}", task);
                     task.run();
+                    log::debug!("finished task {:?}", task);
                 }
                 None => {
                     // log::debug!("No queue items found, sleeping");
@@ -174,10 +176,12 @@ async fn main() -> std::io::Result<()> {
                     println!("Syncing to directory: {sync_dir}");
                     let enable_auth = sub_matches.get_flag("auth");
 
+                    log::debug!("initializing queue");
                     let queue = init_queue();
-
+                    log::debug!("initialized queue");
                     let data = app_data::OxenAppData::new(PathBuf::from(sync_dir), queue.clone());
                     // Poll for post-commit tasks in background
+                    log::debug!("initialized app data, spawning polling worker");
                     tokio::spawn(async { poll_queue(queue).await });
 
                     HttpServer::new(move || {
