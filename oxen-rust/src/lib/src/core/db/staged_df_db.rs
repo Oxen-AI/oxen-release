@@ -2,8 +2,9 @@ use polars::frame::DataFrame;
 // use sql::Select;
 use sql_query_builder as sql;
 
-use crate::constants::OXEN_ID_COL;
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_ID_COL};
 
+use crate::model::Schema;
 use crate::{constants::TABLE_NAME, error::OxenError};
 
 use super::df_db;
@@ -15,7 +16,7 @@ pub fn append_row(
     conn: &duckdb::Connection,
     df: &polars::frame::DataFrame,
 ) -> Result<DataFrame, OxenError> {
-    let table_schema = df_db::get_schema_without_id(conn, TABLE_NAME)?;
+    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
     let df_schema = df.schema();
 
     if !table_schema.has_same_field_names(&df_schema) {
@@ -55,4 +56,13 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
     log::debug!("staged_df_db::delete_row() sql: {:?}", stmt);
     conn.execute(&stmt.to_string(), [])?;
     Ok(maybe_row)
+}
+
+pub fn schema_without_oxen_cols(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<Schema, OxenError> {
+    let oxen_cols = vec![OXEN_ID_COL, DIFF_HASH_COL, DIFF_STATUS_COL];
+    let table_schema = df_db::get_schema_excluding_cols(conn, table_name, &oxen_cols)?;
+    Ok(table_schema)
 }

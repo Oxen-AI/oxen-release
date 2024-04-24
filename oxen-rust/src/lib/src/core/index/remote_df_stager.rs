@@ -3,7 +3,7 @@ use polars::frame::DataFrame;
 
 use sql_query_builder::Select;
 
-use crate::constants::{OXEN_ID_COL, TABLE_NAME};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_ID_COL, TABLE_NAME};
 use crate::core::db::df_db;
 use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
@@ -72,6 +72,11 @@ pub fn index_dataset(
     log::debug!("index_dataset() got version path: {:?}", version_path);
 
     df_db::index_file_with_id(&version_path, &conn)?;
+
+    add_row_status_cols(&conn)?;
+
+    let preview = df_db::preview(&conn, TABLE_NAME)?;
+    log::debug!("index_dataset() got preview: {:?}", preview);
 
     let commit_path = mod_stager::mods_commit_ref_path(repo, branch, identifier, &entry.path);
     std::fs::write(commit_path, branch.commit_id.as_str())?;
@@ -249,6 +254,21 @@ pub fn count(
 
     let count = df_db::count(&conn, TABLE_NAME)?;
     Ok(count)
+}
+
+fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
+    let query_status = format!(
+        "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT 'unchanged'",
+        TABLE_NAME, DIFF_STATUS_COL
+    );
+    conn.execute(&query_status, [])?;
+
+    let query_hash = format!(
+        "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT NULL",
+        TABLE_NAME, DIFF_HASH_COL
+    );
+    conn.execute(&query_hash, [])?;
+    Ok(())
 }
 
 fn copy_duckdb_if_already_indexed(
