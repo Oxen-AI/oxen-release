@@ -257,10 +257,10 @@ fn copy_duckdb_if_already_indexed(
     opts: &DFOpts,
     new_db_path: &Path,
 ) -> Result<Option<DataFrame>, OxenError> {
-    let maybe_existing_db_path = sql::db_cache_path(repo, &entry);
+    let maybe_existing_db_path = sql::db_cache_path(repo, entry);
     let conn = df_db::get_connection(&maybe_existing_db_path)?;
     if df_db::table_exists(&conn, TABLE_NAME)? {
-        std::fs::copy(&maybe_existing_db_path, &new_db_path)?;
+        std::fs::copy(&maybe_existing_db_path, new_db_path)?;
         let select = Select::new().select("*").from(TABLE_NAME);
         let preview = df_db::select_with_opts(&conn, &select, opts)?;
         return Ok(Some(preview));

@@ -244,7 +244,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let entry_reader = CommitEntryReader::new(&repo, &resource.commit)?;
     let entry = entry_reader
@@ -254,6 +254,16 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let mut conn = sql::get_conn(&repo, &entry)?;
 
     log::debug!("data_frames controller index()");
+
+    let version_path =
+        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+    let data_frame_size =
+        cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
+
+    if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
+        return Err(OxenHttpError::NotQueryable);
+    }
+
     sql::index_df(&repo, &entry, &mut conn)?;
     log::debug!("successfully indexed");
 

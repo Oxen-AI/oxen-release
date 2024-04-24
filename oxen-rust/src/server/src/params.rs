@@ -133,6 +133,11 @@ pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branc
 }
 
 fn user_cli_is_out_of_date(user_agent: &str) -> bool {
+    // Bypass for postman requests - TODO, make this more robust or only in dev
+    if user_agent.contains("Postman") {
+        return false;
+    }
+
     // check if the user agent contains oxen
     if !user_agent.to_lowercase().contains("oxen") {
         // Not an oxen user agent

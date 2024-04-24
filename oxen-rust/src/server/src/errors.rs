@@ -107,7 +107,7 @@ impl error::ResponseError for OxenHttpError {
                         )
                     },
                     "status": STATUS_ERROR,
-                    "status_message": MSG_UPDATE_REQUIRED,
+                    "status_message": MSG_BAD_REQUEST,
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
