@@ -116,6 +116,13 @@ pub fn index_df(
     Ok(())
 }
 
+pub fn df_is_indexed(repo: &LocalRepository, entry: &CommitEntry) -> Result<bool, OxenError> {
+    let duckdb_path = db_cache_path(repo, entry);
+    let conn = df_db::get_connection(duckdb_path)?;
+    let is_indexed = df_db::table_exists(&conn, DUCKDB_DF_TABLE_NAME)?;
+    Ok(is_indexed)
+}
+
 async fn get_sql(schema: &Schema, q: &str, host: String) -> Result<String, OxenError> {
     let polars_schema = schema.to_polars();
     let schema_str = tabular::polars_schema_to_flat_str(&polars_schema);

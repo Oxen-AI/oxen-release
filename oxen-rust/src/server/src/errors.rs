@@ -2,7 +2,7 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
 use liboxen::error::{OxenError, StringError};
-use liboxen::view::http::{MSG_UPDATE_REQUIRED, STATUS_ERROR};
+use liboxen::view::http::{MSG_BAD_REQUEST, MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
 use serde_json::json;
@@ -17,6 +17,7 @@ pub enum OxenHttpError {
     PathParamDoesNotExist(StringError),
     SQLParseError(StringError),
     NotQueryable,
+    DatasetNotIndexed,
     UpdateRequired(StringError),
 
     // Translate OxenError to OxenHttpError
@@ -107,6 +108,18 @@ impl error::ResponseError for OxenHttpError {
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_UPDATE_REQUIRED,
+                });
+                HttpResponse::BadRequest().json(error_json)
+            }
+            OxenHttpError::DatasetNotIndexed => {
+                let error_json = json!({
+                    "error": {
+                        "type": "dataset_not_indexed",
+                        "title":
+                            "This dataframe is not yet indexed for SQL and NLP querying.",
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_BAD_REQUEST,
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
@@ -229,6 +242,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
+            OxenHttpError::DatasetNotIndexed => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
