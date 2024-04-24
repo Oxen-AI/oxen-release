@@ -136,6 +136,8 @@ impl SchemaReader {
         let schema: Result<Schema, serde_json::Error> =
             serde_json::from_reader(std::fs::File::open(version_path)?);
 
+        log::debug!("get_schema_for_file() got schema {:?}", schema);
+
         match schema {
             Ok(schema) => Ok(Some(schema)),
             Err(_) => Ok(None),
@@ -164,6 +166,7 @@ impl SchemaReader {
         for vnode in dir_node.children() {
             let vnode = self.object_reader.get_vnode(vnode.hash())?.unwrap();
             for child in vnode.children() {
+                // log::debug!("got vnode child {:?}", child);
                 match child {
                     TreeObjectChild::Dir { hash, .. } => {
                         let dir_node = self.object_reader.get_dir(hash)?.unwrap();
@@ -320,11 +323,15 @@ mod tests {
             let last_commit = history.first().unwrap();
             let schema_reader = SchemaReader::new(&repo, &last_commit.id)?;
 
-            let schema_ref = "annotations/train/bounding_box.csv";
+            let schema_ref = &PathBuf::from("annotations")
+                .join("train")
+                .join("bounding_box.csv")
+                .to_string_lossy()
+                .to_string();
             let schemas = schema_reader.list_schemas_for_ref(schema_ref)?;
 
             assert_eq!(schemas.len(), 1);
-            assert!(schemas.contains_key(&PathBuf::from("annotations/train/bounding_box.csv")));
+            assert!(schemas.contains_key(&PathBuf::from(schema_ref)));
 
             Ok(())
         })

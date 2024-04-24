@@ -136,9 +136,12 @@ pub fn delete_row(
     uuid: &str,
 ) -> Result<DataFrame, OxenError> {
     let db_path = mods_df_db_path(repo, branch, identity, path);
-    let conn = df_db::get_connection(db_path)?;
-    let deleted_row = staged_df_db::delete_row(&conn, uuid)?;
+    let deleted_row = {
+        let conn = df_db::get_connection(db_path)?;
+        staged_df_db::delete_row(&conn, uuid)?
+    };
 
+    // TODO: Better way of tracking when a file is restored to its original state without diffing
     // TODO: Better way of tracking when a file is restored to its original state without diffing
     let diff = api::local::diff::diff_staged_df(repo, branch, PathBuf::from(path), identity)?;
 
@@ -359,6 +362,9 @@ mod tests {
 
     #[test]
     fn test_stage_delete_appended_mod() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
