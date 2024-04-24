@@ -58,7 +58,7 @@ pub const STATS_DIR: &str = "stats";
 /// prefix for the staged dirs
 pub const STAGED_DIR: &str = "staged";
 /// Name of the table in the duckdb db used for remote staging
-pub const TABLE_NAME: &str = "STAGED_DATA";
+pub const TABLE_NAME: &str = "df";
 /// Oxen's internal id column in duckdb remote staging tables
 pub const OXEN_ID_COL: &str = "_oxen_id";
 /// Name of the folder of the cache dir in which dfs are indexed as duckdbs
