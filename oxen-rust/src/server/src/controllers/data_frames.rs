@@ -25,6 +25,7 @@ use liboxen::view::{
 use liboxen::util;
 use polars::frame::DataFrame;
 
+// TODO: This is getting long...condense and factor out whatever possible here
 pub async fn get(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
@@ -35,12 +36,9 @@ pub async fn get(
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let entry_reader = CommitEntryReader::new(&repo, &resource.commit)?;
-    let entry = entry_reader.get_entry(&resource.file_path)?;
-
-    // TODONOW: Don't unwrap, return 404 here
-    let entry = entry.unwrap();
-
-    log::debug!("in the df get controller");
+    let entry = entry_reader
+        .get_entry(&resource.file_path)?
+        .ok_or(OxenHttpError::NotFound)?;
 
     log::debug!(
         "{} resource {}/{}",
@@ -81,6 +79,10 @@ pub async fn get(
         if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
             return Err(OxenHttpError::NotQueryable);
         }
+
+        if !sql::df_is_indexed(&repo, &entry)? {
+            return Err(OxenHttpError::DatasetNotIndexed);
+        }
     }
 
     let resource_version = ResourceVersion {
@@ -111,7 +113,6 @@ pub async fn get(
 
     if let Some(sql) = opts.sql.clone() {
         let mut conn = sql::get_conn(&repo, &entry)?;
-        sql::index_df(&repo, &entry, &mut conn)?;
         let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
         let df = sql::query_df(&repo, &entry, sql, &mut conn)?;
 
@@ -130,7 +131,6 @@ pub async fn get(
 
     if let Some(text2sql) = opts.text2sql.clone() {
         let mut conn = sql::get_conn(&repo, &entry)?;
-        sql::index_df(&repo, &entry, &mut conn)?;
         let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
 
         let df = sql::text2sql_df(
@@ -237,6 +237,26 @@ pub async fn get(
             Err(OxenHttpError::InternalServerError)
         }
     }
+}
+
+pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let entry_reader = CommitEntryReader::new(&repo, &resource.commit)?;
+    let entry = entry_reader
+        .get_entry(&resource.file_path)?
+        .ok_or(OxenHttpError::NotFound)?;
+
+    let mut conn = sql::get_conn(&repo, &entry)?;
+
+    log::debug!("data_frames controller index()");
+    sql::index_df(&repo, &entry, &mut conn)?;
+    log::debug!("successfully indexed");
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }
 
 fn format_sql_df_response(
