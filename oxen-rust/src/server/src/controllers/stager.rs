@@ -6,6 +6,7 @@ use crate::params::{
 
 use actix_files::NamedFile;
 use liboxen::core::cache::{cachers, commit_cacher};
+use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
@@ -116,6 +117,37 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     // The path to the actual file is just the working directory here...
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn diff_df(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let identifier = path_param(&req, "identifier")?;
+
+    // Remote staged calls must be on a branch
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let staged_db_path =
+        mod_stager::mods_df_db_path(&repo, &branch, &identifier, resource.file_path);
+
+    let conn = df_db::get_connection(staged_db_path)?;
+
+    let diff_df = staged_df_db::df_diff(&conn)?;
+
+    log::debug!("Got this diff_df {:?}", diff_df);
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }
 
 pub async fn get_file(
