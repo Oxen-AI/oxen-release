@@ -5,7 +5,7 @@ use sql_query_builder::Select;
 
 use crate::constants::{OXEN_ID_COL, TABLE_NAME};
 use crate::core::db::df_db;
-use crate::core::df::tabular;
+use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
 use crate::model::{Branch, CommitEntry, LocalRepository};
@@ -17,19 +17,17 @@ use super::{CommitEntryReader, CommitReader};
 
 pub fn index_dataset(
     repo: &LocalRepository,
-    // branch_repo: &LocalRepository,
     branch: &Branch,
     path: &Path,
     identifier: &str,
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    // TODONOW: this should return a RemoteDataset struct
-
     if !util::fs::is_tabular(path) {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.must be tabular.",
         ));
     }
+
     // need to init or get the remote staging env - for if this was called from API? todo
     let _branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
 
@@ -58,6 +56,12 @@ pub fn index_dataset(
         std::fs::create_dir_all(db_path.parent().expect("Failed to get parent directory"))?;
     }
 
+    let maybe_preview = copy_duckdb_if_already_indexed(repo, &entry, opts, &db_path)?;
+
+    if let Some(preview) = maybe_preview {
+        return Ok(preview);
+    }
+
     let conn = df_db::get_connection(db_path)?;
 
     if df_db::table_exists(&conn, TABLE_NAME)? {
@@ -67,36 +71,14 @@ pub fn index_dataset(
 
     log::debug!("index_dataset() got version path: {:?}", version_path);
 
-    // TODO: We will eventually want to parse the actual type, not just the extension.
-    // For now, just treat the extension as law
-    match entry.path.extension() {
-        Some(ext) => match ext.to_str() {
-            Some("csv") => index_csv(&version_path, &conn)?,
-            Some("tsv") => index_tsv(&version_path, &conn)?,
-            Some("json") | Some("jsonl") | Some("ndjson") => index_json(&version_path, &conn)?,
-            Some("parquet") => index_parquet(&version_path, &conn)?,
-            _ => {
-                return Err(OxenError::basic_str(
-                    "File format not supported, must be tabular.",
-                ))
-            }
-        },
-        None => {
-            return Err(OxenError::basic_str(
-                "File format not supported, must be tabular.",
-            ))
-        }
-    }
+    df_db::index_file_with_id(&version_path, &conn)?;
 
     let commit_path = mod_stager::mods_commit_ref_path(repo, branch, identifier, &entry.path);
     std::fs::write(commit_path, branch.commit_id.as_str())?;
 
-    // Print whole table after index for debugging
-
-    let select_all = Select::new().select("*").from(TABLE_NAME);
-    let inserted_data = df_db::select_with_opts(&conn, &select_all, opts)?;
-
-    Ok(inserted_data)
+    let select = Select::new().select("*").from(TABLE_NAME);
+    let preview = df_db::select_with_opts(&conn, &select, opts)?;
+    Ok(preview)
 }
 
 pub fn unindex_df(
@@ -269,70 +251,21 @@ pub fn count(
     Ok(count)
 }
 
-fn index_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
-    conn.execute(&query, [])?;
-
-    let add_default_query = format!(
-        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
-        TABLE_NAME, OXEN_ID_COL
-    );
-    conn.execute(&add_default_query, [])?;
-
-    // let select_all = Select::new().select("*").from(TABLE_NAME);
-    // let all_data = df_db::select(conn, &select_all)?;
-    // log::debug!("All data in table {}: {:?}", TABLE_NAME, all_data);
-
-    Ok(())
-}
-
-fn index_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
-    conn.execute(&query, [])?;
-
-    let add_default_query = format!(
-        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
-        TABLE_NAME, OXEN_ID_COL
-    );
-    conn.execute(&add_default_query, [])?;
-
-    Ok(())
-}
-
-fn index_json(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    let query = format!(
-        "CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM '{}';",
-        TABLE_NAME,
-        OXEN_ID_COL,
-        path.to_string_lossy()
-    );
-    conn.execute(&query, [])?;
-
-    let add_default_query = format!(
-        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
-        TABLE_NAME, OXEN_ID_COL
-    );
-    conn.execute(&add_default_query, [])?;
-
-    Ok(())
-}
-
-fn index_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
-    let query = format!(
-        "CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM '{}';",
-        TABLE_NAME,
-        OXEN_ID_COL,
-        path.to_string_lossy()
-    );
-    conn.execute(&query, [])?;
-
-    let add_default_query = format!(
-        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
-        TABLE_NAME, OXEN_ID_COL
-    );
-    conn.execute(&add_default_query, [])?;
-
-    Ok(())
+fn copy_duckdb_if_already_indexed(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+    opts: &DFOpts,
+    new_db_path: &Path,
+) -> Result<Option<DataFrame>, OxenError> {
+    let maybe_existing_db_path = sql::db_cache_path(repo, entry);
+    let conn = df_db::get_connection(&maybe_existing_db_path)?;
+    if df_db::table_exists(&conn, TABLE_NAME)? {
+        std::fs::copy(&maybe_existing_db_path, new_db_path)?;
+        let select = Select::new().select("*").from(TABLE_NAME);
+        let preview = df_db::select_with_opts(&conn, &select, opts)?;
+        return Ok(Some(preview));
+    }
+    Ok(None)
 }
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
@@ -391,6 +324,7 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet()");
+
     let query = format!(
         "COPY (SELECT * EXCLUDE {} FROM '{}') to '{}' (FORMAT PARQUET);",
         OXEN_ID_COL,
@@ -398,5 +332,6 @@ fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
         path.to_string_lossy()
     );
     conn.execute(&query, [])?;
+
     Ok(())
 }
