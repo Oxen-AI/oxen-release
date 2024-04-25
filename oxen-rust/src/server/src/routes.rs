@@ -298,6 +298,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // ----- DataFrame ----- //
         .route(
+            "/{namespace}/{repo_name}/data_frame/index/{resource:.*}",
+            web::post().to(controllers::data_frames::index),
+        )
+        .route(
             "/{namespace}/{repo_name}/data_frame/{resource:.*}",
             web::get().to(controllers::data_frames::get),
         )

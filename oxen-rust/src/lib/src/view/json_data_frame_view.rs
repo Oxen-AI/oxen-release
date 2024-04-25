@@ -143,7 +143,7 @@ impl JsonDataFrameView {
         opts: &DFOpts,
     ) -> JsonDataFrameView {
         let full_width = df.width();
-        let full_height = og_height;
+        let view_height = df.height();
 
         let opts_view = DFOptsView::from_df_opts(opts);
         let mut sliced_df = tabular::transform(df, opts.clone()).unwrap();
@@ -158,15 +158,15 @@ impl JsonDataFrameView {
         JsonDataFrameView {
             schema: slice_schema,
             size: DataFrameSize {
-                height: full_height,
+                height: view_height,
                 width: full_width,
             },
             data: JsonDataFrameView::json_from_df(&mut sliced_df),
             pagination: Pagination {
                 page_number: opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
                 page_size: opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
-                total_pages: (full_height as f64 / og_height as f64).ceil() as usize,
-                total_entries: full_height,
+                total_pages: (og_height as f64 / view_height as f64).ceil() as usize,
+                total_entries: og_height,
             },
             opts: opts_view,
         }
