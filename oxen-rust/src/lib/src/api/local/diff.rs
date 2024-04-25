@@ -141,9 +141,29 @@ pub fn diff_dfs(
     Ok(compare)
 }
 
+// pub fn diff_staged_df(
+//     repo: &LocalRepository,
+//     branch: &Branch,
+//     path: PathBuf,
+//     identifier: &str,
+// ) -> Result<DiffResult, OxenError> {
+//     // Get commit for the branch head
+//     log::debug!("diff_staged_df got repo at path {:?}", repo.path);
+//     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?
+//         .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
+
+//     let entry = api::local::entries::get_commit_entry(repo, &commit, &path)?
+//         .ok_or(OxenError::entry_does_not_exist(&path))?;
+
+//     let branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
+
+//     if !index::remote_df_stager::dataset_is_indexed(repo, branch, identifier, &path)? {
+//         return Err(OxenError::basic_str("Dataset is not indexed"));
+//     };
+
+// }
 pub fn diff_staged_df(
     repo: &LocalRepository,
-    // branch_repo: &LocalRepository,
     branch: &Branch,
     path: PathBuf,
     identifier: &str,

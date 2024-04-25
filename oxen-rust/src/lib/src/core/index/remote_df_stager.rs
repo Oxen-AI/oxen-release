@@ -8,6 +8,7 @@ use crate::core::db::df_db;
 use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
+use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{Branch, CommitEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
@@ -258,8 +259,10 @@ pub fn count(
 
 fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
     let query_status = format!(
-        "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT 'unchanged'",
-        TABLE_NAME, DIFF_STATUS_COL
+        "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT '{}'",
+        TABLE_NAME,
+        DIFF_STATUS_COL,
+        StagedRowStatus::Unchanged.to_string()
     );
     conn.execute(&query_status, [])?;
 
