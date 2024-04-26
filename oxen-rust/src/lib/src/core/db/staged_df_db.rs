@@ -107,7 +107,7 @@ pub fn df_diff(conn: &duckdb::Connection) -> Result<DataFrame, OxenError> {
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!(
-            "{} != '{}'",
+            "\"{}\" != '{}'",
             DIFF_STATUS_COL,
             StagedRowStatus::Unchanged.to_string()
         ));

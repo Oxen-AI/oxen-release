@@ -37,6 +37,8 @@ pub struct MetadataEntry {
     pub extension: String,
     // metadata per data tyoe
     pub metadata: Option<GenericMetadata>,
+    // If it's a tabular file, is it indexed for querying?
+    pub is_queryable: Option<bool>,
 }
 
 impl MetadataEntry {

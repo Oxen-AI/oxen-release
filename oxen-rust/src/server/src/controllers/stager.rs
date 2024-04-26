@@ -19,11 +19,13 @@ use liboxen::model::{
 };
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::{DFOpts, PaginateOpts};
-use liboxen::util;
+use liboxen::util::{self, paginate};
 use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
-use liboxen::view::entry::ResourceVersion;
+use liboxen::view::entry::{
+    PaginatedMetadataEntries, PaginatedMetadataEntriesResponse, ResourceVersion,
+};
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
-use liboxen::view::remote_staged_status::RemoteStagedStatus;
+use liboxen::view::remote_staged_status::{DFIsEditableResponse, RemoteStagedStatus};
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrameView, JsonDataFrameViewResponse,
     JsonDataFrameViews, Pagination, RemoteStagedStatusResponse, StatusMessage,
@@ -303,6 +305,22 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     let content_type = ContentType::from_http_content_type(content_type_str)?;
 
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+
+    // TODO clean up
+    if content_type != ContentType::Json {
+        return Err(OxenHttpError::BadRequest(
+            "Unsupported content type, must be json".to_string().into(),
+        ));
+    }
+
+    // If the json has an outer property of "data", serialize the inner object
+    let json_value: serde_json::Value = serde_json::from_str(&data)?;
+    // TODO yeesh
+    let data = if let Some(data_obj) = json_value.get("data") {
+        serde_json::to_string(data_obj)?
+    } else {
+        data
+    };
 
     let branch = resource
         .branch
@@ -960,6 +978,94 @@ pub async fn get_staged_df(
             }
         }
     }
+}
+
+pub async fn get_df_is_editable(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    log::debug!(
+        "{} indexing dataset for resource {namespace}/{repo_name}/{resource}",
+        liboxen::current_function!()
+    );
+
+    // Staged dataframes must be on a branch.
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let is_editable = index::remote_df_stager::dataset_is_indexed(
+        &repo,
+        &branch,
+        &identifier,
+        &resource.file_path,
+    )?;
+
+    Ok(HttpResponse::Ok().json(DFIsEditableResponse {
+        status: StatusMessage::resource_found(),
+        is_editable,
+    }))
+}
+
+pub async fn list_editable_dfs(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let branch_name: &str = req.match_info().query("branch");
+
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+
+    // Staged dataframes must be on a branch.
+    let branch = api::local::branches::get_by_name(&repo, branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(branch_name))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
+
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
+
+    let mut editable_entries = vec![];
+
+    for entry in entries {
+        if let Some(resource) = entry.resource.clone() {
+            if index::remote_df_stager::dataset_is_indexed(
+                &repo,
+                &branch,
+                &identifier,
+                &PathBuf::from(resource.path),
+            )? {
+                editable_entries.push(entry);
+            }
+        }
+    }
+
+    let (paginated_entries, pagination) = paginate(editable_entries, page, page_size);
+    Ok(HttpResponse::Ok().json(PaginatedMetadataEntriesResponse {
+        status: StatusMessage::resource_found(),
+        entries: PaginatedMetadataEntries {
+            entries: paginated_entries,
+            pagination,
+        },
+    }))
 }
 
 fn clear_staged_modifications_on_branch(
