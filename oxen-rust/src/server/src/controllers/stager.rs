@@ -1026,7 +1026,7 @@ pub async fn list_editable_dfs(
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let branch_name: &str = req.match_info().query("branch");
 
     let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);

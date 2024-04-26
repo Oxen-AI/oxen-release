@@ -118,7 +118,7 @@ pub fn get_schema_excluding_cols(
     let table_name = table_name.as_ref();
     let sql = format!(
         "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name NOT IN ({})",
-        table_name, cols.iter().map(|col| format!("'{}'", col.replace("'", "''"))).collect::<Vec<String>>().join(", ")
+        table_name, cols.iter().map(|col| format!("'{}'", col.replace('\'', "''"))).collect::<Vec<String>>().join(", ")
     );
     let mut stmt = conn.prepare(&sql)?;
 
