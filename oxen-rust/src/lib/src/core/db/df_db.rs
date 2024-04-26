@@ -416,7 +416,7 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
 // TODO: We will eventually want to parse the actual type, not just the extension.
 // For now, just treat the extension as law
 pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
-    log::debug!("df_db:index_file() at path {:?}", path);
+    log::debug!("df_db:index_file() at path {:?} into path {:?}", path, conn);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
     match extension {

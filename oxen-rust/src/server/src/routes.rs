@@ -205,6 +205,14 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/staging/{identifier}/status/{resource:.*}",
             web::get().to(controllers::stager::status_dir),
         )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/list_editable/{branch:.*}",
+            web::get().to(controllers::stager::list_editable_dfs),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/is_editable/{resource:.*}",
+            web::get().to(controllers::stager::get_df_is_editable),
+        )
         // STAGING
         // TODO: add GET for downloading the file from the staging area
         // TODO: implement delete dir from staging to recursively unstage

@@ -9,12 +9,14 @@ use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Branch, CommitEntry, LocalRepository};
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 use super::{CommitEntryReader, CommitReader};
+
+const OXEN_COLS: [&str; 3] = [OXEN_ID_COL, DIFF_STATUS_COL, DIFF_HASH_COL];
 
 pub fn index_dataset(
     repo: &LocalRepository,
@@ -48,6 +50,8 @@ pub fn index_dataset(
     };
 
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &entry.path);
+
+    log::debug!("mods_df_db path is {:?}", db_path);
 
     if !db_path
         .parent()
@@ -107,9 +111,13 @@ pub fn dataset_is_indexed(
     identifier: &str,
     path: &Path,
 ) -> Result<bool, OxenError> {
+    log::debug!("checking dataset is indexed for {:?}", path);
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    log::debug!("getting conn at path {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
+
     let table_exists = df_db::table_exists(&conn, TABLE_NAME)?;
+    log::debug!("dataset_is_indexed() got table_exists: {:?}", table_exists);
     Ok(table_exists)
 }
 
@@ -293,9 +301,14 @@ fn copy_duckdb_if_already_indexed(
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_rest()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
     let query = format!(
-        "COPY (SELECT * EXCLUDE {} FROM '{}') to '{}';",
-        OXEN_ID_COL,
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
+        excluded_cols,
         TABLE_NAME,
         path.to_string_lossy()
     );
@@ -310,9 +323,14 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_csv()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
     let query = format!(
-        "COPY (SELECT * EXCLUDE {} FROM '{}') to '{}' (HEADER, DELIMITER ',');",
-        OXEN_ID_COL,
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
+        excluded_cols,
         TABLE_NAME,
         path.to_string_lossy()
     );
@@ -329,9 +347,14 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_tsv()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
     let query = format!(
-        "COPY (SELECT * EXCLUDE {} FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
-        OXEN_ID_COL,
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
+        excluded_cols,
         TABLE_NAME,
         path.to_string_lossy()
     );
@@ -347,10 +370,15 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
 
     let query = format!(
-        "COPY (SELECT * EXCLUDE {} FROM '{}') to '{}' (FORMAT PARQUET);",
-        OXEN_ID_COL,
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
+        excluded_cols,
         TABLE_NAME,
         path.to_string_lossy()
     );

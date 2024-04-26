@@ -118,6 +118,10 @@ pub fn index_df(
 
 pub fn df_is_indexed(repo: &LocalRepository, entry: &CommitEntry) -> Result<bool, OxenError> {
     let duckdb_path = db_cache_path(repo, entry);
+
+    if !duckdb_path.exists() {
+        return Ok(false);
+    }
     let conn = df_db::get_connection(duckdb_path)?;
     let is_indexed = df_db::table_exists(&conn, DUCKDB_DF_TABLE_NAME)?;
     Ok(is_indexed)

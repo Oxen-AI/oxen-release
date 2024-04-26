@@ -59,6 +59,16 @@ impl TabularDiffDupes {
     }
 }
 
+impl TabularDiffSchemas {
+    pub fn empty() -> Self {
+        TabularDiffSchemas {
+            left: Schema::empty(),
+            right: Schema::empty(),
+            diff: Schema::empty(),
+        }
+    }
+}
+
 impl TabularDiffParameters {
     pub fn empty() -> Self {
         TabularDiffParameters {
@@ -86,6 +96,13 @@ impl TabularSchemaDiff {
             .collect::<Vec<Field>>();
 
         Ok(TabularSchemaDiff { added, removed })
+    }
+
+    pub fn empty() -> Self {
+        TabularSchemaDiff {
+            added: vec![],
+            removed: vec![],
+        }
     }
 }
 

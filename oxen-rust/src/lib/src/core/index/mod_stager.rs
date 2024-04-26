@@ -510,4 +510,40 @@ mod tests {
             Ok(())
         })
     }
+
+    #[test]
+    fn test_stage_json_delete_committed_row() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "test-append";
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
+            let identity = UserConfig::identifier()?;
+            let file_path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
+
+            // Index the dataset
+            let opts = DFOpts::empty();
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+
+            // Preview the dataset
+
+            // List the files that are changed
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            assert_eq!(commit_entries.len(), 1);
+
+            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    assert_eq!(added_rows, 1);
+                }
+                _ => panic!("Expected tabular diff result"),
+            }
+
+            Ok(())
+        })
+    }
 }
