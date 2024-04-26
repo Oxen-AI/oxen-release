@@ -9,7 +9,7 @@ use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository};
+use crate::model::{Branch, CommitEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};

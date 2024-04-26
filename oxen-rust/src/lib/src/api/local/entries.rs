@@ -6,7 +6,6 @@ use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::schema::DataType;
 use crate::opts::DFOpts;
 use crate::view::entry::ResourceVersion;
 use crate::view::DataTypeCount;
