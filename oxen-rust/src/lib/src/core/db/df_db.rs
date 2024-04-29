@@ -307,9 +307,23 @@ pub fn insert_polars_df(
     df: &DataFrame,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
+
+    // Handle blank row initialization - todo, could factor this out to shorten
     if df.height() == 0 {
-        return Err(OxenError::basic_str("DataFrame is empty"));
+        let sql = format!(
+            "INSERT INTO {} DEFAULT VALUES RETURNING *, {}",
+            table_name, OXEN_ID_COL
+        );
+        let mut stmt = conn.prepare(&sql)?;
+        let result_set: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+        let result_set: Vec<&RecordBatch> = result_set.iter().collect();
+        let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
+        let json_str = serde_json::to_string(&json).unwrap();
+        let content = Cursor::new(json_str.as_bytes());
+        let df = JsonReader::new(content).finish().unwrap();
+        return Ok(df);
     }
+
     let schema = df.schema();
     let column_names: Vec<String> = schema
         .iter_fields()

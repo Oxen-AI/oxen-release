@@ -485,6 +485,8 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
     let repo_vnodes_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, repo_vnodes_dir)?;
 
+    log::debug!("successfully opened all dbs");
+
     //
 
     let new_dirs: Vec<TreeObject> = path_db::list_entries(&new_dirs_db)?;
@@ -492,20 +494,28 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
         tree_db::put_tree_object(&repo_dirs_db, dir.hash(), &dir)?;
     }
 
+    log::debug!("did put dirs");
+
     let new_files: Vec<TreeObject> = path_db::list_entries(&new_files_db)?;
     for file in new_files {
         tree_db::put_tree_object(&repo_files_db, file.hash(), &file)?;
     }
+
+    log::debug!("did put files");
 
     let new_schemas: Vec<TreeObject> = path_db::list_entries(&new_schemas_db)?;
     for schema in new_schemas {
         tree_db::put_tree_object(&repo_schemas_db, schema.hash(), &schema)?;
     }
 
+    log::debug!("did put schemas");
+
     let new_vnodes: Vec<TreeObject> = path_db::list_entries(&new_vnodes_db)?;
     for vnode in new_vnodes {
         tree_db::put_tree_object(&repo_vnodes_db, vnode.hash(), &vnode)?;
     }
+
+    log::debug!("did put vnodes");
 
     Ok(())
 }

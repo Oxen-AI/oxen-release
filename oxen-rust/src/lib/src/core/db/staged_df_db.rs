@@ -18,7 +18,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
     let df_schema = df.schema();
 
-    if !table_schema.has_same_field_names(&df_schema) {
+    if !table_schema.has_field_names(&df_schema.get_names()) {
         return Err(OxenError::incompatible_schemas(
             &df_schema
                 .iter_fields()

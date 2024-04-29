@@ -114,7 +114,7 @@ pub fn index_commit(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenE
     bar.finish();
 
     log::debug!("Flushing appender....");
-    appender.flush();
+    appender.flush()?;
 
     Ok(())
 }

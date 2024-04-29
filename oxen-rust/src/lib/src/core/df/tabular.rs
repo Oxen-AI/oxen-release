@@ -272,6 +272,10 @@ pub fn parse_data_into_df(
                 )));
             }
 
+            if data == "{}" {
+                return Ok(DataFrame::default());
+            }
+
             let cursor = Cursor::new(data.as_bytes());
             match JsonLineReader::new(cursor).finish() {
                 Ok(df) => Ok(df),
@@ -280,21 +284,21 @@ pub fn parse_data_into_df(
                 ))),
             }
         }
-        ContentType::Csv => {
-            let fields = schema.fields_to_csv();
-            let data = format!("{}\n{}", fields, data);
-            let cursor = Cursor::new(data.as_bytes());
-            let schema = schema.to_polars();
-            match CsvReader::new(cursor)
-                .with_schema(Some(Arc::new(schema)))
-                .finish()
-            {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
+        // ContentType::Csv => {
+        //     let fields = schema.fields_to_csv();
+        //     let data = format!("{}\n{}", fields, data);
+        //     let cursor = Cursor::new(data.as_bytes());
+        //     let schema = schema.to_polars();
+        //     match CsvReader::new(cursor)
+        //         .with_schema(Some(Arc::new(schema)))
+        //         .finish()
+        //     {
+        //         Ok(df) => Ok(df),
+        //         Err(err) => Err(OxenError::basic_str(format!(
+        //             "Error parsing {content_type:?}: {err}"
+        //         ))),
+        //     }
+        // }
         _ => {
             let err = format!("Unsupported content type: {content_type:?}");
             Err(OxenError::basic_str(err))

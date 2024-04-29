@@ -110,7 +110,8 @@ where
                     }
                 }
             }
-            _ => {
+            Err(err) => {
+                log::error!("error iterating over db values is: {}", err);
                 return Err(OxenError::basic_str(
                     "Could not read iterate over db values",
                 ));
