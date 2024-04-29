@@ -213,6 +213,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/staging/{identifier}/df/is_editable/{resource:.*}",
             web::get().to(controllers::stager::get_df_is_editable),
         )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/diff/{resource:.*}",
+            web::get().to(controllers::stager::diff_df),
+        )
         // STAGING
         // TODO: add GET for downloading the file from the staging area
         // TODO: implement delete dir from staging to recursively unstage
@@ -240,10 +244,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
         )
         // END DEPRECIATED STAGING
         // "/{namespace}/{repo_name}/staging/dir/{resource:.*}",
-        .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/df/diff",
-            web::get().to(controllers::stager::diff_df),
-        )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
             web::get().to(controllers::stager::df_get_row),

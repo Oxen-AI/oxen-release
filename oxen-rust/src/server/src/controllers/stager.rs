@@ -147,8 +147,6 @@ pub async fn diff_df(
 
     let diff_df = staged_df_db::df_diff(&conn)?;
 
-    log::debug!("Got this diff_df {:?}", diff_df);
-
     Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
 }
 
@@ -293,11 +291,15 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
 pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("in the df add row controller");
     let app_data = app_data(&req)?;
+    log::debug!("trying to get repo at path {:?}", app_data.path);
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    log::debug!("with namespace {:?}", namespace);
+    log::debug!("with repo_name {:?}", repo_name);
+    log::debug!("with identifier {:?}", identifier);
+    let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let resource = parse_resource(&req, &repo)?;
 
     // TODO: better error handling for content-types
@@ -321,6 +323,8 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     } else {
         data
     };
+
+    log::debug!("we got data {:?}", data);
 
     let branch = resource
         .branch
@@ -801,7 +805,6 @@ pub async fn get_staged_df(
         &identifier,
         &resource.file_path,
     )? {
-        log::debug!("df is indexed");
         let count = index::remote_df_stager::count(
             &repo,
             &branch,

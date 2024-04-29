@@ -162,6 +162,7 @@ impl DataType {
             "TIME" => DataType::Time,     // time of day (no time zone)
             "NULL" => DataType::Null,     // null value
             "UUID" => DataType::String,
+            "BOOLEAN" => DataType::Boolean,
             other => panic!("TODO: unknown SQL type: {}", other),
         }
     }
