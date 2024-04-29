@@ -801,6 +801,7 @@ pub async fn get_staged_df(
         &identifier,
         &resource.file_path,
     )? {
+        log::debug!("df is indexed");
         let count = index::remote_df_stager::count(
             &repo,
             &branch,
