@@ -381,6 +381,93 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     Ok(HttpResponse::Ok().json(response))
 }
 
+pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let identifier = req.match_info().get("identifier").unwrap();
+    let row_id = req.match_info().get("row_id").unwrap();
+
+    let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
+    )?;
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+
+    // TODO: better error handling for content-types
+    let content_type_str = get_content_type(&req).unwrap_or("text/plain");
+    let content_type = ContentType::from_http_content_type(content_type_str)?;
+
+    let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+
+    // TODO clean up
+    if content_type != ContentType::Json {
+        return Err(OxenHttpError::BadRequest(
+            "Unsupported content type, must be json".to_string().into(),
+        ));
+    }
+
+    // If the json has an outer property of "data", serialize the inner object
+    let json_value: serde_json::Value = serde_json::from_str(&data)?;
+    // TODO yeesh
+    let data = if let Some(data_obj) = json_value.get("data") {
+        serde_json::to_string(data_obj)?
+    } else {
+        data
+    };
+
+    log::debug!("we got data {:?}", data);
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Have to initialize this branch repo before we can do any operations on it
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    log::debug!(
+        "stager::df_modify_row repo {resource} -> staged repo path {:?}",
+        repo.path
+    );
+    log::debug!(
+        "stager::df_modify_row branch repo {resource} -> staged repo path {:?}",
+        branch_repo.path
+    );
+
+    let new_mod = NewMod {
+        content_type,
+        mod_type: ModType::Modify,
+        entry,
+        data,
+    };
+
+    // TODO: Add, delete, and modify should use the resource schema here.
+    let modified_row = mod_stager::modify_row(&repo, &branch, &identifier, &row_id, &new_mod)?;
+    log::debug!("Modified row in controller is {:?}", modified_row);
+    let schema = Schema::from_polars(&modified_row.schema());
+    Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
+        data_frame: JsonDataFrameViews {
+            source: JsonDataFrameSource::from_df(&modified_row, &schema),
+            view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()),
+        },
+        commit: None,
+        derived_resource: None,
+        status: StatusMessage::resource_updated(),
+        resource: None,
+        row_id: None,
+    }))
+}
+
 pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Error> {
     let app_data = app_data(&req).unwrap();
 
@@ -389,20 +476,6 @@ pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpRespon
     let user_id: &str = req.match_info().get("identifier").unwrap();
     let row_id: &str = req.match_info().get("row_id").unwrap();
     let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
-
-    // let body_err_msg = "Invalid Body, must be valid json in the format {\"id\": \"<id>\"}";
-    // let body = String::from_utf8(bytes.to_vec());
-    // if body.is_err() {
-    //     log::error!("stager::df_delete_row could not parse body as utf8");
-    //     return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
-    // }
-
-    // let body = body.unwrap();
-    // let response: Result<ObjectID, serde_json::Error> = serde_json::from_str(&body);
-    // if response.is_err() {
-    //     log::error!("stager::df_delete_row could not parse body as ObjectID\n{body:?}");
-    //     return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
-    // }
 
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {

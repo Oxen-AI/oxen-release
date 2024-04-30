@@ -110,6 +110,38 @@ pub fn add_row(
     }
 }
 
+pub fn modify_row(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identifier: &str,
+    row_id: &str,
+    new_mod: &NewMod,
+) -> Result<DataFrame, OxenError> {
+    let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
+    if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
+        // Add a name to the schema - todo probably should be an impl on a struct
+        let schema = Schema {
+            name: Some("STAGED".to_string()),
+            ..schema
+        };
+
+        let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
+        let conn = df_db::get_connection(db_path)?;
+
+        let df =
+            tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned())?;
+
+        let result = staged_df_db::modify_row(&conn, &df, row_id)?;
+
+        track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
+
+        Ok(result)
+    } else {
+        let err = format!("Schema not found for file {:?}", new_mod.entry.path);
+        Err(OxenError::basic_str(err))
+    }
+}
+
 pub fn unstage_df(
     repo: &LocalRepository,
     branch: &Branch,
