@@ -9,7 +9,7 @@ use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Branch, CommitEntry, LocalRepository};
+use crate::model::{Branch, CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
@@ -238,6 +238,7 @@ pub fn get_row_by_id(
 
 pub fn query_staged_df(
     repo: &LocalRepository,
+    schema: &Schema,
     branch: &Branch,
     path: PathBuf,
     identifier: &str,
@@ -246,7 +247,12 @@ pub fn query_staged_df(
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
     let conn = df_db::get_connection(db_path)?;
 
-    let select = Select::new().select("*").from(TABLE_NAME);
+    let col_names = select_cols_from_schema(schema)?;
+
+    log::debug!("Using this select clause: {}", col_names);
+
+    let select = Select::new().select(&col_names).from(TABLE_NAME);
+    log::debug!("sending over this select: {:?}", select);
     let df = df_db::select_with_opts(&conn, &select, opts)?;
 
     Ok(df)
@@ -264,7 +270,16 @@ pub fn count(
     let count = df_db::count(&conn, TABLE_NAME)?;
     Ok(count)
 }
+pub fn select_cols_from_schema(schema: &Schema) -> Result<String, OxenError> {
+    let all_col_names = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .chain(schema.fields.iter().map(|col| format!("\"{}\"", col.name)))
+        .collect::<Vec<String>>()
+        .join(", ");
 
+    Ok(all_col_names)
+}
 fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
     let query_status = format!(
         "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT '{}'",

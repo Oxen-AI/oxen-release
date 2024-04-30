@@ -35,6 +35,14 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     );
     let df = df.hstack(&[added_column])?;
 
+    let df = if df.height() == 0 {
+        let added_column = Series::new(DIFF_STATUS_COL, vec![StagedRowStatus::Added.to_string()]);
+        let df = DataFrame::new(vec![added_column])?;
+        df
+    } else {
+        df
+    };
+
     let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df)?;
 
     log::debug!("staged_df_db::append_row() inserted_df: {:?}", inserted_df);
