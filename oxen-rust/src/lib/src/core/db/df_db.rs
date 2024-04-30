@@ -379,6 +379,70 @@ pub fn insert_polars_df(
     Ok(result_df)
 }
 
+pub fn modify_row_with_polars_df(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    id: &str,
+    df: &DataFrame,
+) -> Result<DataFrame, OxenError> {
+    if df.height() != 1 {
+        return Err(OxenError::basic_str(
+            "df must have exactly one row to be used for modification",
+        ));
+    }
+
+    let table_name = table_name.as_ref();
+
+    let schema = df.schema();
+    let column_names: Vec<String> = schema
+        .iter_fields()
+        .map(|f| format!("\"{}\"", f.name()))
+        .collect();
+
+    let set_clauses: String = column_names
+        .iter()
+        .map(|col_name| format!("{} = ?", col_name))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    log::debug!("set clauses are {}", set_clauses);
+
+    let where_clause = format!("\"{}\" = '{}'", OXEN_ID_COL, id);
+    let sql = format!(
+        "UPDATE {} SET {} WHERE {} RETURNING *",
+        table_name, set_clauses, where_clause
+    );
+
+    let values = df.get(0).unwrap(); // Checked above
+
+    log::debug!("df is {:?}", df);
+    log::debug!("the values are {:?}", values);
+
+    let boxed_values: Vec<Box<dyn ToSql>> = values
+        .iter()
+        .map(|v| tabular::value_to_tosql(v.to_owned()))
+        .collect();
+
+    let params: Vec<&dyn ToSql> = boxed_values
+        .iter()
+        .map(|boxed_value| &**boxed_value as &dyn ToSql)
+        .collect();
+
+    let mut stmt = conn.prepare(&sql)?;
+    let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
+    let result_set: Vec<&RecordBatch> = result_set.iter().collect();
+    let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
+    log::debug!("got json: {:?}", json);
+
+    let json_str = serde_json::to_string(&json).unwrap();
+    log::debug!("got json str: {:?}", json_str);
+
+    let content = Cursor::new(json_str.as_bytes());
+    let df = polars::io::json::JsonReader::new(content).finish().unwrap();
+
+    Ok(df)
+}
+
 pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
     log::debug!("df_db:index_file() at path {:?}", path);
     let extension: &str = &util::fs::extension_from_path(path);

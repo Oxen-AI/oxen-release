@@ -1,9 +1,11 @@
 use polars::frame::DataFrame;
+use sql::Select;
 // use sql::Select;
 use sql_query_builder as sql;
 
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_ID_COL};
 
+use crate::core::df::tabular;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::Schema;
 use crate::{constants::TABLE_NAME, error::OxenError};
@@ -50,6 +52,72 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     Ok(inserted_df)
 
     // Proceed with appending `new_df` to the database
+}
+
+pub fn modify_row(
+    conn: &duckdb::Connection,
+    df: &DataFrame,
+    uuid: &str,
+) -> Result<DataFrame, OxenError> {
+    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    let df_schema = df.schema();
+
+    if !table_schema.has_field_names(&df_schema.get_names()) {
+        return Err(OxenError::incompatible_schemas(
+            &df_schema
+                .iter_fields()
+                .map(|f| f.name.to_string())
+                .collect::<Vec<String>>(),
+            table_schema,
+        ));
+    }
+
+    if df.height() != 1 {
+        return Err(OxenError::basic_str(
+            "Modify row requires exactly one row".to_owned(),
+        ));
+    }
+
+    // Determine the modification status
+
+    // get existing hash from db
+    let select_hash = Select::new()
+        .select("*")
+        .from(TABLE_NAME)
+        .where_clause(&format!("\"{}\" = '{}'", OXEN_ID_COL, uuid));
+
+    let maybe_db_data = df_db::select(conn, &select_hash)?;
+    let col_names = maybe_db_data
+        .get_column_names()
+        .iter()
+        .map(|f| f.to_string())
+        .collect::<Vec<String>>();
+
+    let new_status = if maybe_db_data.height() == 0 {
+        // Not hashed yet, aka this is first modification. Mark modified and calculate original hash
+        // Then add it to the df we're sending over for insert
+        let original_data_hash =
+            tabular::df_hash_rows_on_cols(maybe_db_data.clone(), &col_names, DIFF_HASH_COL)?;
+        let diff_status_col = Series::new(DIFF_STATUS_COL, vec![original_data_hash]);
+        let df = df.hstack(&[diff_status_col])?;
+        StagedRowStatus::Modified.to_string()
+    } else {
+        StagedRowStatus::Modified.to_string()
+    };
+    // Add it to the df
+    let diff_status_col = Series::new(DIFF_STATUS_COL, vec![new_status]);
+    let df = df.hstack(&[diff_status_col])?;
+
+    // TODO: add hash info to the df;
+
+    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, &uuid, &df)?;
+
+    log::debug!("got this modified observation: {:?}", result);
+
+    if result.height() == 0 {
+        return Err(OxenError::resource_not_found(uuid));
+    }
+    Ok(result)
 }
 
 pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, OxenError> {
