@@ -268,7 +268,7 @@ pub fn select_with_opts(
         sql.push_str(&format!(" ORDER BY {}", sort_by));
     }
 
-    let _pagination_clause = if let Some(page) = opts.page {
+    let pagination_clause = if let Some(page) = opts.page {
         let page = if page == 0 { 1 } else { page };
         let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
         format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size)
@@ -276,7 +276,7 @@ pub fn select_with_opts(
         format!(" LIMIT {}", DEFAULT_PAGE_SIZE)
     };
 
-    // push it to the sql
+    sql.push_str(&pagination_clause);
 
     log::debug!("select sql with opts: {}", sql);
     let mut stmt = conn.prepare(&sql)?;
@@ -286,16 +286,26 @@ pub fn select_with_opts(
     if records.is_empty() {
         return Ok(DataFrame::default());
     }
-
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
+
+    // Write to json
+    let buf = Vec::new();
+    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
+    writer.write_batches(&records[..])?;
+    writer.finish()?;
+
+    log::debug!("Here are the actual records: {:?}", records);
+    let json = writer.into_inner();
+
     log::debug!("got json: {:?}", json);
 
-    let json_str = serde_json::to_string(&json).unwrap();
+    let json_str = String::from_utf8(json)?;
 
     let content = Cursor::new(json_str.as_bytes());
     let df = JsonReader::new(content).finish().unwrap();
+
+    log::debug!("got df from jsonreader: {:?}", df);
 
     Ok(df)
 }
@@ -307,22 +317,6 @@ pub fn insert_polars_df(
     df: &DataFrame,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
-
-    // Handle blank row initialization - todo, could factor this out to shorten
-    if df.height() == 0 {
-        let sql = format!(
-            "INSERT INTO {} DEFAULT VALUES RETURNING *, {}",
-            table_name, OXEN_ID_COL
-        );
-        let mut stmt = conn.prepare(&sql)?;
-        let result_set: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
-        let result_set: Vec<&RecordBatch> = result_set.iter().collect();
-        let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
-        let json_str = serde_json::to_string(&json).unwrap();
-        let content = Cursor::new(json_str.as_bytes());
-        let df = JsonReader::new(content).finish().unwrap();
-        return Ok(df);
-    }
 
     let schema = df.schema();
     let column_names: Vec<String> = schema

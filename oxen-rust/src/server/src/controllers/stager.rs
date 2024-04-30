@@ -783,6 +783,11 @@ pub async fn get_staged_df(
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
+    let schema = api::local::schemas::get_by_path(&repo, &resource.file_path)?
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    log::debug!("got this schema for the endpoint {:?}", schema);
+
     log::debug!(
         "{} indexing dataset for resource {namespace}/{repo_name}/{resource}",
         liboxen::current_function!()
@@ -799,6 +804,13 @@ pub async fn get_staged_df(
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
+    log::debug!("here are the opts we're getting {:?}", opts);
+
+    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
+    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
+
+    log::debug!("now opts are {:?}", opts);
+
     if index::remote_df_stager::dataset_is_indexed(
         &repo,
         &branch,
@@ -814,6 +826,7 @@ pub async fn get_staged_df(
 
         let df = index::remote_df_stager::query_staged_df(
             &repo,
+            &schema,
             &branch,
             resource.file_path.clone(),
             &identifier,
