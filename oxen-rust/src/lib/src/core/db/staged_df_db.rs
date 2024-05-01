@@ -98,7 +98,7 @@ pub fn modify_row(
         // Then add it to the df we're sending over for insert
         let original_data_hash =
             tabular::df_hash_rows_on_cols(maybe_db_data.clone(), &col_names, DIFF_HASH_COL)?;
-        let diff_status_col = Series::new(DIFF_STATUS_COL, vec![original_data_hash]);
+        let diff_status_col = Series::new(DIFF_STATUS_COL, vec![original_data_hash.to_string()]);
         let df = df.hstack(&[diff_status_col])?;
         StagedRowStatus::Modified.to_string()
     } else {
