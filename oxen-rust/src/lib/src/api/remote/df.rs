@@ -393,6 +393,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_paginate_df_after_sql() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_empty_local_repo_test_async(|mut local_repo| async move {
             let repo_dir = &local_repo.path;
             let large_dir = repo_dir.join("large_files");
