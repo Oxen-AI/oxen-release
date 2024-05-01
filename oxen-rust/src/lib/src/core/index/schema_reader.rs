@@ -187,10 +187,19 @@ impl SchemaReader {
     }
 
     pub fn list_schema_entries(&self) -> Result<Vec<SchemaEntry>, OxenError> {
-        log::debug!("trying to get root hash for commit {:?}", self.commit_id);
-        let root_hash: String = path_db::get_entry(&self.dir_hashes_db, "")?.ok_or(
-            OxenError::basic_str("Could not find root hash in dir hashes db"),
-        )?;
+        // Root hash is stored on the commit though
+        let commit_reader = CommitReader::new(&self.repository)?;
+        let commit =
+            commit_reader
+                .get_commit_by_id(&self.commit_id)?
+                .ok_or(OxenError::basic_str(format!(
+                    "Could not find commit {}",
+                    self.commit_id
+                )))?;
+
+        let root_hash = commit
+            .root_hash
+            .ok_or(format!("Root hash not found for commit {}", self.commit_id))?;
 
         let root_node: TreeObject =
             self.object_reader
