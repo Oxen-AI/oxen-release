@@ -132,6 +132,14 @@ pub async fn diff_df(
     let resource = parse_resource(&req, &repo)?;
     let identifier = path_param(&req, "identifier")?;
 
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+
+    log::debug!("here are the opts we're getting {:?}", opts);
+
+    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
+    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
+
     // Remote staged calls must be on a branch
     let branch = resource
         .branch
@@ -141,13 +149,30 @@ pub async fn diff_df(
     let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     let staged_db_path =
-        mod_stager::mods_df_db_path(&repo, &branch, &identifier, resource.file_path);
+        mod_stager::mods_df_db_path(&repo, &branch, &identifier, &resource.file_path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 
     let diff_df = staged_df_db::df_diff(&conn)?;
 
-    Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
+    let df_schema = Schema::from_polars(&diff_df.schema().clone());
+
+    let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
+
+    let resource = ResourceVersion {
+        path: resource.file_path.to_string_lossy().to_string(),
+        version: resource.version(),
+    };
+
+    let resource = JsonDataFrameViewResponse {
+        data_frame: df_views,
+        status: StatusMessage::resource_found(),
+        resource: Some(resource),
+        commit: None,
+        derived_resource: None,
+    };
+
+    Ok(HttpResponse::Ok().json(resource))
 }
 
 pub async fn get_file(
