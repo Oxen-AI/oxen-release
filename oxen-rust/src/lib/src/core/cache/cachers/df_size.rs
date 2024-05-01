@@ -43,7 +43,12 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             df = df.vstack(&new_df)?;
             // log::debug!("df tail now is {:?}", df.tail(Some(1)));
         } else {
-            log::debug!("skipping entry {:?} at path {:?} exists? {}", entry, path, path.exists());
+            log::debug!(
+                "skipping entry {:?} at path {:?} exists? {}",
+                entry,
+                path,
+                path.exists()
+            );
         }
     }
 
