@@ -3,6 +3,7 @@ use polars::frame::DataFrame;
 
 use sql_query_builder::Select;
 
+use crate::api;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_ID_COL, TABLE_NAME};
 use crate::core::db::df_db;
 use crate::core::df::{sql, tabular};
@@ -238,16 +239,19 @@ pub fn get_row_by_id(
 
 pub fn query_staged_df(
     repo: &LocalRepository,
-    schema: &Schema,
+    entry: &CommitEntry,
     branch: &Branch,
-    path: PathBuf,
     identifier: &str,
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, entry.path.clone());
     let conn = df_db::get_connection(db_path)?;
 
-    let col_names = select_cols_from_schema(schema)?;
+    // Get the schema of this commit entry
+    let schema = api::local::schemas::get_by_path_from_ref(repo, &entry.commit_id, &entry.path)?
+        .ok_or_else(|| OxenError::resource_not_found(&entry.path.to_string_lossy()))?;
+
+    let col_names = select_cols_from_schema(&schema)?;
 
     log::debug!("Using this select clause: {}", col_names);
 

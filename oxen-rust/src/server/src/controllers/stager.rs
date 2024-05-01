@@ -5,6 +5,7 @@ use crate::params::{
 };
 
 use actix_files::NamedFile;
+use liboxen::constants::TABLE_NAME;
 use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::df::tabular;
@@ -13,10 +14,10 @@ use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::metadata::metadata_image::ImgResize;
-use liboxen::model::DataFrameSize;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
+use liboxen::model::{CommitEntry, DataFrameSize};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::{DFOpts, PaginateOpts};
 use liboxen::util::{self, paginate};
@@ -155,7 +156,7 @@ pub async fn diff_df(
 
     let diff_df = staged_df_db::df_diff(&conn)?;
 
-    let df_schema = Schema::from_polars(&diff_df.schema().clone());
+    let df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
     let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
 
@@ -493,19 +494,30 @@ pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     }))
 }
 
-pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Error> {
+pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req).unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let user_id: &str = req.match_info().get("identifier").unwrap();
     let row_id: &str = req.match_info().get("row_id").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
+    )?;
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
     match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
     {
         Ok(Some(repo)) => {
-            match api::local::resource::parse_resource(&repo, &resource) {
+            match api::local::resource::parse_resource(&repo, &resource.file_path) {
                 Ok(Some((_, branch_name, file_name))) => {
                     match api::local::branches::get_by_name(&repo, &branch_name) {
                         Ok(Some(branch)) => {
@@ -515,7 +527,7 @@ pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpRespon
                                 file_name,
                                 row_id
                             );
-                            delete_row(&repo, &branch, user_id, &file_name, row_id.to_string())
+                            delete_row(&repo, &branch, user_id, &entry, row_id.to_string())
                         }
                         Ok(None) => {
                             log::debug!("stager::stage could not find branch {:?}", branch_name);
@@ -554,10 +566,16 @@ fn delete_row(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    file: &Path,
+    entry: &CommitEntry,
     uuid: String,
-) -> Result<HttpResponse, Error> {
-    match liboxen::core::index::mod_stager::delete_row(repo, branch, user_id, file, &uuid) {
+) -> Result<HttpResponse, OxenHttpError> {
+    let new_mod = NewMod {
+        entry: entry.clone(),
+        data: "".to_string(),
+        mod_type: ModType::Delete,
+        content_type: ContentType::Json,
+    };
+    match liboxen::core::index::mod_stager::delete_row(repo, branch, user_id, &uuid, &new_mod) {
         Ok(df) => {
             let schema = Schema::from_polars(&df.schema());
             Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -576,7 +594,7 @@ fn delete_row(
             log::error!(
                 "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
                 branch.name,
-                file,
+                entry.path,
                 uuid,
                 err
             );
@@ -586,7 +604,7 @@ fn delete_row(
             log::error!(
                 "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
                 branch.name,
-                file,
+                entry.path,
                 uuid,
                 err
             );
@@ -880,6 +898,10 @@ pub async fn get_staged_df(
     let identifier = path_param(&req, "identifier")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let commit = resource.commit.clone();
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
     let schema = api::local::schemas::get_by_path(&repo, &resource.file_path)?
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
@@ -922,14 +944,8 @@ pub async fn get_staged_df(
             &identifier,
         )?;
 
-        let df = index::remote_df_stager::query_staged_df(
-            &repo,
-            &schema,
-            &branch,
-            resource.file_path.clone(),
-            &identifier,
-            &opts,
-        )?;
+        let df =
+            index::remote_df_stager::query_staged_df(&repo, &entry, &branch, &identifier, &opts)?;
 
         let df_schema = Schema::from_polars(&df.schema());
 

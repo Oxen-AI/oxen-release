@@ -126,7 +126,7 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
         .set(&format!(
             "\"{}\" = '{}'",
             DIFF_STATUS_COL,
-            StagedRowStatus::Deleted.to_string()
+            StagedRowStatus::Removed.to_string()
         ))
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
 

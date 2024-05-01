@@ -512,7 +512,7 @@ pub fn transform_lazy(
             .expect("Unable to get first column")
             .0;
         log::debug!("transform_lazy First column name: {first_column}");
-        df = df.sort(first_column, SortOptions::default());
+        df = df.sort(vec![first_column], SortMultipleOptions::new());
     }
 
     if opts.should_randomize {
@@ -522,7 +522,7 @@ pub fn transform_lazy(
     }
 
     if let Some(sort_by) = &opts.sort_by {
-        df = df.sort(sort_by, SortOptions::default());
+        df = df.sort(vec![sort_by], SortMultipleOptions::new());
     }
 
     if opts.should_reverse {

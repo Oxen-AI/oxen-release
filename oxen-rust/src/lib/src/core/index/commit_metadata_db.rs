@@ -2,6 +2,7 @@
 //!
 
 use indicatif::ProgressBar;
+use polars::chunked_array::ops::SortMultipleOptions;
 use polars::lazy::dsl::sum;
 use polars::prelude::col;
 use polars::prelude::DataFrame;
@@ -184,7 +185,7 @@ pub fn aggregate_col(
                 .group_by([column])
                 .agg([sum("count")])
                 .select(&[col(column), col("count")])
-                .sort(column, Default::default())
+                .sort(vec![column], SortMultipleOptions::new())
                 .collect()
                 .unwrap();
             combined_df = Some(aggregated);
