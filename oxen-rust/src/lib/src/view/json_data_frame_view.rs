@@ -155,6 +155,11 @@ impl JsonDataFrameView {
         slice_schema.update_metadata_from_schema(&og_schema);
         log::debug!("Slice schema {:?}", slice_schema);
 
+        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+        let page_number = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+        let total_pages = (og_height as f64 / page_size as f64).ceil() as usize;
+
         JsonDataFrameView {
             schema: slice_schema,
             size: DataFrameSize {
@@ -163,9 +168,9 @@ impl JsonDataFrameView {
             },
             data: JsonDataFrameView::json_from_df(&mut sliced_df),
             pagination: Pagination {
-                page_number: opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
-                page_size: opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
-                total_pages: (og_height as f64 / view_height as f64).ceil() as usize,
+                page_number,
+                page_size,
+                total_pages,
                 total_entries: og_height,
             },
             opts: opts_view,
