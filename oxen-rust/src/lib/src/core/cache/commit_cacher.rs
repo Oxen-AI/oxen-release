@@ -92,11 +92,13 @@ pub fn get_all_statuses(
 
     // Return if db path !exists
     if !db_path.exists() {
+        log::debug!("get_all_statuses db path doesnt exist");
         return Ok(vec![]);
     }
 
     // Return if we are locked because it is processing
     if lock_path.exists() {
+        log::debug!("get_all_statuses lock path exists");
         return Ok(vec![CacherStatus::pending()]);
     }
 
@@ -111,6 +113,7 @@ pub fn get_all_statuses(
     match db {
         Ok(db) => {
             let vals = str_json_db::list_vals::<MultiThreaded, CacherStatus>(&db)?;
+            log::debug!("get_all_statuses vals {:?}", vals);
             Ok(vals)
         }
         Err(_) => {
@@ -153,6 +156,20 @@ pub fn force_remove_lock(repo: &LocalRepository, commit: &Commit) -> Result<(), 
     if lock_path.exists() {
         log::warn!("force_remove_lock Deleting lock file {:?}", lock_path);
         util::fs::remove_file(lock_path)?;
+    }
+    Ok(())
+}
+
+pub fn set_all_cachers_status(
+    repo: &LocalRepository,
+    commit: &Commit,
+    status: CacherStatus,
+) -> Result<(), OxenError> {
+    let db: DBWithThreadMode<MultiThreaded> = get_db_connection(repo, commit)?;
+    // TODONOW: can we tell which ones actually failed so we don't have to rerun all?
+    force_remove_lock(repo, commit)?;
+    for (name, _cacher) in CACHERS.iter() {
+        str_json_db::put(&db, name, &status)?;
     }
     Ok(())
 }

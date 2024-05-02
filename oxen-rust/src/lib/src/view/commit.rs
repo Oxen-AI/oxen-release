@@ -30,6 +30,7 @@ pub struct CommitSyncStatusResponse {
     pub status: StatusMessage,
     pub latest_synced: Option<Commit>,
     pub num_unsynced: usize,
+    pub num_to_process: usize,
 }
 
 #[derive(Deserialize, Serialize, Debug)]
