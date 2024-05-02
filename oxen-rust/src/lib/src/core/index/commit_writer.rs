@@ -204,6 +204,7 @@ impl CommitWriter {
         Ok(commit)
     }
 
+    // TODONOW needs massive cleanup.
     pub fn apply_mods(
         &self,
         branch: &Branch,
@@ -232,7 +233,6 @@ impl CommitWriter {
                 entry_path
             );
 
-            // IF tabular, want to index.
             if util::fs::is_tabular(&entry_path) {
                 if mod_stager::branch_is_ahead_of_staging(
                     &self.repository,
@@ -245,18 +245,22 @@ impl CommitWriter {
                         branch.name
                     )));
                 }
-                remote_df_stager::extract_dataset_to_versions_dir(
+
+                remote_df_stager::extract_dataset_to_working_dir(
                     &self.repository,
+                    &branch_repo,
                     branch,
                     entry,
                     user_id,
                 )?;
 
+                // TODONOW: What's going on here...
+
                 mod_stager::unstage_df(&self.repository, branch, user_id, &entry.path)?;
+            } else {
+                util::fs::copy(&version_path, &entry_path)?;
             }
-
-            util::fs::copy(&version_path, &entry_path)?;
-
+            log::debug!("staging file {:?}", entry_path);
             remote_dir_stager::stage_file(
                 &self.repository,
                 &branch_repo,
@@ -264,6 +268,7 @@ impl CommitWriter {
                 user_id,
                 &entry_path,
             )?;
+            log::debug!("Staged file {:?}", entry_path);
         }
 
         // Have to recompute staged data

@@ -169,6 +169,10 @@ pub fn diff_staged_df(
 
     let diff_df = staged_df_db::df_diff(&conn)?;
 
+    if diff_df.is_empty() {
+        return Ok(DiffResult::Tabular(TabularDiff::empty()));
+    }
+
     log::debug!("got this diff df {:?}", diff_df);
 
     let row_mods = AddRemoveModifyCounts::from_diff_df(&diff_df)?;

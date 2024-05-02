@@ -121,30 +121,52 @@ pub fn modify_row(
 }
 
 pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, OxenError> {
-    let stmt = sql::Update::new()
-        .update(TABLE_NAME)
-        .set(&format!(
-            "\"{}\" = '{}'",
-            DIFF_STATUS_COL,
-            StagedRowStatus::Removed.to_string()
-        ))
-        .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
-
     let select_stmt = sql::Select::new()
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
 
-    log::debug!("staged_df_db::delete_row() sql: {:?}", stmt);
-    conn.execute(&stmt.to_string(), [])?;
-    let maybe_res = df_db::select(conn, &select_stmt)?;
+    let row_to_delete = df_db::select(conn, &select_stmt)?;
 
-    log::debug!("got this deleted observation: {:?}", maybe_res);
-
-    if maybe_res.height() == 0 {
+    if row_to_delete.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
     }
-    Ok(maybe_res)
+
+    // If it's newly added, delete it. Otherwise, set it to removed
+
+    let status = row_to_delete.column(DIFF_STATUS_COL)?.get(0)?;
+    let status_str = status.get_str();
+
+    let status = match status_str {
+        Some(status) => status,
+        None => {
+            return Err(OxenError::basic_str(
+                "Diff status column is not a string".to_owned(),
+            ))
+        }
+    };
+    log::debug!("status is: {}", status);
+
+    if status == StagedRowStatus::Added.to_string() {
+        log::debug!("staged_df_db::delete_row() deleting row");
+        let stmt = sql::Delete::new()
+            .delete_from(TABLE_NAME)
+            .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
+        conn.execute(&stmt.to_string(), [])?;
+    } else {
+        log::debug!("staged_df_db::delete_row() updating row to indicate deletion");
+        let stmt = sql::Update::new()
+            .update(TABLE_NAME)
+            .set(&format!(
+                "\"{}\" = '{}'",
+                DIFF_STATUS_COL,
+                StagedRowStatus::Removed.to_string()
+            ))
+            .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
+        conn.execute(&stmt.to_string(), [])?;
+    };
+
+    Ok(row_to_delete)
 }
 
 // pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, OxenError> {
