@@ -283,7 +283,6 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
         status: StatusMessage::resource_found(),
         latest_synced,
         num_unsynced: commits_to_sync.len(),
-        num_to_process: commits_to_sync.len(),
     }))
 }
 
