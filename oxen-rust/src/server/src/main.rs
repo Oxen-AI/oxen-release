@@ -34,7 +34,6 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
-use crate::tasks::post_push_complete::PostPushComplete;
 use crate::tasks::{Runnable, Task};
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
