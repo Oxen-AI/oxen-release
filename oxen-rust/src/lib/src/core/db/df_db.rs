@@ -221,9 +221,56 @@ pub fn count_where(
 }
 
 /// Select fields from a table.
+pub fn select_deprecated(
+    conn: &duckdb::Connection,
+    stmt: &sql::Select,
+) -> Result<DataFrame, OxenError> {
+    let sql = stmt.as_string();
+    let df = select_raw_deprecated(conn, &sql)?;
+    Ok(df)
+}
+
 pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame, OxenError> {
     let sql = stmt.as_string();
     let df = select_raw(conn, &sql)?;
+    Ok(df)
+}
+
+pub fn select_raw_deprecated(
+    conn: &duckdb::Connection,
+    stmt: &str,
+) -> Result<DataFrame, OxenError> {
+    log::debug!("select_raw() sql: {}", stmt);
+    let mut stmt = conn.prepare(stmt)?;
+
+    // let pl: Vec<DataFrame> = stmt.query_polars([])?.collect();
+    // let df = accumulate_dataframes_vertical_unchecked(pl);
+
+    let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+    log::debug!("got records: {:?}", records.len());
+
+    if records.is_empty() {
+        return Ok(DataFrame::default());
+    }
+
+    // Hacky to convert to json and then to polars...but the results from these queries should be small, and
+    // if they are bigger, need to look into converting directly from arrow to polars.
+
+    let schema = get_schema(&conn, TABLE_NAME)?;
+
+    // Convert to Vec<&RecordBatch>
+    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
+    log::debug!("records are {:?}", records);
+    let buf = Vec::new();
+    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
+    writer.write_batches(&records[..]).unwrap();
+    writer.finish().unwrap();
+    let json_bytes = writer.into_inner();
+
+    let content = Cursor::new(json_bytes);
+    let df = JsonReader::new(content).finish().unwrap();
+
+    log::debug!("result df: {:?}", df);
     Ok(df)
 }
 
@@ -249,7 +296,10 @@ pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, Ox
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
     log::debug!("records are {:?}", records);
+    //
     let buf = Vec::new();
+
+    // let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
 
     let builder = WriterBuilder::new().with_explicit_nulls(true);
     let mut writer = builder.build::<_, JsonArray>(buf);
@@ -258,6 +308,7 @@ pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, Ox
     let json_bytes = writer.into_inner();
 
     let content = Cursor::new(json_bytes);
+
     let df = JsonReader::new(content)
         .with_schema(Arc::new(schema.to_polars()))
         .finish()?;
