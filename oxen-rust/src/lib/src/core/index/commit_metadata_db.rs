@@ -157,7 +157,7 @@ pub fn aggregate_col(
             .group_by(column)
             .from(&table_name);
 
-        let df = df_db::select(&conn, &stmt)?;
+        let df = df_db::select_deprecated(&conn, &stmt)?;
         // log::debug!("df for dir {:?}: {:?}", dir, df);
 
         if df.is_empty() {
@@ -226,7 +226,7 @@ pub fn select(
         .limit(&limit.to_string())
         .from(&table_name);
 
-    let df = df_db::select(&conn, &stmt)?;
+    let df = df_db::select_deprecated(&conn, &stmt)?;
     Ok(df)
 }
 
