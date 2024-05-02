@@ -1,7 +1,7 @@
 use duckdb::Connection;
 use polars::frame::DataFrame;
 
-use sql_query_builder::Select;
+use sql_query_builder::{Delete, Select};
 
 use crate::api;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_ID_COL, TABLE_NAME};
@@ -131,7 +131,17 @@ pub fn extract_dataset_to_versions_dir(
     let version_path = util::fs::version_path(repo, entry);
     let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
     let conn = df_db::get_connection(mods_df_db_path)?;
-    // Match on the extension
+
+    log::debug!("extracting to versions path: {:?}", version_path);
+
+    // Filter out any with removed status before extracting
+    // TODONOW make this a fn
+    let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
+        "\"{}\" = '{}'",
+        DIFF_STATUS_COL,
+        StagedRowStatus::Removed.to_string()
+    ));
+    conn.execute(&delete.to_string(), [])?;
 
     let df_before = tabular::read_df(&version_path, DFOpts::empty())?;
     log::debug!(
@@ -178,7 +188,9 @@ pub fn extract_dataset_to_working_dir(
     let working_path = branch_repo.path.join(entry.path.clone());
     log::debug!("got working path as: {:?}", working_path);
     let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
+    log::debug!("got mods_df_db path as: {:?}", mods_df_db_path);
     let conn = df_db::get_connection(mods_df_db_path)?;
+    log::debug!("got conn as: {:?}", conn);
     // Match on the extension
 
     if !working_path.exists() {
@@ -188,6 +200,16 @@ pub fn extract_dataset_to_working_dir(
                 .expect("Failed to get parent directory"),
         )?;
     }
+
+    log::debug!("created working path: {:?}", working_path);
+
+    let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
+        "\"{}\" = '{}'",
+        DIFF_STATUS_COL,
+        StagedRowStatus::Removed.to_string()
+    ));
+    let res = conn.execute(&delete.to_string(), [])?;
+    log::debug!("delete query result is: {:?}", res);
 
     match entry.path.extension() {
         Some(ext) => match ext.to_str() {
@@ -210,7 +232,7 @@ pub fn extract_dataset_to_working_dir(
 
     let df_after = tabular::read_df(&working_path, DFOpts::empty())?;
     log::debug!(
-        "extract_dataset_to_versions_dir() got df_after: {:?}",
+        "extract_dataset_to_working_dir() got df_after: {:?}",
         df_after
     );
 
@@ -377,11 +399,6 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
         TABLE_NAME,
         path.to_string_lossy()
     );
-
-    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
-
-    // let temp_res = df_db::select(conn, &temp_select_query)?;
-    // log::debug!("export_tsv() got df: {:?}", temp_res);
 
     conn.execute(&query, [])?;
     Ok(())
