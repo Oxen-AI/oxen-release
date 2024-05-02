@@ -514,52 +514,7 @@ pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpRespon
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
         .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => {
-            match api::local::resource::parse_resource(&repo, &resource.file_path) {
-                Ok(Some((_, branch_name, file_name))) => {
-                    match api::local::branches::get_by_name(&repo, &branch_name) {
-                        Ok(Some(branch)) => {
-                            log::debug!(
-                                "stager::df_delete_row file branch_name [{}] file_name [{:?}] uuid [{}]",
-                                branch_name,
-                                file_name,
-                                row_id
-                            );
-                            delete_row(&repo, &branch, user_id, &entry, row_id.to_string())
-                        }
-                        Ok(None) => {
-                            log::debug!("stager::stage could not find branch {:?}", branch_name);
-                            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                        }
-                        Err(err) => {
-                            log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
-                            Ok(HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error()))
-                        }
-                    }
-                }
-                Ok(None) => {
-                    log::debug!("stager::stage could not find parse resource {:?}", resource);
-                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                }
-                Err(err) => {
-                    log::error!("unable to parse resource {:?}. Err: {}", resource, err);
-                    Ok(HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()))
-                }
-            }
-        }
-        Ok(None) => {
-            log::debug!("stager::stage could not find repo with name {}", repo_name);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(err) => {
-            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
+    delete_row(&repo, &branch, &user_id, &entry, row_id.to_string())
 }
 
 fn delete_row(
