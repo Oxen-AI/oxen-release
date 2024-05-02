@@ -258,15 +258,6 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
                     .collect::<Vec<String>>()
                     .join(", ");
                 log::error!("latest_synced CacherStatusType::Failed for commit {error_str}");
-                return Ok(
-                    HttpResponse::InternalServerError().json(IsValidStatusMessage {
-                        status: String::from(STATUS_ERROR),
-                        status_message: String::from(MSG_FAILED_PROCESS),
-                        status_description: format!("Err: {error_str}"),
-                        is_processing: false,
-                        is_valid: false,
-                    }),
-                );
             }
             Ok(None) => {
                 // log::debug!("latest_synced commit not yet processing: {}", commit.id);
@@ -292,6 +283,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
         status: StatusMessage::resource_found(),
         latest_synced,
         num_unsynced: commits_to_sync.len(),
+        num_to_process: commits_to_sync.len(),
     }))
 }
 
