@@ -86,8 +86,6 @@ async fn main() -> std::io::Result<()> {
                                 let repo = post_push_complete.repo;
                                 let commit = post_push_complete.commit;
 
-                                log::debug!("We got this task and are gonna set it");
-
                                 let _ = commit_cacher::set_all_cachers_status(
                                     &repo,
                                     &commit,
