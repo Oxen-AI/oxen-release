@@ -1,6 +1,6 @@
 use liboxen::config::UserConfig;
 
-use liboxen::core::cache::cacher_status::{CacherStatus, CacherStatusType};
+use liboxen::core::cache::cacher_status::{CacherStatus};
 use liboxen::core::cache::commit_cacher;
 use liboxen::model::User;
 
@@ -85,12 +85,21 @@ async fn main() -> std::io::Result<()> {
                                 let repo = post_push_complete.repo;
                                 let commit = post_push_complete.commit;
 
-                                let _ = commit_cacher::set_all_cachers_status(
+                                match commit_cacher::set_all_cachers_status(
                                     &repo,
                                     &commit,
                                     CacherStatus::failed("Panic in commit cache"),
-                                )
-                                .unwrap();
+                                ) {
+                                    Ok(_) => {
+                                        log::debug!("Set all cachers to failed status");
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "Error setting all cachers to failed status: {:?}",
+                                            e
+                                        );
+                                    }
+                                }
                             }
                         }
                     }
