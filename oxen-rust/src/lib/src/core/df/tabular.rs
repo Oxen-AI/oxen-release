@@ -83,11 +83,8 @@ pub fn scan_df_csv<P: AsRef<Path>>(
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
         .with_n_rows(get_max_rows_from_opts(opts, total_rows))
         .has_header(true)
-        .finish().map_err(|_| OxenError::basic_str(format!(
-                "{}: {:?}",
-                READ_ERROR,
-                path.as_ref()
-            )))
+        .finish()
+        .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn read_df_json(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
@@ -120,11 +117,8 @@ pub fn scan_df_jsonl(
     LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
         .with_n_rows(get_max_rows_from_opts(opts, total_rows))
-        .finish().map_err(|_| OxenError::basic_str(format!(
-                "{}: {:?}",
-                READ_ERROR,
-                path.as_ref()
-            )))
+        .finish()
+        .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 pub fn scan_df_json(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
@@ -135,7 +129,7 @@ pub fn scan_df_json(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
 
 pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let error_str = format!("Could not read tabular data from path {path:?}");
+    let error_str = format!("Could not read parquet data from path {path:?}");
     let file = File::open(path)?;
     let mut reader = ParquetReader::new(file);
 
@@ -145,7 +139,7 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
 
     match reader.finish() {
         Ok(df) => Ok(df),
-        _ => Err(OxenError::basic_str(error_str)),
+        err => Err(OxenError::basic_str(format!("{}: {:?}", error_str, err))),
     }
 }
 
@@ -163,28 +157,25 @@ pub fn scan_df_parquet(
         path.as_ref(),
         args.n_rows
     );
-    LazyFrame::scan_parquet(&path, args).map_err(|_| OxenError::basic_str(format!(
+    LazyFrame::scan_parquet(&path, args).map_err(|_| {
+        OxenError::basic_str(format!(
             "Error scanning parquet file {}: {:?}",
             READ_ERROR,
             path.as_ref()
-        )))
+        ))
+    })
 }
 
 fn read_df_arrow(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let file = File::open(path.as_ref())?;
-    IpcReader::new(file).finish().map_err(|_| OxenError::basic_str(format!(
-            "{}: {:?}",
-            READ_ERROR,
-            path.as_ref()
-        )))
+    IpcReader::new(file)
+        .finish()
+        .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
-    LazyFrame::scan_ipc(&path, ScanArgsIpc::default()).map_err(|_| OxenError::basic_str(format!(
-            "{}: {:?}",
-            READ_ERROR,
-            path.as_ref()
-        )))
+    LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
+        .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
 fn get_max_rows_from_opts(opts: &DFOpts, total_rows: usize) -> Option<usize> {
