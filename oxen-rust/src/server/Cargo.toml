@@ -29,7 +29,14 @@ liboxen = { path = "../lib" }
 log = "0.4.17"
 lru = "0.12.0"
 os_path = "0.7.0"
-polars = "0.38.3"
+polars = { version = "0.39.2", features = [
+    "lazy",
+    "parquet",
+    "json",
+    "ipc",
+    "ipc_streaming",
+    "dtype-full"
+] }
 r2d2 = "0.8.10"
 rand = "0.8.0"
 redis = { version = "0.25.3", features = ["r2d2"] }
