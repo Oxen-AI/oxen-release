@@ -5,7 +5,7 @@ use crate::params::{
 };
 
 use actix_files::NamedFile;
-use liboxen::constants::TABLE_NAME;
+use liboxen::constants::{OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::df::tabular;
@@ -34,6 +34,7 @@ use liboxen::view::{
 use liboxen::{api, constants, core::index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
+use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
 use std::io::Write;
 
@@ -293,6 +294,7 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
     )?;
 
     let row_id = get_row_id(&row_df)?;
+    let row_index = get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
@@ -309,6 +311,7 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
         status: StatusMessage::resource_found(),
         resource: None,
         row_id,
+        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -386,6 +389,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
 
     let row_df = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
     let row_id: Option<String> = get_row_id(&row_df)?;
+    let row_index: Option<usize> = get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
@@ -402,6 +406,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         status: StatusMessage::resource_found(),
         resource: None,
         row_id,
+        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -479,6 +484,10 @@ pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
 
     // TODO: Add, delete, and modify should use the resource schema here.
     let modified_row = mod_stager::modify_row(&repo, &branch, &identifier, &row_id, &new_mod)?;
+
+    let row_index = get_row_idx(&modified_row)?;
+    let row_id = get_row_id(&modified_row)?;
+
     log::debug!("Modified row in controller is {:?}", modified_row);
     let schema = Schema::from_polars(&modified_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -490,7 +499,8 @@ pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
         derived_resource: None,
         status: StatusMessage::resource_updated(),
         resource: None,
-        row_id: None,
+        row_id,
+        row_index,
     }))
 }
 
@@ -543,6 +553,7 @@ fn delete_row(
                 status: StatusMessage::resource_deleted(),
                 resource: None,
                 row_id: None,
+                row_index: None,
             }))
         }
         Err(OxenError::Basic(err)) => {
@@ -1266,13 +1277,34 @@ fn get_dir_status_for_branch(
 }
 
 fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenHttpError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&"_oxen_id") {
+    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ID_COL) {
         Ok(row_df
-            .column("_oxen_id")
+            .column(OXEN_ID_COL)
             .unwrap()
             .get(0)
             .map(|val| val.to_string().trim_matches('"').to_string())
             .ok())
+    } else {
+        Ok(None)
+    }
+}
+
+// TODO definitely better way to do this
+fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenHttpError> {
+    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ROW_ID_COL) {
+        let row_df_anyval = row_df.column(OXEN_ROW_ID_COL).unwrap().get(0)?;
+        match row_df_anyval {
+            AnyValue::UInt16(val) => Ok(Some(val as usize)),
+            AnyValue::UInt32(val) => Ok(Some(val as usize)),
+            AnyValue::UInt64(val) => Ok(Some(val as usize)),
+            AnyValue::Int16(val) => Ok(Some(val as usize)),
+            AnyValue::Int32(val) => Ok(Some(val as usize)),
+            AnyValue::Int64(val) => Ok(Some(val as usize)),
+            val => {
+                log::debug!("unrecognized row index type {:?}", val);
+                Ok(None)
+            }
+        }
     } else {
         Ok(None)
     }

@@ -1,7 +1,9 @@
 //! Abstraction over DuckDB database to write and read dataframes from disk.
 //!
 
-use crate::constants::{DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, TABLE_NAME};
+use crate::constants::{
+    DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
+};
 use crate::core::db::df_db;
 use crate::core::df::tabular;
 use crate::error::OxenError;
@@ -551,6 +553,14 @@ pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), 
     log::debug!("df_db:index_file() at path {:?} into path {:?}", path, conn);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
+    let counter = "counter";
+    // Drop sequence if exists
+    let drop_sequence_query = format!("DROP SEQUENCE IF EXISTS {}", counter);
+    conn.execute(&drop_sequence_query, [])?;
+
+    let add_row_id_sequence_query = format!("CREATE SEQUENCE {} START 1", counter);
+    conn.execute(&add_row_id_sequence_query, [])?;
+
     match extension {
         "csv" => {
             let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
@@ -582,7 +592,14 @@ pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), 
         "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
         DUCKDB_DF_TABLE_NAME, OXEN_ID_COL
     );
+
     conn.execute(&add_default_query, [])?;
+
+    let add_row_id_query = format!(
+        "ALTER TABLE {} ADD COLUMN {} INTEGER DEFAULT nextval('{}');",
+        DUCKDB_DF_TABLE_NAME, OXEN_ROW_ID_COL, counter
+    );
+    conn.execute(&add_row_id_query, [])?;
 
     Ok(())
 }
