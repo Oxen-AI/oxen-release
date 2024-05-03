@@ -184,7 +184,7 @@ pub fn aggregate_col(
                 .group_by([column])
                 .agg([sum("count")])
                 .select(&[col(column), col("count")])
-                .sort(column, Default::default())
+                .sort([column], Default::default())
                 .collect()
                 .unwrap();
             combined_df = Some(aggregated);
