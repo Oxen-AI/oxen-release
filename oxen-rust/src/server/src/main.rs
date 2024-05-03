@@ -1,6 +1,6 @@
 use liboxen::config::UserConfig;
 
-use liboxen::core::cache::cacher_status::{CacherStatus};
+use liboxen::core::cache::cacher_status::CacherStatus;
 use liboxen::core::cache::commit_cacher;
 use liboxen::model::User;
 
