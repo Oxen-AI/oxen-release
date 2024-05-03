@@ -687,7 +687,8 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
         AnyValue::Float32(f) => Box::new(f),
         AnyValue::Float64(f) => Box::new(f),
         AnyValue::Boolean(b) => Box::new(b),
-        _ => panic!("Unsupported dtype"),
+        AnyValue::Null => Box::new(None::<i32>),
+        other => panic!("Unsupported dtype: {:?}", other),
     }
 }
 

@@ -4,7 +4,9 @@ use polars::frame::DataFrame;
 use sql_query_builder::{Delete, Select};
 
 use crate::api;
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_ID_COL, TABLE_NAME};
+use crate::constants::{
+    DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
+};
 use crate::core::db::df_db;
 use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
@@ -16,8 +18,6 @@ use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 use super::{CommitEntryReader, CommitReader};
-
-const OXEN_COLS: [&str; 3] = [OXEN_ID_COL, DIFF_STATUS_COL, DIFF_HASH_COL];
 
 pub fn index_dataset(
     repo: &LocalRepository,
