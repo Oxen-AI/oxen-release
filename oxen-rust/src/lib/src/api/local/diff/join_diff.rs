@@ -12,6 +12,7 @@ use crate::view::compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
 };
 
+use polars::chunked_array::ops::SortMultipleOptions;
 use polars::datatypes::{AnyValue, StringChunked};
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
@@ -131,14 +132,16 @@ fn sort_df_on_keys(df: DataFrame, keys: Vec<&str>) -> Result<DataFrame, OxenErro
     for key in keys.iter() {
         if let Ok(col) = df.column(key) {
             if col.dtype().is_primitive() {
-                sort_cols.push(key);
+                sort_cols.push(*key);
             }
         }
     }
-    let descending = sort_cols.iter().map(|_| false).collect::<Vec<bool>>();
 
     if !sort_cols.is_empty() {
-        return Ok(df.sort(&sort_cols, descending, false)?);
+        return Ok(df.sort(
+            sort_cols,
+            SortMultipleOptions::new().with_order_descending(false),
+        )?);
     }
     Ok(df)
 }
