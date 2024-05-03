@@ -1,5 +1,7 @@
 use liboxen::config::UserConfig;
 
+use liboxen::core::cache::cacher_status::CacherStatus;
+use liboxen::core::cache::commit_cacher;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -32,7 +34,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
-use crate::tasks::Runnable;
+use crate::tasks::{Runnable, Task};
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -72,8 +74,35 @@ async fn main() -> std::io::Result<()> {
             match queue.pop() {
                 Some(task) => {
                     log::debug!("Got queue item: {:?}", task);
-                    task.run();
-                    log::debug!("finished task {:?}", task);
+                    let result = std::panic::catch_unwind(|| {
+                        task.run();
+                    });
+                    if let Err(e) = result {
+                        log::error!("Error or panic processing commit {:?}", e);
+                        // Set the task to failed
+                        match task {
+                            Task::PostPushComplete(post_push_complete) => {
+                                let repo = post_push_complete.repo;
+                                let commit = post_push_complete.commit;
+
+                                match commit_cacher::set_all_cachers_status(
+                                    &repo,
+                                    &commit,
+                                    CacherStatus::failed("Panic in commit cache"),
+                                ) {
+                                    Ok(_) => {
+                                        log::debug!("Set all cachers to failed status");
+                                    }
+                                    Err(e) => {
+                                        log::error!(
+                                            "Error setting all cachers to failed status: {:?}",
+                                            e
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 None => {
                     // log::debug!("No queue items found, sleeping");
@@ -182,7 +211,7 @@ async fn main() -> std::io::Result<()> {
                     let data = app_data::OxenAppData::new(PathBuf::from(sync_dir), queue.clone());
                     // Poll for post-commit tasks in background
                     log::debug!("initialized app data, spawning polling worker");
-                    tokio::spawn(async { poll_queue(queue).await });
+                    tokio::spawn(async move { poll_queue(queue.clone()).await });
 
                     HttpServer::new(move || {
                         App::new()
