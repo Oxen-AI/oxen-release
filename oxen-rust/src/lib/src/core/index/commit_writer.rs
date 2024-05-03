@@ -245,17 +245,21 @@ impl CommitWriter {
                         branch.name
                     )));
                 }
-                remote_df_stager::extract_dataset_to_versions_dir(
+
+                // Tabular files are extracted from the db directly into the working dir
+                remote_df_stager::extract_dataset_to_working_dir(
                     &self.repository,
+                    &branch_repo,
                     branch,
                     entry,
                     user_id,
                 )?;
 
                 mod_stager::unstage_df(&self.repository, branch, user_id, &entry.path)?;
+            } else {
+                // Non-tabular files are copied from their version path into the working dir
+                util::fs::copy(&version_path, &entry_path)?;
             }
-
-            util::fs::copy(&version_path, &entry_path)?;
 
             remote_dir_stager::stage_file(
                 &self.repository,

@@ -157,6 +157,20 @@ pub fn force_remove_lock(repo: &LocalRepository, commit: &Commit) -> Result<(), 
     Ok(())
 }
 
+pub fn set_all_cachers_status(
+    repo: &LocalRepository,
+    commit: &Commit,
+    status: CacherStatus,
+) -> Result<(), OxenError> {
+    let db: DBWithThreadMode<MultiThreaded> = get_db_connection(repo, commit)?;
+    // TODO: can we tell which ones actually failed so we don't have to rerun all?
+    force_remove_lock(repo, commit)?;
+    for (name, _cacher) in CACHERS.iter() {
+        str_json_db::put(&db, name, &status)?;
+    }
+    Ok(())
+}
+
 /// Run all the cachers and update their status's as you go
 pub fn run_all(repo: &LocalRepository, commit: &Commit, force: bool) -> Result<(), OxenError> {
     // Write the LOCK file and delete when we are done processing
