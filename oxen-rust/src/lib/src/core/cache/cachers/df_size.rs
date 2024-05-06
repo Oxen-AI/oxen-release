@@ -29,7 +29,8 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     for entry in entries {
         let path = util::fs::version_path(repo, &entry);
 
-        if util::fs::is_tabular(&path) {
+        // The path may not exist if a file was not fully pushed
+        if path.exists() && util::fs::is_tabular(&path) {
             // log::debug!("getting size for entry {:?} at path {:?}", entry, path);
             let data_frame_size = tabular::get_size(&path)?;
             // log::debug!("resulting df size is {:?}", data_frame_size);
@@ -41,6 +42,13 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
             df = df.vstack(&new_df)?;
             // log::debug!("df tail now is {:?}", df.tail(Some(1)));
+        } else {
+            log::debug!(
+                "skipping entry {:?} at path {:?} exists? {}",
+                entry,
+                path,
+                path.exists()
+            );
         }
     }
 

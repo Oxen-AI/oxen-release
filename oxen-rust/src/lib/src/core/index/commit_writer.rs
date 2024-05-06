@@ -258,9 +258,10 @@ impl CommitWriter {
 
                 mod_stager::unstage_df(&self.repository, branch, user_id, &entry.path)?;
             } else {
+                // Non-tabular files are copied from their version path into the working dir
                 util::fs::copy(&version_path, &entry_path)?;
             }
-            log::debug!("staging file {:?}", entry_path);
+
             remote_dir_stager::stage_file(
                 &self.repository,
                 &branch_repo,
