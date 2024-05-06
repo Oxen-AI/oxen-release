@@ -1,6 +1,6 @@
 [package]
 name = "liboxen"
-version = "0.15.4"
+version = "0.15.7"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version datasets, written in Rust."
@@ -71,7 +71,7 @@ polars = { version = "0.39.2", features = [
     "json",
     "ipc",
     "ipc_streaming",
-    "dtype-struct",
+    "dtype-full",
 ] }
 polars-sql = "0.39.2"
 os_path = "0.7.0"
