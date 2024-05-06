@@ -60,7 +60,7 @@ pub const STAGED_DIR: &str = "staged";
 /// Name of the table in the duckdb db used for remote staging
 pub const TABLE_NAME: &str = "df";
 /// Oxen's internal row id column in duckdb remote staging tables
-pub const OXEN_COLS: [&str; 4] = [OXEN_ID_COL, DIFF_STATUS_COL, DIFF_HASH_COL, OXEN_ROW_ID_COL];
+pub const OXEN_COLS: [&str; 4] = [OXEN_ID_COL, DIFF_STATUS_COL, OXEN_ROW_ID_COL, DIFF_HASH_COL];
 pub const OXEN_ROW_ID_COL: &str = "_oxen_row_id";
 /// Oxen's internal id column in duckdb remote staging tables
 pub const OXEN_ID_COL: &str = "_oxen_id";

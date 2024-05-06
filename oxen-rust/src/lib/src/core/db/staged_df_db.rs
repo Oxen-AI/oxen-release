@@ -7,12 +7,13 @@ use crate::api::remote::df;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL};
 
 use crate::core::df::tabular;
+use crate::model::schema::Field;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::Schema;
 use crate::{constants::TABLE_NAME, error::OxenError};
+use polars::prelude::*; // or use polars::lazy::*; if you're working in a lazy context
 
 use super::df_db;
-use polars::prelude::*; // or use polars::lazy::*; if you're working in a lazy context
 
 /// Builds on df_db, but for specific use cases involving remote staging -
 /// i.e., handling additional virtual columns beyond the formal schema, table names, etc.
@@ -46,7 +47,10 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
         df
     };
 
-    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df)?;
+    // TODONOW this is very ugly
+    let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    let full_schema = schema_with_oxen_cols(&schema)?;
+    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df, &full_schema)?;
 
     log::debug!("staged_df_db::append_row() inserted_df: {:?}", inserted_df);
 
@@ -61,6 +65,22 @@ pub fn modify_row(
     uuid: &str,
 ) -> Result<DataFrame, OxenError> {
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    let out_schema = schema_with_oxen_cols(&table_schema)?;
+
+    // Filter it down to exclude any of the OXEN_COLS
+    // TODONOW messy
+    log::debug!("df before: {:?}", df);
+    let schema = df.schema();
+    let df_cols = schema.get_names();
+    let df_cols: Vec<&str> = df_cols
+        .iter()
+        .filter(|col| !OXEN_COLS.contains(col))
+        .map(|&col| col) // Add this line to dereference &&str to &str
+        .collect();
+    log::debug!("df cols: {:?}", df_cols);
+    let df = df.select(df_cols)?;
+    log::debug!("df after: {:?}", df);
+
     let df_schema = df.schema();
 
     if !table_schema.has_field_names(&df_schema.get_names()) {
@@ -114,7 +134,7 @@ pub fn modify_row(
 
     log::debug!("df ready for insert insert: {:?}", df);
 
-    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, &uuid, &new_row)?;
+    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, &uuid, &new_row, &out_schema)?;
 
     log::debug!("got this modified observation: {:?}", result);
 
@@ -173,6 +193,37 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
     Ok(row_to_delete)
 }
 
+pub fn select_cols_from_schema(schema: &Schema) -> Result<String, OxenError> {
+    let all_col_names = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .chain(schema.fields.iter().map(|col| format!("\"{}\"", col.name)))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    Ok(all_col_names)
+}
+
+pub fn schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenError> {
+    let mut schema = schema.clone();
+
+    let oxen_fields: Vec<Field> = OXEN_COLS
+        .iter()
+        .map(|col| Field {
+            name: col.to_string(),
+            dtype: DataType::String.to_string(),
+            metadata: None,
+        })
+        .collect();
+
+    schema.fields = oxen_fields
+        .iter()
+        .chain(schema.fields.iter())
+        .cloned()
+        .collect();
+
+    Ok(schema)
+}
 // pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, OxenError> {
 //     let stmt = sql::Delete::new()
 //         .delete_from(TABLE_NAME)
@@ -213,7 +264,11 @@ pub fn df_diff(conn: &duckdb::Connection) -> Result<DataFrame, OxenError> {
             StagedRowStatus::Unchanged.to_string()
         ));
 
-    let res = df_db::select(conn, &select)?;
+    let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    let full_schema = schema_with_oxen_cols(&schema)?;
+
+    // Could do opts here for speed
+    let res = df_db::select_with_schema(conn, &select, &full_schema)?;
 
     Ok(res)
 }

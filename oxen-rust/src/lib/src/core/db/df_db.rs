@@ -234,7 +234,17 @@ pub fn select_deprecated(
 
 pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame, OxenError> {
     let sql = stmt.as_string();
-    let df = select_raw(conn, &sql)?;
+    let df = select_raw(conn, &sql, None)?;
+    Ok(df)
+}
+
+pub fn select_with_schema(
+    conn: &duckdb::Connection,
+    stmt: &sql::Select,
+    schema: &Schema,
+) -> Result<DataFrame, OxenError> {
+    let sql = stmt.as_string();
+    let df = select_raw(conn, &sql, Some(schema))?;
     Ok(df)
 }
 
@@ -276,7 +286,11 @@ pub fn select_raw_deprecated(
     Ok(df)
 }
 
-pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, OxenError> {
+pub fn select_raw(
+    conn: &duckdb::Connection,
+    stmt: &str,
+    schema: Option<&Schema>,
+) -> Result<DataFrame, OxenError> {
     log::debug!("select_raw() sql: {}", stmt);
     let mut stmt = conn.prepare(stmt)?;
 
@@ -293,7 +307,11 @@ pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, Ox
     // Hacky to convert to json and then to polars...but the results from these queries should be small, and
     // if they are bigger, need to look into converting directly from arrow to polars.
 
-    let schema = get_schema(&conn, TABLE_NAME)?;
+    let schema = if let Some(schema) = schema {
+        schema.clone()
+    } else {
+        get_schema(&conn, TABLE_NAME)?
+    };
 
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
@@ -322,9 +340,13 @@ pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, Ox
 pub fn select_with_opts(
     conn: &duckdb::Connection,
     stmt: &sql::Select,
+    // schema: &Schema,
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let mut sql = stmt.as_string();
+
+    // TODO maybe take a schema here...
+    let schema = &get_schema(&conn, TABLE_NAME)?;
 
     if let Some(sort_by) = &opts.sort_by {
         sql.push_str(&format!(" ORDER BY {}", sort_by));
@@ -345,28 +367,41 @@ pub fn select_with_opts(
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
     log::debug!("got records with opts: {:?}", records.len());
 
-    if records.is_empty() {
-        return Ok(DataFrame::default());
+    let df = record_batches_to_polars_df(records, schema)?;
+    log::debug!("got df from jsonreader: {:?}", df);
+
+    Ok(df)
+}
+
+// TODONOW collapse this with opts when convenient
+pub fn select_with_opts_and_schema(
+    conn: &duckdb::Connection,
+    stmt: &sql::Select,
+    schema: &Schema,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let mut sql = stmt.as_string();
+
+    if let Some(sort_by) = &opts.sort_by {
+        sql.push_str(&format!(" ORDER BY \"{}\"", sort_by));
     }
-    // Convert to Vec<&RecordBatch>
-    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
 
-    // Write to json
-    let buf = Vec::new();
-    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
-    writer.write_batches(&records[..])?;
-    writer.finish()?;
+    let pagination_clause = if let Some(page) = opts.page {
+        let page = if page == 0 { 1 } else { page };
+        let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
+        format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size)
+    } else {
+        format!(" LIMIT {}", DEFAULT_PAGE_SIZE)
+    };
 
-    log::debug!("Here are the actual records: {:?}", records);
-    let json = writer.into_inner();
+    sql.push_str(&pagination_clause);
 
-    log::debug!("got json: {:?}", json);
+    log::debug!("select sql with opts: {}", sql);
+    let mut stmt = conn.prepare(&sql)?;
+    let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
+    log::debug!("got records with opts: {:?}", records.len());
 
-    let json_str = String::from_utf8(json)?;
-
-    let content = Cursor::new(json_str.as_bytes());
-    let df = JsonReader::new(content).finish().unwrap();
-
+    let df = record_batches_to_polars_df(records, schema)?;
     log::debug!("got df from jsonreader: {:?}", df);
 
     Ok(df)
@@ -377,6 +412,7 @@ pub fn insert_polars_df(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     df: &DataFrame,
+    out_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
 
@@ -394,11 +430,10 @@ pub fn insert_polars_df(
         .join(", ");
     log::debug!("placeholders are {}", placeholders);
     let sql = format!(
-        "INSERT INTO {} ({}) VALUES ({}) RETURNING *, {}",
+        "INSERT INTO {} ({}) VALUES ({}) RETURNING *",
         table_name,
         column_names.join(", "),
         placeholders,
-        OXEN_ID_COL
     );
     log::debug!("sql statement is {}", sql);
 
@@ -419,15 +454,8 @@ pub fn insert_polars_df(
             .collect();
 
         let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
-        let result_set: Vec<&RecordBatch> = result_set.iter().collect();
-        let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
-        log::debug!("got json: {:?}", json);
 
-        let json_str = serde_json::to_string(&json).unwrap();
-        log::debug!("got json str: {:?}", json_str);
-
-        let content = Cursor::new(json_str.as_bytes());
-        let df = polars::io::json::JsonReader::new(content).finish().unwrap();
+        let df = record_batches_to_polars_df(result_set, out_schema)?;
 
         result_df = if df.height() == 0 {
             df
@@ -446,6 +474,7 @@ pub fn modify_row_with_polars_df(
     table_name: impl AsRef<str>,
     id: &str,
     df: &DataFrame,
+    out_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
     if df.height() != 1 {
         return Err(OxenError::basic_str(
@@ -492,15 +521,8 @@ pub fn modify_row_with_polars_df(
 
     let mut stmt = conn.prepare(&sql)?;
     let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
-    let result_set: Vec<&RecordBatch> = result_set.iter().collect();
-    let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
-    log::debug!("got json: {:?}", json);
 
-    let json_str = serde_json::to_string(&json).unwrap();
-    log::debug!("got json str: {:?}", json_str);
-
-    let content = Cursor::new(json_str.as_bytes());
-    let df = polars::io::json::JsonReader::new(content).finish().unwrap();
+    let df = record_batches_to_polars_df(result_set, out_schema)?;
 
     Ok(df)
 }
@@ -635,10 +657,41 @@ pub fn preview(
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
     let query = format!("SELECT * FROM {} LIMIT 10", table_name);
-    let df = select_raw(conn, &query)?;
+    let df = select_raw(conn, &query, None)?;
     Ok(df)
 }
 
+fn record_batches_to_polars_df(
+    records: Vec<RecordBatch>,
+    schema: &Schema,
+) -> Result<DataFrame, OxenError> {
+    if records.is_empty() {
+        return Ok(DataFrame::default());
+    }
+    // Convert to Vec<&RecordBatch>
+    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
+
+    // Write to json
+    let buf = Vec::new();
+    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
+    writer.write_batches(&records[..])?;
+    writer.finish()?;
+
+    log::debug!("Here are the actual records: {:?}", records);
+    let json = writer.into_inner();
+
+    log::debug!("got json: {:?}", json);
+
+    let json_str = String::from_utf8(json)?;
+
+    let content = Cursor::new(json_str.as_bytes());
+
+    let df = JsonReader::new(content)
+        .with_schema(Arc::new(schema.to_polars()))
+        .finish()?;
+
+    Ok(df)
+}
 #[cfg(test)]
 mod tests {
     use crate::test;

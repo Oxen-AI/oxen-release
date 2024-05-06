@@ -51,7 +51,7 @@ pub fn query_df(
     let conn = df_db::get_connection(duckdb_path)?;
     log::debug!("connection created");
 
-    let df = df_db::select_raw(&conn, &sql)?;
+    let df = df_db::select_raw(&conn, &sql, None)?;
     log::debug!("got this query output");
     Ok(df)
 }
