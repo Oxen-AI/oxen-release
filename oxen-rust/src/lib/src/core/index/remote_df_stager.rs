@@ -7,7 +7,8 @@ use crate::api;
 use crate::constants::{
     DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
 };
-use crate::core::db::df_db;
+use crate::core::db::staged_df_db::{schema_with_oxen_cols, select_cols_from_schema};
+use crate::core::db::{df_db, staged_df_db};
 use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
@@ -250,11 +251,14 @@ pub fn get_row_by_id(
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
     let conn = df_db::get_connection(db_path)?;
 
+    let schema = staged_df_db::schema_without_oxen_cols(&conn, TABLE_NAME)?;
+    let full_schema = schema_with_oxen_cols(&schema)?;
+
     let query = Select::new()
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, row_id));
-    let data = df_db::select(&conn, &query)?;
+    let data = df_db::select_with_schema(&conn, &query, &full_schema)?;
     log::debug!("get_row_by_id() got data: {:?}", data);
     Ok(data)
 }
@@ -273,13 +277,16 @@ pub fn query_staged_df(
     let schema = api::local::schemas::get_by_path_from_ref(repo, &entry.commit_id, &entry.path)?
         .ok_or_else(|| OxenError::resource_not_found(&entry.path.to_string_lossy()))?;
 
+    // Enrich w/ oxen cols
+    let full_schema = schema_with_oxen_cols(&schema)?;
+
     let col_names = select_cols_from_schema(&schema)?;
 
     log::debug!("Using this select clause: {}", col_names);
 
     let select = Select::new().select(&col_names).from(TABLE_NAME);
     log::debug!("sending over this select: {:?}", select);
-    let df = df_db::select_with_opts(&conn, &select, opts)?;
+    let df = df_db::select_with_opts_and_schema(&conn, &select, &full_schema, opts)?;
 
     Ok(df)
 }
@@ -296,16 +303,7 @@ pub fn count(
     let count = df_db::count(&conn, TABLE_NAME)?;
     Ok(count)
 }
-pub fn select_cols_from_schema(schema: &Schema) -> Result<String, OxenError> {
-    let all_col_names = OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .chain(schema.fields.iter().map(|col| format!("\"{}\"", col.name)))
-        .collect::<Vec<String>>()
-        .join(", ");
 
-    Ok(all_col_names)
-}
 fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
     let query_status = format!(
         "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT '{}'",
