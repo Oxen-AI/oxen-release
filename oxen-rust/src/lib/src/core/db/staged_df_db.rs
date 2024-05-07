@@ -119,12 +119,6 @@ pub fn modify_row(
     let (insert_hash, updated_status) =
         get_hash_and_status_for_modification(conn, &maybe_db_data, &new_row)?;
 
-    log::debug!("here is our hash: {}", insert_hash);
-    log::debug!("here is our status: {}", updated_status);
-
-    log::debug!("our new df looks like this: {:?}", new_row);
-    log::debug!("our old df looks like this: {:?}", maybe_db_data);
-
     // Update with latest values pre insert
     // TODO this should be able to just be overwritten with one mutable var but polars doesn't like it...
     new_row.with_column(Series::new(DIFF_STATUS_COL, vec![updated_status]))?;

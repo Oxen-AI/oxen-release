@@ -1,4 +1,5 @@
 use duckdb::Connection;
+use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
 
 use sql_query_builder::{Delete, Select};
@@ -294,6 +295,42 @@ pub fn query_staged_df(
     Ok(df)
 }
 
+pub fn restore_row(
+    repo: &LocalRepository,
+    branch: &Branch,
+    entry: &CommitEntry,
+    identifier: &str,
+    row_id: &str,
+) -> Result<DataFrame, OxenError> {
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, entry.path.clone());
+    let conn = df_db::get_connection(db_path)?;
+
+    // Get the row by id
+    let row = get_row_by_id(repo, branch, entry.path.clone(), identifier, row_id)?;
+
+    if row.height() == 0 {
+        return Err(OxenError::resource_not_found(row_id));
+    };
+    let row_idx = get_row_idx(&row)?.ok_or_else(|| OxenError::basic_str("Row index not found"))?;
+
+    // Row indexes are 1-indexed in our duckdb impl
+    let row_idx_og = (row_idx - 1) as i64;
+
+    let scan_rows = 10 as usize;
+    let committed_df_path = util::fs::version_path(repo, entry);
+    let lazy_df = tabular::scan_df(&committed_df_path, &DFOpts::empty(), scan_rows)?;
+
+    // Get the row by index
+    let row = lazy_df.slice(row_idx_og, 1 as u32);
+
+    let mut row = row.collect()?;
+
+    // Now upsert the original data back into the df
+    let result = staged_df_db::modify_row(&conn, &mut row, &row_id)?;
+
+    Ok(row)
+}
+
 pub fn count(
     repo: &LocalRepository,
     branch: &Branch,
@@ -305,6 +342,26 @@ pub fn count(
 
     let count = df_db::count(&conn, TABLE_NAME)?;
     Ok(count)
+}
+
+pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
+    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ROW_ID_COL) {
+        let row_df_anyval = row_df.column(OXEN_ROW_ID_COL).unwrap().get(0)?;
+        match row_df_anyval {
+            AnyValue::UInt16(val) => Ok(Some(val as usize)),
+            AnyValue::UInt32(val) => Ok(Some(val as usize)),
+            AnyValue::UInt64(val) => Ok(Some(val as usize)),
+            AnyValue::Int16(val) => Ok(Some(val as usize)),
+            AnyValue::Int32(val) => Ok(Some(val as usize)),
+            AnyValue::Int64(val) => Ok(Some(val as usize)),
+            val => {
+                log::debug!("unrecognized row index type {:?}", val);
+                Ok(None)
+            }
+        }
+    } else {
+        Ok(None)
+    }
 }
 
 fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
