@@ -1,6 +1,7 @@
 //! Abstraction over DuckDB database to write and read dataframes from disk.
 //!
 
+use crate::constants::TABLE_NAME;
 use crate::constants::{DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL};
 use crate::core::db::df_db;
 use crate::core::df::tabular;
@@ -9,6 +10,8 @@ use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::opts::DFOpts;
 use crate::{model, util};
+use arrow_json::writer::JsonArray;
+use arrow_json::WriterBuilder;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
@@ -252,15 +255,26 @@ pub fn select_with_opts(
         return Ok(DataFrame::default());
     }
 
+    // Hacky to convert to json and then to polars...but the results from these queries should be small, and
+    // if they are bigger, need to look into converting directly from arrow to polars.
+
+    let schema = get_schema(conn, TABLE_NAME)?;
+
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    let json = arrow_json::writer::record_batches_to_json_rows(&records[..]).unwrap();
-    log::debug!("got json: {:?}", json);
+    let buf = Vec::new();
 
-    let json_str = serde_json::to_string(&json).unwrap();
+    let builder = WriterBuilder::new().with_explicit_nulls(true);
+    let mut writer = builder.build::<_, JsonArray>(buf);
+    writer.write_batches(&records[..]).unwrap();
+    writer.finish().unwrap();
+    let json_bytes = writer.into_inner();
 
-    let content = Cursor::new(json_str.as_bytes());
-    let df = JsonReader::new(content).finish().unwrap();
+    let content = Cursor::new(json_bytes);
+
+    let df = JsonReader::new(content)
+        .with_schema(Arc::new(schema.to_polars()))
+        .finish()?;
 
     Ok(df)
 }
@@ -313,16 +327,24 @@ pub fn insert_polars_df(
             .map(|boxed_value| &**boxed_value as &dyn ToSql)
             .collect();
 
+        // Convert to Vec<&RecordBatch>
         let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
         let result_set: Vec<&RecordBatch> = result_set.iter().collect();
-        let json = arrow_json::writer::record_batches_to_json_rows(&result_set[..]).unwrap();
-        log::debug!("got json: {:?}", json);
 
-        let json_str = serde_json::to_string(&json).unwrap();
-        log::debug!("got json str: {:?}", json_str);
+        let buf = Vec::new();
+        let schema = get_schema(conn, TABLE_NAME)?;
 
-        let content = Cursor::new(json_str.as_bytes());
-        let df = polars::io::json::JsonReader::new(content).finish().unwrap();
+        let builder = WriterBuilder::new().with_explicit_nulls(true);
+        let mut writer = builder.build::<_, JsonArray>(buf);
+        writer.write_batches(&result_set[..]).unwrap();
+        writer.finish().unwrap();
+        let json_bytes = writer.into_inner();
+
+        let content = Cursor::new(json_bytes);
+
+        let df = JsonReader::new(content)
+            .with_schema(Arc::new(schema.to_polars()))
+            .finish()?;
 
         result_df = if df.height() == 0 {
             df
