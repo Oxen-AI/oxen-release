@@ -10,6 +10,7 @@ use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
+use liboxen::core::index::remote_df_stager::get_row_idx;
 use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
@@ -410,6 +411,50 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     };
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn df_restore_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let identifier = req.match_info().get("identifier").unwrap();
+    let row_id = req.match_info().get("row_id").unwrap();
+
+    let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
+    )?;
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+
+    let restored_row = mod_stager::restore_row(&repo, &branch, &entry, &identifier, row_id)?;
+
+    let row_index = get_row_idx(&restored_row)?;
+    let row_id = get_row_id(&restored_row)?;
+
+    log::debug!("Restored row in controller is {:?}", restored_row);
+    let schema = Schema::from_polars(&restored_row.schema());
+    Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
+        data_frame: JsonDataFrameViews {
+            source: JsonDataFrameSource::from_df(&restored_row, &schema),
+            view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
+        },
+        commit: None,
+        derived_resource: None,
+        status: StatusMessage::resource_updated(),
+        resource: None,
+        row_id,
+        row_index,
+    }))
 }
 
 pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
@@ -1284,27 +1329,6 @@ fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenHttpError> {
             .get(0)
             .map(|val| val.to_string().trim_matches('"').to_string())
             .ok())
-    } else {
-        Ok(None)
-    }
-}
-
-// TODO definitely better way to do this
-fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenHttpError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ROW_ID_COL) {
-        let row_df_anyval = row_df.column(OXEN_ROW_ID_COL).unwrap().get(0)?;
-        match row_df_anyval {
-            AnyValue::UInt16(val) => Ok(Some(val as usize)),
-            AnyValue::UInt32(val) => Ok(Some(val as usize)),
-            AnyValue::UInt64(val) => Ok(Some(val as usize)),
-            AnyValue::Int16(val) => Ok(Some(val as usize)),
-            AnyValue::Int32(val) => Ok(Some(val as usize)),
-            AnyValue::Int64(val) => Ok(Some(val as usize)),
-            val => {
-                log::debug!("unrecognized row index type {:?}", val);
-                Ok(None)
-            }
-        }
     } else {
         Ok(None)
     }

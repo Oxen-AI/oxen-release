@@ -206,49 +206,6 @@ pub fn diff_staged_df(
     Ok(DiffResult::Tabular(diff_result))
 }
 
-// pub fn diff_staged_df(
-//     repo: &LocalRepository,
-//     branch: &Branch,
-//     path: PathBuf,
-//     identifier: &str,
-// ) -> Result<DiffResult, OxenError> {
-//     // Get commit for the branch head
-//     log::debug!("diff_staged_df got repo at path {:?}", repo.path);
-//     let commit = api::local::commits::get_by_id(repo, &branch.commit_id)?
-//         .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
-
-//     let entry = api::local::entries::get_commit_entry(repo, &commit, &path)?
-//         .ok_or(OxenError::entry_does_not_exist(&path))?;
-
-//     let branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
-//     let base_path = util::fs::version_path(repo, &entry);
-//     let head_path = if index::remote_df_stager::dataset_is_indexed(repo, branch, identifier, &path)?
-//     {
-//         index::remote_df_stager::extract_dataset_to_working_dir(
-//             repo,
-//             &branch_repo,
-//             branch,
-//             &entry,
-//             identifier,
-//         )?
-//     } else {
-//         // TODO: Early return here an empty diff result instead
-//         base_path.clone()
-//     };
-
-//     let staged_df = tabular::read_df(&head_path, DFOpts::empty())?;
-//     let committed_df = tabular::read_df(&base_path, DFOpts::empty())?;
-
-//     let diff = diff_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
-
-//     // Clean up the staged df if we performed the export
-//     if head_path != base_path {
-//         // delete the file at head_path so it doesn't interfere with our status
-//         std::fs::remove_file(head_path)?;
-//     }
-
-//     Ok(diff)
-
 fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
     let df1_cols = df1.get_column_names();
     let df2_cols = df2.get_column_names();
