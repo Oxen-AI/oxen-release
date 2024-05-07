@@ -51,6 +51,9 @@ pub fn index_dataset(
         None => return Err(OxenError::resource_not_found(path.to_string_lossy())),
     };
 
+    log::debug!("the repo path is {:?}", repo.path);
+    log::debug!("the entry.path is {:?}", entry.path);
+
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &entry.path);
 
     log::debug!("mods_df_db path is {:?}", db_path);

@@ -19,6 +19,7 @@ use crate::model::diff::DiffResult;
 use crate::model::entry::mod_entry::NewMod;
 use crate::model::{Branch, CommitEntry, LocalRepository, Schema};
 
+use crate::opts::DFOpts;
 use crate::{api, util};
 
 use super::{remote_dir_stager, SchemaReader};
@@ -30,6 +31,8 @@ pub fn mods_db_path(
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+
+    let bsd = remote_dir_stager::branch_staging_dir(repo, branch, identifier);
 
     remote_dir_stager::branch_staging_dir(repo, branch, identifier)
         .join(OXEN_HIDDEN_DIR)
@@ -162,6 +165,24 @@ pub fn modify_row(
         let err = format!("Schema not found for file {:?}", new_mod.entry.path);
         Err(OxenError::basic_str(err))
     }
+}
+
+pub fn restore_df(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identity: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    // Unstage and then restage the df
+    remote_df_stager::unindex_df(repo, branch, identity, &path)?;
+
+    log::debug!("unindexed df");
+    let opts = DFOpts::empty();
+
+    // TODO: we could do this more granularly without a full reset
+    remote_df_stager::index_dataset(repo, branch, path.as_ref(), identity, &opts)?;
+    log::debug!("indexed df");
+    Ok(())
 }
 
 pub fn unstage_df(
@@ -477,28 +498,40 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            // Append the data to staging area
-            let data = "dawg1.jpg,dog,13,14,100,100".to_string();
-            let new_mod = NewMod {
-                entry: commit_entry.clone(),
-                data,
-                mod_type: ModType::Append,
-                content_type: ContentType::Csv,
-            };
             let opts = DFOpts::empty();
 
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            // Append the data to staging area
+            let data = "{\"file\":\"dawg1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}".to_string();
 
-            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
-
-            let data = "dawg2.jpg,dog,13,14,100,100".to_string();
             let new_mod = NewMod {
                 entry: commit_entry.clone(),
                 data,
                 mod_type: ModType::Append,
-                content_type: ContentType::Csv,
+                content_type: ContentType::Json,
             };
-            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let opts = DFOpts::empty();
+            // Is this even necessary?
+            // let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+
+            log::debug!("indexing the dataset at filepath {:?}", file_path);
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            log::debug!("indexed the dataset");
+
+            let append_entry_1 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?;
+            let append_1_id = append_1_id.get_str().unwrap();
+            log::debug!("added the row");
+
+            let data = "{\"file\":\"dawg2.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}".to_string();
+            let new_mod = NewMod {
+                entry: commit_entry.clone(),
+                data,
+                mod_type: ModType::Append,
+                content_type: ContentType::Json,
+            };
+            let append_entry_2 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let append_2_id = append_entry_2.column(OXEN_ID_COL)?.get(0)?;
+            let append_2_id = append_2_id.get_str().unwrap();
 
             // List the files that are changed
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
@@ -516,14 +549,25 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),
             }
             // Delete the first append
-            mod_stager::unstage_df(&repo, &branch, &identity, &file_path)?;
+            let delete_mod = NewMod {
+                entry: commit_entry.clone(),
+                data: "".to_string(),
+                mod_type: ModType::Delete,
+                content_type: ContentType::Json,
+            };
+            mod_stager::delete_row(&repo, &branch, &identity, &append_1_id, &delete_mod)?;
+
+            // Delete the second append
+            mod_stager::delete_row(&repo, &branch, &identity, &append_2_id, &delete_mod)?;
 
             // Should be zero staged files
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             assert_eq!(commit_entries.len(), 0);
 
+            log::debug!("about to diff staged");
             // Should be zero mods left
             let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            log::debug!("got diff staged");
 
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
@@ -870,7 +914,7 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset

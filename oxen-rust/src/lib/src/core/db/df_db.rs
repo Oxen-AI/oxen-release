@@ -259,7 +259,6 @@ pub fn select_raw_deprecated(
     // let df = accumulate_dataframes_vertical_unchecked(pl);
 
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
-    log::debug!("got records: {:?}", records.len());
 
     if records.is_empty() {
         return Ok(DataFrame::default());
@@ -272,7 +271,6 @@ pub fn select_raw_deprecated(
 
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    log::debug!("records are {:?}", records);
     let buf = Vec::new();
     let mut writer = arrow_json::writer::ArrayWriter::new(buf);
     writer.write_batches(&records[..]).unwrap();
@@ -282,7 +280,6 @@ pub fn select_raw_deprecated(
     let content = Cursor::new(json_bytes);
     let df = JsonReader::new(content).finish().unwrap();
 
-    log::debug!("result df: {:?}", df);
     Ok(df)
 }
 
@@ -298,7 +295,7 @@ pub fn select_raw(
     // let df = accumulate_dataframes_vertical_unchecked(pl);
 
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
-    log::debug!("got records: {:?}", records.len());
+    // log::debug!("got records: {:?}", records.len());
 
     if records.is_empty() {
         return Ok(DataFrame::default());
@@ -315,7 +312,7 @@ pub fn select_raw(
 
     // Convert to Vec<&RecordBatch>
     let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    log::debug!("records are {:?}", records);
+    // log::debug!("records are {:?}", records);
     //
     let buf = Vec::new();
 
@@ -333,7 +330,7 @@ pub fn select_raw(
         .with_schema(Arc::new(schema.to_polars()))
         .finish()?;
 
-    log::debug!("result df: {:?}", df);
+    // log::debug!("result df: {:?}", df);
     Ok(df)
 }
 

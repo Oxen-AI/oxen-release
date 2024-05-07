@@ -84,7 +84,7 @@ polars = { version = "0.39.2", features = [
     "ipc_streaming",
     "dtype-full",
 ] }
-polars-sql = "0.39.2"
+polars-sql = "0.38.3"
 os_path = "0.7.0"
 qsv-sniffer = "0.10.3"
 r2d2 = "0.8.10"

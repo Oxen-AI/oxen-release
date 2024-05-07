@@ -268,7 +268,7 @@ pub fn meta_entry_from_commit_entry(
         }),
         // Not applicable for files YET, but we will also compute this metadata
         metadata: None,
-        is_queryable: None,
+        is_queryable: is_indexed,
     });
 }
 

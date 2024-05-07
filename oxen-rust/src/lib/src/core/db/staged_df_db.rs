@@ -4,7 +4,7 @@ use sql::Select;
 use sql_query_builder as sql;
 
 use crate::api::remote::df;
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL};
 
 use crate::core::df::tabular;
 use crate::model::schema::Field;
@@ -211,7 +211,11 @@ pub fn schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenError> {
         .iter()
         .map(|col| Field {
             name: col.to_string(),
-            dtype: DataType::String.to_string(),
+            dtype: if col == &OXEN_ROW_ID_COL {
+                DataType::Int32.to_string()
+            } else {
+                DataType::String.to_string()
+            },
             metadata: None,
         })
         .collect();
