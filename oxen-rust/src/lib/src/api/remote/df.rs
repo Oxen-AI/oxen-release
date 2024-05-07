@@ -435,6 +435,7 @@ mod tests {
                 opts,
             )
             .await?;
+
             assert_eq!(df.data_frame.source.size.height, 200_000);
             assert_eq!(df.data_frame.source.size.width, 11);
 

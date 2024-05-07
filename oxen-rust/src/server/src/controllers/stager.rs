@@ -1174,7 +1174,7 @@ fn clear_staged_modifications_on_branch(
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
             index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
-            match mod_stager::unstage_df(repo, &branch, user_id, path) {
+            match mod_stager::restore_df(repo, &branch, user_id, path) {
                 Ok(_) => {
                     log::debug!("clear_staged_modifications_on_branch success!");
                     HttpResponse::Ok().json(StatusMessage::resource_deleted())

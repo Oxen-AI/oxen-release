@@ -306,8 +306,8 @@ mod tests {
             let og_contents = util::fs::read_from_path(&bbox_path)?;
 
             let mut opts = DFOpts::empty();
-            opts.add_row = Some("train/dog_99.jpg,dog,101.5,32.0,385,330".to_string());
-            opts.content_type = ContentType::Csv;
+            opts.add_row = Some("{\"file\": \"train/dog_99.jpg\", \"label\": \"dog\", \"min_x\": 101.5, \"min_y\": 32.0, \"width\": 385, \"height\": 330}".to_string());
+            opts.content_type = ContentType::Json;
             let mut df = tabular::read_df(&bbox_path, opts)?;
             tabular::write_df(&mut df, &bbox_path)?;
 

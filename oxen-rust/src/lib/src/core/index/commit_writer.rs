@@ -913,7 +913,7 @@ mod tests {
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
             remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
-            let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
+            let append_contents = "{\"fifle\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
                 data: append_contents,
