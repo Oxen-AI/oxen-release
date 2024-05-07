@@ -22,7 +22,7 @@ pub mod util;
 
 /// A Python module implemented in Rust.
 #[pymodule]
-fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
+fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     let mut builder = tokio::runtime::Builder::new_multi_thread();
     builder.enable_all();
     pyo3_asyncio::tokio::init(builder);
@@ -56,39 +56,39 @@ fn oxen(py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<py_user::PyUser>()?;
 
     // Util Module
-    let util_module = PyModule::new(py, "util")?;
-    util_module.add_function(wrap_pyfunction!(util::is_tabular, util_module)?)?;
-    util_module.add_function(wrap_pyfunction!(util::read_df, util_module)?)?;
-    util_module.add_function(wrap_pyfunction!(util::get_oxen_config_dir, util_module)?)?;
-    m.add_submodule(util_module)?;
+    let util_module = PyModule::new_bound(m.py(), "util")?;
+    util_module.add_function(wrap_pyfunction!(util::is_tabular, &util_module)?)?;
+    util_module.add_function(wrap_pyfunction!(util::read_df, &util_module)?)?;
+    util_module.add_function(wrap_pyfunction!(util::get_oxen_config_dir, &util_module)?)?;
+    m.add_submodule(&util_module)?;
 
     // Auth Module
-    let auth_module = PyModule::new(py, "auth")?;
-    auth_module.add_function(wrap_pyfunction!(auth::config_auth, auth_module)?)?;
-    m.add_submodule(auth_module)?;
+    let auth_module = PyModule::new_bound(m.py(), "auth")?;
+    auth_module.add_function(wrap_pyfunction!(auth::config_auth, &auth_module)?)?;
+    m.add_submodule(&auth_module)?;
 
     // User Module
-    let user_module = PyModule::new(py, "user")?;
-    user_module.add_function(wrap_pyfunction!(user::config_user, user_module)?)?;
-    user_module.add_function(wrap_pyfunction!(user::current_user, user_module)?)?;
-    m.add_submodule(user_module)?;
+    let user_module = PyModule::new_bound(m.py(), "user")?;
+    user_module.add_function(wrap_pyfunction!(user::config_user, &user_module)?)?;
+    user_module.add_function(wrap_pyfunction!(user::current_user, &user_module)?)?;
+    m.add_submodule(&user_module)?;
 
     // Remote Module
-    let remote_module = PyModule::new(py, "remote")?;
-    remote_module.add_function(wrap_pyfunction!(remote::get_repo, remote_module)?)?;
-    remote_module.add_function(wrap_pyfunction!(remote::create_repo, remote_module)?)?;
-    m.add_submodule(remote_module)?;
+    let remote_module = PyModule::new_bound(m.py(), "remote")?;
+    remote_module.add_function(wrap_pyfunction!(remote::get_repo, &remote_module)?)?;
+    remote_module.add_function(wrap_pyfunction!(remote::create_repo, &remote_module)?)?;
+    m.add_submodule(&remote_module)?;
 
     // Diff Module
-    let diff_module = PyModule::new(py, "diff")?;
-    diff_module.add_function(wrap_pyfunction!(diff::diff_paths, diff_module)?)?;
-    m.add_submodule(diff_module)?;
+    let diff_module = PyModule::new_bound(m.py(), "diff")?;
+    diff_module.add_function(wrap_pyfunction!(diff::diff_paths, &diff_module)?)?;
+    m.add_submodule(&diff_module)?;
 
     // DataFrame (df) Module
-    let df_module = PyModule::new(py, "df_utils")?;
-    df_module.add_function(wrap_pyfunction!(df_utils::save, df_module)?)?;
-    df_module.add_function(wrap_pyfunction!(df_utils::load, df_module)?)?;
-    m.add_submodule(df_module)?;
+    let df_module = PyModule::new_bound(m.py(), "df_utils")?;
+    df_module.add_function(wrap_pyfunction!(df_utils::save, &df_module)?)?;
+    df_module.add_function(wrap_pyfunction!(df_utils::load, &df_module)?)?;
+    m.add_submodule(&df_module)?;
 
     Ok(())
 }
