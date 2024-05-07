@@ -100,7 +100,8 @@ async fn add_row(
 ) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
 
-    let data = format!(r#"{{"data": {}}}"#, data);
+    // let data = format!(r#"{{"data": {}}}"#, data);
+    let data = data.to_string();
 
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;

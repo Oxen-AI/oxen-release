@@ -181,11 +181,14 @@ mod tests {
                 command::remote::df::index_dataset(&cloned_repo, &path).await?;
 
                 let mut opts = DFOpts::empty();
-                opts.add_row = Some("I am a new row,neutral".to_string());
-                opts.content_type = ContentType::Csv;
+                opts.add_row =
+                    Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
+                opts.content_type = ContentType::Json;
                 // Grab ID from the row we just added
                 let df = command::remote::df(&cloned_repo, &path, opts).await?;
-                let uuid = match df.get(0).unwrap().first().unwrap() {
+                log::debug!("Add DF row: {:?}", df);
+
+                let uuid = match df.get(0).unwrap().get(2).unwrap() {
                     AnyValue::String(s) => s.to_string(),
                     _ => panic!("Expected string"),
                 };
