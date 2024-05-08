@@ -284,11 +284,12 @@ fn get_hash_and_status_for_modification(
         .get_str()
         .ok_or_else(|| OxenError::basic_str("Diff status column is not a string".to_owned()))?;
 
-    if old_status == StagedRowStatus::Removed.to_string() {
-        return Err(OxenError::basic_str(
-            "Cannot modify a deleted row".to_owned(),
-        ));
-    }
+    // Required for unstaging deletions
+    // if old_status == StagedRowStatus::Removed.to_string() {
+    //     return Err(OxenError::basic_str(
+    //         "Cannot modify a deleted row".to_owned(),
+    //     ));
+    // }
 
     let old_hash = old_row.column(DIFF_HASH_COL)?.get(0)?;
 
@@ -323,11 +324,22 @@ fn get_hash_and_status_for_modification(
     log::debug!("got insert_hash: {}", insert_hash);
     log::debug!("got new hash: {}", new_hash);
 
+    // TODO: Clean up this logic, especially around removals
     let new_status = if old_status == StagedRowStatus::Added.to_string() {
         StagedRowStatus::Added.to_string()
+    } else if old_status == StagedRowStatus::Removed.to_string() {
+        if insert_hash == new_hash {
+            StagedRowStatus::Unchanged.to_string()
+        } else {
+            StagedRowStatus::Modified.to_string()
+        }
     } else if old_hash.is_null() {
+        log::debug!("old_hash is null, setting status to modified");
         StagedRowStatus::Modified.to_string()
     } else {
+        log::debug!("new hash is {}", new_hash);
+        log::debug!("insert hash is {}", insert_hash);
+        // handles delete case too
         if new_hash == insert_hash {
             StagedRowStatus::Unchanged.to_string()
         } else {

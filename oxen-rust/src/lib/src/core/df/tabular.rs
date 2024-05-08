@@ -839,6 +839,7 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
             "ndjson" => read_df_jsonl(path),
             "jsonl" => read_df_jsonl(path),
             "json" => read_df_json(path),
+            // TODONOW change this back
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(path, &opts)?;
                 read_df_csv(path, delimiter)

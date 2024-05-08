@@ -144,10 +144,7 @@ pub fn modify_row(
         )?;
 
         if let DiffResult::Tabular(diff) = diff {
-            log::debug!("in tabular diff");
-            log::debug!("here's the diff {:?}", diff);
             if !diff.has_changes() {
-                log::debug!("no changes, deleting file from staged db");
                 // Restored to original state == delete file from staged db
                 let opts = db::opts::default();
                 let files_db_path = files_db_path(repo, branch, identifier);
@@ -791,84 +788,6 @@ mod tests {
     }
 
     #[test]
-    fn test_stage_cannot_modify_deleted_row() -> Result<(), OxenError> {
-        test::run_training_data_repo_test_fully_committed(|repo| {
-            let branch_name = "test-append";
-            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
-            let file_path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-            let commit_entry =
-                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
-
-            let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
-
-            // Could use cache path here but they're being sketchy at time of writing
-            // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
-
-            // Preview the dataset to grab some ids
-            let mut page_opts = DFOpts::empty();
-            page_opts.page = Some(0);
-            page_opts.page_size = Some(10);
-
-            let staged_df = remote_df_stager::query_staged_df(
-                &repo,
-                &commit_entry,
-                &branch,
-                &identity,
-                &page_opts,
-            )?;
-
-            let id_to_delete = staged_df.column(OXEN_ID_COL)?.get(0)?.to_string();
-            let id_to_delete = id_to_delete.replace('"', "");
-
-            let new_mod = NewMod {
-                entry: commit_entry.clone(),
-                data: "".to_string(),
-                mod_type: ModType::Delete,
-                content_type: ContentType::Json,
-            };
-
-            // Stage a deletion
-            mod_stager::delete_row(&repo, &branch, &identity, &id_to_delete, &new_mod)?;
-
-            // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
-            assert_eq!(commit_entries.len(), 1);
-
-            let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
-            match diff {
-                DiffResult::Tabular(tabular_diff) => {
-                    let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
-                    assert_eq!(removed_rows, 1);
-                }
-                _ => panic!("Expected tabular diff result"),
-            }
-
-            // Now modify the row
-            let modify_mod = NewMod {
-                entry: commit_entry.clone(),
-                data: "{\"height\": 101}".to_string(),
-                mod_type: ModType::Modify,
-                content_type: ContentType::Json,
-            };
-
-            let res = mod_stager::modify_row(&repo, &branch, &identity, &id_to_delete, &modify_mod);
-
-            log::debug!("res is... {:?}", res);
-
-            assert!(res.is_err());
-
-            Ok(())
-        })
-    }
-
-    #[test]
     fn test_stage_modify_row_back_to_original_state() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
@@ -1020,6 +939,91 @@ mod tests {
             // Now restore the row
             let res =
                 mod_stager::restore_row(&repo, &branch, &commit_entry, &identity, &id_to_modify)?;
+
+            log::debug!("res is... {:?}", res);
+
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            assert_eq!(commit_entries.len(), 0);
+
+            let diff =
+                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let modified_rows = tabular_diff.summary.modifications.row_counts.modified;
+                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
+                    let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
+                    assert_eq!(modified_rows, 0);
+                    assert_eq!(added_rows, 0);
+                    assert_eq!(removed_rows, 0);
+                }
+                _ => panic!("Expected tabular diff result"),
+            }
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_restore_df_row_delete() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed(|repo| {
+            let branch_name = "test-append";
+            let branch = api::local::branches::create_checkout(&repo, branch_name)?;
+            let identity = UserConfig::identifier()?;
+            let file_path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+            let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+            let commit_entry =
+                api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
+
+            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+
+            // Could use cache path here but they're being sketchy at time of writing
+            // Index the dataset
+            let opts = DFOpts::empty();
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+
+            // Preview the dataset to grab some ids
+            let mut page_opts = DFOpts::empty();
+            page_opts.page = Some(0);
+            page_opts.page_size = Some(10);
+
+            let staged_df = remote_df_stager::query_staged_df(
+                &repo,
+                &commit_entry,
+                &branch,
+                &identity,
+                &page_opts,
+            )?;
+
+            let id_to_delete = staged_df.column(OXEN_ID_COL)?.get(0)?.to_string();
+            let id_to_delete = id_to_delete.replace('"', "");
+
+            let new_mod = NewMod {
+                entry: commit_entry.clone(),
+                data: "".to_string(),
+                mod_type: ModType::Delete,
+                content_type: ContentType::Json,
+            };
+
+            // Stage a deletion
+            mod_stager::delete_row(&repo, &branch, &identity, &id_to_delete, &new_mod)?;
+            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            assert_eq!(commit_entries.len(), 1);
+
+            let diff =
+                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+            match diff {
+                DiffResult::Tabular(tabular_diff) => {
+                    let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
+                    assert_eq!(removed_rows, 1);
+                }
+                _ => panic!("Expected tabular diff result"),
+            }
+
+            // Now restore the row
+            let res =
+                mod_stager::restore_row(&repo, &branch, &commit_entry, &identity, &id_to_delete)?;
 
             log::debug!("res is... {:?}", res);
 

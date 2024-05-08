@@ -10,7 +10,7 @@ use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
-use liboxen::core::index::remote_df_stager::get_row_idx;
+use liboxen::core::index::remote_df_stager::{get_row_id, get_row_idx};
 use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
@@ -1319,17 +1319,4 @@ fn get_dir_status_for_branch(
         staged: RemoteStagedStatus::from_staged(&branch_repo, &staged, page_num, page_size),
     };
     Ok(HttpResponse::Ok().json(response))
-}
-
-fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenHttpError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ID_COL) {
-        Ok(row_df
-            .column(OXEN_ID_COL)
-            .unwrap()
-            .get(0)
-            .map(|val| val.to_string().trim_matches('"').to_string())
-            .ok())
-    } else {
-        Ok(None)
-    }
 }
