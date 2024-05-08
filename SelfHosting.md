@@ -62,7 +62,7 @@ Once you have committed data locally and are ready to share them with colleagues
 You can either create a remote through the web UI on [OxenHub](https://oxen.ai) or if you have setup a server your self, you will have to run the `create-remote` command.
 
 ```bash
-$ oxen create-remote MyNamespace MyRepoName <HOST>
+$ oxen create-remote --name MyNamespace/MyRepoName --host 0.0.0.0:3001 --scheme http
 ```
 
 Repositories that live on an Oxen Server have the idea of a `namespace` and a `name` to help you organize your repositories.
