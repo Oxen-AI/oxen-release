@@ -253,8 +253,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::stager::diff_file),
         )
         .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
-            web::get().to(controllers::stager::df_restore_row),
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/restore/{resource:.*}",
+            web::post().to(controllers::stager::df_restore_row),
         )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",

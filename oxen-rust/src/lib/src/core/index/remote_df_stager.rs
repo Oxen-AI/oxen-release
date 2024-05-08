@@ -2,12 +2,15 @@ use duckdb::Connection;
 use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
 
+use polars::prelude::NamedFrom;
+use polars::series::Series;
 use sql_query_builder::{Delete, Select};
 
 use crate::api;
 use crate::constants::{
     DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
 };
+use crate::core::cache::cachers::df_size;
 use crate::core::db::staged_df_db::{schema_with_oxen_cols, select_cols_from_schema};
 use crate::core::db::{df_db, staged_df_db};
 use crate::core::df::{sql, tabular};
@@ -311,24 +314,33 @@ pub fn restore_row(
     if row.height() == 0 {
         return Err(OxenError::resource_not_found(row_id));
     };
-    let row_idx = get_row_idx(&row)?.ok_or_else(|| OxenError::basic_str("Row index not found"))?;
 
-    // Row indexes are 1-indexed in our duckdb impl
-    let row_idx_og = (row_idx - 1) as i64;
+    let row_status =
+        get_row_status(&row)?.ok_or_else(|| OxenError::basic_str("Row status not found"))?;
 
-    let scan_rows = 10 as usize;
-    let committed_df_path = util::fs::version_path(repo, entry);
-    let lazy_df = tabular::scan_df(&committed_df_path, &DFOpts::empty(), scan_rows)?;
+    let result_row = match row_status {
+        StagedRowStatus::Added => {
+            // Row is added, just delete it
+            log::debug!("restore_row() row is added, deleting");
+            let result_row = staged_df_db::delete_row(&conn, &row_id)?;
+            result_row
+        }
+        StagedRowStatus::Modified | StagedRowStatus::Removed => {
+            // Row is modified, just delete it
+            log::debug!("restore_row() row is modified, deleting");
+            let mut insert_row = prepare_modified_or_removed_row(repo, entry, &row, row_id)?;
+            let out_row = staged_df_db::modify_row(&conn, &mut insert_row, row_id)?;
+            out_row
+        }
+        StagedRowStatus::Unchanged => {
+            // Row is unchanged, just return it
+            row
+        }
+    };
 
-    // Get the row by index
-    let row = lazy_df.slice(row_idx_og, 1 as u32);
+    log::debug!("we're returning this row: {:?}", result_row);
 
-    let mut row = row.collect()?;
-
-    // Now upsert the original data back into the df
-    let result = staged_df_db::modify_row(&conn, &mut row, &row_id)?;
-
-    Ok(row)
+    Ok(result_row)
 }
 
 pub fn count(
@@ -362,6 +374,50 @@ pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
     } else {
         Ok(None)
     }
+}
+
+fn prepare_modified_or_removed_row(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+    row_df: &DataFrame,
+    row_id: &str,
+) -> Result<DataFrame, OxenError> {
+    let row_idx =
+        get_row_idx(&row_df)?.ok_or_else(|| OxenError::basic_str("Row index not found"))?;
+    let row_idx_og = (row_idx - 1) as i64;
+
+    // let scan_rows = 10000 as usize;
+    let committed_df_path = util::fs::version_path(repo, entry);
+
+    let commit = api::local::commits::get_by_id(repo, &entry.commit_id)?
+        .ok_or_else(|| OxenError::resource_not_found(&entry.commit_id))?;
+
+    // TODONOW: we should use the df size cache but it's wrong...
+    let df_size = tabular::get_size(&committed_df_path)?;
+
+    log::debug!("restore_row() got df_size: {:?}", df_size);
+
+    log::debug!("got df_size.height: {:?}", df_size.height);
+    log::debug!("got row_idx_og: {:?}", row_idx_og);
+
+    log::debug!("about to scan");
+    // TODONOW should not be using all rows - just need to parse delim
+    let lazy_df = tabular::read_df(&committed_df_path, DFOpts::empty())?;
+    log::debug!("scanned df");
+
+    // Get the row by index
+    let mut row = lazy_df.slice(row_idx_og, 1 as usize);
+    log::debug!("got row:");
+
+    // Added rows will error here on out of index, but we caught them earlier..
+    // let mut row = row.collect()?;
+
+    row.with_column(Series::new(
+        DIFF_STATUS_COL,
+        vec![StagedRowStatus::Unchanged.to_string()],
+    ))?;
+
+    Ok(row)
 }
 
 fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
@@ -479,4 +535,30 @@ fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     conn.execute(&query, [])?;
 
     Ok(())
+}
+
+pub fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenError> {
+    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ID_COL) {
+        Ok(row_df
+            .column(OXEN_ID_COL)
+            .unwrap()
+            .get(0)
+            .map(|val| val.to_string().trim_matches('"').to_string())
+            .ok())
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn get_row_status(row_df: &DataFrame) -> Result<Option<StagedRowStatus>, OxenError> {
+    if row_df.height() == 1 && row_df.get_column_names().contains(&DIFF_STATUS_COL) {
+        let anyval_status = row_df.column(DIFF_STATUS_COL).unwrap().get(0)?;
+        let str_status = anyval_status
+            .get_str()
+            .ok_or_else(|| OxenError::basic_str("Row status not found"))?;
+        let status = StagedRowStatus::from_string(str_status)?;
+        Ok(Some(status))
+    } else {
+        Ok(None)
+    }
 }
