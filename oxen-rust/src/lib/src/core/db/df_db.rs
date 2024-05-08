@@ -413,6 +413,7 @@ pub fn insert_polars_df(
             .map(|boxed_value| &**boxed_value as &dyn ToSql)
             .collect();
 
+        // Convert to Vec<&RecordBatch>
         let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
 
         let df = record_batches_to_polars_df(result_set, out_schema)?;

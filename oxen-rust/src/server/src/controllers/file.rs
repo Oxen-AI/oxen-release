@@ -9,13 +9,13 @@ use liboxen::model::CommitEntry;
 use liboxen::util;
 
 use actix_files::NamedFile;
-use actix_web::{web, HttpRequest};
+use actix_web::{http::header, web, HttpRequest, HttpResponse};
 
 /// Download file content
 pub async fn get(
     req: HttpRequest,
     query: web::Query<ImgResize>,
-) -> actix_web::Result<NamedFile, OxenHttpError> {
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     log::debug!("get file path {:?}", req.path());
 
     let app_data = app_data(&req)?;
@@ -91,7 +91,7 @@ pub async fn get(
         util::fs::resize_cache_image(&version_path, &resized_path, img_resize)?;
 
         log::debug!("In the resize cache! {:?}", resized_path);
-        return Ok(NamedFile::open(resized_path)?);
+        return Ok(NamedFile::open(resized_path)?.into_response(&req));
 
         // log::debug!(
         //     "get_file_for_commit_id {:?}x{:?} for {:?} -> {:?}",
@@ -150,5 +150,13 @@ pub async fn get(
         version_path
     );
 
-    Ok(NamedFile::open(version_path)?)
+    let file = NamedFile::open(version_path)?;
+    let mut response = file.into_response(&req);
+
+    response.headers_mut().insert(
+        header::HeaderName::from_static("oxen-revision-id"),
+        header::HeaderValue::from_str(&resource.commit.id).unwrap(),
+    );
+
+    Ok(response)
 }
