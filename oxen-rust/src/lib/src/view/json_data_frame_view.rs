@@ -112,6 +112,11 @@ impl JsonDataFrameView {
         let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
 
         let mut opts = opts.clone();
+
+        if df.height() == 0 {
+            return JsonDataFrameView::empty_with_schema(&og_schema, full_height, &opts);
+        };
+
         opts.slice = Some(format!("{}..{}", start, end));
         let opts_view = DFOptsView::from_df_opts(&opts);
         let mut sliced_df = tabular::transform(df, opts).unwrap();
@@ -229,6 +234,29 @@ impl JsonDataFrameView {
         let json_str = str::from_utf8(&buffer).unwrap();
 
         serde_json::from_str(json_str).unwrap()
+    }
+
+    fn empty_with_schema(
+        schema: &Schema,
+        total_entries: usize,
+        opts: &DFOpts,
+    ) -> JsonDataFrameView {
+        let mut default_df = DataFrame::empty();
+        JsonDataFrameView {
+            schema: schema.to_owned(),
+            size: DataFrameSize {
+                height: 0,
+                width: schema.fields_names().len(),
+            },
+            data: JsonDataFrameView::json_from_df(&mut default_df),
+            pagination: Pagination {
+                page_number: 0,
+                page_size: 0,
+                total_pages: 0,
+                total_entries,
+            },
+            opts: DFOptsView::from_df_opts(opts),
+        }
     }
 }
 
