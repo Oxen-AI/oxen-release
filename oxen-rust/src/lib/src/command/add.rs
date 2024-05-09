@@ -50,16 +50,18 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     // 2. In the commit entry db (removed files)
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.as_ref().to_str() {
+        println!("It's in command add");
         if helpers::is_glob_path(path_str) {
             // Match against any untracked entries in the current dir
             for entry in glob(path_str)? {
                 paths.insert(entry?);
             }
-
+            println!("Path is glob path");
             let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
             // Non-glob path
+            println!("Path is non glob path");
             paths.insert(path.as_ref().to_owned());
         }
     }
@@ -68,7 +70,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
     for path in paths {
         stager.add(path.as_ref(), &reader, &schema_reader, &ignore)?;
     }
-
+    println!("---END--- oxen add: {:?}", path.as_ref());
     log::debug!("---END--- oxen add: {:?}", path.as_ref());
     Ok(())
 }

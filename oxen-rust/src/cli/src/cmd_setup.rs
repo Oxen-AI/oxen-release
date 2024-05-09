@@ -705,6 +705,22 @@ pub fn restore() -> Command {
 pub fn branch() -> Command {
     Command::new(BRANCH)
         .about("Manage branches in repository")
+        .subcommand(
+            Command::new("unlock")
+                .arg(
+                    Arg::new("branch")
+                        .help("Branch to unlock")
+                        .required(true)
+                        .action(clap::ArgAction::Set),
+                )
+                .arg(
+                    Arg::new("remote_name")
+                        .long("remote_name")
+                        .help("Specify the remote to unlock the branch on")
+                        .default_value(DEFAULT_REMOTE_NAME)
+                        .default_missing_value(DEFAULT_REMOTE_NAME)
+                        .action(clap::ArgAction::Set),
+                )
         .arg(Arg::new("name").help("Name of the branch").exclusive(true))
         .arg(
             Arg::new("all")
@@ -748,6 +764,7 @@ pub fn branch() -> Command {
                 .help("Print the current branch")
                 .exclusive(true)
                 .action(clap::ArgAction::SetTrue),
+        ),
         )
 }
 
