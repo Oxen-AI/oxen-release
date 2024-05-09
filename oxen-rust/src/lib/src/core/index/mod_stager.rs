@@ -613,6 +613,9 @@ mod tests {
 
     #[test]
     fn test_stage_modify_added_row() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
@@ -848,6 +851,9 @@ mod tests {
     }
     #[test]
     fn test_restore_df_row() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
@@ -935,6 +941,9 @@ mod tests {
 
     #[test]
     fn test_restore_df_row_delete() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;

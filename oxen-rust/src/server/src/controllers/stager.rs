@@ -16,7 +16,6 @@ use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::metadata::metadata_image::ImgResize;
-use liboxen::model::schema::DataType;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
@@ -794,7 +793,7 @@ pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let user_id = path_param(&req, "identifier")?;
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
     // Staging calls must be on a branch
