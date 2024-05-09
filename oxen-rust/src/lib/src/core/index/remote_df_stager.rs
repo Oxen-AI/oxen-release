@@ -10,14 +10,13 @@ use crate::api;
 use crate::constants::{
     DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
 };
-use crate::core::cache::cachers::df_size;
-use crate::core::db::staged_df_db::{schema_with_oxen_cols, select_cols_from_schema};
+use crate::core::db::staged_df_db::select_cols_from_schema;
 use crate::core::db::{df_db, staged_df_db};
 use crate::core::df::{sql, tabular};
 use crate::core::index::{mod_stager, remote_dir_stager};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Branch, CommitEntry, LocalRepository, Schema};
+use crate::model::{Branch, CommitEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
@@ -96,7 +95,8 @@ pub fn index_dataset(
     std::fs::write(commit_path, branch.commit_id.as_str())?;
 
     let select = Select::new().select("*").from(TABLE_NAME);
-    let preview = df_db::select_with_opts(&conn, &select, opts)?;
+    let preview = df_db::select(&conn, &select, true, None, Some(opts))?;
+
     Ok(preview)
 }
 
@@ -147,7 +147,7 @@ pub fn extract_dataset_to_versions_dir(
     let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
         "\"{}\" = '{}'",
         DIFF_STATUS_COL,
-        StagedRowStatus::Removed.to_string()
+        StagedRowStatus::Removed
     ));
     conn.execute(&delete.to_string(), [])?;
 
@@ -214,7 +214,7 @@ pub fn extract_dataset_to_working_dir(
     let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
         "\"{}\" = '{}'",
         DIFF_STATUS_COL,
-        StagedRowStatus::Removed.to_string()
+        StagedRowStatus::Removed
     ));
     let res = conn.execute(&delete.to_string(), [])?;
     log::debug!("delete query result is: {:?}", res);
@@ -258,14 +258,13 @@ pub fn get_row_by_id(
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
     let conn = df_db::get_connection(db_path)?;
 
-    let schema = staged_df_db::schema_without_oxen_cols(&conn, TABLE_NAME)?;
-    let full_schema = schema_with_oxen_cols(&schema)?;
+    let schema = staged_df_db::full_staged_table_schema(&conn)?;
 
     let query = Select::new()
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, row_id));
-    let data = df_db::select_with_schema(&conn, &query, &full_schema)?;
+    let data = df_db::select(&conn, &query, true, Some(&schema), None)?;
     log::debug!("get_row_by_id() got data: {:?}", data);
     Ok(data)
 }
@@ -282,18 +281,16 @@ pub fn query_staged_df(
 
     // Get the schema of this commit entry
     let schema = api::local::schemas::get_by_path_from_ref(repo, &entry.commit_id, &entry.path)?
-        .ok_or_else(|| OxenError::resource_not_found(&entry.path.to_string_lossy()))?;
+        .ok_or_else(|| OxenError::resource_not_found(entry.path.to_string_lossy()))?;
 
     // Enrich w/ oxen cols
-    let full_schema = schema_with_oxen_cols(&schema)?;
+    let full_schema = staged_df_db::enhance_schema_with_oxen_cols(&schema)?;
 
     let col_names = select_cols_from_schema(&schema)?;
 
-    log::debug!("Using this select clause: {}", col_names);
-
     let select = Select::new().select(&col_names).from(TABLE_NAME);
-    log::debug!("sending over this select: {:?}", select);
-    let df = df_db::select_with_opts_and_schema(&conn, &select, &full_schema, opts)?;
+
+    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
 
     Ok(df)
 }
@@ -322,15 +319,13 @@ pub fn restore_row(
         StagedRowStatus::Added => {
             // Row is added, just delete it
             log::debug!("restore_row() row is added, deleting");
-            let result_row = staged_df_db::delete_row(&conn, &row_id)?;
-            result_row
+            staged_df_db::delete_row(&conn, row_id)?
         }
         StagedRowStatus::Modified | StagedRowStatus::Removed => {
             // Row is modified, just delete it
             log::debug!("restore_row() row is modified, deleting");
-            let mut insert_row = prepare_modified_or_removed_row(repo, entry, &row, row_id)?;
-            let out_row = staged_df_db::modify_row(&conn, &mut insert_row, row_id)?;
-            out_row
+            let mut insert_row = prepare_modified_or_removed_row(repo, entry, &row)?;
+            staged_df_db::modify_row(&conn, &mut insert_row, row_id)?
         }
         StagedRowStatus::Unchanged => {
             // Row is unchanged, just return it
@@ -380,17 +375,13 @@ fn prepare_modified_or_removed_row(
     repo: &LocalRepository,
     entry: &CommitEntry,
     row_df: &DataFrame,
-    row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let row_idx =
-        get_row_idx(&row_df)?.ok_or_else(|| OxenError::basic_str("Row index not found"))?;
+        get_row_idx(row_df)?.ok_or_else(|| OxenError::basic_str("Row index not found"))?;
     let row_idx_og = (row_idx - 1) as i64;
 
     // let scan_rows = 10000 as usize;
     let committed_df_path = util::fs::version_path(repo, entry);
-
-    let commit = api::local::commits::get_by_id(repo, &entry.commit_id)?
-        .ok_or_else(|| OxenError::resource_not_found(&entry.commit_id))?;
 
     // TODONOW: we should use the df size cache but it's wrong...
     let df_size = tabular::get_size(&committed_df_path)?;
@@ -406,7 +397,7 @@ fn prepare_modified_or_removed_row(
     log::debug!("scanned df");
 
     // Get the row by index
-    let mut row = lazy_df.slice(row_idx_og, 1 as usize);
+    let mut row = lazy_df.slice(row_idx_og, 1_usize);
     log::debug!("got row:");
 
     // Added rows will error here on out of index, but we caught them earlier..
@@ -425,7 +416,7 @@ fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
         "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT '{}'",
         TABLE_NAME,
         DIFF_STATUS_COL,
-        StagedRowStatus::Unchanged.to_string()
+        StagedRowStatus::Unchanged
     );
     conn.execute(&query_status, [])?;
 
@@ -448,7 +439,7 @@ fn copy_duckdb_if_already_indexed(
     if df_db::table_exists(&conn, TABLE_NAME)? {
         std::fs::copy(&maybe_existing_db_path, new_db_path)?;
         let select = Select::new().select("*").from(TABLE_NAME);
-        let preview = df_db::select_with_opts(&conn, &select, opts)?;
+        let preview = df_db::select(&conn, &select, true, None, Some(opts))?;
         return Ok(Some(preview));
     }
     Ok(None)

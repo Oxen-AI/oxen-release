@@ -17,12 +17,12 @@ use crate::core::index::remote_df_stager;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
 use crate::model::entry::mod_entry::NewMod;
-use crate::model::{Branch, CommitEntry, LocalRepository, Schema};
+use crate::model::{Branch, CommitEntry, LocalRepository};
 
 use crate::opts::DFOpts;
 use crate::{api, util};
 
-use super::{remote_dir_stager, SchemaReader};
+use super::remote_dir_stager;
 
 pub fn mods_db_path(
     repo: &LocalRepository,
@@ -86,29 +86,16 @@ pub fn add_row(
     identifier: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-    let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
-        // Add a name to the schema - todo probably should be an impl on a struct
-        let schema = Schema {
-            name: Some("STAGED".to_string()),
-            ..schema
-        };
+    let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
+    let conn = df_db::get_connection(db_path)?;
 
-        let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
-        let conn = df_db::get_connection(db_path)?;
+    let df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
 
-        let df =
-            tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned())?;
+    let result = staged_df_db::append_row(&conn, &df)?;
 
-        let result = staged_df_db::append_row(&conn, &df)?;
+    track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
 
-        track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
-
-        Ok(result)
-    } else {
-        let err = format!("Schema not found for file {:?}", new_mod.entry.path);
-        Err(OxenError::basic_str(err))
-    }
+    Ok(result)
 }
 
 pub fn modify_row(
@@ -118,48 +105,35 @@ pub fn modify_row(
     row_id: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-    let schema_reader = SchemaReader::new(repo, &new_mod.entry.commit_id)?;
-    if let Some(schema) = schema_reader.get_schema_for_file(&new_mod.entry.path)? {
-        // Add a name to the schema - todo probably should be an impl on a struct
-        let schema = Schema {
-            name: Some("STAGED".to_string()),
-            ..schema
-        };
+    let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
+    let conn = df_db::get_connection(db_path)?;
 
-        let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
-        let conn = df_db::get_connection(db_path)?;
+    let mut df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
 
-        let mut df =
-            tabular::parse_data_into_df(&new_mod.data, &schema, new_mod.content_type.to_owned())?;
+    let result = staged_df_db::modify_row(&conn, &mut df, row_id)?;
 
-        let result = staged_df_db::modify_row(&conn, &mut df, row_id)?;
+    track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
 
-        track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
+    let diff = api::local::diff::diff_staged_df(
+        repo,
+        branch,
+        PathBuf::from(&new_mod.entry.path),
+        identifier,
+    )?;
 
-        let diff = api::local::diff::diff_staged_df(
-            repo,
-            branch,
-            PathBuf::from(&new_mod.entry.path),
-            identifier,
-        )?;
-
-        if let DiffResult::Tabular(diff) = diff {
-            if !diff.has_changes() {
-                // Restored to original state == delete file from staged db
-                let opts = db::opts::default();
-                let files_db_path = files_db_path(repo, branch, identifier);
-                let files_db: DBWithThreadMode<MultiThreaded> =
-                    rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-                let key = new_mod.entry.path.to_string_lossy();
-                str_json_db::delete(&files_db, key)?;
-            }
+    if let DiffResult::Tabular(diff) = diff {
+        if !diff.has_changes() {
+            // Restored to original state == delete file from staged db
+            let opts = db::opts::default();
+            let files_db_path = files_db_path(repo, branch, identifier);
+            let files_db: DBWithThreadMode<MultiThreaded> =
+                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
+            let key = new_mod.entry.path.to_string_lossy();
+            str_json_db::delete(&files_db, key)?;
         }
-
-        Ok(result)
-    } else {
-        let err = format!("Schema not found for file {:?}", new_mod.entry.path);
-        Err(OxenError::basic_str(err))
     }
+
+    Ok(result)
 }
 
 pub fn restore_df(
@@ -205,7 +179,7 @@ pub fn restore_row(
     identity: &str,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    let restored_row = remote_df_stager::restore_row(repo, branch, &entry, identity, row_id)?;
+    let restored_row = remote_df_stager::restore_row(repo, branch, entry, identity, row_id)?;
 
     let diff =
         api::local::diff::diff_staged_df(repo, branch, PathBuf::from(&entry.path), identity)?;
@@ -317,7 +291,6 @@ mod tests {
     use crate::core::index::remote_df_stager;
     use crate::core::index::remote_dir_stager;
     use crate::error::OxenError;
-    use crate::model::diff::tabular_diff_summary::TabularDiffWrapper;
     use crate::model::diff::DiffResult;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::entry::mod_entry::NewMod;
@@ -325,7 +298,6 @@ mod tests {
     use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::test;
-    use crate::util;
 
     #[test]
     fn test_stage_json_append_tabular() -> Result<(), OxenError> {
@@ -461,8 +433,6 @@ mod tests {
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
-
-            let opts = DFOpts::empty();
 
             // Append the data to staging area
             let data = "{\"file\":\"dawg1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}".to_string();
@@ -654,7 +624,7 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
@@ -727,7 +697,7 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset

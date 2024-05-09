@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::error::OxenError;
 
 pub enum StagedRowStatus {
@@ -8,15 +10,6 @@ pub enum StagedRowStatus {
 }
 
 impl StagedRowStatus {
-    pub fn to_string(&self) -> String {
-        match self {
-            StagedRowStatus::Added => "added".to_string(),
-            StagedRowStatus::Modified => "modified".to_string(),
-            StagedRowStatus::Removed => "removed".to_string(),
-            StagedRowStatus::Unchanged => "unchanged".to_string(),
-        }
-    }
-
     pub fn from_string(s: &str) -> Result<StagedRowStatus, OxenError> {
         match s {
             "added" => Ok(StagedRowStatus::Added),
@@ -24,6 +17,17 @@ impl StagedRowStatus {
             "removed" => Ok(StagedRowStatus::Removed),
             "unchanged" => Ok(StagedRowStatus::Unchanged),
             _ => Err(OxenError::basic_str("Invalid row status")),
+        }
+    }
+}
+
+impl Display for StagedRowStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            StagedRowStatus::Added => write!(f, "added"),
+            StagedRowStatus::Modified => write!(f, "modified"),
+            StagedRowStatus::Removed => write!(f, "removed"),
+            StagedRowStatus::Unchanged => write!(f, "unchanged"),
         }
     }
 }

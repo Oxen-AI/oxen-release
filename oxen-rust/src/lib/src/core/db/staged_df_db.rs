@@ -3,7 +3,6 @@ use sql::Select;
 // use sql::Select;
 use sql_query_builder as sql;
 
-use crate::api::remote::df;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL};
 
 use crate::core::df::tabular;
@@ -32,25 +31,23 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
         ));
     }
 
-    // Add a column DIFF_STATUS_COL with the value "added"
     let added_column = Series::new(
         DIFF_STATUS_COL,
         vec![StagedRowStatus::Added.to_string(); df.height()],
     );
     let df = df.hstack(&[added_column])?;
 
+    // Handle initialization for completely null {} create objects coming over from the hub
     let df = if df.height() == 0 {
         let added_column = Series::new(DIFF_STATUS_COL, vec![StagedRowStatus::Added.to_string()]);
-        let df = DataFrame::new(vec![added_column])?;
-        df
+        DataFrame::new(vec![added_column])?
     } else {
         df
     };
 
     // TODONOW this is very ugly
-    let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-    let full_schema = schema_with_oxen_cols(&schema)?;
-    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df, &full_schema)?;
+    let schema = full_staged_table_schema(conn)?;
+    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df, &schema)?;
 
     log::debug!("staged_df_db::append_row() inserted_df: {:?}", inserted_df);
 
@@ -64,22 +61,22 @@ pub fn modify_row(
     df: &mut DataFrame,
     uuid: &str,
 ) -> Result<DataFrame, OxenError> {
-    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-    let out_schema = schema_with_oxen_cols(&table_schema)?;
+    if df.height() != 1 {
+        return Err(OxenError::basic_str("Modify row requires exactly one row"));
+    }
 
-    // Filter it down to exclude any of the OXEN_COLS
-    // TODONOW messy
-    log::debug!("df before: {:?}", df);
+    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    let out_schema = full_staged_table_schema(conn)?;
+
+    // Filter it down to exclude any of the OXEN_COLS, we don't want to modify these but hub sends them over
     let schema = df.schema();
     let df_cols = schema.get_names();
     let df_cols: Vec<&str> = df_cols
         .iter()
         .filter(|col| !OXEN_COLS.contains(col))
-        .map(|&col| col) // Add this line to dereference &&str to &str
+        .copied()
         .collect();
-    log::debug!("df cols: {:?}", df_cols);
     let df = df.select(df_cols)?;
-    log::debug!("df after: {:?}", df);
 
     let df_schema = df.schema();
 
@@ -93,19 +90,13 @@ pub fn modify_row(
         ));
     }
 
-    if df.height() != 1 {
-        return Err(OxenError::basic_str(
-            "Modify row requires exactly one row".to_owned(),
-        ));
-    }
-
     // get existing hash and status from db
     let select_hash = Select::new()
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("\"{}\" = '{}'", OXEN_ID_COL, uuid));
 
-    let mut maybe_db_data = df_db::select(conn, &select_hash)?;
+    let maybe_db_data = df_db::select(conn, &select_hash, true, None, None)?;
 
     let mut new_row = maybe_db_data.clone().to_owned();
     for col in df.get_columns() {
@@ -120,17 +111,11 @@ pub fn modify_row(
         get_hash_and_status_for_modification(conn, &maybe_db_data, &new_row)?;
 
     // Update with latest values pre insert
-    // TODO this should be able to just be overwritten with one mutable var but polars doesn't like it...
+    // TODO: Find a better way to do this than overwriting the entire column here.
     new_row.with_column(Series::new(DIFF_STATUS_COL, vec![updated_status]))?;
     new_row.with_column(Series::new(DIFF_HASH_COL, vec![insert_hash]))?;
 
-    // Iterate over the values of the first row in df and update the corresponding column in the df
-
-    log::debug!("df ready for insert insert: {:?}", df);
-
-    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, &uuid, &new_row, &out_schema)?;
-
-    log::debug!("got this modified observation: {:?}", result);
+    let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row, &out_schema)?;
 
     if result.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
@@ -144,27 +129,23 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
         .from(TABLE_NAME)
         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
 
-    let row_to_delete = df_db::select(conn, &select_stmt)?;
+    let row_to_delete = df_db::select(conn, &select_stmt, true, None, None)?;
 
     if row_to_delete.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
     }
 
     // If it's newly added, delete it. Otherwise, set it to removed
-
     let status = row_to_delete.column(DIFF_STATUS_COL)?.get(0)?;
     let status_str = status.get_str();
 
     let status = match status_str {
         Some(status) => status,
-        None => {
-            return Err(OxenError::basic_str(
-                "Diff status column is not a string".to_owned(),
-            ))
-        }
+        None => return Err(OxenError::basic_str("Diff status column is not a string")),
     };
     log::debug!("status is: {}", status);
 
+    // Rows that weren't in previous commits are just removed from the staging df, rows in previous commits are tombstoned as "Removed"
     if status == StagedRowStatus::Added.to_string() {
         log::debug!("staged_df_db::delete_row() deleting row");
         let stmt = sql::Delete::new()
@@ -178,7 +159,7 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
             .set(&format!(
                 "\"{}\" = '{}'",
                 DIFF_STATUS_COL,
-                StagedRowStatus::Removed.to_string()
+                StagedRowStatus::Removed
             ))
             .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
         conn.execute(&stmt.to_string(), [])?;
@@ -198,7 +179,22 @@ pub fn select_cols_from_schema(schema: &Schema) -> Result<String, OxenError> {
     Ok(all_col_names)
 }
 
-pub fn schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenError> {
+// Returns the schema of the underlying table with the oxen cols prepended in a predictable
+// order expected by the UI / API
+pub fn full_staged_table_schema(conn: &duckdb::Connection) -> Result<Schema, OxenError> {
+    let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+    enhance_schema_with_oxen_cols(&schema)
+}
+
+pub fn schema_without_oxen_cols(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<Schema, OxenError> {
+    let table_schema = df_db::get_schema_excluding_cols(conn, table_name, &OXEN_COLS)?;
+    Ok(table_schema)
+}
+
+pub fn enhance_schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenError> {
     let mut schema = schema.clone();
 
     let oxen_fields: Vec<Field> = OXEN_COLS
@@ -222,35 +218,6 @@ pub fn schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenError> {
 
     Ok(schema)
 }
-// pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, OxenError> {
-//     let stmt = sql::Delete::new()
-//         .delete_from(TABLE_NAME)
-//         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
-
-//     let select_stmt = sql::Select::new()
-//         .select("*")
-//         .from(TABLE_NAME)
-//         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, uuid));
-
-//     // Select first - duckdb does't support DELETE RETURNING
-//     let maybe_row = df_db::select(conn, &select_stmt)?;
-
-//     if maybe_row.height() == 0 {
-//         return Err(OxenError::resource_not_found(uuid));
-//     }
-
-//     log::debug!("staged_df_db::delete_row() sql: {:?}", stmt);
-//     conn.execute(&stmt.to_string(), [])?;
-//     Ok(maybe_row)
-// }
-
-pub fn schema_without_oxen_cols(
-    conn: &duckdb::Connection,
-    table_name: impl AsRef<str>,
-) -> Result<Schema, OxenError> {
-    let table_schema = df_db::get_schema_excluding_cols(conn, table_name, &OXEN_COLS)?;
-    Ok(table_schema)
-}
 
 pub fn df_diff(conn: &duckdb::Connection) -> Result<DataFrame, OxenError> {
     let select = sql::Select::new()
@@ -259,14 +226,12 @@ pub fn df_diff(conn: &duckdb::Connection) -> Result<DataFrame, OxenError> {
         .where_clause(&format!(
             "\"{}\" != '{}'",
             DIFF_STATUS_COL,
-            StagedRowStatus::Unchanged.to_string()
+            StagedRowStatus::Unchanged
         ));
 
-    let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-    let full_schema = schema_with_oxen_cols(&schema)?;
+    let schema = full_staged_table_schema(conn)?;
 
-    // Could do opts here for speed
-    let res = df_db::select_with_schema(conn, &select, &full_schema)?;
+    let res = df_db::select(conn, &select, true, Some(&schema), None)?;
 
     Ok(res)
 }
@@ -282,14 +247,7 @@ fn get_hash_and_status_for_modification(
     let old_status = old_row.column(DIFF_STATUS_COL)?.get(0)?;
     let old_status = old_status
         .get_str()
-        .ok_or_else(|| OxenError::basic_str("Diff status column is not a string".to_owned()))?;
-
-    // Required for unstaging deletions
-    // if old_status == StagedRowStatus::Removed.to_string() {
-    //     return Err(OxenError::basic_str(
-    //         "Cannot modify a deleted row".to_owned(),
-    //     ));
-    // }
+        .ok_or_else(|| OxenError::basic_str("Diff status column is not a string"))?;
 
     let old_hash = old_row.column(DIFF_HASH_COL)?.get(0)?;
 
@@ -299,7 +257,7 @@ fn get_hash_and_status_for_modification(
     let new_hash = new_hash_df.column("_temp_hash")?.get(0)?;
     let new_hash = new_hash
         .get_str()
-        .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string".to_owned()))?;
+        .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string"))?;
 
     log::debug!("got new_hash: {}", new_hash);
 
@@ -309,20 +267,16 @@ fn get_hash_and_status_for_modification(
         let original_data_hash =
             tabular::df_hash_rows_on_cols(old_row.clone(), &col_names, "_temp_hash")?;
         let original_data_hash = original_data_hash.column("_temp_hash")?.get(0)?;
-        let original_data_hash = original_data_hash
-            .get_str()
-            .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string".to_owned()))?
-            .to_owned();
         original_data_hash
+            .get_str()
+            .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string"))?
+            .to_owned()
     } else {
         old_hash
             .get_str()
-            .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string".to_owned()))?
+            .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string"))?
             .to_owned()
     };
-    log::debug!("got old_hash: {}", old_hash);
-    log::debug!("got insert_hash: {}", insert_hash);
-    log::debug!("got new hash: {}", new_hash);
 
     // TODO: Clean up this logic, especially around removals
     let new_status = if old_status == StagedRowStatus::Added.to_string() {
@@ -336,15 +290,10 @@ fn get_hash_and_status_for_modification(
     } else if old_hash.is_null() {
         log::debug!("old_hash is null, setting status to modified");
         StagedRowStatus::Modified.to_string()
+    } else if new_hash == insert_hash {
+        StagedRowStatus::Unchanged.to_string()
     } else {
-        log::debug!("new hash is {}", new_hash);
-        log::debug!("insert hash is {}", insert_hash);
-        // handles delete case too
-        if new_hash == insert_hash {
-            StagedRowStatus::Unchanged.to_string()
-        } else {
-            StagedRowStatus::Modified.to_string()
-        }
+        StagedRowStatus::Modified.to_string()
     };
 
     Ok((insert_hash.to_string(), new_status))

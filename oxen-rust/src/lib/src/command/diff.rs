@@ -49,7 +49,7 @@ pub fn diff(
 
     let repository = LocalRepository::new(repo_dir.as_ref())?;
 
-    // TODONOW: might be able to clean this logic up - pull out into function so we can early return and be less confusing
+    // TODO: might be able to clean this logic up - pull out into function so we can early return and be less confusing
     let (cpath_1, cpath_2) = if let Some(path_2) = path_2 {
         let cpath_1 = if let Some(revison) = revision_1 {
             let commit_1 = api::local::revisions::get(&repository, revison)?;
@@ -114,7 +114,7 @@ pub fn diff_commits(
         cpath_2
     );
 
-    // TODONOW - anything we can clean up with this mut initialization?
+    // TODO - anything we can clean up with this mut initialization?
     let mut path_1 = cpath_1.path.clone();
     let mut path_2 = cpath_2.path.clone();
 
