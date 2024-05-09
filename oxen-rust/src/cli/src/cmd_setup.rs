@@ -714,13 +714,15 @@ pub fn branch() -> Command {
                         .action(clap::ArgAction::Set),
                 )
                 .arg(
-                    Arg::new("remote_name")
-                        .long("remote_name")
+                    Arg::new("remote")
+                        .long("remote")
+                        .short('r')
                         .help("Specify the remote to unlock the branch on")
                         .default_value(DEFAULT_REMOTE_NAME)
                         .default_missing_value(DEFAULT_REMOTE_NAME)
                         .action(clap::ArgAction::Set),
-                )
+                ),
+        )
         .arg(Arg::new("name").help("Name of the branch").exclusive(true))
         .arg(
             Arg::new("all")
@@ -764,7 +766,6 @@ pub fn branch() -> Command {
                 .help("Print the current branch")
                 .exclusive(true)
                 .action(clap::ArgAction::SetTrue),
-        ),
         )
 }
 
