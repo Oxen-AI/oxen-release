@@ -226,8 +226,13 @@ pub fn select_str(
     log::debug!("imputed opts: {:?}", opts);
 
     if let Some(sort_by) = &opts.sort_by {
-        sql.push_str(&format!(" ORDER BY {}", sort_by));
-    };
+        sql.push_str(&format!(" ORDER BY \"{}\"", sort_by));
+        if opts.should_reverse {
+            sql.push_str(" DESC");
+        }
+    } else {
+        log::debug!("We're not sorting");
+    }
     let pagination_clause = if let Some(page) = opts.page {
         let page = if page == 0 { 1 } else { page };
         let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
@@ -236,6 +241,7 @@ pub fn select_str(
         "".to_string()
     };
     sql.push_str(&pagination_clause);
+    log::debug!("We're running this select sql: {}", sql);
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     Ok(df)
 }

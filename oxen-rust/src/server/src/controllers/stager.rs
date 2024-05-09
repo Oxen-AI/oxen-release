@@ -16,10 +16,11 @@ use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::metadata::metadata_image::ImgResize;
+use liboxen::model::schema::DataType;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
-use liboxen::model::{CommitEntry, DataFrameSize};
+use liboxen::model::{CommitEntry, DataFrameSize, EntryDataType};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::{DFOpts, PaginateOpts};
 use liboxen::util::{self, paginate};
@@ -788,41 +789,69 @@ pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn delete_file(req: HttpRequest) -> HttpResponse {
-    let app_data = app_data(&req).unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let user_id = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    // Staging calls must be on a branch
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Get commit for branch head
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
 
     log::debug!(
         "stager::delete_file repo name {repo_name}/{}",
-        resource.to_string_lossy()
+        resource.file_path.to_string_lossy()
     );
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, file_name))) => {
-                delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
-            }
-            Ok(None) => {
-                log::error!("unable to find resource {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not parse resource  {repo_name} -> {err}");
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find repo {}", repo_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting repo by name {repo_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
+
+    let metadata = api::local::entries::get_meta_entry(&repo, &commit, &resource.file_path)?;
+
+    if metadata.data_type == EntryDataType::Tabular {
+        mod_stager::restore_df(&repo, &branch, &user_id, &resource.file_path)?;
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else {
+        Ok(delete_staged_file_on_branch(
+            &repo,
+            &branch.name,
+            &user_id,
+            &resource.file_path,
+        ))
     }
+
+    // TODO convert this to result
+
+    // match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    // {
+    //     Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
+    //         Ok(Some((_, branch_name, file_name))) => {
+    //             delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
+    //         }
+    //         Ok(None) => {
+    //             log::error!("unable to find resource {:?}", resource);
+    //             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+    //         }
+    //         Err(err) => {
+    //             log::error!("Could not parse resource  {repo_name} -> {err}");
+    //             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+    //         }
+    //     },
+    //     Ok(None) => {
+    //         log::error!("unable to find repo {}", repo_name);
+    //         HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+    //     }
+    //     Err(err) => {
+    //         log::error!("Error getting repo by name {repo_name} -> {err}");
+    //         HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+    //     }
+    // }
 }
 
 pub async fn index_dataset(
