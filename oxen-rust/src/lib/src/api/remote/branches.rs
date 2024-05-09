@@ -247,7 +247,7 @@ pub async fn unlock(
 ) -> Result<StatusMessage, OxenError> {
     let uri = format!("/branches/{branch_name}/unlock");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-    log::debug!("Locking branch: {}", url);
+    log::debug!("Unlocking branch: {}", url);
 
     let client = client::new_for_url(&url)?;
     if let Ok(res) = client.post(&url).send().await {

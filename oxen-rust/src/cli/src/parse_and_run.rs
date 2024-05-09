@@ -861,7 +861,23 @@ pub async fn restore(sub_matches: &ArgMatches) {
 }
 
 pub async fn branch(sub_matches: &ArgMatches) {
-    if sub_matches.get_flag("all") {
+    if let Some(subcommand) = sub_matches.subcommand() {
+        match subcommand {
+            ("unlock", sub_matches) => {
+                let branch_name = sub_matches.get_one::<String>("branch").expect("required");
+                let remote_name = sub_matches.get_one::<String>("remote").expect("required");
+                match dispatch::unlock_branch(remote_name, branch_name).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
+            }
+            (cmd, _) => {
+                eprintln!("Unknown schema subcommand {cmd}")
+            }
+        }
+    } else if sub_matches.get_flag("all") {
         if let Err(err) = dispatch::list_all_branches().await {
             eprintln!("{err}")
         }
