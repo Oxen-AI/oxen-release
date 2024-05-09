@@ -1,7 +1,6 @@
 use colored::ColoredString;
 use liboxen::api;
 use liboxen::command;
-// use liboxen::command::branch;
 use liboxen::command::migrate::CreateMerkleTreesMigration;
 use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;

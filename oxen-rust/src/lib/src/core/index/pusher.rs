@@ -46,6 +46,7 @@ pub async fn push(
     let remote = repo
         .get_remote(&dst.remote)
         .ok_or(OxenError::remote_not_set(&dst.remote))?;
+
     log::debug!("Pushing to remote {:?}", remote);
     // Repo should be created before this step
     let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {

@@ -55,6 +55,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
             for entry in glob(path_str)? {
                 paths.insert(entry?);
             }
+
             let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
