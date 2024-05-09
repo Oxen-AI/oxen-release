@@ -1393,6 +1393,11 @@ mod tests {
 
     #[test]
     fn test_file_metadata_shows_is_indexed() -> Result<(), OxenError> {
+        // skip on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_empty_local_repo_test(|repo| {
             // Create a deeply nested directory
             let dir_path = repo
