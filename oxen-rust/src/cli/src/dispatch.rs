@@ -1,6 +1,7 @@
 use colored::ColoredString;
 use liboxen::api;
 use liboxen::command;
+// use liboxen::command::branch;
 use liboxen::command::migrate::CreateMerkleTreesMigration;
 use liboxen::command::migrate::Migrate;
 use liboxen::command::migrate::UpdateVersionFilesMigration;
@@ -550,6 +551,13 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
     check_remote_version(host).await?;
 
     command::pull_remote_branch(&repository, remote, branch, all).await?;
+    Ok(())
+}
+
+pub async fn unlock_branch(remote: &str, branch: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::unlock(&repository, remote, branch).await?;
     Ok(())
 }
 
