@@ -553,6 +553,13 @@ pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError
     Ok(())
 }
 
+pub async fn unlock_branch(remote: &str, branch: &str) -> Result<(), OxenError> {
+    let repo_dir = env::current_dir().unwrap();
+    let repository = LocalRepository::from_dir(&repo_dir)?;
+    command::unlock(&repository, remote, branch).await?;
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn diff(
     path_1: PathBuf,
