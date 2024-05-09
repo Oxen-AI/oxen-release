@@ -12,7 +12,7 @@ use crate::view::{compare::CompareTabular, JsonDataFrameView};
 use super::client;
 use serde_json::json;
 
-// TODONOW this should probably be cpath
+// TODO this should probably be cpath
 #[allow(clippy::too_many_arguments)]
 pub async fn create_compare(
     remote_repo: &RemoteRepository,

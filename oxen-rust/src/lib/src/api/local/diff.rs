@@ -157,7 +157,7 @@ pub fn diff_staged_df(
     let entry = api::local::entries::get_commit_entry(repo, &commit, &path)?
         .ok_or(OxenError::entry_does_not_exist(&path))?;
 
-    let branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
+    let _branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
 
     if !index::remote_df_stager::dataset_is_indexed(repo, branch, identifier, &path)? {
         return Err(OxenError::basic_str("Dataset is not indexed"));
@@ -956,7 +956,7 @@ pub fn get_cached_diff(
     let left_entry = compare_entry_1.unwrap();
     let right_entry = compare_entry_2.unwrap();
 
-    // TODONOW this should be cached
+    // TODO this should be cached
     let left_full_df = tabular::read_df(
         api::local::revisions::get_version_file_from_commit_id(
             repo,

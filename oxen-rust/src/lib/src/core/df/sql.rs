@@ -51,27 +51,27 @@ pub fn query_df(
     let conn = df_db::get_connection(duckdb_path)?;
     log::debug!("connection created");
 
-    let df = df_db::select_raw_deprecated(&conn, &sql)?;
-    log::debug!("got this query output");
+    let df = df_db::select_str(&conn, sql, false, None, None)?;
+
     Ok(df)
 }
 
-pub fn query_df_all_cols(
-    repo: &LocalRepository,
-    entry: &CommitEntry,
-    sql: String,
-    conn: &mut duckdb::Connection,
-) -> Result<DataFrame, OxenError> {
-    let duckdb_path = db_cache_path(repo, entry);
-    index_df(repo, entry, conn)?;
+// pub fn query_df_all_cols(
+//     repo: &LocalRepository,
+//     entry: &CommitEntry,
+//     sql: String,
+//     conn: &mut duckdb::Connection,
+// ) -> Result<DataFrame, OxenError> {
+//     let duckdb_path = db_cache_path(repo, entry);
+//     index_df(repo, entry, conn)?;
 
-    let conn = df_db::get_connection(duckdb_path)?;
-    log::debug!("connection created");
+//     let conn = df_db::get_connection(duckdb_path)?;
+//     log::debug!("connection created");
 
-    let df = df_db::select_raw(&conn, &sql, None)?;
-    log::debug!("got this query output");
-    Ok(df)
-}
+//     let df = df_db::select_raw(&conn, &sql, None)?;
+//     log::debug!("got this query output");
+//     Ok(df)
+// }
 
 pub fn text2sql_df(
     repo: &LocalRepository,

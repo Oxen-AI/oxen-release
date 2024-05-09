@@ -5,7 +5,8 @@ use crate::params::{
 };
 
 use actix_files::NamedFile;
-use liboxen::constants::{OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
+
+use liboxen::constants::TABLE_NAME;
 use liboxen::core::cache::{cachers, commit_cacher};
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::df::tabular;
@@ -35,13 +36,11 @@ use liboxen::view::{
 use liboxen::{api, constants, core::index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
-use polars::datatypes::AnyValue;
-use polars::frame::DataFrame;
-use std::io::Write;
 
 use actix_multipart::Multipart;
 use actix_web::Error;
 use futures_util::TryStreamExt as _;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -149,7 +148,7 @@ pub async fn diff_df(
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     let staged_db_path =
         mod_stager::mods_df_db_path(&repo, &branch, &identifier, &resource.file_path);
@@ -418,11 +417,10 @@ pub async fn df_restore_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpEr
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let identifier = req.match_info().get("identifier").unwrap();
     let row_id = req.match_info().get("row_id").unwrap();
 
-    let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let branch = resource
         .branch
@@ -436,7 +434,7 @@ pub async fn df_restore_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpEr
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
         .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
-    let restored_row = mod_stager::restore_row(&repo, &branch, &entry, &identifier, row_id)?;
+    let restored_row = mod_stager::restore_row(&repo, &branch, &entry, identifier, row_id)?;
 
     let row_index = get_row_idx(&restored_row)?;
     let row_id = get_row_id(&restored_row)?;
@@ -462,11 +460,10 @@ pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
     let identifier = req.match_info().get("identifier").unwrap();
     let row_id = req.match_info().get("row_id").unwrap();
 
-    let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let branch = resource
         .branch
@@ -510,7 +507,7 @@ pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Have to initialize this branch repo before we can do any operations on it
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, identifier)?;
     log::debug!(
         "stager::df_modify_row repo {resource} -> staged repo path {:?}",
         repo.path
@@ -528,7 +525,7 @@ pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpRespons
     };
 
     // TODO: Add, delete, and modify should use the resource schema here.
-    let modified_row = mod_stager::modify_row(&repo, &branch, &identifier, &row_id, &new_mod)?;
+    let modified_row = mod_stager::modify_row(&repo, &branch, identifier, row_id, &new_mod)?;
 
     let row_index = get_row_idx(&modified_row)?;
     let row_id = get_row_id(&modified_row)?;
@@ -569,7 +566,7 @@ pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpRespon
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
         .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
-    delete_row(&repo, &branch, &user_id, &entry, row_id.to_string())
+    delete_row(&repo, &branch, user_id, &entry, row_id.to_string())
 }
 
 fn delete_row(

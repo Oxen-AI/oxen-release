@@ -243,8 +243,8 @@ pub fn add_col(
 pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
 
-    let schema = crate::model::Schema::from_polars(&df.schema());
-    let new_row = parse_data_into_df(&data, &schema, opts.content_type.to_owned())?;
+    // let schema = crate::model::Schema::from_polars(&df.schema());
+    let new_row = parse_data_into_df(&data, opts.content_type.to_owned())?;
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
 }
@@ -255,11 +255,7 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     Ok(n_dupes)
 }
 
-pub fn parse_data_into_df(
-    data: &str,
-    schema: &crate::model::Schema,
-    content_type: ContentType,
-) -> Result<DataFrame, OxenError> {
+pub fn parse_data_into_df(data: &str, content_type: ContentType) -> Result<DataFrame, OxenError> {
     log::debug!("Parsing content into df: {content_type:?}\n{data}");
     match content_type {
         ContentType::Json => {
@@ -282,21 +278,6 @@ pub fn parse_data_into_df(
                 ))),
             }
         }
-        // ContentType::Csv => {
-        //     let fields = schema.fields_to_csv();
-        //     let data = format!("{}\n{}", fields, data);
-        //     let cursor = Cursor::new(data.as_bytes());
-        //     let schema = schema.to_polars();
-        //     match CsvReader::new(cursor)
-        //         .with_schema(Some(Arc::new(schema)))
-        //         .finish()
-        //     {
-        //         Ok(df) => Ok(df),
-        //         Err(err) => Err(OxenError::basic_str(format!(
-        //             "Error parsing {content_type:?}: {err}"
-        //         ))),
-        //     }
-        // }
         _ => {
             let err = format!("Unsupported content type: {content_type:?}");
             Err(OxenError::basic_str(err))
