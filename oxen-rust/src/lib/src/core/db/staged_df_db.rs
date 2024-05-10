@@ -45,7 +45,6 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
         df
     };
 
-    // TODONOW this is very ugly
     let schema = full_staged_table_schema(conn)?;
     let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df, &schema)?;
 
@@ -251,15 +250,11 @@ fn get_hash_and_status_for_modification(
 
     let old_hash = old_row.column(DIFF_HASH_COL)?.get(0)?;
 
-    log::debug!("hashing on these col_names: {:?}", col_names);
     let new_hash_df = tabular::df_hash_rows_on_cols(new_row.clone(), &col_names, "_temp_hash")?;
-    log::debug!("here's our new_hash_df: {:?}", new_hash_df);
     let new_hash = new_hash_df.column("_temp_hash")?.get(0)?;
     let new_hash = new_hash
         .get_str()
         .ok_or_else(|| OxenError::basic_str("Diff hash column is not a string"))?;
-
-    log::debug!("got new_hash: {}", new_hash);
 
     // We need to calculate the original hash for the row
     // Use a temp hash column to avoid collision with the column that's already there.
@@ -278,7 +273,10 @@ fn get_hash_and_status_for_modification(
             .to_owned()
     };
 
-    // TODO: Clean up this logic, especially around removals
+    // Anything previously added must stay added regardless of any further modifications.
+    // Modifying back to original state changes it to unchanged
+    // If we have no prior hash info on the original hash state, it is now modified (this is the first modification)
+
     let new_status = if old_status == StagedRowStatus::Added.to_string() {
         StagedRowStatus::Added.to_string()
     } else if old_status == StagedRowStatus::Removed.to_string() {
@@ -288,7 +286,6 @@ fn get_hash_and_status_for_modification(
             StagedRowStatus::Modified.to_string()
         }
     } else if old_hash.is_null() {
-        log::debug!("old_hash is null, setting status to modified");
         StagedRowStatus::Modified.to_string()
     } else if new_hash == insert_hash {
         StagedRowStatus::Unchanged.to_string()

@@ -49,29 +49,11 @@ pub fn query_df(
     index_df(repo, entry, conn)?;
 
     let conn = df_db::get_connection(duckdb_path)?;
-    log::debug!("connection created");
 
     let df = df_db::select_str(&conn, sql, false, None, None)?;
 
     Ok(df)
 }
-
-// pub fn query_df_all_cols(
-//     repo: &LocalRepository,
-//     entry: &CommitEntry,
-//     sql: String,
-//     conn: &mut duckdb::Connection,
-// ) -> Result<DataFrame, OxenError> {
-//     let duckdb_path = db_cache_path(repo, entry);
-//     index_df(repo, entry, conn)?;
-
-//     let conn = df_db::get_connection(duckdb_path)?;
-//     log::debug!("connection created");
-
-//     let df = df_db::select_raw(&conn, &sql, None)?;
-//     log::debug!("got this query output");
-//     Ok(df)
-// }
 
 pub fn text2sql_df(
     repo: &LocalRepository,
@@ -107,7 +89,7 @@ pub fn index_df(
     entry: &CommitEntry,
     conn: &mut duckdb::Connection,
 ) -> Result<(), OxenError> {
-    log::debug!("indexing df");
+    log::debug!("df::sql::index_df()");
     let duckdb_path = db_cache_path(repo, entry);
     let default_parent = PathBuf::from("");
     let parent = duckdb_path.parent().unwrap_or(&default_parent);
