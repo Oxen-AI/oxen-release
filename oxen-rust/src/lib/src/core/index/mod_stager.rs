@@ -488,10 +488,10 @@ mod tests {
                 mod_type: ModType::Delete,
                 content_type: ContentType::Json,
             };
-            mod_stager::delete_row(&repo, &branch, &identity, &append_1_id, &delete_mod)?;
+            mod_stager::delete_row(&repo, &branch, &identity, append_1_id, &delete_mod)?;
 
             // Delete the second append
-            mod_stager::delete_row(&repo, &branch, &identity, &append_2_id, &delete_mod)?;
+            mod_stager::delete_row(&repo, &branch, &identity, append_2_id, &delete_mod)?;
 
             // Should be zero staged files
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
@@ -592,7 +592,7 @@ mod tests {
 
             let file_2 = api::local::revisions::get_version_file_from_commit_id(
                 &repo,
-                &commit_2.id,
+                commit_2.id,
                 &file_path,
             )?;
 
@@ -664,7 +664,7 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            mod_stager::modify_row(&repo, &branch, &identity, &id_to_modify, &modify_mod)?;
+            mod_stager::modify_row(&repo, &branch, &identity, id_to_modify, &modify_mod)?;
             // List the files that are changed - this file should be back into unchanged state
             let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
             log::debug!("found mod entries: {:?}", commit_entries);
