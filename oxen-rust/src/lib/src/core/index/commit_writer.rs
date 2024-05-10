@@ -204,7 +204,6 @@ impl CommitWriter {
         Ok(commit)
     }
 
-    // TODONOW needs massive cleanup.
     pub fn apply_mods(
         &self,
         branch: &Branch,
@@ -254,8 +253,6 @@ impl CommitWriter {
                     user_id,
                 )?;
 
-                // TODONOW: What's going on here...
-
                 mod_stager::unstage_df(&self.repository, branch, user_id, &entry.path)?;
             } else {
                 // Non-tabular files are copied from their version path into the working dir
@@ -274,7 +271,7 @@ impl CommitWriter {
 
         // Have to recompute staged data
         let staged_data = command::status(&branch_repo)?;
-        log::debug!("APPLY MODS got new staged_data");
+
         staged_data.print_stdout();
 
         Ok(staged_data)
@@ -913,7 +910,7 @@ mod tests {
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
             remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
-            let append_contents = "{\"fifle\": \"images/test.jpg\"}".to_string();
+            let append_contents = "{\"NOT_REAL_COLUMN\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
                 data: append_contents,

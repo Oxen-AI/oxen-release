@@ -54,12 +54,7 @@ pub fn index_dataset(
         None => return Err(OxenError::resource_not_found(path.to_string_lossy())),
     };
 
-    log::debug!("the repo path is {:?}", repo.path);
-    log::debug!("the entry.path is {:?}", entry.path);
-
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, &entry.path);
-
-    log::debug!("mods_df_db path is {:?}", db_path);
 
     if !db_path
         .parent()
@@ -143,7 +138,6 @@ pub fn extract_dataset_to_versions_dir(
     log::debug!("extracting to versions path: {:?}", version_path);
 
     // Filter out any with removed status before extracting
-    // TODONOW make this a fn
     let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
         "\"{}\" = '{}'",
         DIFF_STATUS_COL,
@@ -194,11 +188,8 @@ pub fn extract_dataset_to_working_dir(
     identity: &str,
 ) -> Result<PathBuf, OxenError> {
     let working_path = branch_repo.path.join(entry.path.clone());
-    log::debug!("got working path as: {:?}", working_path);
     let mods_df_db_path = mod_stager::mods_df_db_path(repo, branch, identity, entry.path.clone());
-    log::debug!("got mods_df_db path as: {:?}", mods_df_db_path);
     let conn = df_db::get_connection(mods_df_db_path)?;
-    log::debug!("got conn as: {:?}", conn);
     // Match on the extension
 
     if !working_path.exists() {
@@ -383,22 +374,11 @@ fn prepare_modified_or_removed_row(
     // let scan_rows = 10000 as usize;
     let committed_df_path = util::fs::version_path(repo, entry);
 
-    // TODONOW: we should use the df size cache but it's wrong...
-    let df_size = tabular::get_size(&committed_df_path)?;
-
-    log::debug!("restore_row() got df_size: {:?}", df_size);
-
-    log::debug!("got df_size.height: {:?}", df_size.height);
-    log::debug!("got row_idx_og: {:?}", row_idx_og);
-
-    log::debug!("about to scan");
     // TODONOW should not be using all rows - just need to parse delim
-    let lazy_df = tabular::read_df(&committed_df_path, DFOpts::empty())?;
-    log::debug!("scanned df");
+    let lazy_df = tabular::read_df(committed_df_path, DFOpts::empty())?;
 
     // Get the row by index
     let mut row = lazy_df.slice(row_idx_og, 1_usize);
-    log::debug!("got row:");
 
     // Added rows will error here on out of index, but we caught them earlier..
     // let mut row = row.collect()?;

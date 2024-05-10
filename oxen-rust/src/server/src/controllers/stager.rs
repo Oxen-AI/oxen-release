@@ -15,10 +15,10 @@ use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::metadata::metadata_image::ImgResize;
+use liboxen::model::CommitEntry;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
-use liboxen::model::{CommitEntry, EntryDataType};
 use liboxen::opts::DFOpts;
 use liboxen::util::{self, paginate};
 use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
@@ -134,8 +134,6 @@ pub async fn diff_df(
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
-
-    log::debug!("here are the opts we're getting {:?}", opts);
 
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
@@ -801,20 +799,22 @@ pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Get commit for branch head
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
-        .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
+    // let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+    //     .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
 
     log::debug!(
         "stager::delete_file repo name {repo_name}/{}",
         resource.file_path.to_string_lossy()
     );
 
-    let metadata = api::local::entries::get_meta_entry(&repo, &commit, &resource.file_path)?;
+    // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
+    // TODO: can we find the file / check if it's in the staging area?
 
-    if metadata.data_type == EntryDataType::Tabular {
+    if util::fs::is_tabular(&resource.file_path) {
         mod_stager::restore_df(&repo, &branch, &user_id, &resource.file_path)?;
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
     } else {
+        log::debug!("not tabular");
         Ok(delete_staged_file_on_branch(
             &repo,
             &branch.name,
@@ -958,12 +958,8 @@ pub async fn get_staged_df(
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
 
-    log::debug!("here are the opts we're getting {:?}", opts);
-
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
-
-    log::debug!("now opts are {:?}", opts);
 
     if index::remote_df_stager::dataset_is_indexed(
         &repo,
@@ -1129,10 +1125,12 @@ fn delete_staged_file_on_branch(
     user_id: &str,
     path: &Path,
 ) -> HttpResponse {
+    log::debug!("delete_staged_file_on_branch()");
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
             let branch_repo =
                 index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
+            log::debug!("got branch_repo");
             match index::remote_dir_stager::has_file(&branch_repo, path) {
                 Ok(true) => match index::remote_dir_stager::delete_file(&branch_repo, path) {
                     Ok(_) => {

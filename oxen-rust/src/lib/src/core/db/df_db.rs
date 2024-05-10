@@ -184,16 +184,6 @@ pub fn count_where(
     }
 }
 
-/// Select fields from a table.
-// pub fn select_deprecated(
-//     conn: &duckdb::Connection,
-//     stmt: &sql::Select,
-// ) -> Result<DataFrame, OxenError> {
-//     let sql = stmt.as_string();
-//     let df = select_str(conn, &sql)?;
-//     Ok(df)
-// }
-
 // IMPORTANT: with_explicit_nulls=True is used to extract complete derived schemas
 // for situations (such as staged_df_db) that use non-schema oxen virtual columns.
 // This should be set to false in any cases which may have null array / struct fields
@@ -220,18 +210,13 @@ pub fn select_str(
 ) -> Result<DataFrame, OxenError> {
     let mut sql = stmt.clone();
     let empty_opts = DFOpts::empty();
-    log::debug!("og opts: {:?}", opts);
     let opts = opts.unwrap_or(&empty_opts);
-
-    log::debug!("imputed opts: {:?}", opts);
 
     if let Some(sort_by) = &opts.sort_by {
         sql.push_str(&format!(" ORDER BY \"{}\"", sort_by));
         if opts.should_reverse {
             sql.push_str(" DESC");
         }
-    } else {
-        log::debug!("We're not sorting");
     }
     let pagination_clause = if let Some(page) = opts.page {
         let page = if page == 0 { 1 } else { page };
@@ -241,7 +226,7 @@ pub fn select_str(
         "".to_string()
     };
     sql.push_str(&pagination_clause);
-    log::debug!("We're running this select sql: {}", sql);
+    log::debug!("select_str() running sql: {}", sql);
     let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
     Ok(df)
 }
