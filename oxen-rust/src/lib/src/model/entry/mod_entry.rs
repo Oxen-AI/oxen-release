@@ -33,25 +33,6 @@ pub struct ModEntry {
     pub timestamp: OffsetDateTime,
 }
 
-impl ModEntry {
-    // pub fn to_df(&self) -> Result<DataFrame, OxenError> {
-    //     const ID_COL: &str = "_id";
-    //     // right now we always have a schema, might support unstructured text/data mods later
-
-    //     let mut df = tabular::parse_data_into_df(&self.data, self.content_type.to_owned())?;
-    //     // this puts "_id" as the last column, we want to display as the first
-    //     df = tabular::add_col(df, ID_COL, &self.uuid, "str").unwrap();
-    //     // Insert at first
-    //     let mut columns = schema.fields_names();
-    //     columns.insert(0, ID_COL.to_string());
-    //     // Transform
-    //     let opts = DFOpts::from_column_names(columns);
-    //     df = tabular::transform(df, opts)?;
-
-    //     Ok(df)
-    // }
-}
-
 impl fmt::Display for ModType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

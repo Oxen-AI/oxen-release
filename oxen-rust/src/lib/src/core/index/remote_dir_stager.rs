@@ -29,8 +29,6 @@ pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str
     // Just in case they pass in the email or some other random string, hash it for nice dir name
     // This does double-hash right now, since `identifier` is already hashed
     let user_id_hash = util::hasher::hash_str_sha256(user_id);
-    log::debug!("we're getting the branch with name {:?}", branch.name);
-    log::debug!("again, repo path is... {:?}", repo.path);
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)

@@ -243,7 +243,6 @@ pub fn add_col(
 pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
 
-    // let schema = crate::model::Schema::from_polars(&df.schema());
     let new_row = parse_data_into_df(&data, opts.content_type.to_owned())?;
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
@@ -820,7 +819,6 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
             "ndjson" => read_df_jsonl(path),
             "jsonl" => read_df_jsonl(path),
             "json" => read_df_json(path),
-            // TODONOW change this back
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(path, &opts)?;
                 read_df_csv(path, delimiter)
