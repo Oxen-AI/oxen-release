@@ -7,9 +7,8 @@ use crate::params::{
 use actix_files::NamedFile;
 
 use liboxen::constants::TABLE_NAME;
-use liboxen::core::cache::{cachers, commit_cacher};
+use liboxen::core::cache::commit_cacher;
 use liboxen::core::db::{df_db, staged_df_db};
-use liboxen::core::df::tabular;
 use liboxen::core::index::mod_stager;
 use liboxen::core::index::remote_df_stager::{get_row_id, get_row_idx};
 use liboxen::error::OxenError;
@@ -19,9 +18,8 @@ use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
-use liboxen::model::{CommitEntry, DataFrameSize, EntryDataType};
-use liboxen::opts::df_opts::DFOptsView;
-use liboxen::opts::{DFOpts, PaginateOpts};
+use liboxen::model::{CommitEntry, EntryDataType};
+use liboxen::opts::DFOpts;
 use liboxen::util::{self, paginate};
 use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
 use liboxen::view::entry::{
@@ -31,7 +29,7 @@ use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFram
 use liboxen::view::remote_staged_status::{DFIsEditableResponse, RemoteStagedStatus};
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrameView, JsonDataFrameViewResponse,
-    JsonDataFrameViews, Pagination, RemoteStagedStatusResponse, StatusMessage,
+    JsonDataFrameViews, RemoteStagedStatusResponse, StatusMessage,
 };
 use liboxen::{api, constants, core::index};
 
@@ -1002,148 +1000,7 @@ pub async fn get_staged_df(
 
         Ok(HttpResponse::Ok().json(response))
     } else {
-        // TODO: dedupe this with what's going on in the `data_frames` controller
-        log::debug!("rolling back to uncommitted version");
-        let version_path =
-            util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
-        log::debug!(
-            "controllers::data_frames Reading version file {:?}",
-            version_path
-        );
-
-        // Get the cached size of the data frame
-        let data_frame_size =
-            cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
-        log::debug!(
-            "controllers::data_frames got data frame size {:?}",
-            data_frame_size
-        );
-        let mut opts = DFOpts::empty();
-        opts = df_opts_query::parse_opts(&query, &mut opts);
-        log::debug!("controllers::data_frames got opts {:?}", opts);
-
-        // Paginate or slice, after we do the original transform
-        let mut page_opts = PaginateOpts {
-            page_num: constants::DEFAULT_PAGE_NUM,
-            page_size: constants::DEFAULT_PAGE_SIZE,
-        };
-
-        // If we have slice params, use them
-        if let Some((start, end)) = opts.slice_indices() {
-            log::debug!(
-                "controllers::data_frames Got slice params {}..{}",
-                start,
-                end
-            );
-        } else {
-            // Otherwise use the query params for pagination
-            let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-            let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-
-            page_opts.page_num = page;
-            page_opts.page_size = page_size;
-
-            // Must translate page params to slice params
-            let start = if page == 0 { 0 } else { page_size * (page - 1) };
-            let end = page_size * page;
-            opts.slice = Some(format!("{}..{}", start, end));
-        }
-
-        let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
-
-        // Try to get the schema from disk
-        let og_schema = if let Some(schema) = api::local::schemas::get_by_path_from_ref(
-            &repo,
-            &resource.commit.id,
-            &resource.file_path,
-        )? {
-            schema
-        } else {
-            match df.schema() {
-                Ok(schema) => Ok(Schema::from_polars(&schema.to_owned())),
-                Err(e) => {
-                    log::error!("Error reading df: {}", e);
-                    Err(OxenHttpError::InternalServerError)
-                }
-            }?
-        };
-
-        log::debug!(
-            "controllers::data_frames Done getting schema {:?}",
-            version_path
-        );
-
-        // We have to run the query param transforms, then paginate separately
-        let og_df_json = JsonDataFrameSource::from_df_size(&data_frame_size, &og_schema);
-
-        log::debug!(
-            "controllers::data_frames BEFORE TRANSFORM LAZY {}",
-            data_frame_size.height
-        );
-
-        match tabular::transform_lazy(df, data_frame_size.height, opts.clone()) {
-            Ok(df_view) => {
-                log::debug!("controllers::data_frames DF view {:?}", df_view);
-
-                let resource_version = ResourceVersion {
-                    path: resource.file_path.to_string_lossy().into(),
-                    version: resource.version().to_owned(),
-                };
-
-                // Have to do the pagination after the transform
-                let view_height = if opts.has_filter_transform() {
-                    df_view.height()
-                } else {
-                    data_frame_size.height
-                };
-
-                let total_pages = (view_height as f64 / page_opts.page_size as f64).ceil() as usize;
-
-                let mut df =
-                    tabular::transform_slice(df_view, data_frame_size.height, opts.clone())?;
-
-                let mut slice_schema = Schema::from_polars(&df.schema());
-                log::debug!("OG schema {:?}", og_schema);
-                log::debug!("Pre-Slice schema {:?}", slice_schema);
-                slice_schema.update_metadata_from_schema(&og_schema);
-                log::debug!("Slice schema {:?}", slice_schema);
-                let opts_view = DFOptsView::from_df_opts(&opts);
-
-                let response = JsonDataFrameViewResponse {
-                    status: StatusMessage::resource_found(),
-                    data_frame: JsonDataFrameViews {
-                        source: og_df_json,
-                        view: JsonDataFrameView {
-                            schema: slice_schema,
-                            size: DataFrameSize {
-                                height: df.height(),
-                                width: df.width(),
-                            },
-                            data: JsonDataFrameView::json_from_df(&mut df),
-                            pagination: Pagination {
-                                page_number: page_opts.page_num,
-                                page_size: page_opts.page_size,
-                                total_pages,
-                                total_entries: view_height,
-                            },
-                            opts: opts_view,
-                        },
-                    },
-                    commit: Some(resource.commit.clone()),
-                    resource: Some(resource_version),
-                    derived_resource: None,
-                };
-                Ok(HttpResponse::Ok().json(response))
-            }
-            Err(OxenError::SQLParseError(sql)) => {
-                log::error!("Error parsing SQL: {}", sql);
-                Err(OxenHttpError::SQLParseError(sql))
-            }
-            Err(e) => {
-                log::error!("Error transforming df: {}", e);
-                Err(OxenHttpError::InternalServerError)
-            }
-        }
+        Err(OxenHttpError::NotFound)
     }
 }
 

@@ -75,20 +75,27 @@ pub async fn staged_df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val = api::remote::df::get_staged(&remote_repo, &branch.name, &identifier, input, opts)
-            .await?;
-        let mut df = val.data_frame.view.to_df();
-        if let Some(output) = output {
-            println!("Writing {output:?}");
-            tabular::write_df(&mut df, output)?;
-        }
+        let val =
+            api::remote::df::get_staged(&remote_repo, &branch.name, &identifier, input, opts).await;
+        if let Ok(val) = val {
+            let mut df = val.data_frame.view.to_df();
+            if let Some(output) = output {
+                println!("Writing {output:?}");
+                tabular::write_df(&mut df, output)?;
+            }
 
-        println!(
-            "Full shape: ({}, {})\n",
-            val.data_frame.source.size.height, val.data_frame.source.size.width
-        );
-        println!("Slice {df:?}");
-        Ok(df)
+            println!(
+                "Full shape: ({}, {})\n",
+                val.data_frame.source.size.height, val.data_frame.source.size.width
+            );
+            println!("Slice {df:?}");
+            Ok(df)
+        } else {
+            println!(
+                    "Dataset not indexed for remote editing. Use `oxen df --index <path>` to index it, or `oxen df <path> --committed` to view the committed resource in view-only mode.\n"
+                );
+            Err(OxenError::basic_str("No dataset staged for this resource."))
+        }
     }
 }
 
