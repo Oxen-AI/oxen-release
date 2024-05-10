@@ -1,4 +1,5 @@
 use crate::api;
+use crate::config::RemoteConfig;
 use crate::constants;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::constants::REPO_CONFIG_FILENAME;
@@ -49,21 +50,17 @@ impl LocalRepository {
         })
     }
 
-    pub fn from_cfg(path: &Path) -> Result<LocalRepository, OxenError> {
-        let contents = util::fs::read_from_path(path)?;
-        let mut repo: LocalRepository = toml::from_str(&contents)?;
-        // Override path
-        repo.path = util::fs::get_repo_root(path).unwrap();
-
-        Ok(repo)
-    }
-
     pub fn from_dir(dir: &Path) -> Result<LocalRepository, OxenError> {
         let config_path = util::fs::config_filepath(dir);
         if !config_path.exists() {
             return Err(OxenError::local_repo_not_found());
         }
-        let repo = LocalRepository::from_cfg(&config_path)?;
+        let remote_cfg = RemoteConfig::from_file(&config_path)?;
+        let repo = LocalRepository {
+            path: dir.to_path_buf(),
+            remotes: remote_cfg.remotes,
+            remote_name: remote_cfg.remote_name,
+        };
         Ok(repo)
     }
 
@@ -72,7 +69,11 @@ impl LocalRepository {
     }
 
     pub fn save(&self, path: &Path) -> Result<(), OxenError> {
-        let toml = toml::to_string(&self)?;
+        let cfg = RemoteConfig {
+            remote_name: self.remote_name.clone(),
+            remotes: self.remotes.clone(),
+        };
+        let toml = toml::to_string(&cfg)?;
         util::fs::write_to_path(path, toml)?;
         Ok(())
     }
@@ -187,7 +188,13 @@ impl LocalRepository {
         repo_path.clone_into(&mut local_repo.path);
         local_repo.set_remote(DEFAULT_REMOTE_NAME, &repo.remote.url);
 
-        let toml = toml::to_string(&local_repo)?;
+        // Save remote config in .oxen/config.toml
+        let remote_cfg = RemoteConfig {
+            remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
+            remotes: vec![repo.remote.clone()],
+        };
+
+        let toml = toml::to_string(&remote_cfg)?;
         util::fs::write_to_path(&repo_config_file, &toml)?;
 
         // Pull all commit objects, but not entries
@@ -352,7 +359,7 @@ mod tests {
                 let config_path = local_repo.path.join(&cfg_fname);
                 assert!(config_path.exists());
 
-                let repository = LocalRepository::from_cfg(&config_path);
+                let repository = LocalRepository::from_dir(&local_repo.path);
                 assert!(repository.is_ok());
 
                 let repository = repository.unwrap();
