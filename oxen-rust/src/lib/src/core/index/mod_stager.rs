@@ -145,12 +145,11 @@ pub fn restore_df(
     // Unstage and then restage the df
     remote_df_stager::unindex_df(repo, branch, identity, &path)?;
 
-    log::debug!("unindexed df");
     let opts = DFOpts::empty();
 
     // TODO: we could do this more granularly without a full reset
     remote_df_stager::index_dataset(repo, branch, path.as_ref(), identity, &opts)?;
-    log::debug!("indexed df");
+
     Ok(())
 }
 

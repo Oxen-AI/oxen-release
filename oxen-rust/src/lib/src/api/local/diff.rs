@@ -173,11 +173,7 @@ pub fn diff_staged_df(
         return Ok(DiffResult::Tabular(TabularDiff::empty()));
     }
 
-    log::debug!("got this diff df {:?}", diff_df);
-
     let row_mods = AddRemoveModifyCounts::from_diff_df(&diff_df)?;
-
-    log::debug!("and got these row mods... {:?}", row_mods);
 
     let schema = staged_df_db::schema_without_oxen_cols(&conn, TABLE_NAME)?;
 
@@ -192,7 +188,6 @@ pub fn diff_staged_df(
             row_counts: row_mods,
             col_changes: TabularSchemaDiff::empty(),
         },
-        // TODO: when we actually have schema diffs
         schemas,
         dupes: TabularDiffDupes::empty(),
     };
