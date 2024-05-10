@@ -4,6 +4,7 @@
 //!
 
 pub mod add;
+pub mod branch;
 pub mod checkout;
 pub mod clone;
 pub mod commit;
@@ -29,6 +30,7 @@ pub mod schemas;
 pub mod status;
 
 pub use crate::command::add::add;
+pub use crate::command::branch::unlock;
 pub use crate::command::checkout::{
     checkout, checkout_combine, checkout_ours, checkout_theirs, create_checkout,
 };
