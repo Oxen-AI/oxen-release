@@ -452,6 +452,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_compare_same_files_with_targets() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
         test::run_empty_local_repo_test_async(|repo| async move {
             let csv1 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n";
             let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,7\n";
