@@ -5,6 +5,8 @@ use liboxen::command::migrate::{
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
+use crate::cmd::add::add_args;
+
 pub const ADD: &str = "add";
 pub const BRANCH: &str = "branch";
 pub const CHECKOUT: &str = "checkout";
@@ -18,7 +20,6 @@ pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
 pub const DOWNLOAD: &str = "download";
 pub const INFO: &str = "info";
-pub const INIT: &str = "init";
 pub const FETCH: &str = "fetch";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const LOAD: &str = "load";
@@ -37,12 +38,6 @@ pub const SAVE: &str = "save";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
 pub const UPLOAD: &str = "upload";
-
-pub fn init() -> Command {
-    Command::new(INIT)
-        .about("Initializes a local repository")
-        .arg(arg!([PATH] "The directory to establish the repo in. Defaults to the current directory."))
-}
 
 pub fn config() -> Command {
     Command::new(CONFIG)
@@ -139,7 +134,7 @@ pub fn remote() -> Command {
         .about("Interact with a remote repository without cloning everything locally.")
         // The commands that you can run locally mirrored here
         .subcommand(
-            add()
+            add_args()
                 // can specify a path on the remote add command for where the file will be added to
                 .arg(Arg::new("path")
                 .long("path")
@@ -556,16 +551,6 @@ pub fn schemas() -> Command {
 
         )
         .subcommand(df())
-}
-
-pub fn add() -> Command {
-    Command::new(ADD)
-        .about("Adds the specified files or directories")
-        .arg(
-            Arg::new("files")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
 }
 
 pub fn download() -> Command {

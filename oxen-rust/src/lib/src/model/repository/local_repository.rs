@@ -1,6 +1,7 @@
 use crate::config::RemoteConfig;
 use crate::constants;
 use crate::constants::SHALLOW_FLAG;
+use crate::error;
 use crate::error::OxenError;
 use crate::model::{Remote, RemoteRepository};
 use crate::util;
@@ -12,8 +13,9 @@ use std::path::{Path, PathBuf};
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LocalRepository {
     pub path: PathBuf,
-    remote_name: Option<String>, // this is the current remote name
-    pub remotes: Vec<Remote>,
+    // Optional remotes to sync the data to
+    remote_name: Option<String>, // name of the current remote ("origin" by default)
+    pub remotes: Vec<Remote>, // List of possible remotes
 }
 
 impl LocalRepository {
@@ -54,6 +56,14 @@ impl LocalRepository {
             remote_name: remote_cfg.remote_name,
         };
         Ok(repo)
+    }
+
+    pub fn from_current_dir() -> Result<LocalRepository, OxenError> {
+        let repo_dir =
+        util::fs::get_repo_root_from_current_dir()
+            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
+
+        LocalRepository::from_dir(&repo_dir)
     }
 
     pub fn dirname(&self) -> String {
