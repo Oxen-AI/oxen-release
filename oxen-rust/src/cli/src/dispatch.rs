@@ -1,11 +1,6 @@
-use colored::ColoredString;
 use liboxen::api;
 use liboxen::command;
-use liboxen::command::migrate::CreateMerkleTreesMigration;
-use liboxen::command::migrate::Migrate;
-use liboxen::command::migrate::UpdateVersionFilesMigration;
 use liboxen::config::{AuthConfig, UserConfig};
-use liboxen::constants;
 use liboxen::core::df::pretty_print;
 use liboxen::core::df::tabular;
 use liboxen::error;
@@ -16,7 +11,7 @@ use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
 use liboxen::model::RepoNew;
-use liboxen::model::{staged_data::StagedDataOpts, LocalRepository};
+use liboxen::model::LocalRepository;
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
@@ -29,110 +24,27 @@ use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::opts::UploadOpts;
 use liboxen::util;
-use liboxen::util::oxen_version::OxenVersion;
-
-use colored::Colorize;
 use liboxen::model::diff::tabular_diff::TabularDiffMods;
 use liboxen::model::diff::DiffResult;
 use liboxen::view::PaginatedDirEntries;
+
+use colored::Colorize;
+use colored::ColoredString;
 use minus::Pager;
+use time::format_description;
+
 use std::env;
 use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use time::format_description;
 
-fn get_host_or_default() -> Result<String, OxenError> {
-    let config = AuthConfig::get_or_create()?;
-    let mut default_host = constants::DEFAULT_HOST.to_string();
-    if let Some(host) = config.default_host {
-        if !host.is_empty() {
-            default_host = host;
-        }
-    }
-    Ok(default_host)
-}
-
-fn get_host_from_repo(repo: &LocalRepository) -> Result<String, OxenError> {
-    if let Some(remote) = repo.remote() {
-        let host = api::remote::client::get_host_from_url(remote.url)?;
-        return Ok(host);
-    }
-    get_host_or_default()
-}
-
-pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError> {
-    // Do the version check in the dispatch because it's only really the CLI that needs to do it
-    match api::remote::version::get_remote_version(host.as_ref()).await {
-        Ok(remote_version) => {
-            let local_version: &str = constants::OXEN_VERSION;
-
-            if remote_version != local_version {
-                let warning = format!("Warning: 🐂 Oxen remote version mismatch.\n\nCLI Version: {local_version}\nServer Version: {remote_version}\n\nPlease visit https://docs.oxen.ai/getting-started/install for installation instructions.\n").yellow();
-                eprintln!("{warning}");
-            }
-        }
-        Err(err) => {
-            eprintln!("Err checking remote version: {err}")
-        }
-    }
-    Ok(())
-}
-
-pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), OxenError> {
-    match api::remote::version::get_min_cli_version(host.as_ref()).await {
-        Ok(remote_version) => {
-            let local_version: &str = constants::OXEN_VERSION;
-            let min_oxen_version = OxenVersion::from_str(&remote_version)?;
-            let local_oxen_version = OxenVersion::from_str(local_version)?;
-
-            if local_oxen_version < min_oxen_version {
-                return Err(OxenError::OxenUpdateRequired(format!(
-                    "Error: Oxen CLI out of date. Pushing to OxenHub requires version >= {:?}, found version {:?}.\n\nVisit https://docs.oxen.ai/getting-started/intro for update instructions.",
-                    min_oxen_version,
-                    local_oxen_version
-                ).into()));
-            }
-        }
-        Err(_) => {
-            return Err(OxenError::basic_str(
-                "Error: unable to verify remote version",
-            ));
-        }
-    }
-    Ok(())
-}
-
-pub fn check_repo_migration_needed(repo: &LocalRepository) -> Result<(), OxenError> {
-    let migrations: Vec<Box<dyn Migrate>> = vec![
-        Box::new(UpdateVersionFilesMigration),
-        Box::new(CreateMerkleTreesMigration),
-    ];
-
-    let mut migrations_needed: Vec<Box<dyn Migrate>> = Vec::new();
-
-    for migration in migrations {
-        if migration.is_needed(repo)? {
-            migrations_needed.push(migration);
-        }
-    }
-
-    if migrations_needed.is_empty() {
-        return Ok(());
-    }
-    let warning = "\nWarning: 🐂 This repo requires a quick migration to the latest Oxen version. \n\nPlease run the following to update:".to_string().yellow();
-    eprintln!("{warning}\n\n");
-    for migration in migrations_needed {
-        eprintln!(
-            "{}",
-            format!("oxen migrate up {} .\n", migration.name()).yellow()
-        );
-    }
-    eprintln!("\n");
-    Err(OxenError::MigrationRequired(
-        "Error: Migration required".to_string().into(),
-    ))
-}
+use crate::helpers::{
+    get_host_from_repo,
+    get_host_or_default,
+    check_remote_version,
+    check_remote_version_blocking,
+    check_repo_migration_needed,
+};
 
 pub async fn init(path: &str) -> Result<(), OxenError> {
     let directory = dunce::canonicalize(PathBuf::from(&path))?;
@@ -713,40 +625,6 @@ pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
-    if opts.is_remote {
-        return remote_status(directory, opts).await;
-    }
-
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir =
-        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-
-    let directory = directory.unwrap_or(current_dir);
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    check_repo_migration_needed(&repository)?;
-
-    let repo_status = command::status_from_dir(&repository, &directory)?;
-
-    if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
-        println!(
-            "On branch {} -> {}\n",
-            current_branch.name, current_branch.commit_id
-        );
-    } else {
-        let head = api::local::commits::head_commit(&repository)?;
-        println!(
-            "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
-            head.id, head.message
-        );
-    }
-
-    repo_status.print_stdout_with_params(opts);
-
-    Ok(())
-}
-
 pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
@@ -779,45 +657,6 @@ pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
             metadata.mime_type,
             metadata.extension,
             last_updated_commit_id
-        );
-    }
-
-    Ok(())
-}
-
-async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir =
-        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let host = get_host_from_repo(&repository)?;
-    check_remote_version_blocking(host.clone()).await?;
-    check_remote_version(host).await?;
-
-    let directory = directory.unwrap_or(PathBuf::from("."));
-
-    if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
-        let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
-        let repo_status =
-            command::remote::status(&remote_repo, &current_branch, &directory, opts).await?;
-        if let Some(remote_branch) =
-            api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
-        {
-            println!(
-                "Checking remote branch {} -> {}\n",
-                remote_branch.name, remote_branch.commit_id
-            );
-            repo_status.print_stdout_with_params(opts);
-        } else {
-            println!("Remote branch '{}' not found", current_branch.name);
-        }
-    } else {
-        let head = api::local::commits::head_commit(&repository)?;
-        println!(
-            "You are in 'detached HEAD' state.\nHEAD is now at {} {}\nYou cannot query remote status unless you are on a branch.",
-            head.id, head.message
         );
     }
 

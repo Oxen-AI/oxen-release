@@ -4,8 +4,21 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
+use crate::cmd_setup::{
+    ADD,
+    COMMIT,
+    DF,
+    DIFF,
+    DOWNLOAD,
+    LOG,
+    LS,
+    METADATA,
+    RESTORE,
+    RM,
+    STATUS
+};
 use crate::dispatch;
+
 use clap::ArgMatches;
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
@@ -13,7 +26,6 @@ use liboxen::command::migrate::{
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
-use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
 use liboxen::opts::{
@@ -23,18 +35,6 @@ use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-
-pub async fn init(sub_matches: &ArgMatches) {
-    let default = String::from(".");
-    let path = sub_matches.get_one::<String>("PATH").unwrap_or(&default);
-
-    match dispatch::init(path).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
 
 pub fn config(sub_matches: &ArgMatches) {
     if let Some(remote) = sub_matches.get_many::<String>("set-remote") {
@@ -139,7 +139,7 @@ pub async fn remote(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
             (STATUS, sub_matches) => {
-                remote_status(sub_matches).await;
+                crate::parse::remote::status::status(sub_matches).await;
             }
             (ADD, sub_matches) => {
                 remote_add(sub_matches).await;
@@ -409,40 +409,6 @@ async fn remote_metadata_list(sub_matches: &ArgMatches) {
     }
 }
 
-fn parse_status_args(sub_matches: &ArgMatches, is_remote: bool) -> StagedDataOpts {
-    let skip = sub_matches
-        .get_one::<String>("skip")
-        .expect("Must supply skip")
-        .parse::<usize>()
-        .expect("skip must be a valid integer.");
-    let limit = sub_matches
-        .get_one::<String>("limit")
-        .expect("Must supply limit")
-        .parse::<usize>()
-        .expect("limit must be a valid integer.");
-    let print_all = sub_matches.get_flag("print_all");
-
-    StagedDataOpts {
-        skip,
-        limit,
-        print_all,
-        is_remote,
-    }
-}
-
-async fn remote_status(sub_matches: &ArgMatches) {
-    let directory = sub_matches.get_one::<String>("path").map(PathBuf::from);
-
-    let is_remote = true;
-    let opts = parse_status_args(sub_matches, is_remote);
-    match dispatch::status(directory, &opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}");
-        }
-    }
-}
-
 async fn remote_ls(sub_matches: &ArgMatches) {
     let paths = sub_matches.get_many::<String>("paths");
 
@@ -479,19 +445,6 @@ async fn remote_ls(sub_matches: &ArgMatches) {
     };
 
     match dispatch::remote_ls(&opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}");
-        }
-    }
-}
-
-pub async fn status(sub_matches: &ArgMatches) {
-    let directory = sub_matches.get_one::<String>("path").map(PathBuf::from);
-
-    let is_remote = false;
-    let opts = parse_status_args(sub_matches, is_remote);
-    match dispatch::status(directory, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");
