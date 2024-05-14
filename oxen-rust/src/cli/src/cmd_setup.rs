@@ -7,7 +7,10 @@ use liboxen::command::migrate::{
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 use crate::cmd::add::add_args;
+<<<<<<< HEAD
 use crate::cmd::remote::commit::RemoteCommitCmd;
+=======
+>>>>>>> 29038c7dc7255d2c96ae9290cbefbf8485bd0dd0
 
 pub const ADD: &str = "add";
 pub const BRANCH: &str = "branch";
