@@ -15,7 +15,6 @@ use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
 use liboxen::model::RepoNew;
 use liboxen::opts::AddOpts;
-use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
 use liboxen::opts::DownloadOpts;
 use liboxen::opts::InfoOpts;
@@ -42,15 +41,6 @@ use crate::helpers::{
     check_remote_version, check_remote_version_blocking, check_repo_migration_needed,
     get_host_from_repo,
 };
-
-pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
-    let host = api::remote::client::get_host_from_url(&opts.url)?;
-    check_remote_version_blocking(host.clone()).await?;
-    check_remote_version(host).await?;
-
-    command::clone(opts).await?;
-    Ok(())
-}
 
 pub async fn create_remote(
     namespace: impl AsRef<str>,
@@ -533,22 +523,6 @@ pub fn merge(branch: &str) -> Result<(), OxenError> {
     check_repo_migration_needed(&repository)?;
 
     command::merge(&repository, branch)?;
-    Ok(())
-}
-
-pub async fn commit(message: &str, is_remote: bool) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-    check_repo_migration_needed(&repo)?;
-
-    if is_remote {
-        println!("Committing to remote with message: {message}");
-        command::remote::commit(&repo, message).await?;
-    } else {
-        println!("Committing with message: {message}");
-        command::commit(&repo, message)?;
-    }
-
     Ok(())
 }
 

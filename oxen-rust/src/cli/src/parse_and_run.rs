@@ -4,7 +4,9 @@
 //           * create local repo
 //           * printing errors as strings
 
+use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::BranchCmd;
+use crate::cmd::RunCmd;
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 
@@ -138,7 +140,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 remote_restore(sub_matches).await;
             }
             (COMMIT, sub_matches) => {
-                remote_commit(sub_matches).await;
+                let cmd = RemoteCommitCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (LOG, sub_matches) => {
                 remote_log(sub_matches).await;
@@ -903,30 +911,6 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
     )
     .await
     {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn remote_commit(sub_matches: &ArgMatches) {
-    let message = sub_matches.get_one::<String>("message").expect("required");
-
-    let is_remote = true;
-    match dispatch::commit(message, is_remote).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn commit(sub_matches: &ArgMatches) {
-    let message = sub_matches.get_one::<String>("message").expect("required");
-
-    let is_remote = false;
-    match dispatch::commit(message, is_remote).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

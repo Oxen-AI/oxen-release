@@ -21,6 +21,7 @@ async fn main() {
         Box::new(cmd::BranchCmd),
         Box::new(cmd::CheckoutCmd),
         Box::new(cmd::CloneCmd),
+        Box::new(cmd::CommitCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -30,7 +31,6 @@ async fn main() {
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .subcommand(cmd_setup::commit_cache())
-        .subcommand(cmd_setup::commit())
         .subcommand(cmd_setup::config())
         .subcommand(cmd_setup::create_remote())
         .subcommand(cmd_setup::df())
@@ -67,7 +67,6 @@ async fn main() {
         Some((cmd_setup::COMMIT_CACHE, sub_matches)) => {
             parse_and_run::compute_commit_cache(sub_matches).await
         }
-        Some((cmd_setup::COMMIT, sub_matches)) => parse_and_run::commit(sub_matches).await,
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::CONFIG, sub_matches)) => parse_and_run::config(sub_matches),
         Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
