@@ -17,9 +17,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME}
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::model::{ContentType, EntryDataType};
-use liboxen::opts::{
-    AddOpts, CloneOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts,
-};
+use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -908,35 +906,6 @@ async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn clone(sub_matches: &ArgMatches) {
-    let url = sub_matches.get_one::<String>("URL").expect("required");
-    let shallow = sub_matches.get_flag("shallow");
-    let all = sub_matches.get_flag("all");
-    let branch = sub_matches
-        .get_one::<String>("branch")
-        .expect("Must supply a branch");
-
-    let dst = std::env::current_dir().expect("Could not get current working directory");
-    // Get the name of the repo from the url
-    let name = url.split('/').last().unwrap();
-    let dst = dst.join(name);
-
-    let opts = CloneOpts {
-        url: url.to_string(),
-        dst,
-        shallow,
-        all,
-        branch: branch.to_string(),
-    };
-
-    match dispatch::clone(&opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            println!("Err: {err}")
         }
     }
 }

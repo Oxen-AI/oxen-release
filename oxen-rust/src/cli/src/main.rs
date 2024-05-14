@@ -19,6 +19,8 @@ async fn main() {
         Box::new(cmd::InitCmd),
         Box::new(cmd::AddCmd),
         Box::new(cmd::BranchCmd),
+        Box::new(cmd::CheckoutCmd),
+        Box::new(cmd::CloneCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -27,8 +29,6 @@ async fn main() {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
-        .subcommand(cmd_setup::checkout())
-        .subcommand(cmd_setup::clone())
         .subcommand(cmd_setup::commit_cache())
         .subcommand(cmd_setup::commit())
         .subcommand(cmd_setup::config())
@@ -64,7 +64,6 @@ async fn main() {
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
     match matches.subcommand() {
-        Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
         Some((cmd_setup::COMMIT_CACHE, sub_matches)) => {
             parse_and_run::compute_commit_cache(sub_matches).await
         }

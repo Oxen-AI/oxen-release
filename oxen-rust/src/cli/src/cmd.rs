@@ -15,6 +15,9 @@ pub use branch::BranchCmd;
 pub mod checkout;
 pub use checkout::CheckoutCmd;
 
+pub mod clone;
+pub use clone::CloneCmd;
+
 pub mod moo;
 pub use moo::MooCmd;
 
