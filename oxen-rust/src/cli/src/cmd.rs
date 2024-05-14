@@ -21,6 +21,9 @@ pub use clone::CloneCmd;
 pub mod commit;
 pub use commit::CommitCmd;
 
+pub mod config;
+pub use config::ConfigCmd;
+
 pub mod remote;
 
 pub mod moo;

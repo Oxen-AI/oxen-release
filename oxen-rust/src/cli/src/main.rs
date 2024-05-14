@@ -31,7 +31,6 @@ async fn main() {
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .subcommand(cmd_setup::commit_cache())
-        .subcommand(cmd_setup::config())
         .subcommand(cmd_setup::create_remote())
         .subcommand(cmd_setup::df())
         .subcommand(cmd_setup::diff())
@@ -68,7 +67,6 @@ async fn main() {
             parse_and_run::compute_commit_cache(sub_matches).await
         }
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
-        Some((cmd_setup::CONFIG, sub_matches)) => parse_and_run::config(sub_matches),
         Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
             parse_and_run::create_remote(sub_matches).await
         }
