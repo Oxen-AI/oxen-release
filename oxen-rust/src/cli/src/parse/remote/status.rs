@@ -1,8 +1,8 @@
 use clap::ArgMatches;
 
-use std::path::PathBuf;
-use crate::run;
 use crate::parse::status::parse_status_args;
+use crate::run;
+use std::path::PathBuf;
 
 pub async fn status(sub_matches: &ArgMatches) {
     let directory = sub_matches.get_one::<String>("path").map(PathBuf::from);

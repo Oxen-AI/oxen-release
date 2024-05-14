@@ -1,9 +1,8 @@
-
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::error::OxenError;
-use async_trait::async_trait;
 
 use liboxen::command;
 use liboxen::model::LocalRepository;
@@ -39,8 +38,8 @@ impl RunCmd for AddCmd {
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
-       // Parse Args
-       let paths: Vec<PathBuf> = args
+        // Parse Args
+        let paths: Vec<PathBuf> = args
             .get_many::<String>("files")
             .expect("Must supply files")
             .map(PathBuf::from)
@@ -63,7 +62,7 @@ impl RunCmd for AddCmd {
                 command::add(&repository, path)?;
             }
         }
-       
+
         Ok(())
     }
 }

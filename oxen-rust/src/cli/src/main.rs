@@ -3,12 +3,12 @@ use std::collections::HashMap;
 use clap::Command;
 use env_logger::Env;
 
-pub mod cmd_setup;
 pub mod cmd;
+pub mod cmd_setup;
 pub mod dispatch;
 pub mod helpers;
-pub mod parse_and_run;
 pub mod parse;
+pub mod parse_and_run;
 pub mod run;
 
 #[tokio::main]
@@ -18,6 +18,7 @@ async fn main() {
     let cmds: Vec<Box<dyn cmd::RunCmd>> = vec![
         Box::new(cmd::InitCmd),
         Box::new(cmd::AddCmd),
+        Box::new(cmd::BranchCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -26,7 +27,6 @@ async fn main() {
         .subcommand_required(true)
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
-        .subcommand(cmd_setup::branch())
         .subcommand(cmd_setup::checkout())
         .subcommand(cmd_setup::clone())
         .subcommand(cmd_setup::commit_cache())
@@ -64,8 +64,6 @@ async fn main() {
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
     match matches.subcommand() {
-        Some((cmd_setup::BRANCH, sub_matches)) => parse_and_run::branch(sub_matches).await,
-        Some((cmd_setup::CHECKOUT, sub_matches)) => parse_and_run::checkout(sub_matches).await,
         Some((cmd_setup::CLONE, sub_matches)) => parse_and_run::clone(sub_matches).await,
         Some((cmd_setup::COMMIT_CACHE, sub_matches)) => {
             parse_and_run::compute_commit_cache(sub_matches).await

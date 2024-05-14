@@ -4,19 +4,8 @@
 //           * create local repo
 //           * printing errors as strings
 
-use crate::cmd_setup::{
-    ADD,
-    COMMIT,
-    DF,
-    DIFF,
-    DOWNLOAD,
-    LOG,
-    LS,
-    METADATA,
-    RESTORE,
-    RM,
-    STATUS
-};
+use crate::cmd::BranchCmd;
+use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 
 use clap::ArgMatches;
@@ -813,96 +802,6 @@ pub async fn restore(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn branch(sub_matches: &ArgMatches) {
-    if let Some(subcommand) = sub_matches.subcommand() {
-        match subcommand {
-            ("unlock", sub_matches) => {
-                let branch_name = sub_matches.get_one::<String>("branch").expect("required");
-                let remote_name = sub_matches.get_one::<String>("remote").expect("required");
-                match dispatch::unlock_branch(remote_name, branch_name).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
-            }
-            (cmd, _) => {
-                eprintln!("Unknown schema subcommand {cmd}")
-            }
-        }
-    } else if sub_matches.get_flag("all") {
-        if let Err(err) = dispatch::list_all_branches().await {
-            eprintln!("{err}")
-        }
-    } else if let Some(remote_name) = sub_matches.get_one::<String>("remote") {
-        if let Some(branch_name) = sub_matches.get_one::<String>("delete") {
-            if let Err(err) = dispatch::delete_remote_branch(remote_name, branch_name).await {
-                eprintln!("{err}")
-            }
-        } else if let Err(err) = dispatch::list_remote_branches(remote_name).await {
-            eprintln!("{err}")
-        }
-    } else if let Some(name) = sub_matches.get_one::<String>("name") {
-        if let Err(err) = dispatch::create_branch(name) {
-            eprintln!("{err}")
-        }
-    } else if let Some(name) = sub_matches.get_one::<String>("delete") {
-        if let Err(err) = dispatch::delete_branch(name) {
-            eprintln!("{err}")
-        }
-    } else if let Some(name) = sub_matches.get_one::<String>("force-delete") {
-        if let Err(err) = dispatch::force_delete_branch(name) {
-            eprintln!("{err}")
-        }
-    } else if let Some(name) = sub_matches.get_one::<String>("move") {
-        if let Err(err) = dispatch::rename_current_branch(name) {
-            eprintln!("{err}")
-        }
-    } else if sub_matches.get_flag("show-current") {
-        if let Err(err) = dispatch::show_current_branch() {
-            eprintln!("{err}")
-        }
-    } else if let Err(err) = dispatch::list_branches() {
-        eprintln!("{err}")
-    }
-}
-
-pub async fn checkout(sub_matches: &ArgMatches) {
-    if let Some(name) = sub_matches.get_one::<String>("create") {
-        if let Err(err) = dispatch::create_checkout_branch(name) {
-            eprintln!("{err}")
-        }
-    } else if sub_matches.get_flag("ours") {
-        let name = sub_matches.get_one::<String>("name");
-
-        if name.is_none() {
-            eprintln!("Err: Usage `oxen checkout --ours <name>`");
-            return;
-        }
-
-        if let Err(err) = dispatch::checkout_ours(name.unwrap()) {
-            eprintln!("{err}")
-        }
-    } else if sub_matches.get_flag("theirs") {
-        let name = sub_matches.get_one::<String>("name");
-
-        if name.is_none() {
-            eprintln!("Err: Usage `oxen checkout --theirs <name>`");
-            return;
-        }
-
-        if let Err(err) = dispatch::checkout_theirs(name.unwrap()) {
-            eprintln!("{err}")
-        }
-    } else if let Some(name) = sub_matches.get_one::<String>("name") {
-        if let Err(err) = dispatch::checkout(name).await {
-            eprintln!("{err}")
-        }
-    } else {
-        eprintln!("Err: Usage `oxen checkout <name>`");
-    }
-}
-
 pub fn merge(sub_matches: &ArgMatches) {
     let branch = sub_matches
         .get_one::<String>("BRANCH")
@@ -925,12 +824,12 @@ pub async fn push(sub_matches: &ArgMatches) {
         .expect("Must supply a branch");
 
     if sub_matches.get_flag("delete") {
-        match dispatch::delete_remote_branch(remote, branch).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
+        let repo =
+            LocalRepository::from_current_dir().expect("Could not get current working directory");
+        BranchCmd
+            .delete_remote_branch(&repo, remote, branch)
+            .await
+            .expect("Could not delete remote branch");
     } else {
         match dispatch::push(remote, branch).await {
             Ok(_) => {}
