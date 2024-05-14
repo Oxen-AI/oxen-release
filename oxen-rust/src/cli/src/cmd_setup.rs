@@ -1,5 +1,5 @@
-use clap::{arg, Arg, Command};
 use crate::cmd::RunCmd;
+use clap::{arg, Arg, Command};
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
     Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
