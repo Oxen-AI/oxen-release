@@ -1,7 +1,5 @@
-
-
-use clap::{Arg, Command};
 use async_trait::async_trait;
+use clap::{Arg, Command};
 
 use liboxen::command;
 use liboxen::constants::DEFAULT_REMOTE_NAME;
@@ -43,7 +41,7 @@ impl RunCmd for BranchUnlockCmd {
         // Parse Args
         let remote = args.get_one::<String>("remote").expect("required");
         let branch = args.get_one::<String>("branch").expect("required");
-        
+
         let repository = LocalRepository::from_current_dir()?;
         command::unlock(&repository, remote, branch).await?;
 

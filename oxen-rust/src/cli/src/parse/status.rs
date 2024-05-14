@@ -1,10 +1,9 @@
-
 use clap::ArgMatches;
 
 use std::path::PathBuf;
 
-use liboxen::model::staged_data::StagedDataOpts;
 use crate::run;
+use liboxen::model::staged_data::StagedDataOpts;
 
 pub async fn status(sub_matches: &ArgMatches) {
     let directory = sub_matches.get_one::<String>("path").map(PathBuf::from);
