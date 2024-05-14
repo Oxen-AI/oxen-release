@@ -687,32 +687,6 @@ pub fn restore() -> Command {
         )
 }
 
-pub fn checkout() -> Command {
-    Command::new(CHECKOUT)
-        .about("Checks out a branches in the repository")
-        .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
-        .arg(
-            Arg::new("create")
-                .long("create")
-                .short('b')
-                .help("Create the branch and check it out")
-                .exclusive(true)
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("ours")
-                .long("ours")
-                .help("Checkout the content of the base branch and take it as the working directories version. Will overwrite your working file.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("theirs")
-                .long("theirs")
-                .help("Checkout the content of the merge branch and take it as the working directories version. Will overwrite your working file.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
 pub fn merge() -> Command {
     Command::new(MERGE)
         .about("Merges a branch into the current checked out branch.")
