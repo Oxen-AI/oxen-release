@@ -1,10 +1,13 @@
-
-use clap::{Arg, Command};
-use liboxen::error::OxenError;
 use async_trait::async_trait;
+use clap::{Arg, Command};
+use colored::Colorize;
+
+use liboxen::api;
+use liboxen::error::OxenError;
+use liboxen::model::LocalRepository;
 
 use crate::cmd::RunCmd;
-use crate::dispatch;
+use crate::helpers::{check_remote_version, check_remote_version_blocking, get_host_from_repo};
 
 pub mod unlock;
 
@@ -22,9 +25,7 @@ impl RunCmd for BranchCmd {
         // Setups the CLI args for the init command
         Command::new(NAME)
             .about("Manage branches in repository")
-            .subcommand(
-                unlock::BranchUnlockCmd.args()
-            )
+            .subcommand(unlock::BranchUnlockCmd.args())
             .arg(Arg::new("name").help("Name of the branch").exclusive(true))
             .arg(
                 Arg::new("all")
@@ -72,36 +73,130 @@ impl RunCmd for BranchCmd {
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
+        // Find the repository
+        let repo = LocalRepository::from_current_dir()?;
+
         // Parse Args
         if let Some(subcommand) = args.subcommand() {
             match subcommand {
-                (unlock::NAME, args) => {
-                    unlock::BranchUnlockCmd.run(args).await
-                }
-                (cmd, _) => {
-                    Err(OxenError::basic_str(format!("Unknown subcommand {cmd}")))
-                }
+                (unlock::NAME, args) => unlock::BranchUnlockCmd.run(args).await,
+                (cmd, _) => Err(OxenError::basic_str(format!("Unknown subcommand {cmd}"))),
             }
         } else if args.get_flag("all") {
-            dispatch::list_all_branches().await
+            self.list_all_branches(&repo).await
         } else if let Some(remote_name) = args.get_one::<String>("remote") {
             if let Some(branch_name) = args.get_one::<String>("delete") {
-                dispatch::delete_remote_branch(remote_name, branch_name).await
-            } else { 
-                dispatch::list_remote_branches(remote_name).await
+                self.delete_remote_branch(&repo, remote_name, branch_name)
+                    .await
+            } else {
+                self.list_remote_branches(&repo, remote_name).await
             }
         } else if let Some(name) = args.get_one::<String>("name") {
-            dispatch::create_branch(name)
+            self.create_branch(&repo, name)
         } else if let Some(name) = args.get_one::<String>("delete") {
-            dispatch::delete_branch(name)
+            self.delete_branch(&repo, name)
         } else if let Some(name) = args.get_one::<String>("force-delete") {
-            dispatch::force_delete_branch(name)
+            self.force_delete_branch(&repo, name)
         } else if let Some(name) = args.get_one::<String>("move") {
-            dispatch::rename_current_branch(name)
+            self.rename_current_branch(&repo, name)
         } else if args.get_flag("show-current") {
-            dispatch::show_current_branch()
+            self.show_current_branch(&repo)
         } else {
-            dispatch::list_branches()
+            self.list_branches(&repo)
         }
+    }
+}
+
+impl BranchCmd {
+    pub async fn list_all_branches(&self, repo: &LocalRepository) -> Result<(), OxenError> {
+        self.list_branches(repo)?;
+
+        for remote in repo.remotes.iter() {
+            self.list_remote_branches(repo, &remote.name).await?;
+        }
+
+        Ok(())
+    }
+
+    pub fn list_branches(&self, repo: &LocalRepository) -> Result<(), OxenError> {
+        let branches = api::local::branches::list(repo)?;
+
+        for branch in branches.iter() {
+            if branch.is_head {
+                let branch_str = format!("* {}", branch.name).green();
+                println!("{branch_str}")
+            } else {
+                println!("  {}", branch.name)
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn show_current_branch(&self, repo: &LocalRepository) -> Result<(), OxenError> {
+        if let Some(current_branch) = api::local::branches::current_branch(repo)? {
+            println!("{}", current_branch.name);
+        }
+        Ok(())
+    }
+
+    pub fn create_branch(&self, repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+        api::local::branches::create_from_head(repo, name)?;
+        Ok(())
+    }
+
+    pub fn delete_branch(&self, repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+        api::local::branches::delete(repo, name)?;
+        Ok(())
+    }
+
+    pub fn force_delete_branch(&self, repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+        api::local::branches::force_delete(repo, name)?;
+        Ok(())
+    }
+
+    pub fn rename_current_branch(
+        &self,
+        repo: &LocalRepository,
+        name: &str,
+    ) -> Result<(), OxenError> {
+        api::local::branches::rename_current_branch(repo, name)?;
+        Ok(())
+    }
+
+    pub async fn list_remote_branches(
+        &self,
+        repo: &LocalRepository,
+        remote_name: &str,
+    ) -> Result<(), OxenError> {
+        let host = get_host_from_repo(repo)?;
+        check_remote_version_blocking(host.clone()).await?;
+        check_remote_version(host).await?;
+
+        let remote = repo
+            .get_remote(remote_name)
+            .ok_or(OxenError::remote_not_set(remote_name))?;
+        let remote_repo = api::remote::repositories::get_by_remote(&remote)
+            .await?
+            .ok_or(OxenError::remote_not_found(remote.clone()))?;
+
+        let branches = api::remote::branches::list(&remote_repo).await?;
+        for branch in branches.iter() {
+            println!("{}\t{}", &remote.name, branch.name);
+        }
+        Ok(())
+    }
+
+    pub async fn delete_remote_branch(
+        &self,
+        repo: &LocalRepository,
+        remote_name: &str,
+        branch_name: &str,
+    ) -> Result<(), OxenError> {
+        let host = get_host_from_repo(repo)?;
+        check_remote_version(host).await?;
+
+        api::remote::branches::delete_remote(repo, remote_name, branch_name).await?;
+        Ok(())
     }
 }

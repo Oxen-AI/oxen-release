@@ -5,13 +5,15 @@ use liboxen::core::df::pretty_print;
 use liboxen::core::df::tabular;
 use liboxen::error;
 use liboxen::error::OxenError;
+use liboxen::model::diff::tabular_diff::TabularDiffMods;
 use liboxen::model::diff::text_diff::TextDiff;
 use liboxen::model::diff::ChangeType;
+use liboxen::model::diff::DiffResult;
 use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
-use liboxen::model::RepoNew;
 use liboxen::model::LocalRepository;
+use liboxen::model::RepoNew;
 use liboxen::opts::AddOpts;
 use liboxen::opts::CloneOpts;
 use liboxen::opts::DFOpts;
@@ -24,12 +26,10 @@ use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::opts::UploadOpts;
 use liboxen::util;
-use liboxen::model::diff::tabular_diff::TabularDiffMods;
-use liboxen::model::diff::DiffResult;
 use liboxen::view::PaginatedDirEntries;
 
-use colored::Colorize;
 use colored::ColoredString;
+use colored::Colorize;
 use minus::Pager;
 use time::format_description;
 
@@ -39,23 +39,9 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use crate::helpers::{
+    check_remote_version, check_remote_version_blocking, check_repo_migration_needed,
     get_host_from_repo,
-    get_host_or_default,
-    check_remote_version,
-    check_remote_version_blocking,
-    check_repo_migration_needed,
 };
-
-pub async fn init(path: &str) -> Result<(), OxenError> {
-    let directory = dunce::canonicalize(PathBuf::from(&path))?;
-
-    let host = get_host_or_default()?;
-    check_remote_version(host).await?;
-
-    command::init(&directory)?;
-    println!("🐂 repository initialized at: {directory:?}");
-    Ok(())
-}
 
 pub async fn clone(opts: &CloneOpts) -> Result<(), OxenError> {
     let host = api::remote::client::get_host_from_url(&opts.url)?;
@@ -901,90 +887,6 @@ pub fn schema_add_metadata(
     Ok(())
 }
 
-pub fn create_branch(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    api::local::branches::create_from_head(&repository, name)?;
-    Ok(())
-}
-
-pub fn delete_branch(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    api::local::branches::delete(&repository, name)?;
-    Ok(())
-}
-
-pub async fn delete_remote_branch(remote_name: &str, branch_name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let host = get_host_from_repo(&repository)?;
-    check_remote_version(host).await?;
-
-    api::remote::branches::delete_remote(&repository, remote_name, branch_name).await?;
-    Ok(())
-}
-
-pub fn force_delete_branch(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    api::local::branches::force_delete(&repository, name)?;
-    Ok(())
-}
-
-pub fn rename_current_branch(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    api::local::branches::rename_current_branch(&repository, name)?;
-    Ok(())
-}
-
-pub async fn checkout(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::checkout(&repository, name).await?;
-    Ok(())
-}
-
-pub fn checkout_theirs(path: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::checkout_theirs(&repository, path)?;
-    Ok(())
-}
-
-pub fn checkout_ours(path: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    command::checkout_ours(&repository, path)?;
-    Ok(())
-}
-
-pub fn create_checkout_branch(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    api::local::branches::create_checkout(&repository, name)?;
-    Ok(())
-}
-
-pub fn list_branches() -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let branches = api::local::branches::list(&repository)?;
-
-    for branch in branches.iter() {
-        if branch.is_head {
-            let branch_str = format!("* {}", branch.name).green();
-            println!("{branch_str}")
-        } else {
-            println!("  {}", branch.name)
-        }
-    }
-
-    Ok(())
-}
-
 pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
@@ -1004,29 +906,6 @@ pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     for branch in branches.iter() {
         println!("{}\t{}", &remote.name, branch.name);
     }
-    Ok(())
-}
-
-pub async fn list_all_branches() -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    list_branches()?;
-
-    for remote in repository.remotes.iter() {
-        list_remote_branches(&remote.name).await?;
-    }
-
-    Ok(())
-}
-
-pub fn show_current_branch() -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
-        println!("{}", current_branch.name);
-    }
-
     Ok(())
 }
 

@@ -1,8 +1,6 @@
-
-
+use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::error::OxenError;
-use async_trait::async_trait;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "moo";
@@ -16,16 +14,14 @@ impl RunCmd for MooCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        Command::new(NAME)
-            .about("Hello, world! 🐂")
-            .arg(
-                Arg::new("number")
-                    .long("number")
-                    .short('n')
-                    .help("How big is the moo.")
-                    .default_value("2")
-                    .action(clap::ArgAction::Set),
-            )
+        Command::new(NAME).about("Hello, world! 🐂").arg(
+            Arg::new("number")
+                .long("number")
+                .short('n')
+                .help("How big is the moo.")
+                .default_value("2")
+                .action(clap::ArgAction::Set),
+        )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {

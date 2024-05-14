@@ -15,7 +15,7 @@ pub struct LocalRepository {
     pub path: PathBuf,
     // Optional remotes to sync the data to
     remote_name: Option<String>, // name of the current remote ("origin" by default)
-    pub remotes: Vec<Remote>, // List of possible remotes
+    pub remotes: Vec<Remote>,    // List of possible remotes
 }
 
 impl LocalRepository {
@@ -59,8 +59,7 @@ impl LocalRepository {
     }
 
     pub fn from_current_dir() -> Result<LocalRepository, OxenError> {
-        let repo_dir =
-        util::fs::get_repo_root_from_current_dir()
+        let repo_dir = util::fs::get_repo_root_from_current_dir()
             .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
         LocalRepository::from_dir(&repo_dir)

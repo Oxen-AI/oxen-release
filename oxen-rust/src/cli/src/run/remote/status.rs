@@ -1,25 +1,22 @@
-
 use std::path::PathBuf;
 
 use liboxen::api;
 use liboxen::command;
 use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::model::LocalRepository;
 use liboxen::model::staged_data::StagedDataOpts;
+use liboxen::model::LocalRepository;
 use liboxen::util;
 
-use crate::helpers::{
-    get_host_from_repo,
-    check_remote_version_blocking,
-    check_remote_version,
-};
+use crate::helpers::{check_remote_version, check_remote_version_blocking, get_host_from_repo};
 
-pub async fn remote_status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
+pub async fn remote_status(
+    directory: Option<PathBuf>,
+    opts: &StagedDataOpts,
+) -> Result<(), OxenError> {
     // Recursively look up from the current dir for .oxen directory
-    let repo_dir =
-        util::fs::get_repo_root_from_current_dir()
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
+    let repo_dir = util::fs::get_repo_root_from_current_dir()
+        .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let host = get_host_from_repo(&repository)?;

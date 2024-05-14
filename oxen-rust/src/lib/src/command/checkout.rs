@@ -15,9 +15,9 @@ use crate::{api, command, util};
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
 /// it also updates all the local files to be from the commit that this branch references
-pub async fn checkout<S: AsRef<str>>(
+pub async fn checkout(
     repo: &LocalRepository,
-    value: S,
+    value: impl AsRef<str>,
 ) -> Result<Option<Branch>, OxenError> {
     let value = value.as_ref();
     log::debug!("--- CHECKOUT START {} ----", value);

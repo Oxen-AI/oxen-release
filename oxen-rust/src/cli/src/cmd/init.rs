@@ -1,16 +1,12 @@
-
 use std::path::PathBuf;
 
+use async_trait::async_trait;
 use clap::{arg, Command};
 use liboxen::error::OxenError;
-use async_trait::async_trait;
 
-use liboxen::command;
 use crate::cmd::RunCmd;
-use crate::helpers::{
-    get_host_or_default,
-    check_remote_version,
-};
+use crate::helpers::{check_remote_version, get_host_or_default};
+use liboxen::command;
 
 pub const INIT: &str = "init";
 

@@ -1,4 +1,3 @@
-
 use clap;
 use liboxen::error::OxenError;
 
@@ -12,6 +11,9 @@ pub use add::AddCmd;
 
 pub mod branch;
 pub use branch::BranchCmd;
+
+pub mod checkout;
+pub use checkout::CheckoutCmd;
 
 pub mod moo;
 pub use moo::MooCmd;
