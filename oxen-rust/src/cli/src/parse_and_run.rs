@@ -128,9 +128,7 @@ pub async fn remote(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn list_remotes(
-    repo: &LocalRepository,
-) -> Result<(), OxenError> {
+pub fn list_remotes(repo: &LocalRepository) -> Result<(), OxenError> {
     for remote in repo.remotes.iter() {
         println!("{}", remote.name);
     }
@@ -138,9 +136,7 @@ pub fn list_remotes(
     Ok(())
 }
 
-pub fn list_remotes_verbose(
-    repo: &LocalRepository,
-) -> Result<(), OxenError> {
+pub fn list_remotes_verbose(repo: &LocalRepository) -> Result<(), OxenError> {
     for remote in repo.remotes.iter() {
         println!("{}\t{}", remote.name, remote.url);
     }

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use clap::{Arg, Command};
 
 use liboxen::command;
-use liboxen::config::{UserConfig, AuthConfig};
+use liboxen::config::{AuthConfig, UserConfig};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 
@@ -71,7 +71,7 @@ impl RunCmd for ConfigCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         let mut repo = LocalRepository::from_current_dir()?;
-        
+
         // Parse Args
         if let Some(remote) = args.get_many::<String>("set-remote") {
             if let [name, url] = remote.collect::<Vec<_>>()[..] {
@@ -85,7 +85,7 @@ impl RunCmd for ConfigCmd {
                 eprintln!("invalid arguments for --set-remote");
             }
         }
-    
+
         if let Some(name) = args.get_one::<String>("delete-remote") {
             match self.delete_remote(&mut repo, name) {
                 Ok(_) => {}
@@ -94,7 +94,7 @@ impl RunCmd for ConfigCmd {
                 }
             }
         }
-    
+
         if let Some(auth) = args.get_many::<String>("auth-token") {
             if let [host, token] = auth.collect::<Vec<_>>()[..] {
                 match self.set_auth_token(host, token) {
@@ -107,7 +107,7 @@ impl RunCmd for ConfigCmd {
                 eprintln!("invalid arguments for --auth");
             }
         }
-    
+
         if let Some(name) = args.get_one::<String>("name") {
             match self.set_user_name(name) {
                 Ok(_) => {}
@@ -116,7 +116,7 @@ impl RunCmd for ConfigCmd {
                 }
             }
         }
-    
+
         if let Some(email) = args.get_one::<String>("email") {
             match self.set_user_email(email) {
                 Ok(_) => {}
@@ -125,7 +125,7 @@ impl RunCmd for ConfigCmd {
                 }
             }
         }
-    
+
         if let Some(email) = args.get_one::<String>("default-host") {
             match self.set_default_host(email) {
                 Ok(_) => {}
@@ -147,36 +147,25 @@ impl ConfigCmd {
         url: &str,
     ) -> Result<(), OxenError> {
         command::config::set_remote(repo, name, url)?;
-    
-        Ok(())
-    }
-    
-    pub fn delete_remote(
-        &self,
-        repo: &mut LocalRepository,
-        name: &str,
-    ) -> Result<(), OxenError> {
-        command::config::delete_remote(repo, name)?;
-    
+
         Ok(())
     }
 
-    pub fn set_auth_token(
-        &self,
-        host: &str,
-        token: &str,
-    ) -> Result<(), OxenError> {
+    pub fn delete_remote(&self, repo: &mut LocalRepository, name: &str) -> Result<(), OxenError> {
+        command::config::delete_remote(repo, name)?;
+
+        Ok(())
+    }
+
+    pub fn set_auth_token(&self, host: &str, token: &str) -> Result<(), OxenError> {
         let mut config = AuthConfig::get_or_create()?;
         config.add_host_auth_token(host, token);
         config.save_default()?;
         println!("Authentication token set for host: {host}");
         Ok(())
     }
-    
-    pub fn set_default_host(
-        &self,
-        host: &str,
-    ) -> Result<(), OxenError> {
+
+    pub fn set_default_host(&self, host: &str) -> Result<(), OxenError> {
         let mut config = AuthConfig::get_or_create()?;
         if host.is_empty() {
             config.default_host = None;
@@ -186,25 +175,18 @@ impl ConfigCmd {
         config.save_default()?;
         Ok(())
     }
-    
-    pub fn set_user_name(
-        &self,
-        name: &str,
-    ) -> Result<(), OxenError> {
+
+    pub fn set_user_name(&self, name: &str) -> Result<(), OxenError> {
         let mut config = UserConfig::get_or_create()?;
         config.name = String::from(name);
         config.save_default()?;
         Ok(())
     }
-    
-    pub fn set_user_email(
-        &self,
-        email: &str
-    ) -> Result<(), OxenError> {
+
+    pub fn set_user_email(&self, email: &str) -> Result<(), OxenError> {
         let mut config = UserConfig::get_or_create()?;
         config.email = String::from(email);
         config.save_default()?;
         Ok(())
     }
-    
 }

@@ -34,7 +34,9 @@ impl RunCmd for CommitCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let Some(message) = args.get_one::<String>("message") else {
-            return Err(OxenError::basic_str("Err: Usage `oxen commit -m <message>`"));
+            return Err(OxenError::basic_str(
+                "Err: Usage `oxen commit -m <message>`",
+            ));
         };
 
         let repo = LocalRepository::from_current_dir()?;
