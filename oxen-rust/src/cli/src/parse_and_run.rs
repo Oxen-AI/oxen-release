@@ -25,70 +25,6 @@ use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
-pub fn config(sub_matches: &ArgMatches) {
-    if let Some(remote) = sub_matches.get_many::<String>("set-remote") {
-        if let [name, url] = remote.collect::<Vec<_>>()[..] {
-            match dispatch::set_remote(name, url) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
-            }
-        } else {
-            eprintln!("invalid arguments for --set-remote");
-        }
-    }
-
-    if let Some(name) = sub_matches.get_one::<String>("delete-remote") {
-        match dispatch::delete_remote(name) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    }
-
-    if let Some(auth) = sub_matches.get_many::<String>("auth-token") {
-        if let [host, token] = auth.collect::<Vec<_>>()[..] {
-            match dispatch::set_auth_token(host, token) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
-            }
-        } else {
-            eprintln!("invalid arguments for --auth");
-        }
-    }
-
-    if let Some(name) = sub_matches.get_one::<String>("name") {
-        match dispatch::set_user_name(name) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    }
-
-    if let Some(email) = sub_matches.get_one::<String>("email") {
-        match dispatch::set_user_email(email) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    }
-
-    if let Some(email) = sub_matches.get_one::<String>("default-host") {
-        match dispatch::set_default_host(email) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    }
-}
-
 pub async fn create_remote(sub_matches: &ArgMatches) {
     // The format is namespace/name
     let namespace_name = sub_matches.get_one::<String>("name").expect("required");
@@ -174,20 +110,42 @@ pub async fn remote(sub_matches: &ArgMatches) {
             }
         }
     } else if sub_matches.get_flag("verbose") {
-        match dispatch::list_remotes_verbose() {
+        let repo = LocalRepository::from_current_dir().expect("Could not find a repository");
+        match list_remotes_verbose(&repo) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
             }
         }
     } else {
-        match dispatch::list_remotes() {
+        let repo = LocalRepository::from_current_dir().expect("Could not find a repository");
+        match list_remotes(&repo) {
             Ok(_) => {}
             Err(err) => {
                 eprintln!("{err}")
             }
         }
     }
+}
+
+pub fn list_remotes(
+    repo: &LocalRepository,
+) -> Result<(), OxenError> {
+    for remote in repo.remotes.iter() {
+        println!("{}", remote.name);
+    }
+
+    Ok(())
+}
+
+pub fn list_remotes_verbose(
+    repo: &LocalRepository,
+) -> Result<(), OxenError> {
+    for remote in repo.remotes.iter() {
+        println!("{}\t{}", remote.name, remote.url);
+    }
+
+    Ok(())
 }
 
 pub async fn upload(sub_matches: &ArgMatches) {

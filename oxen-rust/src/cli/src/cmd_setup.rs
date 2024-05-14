@@ -1,4 +1,5 @@
 use clap::{arg, Arg, Command};
+use crate::cmd::RunCmd;
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
     Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
@@ -6,6 +7,7 @@ use liboxen::command::migrate::{
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 use crate::cmd::add::add_args;
+use crate::cmd::remote::commit::RemoteCommitCmd;
 
 pub const ADD: &str = "add";
 pub const BRANCH: &str = "branch";
@@ -38,58 +40,6 @@ pub const SAVE: &str = "save";
 pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
 pub const UPLOAD: &str = "upload";
-
-pub fn config() -> Command {
-    Command::new(CONFIG)
-        .about("Sets the user configuration in ~/.oxen/user_config.toml")
-        .arg(
-            Arg::new("name")
-                .long("name")
-                .short('n')
-                .help("Set the name you want your commits to be saved as.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("email")
-                .long("email")
-                .short('e')
-                .help("Set the email you want your commits to be saved as.")
-                .action(clap::ArgAction::Set),
-        )
-        // Note: we differ from git here because we have the concept of a remote
-        //       staging area which uses the `oxen remote add` subcommand
-        .arg(
-            Arg::new("set-remote")
-                .long("set-remote")
-                .number_of_values(2)
-                .value_names(["NAME", "URL"])
-                .help("Set a remote for your current working repository.")
-                .action(clap::ArgAction::Set),
-        )
-        // "delete-remote" is easier to read than "remove-remote"
-        .arg(
-            Arg::new("delete-remote")
-                .long("delete-remote")
-                .number_of_values(2)
-                .help("Delete a remote from the current working repository.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("auth-token")
-                .long("auth")
-                .short('a')
-                .number_of_values(2)
-                .value_names(["HOST", "TOKEN"])
-                .help("Set the authentication token for a specific oxen-server host.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("default-host")
-                .long("default-host")
-                .help("Sets the default host used to check version numbers. If empty, the CLI will not do a version check.")
-                .action(clap::ArgAction::Set),
-        )
-}
 
 pub fn create_remote() -> Command {
     Command::new(CREATE_REMOTE)
@@ -142,7 +92,7 @@ pub fn remote() -> Command {
                 .help("Specify a path in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
                 .action(clap::ArgAction::Set))
         )
-        .subcommand(commit())
+        .subcommand(RemoteCommitCmd.args())
         .subcommand(df())
         .subcommand(diff())
         .subcommand(download())
@@ -628,19 +578,6 @@ pub fn upload() -> Command {
             Arg::new("remote")
                 .long("remote")
                 .help("Remote to up the data to, for example: 'origin'")
-                .action(clap::ArgAction::Set),
-        )
-}
-
-pub fn commit() -> Command {
-    Command::new(COMMIT)
-        .about("Commit the staged files to the repository.")
-        .arg(
-            Arg::new("message")
-                .help("The message for the commit. Should be descriptive about what changed.")
-                .long("message")
-                .short('m')
-                .required(true)
                 .action(clap::ArgAction::Set),
         )
 }

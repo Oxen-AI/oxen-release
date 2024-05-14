@@ -1,6 +1,6 @@
 use liboxen::api;
 use liboxen::command;
-use liboxen::config::{AuthConfig, UserConfig};
+use liboxen::config::UserConfig;
 use liboxen::core::df::pretty_print;
 use liboxen::core::df::tabular;
 use liboxen::error;
@@ -128,79 +128,6 @@ Happy Mooooooving of data 🐂
         );
     }
 
-    Ok(())
-}
-
-pub fn set_remote(name: &str, url: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let mut repo = LocalRepository::from_dir(&repo_dir)?;
-
-    command::config::set_remote(&mut repo, name, url)?;
-
-    Ok(())
-}
-
-pub fn delete_remote(name: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let mut repo = LocalRepository::from_dir(&repo_dir)?;
-
-    command::config::delete_remote(&mut repo, name)?;
-
-    Ok(())
-}
-
-pub fn list_remotes() -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-
-    for remote in repo.remotes.iter() {
-        println!("{}", remote.name);
-    }
-
-    Ok(())
-}
-
-pub fn list_remotes_verbose() -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-
-    for remote in repo.remotes.iter() {
-        println!("{}\t{}", remote.name, remote.url);
-    }
-
-    Ok(())
-}
-
-pub fn set_auth_token(host: &str, token: &str) -> Result<(), OxenError> {
-    let mut config = AuthConfig::get_or_create()?;
-    config.add_host_auth_token(host, token);
-    config.save_default()?;
-    println!("Authentication token set for host: {host}");
-    Ok(())
-}
-
-pub fn set_default_host(host: &str) -> Result<(), OxenError> {
-    let mut config = AuthConfig::get_or_create()?;
-    if host.is_empty() {
-        config.default_host = None;
-    } else {
-        config.default_host = Some(String::from(host));
-    }
-    config.save_default()?;
-    Ok(())
-}
-
-pub fn set_user_name(name: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::get_or_create()?;
-    config.name = String::from(name);
-    config.save_default()?;
-    Ok(())
-}
-
-pub fn set_user_email(email: &str) -> Result<(), OxenError> {
-    let mut config = UserConfig::get_or_create()?;
-    config.email = String::from(email);
-    config.save_default()?;
     Ok(())
 }
 
