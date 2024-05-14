@@ -1,21 +1,19 @@
-
 use std::path::PathBuf;
 
 use liboxen::api;
 use liboxen::command;
 use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::model::LocalRepository;
 use liboxen::model::staged_data::StagedDataOpts;
+use liboxen::model::LocalRepository;
 use liboxen::util;
 
 use crate::helpers::check_repo_migration_needed;
 
 pub async fn status(directory: Option<PathBuf>, opts: &StagedDataOpts) -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
-    let repo_dir =
-        util::fs::get_repo_root_from_current_dir()
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
+    let repo_dir = util::fs::get_repo_root_from_current_dir()
+        .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
 
     let repository = LocalRepository::from_dir(&repo_dir)?;
     check_repo_migration_needed(&repository)?;

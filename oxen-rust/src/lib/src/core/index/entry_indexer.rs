@@ -650,13 +650,8 @@ impl EntryIndexer {
         });
 
         log::debug!("about to pull the entires to the versions dir");
-        puller::pull_entries_to_versions_dir(
-            remote_repo,
-            &all_entries,
-            &self.repository.path,
-            &|| log::debug!("Pulled entries to versions dir."),
-        )
-        .await?;
+        puller::pull_entries_to_versions_dir(remote_repo, &all_entries, &self.repository.path)
+            .await?;
 
         // Get full length of all entries arrays in unsynced_entries
         let mut entries_to_unpack: usize = 0;
@@ -716,10 +711,7 @@ impl EntryIndexer {
         log::debug!("got {} entries to pull", n_entries_to_pull);
 
         // PUll all the entries to the versions dir and then hydrate them into the working dir
-        puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path, &|| {
-            log::debug!("Pulled entries to versions dir.")
-        })
-        .await?;
+        puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path).await?;
 
         let entries_to_unpack = entries.len();
 
