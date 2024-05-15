@@ -75,13 +75,12 @@ pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, O
 pub fn scan_df_csv<P: AsRef<Path>>(
     path: P,
     delimiter: u8,
-    opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
     LazyCsvReader::new(&path)
         .with_separator(delimiter)
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
-        .with_n_rows(get_max_rows_from_opts(opts, total_rows))
+        .with_n_rows(Some(total_rows))
         .has_header(true)
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
@@ -109,14 +108,10 @@ pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn scan_df_jsonl(
-    path: impl AsRef<Path>,
-    opts: &DFOpts,
-    total_rows: usize,
-) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_jsonl(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
     LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
         .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
-        .with_n_rows(get_max_rows_from_opts(opts, total_rows))
+        .with_n_rows(Some(total_rows))
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
@@ -143,13 +138,9 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     }
 }
 
-pub fn scan_df_parquet(
-    path: impl AsRef<Path>,
-    opts: &DFOpts,
-    total_rows: usize,
-) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_parquet(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
     let args = ScanArgsParquet {
-        n_rows: get_max_rows_from_opts(opts, total_rows),
+        n_rows: Some(total_rows),
         ..Default::default()
     };
     log::debug!(
@@ -176,25 +167,6 @@ fn read_df_arrow(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
 fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
-}
-
-fn get_max_rows_from_opts(opts: &DFOpts, total_rows: usize) -> Option<usize> {
-    log::debug!(
-        "get_max_rows_from_opts total_rows {} opts.has_filter_transform() {}",
-        total_rows,
-        opts.has_filter_transform()
-    );
-    if opts.has_filter_transform() {
-        return Some(total_rows);
-    }
-
-    log::debug!("get_max_rows_from_opts {:?}", opts);
-    if let Some((_, end)) = &opts.slice_indices() {
-        log::debug!("get_max_rows_from_opts end {}", end);
-        return Some(*end as usize);
-    }
-
-    None
 }
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
@@ -865,15 +837,15 @@ pub fn scan_df(
 
     match extension {
         Some(extension) => match extension {
-            "ndjson" => scan_df_jsonl(path, opts, total_rows),
-            "jsonl" => scan_df_jsonl(path, opts, total_rows),
+            "ndjson" => scan_df_jsonl(path, total_rows),
+            "jsonl" => scan_df_jsonl(path, total_rows),
             "json" => scan_df_json(path),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
-                scan_df_csv(path, delimiter, opts, total_rows)
+                scan_df_csv(path, delimiter, total_rows)
             }
-            "tsv" => scan_df_csv(path, b'\t', opts, total_rows),
-            "parquet" => scan_df_parquet(path, opts, total_rows),
+            "tsv" => scan_df_csv(path, b'\t', total_rows),
+            "parquet" => scan_df_parquet(path, total_rows),
             "arrow" => scan_df_arrow(path),
             _ => Err(OxenError::basic_str(err)),
         },
@@ -1362,7 +1334,7 @@ mod tests {
     fn test_slice_parquet_lazy() -> Result<(), OxenError> {
         let mut opts = DFOpts::empty();
         opts.slice = Some("329..333".to_string());
-        let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", &opts, 333)?;
+        let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", 333)?;
         let height = 4;
         let df = tabular::transform_lazy(df, height, opts.clone())?;
         let mut df = tabular::transform_slice_lazy(df.lazy(), height, opts)?;
