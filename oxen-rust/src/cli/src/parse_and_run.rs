@@ -6,6 +6,7 @@
 
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::BranchCmd;
+use crate::cmd::DFCmd;
 use crate::cmd::RunCmd;
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
@@ -17,47 +18,12 @@ use liboxen::command::migrate::{
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
+use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
-use liboxen::model::{ContentType, EntryDataType};
 use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
-
-pub async fn create_remote(sub_matches: &ArgMatches) {
-    // The format is namespace/name
-    let namespace_name = sub_matches.get_one::<String>("name").expect("required");
-    // Default the host to the oxen.ai hub
-    let host = sub_matches
-        .get_one::<String>("host")
-        .map(String::from)
-        .unwrap_or(DEFAULT_HOST.to_string());
-    // Default scheme
-    let scheme = sub_matches
-        .get_one::<String>("scheme")
-        .map(String::from)
-        .unwrap_or("https".to_string());
-
-    // Validate the format
-    let parts: Vec<&str> = namespace_name.split('/').collect();
-    if parts.len() != 2 {
-        eprintln!("Invalid name format. Must be namespace/name");
-        return;
-    }
-
-    let namespace = parts[0];
-    let name = parts[1];
-    let empty = !sub_matches.get_flag("add_readme");
-    let is_public = sub_matches.get_flag("is_public");
-
-    match dispatch::create_remote(namespace, name, host, scheme, empty, is_public).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
 
 /// The subcommands for interacting with the remote staging area.
 pub async fn remote(sub_matches: &ArgMatches) {
@@ -170,7 +136,7 @@ pub async fn upload(sub_matches: &ArgMatches) {
             .unwrap_or(DEFAULT_HOST.to_string()),
     };
 
-    // `oxen download $namespace/$repo_name $path`
+    // `oxen upload $namespace/$repo_name $path`
     match dispatch::upload(opts).await {
         Ok(_) => {}
         Err(err) => {
@@ -468,95 +434,14 @@ pub async fn fetch(_: &ArgMatches) {
     }
 }
 
-fn parse_df_sub_matches(sub_matches: &ArgMatches) -> liboxen::opts::DFOpts {
-    let vstack: Option<Vec<PathBuf>> =
-        if let Some(vstack) = sub_matches.get_many::<String>("vstack") {
-            let values: Vec<PathBuf> = vstack.map(std::path::PathBuf::from).collect();
-            Some(values)
-        } else {
-            None
-        };
-
-    let mut content_type = "json";
-    let maybe_content_type = sub_matches.get_one::<String>("content-type");
-    if let Some(c) = maybe_content_type {
-        content_type = c;
-    }
-
-    liboxen::opts::DFOpts {
-        output: sub_matches
-            .get_one::<String>("output")
-            .map(std::path::PathBuf::from),
-        delimiter: sub_matches.get_one::<String>("delimiter").map(String::from),
-        slice: sub_matches.get_one::<String>("slice").map(String::from),
-        page_size: sub_matches
-            .get_one::<String>("page-size")
-            .map(|x| x.parse::<usize>().expect("page-size must be valid int")),
-        page: sub_matches
-            .get_one::<String>("page")
-            .map(|x| x.parse::<usize>().expect("page must be valid int")),
-        head: sub_matches
-            .get_one::<String>("head")
-            .map(|x| x.parse::<usize>().expect("head must be valid int")),
-        tail: sub_matches
-            .get_one::<String>("tail")
-            .map(|x| x.parse::<usize>().expect("tail must be valid int")),
-        row: sub_matches
-            .get_one::<String>("row")
-            .map(|x| x.parse::<usize>().expect("row must be valid int")),
-        take: sub_matches.get_one::<String>("take").map(String::from),
-        columns: sub_matches.get_one::<String>("columns").map(String::from),
-        filter: sub_matches.get_one::<String>("filter").map(String::from),
-        aggregate: sub_matches.get_one::<String>("aggregate").map(String::from),
-        col_at: sub_matches.get_one::<String>("col-at").map(String::from),
-        vstack,
-        index: sub_matches.get_flag("index"),
-        add_col: sub_matches.get_one::<String>("add-col").map(String::from),
-        add_row: sub_matches.get_one::<String>("add-row").map(String::from),
-        get_row: sub_matches.get_one::<String>("get-row").map(String::from),
-        delete_row: sub_matches
-            .get_one::<String>("delete-row")
-            .map(String::from),
-        sort_by: sub_matches.get_one::<String>("sort").map(String::from),
-        sql: sub_matches.get_one::<String>("sql").map(String::from),
-        text2sql: sub_matches.get_one::<String>("text2sql").map(String::from),
-        host: sub_matches.get_one::<String>("host").map(String::from),
-        unique: sub_matches.get_one::<String>("unique").map(String::from),
-        content_type: ContentType::from_str(content_type).unwrap(),
-        should_randomize: sub_matches.get_flag("randomize"),
-        should_reverse: sub_matches.get_flag("reverse"),
-        committed: sub_matches.get_flag("committed"),
-    }
-}
-
 async fn remote_df(sub_matches: &ArgMatches) {
     let path = sub_matches.get_one::<String>("DF_SPEC").expect("required");
-    let opts = parse_df_sub_matches(sub_matches);
+    let opts = DFCmd::parse_df_args(sub_matches);
 
     match dispatch::remote_df(path, opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
-        }
-    }
-}
-
-pub fn df(sub_matches: &ArgMatches) {
-    let opts = parse_df_sub_matches(sub_matches);
-    let path = sub_matches.get_one::<String>("DF_SPEC").expect("required");
-    if sub_matches.get_flag("schema") || sub_matches.get_flag("schema-flat") {
-        match dispatch::df_schema(path, sub_matches.get_flag("schema-flat"), opts) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    } else {
-        match dispatch::df(path, opts) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
         }
     }
 }

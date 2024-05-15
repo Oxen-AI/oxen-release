@@ -22,6 +22,8 @@ async fn main() {
         Box::new(cmd::CheckoutCmd),
         Box::new(cmd::CloneCmd),
         Box::new(cmd::CommitCmd),
+        Box::new(cmd::CreateRemoteCmd),
+        Box::new(cmd::DFCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -31,8 +33,6 @@ async fn main() {
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .subcommand(cmd_setup::commit_cache())
-        .subcommand(cmd_setup::create_remote())
-        .subcommand(cmd_setup::df())
         .subcommand(cmd_setup::diff())
         .subcommand(cmd_setup::download())
         .subcommand(cmd_setup::info())
@@ -67,10 +67,6 @@ async fn main() {
             parse_and_run::compute_commit_cache(sub_matches).await
         }
         Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
-        Some((cmd_setup::CREATE_REMOTE, sub_matches)) => {
-            parse_and_run::create_remote(sub_matches).await
-        }
-        Some((cmd_setup::DF, sub_matches)) => parse_and_run::df(sub_matches),
         Some((cmd_setup::DOWNLOAD, sub_matches)) => parse_and_run::download(sub_matches).await,
         Some((cmd_setup::INFO, sub_matches)) => parse_and_run::info(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),

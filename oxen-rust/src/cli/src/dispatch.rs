@@ -649,11 +649,6 @@ fn maybe_display_types(entries: &PaginatedDirEntries) {
     }
 }
 
-pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
-    command::df(input, opts)?;
-    Ok(())
-}
-
 pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
@@ -667,12 +662,6 @@ pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), Oxe
         command::remote::staged_df(&repo, input, opts).await?;
     }
 
-    Ok(())
-}
-
-pub fn df_schema<P: AsRef<Path>>(input: P, flatten: bool, opts: DFOpts) -> Result<(), OxenError> {
-    let result = command::df::schema(input, flatten, opts)?;
-    println!("{result}");
     Ok(())
 }
 
