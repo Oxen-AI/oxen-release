@@ -851,6 +851,27 @@ pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     // }
 }
 
+pub async fn unindex_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    index::remote_df_stager::unindex_df(&repo, &branch, &identifier, &resource.file_path)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+}
+
 pub async fn index_dataset(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,

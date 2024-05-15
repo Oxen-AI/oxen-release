@@ -537,6 +537,7 @@ pub fn transform_lazy(
 }
 
 pub fn transform_slice(df: DataFrame, height: usize, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    log::debug!("here's the slice that we got heading into this {:?}", df);
     transform_slice_lazy(df.lazy(), height, opts)
 }
 
