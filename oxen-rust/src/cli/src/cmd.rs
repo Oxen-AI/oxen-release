@@ -24,10 +24,16 @@ pub use commit::CommitCmd;
 pub mod config;
 pub use config::ConfigCmd;
 
-pub mod remote;
+pub mod create_remote;
+pub use create_remote::CreateRemoteCmd;
+
+pub mod df;
+pub use df::DFCmd;
 
 pub mod moo;
 pub use moo::MooCmd;
+
+pub mod remote;
 
 #[async_trait]
 pub trait RunCmd {
