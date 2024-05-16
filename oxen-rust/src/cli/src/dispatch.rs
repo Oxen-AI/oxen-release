@@ -1,14 +1,8 @@
 use liboxen::api;
 use liboxen::command;
 use liboxen::config::UserConfig;
-use liboxen::core::df::pretty_print;
-use liboxen::core::df::tabular;
 use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::model::diff::tabular_diff::TabularDiffMods;
-use liboxen::model::diff::text_diff::TextDiff;
-use liboxen::model::diff::ChangeType;
-use liboxen::model::diff::DiffResult;
 use liboxen::model::file::FileNew;
 use liboxen::model::schema;
 use liboxen::model::EntryDataType;
@@ -27,7 +21,6 @@ use liboxen::opts::UploadOpts;
 use liboxen::util;
 use liboxen::view::PaginatedDirEntries;
 
-use colored::ColoredString;
 use colored::Colorize;
 use minus::Pager;
 use time::format_description;
@@ -372,75 +365,6 @@ pub async fn unlock_branch(remote: &str, branch: &str) -> Result<(), OxenError> 
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::unlock(&repository, remote, branch).await?;
-    Ok(())
-}
-
-#[allow(clippy::too_many_arguments)]
-pub async fn diff(
-    path_1: PathBuf,
-    revision_1: Option<String>,
-    path_2: Option<PathBuf>,
-    revision_2: Option<String>,
-    keys: Vec<String>,
-    targets: Vec<String>,
-    output: Option<PathBuf>,
-    is_remote: bool,
-) -> Result<(), OxenError> {
-    if is_remote {
-        let repo_dir = env::current_dir().unwrap();
-        let repository = LocalRepository::from_dir(&repo_dir)?;
-        check_repo_migration_needed(&repository)?;
-
-        let mut remote_diff = command::remote::diff(&repository, revision_1, &path_1).await?;
-        print_compare_result(&remote_diff)?;
-        maybe_save_compare_output(&mut remote_diff, output)?;
-
-        // TODO: Allow them to save a remote diff to disk
-    } else {
-        // If the user specifies two files without revisions, we will compare the files on disk
-        let mut compare_result = if revision_1.is_none() && revision_2.is_none() && path_2.is_some()
-        {
-            // If we do not have revisions set, just compare the files on disk
-            command::diff(path_1, path_2, keys, targets, None, revision_1, revision_2)?
-        } else {
-            // If we have revisions set, pass in the repo_dir to be able
-            // to compare the files at those revisions within the .oxen repo
-            let repo_dir = env::current_dir().unwrap();
-            command::diff(
-                path_1,
-                path_2,
-                keys,
-                targets,
-                Some(repo_dir),
-                revision_1,
-                revision_2,
-            )?
-        };
-
-        print_compare_result(&compare_result)?;
-        maybe_save_compare_output(&mut compare_result, output)?;
-    };
-
-    Ok(())
-}
-
-fn maybe_save_compare_output(
-    result: &mut DiffResult,
-    output: Option<PathBuf>,
-) -> Result<(), OxenError> {
-    match result {
-        DiffResult::Tabular(result) => {
-            let mut df = result.contents.clone();
-            // Save to disk if we have an output
-            if let Some(file_path) = output {
-                tabular::write_df(&mut df, file_path.clone())?;
-            }
-        }
-        DiffResult::Text(_) => {
-            println!("Saving to disk not supported for text output");
-        }
-    }
-
     Ok(())
 }
 
@@ -816,85 +740,5 @@ pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
 
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
     command::load(src_path, dest_path, no_working_dir)?;
-    Ok(())
-}
-
-fn print_compare_result(result: &DiffResult) -> Result<(), OxenError> {
-    match result {
-        DiffResult::Tabular(result) => {
-            // println!("{:?}", ct.summary);
-            print_column_changes(&result.summary.modifications)?;
-            print_row_changes(&result.summary.modifications)?;
-            println!("{}", pretty_print::df_to_str(&result.contents));
-        }
-        DiffResult::Text(diff) => {
-            print_text_diff(diff);
-        }
-    }
-
-    Ok(())
-}
-
-fn print_text_diff(diff: &TextDiff) {
-    for line in &diff.lines {
-        match line.modification {
-            ChangeType::Unchanged => println!("{}", line.text),
-            ChangeType::Added => println!("{}", line.text.green()),
-            ChangeType::Removed => println!("{}", line.text.red()),
-            ChangeType::Modified => println!("{}", line.text.yellow()),
-        }
-    }
-}
-
-// TODO: Truncate to "and x more"
-fn print_column_changes(mods: &TabularDiffMods) -> Result<(), OxenError> {
-    let mut outputs: Vec<ColoredString> = vec![];
-
-    if !mods.col_changes.added.is_empty() || !mods.col_changes.added.is_empty() {
-        outputs.push("Column changes:\n".into());
-    }
-
-    for col in &mods.col_changes.added {
-        outputs.push(format!("   + {} ({})\n", col.name, col.dtype).green());
-    }
-
-    for col in &mods.col_changes.removed {
-        outputs.push(format!("   - {} ({})\n", col.name, col.dtype).red());
-    }
-
-    for output in outputs {
-        print!("{output}");
-    }
-
-    Ok(())
-}
-
-fn print_row_changes(mods: &TabularDiffMods) -> Result<(), OxenError> {
-    let mut outputs: Vec<ColoredString> = vec![];
-
-    if mods.row_counts.modified + mods.row_counts.added + mods.row_counts.removed == 0 {
-        println!();
-        return Ok(());
-    }
-
-    outputs.push("\nRow changes: \n".into());
-    if mods.row_counts.modified > 0 {
-        outputs.push(format!("   Δ {} (modified)\n", mods.row_counts.modified).yellow());
-    }
-
-    if mods.row_counts.added > 0 {
-        outputs.push(format!("   + {} (added)\n", mods.row_counts.added).green());
-    }
-
-    if mods.row_counts.removed > 0 {
-        outputs.push(format!("   - {} (removed)\n", mods.row_counts.removed).red());
-    }
-
-    for output in outputs {
-        print!("{output}");
-    }
-
-    println!();
-
     Ok(())
 }

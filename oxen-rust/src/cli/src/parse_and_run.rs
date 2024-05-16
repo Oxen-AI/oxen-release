@@ -4,6 +4,7 @@
 //           * create local repo
 //           * printing errors as strings
 
+use crate::cmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::BranchCmd;
 use crate::cmd::DFCmd;
@@ -57,7 +58,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 remote_df(sub_matches).await;
             }
             (DIFF, sub_matches) => {
-                remote_diff(sub_matches).await;
+                let cmd = cmd::remote::RemoteDiffCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (DOWNLOAD, sub_matches) => {
                 remote_download(sub_matches).await;
@@ -702,61 +709,6 @@ pub async fn pull(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn remote_diff(sub_matches: &ArgMatches) {
-    let is_remote = true;
-    p_diff(sub_matches, is_remote).await
-}
-
-pub async fn diff(sub_matches: &ArgMatches) {
-    let is_remote = false;
-    p_diff(sub_matches, is_remote).await
-}
-
-async fn p_diff(sub_matches: &ArgMatches, is_remote: bool) {
-    let resource1 = sub_matches
-        .get_one::<String>("RESOURCE1")
-        .expect("required");
-    let resource2 = sub_matches.get_one::<String>("RESOURCE2");
-
-    let (file1, revision1) = parse_file_and_revision(resource1);
-
-    let file1 = PathBuf::from(file1);
-
-    let (file2, revision2) = match resource2 {
-        Some(resource) => {
-            let (file, revision) = parse_file_and_revision(resource);
-            (Some(PathBuf::from(file)), revision)
-        }
-        None => (None, None),
-    };
-
-    let keys: Vec<String> = match sub_matches.get_many::<String>("keys") {
-        Some(values) => values.cloned().collect(),
-        None => Vec::new(),
-    };
-
-    // We changed the external name to compares, need to refactor internals still
-    let maybe_targets = sub_matches.get_many::<String>("compares");
-
-    let targets = match maybe_targets {
-        Some(values) => values.cloned().collect(),
-        None => Vec::new(),
-    };
-
-    let output = sub_matches.get_one::<String>("output").map(PathBuf::from);
-
-    match dispatch::diff(
-        file1, revision1, file2, revision2, keys, targets, output, is_remote,
-    )
-    .await
-    {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
 pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
     let path_str = sub_matches.get_one::<String>("PATH").expect("required");
     let path = Path::new(path_str);
@@ -917,13 +869,4 @@ pub async fn load(sub_matches: &ArgMatches) {
     let dest_path = Path::new(dest_path_str);
 
     dispatch::load(src_path, dest_path, no_working_dir).expect("Error loading repo from backup.");
-}
-
-fn parse_file_and_revision(file_revision: &str) -> (String, Option<String>) {
-    let parts: Vec<&str> = file_revision.split(':').collect();
-    if parts.len() == 2 {
-        (parts[0].to_string(), Some(parts[1].to_string()))
-    } else {
-        (parts[0].to_string(), None)
-    }
 }

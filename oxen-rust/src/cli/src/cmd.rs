@@ -30,6 +30,9 @@ pub use create_remote::CreateRemoteCmd;
 pub mod df;
 pub use df::DFCmd;
 
+pub mod diff;
+pub use diff::DiffCmd;
+
 pub mod moo;
 pub use moo::MooCmd;
 
