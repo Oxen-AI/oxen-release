@@ -33,7 +33,6 @@ async fn main() {
         .arg_required_else_help(true)
         .allow_external_subcommands(true)
         .subcommand(cmd_setup::commit_cache())
-        .subcommand(cmd_setup::diff())
         .subcommand(cmd_setup::download())
         .subcommand(cmd_setup::info())
         .subcommand(cmd_setup::inspect_kv_db())
@@ -66,7 +65,6 @@ async fn main() {
         Some((cmd_setup::COMMIT_CACHE, sub_matches)) => {
             parse_and_run::compute_commit_cache(sub_matches).await
         }
-        Some((cmd_setup::DIFF, sub_matches)) => parse_and_run::diff(sub_matches).await,
         Some((cmd_setup::DOWNLOAD, sub_matches)) => parse_and_run::download(sub_matches).await,
         Some((cmd_setup::INFO, sub_matches)) => parse_and_run::info(sub_matches),
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),

@@ -76,7 +76,9 @@ impl RunCmd for CreateRemoteCmd {
         // The format is namespace/name
         let parts: Vec<&str> = namespace_name.split('/').collect();
         if parts.len() != 2 {
-            return Err(OxenError::basic_str("Invalid name format. Must be namespace/name"));
+            return Err(OxenError::basic_str(
+                "Invalid name format. Must be namespace/name",
+            ));
         }
 
         let namespace = parts[0];
