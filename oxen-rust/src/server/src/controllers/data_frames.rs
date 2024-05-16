@@ -110,6 +110,7 @@ pub async fn get(
         let start = if page == 0 { 0 } else { page_size * (page - 1) };
         let end = page_size * page;
         opts.slice = Some(format!("{}..{}", start, end));
+        log::debug!("imputed slice params {:?}", opts.slice);
     }
 
     if let Some(sql) = opts.sql.clone() {
@@ -195,6 +196,7 @@ pub async fn get(
             let total_pages = (view_height as f64 / page_opts.page_size as f64).ceil() as usize;
 
             let mut df = tabular::transform_slice(df_view, data_frame_size.height, opts.clone())?;
+            log::debug!("here's our post-slice df {:?}", df);
 
             let mut slice_schema = Schema::from_polars(&df.schema());
             log::debug!("OG schema {:?}", og_schema);
@@ -286,7 +288,7 @@ fn format_sql_df_response(
     // For sql, paginate before the view to avoid double-slicing and get correct view size numbers.
     let og_df_height = df.height();
     let paginated_df = tabular::paginate_df(df, page_opts)?;
-    log::debug!("paginated df size {:?}", paginated_df.height());
+
     let view = JsonDataFrameView::from_df_opts_unpaginated(
         paginated_df,
         og_schema.clone(),
