@@ -21,6 +21,7 @@ async fn main() {
         Box::new(cmd::BranchCmd),
         Box::new(cmd::CheckoutCmd),
         Box::new(cmd::CloneCmd),
+        Box::new(cmd::ConfigCmd),
         Box::new(cmd::CommitCmd),
         Box::new(cmd::CreateRemoteCmd),
         Box::new(cmd::DFCmd),
