@@ -151,7 +151,11 @@ impl JsonDataFrameView {
         let full_width = df.width();
         let view_height = df.height();
 
-        let opts_view = DFOptsView::from_df_opts(opts);
+        // Unpaginated means we don't need to slice the df
+        let mut opts = opts.clone();
+        opts.slice = None;
+
+        let opts_view = DFOptsView::from_df_opts(&opts);
         let mut sliced_df = tabular::transform(df, opts.clone()).unwrap();
 
         // Merge the metadata from the original schema
