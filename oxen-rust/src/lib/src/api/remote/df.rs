@@ -422,7 +422,7 @@ mod tests {
             api::remote::df::index_df(&remote_repo, DEFAULT_BRANCH_NAME, "large_files/test.csv")
                 .await?;
 
-            // Get the df
+            // Get the df page 1
             let mut opts = DFOpts::empty();
             opts.page_size = Some(100);
             opts.sql = Some(
@@ -441,6 +441,7 @@ mod tests {
 
             assert_eq!(df.data_frame.view.size.height, 100);
             assert_eq!(df.data_frame.view.size.width, 3);
+            assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 100);
 
             assert_eq!(df.data_frame.view.pagination.page_number, 1);
             assert_eq!(df.data_frame.view.pagination.page_size, 100);
@@ -448,6 +449,33 @@ mod tests {
             assert_eq!(df.data_frame.view.pagination.total_pages, 373);
 
             assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 100);
+
+            // Get the df page 2
+            let mut opts = DFOpts::empty();
+            opts.page = Some(2);
+            opts.page_size = Some(100);
+            opts.sql = Some(
+                "SELECT image_id,lefteye_x,lefteye_y FROM df WHERE lefteye_x > 70".to_string(),
+            );
+            let df = api::remote::df::get(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                PathBuf::from("large_files").join("test.csv"),
+                opts,
+            )
+            .await?;
+
+            assert_eq!(df.data_frame.source.size.height, 200_000);
+            assert_eq!(df.data_frame.source.size.width, 11);
+
+            assert_eq!(df.data_frame.view.size.height, 100);
+            assert_eq!(df.data_frame.view.size.width, 3);
+            assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 100);
+
+            assert_eq!(df.data_frame.view.pagination.page_number, 2);
+            assert_eq!(df.data_frame.view.pagination.page_size, 100);
+            assert_eq!(df.data_frame.view.pagination.total_entries, 37_291);
+            assert_eq!(df.data_frame.view.pagination.total_pages, 373);
 
             Ok(())
         })
