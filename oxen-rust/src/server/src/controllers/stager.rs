@@ -872,10 +872,7 @@ pub async fn unindex_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpE
     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
 
-pub async fn index_dataset(
-    req: HttpRequest,
-    query: web::Query<DFOptsQuery>,
-) -> Result<HttpResponse, OxenHttpError> {
+pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -897,42 +894,17 @@ pub async fn index_dataset(
     // Initialize the branch repository before any operations
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    let mut opts = DFOpts::empty();
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-
     match liboxen::core::index::remote_df_stager::index_dataset(
         &repo,
         &branch,
         &resource.file_path,
         &identifier,
-        &opts,
     ) {
-        Ok(df) => {
+        Ok(_) => {
             log::info!(
                 "Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}"
             );
-            let schema = Schema::from_polars(&df.schema());
-            let full_height = index::remote_df_stager::count(
-                &repo,
-                &branch,
-                resource.file_path.clone(),
-                &identifier,
-            )?;
-            let response = JsonDataFrameViewResponse {
-                status: StatusMessage::resource_created(),
-                data_frame: JsonDataFrameViews::from_df_and_opts_unpaginated(
-                    df,
-                    schema,
-                    full_height,
-                    &opts,
-                ),
-                commit: None,
-                resource: Some(ResourceVersion {
-                    path: resource.file_path.to_string_lossy().to_string(),
-                    version: resource.version(),
-                }),
-                derived_resource: None,
-            };
+            let response = StatusMessage::resource_created();
             Ok(HttpResponse::Ok().json(response))
         }
         Err(err) => {

@@ -38,7 +38,6 @@ mod tests {
     // use crate::config::UserConfig;
     // use crate::constants;
     use crate::error::OxenError;
-    use crate::model::ContentType;
     // use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::test;
@@ -63,7 +62,6 @@ mod tests {
 
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
-                opts.content_type = ContentType::Json;
                 command::remote::df(&cloned_repo, &path, opts).await?;
 
                 // Local add col

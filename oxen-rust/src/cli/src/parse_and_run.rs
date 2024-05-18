@@ -7,7 +7,6 @@
 use crate::cmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::BranchCmd;
-use crate::cmd::DFCmd;
 use crate::cmd::RunCmd;
 use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
@@ -55,7 +54,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 remote_log(sub_matches).await;
             }
             (DF, sub_matches) => {
-                remote_df(sub_matches).await;
+                let cmd = cmd::remote::RemoteDfCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (DIFF, sub_matches) => {
                 let cmd = cmd::remote::RemoteDiffCmd {};
@@ -434,18 +439,6 @@ pub async fn log(sub_matches: &ArgMatches) {
 
 pub async fn fetch(_: &ArgMatches) {
     match dispatch::fetch().await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-async fn remote_df(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("DF_SPEC").expect("required");
-    let opts = DFCmd::parse_df_args(sub_matches);
-
-    match dispatch::remote_df(path, opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

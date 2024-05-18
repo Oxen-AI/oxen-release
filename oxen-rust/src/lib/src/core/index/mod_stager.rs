@@ -19,7 +19,6 @@ use crate::model::diff::DiffResult;
 use crate::model::entry::mod_entry::NewMod;
 use crate::model::{Branch, CommitEntry, LocalRepository};
 
-use crate::opts::DFOpts;
 use crate::{api, util};
 
 use super::remote_dir_stager;
@@ -145,10 +144,8 @@ pub fn restore_df(
     // Unstage and then restage the df
     remote_df_stager::unindex_df(repo, branch, identity, &path)?;
 
-    let opts = DFOpts::empty();
-
     // TODO: we could do this more granularly without a full reset
-    remote_df_stager::index_dataset(repo, branch, path.as_ref(), identity, &opts)?;
+    remote_df_stager::index_dataset(repo, branch, path.as_ref(), identity)?;
 
     Ok(())
 }
@@ -319,8 +316,7 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
             mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
 
             // List the files that are changed
@@ -365,8 +361,7 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             let append_entry_1 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
             let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?.to_string();
@@ -442,12 +437,9 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let opts = DFOpts::empty();
-            // Is this even necessary?
-            // let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
 
             log::debug!("indexing the dataset at filepath {:?}", file_path);
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
             log::debug!("indexed the dataset");
 
             let append_entry_1 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
@@ -530,8 +522,7 @@ mod tests {
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
@@ -630,8 +621,7 @@ mod tests {
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             // Add a row
             let add_mod = NewMod {
@@ -703,8 +693,7 @@ mod tests {
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             // Add a row
             let add_mod = NewMod {
@@ -780,8 +769,7 @@ mod tests {
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
@@ -872,8 +860,7 @@ mod tests {
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
@@ -962,8 +949,7 @@ mod tests {
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &file_path, &identity)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();

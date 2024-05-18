@@ -111,7 +111,6 @@ mod tests {
     use crate::command;
     use crate::core::df::tabular;
     use crate::error::OxenError;
-    use crate::model::ContentType;
     use crate::opts::DFOpts;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
@@ -307,7 +306,6 @@ mod tests {
 
             let mut opts = DFOpts::empty();
             opts.add_row = Some("{\"file\": \"train/dog_99.jpg\", \"label\": \"dog\", \"min_x\": 101.5, \"min_y\": 32.0, \"width\": 385, \"height\": 330}".to_string());
-            opts.content_type = ContentType::Json;
             let mut df = tabular::read_df(&bbox_path, opts)?;
             tabular::write_df(&mut df, &bbox_path)?;
 
