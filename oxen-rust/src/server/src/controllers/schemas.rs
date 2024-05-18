@@ -39,7 +39,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 resource.file_path.to_string_lossy(),
             )?;
 
-            if schemas.len() == 0 {
+            if schemas.is_empty() {
                 return Err(OxenHttpError::NotFound);
             }
 

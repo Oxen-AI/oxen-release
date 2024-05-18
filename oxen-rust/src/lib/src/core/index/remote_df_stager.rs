@@ -28,8 +28,7 @@ pub fn index_dataset(
     branch: &Branch,
     path: &Path,
     identifier: &str,
-    opts: &DFOpts,
-) -> Result<DataFrame, OxenError> {
+) -> Result<(), OxenError> {
     if !util::fs::is_tabular(path) {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.must be tabular.",
@@ -64,35 +63,45 @@ pub fn index_dataset(
         std::fs::create_dir_all(db_path.parent().expect("Failed to get parent directory"))?;
     }
 
-    let maybe_preview = copy_duckdb_if_already_indexed(repo, &entry, opts, &db_path)?;
-
-    if let Some(preview) = maybe_preview {
-        return Ok(preview);
-    }
+    copy_duckdb_if_already_indexed(repo, &entry, &db_path)?;
 
     let conn = df_db::get_connection(db_path)?;
-
     if df_db::table_exists(&conn, TABLE_NAME)? {
         df_db::drop_table(&conn, TABLE_NAME)?;
     }
     let version_path = util::fs::version_path(repo, &entry);
 
-    log::debug!("index_dataset() got version path: {:?}", version_path);
+    log::debug!(
+        "index_dataset({:?}) got version path: {:?}",
+        entry.path,
+        version_path
+    );
 
     df_db::index_file_with_id(&version_path, &conn)?;
+    log::debug!("index_dataset({:?}) finished!", entry.path);
 
     add_row_status_cols(&conn)?;
 
-    let preview = df_db::preview(&conn, TABLE_NAME)?;
-    log::debug!("index_dataset() got preview: {:?}", preview);
+    Ok(())
+}
 
-    let commit_path = mod_stager::mods_commit_ref_path(repo, branch, identifier, &entry.path);
-    std::fs::write(commit_path, branch.commit_id.as_str())?;
-
-    let select = Select::new().select("*").from(TABLE_NAME);
-    let preview = df_db::select(&conn, &select, true, None, Some(opts))?;
-
-    Ok(preview)
+fn copy_duckdb_if_already_indexed(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+    new_db_path: &Path,
+) -> Result<(), OxenError> {
+    let maybe_existing_db_path = sql::db_cache_path(repo, entry);
+    let conn = df_db::get_connection(&maybe_existing_db_path)?;
+    if df_db::table_exists(&conn, TABLE_NAME)? {
+        log::debug!(
+            "copying existing db from {:?} to {:?}",
+            maybe_existing_db_path,
+            new_db_path
+        );
+        std::fs::copy(&maybe_existing_db_path, new_db_path)?;
+        return Ok(());
+    }
+    Ok(())
 }
 
 pub fn unindex_df(
@@ -406,23 +415,6 @@ fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
     );
     conn.execute(&query_hash, [])?;
     Ok(())
-}
-
-fn copy_duckdb_if_already_indexed(
-    repo: &LocalRepository,
-    entry: &CommitEntry,
-    opts: &DFOpts,
-    new_db_path: &Path,
-) -> Result<Option<DataFrame>, OxenError> {
-    let maybe_existing_db_path = sql::db_cache_path(repo, entry);
-    let conn = df_db::get_connection(&maybe_existing_db_path)?;
-    if df_db::table_exists(&conn, TABLE_NAME)? {
-        std::fs::copy(&maybe_existing_db_path, new_db_path)?;
-        let select = Select::new().select("*").from(TABLE_NAME);
-        let preview = df_db::select(&conn, &select, true, None, Some(opts))?;
-        return Ok(Some(preview));
-    }
-    Ok(None)
 }
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {

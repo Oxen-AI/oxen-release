@@ -1,12 +1,10 @@
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use async_trait::async_trait;
 use clap::{arg, Arg, ArgMatches, Command};
 
 use liboxen::command;
 use liboxen::error::OxenError;
-use liboxen::model::ContentType;
 
 use crate::cmd::RunCmd;
 
@@ -71,6 +69,18 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("page")
+                .long("page")
+                .help("Page number when paginating through the data frame. Default page = 1")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("page-size")
+                .long("page-size")
+                .help("Paginated through the data frame. Default page-size = 10")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("head")
                 .long("head")
                 .help("Grab the first N entries of the data frame.")
@@ -127,6 +137,13 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(
+            Arg::new("unique")
+                .long("unique")
+                .short('u')
+                .help("Unique the output by a set of column names. Takes a comma separated set of column names ie: \"text,label\".")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("schema")
                 .long("schema")
                 .help("Print the full list of columns and data types within the schema in a dataframe.")
@@ -138,12 +155,33 @@ impl RunCmd for DFCmd {
                 .help("Print the full list of columns and data types within the schema.")
                 .action(clap::ArgAction::SetTrue),
         )
+        .arg(
+            Arg::new("add-col")
+                .long("add-col")
+                .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("add-row")
+                .long("add-row")
+                .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("delete-row")
+                .long("delete-row")
+                .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
+                .action(clap::ArgAction::Set),
+        )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let opts = DFCmd::parse_df_args(args);
-        let path = args.get_one::<String>("DF_SPEC").expect("required");
+        let Some(path) = args.get_one::<String>("DF_SPEC") else {
+            return Err(OxenError::basic_str("Must supply a DataFrame to process."));
+        };
+
         if args.get_flag("schema") || args.get_flag("schema-flat") {
             let flatten = args.get_flag("schema-flat");
             let result = command::df::schema(path, flatten, opts)?;
@@ -164,12 +202,6 @@ impl DFCmd {
         } else {
             None
         };
-
-        let mut content_type = "json";
-        let maybe_content_type = args.get_one::<String>("content-type");
-        if let Some(c) = maybe_content_type {
-            content_type = c;
-        }
 
         liboxen::opts::DFOpts {
             output: args
@@ -194,24 +226,18 @@ impl DFCmd {
                 .map(|x| x.parse::<usize>().expect("row must be valid int")),
             take: args.get_one::<String>("take").map(String::from),
             columns: args.get_one::<String>("columns").map(String::from),
-            filter: args.get_one::<String>("filter").map(String::from),
-            aggregate: args.get_one::<String>("aggregate").map(String::from),
-            col_at: args.get_one::<String>("col-at").map(String::from),
+            item: args.get_one::<String>("item").map(String::from),
             vstack,
-            index: args.get_flag("index"),
             add_col: args.get_one::<String>("add-col").map(String::from),
             add_row: args.get_one::<String>("add-row").map(String::from),
-            get_row: args.get_one::<String>("get-row").map(String::from),
             delete_row: args.get_one::<String>("delete-row").map(String::from),
             sort_by: args.get_one::<String>("sort").map(String::from),
             sql: args.get_one::<String>("sql").map(String::from),
             text2sql: args.get_one::<String>("text2sql").map(String::from),
             host: args.get_one::<String>("host").map(String::from),
             unique: args.get_one::<String>("unique").map(String::from),
-            content_type: ContentType::from_str(content_type).unwrap(),
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
-            committed: args.get_flag("committed"),
         }
     }
 }

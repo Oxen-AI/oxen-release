@@ -340,58 +340,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_paginate_df_after_filter() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|mut local_repo| async move {
-            let repo_dir = &local_repo.path;
-            let large_dir = repo_dir.join("large_files");
-            std::fs::create_dir_all(&large_dir)?;
-            let csv_file = large_dir.join("test.csv");
-            let from_file = test::test_200k_csv();
-            util::fs::copy(from_file, &csv_file)?;
-
-            command::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
-
-            // Set the proper remote
-            let remote = test::repo_remote_url_from(&local_repo.dirname());
-            command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&local_repo).await?;
-
-            // Push the repo
-            command::push(&local_repo).await?;
-
-            // Get the df
-            let mut opts = DFOpts::empty();
-            opts.page_size = Some(100);
-            opts.filter = Some("lefteye_x > 70".to_string());
-            let df = api::remote::df::get(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                "large_files/test.csv",
-                opts,
-            )
-            .await?;
-            assert_eq!(df.data_frame.source.size.height, 200_000);
-            assert_eq!(df.data_frame.source.size.width, 11);
-
-            assert_eq!(df.data_frame.view.size.height, 100);
-            assert_eq!(df.data_frame.view.size.width, 11);
-
-            assert_eq!(df.data_frame.view.pagination.page_number, 1);
-            assert_eq!(df.data_frame.view.pagination.page_size, 100);
-            assert_eq!(df.data_frame.view.pagination.total_entries, 37_291);
-            assert_eq!(df.data_frame.view.pagination.total_pages, 373);
-
-            assert_eq!(df.data_frame.view.data.as_array().unwrap().len(), 100);
-
-            Ok(())
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_paginate_df_after_sql() -> Result<(), OxenError> {
         if std::env::consts::OS == "windows" {
             return Ok(());

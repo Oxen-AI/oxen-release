@@ -580,11 +580,7 @@ pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), Oxe
     let host = get_host_from_repo(&repo)?;
     check_remote_version(host).await?;
 
-    if opts.committed {
-        command::remote::df(&repo, input, opts).await?;
-    } else {
-        command::remote::staged_df(&repo, input, opts).await?;
-    }
+    command::remote::staged_df(&repo, input, opts).await?;
 
     Ok(())
 }

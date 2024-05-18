@@ -9,6 +9,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::cmd::add::add_args;
 use crate::cmd::df::DFCmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
+use crate::cmd::remote::df::RemoteDfCmd;
 
 pub const ADD: &str = "add";
 pub const BRANCH: &str = "branch";
@@ -56,7 +57,7 @@ pub fn remote() -> Command {
                 .action(clap::ArgAction::Set))
         )
         .subcommand(RemoteCommitCmd.args())
-        .subcommand(DFCmd.args())
+        .subcommand(RemoteDfCmd.args())
         .subcommand(diff())
         .subcommand(download())
         .subcommand(log())

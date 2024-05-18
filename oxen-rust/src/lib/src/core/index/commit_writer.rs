@@ -903,13 +903,11 @@ mod tests {
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let identity = UserConfig::identifier()?;
 
-            let opts = DFOpts::empty();
-
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
             let append_contents = "{\"NOT_REAL_COLUMN\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
@@ -949,8 +947,7 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
             index::mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),
