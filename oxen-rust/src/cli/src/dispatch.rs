@@ -605,27 +605,6 @@ pub fn schema_name(schema_ref: &str, val: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn schema_list(staged: bool) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let schemas = if staged {
-        command::schemas::list_staged(&repository)?
-    } else {
-        command::schemas::list(&repository, None)?
-    };
-
-    if schemas.is_empty() && staged {
-        eprintln!("{}", OxenError::no_schemas_staged());
-    } else if schemas.is_empty() {
-        eprintln!("{}", OxenError::no_schemas_committed());
-    } else {
-        let result = schema::Schema::schemas_to_string(schemas);
-        println!("{result}");
-    }
-
-    Ok(())
-}
-
 pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -636,64 +615,6 @@ pub fn schema_list_commit_id(commit_id: &str) -> Result<(), OxenError> {
         let result = schema::Schema::schemas_to_string(schemas);
         println!("{result}");
     }
-    Ok(())
-}
-
-pub fn schema_rm(schema_ref: impl AsRef<str>, staged: bool) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    command::schemas::rm(&repository, schema_ref, staged)?;
-
-    Ok(())
-}
-
-pub fn schema_add_column_metadata(
-    schema_ref: impl AsRef<str>,
-    column: impl AsRef<str>,
-    metadata: impl AsRef<str>,
-) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    // make sure metadata is valid json, return oxen error if not
-    let metadata: serde_json::Value = serde_json::from_str(metadata.as_ref()).map_err(|e| {
-        OxenError::basic_str(format!(
-            "Metadata must be valid JSON: '{}'\n{}",
-            metadata.as_ref(),
-            e
-        ))
-    })?;
-
-    for (path, schema) in
-        command::schemas::add_column_metadata(&repository, schema_ref, column, &metadata)?
-    {
-        println!("{:?}\n{}", path, schema.verbose_str());
-    }
-
-    Ok(())
-}
-
-pub fn schema_add_metadata(
-    schema_ref: impl AsRef<str>,
-    metadata: impl AsRef<str>,
-) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let metadata: serde_json::Value = serde_json::from_str(metadata.as_ref()).map_err(|e| {
-        OxenError::basic_str(format!(
-            "Metadata must be valid JSON: '{}'\n{}",
-            metadata.as_ref(),
-            e
-        ))
-    })?;
-
-    for (path, schema) in command::schemas::add_schema_metadata(&repository, schema_ref, &metadata)?
-    {
-        println!("{:?}\n{}", path, schema.verbose_str());
-    }
-
     Ok(())
 }
 
