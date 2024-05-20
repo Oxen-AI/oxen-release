@@ -1170,10 +1170,12 @@ fn detect_image_format(path: &Path) -> Result<ImageFormat, OxenError> {
 
     match image::guess_format(&buffer) {
         Ok(format) => Ok(format),
-        Err(_) => Err(OxenError::basic_str(format!("Unknown image format for file: {:?}", path))),
+        Err(_) => Err(OxenError::basic_str(format!(
+            "Unknown image format for file: {:?}",
+            path
+        ))),
     }
 }
-
 
 // Caller must provide out path because it differs between remote staged vs. committed files
 pub fn resize_cache_image(
@@ -1186,13 +1188,13 @@ pub fn resize_cache_image(
         return Ok(());
     }
 
-    let image_format =  detect_image_format(image_path);
+    let image_format = detect_image_format(image_path);
     let img = match image_format {
         Ok(format) => image::load(BufReader::new(File::open(image_path)?), format)?,
         Err(_) => {
             log::debug!("Could not detect image format, opening file without format");
             image::open(image_path)?
-        },
+        }
     };
 
     let resized_img = if resize.width.is_some() && resize.height.is_some() {
