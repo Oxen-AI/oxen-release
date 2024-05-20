@@ -121,7 +121,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb \
+            -p oxen-server-ubuntu-latest.deb \
             -C target/release \
             --name oxen-server \
             --version ${{ env.RELEASE_VERSION }} \
@@ -135,7 +135,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb \
+            -p oxen-ubuntu-latest.deb \
             -C target/release \
             --name oxen \
             --version ${{ env.RELEASE_VERSION }} \
@@ -150,8 +150,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
-          asset_name: oxen-server-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          file: oxen-server-ubuntu-latest.deb
+          asset_name: oxen-server-ubuntu-latest.deb
           tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
@@ -159,8 +159,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
-          asset_name: oxen-ubuntu-latest-${{ env.RELEASE_VERSION }}.deb
+          file: oxen-ubuntu-latest.deb
+          asset_name: oxen-ubuntu-latest.deb
           tag: ${{ github.ref }}
 
   release_ubuntu_20_04:
@@ -235,7 +235,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb \
+            -p oxen-server-ubuntu-20.04.deb \
             -C target/release \
             --name oxen-server \
             --version ${{ env.RELEASE_VERSION }} \
@@ -249,7 +249,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb \
+            -p oxen-ubuntu-20.04.deb \
             -C target/release \
             --name oxen \
             --version ${{ env.RELEASE_VERSION }} \
@@ -264,8 +264,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
-          asset_name: oxen-server-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
+          file: oxen-server-ubuntu-20.04.deb
+          asset_name: oxen-server-ubuntu-20.04.deb
           tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
@@ -273,8 +273,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
-          asset_name: oxen-ubuntu-20.04-${{ env.RELEASE_VERSION }}.deb
+          file: oxen-ubuntu-20.04.deb
+          asset_name: oxen-ubuntu-20.04.deb
           tag: ${{ github.ref }}
 
   release_windows_latest:
