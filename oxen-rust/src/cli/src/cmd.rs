@@ -38,6 +38,9 @@ pub use moo::MooCmd;
 
 pub mod remote;
 
+pub mod schemas;
+pub use schemas::SchemasAddCmd;
+
 #[async_trait]
 pub trait RunCmd {
     fn name(&self) -> &str;

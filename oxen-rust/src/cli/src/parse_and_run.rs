@@ -459,56 +459,11 @@ pub fn schemas(sub_matches: &ArgMatches) {
                     }
                 }
             }
-            ("add", sub_matches) => {
-                // Path
-                let path = sub_matches.get_one::<String>("PATH");
-
-                // Flags
-                let column = sub_matches.get_one::<String>("column");
-                let metadata = sub_matches.get_one::<String>("metadata");
-
-                let err_msg = "Must supply a file path, column name and either -m for metadata or -t for data type\n\n  oxen schemas add file.csv -c 'col1' -t 'str'\n";
-
-                if path.is_none() {
-                    eprintln!("{err_msg}");
-                    return;
-                }
-
-                let path = path.unwrap();
-
-                // If a column is supplied, then we need to supply a data type or metadata for that column
-                if let Some(column) = column {
-                    if let Some(metadata) = metadata {
-                        match dispatch::schema_add_column_metadata(path, column, metadata) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                eprintln!("{err}")
-                            }
-                        }
-                    }
-                } else {
-                    // No column, check if we are just adding metadata to the schema
-                    if let Some(metadata) = metadata {
-                        match dispatch::schema_add_metadata(path, metadata) {
-                            Ok(_) => {}
-                            Err(err) => {
-                                eprintln!("{err}")
-                            }
-                        }
-                    }
-                }
+            ("add", _) => {
+                panic!("Schemas add has been moved")
             }
-            ("rm", sub_matches) => {
-                let val = sub_matches
-                    .get_one::<String>("NAME_OR_HASH")
-                    .expect("required");
-
-                match dispatch::schema_rm(val, sub_matches.get_flag("staged")) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
+            ("rm", _) => {
+                panic!("Schemas rm has been moved")
             }
             (cmd, _) => {
                 eprintln!("Unknown schema subcommand {cmd}")
@@ -526,12 +481,7 @@ pub fn schemas(sub_matches: &ArgMatches) {
             }
         }
     } else {
-        match dispatch::schema_list(sub_matches.get_flag("staged")) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
+        panic!("Schema subcommand not found");
     }
 }
 
