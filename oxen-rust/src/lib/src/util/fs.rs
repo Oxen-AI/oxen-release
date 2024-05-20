@@ -27,6 +27,8 @@ use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
+use image::ImageFormat;
+
 use crate::{api, util};
 
 // Deprecated
@@ -1161,6 +1163,20 @@ pub fn is_any_parent_in_set(file_path: &Path, path_set: &HashSet<PathBuf>) -> bo
     false
 }
 
+fn detect_image_format(path: &Path) -> Result<ImageFormat, OxenError> {
+    let mut file = File::open(path)?;
+    let mut buffer = [0; 10];
+    file.read_exact(&mut buffer)?;
+
+    match image::guess_format(&buffer) {
+        Ok(format) => Ok(format),
+        Err(_) => Err(OxenError::basic_str(format!(
+            "Unknown image format for file: {:?}",
+            path
+        ))),
+    }
+}
+
 // Caller must provide out path because it differs between remote staged vs. committed files
 pub fn resize_cache_image(
     image_path: &Path,
@@ -1172,7 +1188,14 @@ pub fn resize_cache_image(
         return Ok(());
     }
 
-    let img = image::open(image_path)?;
+    let image_format = detect_image_format(image_path);
+    let img = match image_format {
+        Ok(format) => image::load(BufReader::new(File::open(image_path)?), format)?,
+        Err(_) => {
+            log::debug!("Could not detect image format, opening file without format");
+            image::open(image_path)?
+        }
+    };
 
     let resized_img = if resize.width.is_some() && resize.height.is_some() {
         img.resize_exact(
