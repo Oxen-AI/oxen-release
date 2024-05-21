@@ -138,9 +138,31 @@ impl DataType {
             DataType::String => "VARCHAR", // variable-length character string
             DataType::Date => "DATE",     // calendar date (year, month day)
             DataType::Time => "TIME",     // time of day (no time zone)
-            DataType::List(_) => panic!("TODO: implement list type for SQL"), // https://duckdb.org/docs/sql/data_types/list
-            DataType::Null => "NULL",                                         // null value
-            DataType::Unknown => panic!("TODO: unknown SQL type: {}", self),
+            DataType::List(dtype) => match dtype.as_ref() {
+                DataType::Boolean => "BOOL[]",
+                DataType::UInt8 => "UTINYINT[]",
+                DataType::UInt16 => "USMALLINT[]",
+                DataType::UInt32 => "UINTEGER[]",
+                DataType::UInt64 => "UBIGINT[]",
+                DataType::Int8 => "TINYINT[]",
+                DataType::Int16 => "SMALLINT[]",
+                DataType::Int32 => "INTEGER[]",
+                DataType::Int64 => "BIGINT[]",
+                DataType::Float32 => "FLOAT[]",
+                DataType::Float64 => "DOUBLE[]",
+                DataType::String => "VARCHAR[]",
+                DataType::Date => "DATE[]",
+                DataType::Time => "TIME[]",
+                _ => {
+                    log::error!("TODO: to_sql unknown SQL DataType::List type {}", dtype);
+                    "UNKNOWN[]"
+                }
+            }, // https://duckdb.org/docs/sql/data_types/list
+            DataType::Null => "NULL",     // null value
+            DataType::Unknown => {
+                log::error!("TODO: to_sql unknown SQL DataType::Unknown type {}", self);
+                "UNKNOWN"
+            }
         }
     }
 
@@ -162,7 +184,22 @@ impl DataType {
             "TIME" => DataType::Time,     // time of day (no time zone)
             "NULL" => DataType::Null,     // null value
             "UUID" => DataType::String,
-            other => panic!("TODO: unknown SQL type: {}", other),
+            "BOOLEAN" => DataType::Boolean,
+            "BOOL[]" => DataType::List(Box::new(DataType::Boolean)),
+            "UTINYINT[]" => DataType::List(Box::new(DataType::UInt8)),
+            "USMALLINT[]" => DataType::List(Box::new(DataType::UInt16)),
+            "UINTEGER[]" => DataType::List(Box::new(DataType::UInt32)),
+            "UBIGINT[]" => DataType::List(Box::new(DataType::UInt64)),
+            "TINYINT[]" => DataType::List(Box::new(DataType::Int8)),
+            "SMALLINT[]" => DataType::List(Box::new(DataType::Int16)),
+            "INTEGER[]" => DataType::List(Box::new(DataType::Int32)),
+            "BIGINT[]" => DataType::List(Box::new(DataType::Int64)),
+            "FLOAT[]" => DataType::List(Box::new(DataType::Float32)),
+            "DOUBLE[]" => DataType::List(Box::new(DataType::Float64)),
+            "VARCHAR[]" => DataType::List(Box::new(DataType::String)),
+            "DATE[]" => DataType::List(Box::new(DataType::Date)),
+            "TIME[]" => DataType::List(Box::new(DataType::Time)),
+            _ => DataType::Unknown,
         }
     }
 }

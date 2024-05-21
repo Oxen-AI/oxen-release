@@ -1,9 +1,15 @@
+use crate::cmd::RunCmd;
 use clap::{arg, Arg, Command};
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
     Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+
+use crate::cmd::add::add_args;
+use crate::cmd::df::DFCmd;
+use crate::cmd::remote::commit::RemoteCommitCmd;
+use crate::cmd::remote::df::RemoteDfCmd;
 
 pub const ADD: &str = "add";
 pub const BRANCH: &str = "branch";
@@ -18,7 +24,6 @@ pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
 pub const DOWNLOAD: &str = "download";
 pub const INFO: &str = "info";
-pub const INIT: &str = "init";
 pub const FETCH: &str = "fetch";
 pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const LOAD: &str = "load";
@@ -38,108 +43,12 @@ pub const SCHEMAS: &str = "schemas";
 pub const STATUS: &str = "status";
 pub const UPLOAD: &str = "upload";
 
-pub fn init() -> Command {
-    Command::new(INIT)
-        .about("Initializes a local repository")
-        .arg(arg!([PATH] "The directory to establish the repo in. Defaults to the current directory."))
-}
-
-pub fn config() -> Command {
-    Command::new(CONFIG)
-        .about("Sets the user configuration in ~/.oxen/user_config.toml")
-        .arg(
-            Arg::new("name")
-                .long("name")
-                .short('n')
-                .help("Set the name you want your commits to be saved as.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("email")
-                .long("email")
-                .short('e')
-                .help("Set the email you want your commits to be saved as.")
-                .action(clap::ArgAction::Set),
-        )
-        // Note: we differ from git here because we have the concept of a remote
-        //       staging area which uses the `oxen remote add` subcommand
-        .arg(
-            Arg::new("set-remote")
-                .long("set-remote")
-                .number_of_values(2)
-                .value_names(["NAME", "URL"])
-                .help("Set a remote for your current working repository.")
-                .action(clap::ArgAction::Set),
-        )
-        // "delete-remote" is easier to read than "remove-remote"
-        .arg(
-            Arg::new("delete-remote")
-                .long("delete-remote")
-                .number_of_values(2)
-                .help("Delete a remote from the current working repository.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("auth-token")
-                .long("auth")
-                .short('a')
-                .number_of_values(2)
-                .value_names(["HOST", "TOKEN"])
-                .help("Set the authentication token for a specific oxen-server host.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("default-host")
-                .long("default-host")
-                .help("Sets the default host used to check version numbers. If empty, the CLI will not do a version check.")
-                .action(clap::ArgAction::Set),
-        )
-}
-
-pub fn create_remote() -> Command {
-    Command::new(CREATE_REMOTE)
-        .about("Creates a remote repository with the name on the host. Default behavior is to create a remote on the hub.oxen.ai remote.")
-        .arg(
-            Arg::new("name")
-                .long("name")
-                .short('n')
-                .help("The namespace/name of the remote repository you want to create. For example: 'ox/my_repo'")
-                .required(true)
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("host")
-                .long("host")
-                .help("The host you want to create the remote repository on. For example: 'hub.oxen.ai'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("scheme")
-                .long("scheme")
-                .help("The scheme for the url of the remote repository. For example: 'https' or 'http'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("add_readme")
-                .long("add_readme")
-                .help("If present, it will create a README file and initial commit in the remote repo.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("is_public")
-                .long("is_public")
-                .short('p')
-                .help("If present, it will create a public remote repository.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
 pub fn remote() -> Command {
     Command::new(REMOTE)
         .about("Interact with a remote repository without cloning everything locally.")
         // The commands that you can run locally mirrored here
         .subcommand(
-            add()
+            add_args()
                 // can specify a path on the remote add command for where the file will be added to
                 .arg(Arg::new("path")
                 .long("path")
@@ -147,8 +56,8 @@ pub fn remote() -> Command {
                 .help("Specify a path in which to add the file to. Will strip down the path to the file's basename, and add in this directory.")
                 .action(clap::ArgAction::Set))
         )
-        .subcommand(commit())
-        .subcommand(df())
+        .subcommand(RemoteCommitCmd.args())
+        .subcommand(RemoteDfCmd.args())
         .subcommand(diff())
         .subcommand(download())
         .subcommand(log())
@@ -293,201 +202,6 @@ pub fn ls() -> Command {
         )
 }
 
-pub fn df() -> Command {
-    Command::new(DF)
-        .about("View and transform data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.")
-        .arg(arg!(<DF_SPEC> ... "The DataFrame you want to process. If in the schema subcommand the schema ref."))
-        .arg_required_else_help(true)
-        .arg(
-            Arg::new("output")
-                .long("output")
-                .short('o')
-                .help("Output file to store the transformed data")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("delimiter")
-                .long("delimiter")
-                .short('d')
-                .help("The delimiter to use when reading the file. Default is ','")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("columns")
-                .long("columns")
-                .short('c')
-                .help("A comma separated set of columns names to look at. Ex file,x,y")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("filter")
-                .long("filter")
-                .short('f')
-                .help("An filter the row data based on an expression. Supported Ops (=, !=, >, <, <= , >=) Supported dtypes (str,int,float)")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("aggregate")
-                .long("aggregate")
-                .short('a')
-                .help("Aggregate up values based on field.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("col-at")
-                .long("col-at")
-                .help("Select a specific row item from column to view it fully. Format: 'col_name:index' ie: 'my_col_name:3'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("row")
-                .long("row")
-                .help("Select a specific row to view it fully. Format: '3'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("vstack")
-                .long("vstack")
-                .help("Combine row data from different files. The number of columns must match.")
-                .action(clap::ArgAction::Append),
-        )
-        .arg(
-            Arg::new("slice")
-                .long("slice")
-                .help("A continuous slice of the data you want to look at. Format: 'start..end' Ex) '10..25' will take 15 elements, starting at 10 and ending at 25.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("head")
-                .long("head")
-                .help("Grab the first N entries of the data frame.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("tail")
-                .long("tail")
-                .help("Grab the last N entries of the data frame.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("page")
-                .long("page")
-                .help("Page number when paginating through the data frame. Default page = 1")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("page-size")
-                .long("page-size")
-                .help("Paginated through the data frame. Default page-size = 10")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("take")
-                .long("take")
-                .short('t')
-                .help("A comma separated set of row indices to look at. Ex 1,22,313")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("index")
-                .long("index")
-                .help("Indexes the dataframe for editing via Oxen's remote staging environment.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("add-col")
-                .long("add-col")
-                .help("Add a column with a default value to the data table. If used with --add-row, row is added first, then column. Format 'name:val:dtype'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("add-row")
-                .long("add-row")
-                .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("delete-row")
-                .long("delete-row")
-                .help("Delete a row from a data frame. Currently only works with remote data frames with the value from _id column.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("get-row")
-                .long("get-row")
-                .help("Retrieve a specific row from the data frame by row id.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("content-type")
-                .long("content-type")
-                .help("The data that you want to append to the end of the file. Valid content types are 'json', 'csv', 'text'.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("sort")
-                .long("sort")
-                .short('s')
-                .help("Sort the output by a column name. Is run at the end of all the other transforms.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("sql")
-                .long("sql")
-                .help("Run a sql query on the data frame.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("committed")
-                .long("committed")
-                .help("Show the committed version of the dataframe on the current branch, not any remotely staged data.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("text2sql")
-                .long("text2sql")
-                .help("Run a text query that translates to sql on the data frame.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("host")
-                .long("host")
-                .help("What remote host to run the query against. Ie: hub.oxen.ai")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("unique")
-                .long("unique")
-                .short('u')
-                .help("Unique the output by a set of column names. Takes a comma separated set of column names ie: \"text,label\".")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("randomize")
-                .long("randomize")
-                .help("Randomize the order of the table")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("reverse")
-                .long("reverse")
-                .help("Reverse the order of the table")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("schema")
-                .long("schema")
-                .help("Print the full list of columns and data types within the schema in a dataframe.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("schema-flat")
-                .long("schema-flat")
-                .help("Print the full list of columns and data types within the schema.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
 pub fn schemas() -> Command {
     Command::new(SCHEMAS)
         .about("Manage schemas that are created from committing tabular data")
@@ -555,17 +269,7 @@ pub fn schemas() -> Command {
                 .arg(Arg::new("METADATA").help("Any additional metadata you want to add to the schema."))
 
         )
-        .subcommand(df())
-}
-
-pub fn add() -> Command {
-    Command::new(ADD)
-        .about("Adds the specified files or directories")
-        .arg(
-            Arg::new("files")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
+        .subcommand(DFCmd.args())
 }
 
 pub fn download() -> Command {
@@ -647,19 +351,6 @@ pub fn upload() -> Command {
         )
 }
 
-pub fn commit() -> Command {
-    Command::new(COMMIT)
-        .about("Commit the staged files to the repository.")
-        .arg(
-            Arg::new("message")
-                .help("The message for the commit. Should be descriptive about what changed.")
-                .long("message")
-                .short('m')
-                .required(true)
-                .action(clap::ArgAction::Set),
-        )
-}
-
 pub fn rm() -> Command {
     Command::new(RM)
         .about("Removes the specified files from the index")
@@ -698,99 +389,6 @@ pub fn restore() -> Command {
             Arg::new("staged")
                 .long("staged")
                 .help("Restore content in staging area. By default, if --staged is given, the contents are restored from HEAD. Use --source to restore from a different commit.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
-pub fn branch() -> Command {
-    Command::new(BRANCH)
-        .about("Manage branches in repository")
-        .subcommand(
-            Command::new("unlock")
-                .arg(
-                    Arg::new("branch")
-                        .help("Branch to unlock")
-                        .required(true)
-                        .action(clap::ArgAction::Set),
-                )
-                .arg(
-                    Arg::new("remote")
-                        .long("remote")
-                        .short('r')
-                        .help("Specify the remote to unlock the branch on")
-                        .default_value(DEFAULT_REMOTE_NAME)
-                        .default_missing_value(DEFAULT_REMOTE_NAME)
-                        .action(clap::ArgAction::Set),
-                ),
-        )
-        .arg(Arg::new("name").help("Name of the branch").exclusive(true))
-        .arg(
-            Arg::new("all")
-                .long("all")
-                .short('a')
-                .help("List both local and remote branches")
-                .exclusive(true)
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .short('r')
-                .help("List all the remote branches")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("force-delete")
-                .long("force-delete")
-                .short('D')
-                .help("Force remove the local branch")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("delete")
-                .long("delete")
-                .short('d')
-                .help("Remove the local branch if it is safe to")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("move")
-                .long("move")
-                .short('m')
-                .help("Rename the current local branch.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("show-current")
-                .long("show-current")
-                .help("Print the current branch")
-                .exclusive(true)
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
-pub fn checkout() -> Command {
-    Command::new(CHECKOUT)
-        .about("Checks out a branches in the repository")
-        .arg(Arg::new("name").help("Name of the branch or commit id to checkout"))
-        .arg(
-            Arg::new("create")
-                .long("create")
-                .short('b')
-                .help("Create the branch and check it out")
-                .exclusive(true)
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("ours")
-                .long("ours")
-                .help("Checkout the content of the base branch and take it as the working directories version. Will overwrite your working file.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("theirs")
-                .long("theirs")
-                .help("Checkout the content of the merge branch and take it as the working directories version. Will overwrite your working file.")
                 .action(clap::ArgAction::SetTrue),
         )
 }

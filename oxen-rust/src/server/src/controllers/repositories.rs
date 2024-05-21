@@ -145,7 +145,9 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     let namespace = path_param(&req, "namespace")?;
     let name = path_param(&req, "repo_name")?;
 
-    let repository = get_repo(&app_data.path, &namespace, &name)?;
+    let Ok(repository) = get_repo(&app_data.path, &namespace, &name) else {
+        return Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()));
+    };
 
     // Delete in a background thread because it could take awhile
     std::thread::spawn(move || match api::local::repositories::delete(repository) {

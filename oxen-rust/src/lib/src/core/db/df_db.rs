@@ -1,9 +1,10 @@
 //! Abstraction over DuckDB database to write and read dataframes from disk.
 //!
 
-use crate::constants::TABLE_NAME;
-use crate::constants::{DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL};
-use crate::core::db::df_db;
+use crate::constants::{
+    DEFAULT_PAGE_SIZE, DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME,
+};
+
 use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::model::schema::Field;
@@ -23,7 +24,6 @@ use sql_query_builder as sql;
 /// Get a connection to a duckdb database.
 pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, OxenError> {
     let path = path.as_ref();
-    // Create parent path if not exists
     if let Some(parent) = path.parent() {
         if !parent.exists() {
             std::fs::create_dir_all(parent)?;
@@ -113,20 +113,18 @@ pub fn get_schema(
     Ok(Schema::new(table_name, fields))
 }
 
-pub fn get_schema_without_id(
+// Get the schema from the table excluding specified columns - useful for virtual cols like .oxen.diff.status
+pub fn get_schema_excluding_cols(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
+    cols: &[&str],
 ) -> Result<Schema, OxenError> {
     let table_name = table_name.as_ref();
     let sql = format!(
-        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name != '{}'",
-        table_name, OXEN_ID_COL
+        "SELECT column_name, data_type FROM information_schema.columns WHERE table_name == '{}' AND column_name NOT IN ({})",
+        table_name, cols.iter().map(|col| format!("'{}'", col.replace('\'', "''"))).collect::<Vec<String>>().join(", ")
     );
     let mut stmt = conn.prepare(&sql)?;
-
-    let select = sql::Select::new().select("*").from(table_name);
-    // let mut s_select = conn.prepare(&select.as_string())?;
-    let _records = df_db::select(conn, &select)?;
 
     let mut fields = vec![];
     let rows = stmt.query_map([], |row| {
@@ -186,95 +184,79 @@ pub fn count_where(
     }
 }
 
-/// Select fields from a table.
-pub fn select(conn: &duckdb::Connection, stmt: &sql::Select) -> Result<DataFrame, OxenError> {
-    let sql = stmt.as_string();
-    let df = select_raw(conn, &sql)?;
-    Ok(df)
-}
+// IMPORTANT: with_explicit_nulls=True is used to extract complete derived schemas
+// for situations (such as staged_df_db) that use non-schema oxen virtual columns.
+// This should be set to false in any cases which may have null array / struct fields
+// (such as the commit metadata db queries, which it currently breaks.)
 
-pub fn select_raw(conn: &duckdb::Connection, stmt: &str) -> Result<DataFrame, OxenError> {
-    log::debug!("select_raw() sql: {}", stmt);
-    let mut stmt = conn.prepare(stmt)?;
-
-    // let pl: Vec<DataFrame> = stmt.query_polars([])?.collect();
-    // let df = accumulate_dataframes_vertical_unchecked(pl);
-
-    let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
-    log::debug!("got records: {:?}", records.len());
-
-    if records.is_empty() {
-        return Ok(DataFrame::default());
-    }
-
-    // Hacky to convert to json and then to polars...but the results from these queries should be small, and
-    // if they are bigger, need to look into converting directly from arrow to polars.
-
-    // Convert to Vec<&RecordBatch>
-    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    let buf = Vec::new();
-    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
-    writer.write_batches(&records[..]).unwrap();
-    writer.finish().unwrap();
-    let json_bytes = writer.into_inner();
-
-    let content = Cursor::new(json_bytes);
-    let df = JsonReader::new(content).finish().unwrap();
-
-    log::debug!("result df: {:?}", df);
-    Ok(df)
-}
-
-pub fn select_with_opts(
+pub fn select(
     conn: &duckdb::Connection,
     stmt: &sql::Select,
-    opts: &DFOpts,
+    with_explicit_nulls: bool,
+    schema: Option<&Schema>,
+    opts: Option<&DFOpts>,
 ) -> Result<DataFrame, OxenError> {
-    let mut sql = stmt.as_string();
+    let sql = stmt.as_string();
+    let df = select_str(conn, sql, with_explicit_nulls, schema, opts)?;
+    Ok(df)
+}
+
+pub fn select_str(
+    conn: &duckdb::Connection,
+    stmt: String,
+    with_explicit_nulls: bool,
+    schema: Option<&Schema>,
+    opts: Option<&DFOpts>,
+) -> Result<DataFrame, OxenError> {
+    let mut sql = stmt.clone();
+    let empty_opts = DFOpts::empty();
+    let opts = opts.unwrap_or(&empty_opts);
 
     if let Some(sort_by) = &opts.sort_by {
-        sql.push_str(&format!(" ORDER BY {}", sort_by));
+        sql.push_str(&format!(" ORDER BY \"{}\"", sort_by));
+        if opts.should_reverse {
+            sql.push_str(" DESC");
+        }
     }
-
-    let _pagination_clause = if let Some(page) = opts.page {
+    let pagination_clause = if let Some(page) = opts.page {
         let page = if page == 0 { 1 } else { page };
         let page_size = opts.page_size.unwrap_or(DEFAULT_PAGE_SIZE);
         format!(" LIMIT {} OFFSET {}", page_size, (page - 1) * page_size)
     } else {
-        format!(" LIMIT {}", DEFAULT_PAGE_SIZE)
+        "".to_string()
     };
+    sql.push_str(&pagination_clause);
+    log::debug!("select_str() running sql: {}", sql);
+    let df = select_raw(conn, &sql, with_explicit_nulls, schema)?;
+    Ok(df)
+}
 
-    // push it to the sql
+pub fn select_raw(
+    conn: &duckdb::Connection,
+    stmt: &str,
+    with_explicit_nulls: bool,
+    schema: Option<&Schema>,
+) -> Result<DataFrame, OxenError> {
+    let mut stmt = conn.prepare(stmt)?;
 
-    log::debug!("select sql with opts: {}", sql);
-    let mut stmt = conn.prepare(&sql)?;
     let records: Vec<RecordBatch> = stmt.query_arrow([])?.collect();
-    log::debug!("got records with opts: {:?}", records.len());
 
     if records.is_empty() {
         return Ok(DataFrame::default());
     }
 
-    // Hacky to convert to json and then to polars...but the results from these queries should be small, and
-    // if they are bigger, need to look into converting directly from arrow to polars.
+    let df = if with_explicit_nulls {
+        // Provide schema so that it can be filled in with nulls
+        let schema = if let Some(schema) = schema {
+            schema.clone()
+        } else {
+            get_schema(conn, TABLE_NAME)?
+        };
 
-    let schema = get_schema(conn, TABLE_NAME)?;
-
-    // Convert to Vec<&RecordBatch>
-    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
-    let buf = Vec::new();
-
-    let builder = WriterBuilder::new().with_explicit_nulls(true);
-    let mut writer = builder.build::<_, JsonArray>(buf);
-    writer.write_batches(&records[..]).unwrap();
-    writer.finish().unwrap();
-    let json_bytes = writer.into_inner();
-
-    let content = Cursor::new(json_bytes);
-
-    let df = JsonReader::new(content)
-        .with_schema(Arc::new(schema.to_polars()))
-        .finish()?;
+        record_batches_to_polars_df_explicit_nulls(records, &schema)?
+    } else {
+        record_batches_to_polars_df(records)?
+    };
 
     Ok(df)
 }
@@ -284,36 +266,31 @@ pub fn insert_polars_df(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     df: &DataFrame,
+    out_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
-    if df.height() == 0 {
-        return Err(OxenError::basic_str("DataFrame is empty"));
-    }
+
     let schema = df.schema();
     let column_names: Vec<String> = schema
         .iter_fields()
         .map(|f| format!("\"{}\"", f.name()))
         .collect();
 
-    log::debug!("column names are {:?}", column_names);
     let placeholders: String = column_names
         .iter()
         .map(|_| "?".to_string())
         .collect::<Vec<_>>()
         .join(", ");
-    log::debug!("placeholders are {}", placeholders);
     let sql = format!(
-        "INSERT INTO {} ({}) VALUES ({}) RETURNING *, {}",
+        "INSERT INTO {} ({}) VALUES ({}) RETURNING *",
         table_name,
         column_names.join(", "),
         placeholders,
-        OXEN_ID_COL
     );
-    log::debug!("sql statement is {}", sql);
 
     let mut stmt = conn.prepare(&sql)?;
 
-    // TODONOW: THIS SHOULD BULK INSERT!
+    // TODO: is there a way to bulk insert this?
     let mut result_df = DataFrame::default();
     for idx in 0..df.height() {
         let row = df.get(idx).unwrap();
@@ -329,22 +306,8 @@ pub fn insert_polars_df(
 
         // Convert to Vec<&RecordBatch>
         let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
-        let result_set: Vec<&RecordBatch> = result_set.iter().collect();
 
-        let buf = Vec::new();
-        let schema = get_schema(conn, TABLE_NAME)?;
-
-        let builder = WriterBuilder::new().with_explicit_nulls(true);
-        let mut writer = builder.build::<_, JsonArray>(buf);
-        writer.write_batches(&result_set[..]).unwrap();
-        writer.finish().unwrap();
-        let json_bytes = writer.into_inner();
-
-        let content = Cursor::new(json_bytes);
-
-        let df = JsonReader::new(content)
-            .with_schema(Arc::new(schema.to_polars()))
-            .finish()?;
+        let df = record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
 
         result_df = if df.height() == 0 {
             df
@@ -353,9 +316,61 @@ pub fn insert_polars_df(
         };
     }
 
-    log::debug!("returning df {:?} on add_row", result_df);
-
     Ok(result_df)
+}
+
+pub fn modify_row_with_polars_df(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    id: &str,
+    df: &DataFrame,
+    out_schema: &Schema,
+) -> Result<DataFrame, OxenError> {
+    if df.height() != 1 {
+        return Err(OxenError::basic_str(
+            "df must have exactly one row to be used for modification",
+        ));
+    }
+
+    let table_name = table_name.as_ref();
+
+    let schema = df.schema();
+    let column_names: Vec<String> = schema
+        .iter_fields()
+        .map(|f| format!("\"{}\"", f.name()))
+        .collect();
+
+    let set_clauses: String = column_names
+        .iter()
+        .map(|col_name| format!("{} = ?", col_name))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    let where_clause = format!("\"{}\" = '{}'", OXEN_ID_COL, id);
+
+    let sql = format!(
+        "UPDATE {} SET {} WHERE {} RETURNING *",
+        table_name, set_clauses, where_clause
+    );
+
+    let values = df.get(0).unwrap(); // Checked above
+
+    let boxed_values: Vec<Box<dyn ToSql>> = values
+        .iter()
+        .map(|v| tabular::value_to_tosql(v.to_owned()))
+        .collect();
+
+    let params: Vec<&dyn ToSql> = boxed_values
+        .iter()
+        .map(|boxed_value| &**boxed_value as &dyn ToSql)
+        .collect();
+
+    let mut stmt = conn.prepare(&sql)?;
+    let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
+
+    let df = record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
+
+    Ok(df)
 }
 
 pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
@@ -403,9 +418,17 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
 // TODO: We will eventually want to parse the actual type, not just the extension.
 // For now, just treat the extension as law
 pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
-    log::debug!("df_db:index_file() at path {:?}", path);
+    log::debug!("df_db:index_file() at path {:?} into path {:?}", path, conn);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
+    let counter = "counter";
+    // Drop sequence if exists
+    let drop_sequence_query = format!("DROP SEQUENCE IF EXISTS {}", counter);
+    conn.execute(&drop_sequence_query, [])?;
+
+    let add_row_id_sequence_query = format!("CREATE SEQUENCE {} START 1", counter);
+    conn.execute(&add_row_id_sequence_query, [])?;
+
     match extension {
         "csv" => {
             let query = format!("CREATE TABLE {} AS SELECT *, CAST(uuid() AS VARCHAR) AS {} FROM read_csv('{}', AUTO_DETECT=TRUE, header=True);", DUCKDB_DF_TABLE_NAME, OXEN_ID_COL, path.to_string_lossy());
@@ -437,7 +460,14 @@ pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), 
         "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT CAST(uuid() AS VARCHAR);",
         DUCKDB_DF_TABLE_NAME, OXEN_ID_COL
     );
+
     conn.execute(&add_default_query, [])?;
+
+    let add_row_id_query = format!(
+        "ALTER TABLE {} ADD COLUMN {} INTEGER DEFAULT nextval('{}');",
+        DUCKDB_DF_TABLE_NAME, OXEN_ROW_ID_COL, counter
+    );
+    conn.execute(&add_row_id_query, [])?;
 
     Ok(())
 }
@@ -467,6 +497,60 @@ pub fn from_clause_from_disk_path(path: &Path) -> Result<String, OxenError> {
     }
 }
 
+pub fn preview(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
+    let query = format!("SELECT * FROM {} LIMIT 10", table_name);
+    let df = select_raw(conn, &query, true, None)?;
+    Ok(df)
+}
+
+fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, OxenError> {
+    if records.is_empty() {
+        return Ok(DataFrame::default());
+    }
+    let records: Vec<&RecordBatch> = records.iter().collect();
+
+    let buf = Vec::new();
+    let mut writer = arrow_json::writer::ArrayWriter::new(buf);
+    writer.write_batches(&records[..])?;
+    writer.finish()?;
+
+    let json_bytes = writer.into_inner();
+
+    let content = Cursor::new(json_bytes);
+
+    let df = JsonReader::new(content).finish()?;
+
+    Ok(df)
+}
+
+fn record_batches_to_polars_df_explicit_nulls(
+    records: Vec<RecordBatch>,
+    schema: &Schema,
+) -> Result<DataFrame, OxenError> {
+    if records.is_empty() {
+        return Ok(DataFrame::default());
+    }
+
+    let records: Vec<&RecordBatch> = records.iter().collect::<Vec<_>>();
+    let buf = Vec::new();
+    let builder = WriterBuilder::new().with_explicit_nulls(true);
+    let mut writer = builder.build::<_, JsonArray>(buf);
+    writer.write_batches(&records[..]).unwrap();
+    writer.finish().unwrap();
+    let json_bytes = writer.into_inner();
+
+    let content = Cursor::new(json_bytes);
+
+    let df = JsonReader::new(content)
+        .with_schema(Arc::new(schema.to_polars()))
+        .finish()?;
+
+    Ok(df)
+}
 #[cfg(test)]
 mod tests {
     use crate::test;

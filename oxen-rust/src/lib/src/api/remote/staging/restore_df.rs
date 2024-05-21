@@ -57,7 +57,7 @@ mod tests {
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name, &identifier, &path).await?;
 
             let result_1 = api::remote::staging::modify_df(
                     &remote_repo,

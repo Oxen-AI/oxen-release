@@ -38,7 +38,6 @@ mod tests {
     // use crate::config::UserConfig;
     // use crate::constants;
     use crate::error::OxenError;
-    use crate::model::ContentType;
     // use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::test;
@@ -61,8 +60,8 @@ mod tests {
                 log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();
 
-                opts.add_row = Some("I am a new row,neutral".to_string());
-                opts.content_type = ContentType::Csv;
+                opts.add_row =
+                    Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
                 command::remote::df(&cloned_repo, &path, opts).await?;
 
                 // Local add col

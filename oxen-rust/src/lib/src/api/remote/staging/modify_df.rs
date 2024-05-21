@@ -139,45 +139,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stage_row_on_dataframe_csv() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let branch_name = "add-images";
-            let branch = api::remote::branches::create_from_or_get(
-                &remote_repo,
-                branch_name,
-                DEFAULT_BRANCH_NAME,
-            )
-            .await?;
-            assert_eq!(branch.name, branch_name);
-            let identifier = UserConfig::identifier()?;
-
-            // train/dog_1.jpg,dog,101.5,32.0,385,330
-            let path = Path::new("annotations")
-                .join("train")
-                .join("bounding_box.csv");
-            let data = "image1.jpg, dog, 13, 14, 100, 100";
-            api::remote::staging::index_dataset(&remote_repo, branch_name, &identifier, &path)
-                .await?;
-            let result = api::remote::staging::modify_df(
-                &remote_repo,
-                branch_name,
-                &identifier,
-                &path,
-                data.to_string(),
-                ContentType::Csv,
-                ModType::Append,
-            )
-            .await;
-
-            assert!(result.is_ok());
-            println!("{:?}", result.unwrap());
-
-            Ok(remote_repo)
-        })
-        .await
-    }
-
-    #[tokio::test]
     async fn test_list_status_modified_dataframe() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";

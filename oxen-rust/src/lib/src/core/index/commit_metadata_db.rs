@@ -156,8 +156,7 @@ pub fn aggregate_col(
             .group_by(column)
             .from(&table_name);
 
-        let df = df_db::select(&conn, &stmt)?;
-        // log::debug!("df for dir {:?}: {:?}", dir, df);
+        let df = df_db::select(&conn, &stmt, false, None, None)?;
 
         if df.is_empty() {
             continue;
@@ -225,7 +224,7 @@ pub fn select(
         .limit(&limit.to_string())
         .from(&table_name);
 
-    let df = df_db::select(&conn, &stmt)?;
+    let df = df_db::select(&conn, &stmt, false, None, None)?;
     Ok(df)
 }
 

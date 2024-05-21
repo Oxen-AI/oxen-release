@@ -272,7 +272,7 @@ fn join_hashed_dfs(
     for key in keys.iter() {
         cols_to_rename.push(key);
     }
-    // TODONOW: maybe set logic?
+    // TODO: maybe set logic?
     for col in schema_diff.unchanged_cols.iter() {
         if !cols_to_rename.contains(&col.as_str()) {
             cols_to_rename.push(col);
@@ -407,7 +407,7 @@ fn test_function(
     target_hash_right: Option<&AnyValue>,
     has_targets: bool,
 ) -> String {
-    // TODONOW better error handling
+    // TODO better error handling
     if let Some(AnyValue::Null) = key_left {
         return DIFF_STATUS_ADDED.to_string();
     }

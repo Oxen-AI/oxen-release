@@ -39,6 +39,7 @@ pub fn get(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         mime_type,
         extension,
         metadata,
+        is_queryable: None,
     })
 }
 
@@ -63,6 +64,7 @@ pub fn from_path(path: impl AsRef<Path>) -> Result<MetadataEntry, OxenError> {
         mime_type,
         extension,
         metadata,
+        is_queryable: None,
     })
 }
 
@@ -92,6 +94,7 @@ pub fn from_commit_entry(
         mime_type,
         extension,
         metadata,
+        is_queryable: None,
     })
 }
 

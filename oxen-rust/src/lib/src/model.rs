@@ -21,6 +21,7 @@ pub mod repository;
 pub mod schema;
 pub mod staged_data;
 pub mod staged_dir_stats;
+pub mod staged_row_status;
 pub mod summarized_staged_dir_stats;
 pub mod user;
 

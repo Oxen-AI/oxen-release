@@ -4,10 +4,11 @@ version = "0.15.9"
 edition = "2021"
 
 [dependencies]
+async-trait = "0.1.80"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
 dunce = "1"
-env_logger = "0.10.0"
+env_logger = "0.11.3"
 jwalk = "0.8.1"
 glob = "0.3.1"
 liboxen = { path = "../lib" }

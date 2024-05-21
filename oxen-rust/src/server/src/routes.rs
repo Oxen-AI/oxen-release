@@ -205,6 +205,18 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             "/{namespace}/{repo_name}/staging/{identifier}/status/{resource:.*}",
             web::get().to(controllers::stager::status_dir),
         )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/list_editable/{branch:.*}",
+            web::get().to(controllers::stager::list_editable_dfs),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/is_editable/{resource:.*}",
+            web::get().to(controllers::stager::get_df_is_editable),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/diff/{resource:.*}",
+            web::get().to(controllers::stager::diff_df),
+        )
         // STAGING
         // TODO: add GET for downloading the file from the staging area
         // TODO: implement delete dir from staging to recursively unstage
@@ -241,12 +253,24 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::get().to(controllers::stager::diff_file),
         )
         .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/restore/{resource:.*}",
+            web::post().to(controllers::stager::df_restore_row),
+        )
+        .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{resource:.*}",
             web::post().to(controllers::stager::df_add_row),
         )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/index/{resource:.*}",
             web::post().to(controllers::stager::index_dataset),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/index/{resource:.*}",
+            web::delete().to(controllers::stager::unindex_dataset),
+        )
+        .route(
+            "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",
+            web::put().to(controllers::stager::df_modify_row),
         )
         .route(
             "/{namespace}/{repo_name}/staging/{identifier}/df/rows/{row_id}/{resource:.*}",

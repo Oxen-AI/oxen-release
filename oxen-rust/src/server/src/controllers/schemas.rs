@@ -39,6 +39,10 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 resource.file_path.to_string_lossy(),
             )?;
 
+            if schemas.is_empty() {
+                return Err(OxenHttpError::NotFound);
+            }
+
             let mut schema_w_paths: Vec<SchemaWithPath> = schemas
                 .into_iter()
                 .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))

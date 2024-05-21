@@ -29,6 +29,14 @@ impl PartialEq for Schema {
 }
 
 impl Schema {
+    pub fn empty() -> Self {
+        Schema {
+            name: None,
+            hash: "".to_string(),
+            fields: vec![],
+            metadata: None,
+        }
+    }
     pub fn new(name: impl AsRef<str>, fields: Vec<Field>) -> Schema {
         Schema {
             name: Some(name.as_ref().to_string()),

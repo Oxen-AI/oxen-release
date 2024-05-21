@@ -5,37 +5,40 @@ use crate::params::{
 };
 
 use actix_files::NamedFile;
-use liboxen::core::cache::{cachers, commit_cacher};
-use liboxen::core::df::tabular;
+
+use liboxen::constants::TABLE_NAME;
+use liboxen::core::cache::commit_cacher;
+use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::core::index::mod_stager;
+use liboxen::core::index::remote_df_stager::{get_row_id, get_row_idx};
 use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 use liboxen::model::entry::mod_entry::NewMod;
 use liboxen::model::metadata::metadata_image::ImgResize;
-use liboxen::model::DataFrameSize;
+use liboxen::model::CommitEntry;
 use liboxen::model::{
     entry::mod_entry::ModType, Branch, ContentType, LocalRepository, NewCommitBody, Schema,
 };
-use liboxen::opts::df_opts::DFOptsView;
-use liboxen::opts::{DFOpts, PaginateOpts};
-use liboxen::util;
+use liboxen::opts::DFOpts;
+use liboxen::util::{self, paginate};
 use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
-use liboxen::view::entry::ResourceVersion;
+use liboxen::view::entry::{
+    PaginatedMetadataEntries, PaginatedMetadataEntriesResponse, ResourceVersion,
+};
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
-use liboxen::view::remote_staged_status::RemoteStagedStatus;
+use liboxen::view::remote_staged_status::{DFIsEditableResponse, RemoteStagedStatus};
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrameView, JsonDataFrameViewResponse,
-    JsonDataFrameViews, Pagination, RemoteStagedStatusResponse, StatusMessage,
+    JsonDataFrameViews, RemoteStagedStatusResponse, StatusMessage,
 };
 use liboxen::{api, constants, core::index};
 
 use actix_web::{web, web::Bytes, HttpRequest, HttpResponse};
-use polars::frame::DataFrame;
-use std::io::Write;
 
 use actix_multipart::Multipart;
 use actix_web::Error;
 use futures_util::TryStreamExt as _;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
@@ -116,6 +119,58 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     // The path to the actual file is just the working directory here...
 
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn diff_df(
+    req: HttpRequest,
+    query: web::Query<DFOptsQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let identifier = path_param(&req, "identifier")?;
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+
+    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
+    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
+
+    // Remote staged calls must be on a branch
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let staged_db_path =
+        mod_stager::mods_df_db_path(&repo, &branch, &identifier, &resource.file_path);
+
+    let conn = df_db::get_connection(staged_db_path)?;
+
+    let diff_df = staged_df_db::df_diff(&conn)?;
+
+    let df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
+
+    let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
+
+    let resource = ResourceVersion {
+        path: resource.file_path.to_string_lossy().to_string(),
+        version: resource.version(),
+    };
+
+    let resource = JsonDataFrameViewResponse {
+        data_frame: df_views,
+        status: StatusMessage::resource_found(),
+        resource: Some(resource),
+        commit: None,
+        derived_resource: None,
+    };
+
+    Ok(HttpResponse::Ok().json(resource))
 }
 
 pub async fn get_file(
@@ -235,6 +290,7 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
     )?;
 
     let row_id = get_row_id(&row_df)?;
+    let row_index = get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
@@ -251,6 +307,7 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
         status: StatusMessage::resource_found(),
         resource: None,
         row_id,
+        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -259,11 +316,15 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
 pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("in the df add row controller");
     let app_data = app_data(&req)?;
+    log::debug!("trying to get repo at path {:?}", app_data.path);
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    log::debug!("with namespace {:?}", namespace);
+    log::debug!("with repo_name {:?}", repo_name);
+    log::debug!("with identifier {:?}", identifier);
+    let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let resource = parse_resource(&req, &repo)?;
 
     // TODO: better error handling for content-types
@@ -271,6 +332,24 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     let content_type = ContentType::from_http_content_type(content_type_str)?;
 
     let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+
+    // TODO clean up
+    if content_type != ContentType::Json {
+        return Err(OxenHttpError::BadRequest(
+            "Unsupported content type, must be json".to_string().into(),
+        ));
+    }
+
+    // If the json has an outer property of "data", serialize the inner object
+    let json_value: serde_json::Value = serde_json::from_str(&data)?;
+    // TODO yeesh
+    let data = if let Some(data_obj) = json_value.get("data") {
+        serde_json::to_string(data_obj)?
+    } else {
+        data
+    };
+
+    log::debug!("we got data {:?}", data);
 
     let branch = resource
         .branch
@@ -306,6 +385,7 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
 
     let row_df = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
     let row_id: Option<String> = get_row_id(&row_df)?;
+    let row_index: Option<usize> = get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
@@ -322,90 +402,183 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         status: StatusMessage::resource_found(),
         resource: None,
         row_id,
+        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
 }
 
-pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Error> {
+pub async fn df_restore_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let identifier = req.match_info().get("identifier").unwrap();
+    let row_id = req.match_info().get("row_id").unwrap();
+
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
+    )?;
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+
+    let restored_row = mod_stager::restore_row(&repo, &branch, &entry, identifier, row_id)?;
+
+    let row_index = get_row_idx(&restored_row)?;
+    let row_id = get_row_id(&restored_row)?;
+
+    log::debug!("Restored row in controller is {:?}", restored_row);
+    let schema = Schema::from_polars(&restored_row.schema());
+    Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
+        data_frame: JsonDataFrameViews {
+            source: JsonDataFrameSource::from_df(&restored_row, &schema),
+            view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
+        },
+        commit: None,
+        derived_resource: None,
+        status: StatusMessage::resource_updated(),
+        resource: None,
+        row_id,
+        row_index,
+    }))
+}
+
+pub async fn df_modify_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace: &str = req.match_info().get("namespace").unwrap();
+    let repo_name: &str = req.match_info().get("repo_name").unwrap();
+    let identifier = req.match_info().get("identifier").unwrap();
+    let row_id = req.match_info().get("row_id").unwrap();
+
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
+    )?;
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+
+    // TODO: better error handling for content-types
+    let content_type_str = get_content_type(&req).unwrap_or("text/plain");
+    let content_type = ContentType::from_http_content_type(content_type_str)?;
+
+    let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
+
+    // TODO clean up
+    if content_type != ContentType::Json {
+        return Err(OxenHttpError::BadRequest(
+            "Unsupported content type, must be json".to_string().into(),
+        ));
+    }
+
+    // If the json has an outer property of "data", serialize the inner object
+    let json_value: serde_json::Value = serde_json::from_str(&data)?;
+    // TODO yeesh
+    let data = if let Some(data_obj) = json_value.get("data") {
+        serde_json::to_string(data_obj)?
+    } else {
+        data
+    };
+
+    log::debug!("we got data {:?}", data);
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Have to initialize this branch repo before we can do any operations on it
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, identifier)?;
+    log::debug!(
+        "stager::df_modify_row repo {resource} -> staged repo path {:?}",
+        repo.path
+    );
+    log::debug!(
+        "stager::df_modify_row branch repo {resource} -> staged repo path {:?}",
+        branch_repo.path
+    );
+
+    let new_mod = NewMod {
+        content_type,
+        mod_type: ModType::Modify,
+        entry,
+        data,
+    };
+
+    // TODO: Add, delete, and modify should use the resource schema here.
+    let modified_row = mod_stager::modify_row(&repo, &branch, identifier, row_id, &new_mod)?;
+
+    let row_index = get_row_idx(&modified_row)?;
+    let row_id = get_row_id(&modified_row)?;
+
+    log::debug!("Modified row in controller is {:?}", modified_row);
+    let schema = Schema::from_polars(&modified_row.schema());
+    Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
+        data_frame: JsonDataFrameViews {
+            source: JsonDataFrameSource::from_df(&modified_row, &schema),
+            view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()),
+        },
+        commit: None,
+        derived_resource: None,
+        status: StatusMessage::resource_updated(),
+        resource: None,
+        row_id,
+        row_index,
+    }))
+}
+
+pub async fn df_delete_row(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req).unwrap();
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let user_id: &str = req.match_info().get("identifier").unwrap();
     let row_id: &str = req.match_info().get("row_id").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    // let body_err_msg = "Invalid Body, must be valid json in the format {\"id\": \"<id>\"}";
-    // let body = String::from_utf8(bytes.to_vec());
-    // if body.is_err() {
-    //     log::error!("stager::df_delete_row could not parse body as utf8");
-    //     return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
-    // }
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
+    )?;
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
 
-    // let body = body.unwrap();
-    // let response: Result<ObjectID, serde_json::Error> = serde_json::from_str(&body);
-    // if response.is_err() {
-    //     log::error!("stager::df_delete_row could not parse body as ObjectID\n{body:?}");
-    //     return Ok(HttpResponse::BadRequest().json(StatusMessage::error(body_err_msg)));
-    // }
-
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => {
-            match api::local::resource::parse_resource(&repo, &resource) {
-                Ok(Some((_, branch_name, file_name))) => {
-                    match api::local::branches::get_by_name(&repo, &branch_name) {
-                        Ok(Some(branch)) => {
-                            log::debug!(
-                                "stager::df_delete_row file branch_name [{}] file_name [{:?}] uuid [{}]",
-                                branch_name,
-                                file_name,
-                                row_id
-                            );
-                            delete_row(&repo, &branch, user_id, &file_name, row_id.to_string())
-                        }
-                        Ok(None) => {
-                            log::debug!("stager::stage could not find branch {:?}", branch_name);
-                            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                        }
-                        Err(err) => {
-                            log::error!("unable to get branch {:?}. Err: {}", branch_name, err);
-                            Ok(HttpResponse::InternalServerError()
-                                .json(StatusMessage::internal_server_error()))
-                        }
-                    }
-                }
-                Ok(None) => {
-                    log::debug!("stager::stage could not find parse resource {:?}", resource);
-                    Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-                }
-                Err(err) => {
-                    log::error!("unable to parse resource {:?}. Err: {}", resource, err);
-                    Ok(HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()))
-                }
-            }
-        }
-        Ok(None) => {
-            log::debug!("stager::stage could not find repo with name {}", repo_name);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(err) => {
-            log::error!("unable to get repo {:?}. Err: {}", repo_name, err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
+    delete_row(&repo, &branch, user_id, &entry, row_id.to_string())
 }
 
 fn delete_row(
     repo: &LocalRepository,
     branch: &Branch,
     user_id: &str,
-    file: &Path,
+    entry: &CommitEntry,
     uuid: String,
-) -> Result<HttpResponse, Error> {
-    match liboxen::core::index::mod_stager::delete_row(repo, branch, user_id, file, &uuid) {
+) -> Result<HttpResponse, OxenHttpError> {
+    let new_mod = NewMod {
+        entry: entry.clone(),
+        data: "".to_string(),
+        mod_type: ModType::Delete,
+        content_type: ContentType::Json,
+    };
+    match liboxen::core::index::mod_stager::delete_row(repo, branch, user_id, &uuid, &new_mod) {
         Ok(df) => {
             let schema = Schema::from_polars(&df.schema());
             Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -418,13 +591,14 @@ fn delete_row(
                 status: StatusMessage::resource_deleted(),
                 resource: None,
                 row_id: None,
+                row_index: None,
             }))
         }
         Err(OxenError::Basic(err)) => {
             log::error!(
                 "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
                 branch.name,
-                file,
+                entry.path,
                 uuid,
                 err
             );
@@ -434,7 +608,7 @@ fn delete_row(
             log::error!(
                 "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
                 branch.name,
-                file,
+                entry.path,
                 uuid,
                 err
             );
@@ -610,47 +784,95 @@ pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
     }
 }
 
-pub async fn delete_file(req: HttpRequest) -> HttpResponse {
-    let app_data = app_data(&req).unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let user_id = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    // Staging calls must be on a branch
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Get commit for branch head
+    // let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+    //     .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
 
     log::debug!(
         "stager::delete_file repo name {repo_name}/{}",
-        resource.to_string_lossy()
+        resource.file_path.to_string_lossy()
     );
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, file_name))) => {
-                delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
-            }
-            Ok(None) => {
-                log::error!("unable to find resource {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not parse resource  {repo_name} -> {err}");
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find repo {}", repo_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting repo by name {repo_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
+
+    // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
+    // TODO: can we find the file / check if it's in the staging area?
+
+    if util::fs::is_tabular(&resource.file_path) {
+        mod_stager::restore_df(&repo, &branch, &user_id, &resource.file_path)?;
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else {
+        log::debug!("not tabular");
+        Ok(delete_staged_file_on_branch(
+            &repo,
+            &branch.name,
+            &user_id,
+            &resource.file_path,
+        ))
     }
+
+    // TODO convert this to result
+
+    // match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
+    // {
+    //     Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
+    //         Ok(Some((_, branch_name, file_name))) => {
+    //             delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
+    //         }
+    //         Ok(None) => {
+    //             log::error!("unable to find resource {:?}", resource);
+    //             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+    //         }
+    //         Err(err) => {
+    //             log::error!("Could not parse resource  {repo_name} -> {err}");
+    //             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+    //         }
+    //     },
+    //     Ok(None) => {
+    //         log::error!("unable to find repo {}", repo_name);
+    //         HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+    //     }
+    //     Err(err) => {
+    //         log::error!("Error getting repo by name {repo_name} -> {err}");
+    //         HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+    //     }
+    // }
 }
 
-pub async fn index_dataset(
-    req: HttpRequest,
-    query: web::Query<DFOptsQuery>,
-) -> Result<HttpResponse, OxenHttpError> {
+pub async fn unindex_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    index::remote_df_stager::unindex_df(&repo, &branch, &identifier, &resource.file_path)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+}
+
+pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -672,42 +894,17 @@ pub async fn index_dataset(
     // Initialize the branch repository before any operations
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    let mut opts = DFOpts::empty();
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-
     match liboxen::core::index::remote_df_stager::index_dataset(
         &repo,
         &branch,
         &resource.file_path,
         &identifier,
-        &opts,
     ) {
-        Ok(df) => {
+        Ok(_) => {
             log::info!(
                 "Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}"
             );
-            let schema = Schema::from_polars(&df.schema());
-            let full_height = index::remote_df_stager::count(
-                &repo,
-                &branch,
-                resource.file_path.clone(),
-                &identifier,
-            )?;
-            let response = JsonDataFrameViewResponse {
-                status: StatusMessage::resource_created(),
-                data_frame: JsonDataFrameViews::from_df_and_opts_unpaginated(
-                    df,
-                    schema,
-                    full_height,
-                    &opts,
-                ),
-                commit: None,
-                resource: Some(ResourceVersion {
-                    path: resource.file_path.to_string_lossy().to_string(),
-                    version: resource.version(),
-                }),
-                derived_resource: None,
-            };
+            let response = StatusMessage::resource_created();
             Ok(HttpResponse::Ok().json(response))
         }
         Err(err) => {
@@ -721,6 +918,84 @@ pub async fn get_staged_df(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let commit = resource.commit.clone();
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+
+    let schema = api::local::schemas::get_by_path(&repo, &resource.file_path)?
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    log::debug!("got this schema for the endpoint {:?}", schema);
+
+    log::debug!(
+        "{} indexing dataset for resource {namespace}/{repo_name}/{resource}",
+        liboxen::current_function!()
+    );
+
+    // Staged dataframes must be on a branch.
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let mut opts = DFOpts::empty();
+    opts = df_opts_query::parse_opts(&query, &mut opts);
+
+    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
+    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
+
+    if index::remote_df_stager::dataset_is_indexed(
+        &repo,
+        &branch,
+        &identifier,
+        &resource.file_path,
+    )? {
+        let count = index::remote_df_stager::count(
+            &repo,
+            &branch,
+            resource.file_path.clone(),
+            &identifier,
+        )?;
+
+        let df =
+            index::remote_df_stager::query_staged_df(&repo, &entry, &branch, &identifier, &opts)?;
+
+        let df_schema = Schema::from_polars(&df.schema());
+
+        let df_views =
+            JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
+        let resource = ResourceVersion {
+            path: resource.file_path.to_string_lossy().to_string(),
+            version: resource.version(),
+        };
+
+        let response = JsonDataFrameViewResponse {
+            status: StatusMessage::resource_found(),
+            data_frame: df_views,
+            resource: Some(resource),
+            commit: None, // Not at a committed state
+            derived_resource: None,
+        };
+
+        Ok(HttpResponse::Ok().json(response))
+    } else {
+        Err(OxenHttpError::NotFound)
+    }
+}
+
+pub async fn get_df_is_editable(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req).unwrap();
 
     let namespace = path_param(&req, "namespace")?;
@@ -742,192 +1017,68 @@ pub async fn get_staged_df(
 
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    let mut opts = DFOpts::empty();
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-
-    if index::remote_df_stager::dataset_is_indexed(
+    let is_editable = index::remote_df_stager::dataset_is_indexed(
         &repo,
         &branch,
         &identifier,
         &resource.file_path,
-    )? {
-        let count = index::remote_df_stager::count(
-            &repo,
-            &branch,
-            resource.file_path.clone(),
-            &identifier,
-        )?;
+    )?;
 
-        let df = index::remote_df_stager::query_staged_df(
-            &repo,
-            &branch,
-            resource.file_path.clone(),
-            &identifier,
-            &opts,
-        )?;
+    Ok(HttpResponse::Ok().json(DFIsEditableResponse {
+        status: StatusMessage::resource_found(),
+        is_editable,
+    }))
+}
 
-        let df_schema = Schema::from_polars(&df.schema());
+pub async fn list_editable_dfs(
+    req: HttpRequest,
+    query: web::Query<PageNumQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req).unwrap();
 
-        let df_views =
-            JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
-        let resource = ResourceVersion {
-            path: resource.file_path.to_string_lossy().to_string(),
-            version: resource.version(),
-        };
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let branch_name: &str = req.match_info().query("branch");
 
-        let response = JsonDataFrameViewResponse {
-            status: StatusMessage::resource_found(),
-            data_frame: df_views,
-            resource: Some(resource),
-            commit: None, // Not at a committed state
-            derived_resource: None,
-        };
+    let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+    let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-        Ok(HttpResponse::Ok().json(response))
-    } else {
-        // TODO: dedupe this with what's going on in the `data_frames` controller
-        log::debug!("rolling back to uncommitted version");
-        let version_path =
-            util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
-        log::debug!(
-            "controllers::data_frames Reading version file {:?}",
-            version_path
-        );
+    // Staged dataframes must be on a branch.
+    let branch = api::local::branches::get_by_name(&repo, branch_name)?
+        .ok_or(OxenError::remote_branch_not_found(branch_name))?;
 
-        // Get the cached size of the data frame
-        let data_frame_size =
-            cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
-        log::debug!(
-            "controllers::data_frames got data frame size {:?}",
-            data_frame_size
-        );
-        let mut opts = DFOpts::empty();
-        opts = df_opts_query::parse_opts(&query, &mut opts);
-        log::debug!("controllers::data_frames got opts {:?}", opts);
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
 
-        // Paginate or slice, after we do the original transform
-        let mut page_opts = PaginateOpts {
-            page_num: constants::DEFAULT_PAGE_NUM,
-            page_size: constants::DEFAULT_PAGE_SIZE,
-        };
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-        // If we have slice params, use them
-        if let Some((start, end)) = opts.slice_indices() {
-            log::debug!(
-                "controllers::data_frames Got slice params {}..{}",
-                start,
-                end
-            );
-        } else {
-            // Otherwise use the query params for pagination
-            let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-            let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+    let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
 
-            page_opts.page_num = page;
-            page_opts.page_size = page_size;
+    let mut editable_entries = vec![];
 
-            // Must translate page params to slice params
-            let start = if page == 0 { 0 } else { page_size * (page - 1) };
-            let end = page_size * page;
-            opts.slice = Some(format!("{}..{}", start, end));
-        }
-
-        let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
-
-        // Try to get the schema from disk
-        let og_schema = if let Some(schema) = api::local::schemas::get_by_path_from_ref(
-            &repo,
-            &resource.commit.id,
-            &resource.file_path,
-        )? {
-            schema
-        } else {
-            match df.schema() {
-                Ok(schema) => Ok(Schema::from_polars(&schema.to_owned())),
-                Err(e) => {
-                    log::error!("Error reading df: {}", e);
-                    Err(OxenHttpError::InternalServerError)
-                }
-            }?
-        };
-
-        log::debug!(
-            "controllers::data_frames Done getting schema {:?}",
-            version_path
-        );
-
-        // We have to run the query param transforms, then paginate separately
-        let og_df_json = JsonDataFrameSource::from_df_size(&data_frame_size, &og_schema);
-
-        log::debug!(
-            "controllers::data_frames BEFORE TRANSFORM LAZY {}",
-            data_frame_size.height
-        );
-
-        match tabular::transform_lazy(df, data_frame_size.height, opts.clone()) {
-            Ok(df_view) => {
-                log::debug!("controllers::data_frames DF view {:?}", df_view);
-
-                let resource_version = ResourceVersion {
-                    path: resource.file_path.to_string_lossy().into(),
-                    version: resource.version().to_owned(),
-                };
-
-                // Have to do the pagination after the transform
-                let view_height = if opts.has_filter_transform() {
-                    df_view.height()
-                } else {
-                    data_frame_size.height
-                };
-
-                let total_pages = (view_height as f64 / page_opts.page_size as f64).ceil() as usize;
-
-                let mut df =
-                    tabular::transform_slice(df_view, data_frame_size.height, opts.clone())?;
-
-                let mut slice_schema = Schema::from_polars(&df.schema());
-                log::debug!("OG schema {:?}", og_schema);
-                log::debug!("Pre-Slice schema {:?}", slice_schema);
-                slice_schema.update_metadata_from_schema(&og_schema);
-                log::debug!("Slice schema {:?}", slice_schema);
-                let opts_view = DFOptsView::from_df_opts(&opts);
-
-                let response = JsonDataFrameViewResponse {
-                    status: StatusMessage::resource_found(),
-                    data_frame: JsonDataFrameViews {
-                        source: og_df_json,
-                        view: JsonDataFrameView {
-                            schema: slice_schema,
-                            size: DataFrameSize {
-                                height: df.height(),
-                                width: df.width(),
-                            },
-                            data: JsonDataFrameView::json_from_df(&mut df),
-                            pagination: Pagination {
-                                page_number: page_opts.page_num,
-                                page_size: page_opts.page_size,
-                                total_pages,
-                                total_entries: view_height,
-                            },
-                            opts: opts_view,
-                        },
-                    },
-                    commit: Some(resource.commit.clone()),
-                    resource: Some(resource_version),
-                    derived_resource: None,
-                };
-                Ok(HttpResponse::Ok().json(response))
-            }
-            Err(OxenError::SQLParseError(sql)) => {
-                log::error!("Error parsing SQL: {}", sql);
-                Err(OxenHttpError::SQLParseError(sql))
-            }
-            Err(e) => {
-                log::error!("Error transforming df: {}", e);
-                Err(OxenHttpError::InternalServerError)
+    for entry in entries {
+        if let Some(resource) = entry.resource.clone() {
+            if index::remote_df_stager::dataset_is_indexed(
+                &repo,
+                &branch,
+                &identifier,
+                &PathBuf::from(resource.path),
+            )? {
+                editable_entries.push(entry);
             }
         }
     }
+
+    let (paginated_entries, pagination) = paginate(editable_entries, page, page_size);
+    Ok(HttpResponse::Ok().json(PaginatedMetadataEntriesResponse {
+        status: StatusMessage::resource_found(),
+        entries: PaginatedMetadataEntries {
+            entries: paginated_entries,
+            pagination,
+        },
+    }))
 }
 
 fn clear_staged_modifications_on_branch(
@@ -939,7 +1090,7 @@ fn clear_staged_modifications_on_branch(
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
             index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
-            match mod_stager::unstage_df(repo, &branch, user_id, path) {
+            match mod_stager::restore_df(repo, &branch, user_id, path) {
                 Ok(_) => {
                     log::debug!("clear_staged_modifications_on_branch success!");
                     HttpResponse::Ok().json(StatusMessage::resource_deleted())
@@ -967,10 +1118,12 @@ fn delete_staged_file_on_branch(
     user_id: &str,
     path: &Path,
 ) -> HttpResponse {
+    log::debug!("delete_staged_file_on_branch()");
     match api::local::branches::get_by_name(repo, branch_name) {
         Ok(Some(branch)) => {
             let branch_repo =
                 index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
+            log::debug!("got branch_repo");
             match index::remote_dir_stager::has_file(&branch_repo, path) {
                 Ok(true) => match index::remote_dir_stager::delete_file(&branch_repo, path) {
                     Ok(_) => {
@@ -1039,17 +1192,4 @@ fn get_dir_status_for_branch(
         staged: RemoteStagedStatus::from_staged(&branch_repo, &staged, page_num, page_size),
     };
     Ok(HttpResponse::Ok().json(response))
-}
-
-fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenHttpError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&"_oxen_id") {
-        Ok(row_df
-            .column("_oxen_id")
-            .unwrap()
-            .get(0)
-            .map(|val| val.to_string().trim_matches('"').to_string())
-            .ok())
-    } else {
-        Ok(None)
-    }
 }
