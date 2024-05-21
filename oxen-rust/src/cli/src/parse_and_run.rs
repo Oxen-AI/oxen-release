@@ -446,45 +446,6 @@ pub async fn fetch(_: &ArgMatches) {
     }
 }
 
-pub fn schemas(sub_matches: &ArgMatches) {
-    if let Some(subcommand) = sub_matches.subcommand() {
-        match subcommand {
-            ("name", sub_matches) => {
-                let hash = sub_matches.get_one::<String>("HASH").expect("required");
-                let val = sub_matches.get_one::<String>("NAME").expect("required");
-                match dispatch::schema_name(hash, val) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
-            }
-            ("add", _) => {
-                panic!("Schemas add has been moved")
-            }
-            ("rm", _) => {
-                panic!("Schemas rm has been moved")
-            }
-            (cmd, _) => {
-                eprintln!("Unknown schema subcommand {cmd}")
-            }
-        }
-    } else if let Some(schema_ref) = sub_matches.get_one::<String>("SCHEMA_REF") {
-        match dispatch::schema_show(
-            schema_ref,
-            sub_matches.get_flag("staged"),
-            !sub_matches.get_flag("flatten"), // default to verbose
-        ) {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    } else {
-        panic!("Schema subcommand not found");
-    }
-}
-
 pub async fn add(sub_matches: &ArgMatches) {
     let paths: Vec<PathBuf> = sub_matches
         .get_many::<String>("files")

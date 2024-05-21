@@ -47,22 +47,21 @@ impl RunCmd for CheckoutCmd {
         let repo = LocalRepository::from_current_dir()?;
 
         // Parse Args
-        // if let Some(name) = args.get_one::<String>("create") {
-        //     self.create_checkout_branch(&repo, name)?
-        // } else if args.get_flag("ours") {
-        //     let Some(name) = args.get_one::<String>("name") else {
-        //         return Err(OxenError::basic_str(format!("Err: Usage `oxen checkout --ours <name>`")));
-        //     };
+        if let Some(name) = args.get_one::<String>("create") {
+            self.create_checkout_branch(&repo, name)?
+        } else if args.get_flag("ours") {
+            let Some(name) = args.get_one::<String>("name") else {
+                return Err(OxenError::basic_str("Err: Usage `oxen checkout --ours <name>`"));
+            };
 
-        //     self.checkout_ours(&repo, name)?
-        // } else if args.get_flag("theirs") {
-        //     let Some(name) = args.get_one::<String>("name") else {
-        //         return Err(OxenError::basic_str(format!("Err: Usage `oxen checkout --theirs <name>`")));
-        //     };
+            self.checkout_ours(&repo, name)?
+        } else if args.get_flag("theirs") {
+            let Some(name) = args.get_one::<String>("name") else {
+                return Err(OxenError::basic_str("Err: Usage `oxen checkout --theirs <name>`"));
+            };
 
-        //     self.checkout_theirs(&repo, name)?
-        // } else
-        if let Some(name) = args.get_one::<String>("name") {
+            self.checkout_theirs(&repo, name)?
+        } else if let Some(name) = args.get_one::<String>("name") {
             self.checkout(&repo, name).await?;
         }
         Ok(())

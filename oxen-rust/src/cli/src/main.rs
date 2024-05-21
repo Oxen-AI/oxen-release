@@ -25,6 +25,7 @@ async fn main() {
         Box::new(cmd::CommitCmd),
         Box::new(cmd::CreateRemoteCmd),
         Box::new(cmd::DFCmd),
+        Box::new(cmd::SchemasCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -49,7 +50,6 @@ async fn main() {
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::rm())
         .subcommand(cmd_setup::save())
-        .subcommand(cmd_setup::schemas())
         .subcommand(cmd_setup::status())
         .subcommand(cmd_setup::upload());
 
@@ -81,7 +81,6 @@ async fn main() {
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
         Some((cmd_setup::SAVE, sub_matches)) => parse_and_run::save(sub_matches).await,
-        Some((cmd_setup::SCHEMAS, sub_matches)) => parse_and_run::schemas(sub_matches),
         Some((cmd_setup::STATUS, sub_matches)) => parse::status(sub_matches).await,
         Some((cmd_setup::UPLOAD, sub_matches)) => parse_and_run::upload(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
