@@ -233,7 +233,6 @@ impl CommitWriter {
             );
 
             if util::fs::is_tabular(&entry_path) {
-                log::debug!("apply_mods is tabular");
                 if mod_stager::branch_is_ahead_of_staging(
                     &self.repository,
                     branch,
