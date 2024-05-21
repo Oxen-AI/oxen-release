@@ -232,7 +232,6 @@ impl CommitWriter {
                 entry_path
             );
 
-            // IF tabular, want to index.
             if util::fs::is_tabular(&entry_path) {
                 if mod_stager::branch_is_ahead_of_staging(
                     &self.repository,
@@ -246,7 +245,6 @@ impl CommitWriter {
                     )));
                 }
 
-                // Tabular files are extracted from the db directly into the working dir
                 remote_df_stager::extract_dataset_to_working_dir(
                     &self.repository,
                     &branch_repo,
@@ -268,11 +266,12 @@ impl CommitWriter {
                 user_id,
                 &entry_path,
             )?;
+            log::debug!("Staged file {:?}", entry_path);
         }
 
         // Have to recompute staged data
         let staged_data = command::status(&branch_repo)?;
-        log::debug!("APPLY MODS got new staged_data");
+
         staged_data.print_stdout();
 
         Ok(staged_data)
@@ -904,14 +903,12 @@ mod tests {
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let identity = UserConfig::identifier()?;
 
-            let opts = DFOpts::empty();
-
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
-            let append_contents = "{\"file\": \"images/test.jpg\"}".to_string();
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
+            let append_contents = "{\"NOT_REAL_COLUMN\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
                 data: append_contents,
@@ -950,8 +947,7 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let opts = DFOpts::empty();
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity, &opts)?;
+            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
             index::mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),

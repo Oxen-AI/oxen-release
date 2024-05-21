@@ -84,6 +84,7 @@ mod tests {
     use crate::command;
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::df::tabular;
     use crate::core::index;
     use crate::core::index::CommitEntryReader;
@@ -131,7 +132,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
                     command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                let oxen_dir = cloned_repo.path.join(".oxen");
+                let oxen_dir = cloned_repo.path.join(OXEN_HIDDEN_DIR);
                 assert!(oxen_dir.exists());
                 command::pull(&cloned_repo).await?;
 

@@ -3,7 +3,6 @@ use polars::prelude::*;
 use std::fs::File;
 
 use crate::constants;
-use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
@@ -19,11 +18,6 @@ use rand::thread_rng;
 use std::ffi::OsStr;
 use std::io::Cursor;
 use std::path::Path;
-
-use super::{
-    agg::{DFAggFn, DFAggFnType, DFAggregation},
-    filter::{DFFilterExp, DFFilterOp, DFFilterVal},
-};
 
 const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
 const DEFAULT_SAMPLE_SIZE: usize = 1024;
@@ -212,11 +206,10 @@ pub fn add_col(
     Ok(df)
 }
 
-pub fn add_row(df: LazyFrame, data: String, opts: &DFOpts) -> Result<LazyFrame, OxenError> {
+pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
 
-    let schema = crate::model::Schema::from_polars(&df.schema());
-    let new_row = parse_data_into_df(&data, &schema, opts.content_type.to_owned())?;
+    let new_row = parse_data_into_df(&data, ContentType::Json)?;
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
 }
@@ -227,11 +220,7 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     Ok(n_dupes)
 }
 
-pub fn parse_data_into_df(
-    data: &str,
-    schema: &crate::model::Schema,
-    content_type: ContentType,
-) -> Result<DataFrame, OxenError> {
+pub fn parse_data_into_df(data: &str, content_type: ContentType) -> Result<DataFrame, OxenError> {
     log::debug!("Parsing content into df: {content_type:?}\n{data}");
     match content_type {
         ContentType::Json => {
@@ -242,23 +231,12 @@ pub fn parse_data_into_df(
                 )));
             }
 
+            if data == "{}" {
+                return Ok(DataFrame::default());
+            }
+
             let cursor = Cursor::new(data.as_bytes());
             match JsonLineReader::new(cursor).finish() {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
-        ContentType::Csv => {
-            let fields = schema.fields_to_csv();
-            let data = format!("{}\n{}", fields, data);
-            let cursor = Cursor::new(data.as_bytes());
-            let schema = schema.to_polars();
-            match CsvReader::new(cursor)
-                .with_schema(Some(Arc::new(schema)))
-                .finish()
-            {
                 Ok(df) => Ok(df),
                 Err(err) => Err(OxenError::basic_str(format!(
                     "Error parsing {content_type:?}: {err}"
@@ -303,109 +281,6 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
     }
 }
 
-fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
-    if let Some(value) = df
-        .schema()
-        .expect("Unable to get schema from data frame")
-        .iter_fields()
-        .find(|f| f.name == filter.field)
-    {
-        val_from_str_and_dtype(&filter.value, value.data_type())
-    } else {
-        log::error!("Unknown field {:?}", filter.field);
-        AnyValue::Null
-    }
-}
-
-fn lit_from_any(value: &AnyValue) -> Expr {
-    match value {
-        AnyValue::Boolean(val) => lit(*val),
-        AnyValue::Float64(val) => lit(*val),
-        AnyValue::Float32(val) => lit(*val),
-        AnyValue::Int64(val) => lit(*val),
-        AnyValue::Int32(val) => lit(*val),
-        AnyValue::String(val) => lit(*val),
-        val => panic!("Unknown data type for [{}] to create literal", val),
-    }
-}
-
-fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
-    let val = val_from_df_and_filter(df, filter);
-    let val = lit_from_any(&val);
-    match filter.op {
-        DFFilterOp::EQ => col(&filter.field).eq(val),
-        DFFilterOp::GT => col(&filter.field).gt(val),
-        DFFilterOp::LT => col(&filter.field).lt(val),
-        DFFilterOp::GTE => col(&filter.field).gt_eq(val),
-        DFFilterOp::LTE => col(&filter.field).lt_eq(val),
-        DFFilterOp::NEQ => col(&filter.field).neq(val),
-    }
-}
-
-fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
-    log::debug!("Got filter: {:?}", filter);
-    if filter.vals.is_empty() {
-        return Ok(df);
-    }
-    let mut vals = filter.vals.iter();
-    let mut expr: Expr = filter_from_val(&df, vals.next().unwrap());
-    for op in &filter.logical_ops {
-        let chain_expr: Expr = filter_from_val(&df, vals.next().unwrap());
-
-        match op {
-            DFLogicalOp::AND => expr = expr.and(chain_expr),
-            DFLogicalOp::OR => expr = expr.or(chain_expr),
-        }
-    }
-
-    Ok(df.filter(expr))
-}
-
-fn agg_fn_to_expr(agg: &DFAggFn) -> Result<Expr, OxenError> {
-    let col_name = &agg.args[0];
-    match DFAggFnType::from_fn_name(&agg.name) {
-        DFAggFnType::List => Ok(col(col_name).alias(&format!("list('{col_name}')"))),
-        DFAggFnType::Count => Ok(col(col_name).count().alias(&format!("count('{col_name}')"))),
-        DFAggFnType::NUnique => Ok(col(col_name)
-            .n_unique()
-            .alias(&format!("n_unique('{col_name}')"))),
-        DFAggFnType::Min => Ok(col(col_name).min().alias(&format!("min('{col_name}')"))),
-        DFAggFnType::Max => Ok(col(col_name).max().alias(&format!("max('{col_name}')"))),
-        DFAggFnType::ArgMin => Ok(col(col_name)
-            .arg_min()
-            .alias(&format!("arg_min('{col_name}')"))),
-        DFAggFnType::ArgMax => Ok(col(col_name).arg_max().alias(&format!("max('{col_name}')"))),
-        DFAggFnType::Mean => Ok(col(col_name).mean().alias(&format!("mean('{col_name}')"))),
-        DFAggFnType::Median => Ok(col(col_name)
-            .median()
-            .alias(&format!("median('{col_name}')"))),
-        DFAggFnType::Std => Ok(col(col_name).std(0).alias(&format!("std('{col_name}')"))),
-        DFAggFnType::Var => Ok(col(col_name).var(0).alias(&format!("var('{col_name}')"))),
-        DFAggFnType::First => Ok(col(col_name).first().alias(&format!("first('{col_name}')"))),
-        DFAggFnType::Last => Ok(col(col_name).last().alias(&format!("last('{col_name}')"))),
-        DFAggFnType::Head => Ok(col(col_name)
-            .head(Some(5))
-            .alias(&format!("head('{col_name}', 5)"))),
-        DFAggFnType::Tail => Ok(col(col_name)
-            .tail(Some(5))
-            .alias(&format!("tail('{col_name}', 5)"))),
-        DFAggFnType::Unknown => Err(OxenError::unknown_agg_fn(&agg.name)),
-    }
-}
-
-fn aggregate_df(df: LazyFrame, aggregation: &DFAggregation) -> Result<LazyFrame, OxenError> {
-    log::debug!("Got agg: {:?}", aggregation);
-
-    let group_by: Vec<Expr> = aggregation.group_by.iter().map(|c| col(c)).collect();
-    let agg: Vec<Expr> = aggregation
-        .agg
-        .iter()
-        .map(|f| agg_fn_to_expr(f).expect("Err:"))
-        .collect();
-
-    Ok(df.group_by(group_by).agg(agg))
-}
-
 fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
     log::debug!("Got unique: {:?}", columns);
     Ok(df.unique(Some(columns), UniqueKeepStrategy::First))
@@ -438,47 +313,15 @@ pub fn transform_lazy(
     }
 
     if let Some(data) = &opts.add_row {
-        df = add_row(df, data.to_owned(), &opts)?;
+        df = add_row(df, data.to_owned())?;
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
         df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
     }
 
-    // For aggregations, sort by first column, because it is non-deterministic
-    let mut should_sort_by_first_column = false;
-
-    match opts.get_filter() {
-        Ok(filter) => {
-            if let Some(filter) = filter {
-                df = filter_df(df, &filter)?;
-            }
-        }
-        Err(err) => {
-            log::error!("Could not parse filter: {err}");
-        }
-    }
-
     if let Some(columns) = opts.unique_columns() {
         df = unique_df(df, columns)?;
-    }
-
-    if let Some(agg) = &opts.get_aggregation()? {
-        df = aggregate_df(df, agg)?;
-        should_sort_by_first_column = true;
-    }
-
-    // Sort aggregations by first column because they return in a non-deterministic order
-    log::debug!("transform_lazy Should sort by first column? {should_sort_by_first_column}");
-    if should_sort_by_first_column {
-        log::debug!("transform_lazy Sorting by first column");
-        let schema = df.schema().expect("Unable to get schema from data frame");
-        let first_column = schema
-            .get_at_index(0)
-            .expect("Unable to get first column")
-            .0;
-        log::debug!("transform_lazy First column name: {first_column}");
-        df = df.sort([first_column], Default::default());
     }
 
     if opts.should_randomize {
@@ -525,6 +368,7 @@ pub fn transform_lazy(
 }
 
 pub fn transform_slice(df: DataFrame, height: usize, opts: DFOpts) -> Result<DataFrame, OxenError> {
+    log::debug!("here's the slice that we got heading into this {:?}", df);
     transform_slice_lazy(df.lazy(), height, opts)
 }
 
@@ -653,7 +497,8 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
         AnyValue::Float32(f) => Box::new(f),
         AnyValue::Float64(f) => Box::new(f),
         AnyValue::Boolean(b) => Box::new(b),
-        _ => panic!("Unsupported dtype"),
+        AnyValue::Null => Box::new(None::<i32>),
+        other => panic!("Unsupported dtype: {:?}", other),
     }
 }
 
@@ -1094,103 +939,10 @@ pub fn polars_schema_to_flat_str(schema: &Schema) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::df::{filter, tabular};
+    use crate::core::df::tabular;
     use crate::view::JsonDataFrameView;
     use crate::{error::OxenError, opts::DFOpts};
     use polars::prelude::*;
-
-    #[test]
-    fn test_filter_single_expr() -> Result<(), OxenError> {
-        let query = Some("label == dog".to_string());
-        let df = df!(
-            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
-            "label" => &["cat", "dog", "unknown"],
-            "min_x" => &["0.0", "1.0", "2.0"],
-            "max_x" => &["3.0", "4.0", "5.0"],
-        )
-        .unwrap();
-
-        let filter = filter::parse(query)?.unwrap();
-        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
-
-        assert_eq!(
-            r"shape: (1, 4)
-┌──────────┬───────┬───────┬───────┐
-│ image    ┆ label ┆ min_x ┆ max_x │
-│ ---      ┆ ---   ┆ ---   ┆ ---   │
-│ str      ┆ str   ┆ str   ┆ str   │
-╞══════════╪═══════╪═══════╪═══════╡
-│ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
-└──────────┴───────┴───────┴───────┘",
-            format!("{filtered_df}")
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_filter_multiple_or_expr() -> Result<(), OxenError> {
-        let query = Some("label == dog || label == cat".to_string());
-        let df = df!(
-            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
-            "label" => &["cat", "dog", "unknown"],
-            "min_x" => &["0.0", "1.0", "2.0"],
-            "max_x" => &["3.0", "4.0", "5.0"],
-        )
-        .unwrap();
-
-        let filter = filter::parse(query)?.unwrap();
-        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
-
-        println!("{filtered_df}");
-
-        assert_eq!(
-            r"shape: (2, 4)
-┌──────────┬───────┬───────┬───────┐
-│ image    ┆ label ┆ min_x ┆ max_x │
-│ ---      ┆ ---   ┆ ---   ┆ ---   │
-│ str      ┆ str   ┆ str   ┆ str   │
-╞══════════╪═══════╪═══════╪═══════╡
-│ 0000.jpg ┆ cat   ┆ 0.0   ┆ 3.0   │
-│ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
-└──────────┴───────┴───────┴───────┘",
-            format!("{filtered_df}")
-        );
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_filter_multiple_and_expr() -> Result<(), OxenError> {
-        let query = Some("label == dog && is_correct == true".to_string());
-        let df = df!(
-            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
-            "label" => &["dog", "dog", "unknown"],
-            "min_x" => &[0.0, 1.0, 2.0],
-            "max_x" => &[3.0, 4.0, 5.0],
-            "is_correct" => &[true, false, false],
-        )
-        .unwrap();
-
-        let filter = filter::parse(query)?.unwrap();
-        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
-
-        println!("{filtered_df}");
-
-        assert_eq!(
-            r"shape: (1, 5)
-┌──────────┬───────┬───────┬───────┬────────────┐
-│ image    ┆ label ┆ min_x ┆ max_x ┆ is_correct │
-│ ---      ┆ ---   ┆ ---   ┆ ---   ┆ ---        │
-│ str      ┆ str   ┆ f64   ┆ f64   ┆ bool       │
-╞══════════╪═══════╪═══════╪═══════╪════════════╡
-│ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
-└──────────┴───────┴───────┴───────┴────────────┘",
-            format!("{filtered_df}")
-        );
-
-        Ok(())
-    }
 
     #[test]
     fn test_unique_single_field() -> Result<(), OxenError> {

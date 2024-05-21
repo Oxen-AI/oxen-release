@@ -12,6 +12,13 @@ use crate::{
 use super::{JsonDataFrame, PaginatedDirEntries, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
+pub struct DFIsEditableResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub is_editable: bool,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 pub struct StagedFileModResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
@@ -117,6 +124,7 @@ impl RemoteStagedStatus {
                     // not committed so does not have a resource or meta data computed
                     resource: None,
                     metadata: None,
+                    is_queryable: None,
                 }
             })
             .collect()

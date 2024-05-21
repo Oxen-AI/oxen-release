@@ -106,9 +106,9 @@ mod tests {
 
     use crate::api;
     use crate::command;
+    use crate::constants::OXEN_ID_COL;
     use crate::error::OxenError;
     use crate::model::staged_data::StagedDataOpts;
-    use crate::model::ContentType;
     use crate::opts::DFOpts;
     use crate::test;
     use polars::prelude::AnyValue;
@@ -183,12 +183,9 @@ mod tests {
                 let mut opts = DFOpts::empty();
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
-                opts.content_type = ContentType::Json;
                 // Grab ID from the row we just added
                 let df = command::remote::df(&cloned_repo, &path, opts).await?;
-                log::debug!("Add DF row: {:?}", df);
-
-                let uuid = match df.get(0).unwrap().get(2).unwrap() {
+                let uuid = match df.column(OXEN_ID_COL).unwrap().get(0).unwrap() {
                     AnyValue::String(s) => s.to_string(),
                     _ => panic!("Expected string"),
                 };

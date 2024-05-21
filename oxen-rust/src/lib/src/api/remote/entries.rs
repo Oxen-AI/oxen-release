@@ -181,10 +181,7 @@ pub async fn download_dir(
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
-    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &|| {
-        log::debug!("Pull entries complete.")
-    })
-    .await?;
+    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path).await?;
 
     Ok(())
 }

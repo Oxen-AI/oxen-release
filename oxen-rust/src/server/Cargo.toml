@@ -17,7 +17,7 @@ clap = { version = "4.2.7", features = ["cargo"] }
 derive_more = "0.99.17"
 dotenv = "0.15.0"
 dunce = "1"
-duckdb = { version = "0.10.1", features = ["bundled"] }
+duckdb = { version = "0.10.2", features = ["bundled"] }
 env_logger = "0.11.3"
 flate2 = "1.0.23"
 futures = "0.3.21"
@@ -35,7 +35,7 @@ polars = { version = "0.39.2", features = [
     "json",
     "ipc",
     "ipc_streaming",
-    "dtype-full"
+    "dtype-full",
 ] }
 r2d2 = "0.8.10"
 rand = "0.8.0"

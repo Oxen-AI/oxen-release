@@ -49,10 +49,9 @@ pub fn query_df(
     index_df(repo, entry, conn)?;
 
     let conn = df_db::get_connection(duckdb_path)?;
-    log::debug!("connection created");
 
-    let df = df_db::select_raw(&conn, &sql)?;
-    log::debug!("got this query output");
+    let df = df_db::select_str(&conn, sql, false, None, None)?;
+
     Ok(df)
 }
 
@@ -90,7 +89,7 @@ pub fn index_df(
     entry: &CommitEntry,
     conn: &mut duckdb::Connection,
 ) -> Result<(), OxenError> {
-    log::debug!("indexing df");
+    log::debug!("df::sql::index_df()");
     let duckdb_path = db_cache_path(repo, entry);
     let default_parent = PathBuf::from("");
     let parent = duckdb_path.parent().unwrap_or(&default_parent);
@@ -118,6 +117,10 @@ pub fn index_df(
 
 pub fn df_is_indexed(repo: &LocalRepository, entry: &CommitEntry) -> Result<bool, OxenError> {
     let duckdb_path = db_cache_path(repo, entry);
+
+    if !duckdb_path.exists() {
+        return Ok(false);
+    }
     let conn = df_db::get_connection(duckdb_path)?;
     let is_indexed = df_db::table_exists(&conn, DUCKDB_DF_TABLE_NAME)?;
     Ok(is_indexed)

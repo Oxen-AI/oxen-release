@@ -59,6 +59,29 @@ impl TabularDiffDupes {
     }
 }
 
+impl TabularDiffMods {
+    pub fn empty() -> Self {
+        TabularDiffMods {
+            row_counts: AddRemoveModifyCounts {
+                added: 0,
+                removed: 0,
+                modified: 0,
+            },
+            col_changes: TabularSchemaDiff::empty(),
+        }
+    }
+}
+
+impl TabularDiffSchemas {
+    pub fn empty() -> Self {
+        TabularDiffSchemas {
+            left: Schema::empty(),
+            right: Schema::empty(),
+            diff: Schema::empty(),
+        }
+    }
+}
+
 impl TabularDiffParameters {
     pub fn empty() -> Self {
         TabularDiffParameters {
@@ -87,6 +110,13 @@ impl TabularSchemaDiff {
 
         Ok(TabularSchemaDiff { added, removed })
     }
+
+    pub fn empty() -> Self {
+        TabularSchemaDiff {
+            added: vec![],
+            removed: vec![],
+        }
+    }
 }
 
 impl TabularDiff {
@@ -96,5 +126,23 @@ impl TabularDiff {
             || self.summary.modifications.row_counts.modified > 0
             || !self.summary.modifications.col_changes.added.is_empty()
             || !self.summary.modifications.col_changes.removed.is_empty()
+    }
+
+    pub fn empty() -> Self {
+        TabularDiff {
+            summary: TabularDiffSummary::empty(),
+            parameters: TabularDiffParameters::empty(),
+            contents: DataFrame::empty(),
+        }
+    }
+}
+
+impl TabularDiffSummary {
+    pub fn empty() -> Self {
+        TabularDiffSummary {
+            modifications: TabularDiffMods::empty(),
+            schemas: TabularDiffSchemas::empty(),
+            dupes: TabularDiffDupes::empty(),
+        }
     }
 }

@@ -23,14 +23,9 @@ pub async fn df<P: AsRef<Path>>(
 ) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
     if let Some(row) = &opts.add_row {
-        add_row(repo, input.as_ref(), row, &opts).await
+        add_row(repo, input.as_ref(), row).await
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, input, uuid).await
-    } else if opts.index {
-        let df = index_dataset(repo, input).await?;
-        println!("Dataset successfully indexed ✅");
-        println!("{df:?}");
-        Ok(df)
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
@@ -61,43 +56,38 @@ pub async fn staged_df<P: AsRef<Path>>(
     // Special case where we are writing data
     let identifier = UserConfig::identifier()?;
     if let Some(row) = &opts.add_row {
-        add_row(repo, input.as_ref(), row, &opts).await
+        add_row(repo, input.as_ref(), row).await
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, input, uuid).await
-    } else if let Some(row_id) = &opts.get_row {
-        get_row(repo, input, row_id).await
-    } else if opts.index {
-        let df = index_dataset(repo, input).await?;
-        println!("Dataset successfully indexed ✅");
-        println!("{df:?}");
-        Ok(df)
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val = api::remote::df::get_staged(&remote_repo, &branch.name, &identifier, input, opts)
-            .await?;
-        let mut df = val.data_frame.view.to_df();
-        if let Some(output) = output {
-            println!("Writing {output:?}");
-            tabular::write_df(&mut df, output)?;
-        }
+        let val =
+            api::remote::df::get_staged(&remote_repo, &branch.name, &identifier, input, opts).await;
+        if let Ok(val) = val {
+            let mut df = val.data_frame.view.to_df();
+            if let Some(output) = output {
+                println!("Writing {output:?}");
+                tabular::write_df(&mut df, output)?;
+            }
 
-        println!(
-            "Full shape: ({}, {})\n",
-            val.data_frame.source.size.height, val.data_frame.source.size.width
-        );
-        println!("Slice {df:?}");
-        Ok(df)
+            println!(
+                "Full shape: ({}, {})\n",
+                val.data_frame.source.size.height, val.data_frame.source.size.width
+            );
+            println!("Slice {df:?}");
+            Ok(df)
+        } else {
+            println!(
+                    "Dataset not indexed for remote editing. Use `oxen df --index <path>` to index it, or `oxen df <path> --committed` to view the committed resource in view-only mode.\n"
+                );
+            Err(OxenError::basic_str("No dataset staged for this resource."))
+        }
     }
 }
 
-async fn add_row(
-    repo: &LocalRepository,
-    path: &Path,
-    data: &str,
-    opts: &DFOpts,
-) -> Result<DataFrame, OxenError> {
+async fn add_row(repo: &LocalRepository, path: &Path, data: &str) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
 
     // let data = format!(r#"{{"data": {}}}"#, data);
@@ -111,7 +101,7 @@ async fn add_row(
             &user_id,
             path,
             data,
-            opts.content_type.to_owned(),
+            crate::model::ContentType::Json,
             ModType::Append,
         )
         .await?;
@@ -174,7 +164,7 @@ pub async fn get_row(
 pub async fn index_dataset(
     repository: &LocalRepository,
     path: impl AsRef<Path>,
-) -> Result<DataFrame, OxenError> {
+) -> Result<(), OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;

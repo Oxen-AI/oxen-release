@@ -4,6 +4,7 @@
 //!
 
 use derive_more::{Display, Error};
+use duckdb::arrow::error::ArrowError;
 use std::fmt::Debug;
 use std::io;
 use std::num::ParseIntError;
@@ -90,6 +91,7 @@ pub enum OxenError {
     // External Library Errors
     IO(io::Error),
     Authentication(StringError),
+    ArrowError(ArrowError),
     TomlSer(toml::ser::Error),
     TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
@@ -557,6 +559,12 @@ impl From<glob::PatternError> for OxenError {
 impl From<PolarsError> for OxenError {
     fn from(err: PolarsError) -> Self {
         OxenError::PolarsError(err)
+    }
+}
+
+impl From<ArrowError> for OxenError {
+    fn from(error: ArrowError) -> Self {
+        OxenError::ArrowError(error)
     }
 }
 

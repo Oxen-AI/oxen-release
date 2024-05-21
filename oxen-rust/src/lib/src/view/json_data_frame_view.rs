@@ -60,6 +60,7 @@ pub struct JsonDataFrameRowResponse {
     pub resource: Option<ResourceVersion>,
     pub derived_resource: Option<DerivedDFResource>,
     pub row_id: Option<String>,
+    pub row_index: Option<usize>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
@@ -111,6 +112,11 @@ impl JsonDataFrameView {
         let total_pages = (full_height as f64 / page_size as f64).ceil() as usize;
 
         let mut opts = opts.clone();
+
+        if df.height() == 0 {
+            return JsonDataFrameView::empty_with_schema(&og_schema, full_height, &opts);
+        };
+
         opts.slice = Some(format!("{}..{}", start, end));
         let opts_view = DFOptsView::from_df_opts(&opts);
         let mut sliced_df = tabular::transform(df, opts).unwrap();
@@ -145,7 +151,11 @@ impl JsonDataFrameView {
         let full_width = df.width();
         let view_height = df.height();
 
-        let opts_view = DFOptsView::from_df_opts(opts);
+        // Unpaginated means we don't need to slice the df
+        let mut opts = opts.clone();
+        opts.slice = None;
+
+        let opts_view = DFOptsView::from_df_opts(&opts);
         let mut sliced_df = tabular::transform(df, opts.clone()).unwrap();
 
         // Merge the metadata from the original schema
@@ -155,6 +165,11 @@ impl JsonDataFrameView {
         slice_schema.update_metadata_from_schema(&og_schema);
         log::debug!("Slice schema {:?}", slice_schema);
 
+        let page_size = opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+        let page_number = opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
+
+        let total_pages = (og_height as f64 / page_size as f64).ceil() as usize;
+
         JsonDataFrameView {
             schema: slice_schema,
             size: DataFrameSize {
@@ -163,9 +178,9 @@ impl JsonDataFrameView {
             },
             data: JsonDataFrameView::json_from_df(&mut sliced_df),
             pagination: Pagination {
-                page_number: opts.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
-                page_size: opts.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
-                total_pages: (og_height as f64 / view_height as f64).ceil() as usize,
+                page_number,
+                page_size,
+                total_pages,
                 total_entries: og_height,
             },
             opts: opts_view,
@@ -223,6 +238,29 @@ impl JsonDataFrameView {
         let json_str = str::from_utf8(&buffer).unwrap();
 
         serde_json::from_str(json_str).unwrap()
+    }
+
+    fn empty_with_schema(
+        schema: &Schema,
+        total_entries: usize,
+        opts: &DFOpts,
+    ) -> JsonDataFrameView {
+        let mut default_df = DataFrame::empty();
+        JsonDataFrameView {
+            schema: schema.to_owned(),
+            size: DataFrameSize {
+                height: 0,
+                width: schema.fields_names().len(),
+            },
+            data: JsonDataFrameView::json_from_df(&mut default_df),
+            pagination: Pagination {
+                page_number: 0,
+                page_size: 0,
+                total_pages: 0,
+                total_entries,
+            },
+            opts: DFOptsView::from_df_opts(opts),
+        }
     }
 }
 

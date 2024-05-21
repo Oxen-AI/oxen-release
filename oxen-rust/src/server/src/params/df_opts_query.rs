@@ -4,10 +4,8 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct DFOptsQuery {
-    pub aggregate: Option<String>,
     pub columns: Option<String>,
     pub delimiter: Option<String>,
-    pub filter: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
     pub row: Option<usize>,
@@ -38,9 +36,7 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
         filter_ops.columns = Some(columns);
     }
 
-    filter_ops.aggregate.clone_from(&query.aggregate);
     filter_ops.delimiter.clone_from(&query.delimiter);
-    filter_ops.filter.clone_from(&query.filter);
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;

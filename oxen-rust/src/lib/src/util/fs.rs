@@ -18,6 +18,7 @@ use crate::constants::CACHE_DIR;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
 use crate::constants::HISTORY_DIR;
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
@@ -538,7 +539,7 @@ pub fn rlist_dirs_in_repo(repo: &LocalRepository) -> Vec<PathBuf> {
 
 /// Recursively tries to traverse up for an .oxen directory, returns None if not found
 pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
-    if path.join(".oxen").exists() {
+    if path.join(OXEN_HIDDEN_DIR).exists() {
         return Some(path.to_path_buf());
     }
 
@@ -547,6 +548,14 @@ pub fn get_repo_root(path: &Path) -> Option<PathBuf> {
     } else {
         None
     }
+}
+
+pub fn get_repo_root_from_current_dir() -> Option<PathBuf> {
+    let Ok(path) = std::env::current_dir() else {
+        log::error!("Could not get current directory");
+        return None;
+    };
+    get_repo_root(&path)
 }
 
 pub fn copy_dir_all(from: impl AsRef<Path>, to: impl AsRef<Path>) -> Result<(), OxenError> {

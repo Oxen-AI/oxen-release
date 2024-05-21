@@ -3,14 +3,16 @@
 //! Compare two files to find changes between them.
 //!
 
-use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT};
-use crate::core::db::{self, path_db};
+use crate::constants::{
+    CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT, TABLE_NAME,
+};
+use crate::core::db::{self, df_db, path_db, staged_df_db};
 use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core::df::tabular;
 use crate::core::index::object_db_reader::ObjectDBReader;
-use crate::core::index::{self, remote_dir_stager};
+use crate::core::index::{self, mod_stager, remote_dir_stager};
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
@@ -143,7 +145,6 @@ pub fn diff_dfs(
 
 pub fn diff_staged_df(
     repo: &LocalRepository,
-    // branch_repo: &LocalRepository,
     branch: &Branch,
     path: PathBuf,
     identifier: &str,
@@ -156,34 +157,48 @@ pub fn diff_staged_df(
     let entry = api::local::entries::get_commit_entry(repo, &commit, &path)?
         .ok_or(OxenError::entry_does_not_exist(&path))?;
 
-    let branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
-    let base_path = util::fs::version_path(repo, &entry);
-    let head_path = if index::remote_df_stager::dataset_is_indexed(repo, branch, identifier, &path)?
-    {
-        index::remote_df_stager::extract_dataset_to_working_dir(
-            repo,
-            &branch_repo,
-            branch,
-            &entry,
-            identifier,
-        )?
-    } else {
-        // TODO: Early return here an empty diff result instead
-        base_path.clone()
+    let _branch_repo = remote_dir_stager::init_or_get(repo, branch, identifier)?;
+
+    if !index::remote_df_stager::dataset_is_indexed(repo, branch, identifier, &path)? {
+        return Err(OxenError::basic_str("Dataset is not indexed"));
     };
 
-    let staged_df = tabular::read_df(&head_path, DFOpts::empty())?;
-    let committed_df = tabular::read_df(&base_path, DFOpts::empty())?;
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, entry.path);
 
-    let diff = diff_dfs(&committed_df, &staged_df, vec![], vec![], vec![])?;
+    let conn = df_db::get_connection(db_path)?;
 
-    // Clean up the staged df if we performed the export
-    if head_path != base_path {
-        // delete the file at head_path so it doesn't interfere with our status
-        std::fs::remove_file(head_path)?;
+    let diff_df = staged_df_db::df_diff(&conn)?;
+
+    if diff_df.is_empty() {
+        return Ok(DiffResult::Tabular(TabularDiff::empty()));
     }
 
-    Ok(diff)
+    let row_mods = AddRemoveModifyCounts::from_diff_df(&diff_df)?;
+
+    let schema = staged_df_db::schema_without_oxen_cols(&conn, TABLE_NAME)?;
+
+    let schemas = TabularDiffSchemas {
+        left: schema.clone(),
+        right: schema.clone(),
+        diff: schema.clone(),
+    };
+
+    let diff_summary = TabularDiffSummary {
+        modifications: TabularDiffMods {
+            row_counts: row_mods,
+            col_changes: TabularSchemaDiff::empty(),
+        },
+        schemas,
+        dupes: TabularDiffDupes::empty(),
+    };
+
+    let diff_result = TabularDiff {
+        contents: diff_df,
+        parameters: TabularDiffParameters::empty(),
+        summary: diff_summary,
+    };
+
+    Ok(DiffResult::Tabular(diff_result))
 }
 
 fn get_schema_diff(df1: &DataFrame, df2: &DataFrame) -> SchemaDiff {
@@ -936,7 +951,7 @@ pub fn get_cached_diff(
     let left_entry = compare_entry_1.unwrap();
     let right_entry = compare_entry_2.unwrap();
 
-    // TODONOW this should be cached
+    // TODO this should be cached
     let left_full_df = tabular::read_df(
         api::local::revisions::get_version_file_from_commit_id(
             repo,

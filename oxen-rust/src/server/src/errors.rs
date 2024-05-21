@@ -101,10 +101,8 @@ impl error::ResponseError for OxenHttpError {
                 let error_json = json!({
                     "error": {
                         "type": "not_queryable",
-                        "title": format!(
-                            "DF is too large to query, limit is {}. Upgrade your plan to query larger DFs.",
-                            constants::MAX_QUERYABLE_ROWS
-                        )
+                        "title": "DataFrame is too large.",
+                        "detail": format!("This DataFrame is too large to query. Upgrade your plan to query larger DataFrames larger than {}", constants::MAX_QUERYABLE_ROWS),
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_BAD_REQUEST,
@@ -116,7 +114,9 @@ impl error::ResponseError for OxenHttpError {
                     "error": {
                         "type": "dataset_not_indexed",
                         "title":
-                            "This dataframe is not yet indexed for SQL and NLP querying.",
+                            "Dataset must be indexed.",
+                        "detail":
+                            "This dataset is not yet indexed for SQL and NLP querying.",
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_BAD_REQUEST,
@@ -222,6 +222,22 @@ impl error::ResponseError for OxenHttpError {
 
                         HttpResponse::BadRequest()
                             .json(StatusMessageDescription::bad_request(format!("{}", desc)))
+                    }
+                    OxenError::DUCKDB(error) => {
+                        log::error!("DuckDB error: {}", error);
+
+                        let error_json = json!({
+                            "error": {
+                                "type": "query_error",
+                                "title":
+                                    "Could not execute query on Data",
+                                "detail":
+                                    format!("{}", error)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_BAD_REQUEST,
+                        });
+                        HttpResponse::BadRequest().json(error_json)
                     }
                     err => {
                         log::error!("Internal server error: {:?}", err);

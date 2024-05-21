@@ -1,6 +1,7 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
+use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -117,6 +118,7 @@ pub fn meta_entry_from_dir(
             path: String::from(path.to_string_lossy()),
         }),
         metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
+        is_queryable: None,
     });
 }
 
@@ -243,12 +245,21 @@ pub fn meta_entry_from_commit_entry(
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
 
     let version_path = util::fs::version_path(repo, entry);
+
+    let data_type = util::fs::file_data_type(&version_path);
+
+    let is_indexed = if data_type == EntryDataType::Tabular {
+        Some(sql::df_is_indexed(repo, entry)?)
+    } else {
+        None
+    };
+
     return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
         is_dir: false,
         size,
         latest_commit: Some(latest_commit),
-        data_type: util::fs::file_data_type(&version_path),
+        data_type,
         mime_type: util::fs::file_mime_type(&version_path),
         extension: util::fs::file_extension(&version_path),
         resource: Some(ResourceVersion {
@@ -257,6 +268,7 @@ pub fn meta_entry_from_commit_entry(
         }),
         // Not applicable for files YET, but we will also compute this metadata
         metadata: None,
+        is_queryable: is_indexed,
     });
 }
 
@@ -647,10 +659,12 @@ pub fn list_tabular_files_in_repo(
 #[cfg(test)]
 mod tests {
     use std::path::Path;
+    use std::path::PathBuf;
 
     use crate::api;
     use crate::command;
     use crate::core;
+    use crate::core::df::sql;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -1372,6 +1386,78 @@ mod tests {
 
             let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
             assert_eq!(entries.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_file_metadata_shows_is_indexed() -> Result<(), OxenError> {
+        // skip on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_empty_local_repo_test(|repo| {
+            // Create a deeply nested directory
+            let dir_path = repo
+                .path
+                .join("data")
+                .join("train")
+                .join("images")
+                .join("cats");
+            util::fs::create_dir_all(&dir_path)?;
+
+            // Add two tabular files to it
+            let filename_1 = "cats.tsv";
+            let filepath_1 = dir_path.join(filename_1);
+            util::fs::write(filepath_1, "1\t2\t3\nhello\tworld\tsup\n")?;
+
+            let filename_2 = "dogs.csv";
+            let filepath_2 = dir_path.join(filename_2);
+            util::fs::write(filepath_2, "1,2,3\nhello,world,sup\n")?;
+
+            let path_1 = PathBuf::from("data")
+                .join("train")
+                .join("images")
+                .join("cats")
+                .join(filename_1);
+
+            let path_2 = PathBuf::from("data")
+                .join("train")
+                .join("images")
+                .join("cats")
+                .join(filename_2);
+
+            // And write a file in the same dir that is not tabular
+            let filename = "README.md";
+            let filepath = dir_path.join(filename);
+            util::fs::write(filepath, "readme....")?;
+
+            // Add and commit all
+            command::add(&repo, &repo.path)?;
+            let commit = command::commit(&repo, "Adding all the data")?;
+
+            // Get the metadata entries for the two dataframes
+            let meta1 = api::local::entries::get_meta_entry(&repo, &commit, &path_1)?;
+            let meta2 = api::local::entries::get_meta_entry(&repo, &commit, &path_2)?;
+
+            let entry2 = api::local::entries::get_commit_entry(&repo, &commit, &path_2)?
+                .expect("Failed: could not get commit entry");
+
+            assert_eq!(meta1.is_queryable, Some(false));
+            assert_eq!(meta2.is_queryable, Some(false));
+
+            // Now index df2
+            let mut conn = sql::get_conn(&repo, &entry2)?;
+            sql::index_df(&repo, &entry2, &mut conn)?;
+
+            // Now get the metadata entries for the two dataframes
+            let meta1 = api::local::entries::get_meta_entry(&repo, &commit, &path_1)?;
+            let meta2 = api::local::entries::get_meta_entry(&repo, &commit, &path_2)?;
+
+            assert_eq!(meta1.is_queryable, Some(false));
+            assert_eq!(meta2.is_queryable, Some(true));
 
             Ok(())
         })
