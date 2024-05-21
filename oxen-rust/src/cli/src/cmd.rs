@@ -39,7 +39,7 @@ pub use moo::MooCmd;
 pub mod remote;
 
 pub mod schemas;
-pub use schemas::SchemasAddCmd;
+pub use schemas::SchemasCmd;
 
 #[async_trait]
 pub trait RunCmd {

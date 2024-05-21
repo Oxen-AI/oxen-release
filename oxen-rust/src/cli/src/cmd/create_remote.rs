@@ -61,7 +61,11 @@ impl RunCmd for CreateRemoteCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let namespace_name = args.get_one::<String>("name").expect("required");
+        let Some(namespace_name) = args.get_one::<String>("name") else {
+            return Err(OxenError::basic_str(
+                "Must supply a namespace/name for the remote repository.",
+            ));
+        };
         // Default the host to the oxen.ai hub
         let host = args
             .get_one::<String>("host")

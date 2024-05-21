@@ -33,6 +33,11 @@ impl RunCmd for SchemasAddCmd {
                     .short('m')
                     .help("Set the metadata for a specific column. Must pass in the -c flag."),
             )
+            .arg(
+                Arg::new("render")
+                    .long("render")
+                    .help("Set the render type for a specific column. Supported render types: (image, link). Must pass in the -c flag."),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -43,6 +48,7 @@ impl RunCmd for SchemasAddCmd {
         // Flags
         let column = args.get_one::<String>("column");
         let metadata = args.get_one::<String>("metadata");
+        let render = args.get_one::<String>("render");
 
         let err_msg = "Must supply a file path, column name and either -m for metadata or -t for data type\n\n  oxen schemas add file.csv -c 'col1' -t 'str'\n";
 
@@ -50,11 +56,28 @@ impl RunCmd for SchemasAddCmd {
             return Err(OxenError::basic_str(err_msg));
         };
 
+        // If there is a render flag without a column, return an error
+        if render.is_some() && column.is_none() {
+            return Err(OxenError::basic_str(
+                "Must supply a column name with the -c flag when using --render.",
+            ));
+        }
+
         // Find the repo
         let repository = LocalRepository::from_current_dir()?;
 
         // If a column is supplied, then we need to supply a data type or metadata for that column
         if let Some(column) = column {
+            if let Some(render) = render {
+                let render_json = self.generate_render_json(render)?;
+                match self.schema_add_column_metadata(&repository, path, column, render_json) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
+            }
+
             if let Some(metadata) = metadata {
                 match self.schema_add_column_metadata(&repository, path, column, metadata) {
                     Ok(_) => {}
@@ -126,5 +149,25 @@ impl SchemasAddCmd {
         }
 
         Ok(())
+    }
+
+    fn generate_render_json(&self, render_type: impl AsRef<str>) -> Result<String, OxenError> {
+        let render_type = render_type.as_ref();
+        if render_type == "image" || render_type == "link" {
+            let json = serde_json::json!({
+                "_oxen": {
+                  "render": {
+                      "func": render_type
+                  }
+                }
+            });
+
+            Ok(serde_json::to_string(&json)?)
+        } else {
+            Err(OxenError::basic_str(format!(
+                "Invalid render type: {}",
+                render_type
+            )))
+        }
     }
 }
