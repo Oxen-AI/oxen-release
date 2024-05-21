@@ -74,7 +74,7 @@ fn create_prefixed_dir(
         .join(base_dir)
         .join(format!("{}", uuid::Uuid::new_v4()));
     let full_dir = Path::new(base_dir).join(repo_name);
-    std::fs::create_dir_all(&full_dir)?;
+    util::fs::create_dir_all(&full_dir)?;
     Ok(full_dir)
 }
 
@@ -1223,7 +1223,7 @@ pub fn populate_labels(repo_dir: &Path) -> Result<(), OxenError> {
 
 pub fn populate_large_files(repo_dir: &Path) -> Result<(), OxenError> {
     let large_dir = repo_dir.join("large_files");
-    std::fs::create_dir_all(&large_dir)?;
+    util::fs::create_dir_all(&large_dir)?;
     let large_file_1 = large_dir.join("test.csv");
     let from_file = test_200k_csv();
     util::fs::copy(from_file, large_file_1)?;
@@ -1233,7 +1233,7 @@ pub fn populate_large_files(repo_dir: &Path) -> Result<(), OxenError> {
 
 pub fn populate_train_dir(repo_dir: &Path) -> Result<(), OxenError> {
     let train_dir = repo_dir.join("train");
-    std::fs::create_dir_all(&train_dir)?;
+    util::fs::create_dir_all(&train_dir)?;
     util::fs::copy(
         Path::new("data")
             .join("test")
@@ -1275,7 +1275,7 @@ pub fn populate_train_dir(repo_dir: &Path) -> Result<(), OxenError> {
 
 pub fn populate_test_dir(repo_dir: &Path) -> Result<(), OxenError> {
     let test_dir = repo_dir.join("test");
-    std::fs::create_dir_all(&test_dir)?;
+    util::fs::create_dir_all(&test_dir)?;
     util::fs::copy(
         Path::new("data")
             .join("test")
@@ -1296,7 +1296,7 @@ pub fn populate_test_dir(repo_dir: &Path) -> Result<(), OxenError> {
 
 pub fn populate_annotations_dir(repo_dir: &Path) -> Result<(), OxenError> {
     let annotations_dir = repo_dir.join("annotations");
-    std::fs::create_dir_all(&annotations_dir)?;
+    util::fs::create_dir_all(&annotations_dir)?;
     let annotations_readme_file = annotations_dir.join("README.md");
     write_txt_file_to_path(
         annotations_readme_file,
@@ -1308,7 +1308,7 @@ pub fn populate_annotations_dir(repo_dir: &Path) -> Result<(), OxenError> {
 
     // annotations/train/
     let train_annotations_dir = annotations_dir.join("train");
-    std::fs::create_dir_all(&train_annotations_dir)?;
+    util::fs::create_dir_all(&train_annotations_dir)?;
     write_txt_file_to_path(
         train_annotations_dir.join("annotations.txt"),
         r"
@@ -1339,7 +1339,7 @@ train/cat_1.jpg,cat,57.0,35.5,304,427
 
     // annotations/test/
     let test_annotations_dir = annotations_dir.join("test");
-    std::fs::create_dir_all(&test_annotations_dir)?;
+    util::fs::create_dir_all(&test_annotations_dir)?;
     write_txt_file_to_path(
         test_annotations_dir.join("annotations.csv"),
         r"file,label,min_x,min_y,width,height
@@ -1358,7 +1358,7 @@ pub fn populate_nlp_dir(repo_dir: &Path) -> Result<(), OxenError> {
         .join("nlp")
         .join("classification")
         .join("annotations");
-    std::fs::create_dir_all(&nlp_annotations_dir)?;
+    util::fs::create_dir_all(&nlp_annotations_dir)?;
     let train_data = [
         "text\tlabel",
         "My tummy hurts\tnegative",
