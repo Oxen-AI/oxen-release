@@ -267,17 +267,8 @@ pub fn branch_is_ahead_of_staging(
     identity: &str,
     path: impl AsRef<Path>,
 ) -> Result<bool, OxenError> {
-    log::debug!(
-        "branch_is_ahead_of_staging {:?} {:?}",
-        path.as_ref(),
-        branch
-    );
     let commit_path = mods_commit_ref_path(repo, branch, identity, path);
-    log::debug!("branch_is_ahead_of_staging commit_path {:?}", commit_path);
     let commit_id = util::fs::read_from_path(commit_path)?;
-
-    log::debug!("read commit id {:?}", commit_id);
-    log::debug!("branch commit id {:?}", branch.commit_id);
     Ok(commit_id != branch.commit_id)
 }
 

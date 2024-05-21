@@ -206,10 +206,6 @@ pub fn extract_dataset_to_working_dir(
     // Match on the extension
 
     if !working_path.exists() {
-        log::debug!(
-            "extract_dataset_to_working_dir creating working path: {:?}",
-            working_path
-        );
         util::fs::create_dir_all(
             working_path
                 .parent()
