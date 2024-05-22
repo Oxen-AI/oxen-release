@@ -11,7 +11,7 @@ use liboxen::model::file::FileNew;
 use liboxen::model::RepoNew;
 
 use crate::cmd::RunCmd;
-pub const NAME: &str = "create_remote";
+pub const NAME: &str = "create-remote";
 pub struct CreateRemoteCmd;
 
 #[async_trait]
