@@ -16,7 +16,6 @@ async fn main() {
     env_logger::init_from_env(Env::default());
 
     let cmds: Vec<Box<dyn cmd::RunCmd>> = vec![
-        Box::new(cmd::InitCmd),
         Box::new(cmd::AddCmd),
         Box::new(cmd::BranchCmd),
         Box::new(cmd::CheckoutCmd),
@@ -25,6 +24,7 @@ async fn main() {
         Box::new(cmd::CommitCmd),
         Box::new(cmd::CreateRemoteCmd),
         Box::new(cmd::DFCmd),
+        Box::new(cmd::InitCmd),
         Box::new(cmd::SchemasCmd),
     ];
 
@@ -33,7 +33,17 @@ async fn main() {
         .about("🐂 is a machine learning dataset management toolchain")
         .subcommand_required(true)
         .arg_required_else_help(true)
-        .allow_external_subcommands(true)
+        .allow_external_subcommands(true);
+
+    // Add all the commands to the command line
+    let mut runners: HashMap<String, Box<dyn cmd::RunCmd>> = HashMap::new();
+    for cmd in cmds {
+        command = command.subcommand(cmd.args());
+        runners.insert(cmd.name().to_string(), cmd);
+    }
+
+    // TODO: Refactor these into their own modules
+    command = command
         .subcommand(cmd_setup::commit_cache())
         .subcommand(cmd_setup::download())
         .subcommand(cmd_setup::info())
@@ -52,13 +62,6 @@ async fn main() {
         .subcommand(cmd_setup::save())
         .subcommand(cmd_setup::status())
         .subcommand(cmd_setup::upload());
-
-    // Add all the commands to the command line
-    let mut runners: HashMap<String, Box<dyn cmd::RunCmd>> = HashMap::new();
-    for cmd in cmds {
-        command = command.subcommand(cmd.args());
-        runners.insert(cmd.name().to_string(), cmd);
-    }
 
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
