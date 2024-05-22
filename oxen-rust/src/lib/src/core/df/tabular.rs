@@ -19,7 +19,7 @@ use std::ffi::OsStr;
 use std::io::Cursor;
 use std::path::Path;
 
-const DEFAULT_INFER_SCHEMA_LEN: usize = 100;
+const DEFAULT_INFER_SCHEMA_LEN: usize = 10000;
 const DEFAULT_SAMPLE_SIZE: usize = 1024;
 const READ_ERROR: &str = "Could not read tabular data from path";
 const COLLECT_ERROR: &str = "Could not collect DataFrame";
