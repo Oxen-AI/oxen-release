@@ -79,7 +79,7 @@ impl RepoNew {
 
     pub fn scheme_default(host: impl AsRef<str>) -> String {
         let host = host.as_ref();
-        if host.contains("localhost") || host.contains("127.0.0.1") {
+        if host.contains("localhost") || host.contains("127.0.0.1") || host.contains("0.0.0.0") {
             "http".to_string()
         } else {
             "https".to_string()
