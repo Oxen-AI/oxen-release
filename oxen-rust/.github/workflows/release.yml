@@ -340,15 +340,15 @@ jobs:
         run: docker build -t oxen/oxen-server .
 
       - name: Save Docker
-        run: docker save oxen/oxen-server -o oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
+        run: docker save oxen/oxen-server -o oxen-server-docker.tar
 
       - name: Upload docker to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
-          asset_name: oxen-server-docker-${{ env.RELEASE_VERSION }}.tar
+          file: oxen-server-docker.tar
+          asset_name: oxen-server-docker.tar
           tag: ${{ github.ref }}
 
   release_docker_arm64:
@@ -366,15 +366,15 @@ jobs:
         run: docker build -t oxen/oxen-server .
 
       - name: Save Docker
-        run: docker save oxen/oxen-server -o oxen-server-docker-arm64-${{ env.RELEASE_VERSION }}.tar
+        run: docker save oxen/oxen-server -o oxen-server-docker-arm64.tar
 
       - name: Upload docker to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-docker-arm64-${{ env.RELEASE_VERSION }}.tar
-          asset_name: oxen-server-docker-arm64-${{ env.RELEASE_VERSION }}.tar
+          file: oxen-server-docker-arm64.tar
+          asset_name: oxen-server-docker-arm64.tar
           tag: ${{ github.ref }}
 
   release_mac_13:
@@ -424,18 +424,18 @@ jobs:
         run: cargo build --release
 
       - name: Tar.gz oxen for mac
-        run: cd target/release && tar -czf oxen-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz oxen && cd -
+        run: cd target/release && tar -czf oxen-mac-13.0.tar.gz oxen && cd -
 
       - name: Tar.gz oxen-server for mac
-        run: cd target/release && tar -czf oxen-server-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz oxen-server && cd -
+        run: cd target/release && tar -czf oxen-server-mac-13.0.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
-          asset_name: oxen-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
+          file: target/release/oxen-mac-13.0.tar.gz
+          asset_name: oxen-mac-13.0.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
@@ -443,8 +443,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
-          asset_name: oxen-server-mac-13.0-${{ env.RELEASE_VERSION }}.tar.gz
+          file: target/release/oxen-server-mac-13.0.tar.gz
+          asset_name: oxen-server-mac-13.0.tar.gz
           tag: ${{ github.ref }}
 
   release_mac_12:
@@ -494,18 +494,18 @@ jobs:
         run: cargo build --release
 
       - name: Tar.gz oxen for mac
-        run: cd target/release && tar -czf oxen-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz oxen && cd -
+        run: cd target/release && tar -czf oxen-mac-12.0.tar.gz oxen && cd -
 
       - name: Tar.gz oxen-server for mac
-        run: cd target/release && tar -czf oxen-server-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz oxen-server && cd -
+        run: cd target/release && tar -czf oxen-server-mac-12.0.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
-          asset_name: oxen-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
+          file: target/release/oxen-mac-12.0.tar.gz
+          asset_name: oxen-mac-12.0.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
@@ -513,8 +513,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
-          asset_name: oxen-server-mac-12.0-${{ env.RELEASE_VERSION }}.tar.gz
+          file: target/release/oxen-server-mac-12.0.tar.gz
+          asset_name: oxen-server-mac-12.0.tar.gz
           tag: ${{ github.ref }}
 
   release_mac_11:
@@ -564,18 +564,18 @@ jobs:
         run: cargo build --release
 
       - name: Tar.gz oxen for mac
-        run: cd target/release && tar -czf oxen-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz oxen && cd -
+        run: cd target/release && tar -czf oxen-mac-11.0.tar.gz oxen && cd -
 
       - name: Tar.gz oxen-server for mac
-        run: cd target/release && tar -czf oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz oxen-server && cd -
+        run: cd target/release && tar -czf oxen-server-mac-11.0.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
-          asset_name: oxen-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
+          file: target/release/oxen-mac-11.0.tar.gz
+          asset_name: oxen-mac-11.0.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
@@ -583,8 +583,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
-          asset_name: oxen-server-mac-11.0-${{ env.RELEASE_VERSION }}.tar.gz
+          file: target/release/oxen-server-mac-11.0.tar.gz
+          asset_name: oxen-server-mac-11.0.tar.gz
           tag: ${{ github.ref }}
 
   stop-self-hosted-runner:
