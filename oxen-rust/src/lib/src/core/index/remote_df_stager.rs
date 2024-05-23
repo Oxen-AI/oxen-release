@@ -82,6 +82,10 @@ pub fn index_dataset(
 
     add_row_status_cols(&conn)?;
 
+    // Save the current commit id so we know if the branch has advanced
+    let commit_path = mod_stager::mods_commit_ref_path(repo, branch, identifier, path);
+    util::fs::write_to_path(commit_path, &branch.commit_id)?;
+
     Ok(())
 }
 
@@ -202,7 +206,7 @@ pub fn extract_dataset_to_working_dir(
     // Match on the extension
 
     if !working_path.exists() {
-        std::fs::create_dir_all(
+        util::fs::create_dir_all(
             working_path
                 .parent()
                 .expect("Failed to get parent directory"),
