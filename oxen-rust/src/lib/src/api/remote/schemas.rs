@@ -205,8 +205,8 @@ mod tests {
 
             // Cannot get schema that does not exist
             let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await?;
-            assert!(result.is_none());
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await;
+            assert!(result.is_err());
 
             // Push the repo
             command::push(&local_repo).await?;
@@ -268,8 +268,8 @@ mod tests {
 
             // Cannot get schema that does not exist
             let result =
-                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await?;
-            assert!(result.is_none());
+                api::remote::schemas::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref).await;
+            assert!(result.is_err());
 
             // Push the repo
             command::push(&local_repo).await?;

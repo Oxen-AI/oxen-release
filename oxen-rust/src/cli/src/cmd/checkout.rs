@@ -51,13 +51,17 @@ impl RunCmd for CheckoutCmd {
             self.create_checkout_branch(&repo, name)?
         } else if args.get_flag("ours") {
             let Some(name) = args.get_one::<String>("name") else {
-                return Err(OxenError::basic_str("Err: Usage `oxen checkout --ours <name>`"));
+                return Err(OxenError::basic_str(
+                    "Err: Usage `oxen checkout --ours <name>`",
+                ));
             };
 
             self.checkout_ours(&repo, name)?
         } else if args.get_flag("theirs") {
             let Some(name) = args.get_one::<String>("name") else {
-                return Err(OxenError::basic_str("Err: Usage `oxen checkout --theirs <name>`"));
+                return Err(OxenError::basic_str(
+                    "Err: Usage `oxen checkout --theirs <name>`",
+                ));
             };
 
             self.checkout_theirs(&repo, name)?

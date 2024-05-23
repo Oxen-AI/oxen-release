@@ -129,6 +129,13 @@ jobs:
       - name: Install dependencies
         run: brew install pkg-config ffmpeg imagemagick
 
+      # https://youtrack.jetbrains.com/issue/RUST-12079/Failure-to-show-stack-trace-when-running-cargo-tests
+      - name: Install LLVM Linker
+        run: |
+          brew install llvm
+          echo '[target.aarch64-apple-darwin]' >> ~/.cargo/config
+          echo 'rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld"]' >> ~/.cargo/config
+
       - name: Install and start Redis
         run: |
           brew install redis
