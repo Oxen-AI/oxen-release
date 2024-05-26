@@ -1,13 +1,10 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::Command;
 use liboxen::error::OxenError;
 
 use crate::cmd::RunCmd;
-use crate::helpers::{check_remote_version, get_host_or_default};
-use liboxen::command;
 
 pub const NAME: &str = "db";
 
@@ -40,17 +37,23 @@ impl RunCmd for DbCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let default = String::from(".");
-        let path = args.get_one::<String>("PATH").unwrap_or(&default);
+        let sub_commands = self.get_subcommands();
+        if let Some((name, sub_matches)) = args.subcommand() {
+            let Some(cmd) = sub_commands.get(name) else {
+                eprintln!("Unknown schema subcommand {name}");
+                return Err(OxenError::basic_str(format!(
+                    "Unknown schema subcommand {name}"
+                )));
+            };
 
-        // Make sure the remote version is compatible
-        let host = get_host_or_default()?;
-        check_remote_version(host).await?;
+            // Calling await within an await is making it complain?
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::current().block_on(cmd.run(sub_matches))
+            })?;
+        } else {
+            return Err(OxenError::basic_str("No subcommand provided"));
+        }
 
-        // Initialize the repository
-        let directory = dunce::canonicalize(PathBuf::from(&path))?;
-        command::init(&directory)?;
-        println!("🐂 repository initialized at: {directory:?}");
         Ok(())
     }
 }

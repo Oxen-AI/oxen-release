@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::error::OxenError;
+use liboxen::{command, error::OxenError};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "get";
@@ -22,14 +22,16 @@ impl RunCmd for DbGetCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
+        let error = "Usage: oxen db get <PATH> <KEY>";
         let Some(path) = args.get_one::<String>("PATH") else {
-            return Err(OxenError::basic_str("Must supply path"));
+            return Err(OxenError::basic_str(error));
         };
         let Some(key) = args.get_one::<String>("KEY") else {
-            return Err(OxenError::basic_str("Must supply key"));
+            return Err(OxenError::basic_str(error));
         };
 
-        println!("path: {}, key: {}", path, key);
+        let value = command::db::get(path, key)?;
+        println!("{}", value);
 
         Ok(())
     }
