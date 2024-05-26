@@ -43,13 +43,14 @@ pub fn list(path: impl AsRef<Path>) -> Result<Vec<(String, String)>, OxenError> 
 }
 
 // Get a value from a database
-pub fn get(path: impl AsRef<Path>, key: String) -> Result<String, OxenError> {
+pub fn get(path: impl AsRef<Path>, key: impl AsRef<str>) -> Result<String, OxenError> {
     let path = path.as_ref();
+    let key = key.as_ref();
     let mut opts = Options::default();
     opts.set_log_level(LogLevel::Fatal);
 
     let db = DB::open_for_read_only(&opts, dunce::simplified(path), false)?;
-    if let Some(value) = db.get(&key)? {
+    if let Some(value) = db.get(key)? {
         Ok(String::from_utf8(value)?)
     } else {
         Err(OxenError::basic_str(format!("Key {} not found", key)))
