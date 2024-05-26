@@ -126,6 +126,46 @@ Then run the server like this
 cargo watch -- cargo run --bin oxen-server start
 ```
 
+## Nix Flake
+
+If you have [Nix installed](https://github.com/DeterminateSystems/nix-installer)
+you can use the flake to build and run the server. This will automatically
+install and configure the required build toolchain dependencies for linux & macos.
+
+```
+nix build .#oxen-server
+nix build .#oxen-cli
+nix build .#liboxen
+```
+
+```
+nix run .#oxen-server -- start
+nix run .#oxen-cli -- init
+```
+
+To develop with the standard rust toolchain in a Nix dev shell:
+
+```
+nix develop -c $SHELL
+cargo build
+cargo run --bin oxen-server start
+cargo run --bin oxen start
+```
+
+The flake also provides derviations to build OCI (Docker) images with the minimal
+set of dependencies required to build and run `oxen` & `oxen-server`.
+
+```
+nix build .#oci-oxen-server
+nix build .#oci-oxen-cli
+```
+
+This will export the OCI image and can be loaded with:
+
+```
+docker load -i result
+```
+
 # Unit & Integration Tests
 
 Make sure your server is running on the default port and host, then run
