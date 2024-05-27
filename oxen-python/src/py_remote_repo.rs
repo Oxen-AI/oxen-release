@@ -18,6 +18,7 @@ use crate::py_commit::PyCommit;
 use crate::py_staged_data::PyStagedData;
 use crate::py_paginated_dir_entries::PyPaginatedDirEntries;
 
+#[derive(Clone)]
 #[pyclass]
 pub struct PyRemoteRepo {
     pub repo: RemoteRepository,

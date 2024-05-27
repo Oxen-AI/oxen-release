@@ -7,6 +7,7 @@ from .oxen import util
 # Python classes
 from oxen.local_repo import LocalRepo
 from oxen.remote_repo import RemoteRepo
+from oxen.remote_dataset import RemoteDataset
 from oxen.dag import DAG
 from oxen.op import Op
 from oxen import auth
@@ -30,6 +31,7 @@ __all__ = [
     "init",
     "is_configured",
     "RemoteRepo",
+    "RemoteDataset",
     "LocalRepo",
     "auth",
     "loaders",
