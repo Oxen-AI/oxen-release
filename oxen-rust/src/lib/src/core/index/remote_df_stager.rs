@@ -260,6 +260,7 @@ pub fn get_row_by_id(
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    log::debug!("get_row_by_id() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
     let schema = staged_df_db::full_staged_table_schema(&conn)?;
