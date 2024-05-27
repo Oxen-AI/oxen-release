@@ -27,6 +27,9 @@ pub use config::ConfigCmd;
 pub mod create_remote;
 pub use create_remote::CreateRemoteCmd;
 
+pub mod db;
+pub use db::DbCmd;
+
 pub mod df;
 pub use df::DFCmd;
 
