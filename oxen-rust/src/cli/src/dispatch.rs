@@ -640,10 +640,6 @@ pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn inspect(path: &Path) -> Result<(), OxenError> {
-    command::db_inspect::inspect(path)
-}
-
 pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
     let repo_path = Path::new(repo_path);
     let repo_dir =

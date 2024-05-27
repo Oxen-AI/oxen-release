@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::process::ExitCode;
 
 use clap::Command;
 use env_logger::Env;
@@ -12,7 +13,7 @@ pub mod parse_and_run;
 pub mod run;
 
 #[tokio::main]
-async fn main() {
+async fn main() -> ExitCode {
     env_logger::init_from_env(Env::default());
 
     let cmds: Vec<Box<dyn cmd::RunCmd>> = vec![
@@ -23,6 +24,7 @@ async fn main() {
         Box::new(cmd::ConfigCmd),
         Box::new(cmd::CommitCmd),
         Box::new(cmd::CreateRemoteCmd),
+        Box::new(cmd::DbCmd),
         Box::new(cmd::DFCmd),
         Box::new(cmd::InitCmd),
         Box::new(cmd::SchemasCmd),
@@ -47,7 +49,6 @@ async fn main() {
         .subcommand(cmd_setup::commit_cache())
         .subcommand(cmd_setup::download())
         .subcommand(cmd_setup::info())
-        .subcommand(cmd_setup::inspect_kv_db())
         .subcommand(cmd_setup::fetch())
         .subcommand(cmd_setup::load())
         .subcommand(cmd_setup::log())
@@ -71,7 +72,6 @@ async fn main() {
         }
         Some((cmd_setup::DOWNLOAD, sub_matches)) => parse_and_run::download(sub_matches).await,
         Some((cmd_setup::INFO, sub_matches)) => parse_and_run::info(sub_matches),
-        Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
         Some((cmd_setup::FETCH, sub_matches)) => parse_and_run::fetch(sub_matches).await,
         Some((cmd_setup::LOAD, sub_matches)) => parse_and_run::load(sub_matches).await,
         Some((cmd_setup::LOG, sub_matches)) => parse_and_run::log(sub_matches).await,
@@ -94,12 +94,16 @@ async fn main() {
                     Ok(_) => {}
                     Err(err) => {
                         eprintln!("{err}");
+                        return ExitCode::FAILURE;
                     }
                 }
             } else {
                 eprintln!("Unknown command `oxen {command}`");
+                return ExitCode::FAILURE;
             }
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable!()
     }
+
+    ExitCode::SUCCESS
 }
