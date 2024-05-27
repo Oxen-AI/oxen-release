@@ -86,6 +86,7 @@ pub fn add_row(
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
     let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
+    log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
     let df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
