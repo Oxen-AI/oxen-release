@@ -87,7 +87,11 @@ pub async fn staged_df<P: AsRef<Path>>(
     }
 }
 
-pub async fn add_row(repo: &LocalRepository, path: &Path, data: &str) -> Result<DataFrame, OxenError> {
+pub async fn add_row(
+    repo: &LocalRepository,
+    path: &Path,
+    data: &str,
+) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
 
     // let data = format!(r#"{{"data": {}}}"#, data);
