@@ -118,7 +118,6 @@ class LocalRepo:
         """
         self._repo.add_schema_metadata(path, column_name, metadata)
 
-
     def rm(self, path: str, recursive=False, staged=False, remote=False):
         """
         Remove a file or directory from being tracked.

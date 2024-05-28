@@ -10,6 +10,26 @@ use pyo3::prelude::*;
 use crate::py_remote_repo::PyRemoteRepo;
 use crate::error::PyOxenError;
 
+#[pyfunction]
+pub fn index_dataset(repo: PyRemoteRepo, path: PathBuf) -> Result<(), PyOxenError> {
+    let revision = repo.revision;
+    let repo = repo.repo;
+    let user_id = UserConfig::identifier()?;
+
+    pyo3_asyncio::tokio::get_runtime()
+        .block_on(async { 
+            api::remote::staging::index_dataset(
+                &repo,
+                &revision,
+                &user_id,
+                &path,
+            )
+            .await
+        })?;
+
+    Ok(())
+}
+
 fn _get_df(
     repo: &RemoteRepository,
     revision: impl AsRef<str>,
@@ -88,7 +108,7 @@ impl PyRemoteDataset {
         Ok(result)
     }
 
-    fn get_by_id(&self, id: String) -> Result<String, PyOxenError> {
+    fn get_row_by_id(&self, id: String) -> Result<String, PyOxenError> {
         let user_id = UserConfig::identifier()?;
 
         let data = pyo3_asyncio::tokio::get_runtime()
@@ -109,7 +129,7 @@ impl PyRemoteDataset {
         Ok(result)
     }
 
-    fn insert_one(&self, data: String) -> Result<String, PyOxenError> {
+    fn insert_row(&self, data: String) -> Result<String, PyOxenError> {
         let Ok(_) = serde_json::from_str::<serde_json::Value>(&data) else {
             return Err(OxenError::basic_str(format!("Failed to parse json data: {}", data)).into())
         };
@@ -131,8 +151,46 @@ impl PyRemoteDataset {
                 return Err(OxenError::basic_str("Failed to insert data").into())
             };
 
-        println!("Inserted row: {:?}", row_id);
-        
         Ok(row_id)
+    }
+
+    fn update_row(&self, id: String, data: String) -> Result<String, PyOxenError> {
+        let Ok(_) = serde_json::from_str::<serde_json::Value>(&data) else {
+            return Err(OxenError::basic_str(format!("Failed to parse json data: {}", data)).into())
+        };
+
+        let user_id = UserConfig::identifier()?;
+        let view = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { 
+                api::remote::staging::modify_df::update_row(
+                    &self.repo.repo,
+                    &self.repo.revision,
+                    &user_id,
+                    &self.path,
+                    &id.as_str(),
+                    data,
+                )
+                .await
+            })?;
+        let view = view.data_frame.view.data;
+
+        let result: String = serde_json::to_string(&view).unwrap();
+        Ok(result)
+    }
+
+    fn delete_row(&self, id: String) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        pyo3_asyncio::tokio::get_runtime()
+            .block_on(async { 
+                api::remote::staging::modify_df::delete_row(
+                    &self.repo.repo,
+                    &self.repo.revision,
+                    &user_id,
+                    &self.path,
+                    &id.as_str(),
+                )
+                .await
+            })?;
+        Ok(())
     }
 }

@@ -22,6 +22,7 @@ from .oxen import df_utils
 import os
 from polars import DataFrame
 
+
 def load(
     path: os.PathLike,
 ):
