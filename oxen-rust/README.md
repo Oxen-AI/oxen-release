@@ -35,6 +35,16 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
+If on Windows, you may need to build on a developer CLI and add the following paths to the 'INCLUDE' environment variable
+
+```
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include"
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.27023\include"
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\Llvm\lib\clang\12.0.0\include"
+```
+
 ### Speed up the build process
 
 You can use
@@ -124,6 +134,12 @@ Then run the server like this
 
 ```
 cargo watch -- cargo run --bin oxen-server start
+```
+
+On Windows, you may need to install cargo-watch with the following
+
+```
+cargo install cargo-watch --locked
 ```
 
 # Unit & Integration Tests
