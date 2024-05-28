@@ -1,16 +1,11 @@
-
 from oxen import RemoteRepo
 
 from typing import Optional
 
 from datasets import load_dataset as hf_load_dataset
 
-def load_dataset(
-    repo_id: str,
-    path: str,
-    fmt: str = "hugging_face",
-    revision=None
-):
+
+def load_dataset(repo_id: str, path: str, fmt: str = "hugging_face", revision=None):
     """
     Load a dataset from a repo into memory.
 
@@ -33,6 +28,7 @@ def load_dataset(
     else:
         raise ValueError(f"Unsupported load format: {fmt}")
 
+
 def _load_hf(path: str):
     if path.endswith(".csv"):
         return hf_load_dataset("csv", data_files=path)
@@ -42,6 +38,7 @@ def _load_hf(path: str):
         return hf_load_dataset("parquet", data_files=path)
     else:
         raise ValueError(f"Unsupported file extension: {path}")
+
 
 def download(repo_id: str, path: str, revision=None, dst=None):
     """
@@ -61,7 +58,10 @@ def download(repo_id: str, path: str, revision=None, dst=None):
     repo = RemoteRepo(repo_id)
     repo.download(path, revision=revision, dst=dst)
 
-def upload(repo_id: str, path: str, message: str, branch: Optional[str]=None, dst: str=""):
+
+def upload(
+    repo_id: str, path: str, message: str, branch: Optional[str] = None, dst: str = ""
+):
     """
     Upload files or directories to a remote Oxen repository.
 

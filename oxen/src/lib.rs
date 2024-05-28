@@ -59,6 +59,11 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<py_user::PyUser>()?;
     m.add_class::<py_schema::PySchema>()?;
 
+    // Remote Dataset
+    let remote_dataset_module = PyModule::new_bound(m.py(), "remote_dataset")?;
+    remote_dataset_module.add_function(wrap_pyfunction!(py_remote_dataset::index_dataset, &remote_dataset_module)?)?;
+    m.add_submodule(&remote_dataset_module)?;
+
     // Util Module
     let util_module = PyModule::new_bound(m.py(), "util")?;
     util_module.add_function(wrap_pyfunction!(util::is_tabular, &util_module)?)?;
