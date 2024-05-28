@@ -39,11 +39,11 @@ $ cargo build --target x86_64-apple-darwin
 
 You can use the [mold](https://github.com/rui314/mold) linker to speed up builds (The MIT-licensed macOS version is [sold](https://github.com/bluewhalesystems/sold)).
 
-Assuming you have purchased a license, you can use the following instructions to
+Use the following instructions to
 install sold and configure cargo to use it for building Oxen:
 
 ```
-git clone https://github.com/bluewhalesystems/sold.git
+git clone --depth=1 --single-branch https://github.com/bluewhalesystems/sold.git
 
 mkdir sold/build
 cd sold/build
