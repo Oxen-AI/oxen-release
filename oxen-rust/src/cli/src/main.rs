@@ -27,6 +27,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::DbCmd),
         Box::new(cmd::DFCmd),
         Box::new(cmd::InitCmd),
+        Box::new(cmd::MooCmd),
         Box::new(cmd::SchemasCmd),
     ];
 
