@@ -267,6 +267,10 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
+    log::debug!("get_row with namespace {:?}", namespace);
+    log::debug!("get_row with repo_name {:?}", repo_name);
+    log::debug!("get_row with identifier {:?}", identifier);
+
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let row_id = path_param(&req, "row_id")?;
