@@ -14,14 +14,23 @@ impl RunCmd for MooCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        Command::new(NAME).about("Hello, world! 🐂").arg(
-            Arg::new("number")
-                .long("number")
-                .short('n')
-                .help("How big is the moo.")
-                .default_value("2")
-                .action(clap::ArgAction::Set),
-        )
+        Command::new(NAME)
+            .about("Hello, world! 🐂")
+            .arg(
+                Arg::new("number")
+                    .long("number")
+                    .short('n')
+                    .help("How long is the moo?")
+                    .default_value("2")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("loud")
+                    .long("loud")
+                    .short('l')
+                    .help("Make the MOO louder.")
+                    .action(clap::ArgAction::SetTrue),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -32,8 +41,14 @@ impl RunCmd for MooCmd {
             .parse::<usize>()
             .expect("number must be a valid integer.");
 
-        // Print the moo with -n number of o's
-        println!("m{}!", "o".repeat(n));
+        let loud = args.get_flag("loud");
+        if loud {
+            // Print the moo loudly with -n number of o's
+            println!("M{}!", "O".repeat(n));
+        } else {
+            // Print the moo with -n number of o's
+            println!("m{}", "o".repeat(n));
+        }
 
         Ok(())
     }
