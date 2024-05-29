@@ -35,7 +35,7 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
-If on Windows, you may need to build on a developer CLI and add the following paths to the 'INCLUDE' environment variable
+If on Windows, you may need to build on a developer CLI and the following directories to the 'INCLUDE' environment variable
 
 ```
 "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include"
@@ -44,6 +44,7 @@ If on Windows, you may need to build on a developer CLI and add the following pa
 
 "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\Llvm\lib\clang\12.0.0\include"
 ```
+These are example paths and will vary between machines. If you install 'C++ Clang tools for Windows' through Microsoft Visual Studio Build Tools, the directories can be located from the Visual Studio installation under 'BuildTools\VC\Tools'
 
 ### Speed up the build process
 
