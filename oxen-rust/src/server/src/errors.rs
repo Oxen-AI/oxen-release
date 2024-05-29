@@ -223,6 +223,12 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::BadRequest()
                             .json(StatusMessageDescription::bad_request(format!("{}", desc)))
                     }
+                    OxenError::IncompatibleSchemas(error) => {
+                        log::error!("Incompatible schemas: {}", error);
+
+                        HttpResponse::BadRequest()
+                            .json(StatusMessageDescription::bad_request(format!("{}", error)))
+                    }
                     OxenError::DUCKDB(error) => {
                         log::error!("DuckDB error: {}", error);
 
