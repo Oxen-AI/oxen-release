@@ -267,6 +267,10 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
+    log::debug!("get_row with namespace {:?}", namespace);
+    log::debug!("get_row with repo_name {:?}", repo_name);
+    log::debug!("get_row with identifier {:?}", identifier);
+
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let row_id = path_param(&req, "row_id")?;
@@ -279,15 +283,17 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
     // Have to initialize this branch repo before we can do any operations on it
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    // TODONOW: error handling if it has not been indexed
-
-    let row_df = index::remote_df_stager::get_row_by_id(
-        &repo,
-        &branch,
-        resource.file_path,
-        &identifier,
-        &row_id,
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
+        OxenError::revision_not_found(branch.commit_id.to_owned().into()),
     )?;
+
+    // If entry does not exist, create it, and stage it with the first row being the data.
+
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+
+    let row_df =
+        index::remote_df_stager::get_row_by_id(&repo, &branch, &entry, &identifier, &row_id)?;
 
     let row_id = get_row_id(&row_df)?;
     let row_index = get_row_idx(&row_df)?;
