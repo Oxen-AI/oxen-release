@@ -48,15 +48,13 @@ These are example paths and will vary between machines. If you install 'C++ Clan
 
 ### Speed up the build process
 
-You can use
-the [mold](https://github.com/rui314/mold) linker to speed up builds (The
-commercial Mac OS version is [sold](https://github.com/bluewhalesystems/sold)).
+You can use the [mold](https://github.com/rui314/mold) linker to speed up builds (The MIT-licensed macOS version is [sold](https://github.com/bluewhalesystems/sold)).
 
-Assuming you have purchased a license, you can use the following instructions to
+Use the following instructions to
 install sold and configure cargo to use it for building Oxen:
 
 ```
-git clone https://github.com/bluewhalesystems/sold.git
+git clone --depth=1 --single-branch https://github.com/bluewhalesystems/sold.git
 
 mkdir sold/build
 cd sold/build
@@ -141,6 +139,46 @@ On Windows, you may need to install cargo-watch with the following
 
 ```
 cargo install cargo-watch --locked
+```
+
+## Nix Flake
+
+If you have [Nix installed](https://github.com/DeterminateSystems/nix-installer)
+you can use the flake to build and run the server. This will automatically
+install and configure the required build toolchain dependencies for linux & macos.
+
+```
+nix build .#oxen-server
+nix build .#oxen-cli
+nix build .#liboxen
+```
+
+```
+nix run .#oxen-server -- start
+nix run .#oxen-cli -- init
+```
+
+To develop with the standard rust toolchain in a Nix dev shell:
+
+```
+nix develop -c $SHELL
+cargo build
+cargo run --bin oxen-server start
+cargo run --bin oxen start
+```
+
+The flake also provides derviations to build OCI (Docker) images with the minimal
+set of dependencies required to build and run `oxen` & `oxen-server`.
+
+```
+nix build .#oci-oxen-server
+nix build .#oci-oxen-cli
+```
+
+This will export the OCI image and can be loaded with:
+
+```
+docker load -i result
 ```
 
 # Unit & Integration Tests
