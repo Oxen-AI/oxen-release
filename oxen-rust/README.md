@@ -35,6 +35,17 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
+If on Windows, you may need to build on a developer CLI and add the following directories to the 'INCLUDE' environment variable
+
+```
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include"
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.27023\include"
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\Llvm\lib\clang\12.0.0\include"
+```
+These are example paths and will vary between machines. If you install 'C++ Clang tools for Windows' through [Microsoft Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019), the directories can be located from the Visual Studio installation under 'BuildTools\VC\Tools'
+
 ### Speed up the build process
 
 You can use the [mold](https://github.com/rui314/mold) linker to speed up builds (The MIT-licensed macOS version is [sold](https://github.com/bluewhalesystems/sold)).
@@ -122,6 +133,12 @@ Then run the server like this
 
 ```
 cargo watch -- cargo run --bin oxen-server start
+```
+
+On Windows, you may need to install cargo-watch with the following
+
+```
+cargo install cargo-watch --locked
 ```
 
 ## Nix Flake
