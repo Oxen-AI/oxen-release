@@ -8,7 +8,7 @@ Oxen at it's core is a data version control library, written in Rust. It's goals
 
 # 📚 Documentation
 
-The documentation for liboxen is automatically generated and uploaded to [docs.rs](https://docs.rs/liboxen/latest/liboxen/).
+The documentation for the Oxen.ai tool chain can be found [here](https://docs.oxen.ai).
 
 # 🔨 Build & Run
 
