@@ -183,7 +183,16 @@ docker load -i result
 
 # Unit & Integration Tests
 
-Make sure your server is running on the default port and host, then run
+Make sure your user is configured and server is running on the default port and host, by following these setup steps:
+
+```bash
+# Configure a user
+mkdir ./data/test/runs
+./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+cp user_config.toml data/test/config/user_config.toml
+# Start the oxen-server
+./target/debug/oxen-server start
+```
 
 *Note:* tests open up a lot of file handles, so limit num test threads if running everything.
 
