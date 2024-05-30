@@ -1,7 +1,7 @@
 use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
-use liboxen::error::{OxenError, StringError};
+use liboxen::error::{OxenError, PathBufError, StringError};
 use liboxen::view::http::{MSG_BAD_REQUEST, MSG_UPDATE_REQUIRED, STATUS_ERROR};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
@@ -17,7 +17,7 @@ pub enum OxenHttpError {
     PathParamDoesNotExist(StringError),
     SQLParseError(StringError),
     NotQueryable,
-    DatasetNotIndexed,
+    DatasetNotIndexed(PathBufError),
     UpdateRequired(StringError),
 
     // Translate OxenError to OxenHttpError
@@ -109,14 +109,14 @@ impl error::ResponseError for OxenHttpError {
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
-            OxenHttpError::DatasetNotIndexed => {
+            OxenHttpError::DatasetNotIndexed(path) => {
                 let error_json = json!({
                     "error": {
                         "type": "dataset_not_indexed",
                         "title":
                             "Dataset must be indexed.",
                         "detail":
-                            "This dataset is not yet indexed for SQL and NLP querying.",
+                            format!("This dataset {} is not yet indexed for SQL and NLP querying.", path),
                     },
                     "status": STATUS_ERROR,
                     "status_message": MSG_BAD_REQUEST,
@@ -204,13 +204,6 @@ impl error::ResponseError for OxenHttpError {
                             format!("Schema is invalid: '{}'", schema),
                         ))
                     }
-                    OxenError::ParsingError(error) => {
-                        log::error!("Parsing error: {}", error);
-
-                        HttpResponse::BadRequest().json(StatusMessageDescription::bad_request(
-                            format!("Parsing error: '{}'", error),
-                        ))
-                    }
                     OxenError::RemoteAheadOfLocal(desc) => {
                         log::error!("Remote ahead of local: {}", desc);
 
@@ -223,11 +216,30 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::BadRequest()
                             .json(StatusMessageDescription::bad_request(format!("{}", desc)))
                     }
-                    OxenError::IncompatibleSchemas(error) => {
-                        log::error!("Incompatible schemas: {}", error);
+                    OxenError::IncompatibleSchemas(schema) => {
+                        log::error!("Incompatible schemas: {}", schema);
 
-                        HttpResponse::BadRequest()
-                            .json(StatusMessageDescription::bad_request(format!("{}", error)))
+                        let schema_vals = &schema
+                            .fields
+                            .iter()
+                            .map(|f| format!("{}: {}", f.name, f.dtype))
+                            .collect::<Vec<String>>()
+                            .join(", ");
+                        let error =
+                            format!("Schema does not match. Valid Fields [{}]", schema_vals);
+
+                        let error_json = json!({
+                            "error": {
+                                "type": "schema_error",
+                                "title":
+                                    "Incompatible Schemas",
+                                "detail":
+                                    format!("{}", error)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_BAD_REQUEST,
+                        });
+                        HttpResponse::BadRequest().json(error_json)
                     }
                     OxenError::DUCKDB(error) => {
                         log::error!("DuckDB error: {}", error);
@@ -264,7 +276,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
-            OxenHttpError::DatasetNotIndexed => StatusCode::BAD_REQUEST,
+            OxenHttpError::DatasetNotIndexed(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,
@@ -274,7 +286,6 @@ impl error::ResponseError for OxenHttpError {
                 OxenError::RepoNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::RevisionNotFound(_) => StatusCode::NOT_FOUND,
                 OxenError::InvalidSchema(_) => StatusCode::BAD_REQUEST,
-                OxenError::ParsingError(_) => StatusCode::BAD_REQUEST,
                 _ => StatusCode::INTERNAL_SERVER_ERROR,
             },
         }

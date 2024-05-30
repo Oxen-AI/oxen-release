@@ -82,7 +82,7 @@ pub async fn get(
         }
 
         if !sql::df_is_indexed(&repo, &entry)? {
-            return Err(OxenHttpError::DatasetNotIndexed);
+            return Err(OxenHttpError::DatasetNotIndexed(resource.file_path.into()));
         }
     }
 
