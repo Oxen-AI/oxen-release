@@ -20,6 +20,7 @@ pub mod string_error;
 
 pub use crate::error::path_buf_error::PathBufError;
 pub use crate::error::string_error::StringError;
+
 use polars::prelude::PolarsError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
@@ -70,11 +71,8 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
-    IncompatibleSchemas(StringError),
+    IncompatibleSchemas(Box<Schema>),
     InvalidFileType(StringError),
-
-    // Generic
-    ParsingError(Box<StringError>),
 
     // Metadata
     ImageMetadataParseError(StringError),
@@ -447,12 +445,8 @@ impl OxenError {
         OxenError::InvalidFileType(StringError::from(err))
     }
 
-    pub fn incompatible_schemas(cols: &[String], schema: Schema) -> OxenError {
-        let err = format!(
-            "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
-            cols, schema
-        );
-        OxenError::IncompatibleSchemas(StringError::from(err))
+    pub fn incompatible_schemas(schema: Schema) -> OxenError {
+        OxenError::IncompatibleSchemas(Box::new(schema))
     }
 
     pub fn parse_error(value: impl AsRef<str>) -> OxenError {
