@@ -2,11 +2,12 @@ use std::path::{PathBuf, Path};
 use liboxen::api;
 use liboxen::config::UserConfig;
 use liboxen::error::OxenError;
-use liboxen::model::RemoteRepository;
+use liboxen::model::{NewCommitBody, RemoteRepository};
 use liboxen::opts::DFOpts;
 use liboxen::view::JsonDataFrameViews;
 use pyo3::prelude::*;
 
+use crate::py_commit::PyCommit;
 use crate::py_remote_repo::PyRemoteRepo;
 use crate::error::PyOxenError;
 
@@ -181,7 +182,7 @@ impl PyRemoteDataset {
     fn delete_row(&self, id: String) -> Result<(), PyOxenError> {
         let user_id = UserConfig::identifier()?;
         pyo3_asyncio::tokio::get_runtime()
-            .block_on(async { 
+            .block_on(async {
                 api::remote::staging::modify_df::delete_row(
                     &self.repo.repo,
                     &self.repo.revision,
@@ -192,5 +193,37 @@ impl PyRemoteDataset {
                 .await
             })?;
         Ok(())
+    }
+
+    fn restore(&self) -> Result<(), PyOxenError> {
+        let user_id = UserConfig::identifier()?;
+        let repo = &self.repo.repo;
+        let revision = &self.repo.revision;
+
+        pyo3_asyncio::tokio::get_runtime()
+            .block_on(async {
+                api::remote::staging::restore_df(repo, revision, &user_id, &self.path).await
+            })?;
+
+        Ok(())
+    }
+
+    fn commit(&self, message: &str) -> Result<PyCommit, PyOxenError> {
+        let user = UserConfig::get()?;
+        let user_id = UserConfig::identifier()?;
+        let repo = &self.repo.repo;
+        let revision = &self.repo.revision;
+
+        let commit = NewCommitBody {
+            message: message.to_string(),
+            author: user.name,
+            email: user.email,
+        };
+
+        let commit = pyo3_asyncio::tokio::get_runtime()
+            .block_on(async {
+                api::remote::staging::commit(repo, revision, &user_id, &commit).await
+            })?;
+        Ok(commit.into())
     }
 }
