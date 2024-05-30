@@ -7,11 +7,11 @@ repo = RemoteRepo("ox/hi", "localhost:3001", scheme="http")
 
 # Index the dataset
 # from oxen.remote_dataset import index_dataset
-# index_dataset(repo, "questions.jsonl")
+# index_dataset(repo, "prompts.jsonl")
 
 print("Creating Remote Dataset")
 # Gets dataset if exists
-dataset = RemoteDataset(repo, "questions.jsonl")
+dataset = RemoteDataset(repo, "prompts.jsonl")
 
 size = dataset.size()
 print("size: ", size)
