@@ -61,9 +61,9 @@ pub const STAGED_DIR: &str = "staged";
 pub const TABLE_NAME: &str = "df";
 /// Oxen's internal row id column in duckdb remote staging tables
 pub const OXEN_COLS: [&str; 4] = [OXEN_ID_COL, DIFF_STATUS_COL, OXEN_ROW_ID_COL, DIFF_HASH_COL];
-pub const OXEN_ROW_ID_COL: &str = "_oxen_row_id";
+pub const OXEN_ROW_ID_COL: &str = ".oxen.row_id";
 /// Oxen's internal id column in duckdb remote staging tables
-pub const OXEN_ID_COL: &str = "_oxen_id";
+pub const OXEN_ID_COL: &str = ".oxen.id";
 /// Name of the folder of the cache dir in which dfs are indexed as duckdbs
 pub const DUCKDB_CACHE_DIR: &str = "duckdb";
 /// Default name for duckdb table used for indexing dataframes
