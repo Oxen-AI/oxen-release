@@ -3,7 +3,7 @@ from oxen import RemoteDataset
 
 
 print("Creating Remote Repo")
-repo = RemoteRepo("oss/test", "localhost:3000", scheme="http")
+repo = RemoteRepo("ox/hi", "localhost:3001", scheme="http")
 
 # Index the dataset
 # from oxen.remote_dataset import index_dataset
@@ -16,12 +16,13 @@ dataset = RemoteDataset(repo, "questions.jsonl")
 size = dataset.size()
 print("size: ", size)
 
-results = dataset.list()
+results = dataset.list_page(1)
 for result in results:
     print(result)
 
 print("Inserting One Row")
 id = dataset.insert_row({"prompt": "can I get from python?", "response": "yes you can!"})
+# id = dataset.insert_row({"should_fail": "can I get from python?"})
 print(id)
 
 # id = "2ea5f604-be1a-4304-87b7-4c50f7f51a0c"
@@ -30,6 +31,7 @@ row = dataset.get_row_by_id(id)
 print(row)
 
 # Modify the row
+print("Update the row!")
 result = dataset.update_row(id, {"prompt": "Pt 2: can I get from python?", "response": "yes you can!"})
 print(result)
 
