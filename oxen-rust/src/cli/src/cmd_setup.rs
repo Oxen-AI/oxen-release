@@ -60,7 +60,6 @@ pub fn remote() -> Command {
         .subcommand(RemoteDfCmd.args())
         .subcommand(diff())
         .subcommand(download())
-        .subcommand(log())
         .subcommand(ls())
         .subcommand(restore())
         .subcommand(rm())
@@ -145,12 +144,6 @@ pub fn metadata() -> Command {
                 .arg(Arg::new("column").required(true))
                 .arg(Arg::new("path").required(false)),
         )
-}
-
-pub fn log() -> Command {
-    Command::new(LOG).about("See log of commits").arg(
-        arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."),
-    )
 }
 
 pub fn fetch() -> Command {
