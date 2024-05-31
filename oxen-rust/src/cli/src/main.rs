@@ -25,6 +25,7 @@ async fn main() {
         Box::new(cmd::CreateRemoteCmd),
         Box::new(cmd::DFCmd),
         Box::new(cmd::InitCmd),
+        Box::new(cmd::LogCmd),
         Box::new(cmd::SchemasCmd),
     ];
 
@@ -50,7 +51,6 @@ async fn main() {
         .subcommand(cmd_setup::inspect_kv_db())
         .subcommand(cmd_setup::fetch())
         .subcommand(cmd_setup::load())
-        .subcommand(cmd_setup::log())
         .subcommand(cmd_setup::merge())
         .subcommand(cmd_setup::migrate())
         .subcommand(cmd_setup::pull())
@@ -74,7 +74,6 @@ async fn main() {
         Some((cmd_setup::KVDB_INSPECT, sub_matches)) => parse_and_run::kvdb_inspect(sub_matches),
         Some((cmd_setup::FETCH, sub_matches)) => parse_and_run::fetch(sub_matches).await,
         Some((cmd_setup::LOAD, sub_matches)) => parse_and_run::load(sub_matches).await,
-        Some((cmd_setup::LOG, sub_matches)) => parse_and_run::log(sub_matches).await,
         Some((cmd_setup::MERGE, sub_matches)) => parse_and_run::merge(sub_matches),
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
