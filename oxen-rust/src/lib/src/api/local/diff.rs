@@ -104,17 +104,17 @@ fn validate_required_fields(
 ) -> Result<(), OxenError> {
     // Keys must be in both dfs
     if !schema_1.has_field_names(&keys) {
-        return Err(OxenError::incompatible_schemas(&keys, schema_1));
+        return Err(OxenError::incompatible_schemas(schema_1.clone()));
     };
 
     if !schema_2.has_field_names(&keys) {
-        return Err(OxenError::incompatible_schemas(&keys, schema_2));
+        return Err(OxenError::incompatible_schemas(schema_2));
     };
 
     // Targets must be in either df
     for target in targets {
         if !schema_1.has_field_name(&target) && !schema_2.has_field_name(&target) {
-            return Err(OxenError::incompatible_schemas(&[target], schema_1));
+            return Err(OxenError::incompatible_schemas(schema_1));
         }
     }
 

@@ -179,10 +179,7 @@ fn parse_status_and_message(
                 }
             }
 
-            Err(OxenError::basic_str(format!(
-                "Err: {}",
-                response.error_or_msg()
-            )))
+            Err(OxenError::basic_str(response.full_err_msg()))
         }
         status => Err(OxenError::basic_str(format!("Unknown status [{status}]"))),
     }
