@@ -320,16 +320,11 @@ pub async fn df_get_row(req: HttpRequest) -> Result<HttpResponse, OxenHttpError>
 }
 
 pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("in the df add row controller");
     let app_data = app_data(&req)?;
-    log::debug!("trying to get repo at path {:?}", app_data.path);
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let identifier = path_param(&req, "identifier")?;
-    log::debug!("with namespace {:?}", namespace);
-    log::debug!("with repo_name {:?}", repo_name);
-    log::debug!("with identifier {:?}", identifier);
     let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let resource = parse_resource(&req, &repo)?;
 
@@ -373,11 +368,21 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         branch_repo.path
     );
 
+    // Make sure the data frame is indexed
+    let is_editable = index::remote_df_stager::dataset_is_indexed(
+        &repo,
+        &branch,
+        &identifier,
+        &resource.file_path,
+    )?;
+
+    if !is_editable {
+        return Err(OxenHttpError::DatasetNotIndexed(resource.file_path.into()));
+    }
+
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
         OxenError::revision_not_found(branch.commit_id.to_owned().into()),
     )?;
-
-    // If entry does not exist, create it, and stage it with the first row being the data.
 
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.file_path)?
         .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
@@ -995,7 +1000,7 @@ pub async fn get_staged_df(
 
         Ok(HttpResponse::Ok().json(response))
     } else {
-        Err(OxenHttpError::NotFound)
+        Err(OxenHttpError::DatasetNotIndexed(resource.file_path.into()))
     }
 }
 
