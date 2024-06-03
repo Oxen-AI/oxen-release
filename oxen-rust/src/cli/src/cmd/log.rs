@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{Arg, ArgMatches, Command};
+use clap::{arg, ArgMatches, Command};
 use colored::Colorize;
 use minus::Pager;
 use time::format_description;
@@ -30,7 +30,8 @@ impl RunCmd for LogCmd {
 
     fn args(&self) -> Command {
         Command::new(NAME).about("See log of commits")
-        .arg(Arg::new("name").help("The commit or branch id you want to get history from. Defaults to main."))
+        .arg(arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."),
+        )
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
