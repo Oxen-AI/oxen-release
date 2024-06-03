@@ -255,11 +255,12 @@ pub fn extract_dataset_to_working_dir(
 pub fn get_row_by_id(
     repo: &LocalRepository,
     branch: &Branch,
-    path: PathBuf,
+    entry: &CommitEntry,
     identifier: &str,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, path);
+    let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, entry.path.clone());
+    log::debug!("get_row_by_id() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
     let schema = staged_df_db::full_staged_table_schema(&conn)?;
@@ -281,6 +282,8 @@ pub fn query_staged_df(
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let db_path = mod_stager::mods_df_db_path(repo, branch, identifier, entry.path.clone());
+    log::debug!("query_staged_df() got db_path: {:?}", db_path);
+
     let conn = df_db::get_connection(db_path)?;
 
     // Get the schema of this commit entry
@@ -310,7 +313,7 @@ pub fn restore_row(
     let conn = df_db::get_connection(db_path)?;
 
     // Get the row by id
-    let row = get_row_by_id(repo, branch, entry.path.clone(), identifier, row_id)?;
+    let row = get_row_by_id(repo, branch, entry, identifier, row_id)?;
 
     if row.height() == 0 {
         return Err(OxenError::resource_not_found(row_id));

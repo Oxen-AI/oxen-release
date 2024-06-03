@@ -87,7 +87,11 @@ pub async fn staged_df<P: AsRef<Path>>(
     }
 }
 
-async fn add_row(repo: &LocalRepository, path: &Path, data: &str) -> Result<DataFrame, OxenError> {
+pub async fn add_row(
+    repo: &LocalRepository,
+    path: &Path,
+    data: &str,
+) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
 
     // let data = format!(r#"{{"data": {}}}"#, data);
@@ -118,6 +122,7 @@ async fn add_row(repo: &LocalRepository, path: &Path, data: &str) -> Result<Data
         ))
     }
 }
+
 pub async fn delete_row(
     repository: &LocalRepository,
     path: impl AsRef<Path>,
@@ -144,7 +149,7 @@ pub async fn get_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let (df, _id) = api::remote::staging::get_row(
+        let df_json = api::remote::staging::get_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -152,6 +157,7 @@ pub async fn get_row(
             row_id,
         )
         .await?;
+        let df = df_json.data_frame.view.to_df();
         println!("{:?}", df);
         Ok(df)
     } else {
