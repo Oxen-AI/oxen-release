@@ -65,7 +65,7 @@ mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"
 pluralizer = "0.4.0"
-polars = { version = "0.39.2", features = [
+polars = { version = "0.40.0", features = [
     "lazy",
     "parquet",
     "json",
@@ -73,7 +73,7 @@ polars = { version = "0.39.2", features = [
     "ipc_streaming",
     "dtype-full",
 ] }
-polars-sql = "0.39.2"
+polars-sql = "0.40.0"
 os_path = "0.7.0"
 qsv-sniffer = "0.10.3"
 rand = "0.8.5"
