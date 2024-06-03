@@ -23,18 +23,23 @@ class RemoteDataset:
     The RemoteDataset class allows you to perform CRUD operations on a data frame that is stored on a remote Oxen Server.
     """
 
-    def __init__(self, repo: RemoteRepo, filename: str):
+    def __init__(self, repo: RemoteRepo, filename: str, index: bool = False):
         """
         Initialize the RemoteDataset class. Will throw an error if the dataset does not exist or is not indexed.
 
         Args:
             repo: `RemoteRepo`
-                The repository to index the dataset in.
+                The repository the dataset is in.
             filename: `str`
-                The name of the file to index.
+                The path of the file in the repository.
+            index: `bool`
+                If True, will index the dataset if the file exists.
         """
         self.repo = repo
         self.filename = filename
+        if index:
+            index_dataset(repo, filename)
+
         # this will return an error if the dataset does not exist or is not indexed
         self.dataset = PyRemoteDataset(repo._repo, filename)
         # TODO: why do we use periods vs underscores...? Fix this in the Rust code.
@@ -157,6 +162,16 @@ class RemoteDataset:
                 The id of the row to delete.
         """
         return self.dataset.delete_row(id)
+
+    def commit(self, message: str):
+        """
+        Commit the dataset to the remote server.
+
+        Args:
+            message: `str`
+                The message to commit the dataset with.
+        """
+        return self.dataset.commit(message)
 
     def _filter_keys(self, data: dict):
         """
