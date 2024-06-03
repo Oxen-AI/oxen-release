@@ -357,6 +357,12 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
+    log::info!(
+        "df_add_row {namespace}/{repo_name} on branch {} with id {}",
+        branch.name,
+        identifier
+    );
+
     // Have to initialize this branch repo before we can do any operations on it
     let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
     log::debug!(
@@ -665,15 +671,21 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
     }))
 }
 
-pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Error> {
+pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let branch_name: &str = req.match_info().query("branch");
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
 
-    log::debug!("stager::commit got body: {body}");
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    log::debug!("stager::commit {namespace}/{repo_name} on branch {} with id {} for resource {} got body: {}", branch.name, identifier, resource.file_path.to_string_lossy(), body);
 
     let data: Result<NewCommitBody, serde_json::Error> = serde_json::from_str(&body);
 
@@ -685,75 +697,45 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Erro
         }
     };
 
-    log::debug!("stager::commit repo name {repo_name} -> {branch_name}");
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match api::local::branches::get_by_name(&repo, branch_name) {
-            Ok(Some(branch)) => {
-                let branch_repo =
-                    index::remote_dir_stager::init_or_get(&repo, &branch, user_id).unwrap();
-                match index::remote_dir_stager::commit(&repo, &branch_repo, &branch, &data, user_id)
-                {
-                    Ok(commit) => {
-                        log::debug!("stager::commit ✅ success! commit {:?}", commit);
+    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    match index::remote_dir_stager::commit(&repo, &branch_repo, &branch, &data, &identifier) {
+        Ok(commit) => {
+            log::debug!("stager::commit ✅ success! commit {:?}", commit);
 
-                        // Clone the commit so we can move it into the thread
-                        let ret_commit = commit.clone();
+            // Clone the commit so we can move it into the thread
+            let ret_commit = commit.clone();
 
-                        // Start computing data about the commit in the background thread
-                        std::thread::spawn(move || {
-                            log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
-                            let force = false;
-                            match commit_cacher::run_all(&repo, &commit, force) {
-                                Ok(_) => {
-                                    log::debug!(
-                                        "Success processing commit {:?} on repo {:?}",
-                                        commit,
-                                        repo.path
-                                    );
-                                }
-                                Err(err) => {
-                                    log::error!(
-                                        "Could not process commit {:?} on repo {:?}: {}",
-                                        commit,
-                                        repo.path,
-                                        err
-                                    );
-                                }
-                            }
-                        });
-
-                        Ok(HttpResponse::Ok().json(CommitResponse {
-                            status: StatusMessage::resource_created(),
-                            commit: ret_commit,
-                        }))
-                    }
-                    Err(err) => {
-                        log::error!("unable to commit branch {:?}. Err: {}", branch_name, err);
-                        Ok(HttpResponse::UnprocessableEntity()
-                            .json(StatusMessage::error(format!("{err:?}"))))
-                    }
+            // Start computing data about the commit in the background thread
+            // std::thread::spawn(move || {
+            log::debug!("Processing commit {:?} on repo {:?}", commit, repo.path);
+            let force = false;
+            match commit_cacher::run_all(&repo, &commit, force) {
+                Ok(_) => {
+                    log::debug!(
+                        "Success processing commit {:?} on repo {:?}",
+                        commit,
+                        repo.path
+                    );
+                }
+                Err(err) => {
+                    log::error!(
+                        "Could not process commit {:?} on repo {:?}: {}",
+                        commit,
+                        repo.path,
+                        err
+                    );
                 }
             }
-            Ok(None) => {
-                log::debug!("unable to find branch {}", branch_name);
-                Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-            }
-            Err(err) => {
-                log::error!("Could not commit staged: {:?}", err);
-                Ok(
-                    HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()),
-                )
-            }
-        },
-        Ok(None) => {
-            log::debug!("unable to find repo {}", repo_name);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
+            // });
+
+            Ok(HttpResponse::Ok().json(CommitResponse {
+                status: StatusMessage::resource_created(),
+                commit: ret_commit,
+            }))
         }
         Err(err) => {
-            log::error!("Could not commit staged: {:?}", err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
+            log::error!("unable to commit branch {:?}. Err: {}", branch.name, err);
+            Ok(HttpResponse::UnprocessableEntity().json(StatusMessage::error(format!("{err:?}"))))
         }
     }
 }
@@ -904,6 +886,18 @@ pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpErr
 
     // Initialize the branch repository before any operations
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    if index::remote_df_stager::dataset_is_indexed(
+        &repo,
+        &branch,
+        &identifier,
+        &resource.file_path,
+    )? {
+        log::info!(
+            "Dataset indexing skipped for {namespace}/{repo_name}/{resource} as it is already indexed"
+        );
+        return Ok(HttpResponse::Ok().json(StatusMessage::resource_found()));
+    }
 
     match liboxen::core::index::remote_df_stager::index_dataset(
         &repo,
