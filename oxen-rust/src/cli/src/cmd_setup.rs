@@ -11,21 +11,16 @@ use crate::cmd::df::DFCmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::remote::df::RemoteDfCmd;
 
-pub const ADD: &str = "add";
-pub const BRANCH: &str = "branch";
-pub const CHECKOUT: &str = "checkout";
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
 pub const COMMIT: &str = "commit";
 pub const COMPARE: &str = "compare";
 pub const CONFIG: &str = "config";
-pub const CREATE_REMOTE: &str = "create-remote";
 pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
 pub const DOWNLOAD: &str = "download";
 pub const INFO: &str = "info";
 pub const FETCH: &str = "fetch";
-pub const KVDB_INSPECT: &str = "kvdb-inspect";
 pub const LOAD: &str = "load";
 pub const LOG: &str = "log";
 pub const LS: &str = "ls";
@@ -419,13 +414,6 @@ pub fn clone() -> Command {
                 .default_missing_value(DEFAULT_BRANCH_NAME)
                 .action(clap::ArgAction::Set),
         )
-}
-
-pub fn inspect_kv_db() -> Command {
-    Command::new(KVDB_INSPECT)
-        .about("Inspect a key-val pair db. For debugging purposes.")
-        .arg_required_else_help(true)
-        .arg(arg!(<PATH> "The path to the database you want to inspect"))
 }
 
 pub fn push() -> Command {

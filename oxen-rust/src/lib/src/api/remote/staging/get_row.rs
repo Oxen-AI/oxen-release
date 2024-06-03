@@ -1,5 +1,3 @@
-use polars::frame::DataFrame;
-
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
@@ -15,7 +13,7 @@ pub async fn get_row(
     identifier: &str,
     path: &Path,
     row_id: &str,
-) -> Result<(DataFrame, Option<String>), OxenError> {
+) -> Result<JsonDataFrameRowResponse, OxenError> {
     let file_path_str = path.to_str().unwrap();
     let uri = format!("/staging/{identifier}/df/rows/{row_id}/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -28,7 +26,7 @@ pub async fn get_row(
             let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
-                Ok(val) => Ok((val.data_frame.view.to_df(), val.row_id)),
+                Ok(val) => Ok(val),
                 Err(err) => {
                     let err = format!("api::staging::get_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))

@@ -46,7 +46,7 @@ pub struct Commit {
     pub message: String,
     pub author: String,
     pub email: String,
-    pub root_hash: Option<String>, // Option for now to facilciate migration from older stored commits
+    pub root_hash: Option<String>, // Option for now to facilitate migration from older stored commits
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
 }
