@@ -11,6 +11,7 @@ pub mod status;
 
 pub use add_file::{add_file, add_files};
 pub use commit::commit;
+pub use commit::commit_file;
 pub use dataset::index_dataset;
 pub use diff::diff;
 pub use get_row::get_row;
