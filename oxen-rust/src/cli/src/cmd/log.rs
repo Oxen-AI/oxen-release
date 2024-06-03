@@ -2,8 +2,8 @@ use async_trait::async_trait;
 use clap::{arg, ArgMatches, Command};
 use colored::Colorize;
 use minus::Pager;
-use time::format_description;
 use std::fmt::Write;
+use time::format_description;
 
 use liboxen::api;
 use liboxen::error::OxenError;
@@ -23,7 +23,6 @@ fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
 
 #[async_trait]
 impl RunCmd for LogCmd {
-
     fn name(&self) -> &str {
         NAME
     }
@@ -35,27 +34,29 @@ impl RunCmd for LogCmd {
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
+        // Look up from the current dir for .oxen directory
         let repo = LocalRepository::from_current_dir()?;
 
         let revision = args.get_one::<String>("REVISION").map(String::from);
-    
+
         let opts = LogOpts {
             revision,
             remote: false,
         };
-        
+
         self.log_commits(&repo, &opts).await?;
 
         Ok(())
     }
-
 }
 
 impl LogCmd {
-    pub async fn log_commits(&self, repo: &LocalRepository, opts: &LogOpts) -> Result<(), OxenError> {
-
-        let commits = api::local::commits::list_with_opts(&repo, &opts).await?;
+    pub async fn log_commits(
+        &self,
+        repo: &LocalRepository,
+        opts: &LogOpts,
+    ) -> Result<(), OxenError> {
+        let commits = api::local::commits::list_with_opts(repo, opts).await?;
 
         // Fri, 21 Oct 2022 16:08:39 -0700
         let format = format_description::parse(
