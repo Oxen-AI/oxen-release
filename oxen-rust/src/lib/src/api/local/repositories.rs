@@ -136,10 +136,10 @@ pub fn list_repos_in_namespace(namespace_path: &Path) -> Vec<LocalRepository> {
         // if the directory has a .oxen dir, let's add it, otherwise ignore
         let local_dir = entry.path();
         let oxen_dir = util::fs::oxen_hidden_dir(&local_dir);
-        log::debug!(
-            "api::local::entries::list_repos_in_namespace got local dir {:?}",
-            local_dir
-        );
+        // log::debug!(
+        //     "api::local::entries::list_repos_in_namespace got local dir {:?}",
+        //     local_dir
+        // );
 
         if oxen_dir.exists() {
             if let Ok(repository) = LocalRepository::from_dir(&local_dir) {

@@ -37,8 +37,6 @@ pub async fn remote_status(
                 remote_branch.name, remote_branch.commit_id
             );
             repo_status.print_stdout_with_params(opts);
-        } else {
-            println!("Remote branch '{}' not found", current_branch.name);
         }
     } else {
         let head = api::local::commits::head_commit(&repository)?;
