@@ -25,37 +25,37 @@ use super::CommitWriter;
 // These methods create a directory within .oxen/staging/branch-name/user-id-hash/ that is a local oxen repo
 // Then we can stage data right into here using the same stager, but on a per user basis
 
-pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, user_id: &str) -> PathBuf {
+pub fn branch_staging_dir(repo: &LocalRepository, branch: &Branch, identifier: &str) -> PathBuf {
     // Just in case they pass in the email or some other random string, hash it for nice dir name
     // This does double-hash right now, since `identifier` is already hashed
-    let user_id_hash = util::hasher::hash_str_sha256(user_id);
+    let identifier_hash = util::hasher::hash_str_sha256(identifier);
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(STAGED_DIR)
         .join(&branch.name)
-        .join(user_id_hash)
+        .join(identifier_hash)
 }
 
 pub fn init_or_get(
     repo: &LocalRepository,
     branch: &Branch,
-    user_id: &str,
+    identifier: &str,
 ) -> Result<LocalRepository, OxenError> {
     // Cleans up the staging dir if there is an error at any point
-    match p_init_or_get(repo, branch, user_id) {
+    match p_init_or_get(repo, branch, identifier) {
         Ok(repo) => {
             log::debug!(
-                "Got branch staging dir for userid {:?} at path {:?}",
-                user_id,
+                "Got branch staging dir for identifier {:?} at path {:?}",
+                identifier,
                 repo.path
             );
             Ok(repo)
         }
         Err(e) => {
-            let staging_dir = branch_staging_dir(repo, branch, user_id);
+            let staging_dir = branch_staging_dir(repo, branch, identifier);
             log::debug!(
-                "error branch staging dir for userid {:?} at path {:?}",
-                user_id,
+                "error branch staging dir for identifier {:?} at path {:?}",
+                identifier,
                 staging_dir
             );
             util::fs::remove_dir_all(staging_dir)?;
@@ -67,9 +67,9 @@ pub fn init_or_get(
 pub fn p_init_or_get(
     repo: &LocalRepository,
     branch: &Branch,
-    user_id: &str,
+    identifier: &str,
 ) -> Result<LocalRepository, OxenError> {
-    let staging_dir = branch_staging_dir(repo, branch, user_id);
+    let staging_dir = branch_staging_dir(repo, branch, identifier);
     let oxen_dir = staging_dir.join(OXEN_HIDDEN_DIR);
     let branch_repo = if oxen_dir.exists() {
         log::debug!("stage_file Already have oxen repo 🐂");
@@ -156,10 +156,10 @@ pub fn stage_file(
     repo: &LocalRepository,
     branch_repo: &LocalRepository,
     branch: &Branch,
-    user_id: &str,
+    identifier: &str,
     filepath: &Path,
 ) -> Result<PathBuf, OxenError> {
-    let staging_dir = branch_staging_dir(repo, branch, user_id);
+    let staging_dir = branch_staging_dir(repo, branch, identifier);
     log::debug!("remote stager before add... staging_dir {:?}", staging_dir);
 
     // Stager will be in the branch repo
@@ -204,11 +204,11 @@ pub fn commit(
     branch_repo: &LocalRepository,
     branch: &Branch,
     new_commit: &NewCommitBody,
-    user_id: &str,
+    identifier: &str,
 ) -> Result<Commit, OxenError> {
     log::debug!("commit_staged started on branch: {}", branch.name);
 
-    let staging_dir = branch_staging_dir(repo, branch, user_id);
+    let staging_dir = branch_staging_dir(repo, branch, identifier);
     let status = status_for_branch(repo, branch_repo, branch)?;
 
     log::debug!("got branch status: {:#?}", &status);
@@ -231,7 +231,7 @@ pub fn commit(
         &status,
         &staging_dir,
         branch,
-        user_id,
+        identifier,
     )?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
@@ -328,20 +328,21 @@ mod tests {
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
-            let user_id = UserConfig::identifier()?;
-            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch, &user_id);
+            let identifier = UserConfig::identifier()?;
+            let branch_dir =
+                index::remote_dir_stager::branch_staging_dir(&repo, &branch, &identifier);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
 
-            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
             index::remote_dir_stager::stage_file(
                 &repo,
                 &branch_repo,
                 &branch,
-                &user_id,
+                &identifier,
                 &full_path,
             )?;
 
@@ -350,7 +351,7 @@ mod tests {
                 &repo,
                 &branch_repo,
                 &branch,
-                &user_id,
+                &identifier,
                 directory,
             )?;
             staged_data.print_stdout();
@@ -367,20 +368,21 @@ mod tests {
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
-            let user_id = UserConfig::identifier()?;
+            let identifier = UserConfig::identifier()?;
 
-            let branch_dir = index::remote_dir_stager::branch_staging_dir(&repo, &branch, &user_id);
+            let branch_dir =
+                index::remote_dir_stager::branch_staging_dir(&repo, &branch, &identifier);
             let full_dir = branch_dir.join(directory);
             let full_path = full_dir.join(filename);
             let entry_contents = "Hello World";
             std::fs::create_dir_all(full_dir)?;
             util::fs::write_to_path(&full_path, entry_contents)?;
-            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+            let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
             index::remote_dir_stager::stage_file(
                 &repo,
                 &branch_repo,
                 &branch,
-                &user_id,
+                &identifier,
                 &full_path,
             )?;
 
@@ -390,7 +392,13 @@ mod tests {
                 email: String::from("test@oxen.ai"),
                 message: String::from("I am committing this remote staged data"),
             };
-            index::remote_dir_stager::commit(&repo, &branch_repo, &branch, &new_commit, &user_id)?;
+            index::remote_dir_stager::commit(
+                &repo,
+                &branch_repo,
+                &branch,
+                &new_commit,
+                &identifier,
+            )?;
 
             for commit in og_commits.iter() {
                 println!("OG commit: {commit:#?}");
