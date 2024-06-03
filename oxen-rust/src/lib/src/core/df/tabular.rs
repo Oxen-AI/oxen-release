@@ -20,26 +20,31 @@ use std::io::Cursor;
 use std::path::Path;
 
 const DEFAULT_INFER_SCHEMA_LEN: usize = 10000;
-const DEFAULT_SAMPLE_SIZE: usize = 1024;
 const READ_ERROR: &str = "Could not read tabular data from path";
 const COLLECT_ERROR: &str = "Could not collect DataFrame";
 const TAKE_ERROR: &str = "Could not take DataFrame";
 const CSV_READ_ERROR: &str = "Could not read csv from path";
 
-fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFrame, OxenError> {
-    log::debug!("try_infer_schema_csv delimiter: {:?}", delimiter as char);
-    let result = reader
-        .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
-        .sample_size(DEFAULT_SAMPLE_SIZE)
+fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader {
+    let path = path.as_ref();
+    let reader = LazyCsvReader::new(path);
+    reader
+        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
         .with_ignore_errors(true)
-        .has_header(true)
-        .truncate_ragged_lines(true)
+        .with_has_header(true)
+        .with_truncate_ragged_lines(true)
         .with_separator(delimiter)
-        .with_end_of_line_char(b'\n')
+        .with_eol_char(b'\n')
         .with_quote_char(Some(b'"'))
         .with_rechunk(true)
         .with_encoding(CsvEncoding::LossyUtf8)
-        .finish();
+}
+
+pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    log::debug!("read_df_csv path: {:?}", path);
+    let reader = base_lazy_csv_reader(path, delimiter);
+    let result = reader.finish()?.collect();
 
     match result {
         Ok(df) => Ok(df),
@@ -54,28 +59,14 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
     }
 }
 
-pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
-    let path = path.as_ref();
-    log::debug!("read_df_csv path: {:?}", path);
-    match CsvReader::from_path(path) {
-        Ok(reader) => Ok(try_infer_schema_csv(reader, delimiter)?),
-        Err(err) => {
-            let err = format!("{CSV_READ_ERROR}: {err:?}");
-            Err(OxenError::basic_str(err))
-        }
-    }
-}
-
-pub fn scan_df_csv<P: AsRef<Path>>(
-    path: P,
+pub fn scan_df_csv(
+    path: impl AsRef<Path>,
     delimiter: u8,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
-    LazyCsvReader::new(&path)
-        .with_separator(delimiter)
-        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+    let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
+    reader
         .with_n_rows(Some(total_rows))
-        .has_header(true)
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }

@@ -61,9 +61,9 @@ pub const STAGED_DIR: &str = "staged";
 pub const TABLE_NAME: &str = "df";
 /// Oxen's internal row id column in duckdb remote staging tables
 pub const OXEN_COLS: [&str; 4] = [OXEN_ID_COL, DIFF_STATUS_COL, OXEN_ROW_ID_COL, DIFF_HASH_COL];
-pub const OXEN_ROW_ID_COL: &str = ".oxen.row_id";
+pub const OXEN_ROW_ID_COL: &str = "_oxen_row_id";
 /// Oxen's internal id column in duckdb remote staging tables
-pub const OXEN_ID_COL: &str = ".oxen.id";
+pub const OXEN_ID_COL: &str = "_oxen_id";
 /// Name of the folder of the cache dir in which dfs are indexed as duckdbs
 pub const DUCKDB_CACHE_DIR: &str = "duckdb";
 /// Default name for duckdb table used for indexing dataframes
@@ -135,9 +135,9 @@ pub const TARGETS_HASH_COL: &str = "_targets_hash";
 // Internal Name When Performing Computation
 pub const KEYS_HASH_COL: &str = "_keys_hash";
 // Internal Name When Performing Computation
-pub const DIFF_STATUS_COL: &str = ".oxen.diff.status";
+pub const DIFF_STATUS_COL: &str = "_oxen_diff_status";
 // Internal Name When Performing Computation
-pub const DIFF_HASH_COL: &str = ".oxen.diff.hash";
+pub const DIFF_HASH_COL: &str = "_oxen_diff_hash";
 
 // Data transfer
 // Average chunk size of ~4mb

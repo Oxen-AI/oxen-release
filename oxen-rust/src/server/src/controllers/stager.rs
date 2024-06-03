@@ -905,6 +905,18 @@ pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpErr
     // Initialize the branch repository before any operations
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
+    if index::remote_df_stager::dataset_is_indexed(
+        &repo,
+        &branch,
+        &identifier,
+        &resource.file_path,
+    )? {
+        log::info!(
+            "Dataset indexing skipped for {namespace}/{repo_name}/{resource} as it is already indexed"
+        );
+        return Ok(HttpResponse::Ok().json(StatusMessage::resource_found()));
+    }
+
     match liboxen::core::index::remote_df_stager::index_dataset(
         &repo,
         &branch,
