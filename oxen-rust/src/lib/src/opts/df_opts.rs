@@ -24,6 +24,7 @@ pub struct IndexedItem {
 pub struct DFOpts {
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub at: Option<usize>,
     pub columns: Option<String>,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
@@ -61,6 +62,7 @@ impl DFOpts {
         DFOpts {
             add_col: None,
             add_row: None,
+            at: None,
             item: None,
             columns: None,
             delete_row: None,

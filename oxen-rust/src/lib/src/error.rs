@@ -302,8 +302,7 @@ impl OxenError {
     }
 
     pub fn entry_does_not_exist(path: impl AsRef<Path>) -> OxenError {
-        let err = format!("Entry does not exist: {:?}", path.as_ref());
-        OxenError::basic_str(err)
+        OxenError::ParsedResourceNotFound(Box::new(path.as_ref().into()))
     }
 
     pub fn file_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
