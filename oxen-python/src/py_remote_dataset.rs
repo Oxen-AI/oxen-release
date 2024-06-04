@@ -213,6 +213,9 @@ impl PyRemoteDataset {
         let user_id = UserConfig::identifier()?;
         let repo = &self.repo.repo;
         let revision = &self.repo.revision;
+        // convert path to linux style
+        let path = &self.path.to_string_lossy();
+        let path = path.replace("\\", "/");
 
         let commit = NewCommitBody {
             message: message.to_string(),
@@ -222,7 +225,7 @@ impl PyRemoteDataset {
 
         let commit = pyo3_asyncio::tokio::get_runtime()
             .block_on(async {
-                api::remote::staging::commit(repo, revision, &user_id, &commit).await
+                api::remote::staging::commit_file(repo, revision, &user_id, &commit, &path).await
             })?;
         Ok(commit.into())
     }
