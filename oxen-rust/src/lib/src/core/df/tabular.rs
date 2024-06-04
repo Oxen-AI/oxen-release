@@ -167,6 +167,7 @@ pub fn add_col_lazy(
     name: &str,
     val: &str,
     dtype: &str,
+    at: Option<usize>,
 ) -> Result<LazyFrame, OxenError> {
     let mut df = df.collect().expect(COLLECT_ERROR);
 
@@ -176,7 +177,11 @@ pub fn add_col_lazy(
     let column = column
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .expect("Could not extend df");
-    df.with_column(column).expect(COLLECT_ERROR);
+    if let Some(at) = at {
+        df.insert_column(at, column).expect(COLLECT_ERROR);
+    } else {
+        df.with_column(column).expect(COLLECT_ERROR);
+    }
     let df = df.lazy();
     Ok(df)
 }
@@ -308,7 +313,7 @@ pub fn transform_lazy(
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
-        df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+        df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype, opts.at)?;
     }
 
     if let Some(columns) = opts.unique_columns() {
