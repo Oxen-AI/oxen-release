@@ -62,7 +62,6 @@ for i, question in enumerate(questions):
     commit_time = time.time() - start
     print("Commit time: ", commit_time)
     commit_times.append(commit_time)
-    break
 
 # print average times
 print("Average indexing time: ", sum(index_times) / len(index_times))
