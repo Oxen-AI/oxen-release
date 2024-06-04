@@ -5,6 +5,9 @@ import time
 
 print("Creating Remote Repo")
 repo = RemoteRepo("ox/LLM-Dataset", "localhost:3001", scheme="http")
+print("Repo object created")
+
+file_name = "prompts.parquet"
 
 # Loop over 10 questions
 questions = [
@@ -28,19 +31,20 @@ connection_times = []
 insert_times = []
 commit_times = []
 
-for question in questions:
+for i, question in enumerate(questions):
     # time indexing
+    print("==== Indexing dataset", i, "====")
     start = time.time()
-    index_dataset(repo, "openhermes_train.parquet")
+    index_dataset(repo, file_name)
     end = time.time()
     index_time = end - start
     print("Indexing time: ", index_time)
     index_times.append(index_time)
 
     start = time.time()
-    print("Creating Remote Dataset")
+    print("Connecting to Remote Dataset")
     # Gets dataset if exists
-    dataset = RemoteDataset(repo, "openhermes_train.parquet")
+    dataset = RemoteDataset(repo, file_name)
     connection_time = time.time() - start
     print("Connection time: ", connection_time)
     connection_times.append(connection_time)
@@ -58,6 +62,7 @@ for question in questions:
     commit_time = time.time() - start
     print("Commit time: ", commit_time)
     commit_times.append(commit_time)
+    break
 
 # print average times
 print("Average indexing time: ", sum(index_times) / len(index_times))
