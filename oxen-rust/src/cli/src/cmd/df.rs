@@ -38,6 +38,13 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("filter")
+                .long("filter")
+                .short('f')
+                .help("A filter to apply to the data frame. Format: 'column op value' ie: 'category == dog'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("columns")
                 .long("columns")
                 .short('c')
@@ -208,6 +215,7 @@ impl DFCmd {
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
             delimiter: args.get_one::<String>("delimiter").map(String::from),
+            filter: args.get_one::<String>("filter").map(String::from),
             slice: args.get_one::<String>("slice").map(String::from),
             page_size: args
                 .get_one::<String>("page-size")
