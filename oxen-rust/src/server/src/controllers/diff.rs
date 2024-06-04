@@ -590,6 +590,8 @@ pub async fn get_derived_df(
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
+    log::debug!("get_derived_df got opts: {:?}", opts);
+
     // Clear these for the first transform
     opts.page = None;
     opts.page_size = None;
