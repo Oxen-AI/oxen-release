@@ -236,7 +236,9 @@ impl DFCmd {
             vstack,
             add_col: args.get_one::<String>("add-col").map(String::from),
             add_row: args.get_one::<String>("add-row").map(String::from),
-            at: args.get_one::<String>("at").map(|x| x.parse::<usize>().expect("at must be valid int")),
+            at: args
+                .get_one::<String>("at")
+                .map(|x| x.parse::<usize>().expect("at must be valid int")),
             delete_row: args.get_one::<String>("delete-row").map(String::from),
             sort_by: args.get_one::<String>("sort").map(String::from),
             sql: args.get_one::<String>("sql").map(String::from),
