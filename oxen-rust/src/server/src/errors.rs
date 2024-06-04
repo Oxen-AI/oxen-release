@@ -2,7 +2,9 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
-use liboxen::view::http::{MSG_BAD_REQUEST, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR};
+use liboxen::view::http::{
+    MSG_BAD_REQUEST, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
+};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
 use serde_json::json;

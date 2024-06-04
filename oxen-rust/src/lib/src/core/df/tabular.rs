@@ -313,7 +313,13 @@ pub fn transform_lazy(
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
-        df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype, opts.at)?;
+        df = add_col_lazy(
+            df,
+            &col_vals.name,
+            &col_vals.value,
+            &col_vals.dtype,
+            opts.at,
+        )?;
     }
 
     if let Some(columns) = opts.unique_columns() {
