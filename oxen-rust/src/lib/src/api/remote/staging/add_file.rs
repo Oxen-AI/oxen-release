@@ -45,9 +45,7 @@ pub async fn add_file(
                     if let Some(path) = val.paths.first() {
                         Ok(path.clone())
                     } else {
-                        Err(OxenError::basic_str(
-                            "No file path returned from server",
-                        ))
+                        Err(OxenError::basic_str("No file path returned from server"))
                     }
                 }
                 Err(err) => {
