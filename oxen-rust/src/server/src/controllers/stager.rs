@@ -896,7 +896,9 @@ pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpErr
         log::info!(
             "Dataset indexing skipped for {namespace}/{repo_name}/{resource} as it is already indexed"
         );
-        return Ok(HttpResponse::Ok().json(StatusMessage::resource_found()));
+        return Err(OxenHttpError::DatasetAlreadyIndexed(
+            resource.file_path.clone().into(),
+        ));
     }
 
     match liboxen::core::index::remote_df_stager::index_dataset(
