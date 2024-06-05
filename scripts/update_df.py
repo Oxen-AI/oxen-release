@@ -4,10 +4,10 @@ from oxen.remote_dataset import index_dataset
 import time
 
 print("Creating Remote Repo")
-repo = RemoteRepo("ox/LLM-Dataset", "localhost:3001", scheme="http")
+repo = RemoteRepo("ox/OpenHermes", "localhost:3001", scheme="http")
 print("Repo object created")
 
-file_name = "prompts.parquet"
+file_name = "openhermes_train.parquet"
 
 # Loop over 10 questions
 questions = [
@@ -62,6 +62,8 @@ for i, question in enumerate(questions):
     commit_time = time.time() - start
     print("Commit time: ", commit_time)
     commit_times.append(commit_time)
+    
+    time.sleep(2)
 
 # print average times
 print("Average indexing time: ", sum(index_times) / len(index_times))
