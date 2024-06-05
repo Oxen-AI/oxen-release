@@ -29,7 +29,6 @@ use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
 use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
 use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
-use liboxen::view::PaginatedCommits;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
 use os_path::OsPath;
 
@@ -69,22 +68,12 @@ pub struct ChunkedDataUploadQuery {
 // List commits for a repository
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let repo_name: Option<&str> = req.match_info().get("repo_name");
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    if let (Some(namespace), Some(repo_name)) = (namespace, repo_name) {
-        let repo_dir = app_data.path.join(namespace).join(repo_name);
-        match p_index(&repo_dir) {
-            Ok(response) => Ok(HttpResponse::Ok().json(response)),
-            Err(err) => {
-                log::error!("api err: {}", err);
-                Err(OxenHttpError::InternalServerError)
-            }
-        }
-    } else {
-        let msg = "Could not find `name` param...";
-        Err(OxenHttpError::BadRequest(msg.into()))
-    }
+    let commits = api::local::commits::list(&repo).unwrap_or_default();
+    Ok(HttpResponse::Ok().json(ListCommitResponse::success(commits)))
 }
 
 // List history for a branch or commit
@@ -93,29 +82,17 @@ pub async fn commit_history(
     query: web::Query<PageNumQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let repo_name: Option<&str> = req.match_info().get("repo_name");
-    let commit_or_branch: Option<&str> = req.match_info().get("commit_or_branch");
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let commit_or_branch = path_param(&req, "commit_or_branch")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    if let (Some(namespace), Some(repo_name), Some(commit_or_branch)) =
-        (namespace, repo_name, commit_or_branch)
-    {
-        let repo_dir = app_data.path.join(namespace).join(repo_name);
-        match p_index_commit_or_branch_history(&repo_dir, commit_or_branch, page, page_size) {
-            Ok(response) => Ok(HttpResponse::Ok().json(response)),
-            Err(err) => {
-                let msg = format!("{err}");
-                log::error!("api err: {}", msg);
-                Err(OxenHttpError::NotFound)
-            }
-        }
-    } else {
-        let msg = "Must supply `namespace`, `repo_name` and `commit_or_branch` params";
-        Err(OxenHttpError::BadRequest(msg.into()))
-    }
+    let commits =
+        api::local::commits::list_from_paginated(&repo, &commit_or_branch, page, page_size)?;
+    Ok(HttpResponse::Ok().json(commits))
 }
 
 // List all commits in the rpeo
@@ -124,22 +101,16 @@ pub async fn list_all(
     query: web::Query<PageNumQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-    let namespace: Option<&str> = req.match_info().get("namespace");
-    let repo_name: Option<&str> = req.match_info().get("repo_name");
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    if let (Some(namespace), Some(repo_name)) = (namespace, repo_name) {
-        let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let paginated_commits = api::local::commits::list_all_paginated(&repo, page, page_size)?;
 
-        let paginated_commits = api::local::commits::list_all_paginated(&repo, page, page_size)?;
-
-        Ok(HttpResponse::Ok().json(paginated_commits))
-    } else {
-        let msg = "Must supply `namespace`, `repo_name`  params";
-        Err(OxenHttpError::BadRequest(msg.into()))
-    }
+    Ok(HttpResponse::Ok().json(paginated_commits))
 }
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -400,25 +371,6 @@ fn p_get_parents(
         Some(commit) => api::local::commits::get_parents(repository, &commit),
         None => Ok(vec![]),
     }
-}
-
-fn p_index(repo_dir: &Path) -> Result<ListCommitResponse, OxenError> {
-    let repo = LocalRepository::new(repo_dir)?;
-    let commits = api::local::commits::list(&repo)?;
-    Ok(ListCommitResponse::success(commits))
-}
-
-fn p_index_commit_or_branch_history(
-    repo_dir: &Path,
-    commit_or_branch: &str,
-    page_num: usize,
-    page_size: usize,
-) -> Result<PaginatedCommits, OxenError> {
-    let repo = LocalRepository::new(repo_dir)?;
-    let commits =
-        api::local::commits::list_from_paginated(&repo, commit_or_branch, page_num, page_size)?;
-    // log::debug!("controllers::commits: : {:#?}", commits);
-    Ok(commits)
 }
 
 /// Download the database that holds all the commits and their parents

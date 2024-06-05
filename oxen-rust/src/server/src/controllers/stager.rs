@@ -221,37 +221,50 @@ async fn save_parts(
     mut payload: Multipart,
 ) -> Result<Vec<PathBuf>, Error> {
     let mut files: Vec<PathBuf> = vec![];
+
     // iterate over multipart stream
     while let Some(mut field) = payload.try_next().await? {
         // A multipart/form-data stream has to contain `content_disposition`
         let content_disposition = field.content_disposition();
 
-        let upload_filename = content_disposition
-            .get_filename()
-            .map_or_else(|| Uuid::new_v4().to_string(), sanitize_filename::sanitize);
+        log::debug!(
+            "stager::save_file content_disposition.get_name() {:?}",
+            content_disposition.get_name()
+        );
 
-        log::debug!("Got uploaded file name: {upload_filename:?}");
+        // Filter to process only fields with the name "file[]" or "file"
+        // (the old client is sending "file" instead of "file[]", but "file[]" makes sense for more than 1 file)
+        if let Some(name) = content_disposition.get_name() {
+            if "file[]" == name || "file" == name {
+                let upload_filename = content_disposition
+                    .get_filename()
+                    .map_or_else(|| Uuid::new_v4().to_string(), sanitize_filename::sanitize);
 
-        let staging_dir = index::remote_dir_stager::branch_staging_dir(repo, branch, user_id);
-        let full_dir = staging_dir.join(directory);
+                log::debug!("Got uploaded file name: {upload_filename:?}");
 
-        if !full_dir.exists() {
-            std::fs::create_dir_all(&full_dir)?;
+                let staging_dir =
+                    index::remote_dir_stager::branch_staging_dir(repo, branch, user_id);
+                let full_dir = staging_dir.join(directory);
+
+                if !full_dir.exists() {
+                    std::fs::create_dir_all(&full_dir)?;
+                }
+
+                let filepath = full_dir.join(&upload_filename);
+                let filepath_cpy = full_dir.join(&upload_filename);
+                log::debug!("stager::save_file writing file to {:?}", filepath);
+
+                // File::create is blocking operation, use threadpool
+                let mut f = web::block(|| std::fs::File::create(filepath)).await??;
+
+                // Field in turn is stream of *Bytes* object
+                while let Some(chunk) = field.try_next().await? {
+                    // filesystem operations are blocking, we have to use threadpool
+                    f = web::block(move || f.write_all(&chunk).map(|_| f)).await??;
+                }
+                files.push(filepath_cpy);
+            }
         }
-
-        let filepath = full_dir.join(&upload_filename);
-        let filepath_cpy = full_dir.join(&upload_filename);
-        log::debug!("stager::save_file writing file to {:?}", filepath);
-
-        // File::create is blocking operation, use threadpool
-        let mut f = web::block(|| std::fs::File::create(filepath)).await??;
-
-        // Field in turn is stream of *Bytes* object
-        while let Some(chunk) = field.try_next().await? {
-            // filesystem operations are blocking, we have to use threadpool
-            f = web::block(move || f.write_all(&chunk).map(|_| f)).await??;
-        }
-        files.push(filepath_cpy);
     }
 
     Ok(files)

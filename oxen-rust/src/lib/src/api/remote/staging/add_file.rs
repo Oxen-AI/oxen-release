@@ -5,6 +5,7 @@ use crate::model::RemoteRepository;
 use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
+use pluralizer::pluralize;
 use std::path::PathBuf;
 
 pub async fn add_file(
@@ -40,8 +41,12 @@ pub async fn add_file(
                 serde_json::from_str(&body);
             match response {
                 Ok(val) => {
-                    let path = val.paths[0].clone();
-                    Ok(path)
+                    log::debug!("File path response: {:?}", val);
+                    if let Some(path) = val.paths.first() {
+                        Ok(path.clone())
+                    } else {
+                        Err(OxenError::basic_str("No file path returned from server"))
+                    }
                 }
                 Err(err) => {
                     let err = format!("api::staging::add_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
@@ -71,12 +76,11 @@ pub async fn add_files(
         return Err(OxenError::basic_str(error_msg));
     }
 
-    let plural_files = if paths.len() > 1 { "files" } else { "file" };
     println!(
         "Uploading {} from {} {}",
         ByteSize(total_size),
         paths.len(),
-        plural_files
+        pluralize("file", paths.len() as isize, true)
     );
 
     let uri = format!("/staging/{identifier}/file/{branch_name}/{directory_name}");
@@ -93,7 +97,7 @@ pub async fn add_files(
             .unwrap();
         let file = std::fs::read(&path).unwrap();
         let file_part = reqwest::multipart::Part::bytes(file).file_name(file_name);
-        form = form.part("file", file_part);
+        form = form.part("file[]", file_part);
     }
 
     let client = client::new_for_url(&url)?;
