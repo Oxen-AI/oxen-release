@@ -39,6 +39,9 @@ pub use diff::DiffCmd;
 pub mod moo;
 pub use moo::MooCmd;
 
+pub mod log;
+pub use log::LogCmd;
+
 pub mod pack;
 pub use pack::PackCmd;
 
