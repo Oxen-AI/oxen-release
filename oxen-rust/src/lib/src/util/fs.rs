@@ -1239,6 +1239,10 @@ pub fn resize_cache_image(
     Ok(())
 }
 
+pub fn to_unix_str(path: impl AsRef<Path>) -> String {
+    path.as_ref().to_str().unwrap_or_default().replace("\\", "/")
+}
+
 #[cfg(test)]
 mod tests {
     use crate::constants::{self, VERSION_FILE_NAME};
@@ -1452,5 +1456,13 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[test]
+    fn to_unix_str() {
+        assert_eq!(
+            util::fs::to_unix_str(Path::new("data\\test\\file.txt")),
+            "data/test/file.txt"
+        );
     }
 }
