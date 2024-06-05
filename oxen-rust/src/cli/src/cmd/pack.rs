@@ -1,0 +1,179 @@
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+use std::path::PathBuf;
+
+use async_trait::async_trait;
+use clap::{Arg, Command};
+use liboxen::core::index::CommitEntryReader;
+use liboxen::error::OxenError;
+use liboxen::model::{CommitEntry, LocalRepository};
+use liboxen::util::hasher;
+use liboxen::{api, util};
+
+use crate::cmd::RunCmd;
+pub const NAME: &str = "pack";
+pub struct PackCmd;
+
+#[async_trait]
+impl RunCmd for PackCmd {
+    fn name(&self) -> &str {
+        NAME
+    }
+
+    fn args(&self) -> Command {
+        // Setups the CLI args for the command
+        Command::new(NAME)
+            .about("Pack your bags, let's see how well we can compress and decompress data. TODO: This is not a real command, just an experiment.")
+            .arg(
+                Arg::new("files")
+                    .required(true)
+                    .action(clap::ArgAction::Append),
+            )
+            // Number of commits back to pack
+            .arg(
+                Arg::new("number")
+                    .long("number")
+                    .short('n')
+                    .help("How many commits back to pack")
+                    .default_value("1")
+                    .action(clap::ArgAction::Set),
+            )
+            // Chunk size
+            .arg(
+                Arg::new("chunk_size")
+                    .long("chunk_size")
+                    .short('c')
+                    .help("Chunk size in KB")
+                    .default_value("4")
+                    .action(clap::ArgAction::Set),
+            )
+    }
+
+    async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
+        // Parse Args
+        let paths: Vec<PathBuf> = args
+            .get_many::<String>("files")
+            .expect("Must supply files")
+            .map(PathBuf::from)
+            .collect();
+
+        let n = args
+            .get_one::<String>("number")
+            .expect("Must supply number")
+            .parse::<usize>()
+            .expect("number must be a valid integer.");
+
+        let chunk_size = args
+            .get_one::<String>("chunk_size")
+            .expect("Must supply chunk size")
+            .parse::<usize>()
+            .expect("Chunk size must be a valid integer.");
+
+        if paths.len() != 1 {
+            return Err(OxenError::basic_str("Must supply exactly one file"));
+        }
+
+        let path = &paths[0];
+
+        // The idea here is that if we split the file into chunks and hash the chunks
+        // Then we can store these at the bottom of the merkle tree
+        // The questions are:
+        //   1) How much storage space to we save?
+        //   2) How much time does it take to reconstruct the original file?
+        //   3) What does the performance look like loading this into duckdb to query?
+        //   4) Can we just upload the changed chunk in this case rather than whole new version?
+
+        // Traverse back in file history, split file into chunks.
+        let repo = LocalRepository::from_current_dir()?;
+        let commits = api::local::commits::list(&repo)?;
+
+        // Take first n commits
+        let commits = commits.into_iter().take(n);
+        let mut entries: Vec<CommitEntry> = vec![];
+        for commit in commits {
+            let commit_entry_reader = CommitEntryReader::new(&repo, &commit)?;
+            let Some(entry) = commit_entry_reader.get_entry(path)? else {
+                continue;
+            };
+            entries.push(entry);
+        }
+
+        // Time the total time taken to read the files
+        let start = std::time::Instant::now();
+
+        // Chunk each file into 16kb chunks
+        let mut chunks: HashMap<u128, Vec<u8>> = HashMap::new();
+        let chunk_size = chunk_size * 1024;
+        let mut latest_size: u64 = 0;
+        let mut total_size: u64 = 0;
+        let mut compressed_size: u64 = 0;
+        println!("Compressing {} versions of {:?}...", n, path);
+        // enumerate with index
+        for (i, entry) in entries.into_iter().enumerate() {
+            let version_file = util::fs::version_path(&repo, &entry);
+
+            // Open File
+            let mut file = File::open(&version_file)?;
+
+            // Read chunks
+            let mut buffer = vec![0; chunk_size]; // 16KB buffer
+            while let Ok(bytes_read) = file.read(&mut buffer) {
+                if bytes_read == 0 {
+                    if i == 0 {
+                        latest_size = total_size;
+                    }
+                    break; // End of file
+                }
+                // Process the buffer here
+                // println!("Read {} bytes from {:?}", bytes_read, version_file);
+                let hash = hasher::hash_buffer_128bit(&buffer);
+
+                // Add to chunks
+                if let std::collections::hash_map::Entry::Vacant(e) = chunks.entry(hash) {
+                    e.insert(buffer.clone());
+                    compressed_size += bytes_read as u64;
+                }
+                total_size += bytes_read as u64;
+            }
+        }
+
+        // Time the total time taken to read the files
+        let end = std::time::Instant::now();
+        println!("Time to compress: {:?}", end.duration_since(start));
+
+        println!("Writing chunks to disk...");
+
+        // TODO: Write all chunks to our u128 kv db
+        // TODO: Write another db of idx -> hash so that we can reconstruct the file
+        // TODO: Time the reconstruction of the file from chunks to Polars DF
+        let mut file = File::create("chunks")?;
+        for (hash, chunk) in &chunks {
+            // Convert u128 to u8
+            let hash = hash.to_be_bytes().to_vec();
+            file.write(&hash)?;
+            file.write(chunk)?;
+        }
+
+        // Time the total time taken to read the files
+        let end = std::time::Instant::now();
+        println!("Total time taken: {:?}", end.duration_since(start));
+
+        println!("Uncompressed size: {}", bytesize::ByteSize::b(total_size));
+        println!(
+            "Compressed size: {}",
+            bytesize::ByteSize::b(compressed_size)
+        );
+        println!(
+            "Latest version size: {}",
+            bytesize::ByteSize::b(latest_size)
+        );
+        println!(
+            "🎉 Total space saved: {}",
+            bytesize::ByteSize::b(total_size - compressed_size)
+        );
+
+        Ok(())
+    }
+}
