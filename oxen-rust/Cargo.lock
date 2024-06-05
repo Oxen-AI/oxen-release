@@ -3494,6 +3494,7 @@ name = "oxen-cli"
 version = "0.15.12"
 dependencies = [
  "async-trait",
+ "bytesize",
  "clap",
  "colored",
  "dunce",

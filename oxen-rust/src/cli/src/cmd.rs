@@ -39,6 +39,9 @@ pub use diff::DiffCmd;
 pub mod moo;
 pub use moo::MooCmd;
 
+pub mod pack;
+pub use pack::PackCmd;
+
 pub mod remote;
 
 pub mod schemas;

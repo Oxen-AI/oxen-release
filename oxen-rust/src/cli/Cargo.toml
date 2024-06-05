@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 async-trait = "0.1.80"
+bytesize = "1.1.0"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
 dunce = "1"
