@@ -227,9 +227,15 @@ async fn save_parts(
         // A multipart/form-data stream has to contain `content_disposition`
         let content_disposition = field.content_disposition();
 
-        // Filter to process only fields with the name "file[]"
+        log::debug!(
+            "stager::save_file content_disposition.get_name() {:?}",
+            content_disposition.get_name()
+        );
+
+        // Filter to process only fields with the name "file[]" or "file"
+        // (the old client is sending "file" instead of "file[]", but "file[]" makes sense for more than 1 file)
         if let Some(name) = content_disposition.get_name() {
-            if name == "file[]" {
+            if "file[]" == name || "file" == name {
                 let upload_filename = content_disposition
                     .get_filename()
                     .map_or_else(|| Uuid::new_v4().to_string(), sanitize_filename::sanitize);
