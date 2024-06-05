@@ -23,7 +23,7 @@ class RemoteDataset:
     The RemoteDataset class allows you to perform CRUD operations on a data frame that is stored on a remote Oxen Server.
     """
 
-    def __init__(self, repo: RemoteRepo, filename: str, index: bool = False):
+    def __init__(self, repo: RemoteRepo, filename: str, index: bool = False, workspace_id: str = None):
         """
         Initialize the RemoteDataset class. Will throw an error if the dataset does not exist or is not indexed.
 
@@ -34,6 +34,8 @@ class RemoteDataset:
                 The path of the file in the repository.
             index: `bool`
                 If True, will index the dataset if the file exists.
+            workspace_id: `str`
+                The workspace id of the dataset. If None, it will index the dataset and set it internally.
         """
         self.repo = repo
         self.filename = filename
@@ -41,7 +43,7 @@ class RemoteDataset:
             index_dataset(repo, filename)
 
         # this will return an error if the dataset does not exist or is not indexed
-        self.dataset = PyRemoteDataset(repo._repo, filename)
+        self.dataset = PyRemoteDataset(repo._repo, filename, workspace_id)
         # TODO: why do we use periods vs underscores...? Fix this in the Rust code.
         self.filter_keys = [".oxen.diff.hash", ".oxen.diff.status", "_oxen_row_id"]
 
