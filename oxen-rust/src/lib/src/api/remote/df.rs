@@ -5,6 +5,7 @@ use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::opts::DFOpts;
 use crate::view::{JsonDataFrameViewResponse, StatusMessage};
+use crate::util;
 
 use super::client;
 
@@ -14,7 +15,7 @@ pub async fn get(
     path: impl AsRef<Path>,
     opts: DFOpts,
 ) -> Result<JsonDataFrameViewResponse, OxenError> {
-    let path_str = path.as_ref().to_str().unwrap();
+    let path_str = util::fs::to_unix_str(path);
     let query_str = opts.to_http_query_params();
     let uri = format!("/data_frame/{commit_or_branch}/{path_str}?{query_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -100,6 +101,35 @@ pub async fn index_df(
             Ok(val) => {
                 log::debug!("got StatusMessage: {:?}", val);
                 Ok(val)
+            }
+            Err(err) => Err(OxenError::basic_str(format!(
+                "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+            ))),
+        }
+    } else {
+        Err(OxenError::basic_str(format!("Request failed: {url}")))
+    }
+}
+
+pub async fn is_editable(
+    remote_repo: &RemoteRepository,
+    commit_or_branch: &str,
+    path: impl AsRef<Path>,
+) -> Result<bool, OxenError> {
+    let path_str = util::fs::to_unix_str(path);
+    let uri = format!("/staging/df/is_editable/{commit_or_branch}/{path_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+
+    if let Ok(res) = client.post(&url).send().await {
+        let body = client::parse_json_body(&url, res).await?;
+        let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+
+        match response {
+            Ok(val) => {
+                log::debug!("got StatusMessage: {:?}", val);
+                Ok(false)
             }
             Err(err) => Err(OxenError::basic_str(format!(
                 "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
