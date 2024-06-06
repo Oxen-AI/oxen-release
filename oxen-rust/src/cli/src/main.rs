@@ -31,6 +31,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::MooCmd),
         Box::new(cmd::PackCmd),
         Box::new(cmd::SchemasCmd),
+        Box::new(cmd::UnpackCmd),
     ];
 
     let mut command = Command::new("oxen")

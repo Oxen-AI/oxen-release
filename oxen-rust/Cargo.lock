@@ -3503,6 +3503,7 @@ dependencies = [
  "jwalk",
  "liboxen",
  "minus",
+ "rocksdb",
  "serde_json",
  "time",
  "tokio",
