@@ -50,6 +50,10 @@ pub mod remote;
 pub mod schemas;
 pub use schemas::SchemasCmd;
 
+pub mod unpack;
+pub use unpack::UnpackCmd;
+
+
 #[async_trait]
 pub trait RunCmd {
     fn name(&self) -> &str;

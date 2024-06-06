@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
+use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
@@ -11,6 +12,8 @@ use liboxen::error::OxenError;
 use liboxen::model::{CommitEntry, LocalRepository};
 use liboxen::util::hasher;
 use liboxen::{api, util};
+use rocksdb::DBWithThreadMode;
+use rocksdb::MultiThreaded;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "pack";
@@ -25,7 +28,7 @@ impl RunCmd for PackCmd {
     fn args(&self) -> Command {
         // Setups the CLI args for the command
         Command::new(NAME)
-            .about("Pack your bags, let's see how well we can compress and decompress data. TODO: This is not a real command, just an experiment.")
+            .about("Pack your bags, let's see how well we can compress data. TODO: This is not a real command, just an experiment.")
             .arg(
                 Arg::new("files")
                     .required(true)
@@ -105,6 +108,7 @@ impl RunCmd for PackCmd {
 
         // Chunk each file into 16kb chunks
         let mut chunks: HashMap<u128, Vec<u8>> = HashMap::new();
+        let mut version_to_chunks: HashMap<String, Vec<(usize, u128)>> = HashMap::new();
         let chunk_size = chunk_size * 1024;
         let mut latest_size: u64 = 0;
         let mut total_size: u64 = 0;
@@ -118,6 +122,7 @@ impl RunCmd for PackCmd {
             let mut file = File::open(&version_file)?;
 
             // Read chunks
+            let mut chunk_idx = 0;
             let mut buffer = vec![0; chunk_size]; // 16KB buffer
             while let Ok(bytes_read) = file.read(&mut buffer) {
                 if bytes_read == 0 {
@@ -126,9 +131,19 @@ impl RunCmd for PackCmd {
                     }
                     break; // End of file
                 }
+                // Shrink buffer to size of bytes read
+                buffer.truncate(bytes_read);
+
                 // Process the buffer here
                 // println!("Read {} bytes from {:?}", bytes_read, version_file);
                 let hash = hasher::hash_buffer_128bit(&buffer);
+
+                let pair = (chunk_idx, hash);
+                if !version_to_chunks.contains_key(&entry.hash) {
+                    version_to_chunks.insert(entry.hash.clone(), vec![pair]);
+                } else {
+                    version_to_chunks.entry(entry.hash.clone()).or_insert(vec![]).push(pair);
+                }
 
                 // Add to chunks
                 if let std::collections::hash_map::Entry::Vacant(e) = chunks.entry(hash) {
@@ -136,6 +151,7 @@ impl RunCmd for PackCmd {
                     compressed_size += bytes_read as u64;
                 }
                 total_size += bytes_read as u64;
+                chunk_idx += 1;
             }
         }
 
@@ -148,12 +164,33 @@ impl RunCmd for PackCmd {
         // TODO: Write all chunks to our u128 kv db
         // TODO: Write another db of idx -> hash so that we can reconstruct the file
         // TODO: Time the reconstruction of the file from chunks to Polars DF
-        let mut file = File::create("chunks")?;
+        
+        // Write all the chunks to the chunks db
+        let output_dir = Path::new("chunks");
+        let chunks_db = output_dir.join("db");
+        // mkdir if not exists
+        if !output_dir.exists() {
+            std::fs::create_dir_all(output_dir)?;
+        }
+
+        let opts = liboxen::core::db::opts::default();
+        let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, chunks_db)?;
         for (hash, chunk) in &chunks {
-            // Convert u128 to u8
-            let hash = hash.to_be_bytes().to_vec();
-            file.write(&hash)?;
-            file.write(chunk)?;
+            // liboxen::core::db::u128_kv_db::put(&db, *hash, chunk)?;
+            db.put(hash.to_be_bytes().to_vec(), chunk)?;
+        }
+
+        // Write all the chunk ids to the chunks db
+        let chunks_idx = output_dir.join("idx");
+        for (file_hash, ids) in &version_to_chunks {
+            let ids_db_path = chunks_idx.join(file_hash);
+            let idx_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &ids_db_path)?;
+            println!("Writing {} indices to {:?}", ids.len(), ids_db_path);
+            for (idx, block_hash) in ids {
+                let block_hash = block_hash.to_be_bytes().to_vec();
+                let idx = idx.to_be_bytes().to_vec();
+                idx_db.put(block_hash, idx)?;
+            }
         }
 
         // Time the total time taken to read the files
