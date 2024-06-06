@@ -1,8 +1,11 @@
 use liboxen::config::UserConfig;
 
+use dotenv::dotenv;
+use dotenv::from_filename;
 use liboxen::core::cache::cacher_status::CacherStatus;
 use liboxen::core::cache::commit_cacher;
 use liboxen::model::User;
+use std::env;
 
 pub mod app_data;
 pub mod auth;
@@ -47,6 +50,13 @@ const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv().ok();
+
+    match from_filename("src/server/.env.local") {
+        Ok(_) => log::debug!("Loaded .env file from current directory"),
+        Err(e) => log::debug!("Failed to load .env file: {}", e),
+    }
+
     env_logger::Builder::from_env(Env::default().default_filter_or("info,debug"))
         .format(|buf, record| {
             writeln!(
@@ -62,7 +72,7 @@ async fn main() -> std::io::Result<()> {
 
     // env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
 
-    let sync_dir = match std::env::var("SYNC_DIR") {
+    let sync_dir = match env::var("SYNC_DIR") {
         Ok(dir) => dir,
         Err(_) => String::from("data"),
     };
