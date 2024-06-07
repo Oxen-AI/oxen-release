@@ -547,15 +547,14 @@ mod tests {
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, repo_name);
 
         let resp = controllers::branches::get_branch_name_and_resource_path(req, body)
-        .await
-        .unwrap();
+            .await
+            .unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let parse_resp: liboxen::view::ParseResourceResponse =
             serde_json::from_str(text).map_err(|e| OxenError::from(e))?;
-
 
         assert_eq!(parse_resp.branch_name, "main");
         assert_eq!(parse_resp.resource, "to/resource");
