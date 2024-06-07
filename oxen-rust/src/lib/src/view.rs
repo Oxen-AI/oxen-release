@@ -21,6 +21,7 @@ pub mod oxen_response;
 pub mod pagination;
 pub mod remote_staged_status;
 pub mod repository;
+pub mod revision;
 pub mod schema;
 pub mod sql_parse_error;
 pub mod status_message;
@@ -58,8 +59,10 @@ pub use crate::view::commit::{
 
 pub use crate::view::branch::{
     BranchLockResponse, BranchNew, BranchNewFromExisting, BranchRemoteMerge, BranchResponse,
-    BranchUpdate, ListBranchesResponse, ListGetBranchNameAndResource, ParseResourceResponse,
+    BranchUpdate, ListBranchesResponse,
 };
+
+pub use crate::view::revision::ParseResourceResponse;
 
 pub use crate::view::compare::CompareResult;
 
