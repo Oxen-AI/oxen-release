@@ -58,7 +58,7 @@ pub use crate::view::commit::{
 
 pub use crate::view::branch::{
     BranchLockResponse, BranchNew, BranchNewFromExisting, BranchRemoteMerge, BranchResponse,
-    BranchUpdate, ListBranchesResponse,
+    BranchUpdate, ListBranchesResponse, ListGetBranchNameAndResource, ParseResourceResponse,
 };
 
 pub use crate::view::compare::CompareResult;

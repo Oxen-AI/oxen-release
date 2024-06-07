@@ -95,6 +95,11 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                             web::post().to(controllers::branches::create_from_or_get),
                         )
                         .route(
+                            "/get_branch_name_and_resource_path",
+                            web::post()
+                                .to(controllers::branches::get_branch_name_and_resource_path),
+                        )
+                        .route(
                             "/{branch_name:.*}/lock",
                             web::post().to(controllers::branches::lock),
                         )
