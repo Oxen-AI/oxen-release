@@ -86,6 +86,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                             web::get().to(controllers::commits::download_commit_entries_db),
                         ),
                 )
+                .service(web::scope("/revisions").route(
+                    "/resolve_resource_attributes/{resource:.*}",
+                    web::get().to(controllers::revisions::resolve_resource_attributes),
+                ))
                 // Branches
                 .service(
                     web::scope("/branches")
@@ -93,11 +97,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                         .route(
                             "",
                             web::post().to(controllers::branches::create_from_or_get),
-                        )
-                        .route(
-                            "/get_branch_name_and_resource_path",
-                            web::post()
-                                .to(controllers::branches::get_branch_name_and_resource_path),
                         )
                         .route(
                             "/{branch_name:.*}/lock",

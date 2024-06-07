@@ -51,16 +51,3 @@ pub struct ListBranchesResponse {
     pub status: StatusMessage,
     pub branches: Vec<Branch>,
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ListGetBranchNameAndResource {
-    pub resource: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct ParseResourceResponse {
-    pub status: StatusMessage,
-    pub commit_id: String,
-    pub branch_name: String,
-    pub resource: String,
-}
