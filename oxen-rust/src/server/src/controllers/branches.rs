@@ -12,8 +12,8 @@ use liboxen::util::{self, paginate};
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
-    CommitEntryVersion, CommitResponse, ListBranchesResponse, PaginatedEntryVersions,
-    PaginatedEntryVersionsResponse, StatusMessage,
+    CommitEntryVersion, CommitResponse, ListBranchesResponse, ListGetBranchNameAndResource,
+    PaginatedEntryVersions, PaginatedEntryVersionsResponse, ParseResourceResponse, StatusMessage,
 };
 use liboxen::{api, constants};
 
@@ -48,6 +48,41 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     };
 
     Ok(HttpResponse::Ok().json(view))
+}
+
+pub async fn get_branch_name_and_resource_path(
+    req: HttpRequest,
+    body: String,
+) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+
+    let repo_name = path_param(&req, "repo_name")?;
+
+    let resource_request: ListGetBranchNameAndResource = serde_json::from_str(&body)?;
+    let resource_str = resource_request.resource;
+
+    let resource: PathBuf = PathBuf::from(resource_str);
+
+    // Retrieve the repository
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+
+    let parse_result = api::local::resource::parse_resource(&repository, &resource)?;
+
+    // Handle the result of parsing the resource
+    if let Some((commit_id, branch_name, file_path)) = parse_result {
+        let response = ParseResourceResponse {
+            status: StatusMessage::resource_found(),
+            commit_id,
+            branch_name,
+            resource: file_path.to_string_lossy().into_owned(),
+        };
+        log::debug!("Response: {:?}", response);
+        Ok(HttpResponse::Ok().json(response))
+    } else {
+        Err(OxenHttpError::NotFound)
+    }
 }
 
 pub async fn create_from_or_get(
@@ -317,6 +352,7 @@ mod tests {
     use actix_web::body::to_bytes;
 
     use liboxen::api;
+    use liboxen::command;
     use liboxen::constants::DEFAULT_BRANCH_NAME;
     use liboxen::error::OxenError;
     use liboxen::util;
@@ -484,6 +520,58 @@ mod tests {
         assert_eq!(commit_resp.commit.id, created_branch.commit_id);
 
         // cleanup
+        util::fs::remove_dir_all(sync_dir)?;
+
+        Ok(())
+    }
+
+    #[actix_web::test]
+    async fn test_get_branch_name_and_resource_path() -> Result<(), OxenError> {
+        let sync_dir = test::get_sync_dir()?;
+        let queue = test::init_queue();
+        let namespace = "Testing-Namespace";
+        let repo_name = "Testing-Repo";
+        let resource_str = "main/to/resource";
+
+        // Create a local repository
+        let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
+        let path = liboxen::test::add_txt_file_to_dir(&repo.path, resource_str)?;
+        log::debug!("Path eloy: {:?}", path);
+        command::add(&repo, path)?;
+        command::commit(&repo, "first commit")?;
+
+        // Prepare the resource request body as a generic JSON object
+        let resource_request = serde_json::json!({
+            "resource": resource_str.to_string(),
+        });
+        let body = resource_request.to_string();
+
+        // Create the request URI
+        let uri = format!("/oxen/{namespace}/{repo_name}/resource");
+
+        // Create the HTTP request with necessary parameters
+        let req = test::repo_request(&sync_dir, queue, &uri, namespace, repo_name);
+
+        // Call the function and get the response
+        let resp = controllers::branches::get_branch_name_and_resource_path(req, body)
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), http::StatusCode::OK);
+
+        let body = to_bytes(resp.into_body()).await.unwrap();
+        let text = std::str::from_utf8(&body).unwrap();
+        let parse_resp: liboxen::view::ParseResourceResponse =
+            serde_json::from_str(text).map_err(|e| OxenError::from(e))?;
+
+        log::debug!("Response eloy eloy: {:?}", parse_resp);
+
+        // Check the status code of the response
+
+        // // Assert the response values
+        assert_eq!(parse_resp.branch_name, "main");
+        assert_eq!(parse_resp.resource, "to/resource");
+
+        // Cleanup
         util::fs::remove_dir_all(sync_dir)?;
 
         Ok(())
