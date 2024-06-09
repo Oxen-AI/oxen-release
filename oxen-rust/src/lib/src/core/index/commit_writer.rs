@@ -285,7 +285,7 @@ impl CommitWriter {
         Commit::from_new_and_id(commit_data, id)
     }
 
-    // For server-generetaed merge commits
+    // For server-generated merge commits
     pub fn commit_with_parent_ids_on_branch(
         &self,
         status: &StagedData,

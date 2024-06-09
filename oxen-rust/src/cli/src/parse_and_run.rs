@@ -12,16 +12,11 @@ use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, R
 use crate::dispatch;
 
 use clap::ArgMatches;
-use liboxen::command::migrate::{
-    AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
-    Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
-};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
 use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
-use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 
@@ -641,102 +636,6 @@ pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
             }
         }
     }
-}
-pub async fn migrate(sub_matches: &ArgMatches) {
-    if let Some((direction, sub_matches)) = sub_matches.subcommand() {
-        match direction {
-            "up" | "down" => {
-                if let Some((migration, sub_matches)) = sub_matches.subcommand() {
-                    if migration == UpdateVersionFilesMigration.name() {
-                        if let Err(err) =
-                            run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                        }
-                    } else if migration == PropagateSchemasMigration.name() {
-                        if let Err(err) =
-                            run_migration(&PropagateSchemasMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else if migration == CacheDataFrameSizeMigration.name() {
-                        if let Err(err) =
-                            run_migration(&CacheDataFrameSizeMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else if migration == CreateMerkleTreesMigration.name() {
-                        if let Err(err) =
-                            run_migration(&CreateMerkleTreesMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else if migration == AddDirectoriesToCacheMigration.name() {
-                        if let Err(err) =
-                            run_migration(&AddDirectoriesToCacheMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else {
-                        eprintln!("Invalid migration: {}", migration);
-                    }
-                }
-            }
-            command => {
-                eprintln!("Invalid subcommand: {}", command);
-            }
-        }
-    }
-}
-
-pub fn read_lines(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let start = sub_matches
-        .get_one::<String>("START")
-        .expect("Must supply START")
-        .parse::<usize>()
-        .expect("START must be a valid integer.");
-    let length = sub_matches
-        .get_one::<String>("LENGTH")
-        .expect("Must supply LENGTH")
-        .parse::<usize>()
-        .expect("LENGTH must be a valid integer.");
-
-    let path = Path::new(path_str);
-    let (lines, size) = util::fs::read_lines_paginated_ret_size(path, start, length);
-    for line in lines.iter() {
-        println!("{line}");
-    }
-    println!("Total: {size}");
-}
-
-pub fn run_migration(
-    migration: &dyn Migrate,
-    direction: &str,
-    sub_matches: &ArgMatches,
-) -> Result<(), OxenError> {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let path = Path::new(path_str);
-
-    let all = sub_matches.get_flag("all");
-
-    match direction {
-        "up" => {
-            migration.up(path, all)?;
-        }
-        "down" => {
-            migration.down(path, all)?;
-        }
-        _ => {
-            eprintln!("Invalid migration direction: {}", direction);
-        }
-    }
-
-    Ok(())
 }
 
 pub async fn save(sub_matches: &ArgMatches) {

@@ -4,8 +4,8 @@ use crate::api;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::opts::DFOpts;
-use crate::view::{JsonDataFrameViewResponse, StatusMessage};
 use crate::util;
+use crate::view::{JsonDataFrameViewResponse, StatusMessage};
 
 use super::client;
 

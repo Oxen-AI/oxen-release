@@ -1240,7 +1240,10 @@ pub fn resize_cache_image(
 }
 
 pub fn to_unix_str(path: impl AsRef<Path>) -> String {
-    path.as_ref().to_str().unwrap_or_default().replace("\\", "/")
+    path.as_ref()
+        .to_str()
+        .unwrap_or_default()
+        .replace('\\', "/")
 }
 
 #[cfg(test)]

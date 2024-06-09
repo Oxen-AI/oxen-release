@@ -36,6 +36,9 @@ pub use df::DFCmd;
 pub mod diff;
 pub use diff::DiffCmd;
 
+pub mod migrate;
+pub use migrate::MigrateCmd;
+
 pub mod moo;
 pub use moo::MooCmd;
 
@@ -52,7 +55,6 @@ pub use schemas::SchemasCmd;
 
 pub mod unpack;
 pub use unpack::UnpackCmd;
-
 
 #[async_trait]
 pub trait RunCmd {

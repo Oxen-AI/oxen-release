@@ -1,7 +1,6 @@
 use crate::error::OxenError;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, ThreadMode};
-use std::collections::HashMap;
+use rocksdb::{DBWithThreadMode, ThreadMode};
 
 /// More efficient than get since it does not actual deserialize the value
 pub fn has_key<T: ThreadMode>(db: &DBWithThreadMode<T>, key: u128) -> bool {
@@ -17,10 +16,7 @@ pub fn has_key<T: ThreadMode>(db: &DBWithThreadMode<T>, key: u128) -> bool {
 }
 
 /// # Get the value from the key
-pub fn get<T: ThreadMode, D>(
-    db: &DBWithThreadMode<T>,
-    key: u128,
-) -> Result<Option<D>, OxenError>
+pub fn get<T: ThreadMode, D>(db: &DBWithThreadMode<T>, key: u128) -> Result<Option<D>, OxenError>
 where
     D: bytevec::ByteDecodable,
 {
@@ -31,7 +27,10 @@ where
             if let Ok(entry) = D::decode::<u8>(&value) {
                 Ok(Some(entry))
             } else {
-                Err(OxenError::basic_str(format!("Could not decode value {:?}", value)))
+                Err(OxenError::basic_str(format!(
+                    "Could not decode value {:?}",
+                    value
+                )))
             }
         }
         Ok(None) => {
@@ -72,40 +71,3 @@ where
         }
     }
 }
-
-/*
-/// # List keys and attached values
-pub fn hash_map<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashMap<u128, T>, OxenError>
-where
-    T: bytevec::ByteDecodable + std::fmt::Debug,
-{
-    let iter = db.iterator(IteratorMode::Start);
-    let mut results: HashMap<u128, T> = HashMap::new();
-    for item in iter {
-        match item {
-            Ok((key, value)) => match (u128::from_be_bytes(&**key), T::decode::<u8>(&value)) {
-                (Ok(key), Ok(value)) => {
-                    let key = String::from(key);
-                    results.insert(key, value);
-                }
-                (Ok(key), _) => {
-                    log::error!("str_val_db::list() Could not values for key {}.", key)
-                }
-                (_, Ok(val)) => {
-                    log::error!("str_val_db::list() Could not key for value {:?}.", val)
-                }
-                _ => {
-                    log::error!("str_val_db::list() Could not decoded keys and values.")
-                }
-            },
-            _ => {
-                return Err(OxenError::basic_str(
-                    "Could not read iterate over db values",
-                ));
-            }
-        }
-    }
-    Ok(results)
-}
-*/
-

@@ -23,6 +23,11 @@ impl Migrate for UpdateVersionFilesMigration {
     fn name(&self) -> &'static str {
         "update_version_files"
     }
+
+    fn description(&self) -> &'static str {
+        "Migrates version files from commit id to common prefix"
+    }
+
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             update_version_files_for_all_repos_up(path)?;

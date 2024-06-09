@@ -14,6 +14,11 @@ impl Migrate for PropagateSchemasMigration {
     fn name(&self) -> &'static str {
         "propagate_schemas"
     }
+
+    fn description(&self) -> &'static str {
+        "Propagates schemas to the latest commit"
+    }
+
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             propagate_schemas_for_all_repos_up(path)?;

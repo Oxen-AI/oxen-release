@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::core::db::{self, path_db};
 use crate::core::index::{CommitEntryWriter, CommitReader, CommitWriter};
 use crate::error::OxenError;
-use crate::model::LocalRepository;
+use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 
@@ -16,6 +16,11 @@ impl Migrate for CreateMerkleTreesMigration {
     fn name(&self) -> &'static str {
         "create_merkle_trees"
     }
+
+    fn description(&self) -> &'static str {
+        "Reformats the underlying data model into merkle trees for storage and lookup efficiency"
+    }
+
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             create_merkle_trees_for_all_repos_up(path)?;
@@ -97,7 +102,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let commit_writer = CommitWriter::new(repo)?;
     for commit in all_commits {
         // Create the merkle tree for each commit
-        match api::local::commits::construct_commit_merkle_tree_from_legacy(repo, &commit) {
+        match construct_commit_merkle_tree_from_legacy(repo, &commit) {
             Ok(_) => {}
             Err(err) => {
                 log::error!(
@@ -163,5 +168,14 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
 pub fn create_merkle_trees_down(_repo: &LocalRepository) -> Result<(), OxenError> {
     println!("There are no operations to be run");
+    Ok(())
+}
+
+pub fn construct_commit_merkle_tree_from_legacy(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    let commit_writer = CommitEntryWriter::new(repo, commit)?;
+    commit_writer.construct_merkle_tree_from_legacy_commit(&repo.path)?;
     Ok(())
 }
