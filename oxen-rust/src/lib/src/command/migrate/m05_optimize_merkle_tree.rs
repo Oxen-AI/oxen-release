@@ -96,6 +96,9 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         // the root merkle tree objects
         convert_dirs_to_tree_dir(repo, &commit)?;
 
+        // Populate the global merkle tree from the old objects dir
+        migrate_merkle_tree(repo, &commit)?;
+
         bar.inc(1);
     }
 
@@ -225,6 +228,33 @@ fn convert_dirs_to_tree_dir(repo: &LocalRepository, commit: &Commit) -> Result<(
             tree_db.put(last_dir, hash.as_bytes())?;
         }
     }
+
+    Ok(())
+}
+
+fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
+    // Kick off the merkle tree for the commit
+    // .oxen/history/{COMMIT_ID}/tree/
+    let commit_tree_dir = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::HISTORY_DIR)
+        .join(&commit.id)
+        .join(constants::TREE_DIR);
+    // Old global objects dir
+    // .oxen/objects/
+    let objects_dir = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::OBJECTS_DIR);
+    // New global merkle tree dir
+    // .oxen/tree/
+    let merkle_tree_dir = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::TREE_DIR);
+
+    // iterate over the commit tree to get the root nodes
 
     Ok(())
 }
