@@ -85,7 +85,7 @@ mod tests {
         let body = to_bytes(resp.into_body()).await.unwrap();
         let text = std::str::from_utf8(&body).unwrap();
         let parse_resp: liboxen::view::ParseResourceResponse =
-            serde_json::from_str(text).map_err(|e| OxenError::from(e))?;
+            serde_json::from_str(text).map_err(OxenError::from)?;
 
         assert_eq!(parse_resp.branch_name, "main");
         assert_eq!(parse_resp.resource, "to/resource");

@@ -437,6 +437,7 @@ impl CommitEntryWriter {
         Ok(())
     }
 
+    // TODO: Remove this legacy function
     pub fn construct_merkle_tree_from_legacy_commit(
         &self,
         _origin_path: &Path,

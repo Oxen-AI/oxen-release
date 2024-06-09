@@ -151,4 +151,8 @@ name = "oxen-server"
 path = "src/server/src/main.rs"
 
 [package.metadata.docs.rs]
+features = []
+all-features = false
+no-default-features = true
 default-target = "x86_64-unknown-linux-gnu"
+

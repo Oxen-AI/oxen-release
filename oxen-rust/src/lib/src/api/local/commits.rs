@@ -442,15 +442,6 @@ pub fn has_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<bool, 
     Ok(path.exists())
 }
 
-pub fn construct_commit_merkle_tree_from_legacy(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<(), OxenError> {
-    let commit_writer = CommitEntryWriter::new(repo, commit)?;
-    commit_writer.construct_merkle_tree_from_legacy_commit(&repo.path)?;
-    Ok(())
-}
-
 pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Result<(), OxenError> {
     let repo_dirs_dir = repo_objects_dir.join(OBJECT_DIRS_DIR);
     let repo_files_dir = repo_objects_dir.join(OBJECT_FILES_DIR);

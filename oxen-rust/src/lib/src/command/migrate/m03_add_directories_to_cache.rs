@@ -16,6 +16,11 @@ impl Migrate for AddDirectoriesToCacheMigration {
     fn name(&self) -> &'static str {
         "add_directories_to_cache"
     }
+
+    fn description(&self) -> &'static str {
+        "SERVER ONLY: Re-caches past commits to include directories in the cache"
+    }
+
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             add_directories_to_cache_for_all_repos_up(path)?;

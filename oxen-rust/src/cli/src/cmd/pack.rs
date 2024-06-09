@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
-use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
@@ -142,7 +141,10 @@ impl RunCmd for PackCmd {
                 if !version_to_chunks.contains_key(&entry.hash) {
                     version_to_chunks.insert(entry.hash.clone(), vec![pair]);
                 } else {
-                    version_to_chunks.entry(entry.hash.clone()).or_insert(vec![]).push(pair);
+                    version_to_chunks
+                        .entry(entry.hash.clone())
+                        .or_default()
+                        .push(pair);
                 }
 
                 // Add to chunks
@@ -164,7 +166,7 @@ impl RunCmd for PackCmd {
         // TODO: Write all chunks to our u128 kv db
         // TODO: Write another db of idx -> hash so that we can reconstruct the file
         // TODO: Time the reconstruction of the file from chunks to Polars DF
-        
+
         // Write all the chunks to the chunks db
         let output_dir = Path::new("chunks");
         let chunks_db = output_dir.join("db");
@@ -177,14 +179,15 @@ impl RunCmd for PackCmd {
         let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, chunks_db)?;
         for (hash, chunk) in &chunks {
             // liboxen::core::db::u128_kv_db::put(&db, *hash, chunk)?;
-            db.put(hash.to_be_bytes().to_vec(), chunk)?;
+            db.put(hash.to_be_bytes(), chunk)?;
         }
 
         // Write all the chunk ids to the chunks db
         let chunks_idx = output_dir.join("idx");
         for (file_hash, ids) in &version_to_chunks {
             let ids_db_path = chunks_idx.join(file_hash);
-            let idx_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, &ids_db_path)?;
+            let idx_db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&opts, &ids_db_path)?;
             println!("Writing {} indices to {:?}", ids.len(), ids_db_path);
             for (idx, block_hash) in ids {
                 let block_hash = block_hash.to_be_bytes().to_vec();

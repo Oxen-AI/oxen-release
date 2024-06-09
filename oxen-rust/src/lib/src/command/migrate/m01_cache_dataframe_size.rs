@@ -17,6 +17,11 @@ impl Migrate for CacheDataFrameSizeMigration {
     fn name(&self) -> &'static str {
         "cache_data_frame_size"
     }
+
+    fn description(&self) -> &'static str {
+        "Caches size for existing data frames"
+    }
+
     fn up(&self, path: &Path, all: bool) -> Result<(), OxenError> {
         if all {
             cache_data_frame_size_for_all_repos_up(path)?;

@@ -1,17 +1,14 @@
-use std::collections::HashMap;
 use std::fs::File;
-use std::io::Read;
 use std::io::Write;
 use std::path::Path;
 use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
+use liboxen::api;
 use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
-use liboxen::model::{CommitEntry, LocalRepository};
-use liboxen::util::hasher;
-use liboxen::{api, util};
+use liboxen::model::LocalRepository;
 use rocksdb::DBWithThreadMode;
 use rocksdb::IteratorMode;
 use rocksdb::MultiThreaded;
@@ -92,9 +89,9 @@ impl RunCmd for UnpackCmd {
 
         // Take the nth commit as the file to reconstruct
         let commit = &commits[n - 1];
-        
+
         // Get the entry to reconstruct
-        let commit_entry_reader = CommitEntryReader::new(&repo, &commit)?;
+        let commit_entry_reader = CommitEntryReader::new(&repo, commit)?;
         let Some(entry) = commit_entry_reader.get_entry(path)? else {
             return Err(OxenError::basic_str("File not found in commit"));
         };
@@ -109,11 +106,10 @@ impl RunCmd for UnpackCmd {
         let output_dir = Path::new("chunks");
         let chunks_idx = output_dir.join("idx");
         let ids_db_path = chunks_idx.join(file_hash);
-        
 
         let idx_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, ids_db_path)?;
         let iter = idx_db.iterator(IteratorMode::Start);
-        
+
         let mut indices: Vec<(usize, u128)> = vec![];
         for val in iter {
             match val {
@@ -121,8 +117,8 @@ impl RunCmd for UnpackCmd {
                     let k = u128::from_be_bytes((*k).try_into().unwrap());
                     let v = usize::from_be_bytes((*v).try_into().unwrap());
                     indices.push((v, k));
-                },
-                Err(e) => return Err(OxenError::basic_str("Error iterating over indices")),
+                }
+                Err(_) => return Err(OxenError::basic_str("Error iterating over indices")),
             }
         }
 
@@ -134,7 +130,8 @@ impl RunCmd for UnpackCmd {
         // Read all the chunks from the chunks db
         let chunks_db = output_dir.join("db");
 
-        let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(&opts, chunks_db, true)?;
+        let db: DBWithThreadMode<MultiThreaded> =
+            DBWithThreadMode::open_for_read_only(&opts, chunks_db, true)?;
 
         let mut file = File::create(reconstructed_path)?;
         for (_, hash) in &indices {
