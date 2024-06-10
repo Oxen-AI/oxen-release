@@ -14,5 +14,5 @@ pub mod namespaces;
 pub mod not_found;
 pub mod repositories;
 pub mod schemas;
-pub mod stager;
 pub mod version;
+pub mod workspace;
