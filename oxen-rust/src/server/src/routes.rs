@@ -189,83 +189,87 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     web::scope("/staging/{identifier}")
                         .route(
                             "/status/{resource:.*}",
-                            web::get().to(controllers::stager::status_dir),
-                        )
-                        .route(
-                            "/df/list_editable/{branch:.*}",
-                            web::get().to(controllers::stager::list_editable_dfs),
-                        )
-                        .route(
-                            "/df/is_editable/{resource:.*}",
-                            web::get().to(controllers::stager::get_df_is_editable),
-                        )
-                        .route(
-                            "/df/diff/{resource:.*}",
-                            web::get().to(controllers::stager::diff_df),
+                            web::get().to(controllers::workspace::status_dir),
                         )
                         .route(
                             "/entries/{resource:.*}",
-                            web::post().to(controllers::stager::add_file),
+                            web::post().to(controllers::workspace::add_file),
                         )
                         .route(
                             "/entries/{resource:.*}",
-                            web::delete().to(controllers::stager::delete_file),
+                            web::delete().to(controllers::workspace::delete_file),
                         )
                         .route(
                             "/file/{resource:.*}",
-                            web::get().to(controllers::stager::get_file),
+                            web::get().to(controllers::workspace::get_file),
                         )
                         .route(
                             "/file/{resource:.*}",
-                            web::post().to(controllers::stager::add_file),
+                            web::post().to(controllers::workspace::add_file),
                         )
                         .route(
                             "/file/{resource:.*}",
-                            web::delete().to(controllers::stager::delete_file),
-                        )
-                        .route(
-                            "/df/rows/{row_id}/{resource:.*}",
-                            web::get().to(controllers::stager::df_get_row),
+                            web::delete().to(controllers::workspace::delete_file),
                         )
                         .route(
                             "/diff/{resource:.*}",
-                            web::get().to(controllers::stager::diff_file),
-                        )
-                        .route(
-                            "/df/rows/{row_id}/restore/{resource:.*}",
-                            web::post().to(controllers::stager::df_restore_row),
-                        )
-                        .route(
-                            "/df/rows/{resource:.*}",
-                            web::post().to(controllers::stager::df_add_row),
-                        )
-                        .route(
-                            "/df/index/{resource:.*}",
-                            web::post().to(controllers::stager::index_dataset),
-                        )
-                        .route(
-                            "/df/index/{resource:.*}",
-                            web::delete().to(controllers::stager::unindex_dataset),
-                        )
-                        .route(
-                            "/df/rows/{row_id}/{resource:.*}",
-                            web::put().to(controllers::stager::df_modify_row),
-                        )
-                        .route(
-                            "/df/rows/{row_id}/{resource:.*}",
-                            web::delete().to(controllers::stager::df_delete_row),
-                        )
-                        .route(
-                            "/df/{resource:.*}",
-                            web::get().to(controllers::stager::get_staged_df),
+                            web::get().to(controllers::workspace::diff_file),
                         )
                         .route(
                             "/modifications/{resource:.*}",
-                            web::delete().to(controllers::stager::clear_modifications),
+                            web::delete().to(controllers::workspace::clear_modifications),
                         )
                         .route(
                             "/commit/{resource:.*}",
-                            web::post().to(controllers::stager::commit),
+                            web::post().to(controllers::workspace::commit),
+                        )
+                        // staging/data_frame
+                        .service(
+                            web::scope("/data_frame")
+                                .route(
+                                    "/{resource:.*}",
+                                    web::get().to(controllers::workspace::data_frame::get),
+                                )
+                                .route(
+                                    "/list_editable/{branch:.*}",
+                                    web::get().to(controllers::workspace::data_frame::list),
+                                )
+                                .route(
+                                    "/is_editable/{resource:.*}",
+                                    web::get().to(controllers::workspace::data_frame::is_editable),
+                                )
+                                .route(
+                                    "/diff/{resource:.*}",
+                                    web::get().to(controllers::workspace::data_frame::diff),
+                                )
+                                .route(
+                                    "/rows/{row_id}/restore/{resource:.*}",
+                                    web::post().to(controllers::workspace::df_restore_row),
+                                )
+                                .route(
+                                    "/rows/{resource:.*}",
+                                    web::post().to(controllers::workspace::df_add_row),
+                                )
+                                .route(
+                                    "/index/{resource:.*}",
+                                    web::post().to(controllers::workspace::index_dataset),
+                                )
+                                .route(
+                                    "/index/{resource:.*}",
+                                    web::delete().to(controllers::workspace::unindex_dataset),
+                                )
+                                .route(
+                                    "/rows/{row_id}/{resource:.*}",
+                                    web::put().to(controllers::workspace::df_modify_row),
+                                )
+                                .route(
+                                    "/rows/{row_id}/{resource:.*}",
+                                    web::delete().to(controllers::workspace::df_delete_row),
+                                )
+                                .route(
+                                    "/rows/{row_id}/{resource:.*}",
+                                    web::get().to(controllers::workspace::df_get_row),
+                                ),
                         ),
                 )
                 // Dir
