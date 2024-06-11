@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Commit, Branch};
+use crate::model::{Branch, Commit};
 
 use super::StatusMessage;
 
