@@ -146,8 +146,7 @@ pub async fn diff_df(
 
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    let staged_db_path =
-        mod_stager::mods_df_db_path(&repo, &branch, &identifier, &resource.path);
+    let staged_db_path = mod_stager::mods_df_db_path(&repo, &branch, &identifier, &resource.path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 
@@ -388,12 +387,8 @@ pub async fn df_add_row(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, 
     );
 
     // Make sure the data frame is indexed
-    let is_editable = index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )?;
+    let is_editable =
+        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
@@ -900,12 +895,7 @@ pub async fn index_dataset(req: HttpRequest) -> Result<HttpResponse, OxenHttpErr
     // Initialize the branch repository before any operations
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    if index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )? {
+    if index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)? {
         log::info!(
             "Dataset indexing skipped for {namespace}/{repo_name}/{resource} as it is already indexed"
         );
@@ -974,18 +964,9 @@ pub async fn get_staged_df(
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
 
-    if index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )? {
-        let count = index::remote_df_stager::count(
-            &repo,
-            &branch,
-            resource.path.clone(),
-            &identifier,
-        )?;
+    if index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)? {
+        let count =
+            index::remote_df_stager::count(&repo, &branch, resource.path.clone(), &identifier)?;
 
         let df =
             index::remote_df_stager::query_staged_df(&repo, &entry, &branch, &identifier, &opts)?;
@@ -1037,12 +1018,8 @@ pub async fn get_df_is_editable(
 
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    let is_editable = index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )?;
+    let is_editable =
+        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
 
     Ok(HttpResponse::Ok().json(DFIsEditableResponse {
         status: StatusMessage::resource_found(),
@@ -1084,7 +1061,7 @@ pub async fn list_editable_dfs(
                 &repo,
                 &branch,
                 &identifier,
-                &PathBuf::from(resource.path),
+                &resource.path,
             )? {
                 editable_entries.push(entry);
             }

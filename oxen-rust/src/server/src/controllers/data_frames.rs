@@ -4,6 +4,7 @@ use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::api;
+use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
 use liboxen::core::cache::cachers;
 use liboxen::core::db::df_db;
@@ -13,7 +14,6 @@ use liboxen::model::{Commit, DataFrameSize, ParsedResource, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
-use liboxen::constants;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::{sql, tabular};
@@ -33,7 +33,7 @@ pub async fn get(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
     let entry_reader = CommitEntryReader::new(&repo, &commit)?;
@@ -42,16 +42,14 @@ pub async fn get(
         .ok_or(OxenHttpError::NotFound)?;
 
     // Get the path to the versioned file on disk
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
+    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     log::debug!(
         "controllers::data_frames Reading version file {:?}",
         version_path
     );
 
     // Get the cached size of the data frame
-    let data_frame_size =
-        cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
+    let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
 
     log::debug!(
         "controllers::data_frames got data frame size {:?}",
@@ -254,10 +252,8 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
     log::debug!("data_frames controller index()");
 
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
-    let data_frame_size =
-        cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
+    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
+    let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
 
     if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
         return Err(OxenHttpError::NotQueryable);

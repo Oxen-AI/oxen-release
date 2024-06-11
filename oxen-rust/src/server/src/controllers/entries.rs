@@ -112,8 +112,7 @@ pub async fn download_chunk(
         resource
     );
 
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
+    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     let chunk_start: u64 = query.chunk_start.unwrap_or(0);
     let chunk_size: u64 = query.chunk_size.unwrap_or(AVG_CHUNK_SIZE);
 
@@ -154,8 +153,7 @@ pub async fn list_lines_in_file(
         page_size,
     );
 
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
+    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     let start = page * page_size;
     let (lines, total_entries) =
         liboxen::util::fs::read_lines_paginated_ret_size(&version_path, start, page_size);

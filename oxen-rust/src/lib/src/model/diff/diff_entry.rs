@@ -280,7 +280,7 @@ impl DiffEntry {
             branch: None,
             version: PathBuf::from(commit.id.to_string()),
             path: dir.clone(),
-            resource: PathBuf::from(commit.id.to_string()).join(dir)
+            resource: PathBuf::from(commit.id.to_string()).join(dir),
         })
     }
 

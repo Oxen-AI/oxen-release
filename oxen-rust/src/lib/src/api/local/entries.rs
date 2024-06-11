@@ -16,7 +16,9 @@ use rayon::prelude::*;
 use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource};
+use crate::model::{
+    Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
+};
 use crate::view::PaginatedDirEntries;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
