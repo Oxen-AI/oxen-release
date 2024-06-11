@@ -146,7 +146,7 @@ pub async fn download_dir(
     local_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
-    let revision = &entry.resource.as_ref().unwrap().version.to_string_lossy();
+    let revision = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
     let home_dir = util::fs::oxen_tmp_dir()?;
     let repo_dir = home_dir
         .join(&remote_repo.namespace)
