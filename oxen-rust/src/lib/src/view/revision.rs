@@ -1,11 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+use crate::model::{Branch, Commit};
+
 use super::StatusMessage;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ParseResourceResponse {
     pub status: StatusMessage,
-    pub commit_id: String,
-    pub branch_name: String,
-    pub resource: String,
+    pub commit: Commit,
+    pub branch: Option<Branch>,
+    pub file_path: String,
 }
