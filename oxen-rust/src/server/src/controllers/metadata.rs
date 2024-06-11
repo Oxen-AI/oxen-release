@@ -42,7 +42,8 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         latest_commit.message
     );
 
-    let entry = api::local::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+    let mut entry = api::local::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+    entry.resource = Some(resource.clone());
     let meta = MetadataEntryResponse {
         status: StatusMessage::resource_found(),
         entry,
@@ -242,7 +243,8 @@ pub async fn images(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     );
 
     // TODO: get stats dataframe given the directory...figure out what the best API and response is for this...
-    let entry = api::local::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+    let mut entry = api::local::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+    entry.resource = Some(resource.clone());
     let meta = MetadataEntryResponse {
         status: StatusMessage::resource_found(),
         entry,
