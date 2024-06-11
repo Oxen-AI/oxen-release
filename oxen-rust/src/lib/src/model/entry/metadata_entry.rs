@@ -2,8 +2,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::api;
 use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository};
-use crate::view::entry::ResourceVersion;
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource};
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CLIMetadataEntry {
@@ -26,7 +25,7 @@ pub struct MetadataEntry {
     pub filename: String,
     pub is_dir: bool,
     pub latest_commit: Option<Commit>,
-    pub resource: Option<ResourceVersion>,
+    pub resource: Option<ParsedResource>,
     // size of the file in bytes
     pub size: u64,
     // high level type of "image", "text", "video", "audio", "tabular"

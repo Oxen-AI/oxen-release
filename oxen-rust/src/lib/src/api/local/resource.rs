@@ -132,9 +132,10 @@ pub fn parse_resource_from_path(
             //     file_path
             // );
             return Ok(Some(ParsedResource {
-                commit,
+                commit: Some(commit.clone()),
                 branch: None,
-                file_path,
+                path: file_path,
+                version: PathBuf::from(commit.id.to_string()),
                 resource: path.to_owned(),
             }));
         }
@@ -169,9 +170,10 @@ pub fn parse_resource_from_path(
                 let commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
                 file_path = PathBuf::from("");
                 return Ok(Some(ParsedResource {
-                    commit,
-                    branch: Some(branch),
-                    file_path,
+                    commit: Some(commit),
+                    branch: Some(branch.clone()),
+                    path: file_path,
+                    version: PathBuf::from(branch.name),
                     resource: path.to_owned(),
                 }));
             } else {
@@ -196,9 +198,10 @@ pub fn parse_resource_from_path(
 
             let commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
             return Ok(Some(ParsedResource {
-                commit,
-                branch: Some(branch),
-                file_path,
+                commit: Some(commit),
+                branch: Some(branch.clone()),
+                path: file_path,
+                version: PathBuf::from(branch.name),
                 resource: path.to_owned(),
             }));
         }
@@ -362,7 +365,7 @@ mod tests {
 
             match resource::parse_resource_from_path(&repo, path) {
                 Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new(""))
+                    assert_eq!(resource.path, Path::new(""))
                 }
                 _ => {
                     panic!("Should return a parsed resource");
@@ -386,7 +389,7 @@ mod tests {
                 // skip on windows, running on linux
                 match resource::parse_resource_from_path(&repo, path) {
                     Ok(Some(resource)) => {
-                        assert_eq!(resource.file_path, Path::new(""))
+                        assert_eq!(resource.path, Path::new(""))
                     }
                     _ => {
                         panic!("Should return a parsed resource");
@@ -410,7 +413,7 @@ mod tests {
             if !cfg!(windows) {
                 match resource::parse_resource_from_path(&repo, &path) {
                     Ok(Some(resource)) => {
-                        assert_eq!(resource.file_path, Path::new("folder-new"))
+                        assert_eq!(resource.path, Path::new("folder-new"))
                     }
                     _ => {
                         panic!("Should return a parsed resource");
@@ -434,7 +437,7 @@ mod tests {
             if !cfg!(windows) {
                 match resource::parse_resource_from_path(&repo, path) {
                     Ok(Some(resource)) => {
-                        assert_eq!(resource.file_path, Path::new("folder/item.txt"))
+                        assert_eq!(resource.path, Path::new("folder/item.txt"))
                     }
                     _ => {
                         panic!("Should return a parsed resource");

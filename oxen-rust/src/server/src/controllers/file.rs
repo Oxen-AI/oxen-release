@@ -23,6 +23,7 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
 
     log::debug!(
         "{} resource {namespace}/{repo_name}/{resource}",
@@ -38,13 +39,13 @@ pub async fn get(
     // Try to get the parent of the file path, if it exists
     let mut entry: Option<CommitEntry> = None;
     let object_reader = ObjectDBReader::new(&repo)?;
-    let path = &resource.file_path;
+    let path = &resource.path;
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
         let key = format!(
             "{}_{}_{}_{}",
             namespace,
             repo_name,
-            resource.commit.id,
+            commit.id,
             parent.display()
         );
         log::debug!("LRU key {}", key);
@@ -59,7 +60,7 @@ pub async fn get(
             log::debug!("not found in LRU");
             let cder = liboxen::core::index::CommitDirEntryReader::new(
                 &repo,
-                &resource.commit.id,
+                &commit.id,
                 parent,
                 object_reader.clone(),
             )?;
@@ -70,7 +71,7 @@ pub async fn get(
         }
     }
 
-    let entry = entry.ok_or(OxenError::path_does_not_exist(&resource.file_path))?;
+    let entry = entry.ok_or(OxenError::path_does_not_exist(&path))?;
 
     let version_path = util::fs::version_path(&repo, &entry);
 
@@ -146,7 +147,7 @@ pub async fn get(
 
     log::debug!(
         "get_file_for_commit_id looking for {:?} -> {:?}",
-        resource.file_path,
+        path,
         version_path
     );
 
@@ -155,7 +156,7 @@ pub async fn get(
 
     response.headers_mut().insert(
         header::HeaderName::from_static("oxen-revision-id"),
-        header::HeaderValue::from_str(&resource.commit.id).unwrap(),
+        header::HeaderValue::from_str(&commit.id).unwrap(),
     );
 
     Ok(response)
