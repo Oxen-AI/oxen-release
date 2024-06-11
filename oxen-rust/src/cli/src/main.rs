@@ -26,6 +26,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::CreateRemoteCmd),
         Box::new(cmd::DbCmd),
         Box::new(cmd::DFCmd),
+        Box::new(cmd::DiffCmd),
         Box::new(cmd::InitCmd),
         Box::new(cmd::LogCmd),
         Box::new(cmd::MigrateCmd),
