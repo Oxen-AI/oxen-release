@@ -1,6 +1,6 @@
 [package]
 name = "liboxen"
-version = "0.15.13"
+version = "0.15.14"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version datasets, written in Rust."
@@ -15,6 +15,10 @@ categories = [
     "database",
     "computer-vision",
 ]
+
+[features]
+default = ["duckdb/bundled"]
+docs = ["duckdb"]
 
 [dependencies]
 actix-files = "0.6.0"
@@ -40,7 +44,7 @@ difference = "2.0.0"
 dirs = "5.0.1"
 dotenv = "0.15.0"
 dunce = "1"
-duckdb = { version = "0.10.2", features = ["bundled"] }
+duckdb = { package = "duckdb", version = "0.10.2", default_features=false, optional=true}
 env_logger = "0.11.3"
 # ffmpeg-next = { version = "6.0.0", features = ["codec", "format"] }
 fd-lock = "4.0.1"
@@ -121,3 +125,7 @@ path = "src/lib.rs"
 
 [package.metadata.docs.rs]
 default-target = "x86_64-unknown-linux-gnu"
+features = ["duckdb"] # this is without "duckdb/bundled"
+no-default-features = true
+rustdoc-args = ["--no-deps"]
+
