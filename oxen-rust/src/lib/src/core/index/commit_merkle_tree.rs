@@ -28,6 +28,11 @@ impl CommitMerkleTreeNode {
     pub fn get_by_path(&self, path: impl AsRef<Path>) -> Option<&CommitMerkleTreeNode> {
         self.children.values().find(|&child| child.path == path.as_ref())
     }
+
+    /// Check if the node is a leaf node (i.e. it has no children)
+    pub fn is_leaf(&self) -> bool {
+        self.children.is_empty()
+    }
 }
 
 pub struct CommitMerkleTree {
