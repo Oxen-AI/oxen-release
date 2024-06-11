@@ -45,6 +45,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let entry = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let meta = MetadataEntryResponse {
         status: StatusMessage::resource_found(),
+        resource,
         entry,
     };
     Ok(HttpResponse::Ok().json(meta))
@@ -245,6 +246,7 @@ pub async fn images(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     let entry = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let meta = MetadataEntryResponse {
         status: StatusMessage::resource_found(),
+        resource,
         entry,
     };
     Ok(HttpResponse::Ok().json(meta))
