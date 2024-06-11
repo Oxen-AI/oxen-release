@@ -9,11 +9,11 @@ use liboxen::core::cache::cachers;
 use liboxen::core::db::df_db;
 use liboxen::core::index::CommitEntryReader;
 use liboxen::error::OxenError;
-use liboxen::model::{DataFrameSize, ParsedResource, Schema};
+use liboxen::model::{Commit, DataFrameSize, ParsedResource, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
-use liboxen::{constants, current_function};
+use liboxen::constants;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::{sql, tabular};
@@ -35,21 +35,15 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let entry_reader = CommitEntryReader::new(&repo, &resource.commit)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+    let entry_reader = CommitEntryReader::new(&repo, &commit)?;
     let entry = entry_reader
-        .get_entry(&resource.file_path)?
+        .get_entry(&resource.path)?
         .ok_or(OxenHttpError::NotFound)?;
-
-    log::debug!(
-        "{} resource {}/{}",
-        current_function!(),
-        repo_name,
-        resource
-    );
 
     // Get the path to the versioned file on disk
     let version_path =
-        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     log::debug!(
         "controllers::data_frames Reading version file {:?}",
         version_path
@@ -57,7 +51,7 @@ pub async fn get(
 
     // Get the cached size of the data frame
     let data_frame_size =
-        cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
+        cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
 
     log::debug!(
         "controllers::data_frames got data frame size {:?}",
@@ -82,13 +76,13 @@ pub async fn get(
         }
 
         if !sql::df_is_indexed(&repo, &entry)? {
-            return Err(OxenHttpError::DatasetNotIndexed(resource.file_path.into()));
+            return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
         }
     }
 
     let resource_version = ResourceVersion {
-        path: resource.file_path.to_string_lossy().into(),
-        version: resource.version().to_owned(),
+        path: resource.path.to_string_lossy().into(),
+        version: resource.version.to_string_lossy().into(),
     };
 
     // If we have slice params, use them
@@ -120,6 +114,7 @@ pub async fn get(
 
         let json_df = format_sql_df_response(
             df,
+            &commit,
             &opts,
             &page_opts,
             &resource,
@@ -145,6 +140,7 @@ pub async fn get(
         )?;
         let json_df = format_sql_df_response(
             df,
+            &commit,
             &opts,
             &page_opts,
             &resource,
@@ -156,7 +152,7 @@ pub async fn get(
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
-        api::local::schemas::get_by_path_from_ref(&repo, &resource.commit.id, &resource.file_path)?
+        api::local::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
     {
         schema
     } else {
@@ -225,7 +221,7 @@ pub async fn get(
                         opts: opts_view,
                     },
                 },
-                commit: Some(resource.commit.clone()),
+                commit: Some(commit.clone()),
                 resource: Some(resource_version),
                 derived_resource: None,
             };
@@ -248,9 +244,10 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let entry_reader = CommitEntryReader::new(&repo, &resource.commit)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+    let entry_reader = CommitEntryReader::new(&repo, &commit)?;
     let entry = entry_reader
-        .get_entry(&resource.file_path)?
+        .get_entry(&resource.path)?
         .ok_or(OxenHttpError::NotFound)?;
 
     let mut conn = sql::get_conn(&repo, &entry)?;
@@ -258,9 +255,9 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     log::debug!("data_frames controller index()");
 
     let version_path =
-        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     let data_frame_size =
-        cachers::df_size::get_cache_for_version(&repo, &resource.commit, &version_path)?;
+        cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
 
     if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
         return Err(OxenHttpError::NotQueryable);
@@ -274,6 +271,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
 fn format_sql_df_response(
     df: DataFrame,
+    commit: &Commit,
     opts: &DFOpts,
     page_opts: &PaginateOpts,
     resource: &ParsedResource,
@@ -281,8 +279,8 @@ fn format_sql_df_response(
     data_frame_size: &DataFrameSize,
 ) -> Result<JsonDataFrameViewResponse, OxenHttpError> {
     let resource_version = ResourceVersion {
-        path: resource.file_path.to_string_lossy().into(),
-        version: resource.version().to_owned(),
+        path: resource.path.to_string_lossy().into(),
+        version: resource.version.to_string_lossy().into(),
     };
 
     // For sql, paginate before the view to avoid double-slicing and get correct view size numbers.
@@ -302,7 +300,7 @@ fn format_sql_df_response(
             source: JsonDataFrameSource::from_df_size(data_frame_size, og_schema),
             view,
         },
-        commit: Some(resource.commit.clone()),
+        commit: Some(commit.clone()),
         resource: Some(resource_version),
         derived_resource: None,
     };

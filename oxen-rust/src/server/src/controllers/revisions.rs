@@ -4,7 +4,6 @@ use crate::params::{app_data, parse_resource, path_param};
 
 use actix_web::{HttpRequest, HttpResponse, Result};
 
-use liboxen::model::ParsedResource;
 use liboxen::view::{ParseResourceResponse, StatusMessage};
 
 use log;
@@ -18,20 +17,10 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let repository = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let parse_result = parse_resource(&req, &repository)?;
-
-    let ParsedResource {
-        commit,
-        branch,
-        file_path,
-        resource: _,
-    } = parse_result;
-
+    let resource = parse_resource(&req, &repository)?;
     let response = ParseResourceResponse {
         status: StatusMessage::resource_found(),
-        commit,
-        branch,
-        file_path: file_path.to_string_lossy().to_string(),
+        resource,
     };
 
     log::debug!("Response: {:?}", response);
@@ -87,8 +76,8 @@ mod tests {
         let parse_resp: liboxen::view::ParseResourceResponse =
             serde_json::from_str(text).map_err(OxenError::from)?;
 
-        assert_eq!(parse_resp.branch.unwrap().name, "main");
-        assert_eq!(parse_resp.file_path, "to/resource");
+        assert_eq!(parse_resp.resource.branch.unwrap().name, "main");
+        assert_eq!(parse_resp.resource.path.to_string_lossy(), "to/resource");
 
         util::fs::remove_dir_all(sync_dir)?;
 

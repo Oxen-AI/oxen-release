@@ -16,7 +16,7 @@ use rayon::prelude::*;
 use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource};
 use crate::view::PaginatedDirEntries;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -113,9 +113,12 @@ pub fn meta_entry_from_dir(
         data_type: EntryDataType::Dir,
         mime_type: "inode/directory".to_string(),
         extension: util::fs::file_extension(path),
-        resource: Some(ResourceVersion {
-            version: revision.to_string(),
-            path: String::from(path.to_string_lossy()),
+        resource: Some(ParsedResource {
+            commit: Some(commit.clone()),
+            branch: None,
+            version: PathBuf::from(revision),
+            path: path.to_path_buf(),
+            resource: PathBuf::from(revision).join(path),
         }),
         metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
         is_queryable: None,
@@ -258,13 +261,16 @@ pub fn meta_entry_from_commit_entry(
         filename: String::from(base_name.to_string_lossy()),
         is_dir: false,
         size,
-        latest_commit: Some(latest_commit),
+        latest_commit: Some(latest_commit.clone()),
         data_type,
         mime_type: util::fs::file_mime_type(&version_path),
         extension: util::fs::file_extension(&version_path),
-        resource: Some(ResourceVersion {
-            version: revision.to_string(),
-            path: String::from(entry.path.to_string_lossy()),
+        resource: Some(ParsedResource {
+            commit: Some(latest_commit.clone()),
+            branch: None,
+            version: PathBuf::from(revision),
+            path: entry.path.clone(),
+            resource: PathBuf::from(revision).join(entry.path.clone()),
         }),
         // Not applicable for files YET, but we will also compute this metadata
         metadata: None,

@@ -8,9 +8,8 @@ use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::diff::AddRemoveModifyCounts;
-use crate::model::{Commit, EntryDataType, MetadataEntry};
+use crate::model::{Commit, EntryDataType, MetadataEntry, ParsedResource};
 use crate::opts::DFOpts;
-use crate::view::entry::ResourceVersion;
 use crate::view::TabularDiffView;
 use crate::{
     api,
@@ -33,8 +32,8 @@ pub struct DiffEntry {
     pub size: u64,
 
     // Resource
-    pub head_resource: Option<ResourceVersion>,
-    pub base_resource: Option<ResourceVersion>,
+    pub head_resource: Option<ParsedResource>,
+    pub base_resource: Option<ParsedResource>,
 
     // Entry
     pub head_entry: Option<MetadataEntry>,
@@ -265,17 +264,23 @@ impl DiffEntry {
         })
     }
 
-    fn resource_from_entry(entry: Option<CommitEntry>) -> Option<ResourceVersion> {
-        entry.map(|entry| ResourceVersion {
-            version: entry.commit_id.to_string(),
-            path: entry.path.as_os_str().to_str().unwrap().to_string(),
+    fn resource_from_entry(entry: Option<CommitEntry>) -> Option<ParsedResource> {
+        entry.map(|entry| ParsedResource {
+            commit: None,
+            branch: None,
+            version: PathBuf::from(entry.commit_id.to_string()),
+            path: entry.path.clone(),
+            resource: PathBuf::from(entry.commit_id.to_string()).join(entry.path.clone()),
         })
     }
 
-    fn resource_from_dir(dir: Option<&PathBuf>, commit: &Commit) -> Option<ResourceVersion> {
-        dir.map(|dir| ResourceVersion {
-            version: commit.id.to_string(),
-            path: dir.as_os_str().to_str().unwrap().to_string(),
+    fn resource_from_dir(dir: Option<&PathBuf>, commit: &Commit) -> Option<ParsedResource> {
+        dir.map(|dir| ParsedResource {
+            commit: Some(commit.to_owned()),
+            branch: None,
+            version: PathBuf::from(commit.id.to_string()),
+            path: dir.clone(),
+            resource: PathBuf::from(commit.id.to_string()).join(dir)
         })
     }
 
