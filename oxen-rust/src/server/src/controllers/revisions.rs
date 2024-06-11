@@ -29,8 +29,8 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let response = ParseResourceResponse {
         status: StatusMessage::resource_found(),
-        commit: commit,
-        branch: branch,
+        commit,
+        branch,
         file_path: file_path.to_string_lossy().to_string(),
     };
 
