@@ -126,15 +126,16 @@ pub fn parse_resource_from_path(
                     file_path = file_path.join(component_path);
                 }
             }
-            // log::debug!(
-            //     "parse_resource got commit.id [{}] and filepath [{:?}]",
-            //     commit.id,
-            //     file_path
-            // );
+            log::debug!(
+                "parse_resource got commit.id [{}] and filepath [{:?}]",
+                commit.id,
+                file_path
+            );
             return Ok(Some(ParsedResource {
-                commit,
+                commit: Some(commit.clone()),
                 branch: None,
-                file_path,
+                path: file_path,
+                version: PathBuf::from(commit.id.to_string()),
                 resource: path.to_owned(),
             }));
         }
@@ -152,11 +153,11 @@ pub fn parse_resource_from_path(
             file_path = component_path.join(file_path);
         }
 
-        // log::debug!(
-        //     "parse_resource got file path [{:?}] with {} remaining components",
-        //     file_path,
-        //     components.len()
-        // );
+        log::debug!(
+            "parse_resource got file path [{:?}] with {} remaining components",
+            file_path,
+            components.len()
+        );
         // if we have no components, looking at base dir within that branch
         if components.is_empty() {
             let branch_name = file_path.to_str().unwrap();
@@ -169,9 +170,10 @@ pub fn parse_resource_from_path(
                 let commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
                 file_path = PathBuf::from("");
                 return Ok(Some(ParsedResource {
-                    commit,
-                    branch: Some(branch),
-                    file_path,
+                    commit: Some(commit),
+                    branch: Some(branch.clone()),
+                    path: file_path,
+                    version: PathBuf::from(branch.name),
                     resource: path.to_owned(),
                 }));
             } else {
@@ -186,19 +188,20 @@ pub fn parse_resource_from_path(
         }
 
         let branch_name = branch_path.to_str().unwrap();
-        // log::debug!("parse_resource looking for branch [{}]", branch_name);
+        log::debug!("parse_resource looking for branch [{}]", branch_name);
         if let Some(branch) = ref_reader.get_branch_by_name(branch_name)? {
-            // log::debug!(
-            //     "parse_resource got branch [{}] and filepath [{:?}]",
-            //     branch_name,
-            //     file_path
-            // );
+            log::debug!(
+                "parse_resource got branch [{}] and filepath [{:?}]",
+                branch_name,
+                file_path
+            );
 
             let commit = commit_reader.get_commit_by_id(&branch.commit_id)?.unwrap();
             return Ok(Some(ParsedResource {
-                commit,
-                branch: Some(branch),
-                file_path,
+                commit: Some(commit),
+                branch: Some(branch.clone()),
+                path: file_path,
+                version: PathBuf::from(branch.name),
                 resource: path.to_owned(),
             }));
         }
@@ -362,7 +365,7 @@ mod tests {
 
             match resource::parse_resource_from_path(&repo, path) {
                 Ok(Some(resource)) => {
-                    assert_eq!(resource.file_path, Path::new(""))
+                    assert_eq!(resource.path, Path::new(""))
                 }
                 _ => {
                     panic!("Should return a parsed resource");
@@ -386,7 +389,7 @@ mod tests {
                 // skip on windows, running on linux
                 match resource::parse_resource_from_path(&repo, path) {
                     Ok(Some(resource)) => {
-                        assert_eq!(resource.file_path, Path::new(""))
+                        assert_eq!(resource.path, Path::new(""))
                     }
                     _ => {
                         panic!("Should return a parsed resource");
@@ -410,7 +413,7 @@ mod tests {
             if !cfg!(windows) {
                 match resource::parse_resource_from_path(&repo, &path) {
                     Ok(Some(resource)) => {
-                        assert_eq!(resource.file_path, Path::new("folder-new"))
+                        assert_eq!(resource.path, Path::new("folder-new"))
                     }
                     _ => {
                         panic!("Should return a parsed resource");
@@ -434,7 +437,7 @@ mod tests {
             if !cfg!(windows) {
                 match resource::parse_resource_from_path(&repo, path) {
                     Ok(Some(resource)) => {
-                        assert_eq!(resource.file_path, Path::new("folder/item.txt"))
+                        assert_eq!(resource.path, Path::new("folder/item.txt"))
                     }
                     _ => {
                         panic!("Should return a parsed resource");

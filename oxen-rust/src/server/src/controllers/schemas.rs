@@ -24,19 +24,19 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
 
     // Try to see if they are asking for a specific file
     if let Ok(resource) = parse_resource(&req, &repo) {
-        if resource.file_path != Path::new("") {
-            let commit = &resource.commit;
+        if resource.path != Path::new("") {
+            let commit = &resource.clone().commit.unwrap();
 
             log::debug!(
                 "schemas::list_or_get file {:?} commit {}",
-                resource.file_path,
+                resource.path,
                 commit
             );
 
             let schemas = api::local::schemas::list_from_ref(
                 &repo,
                 &commit.id,
-                resource.file_path.to_string_lossy(),
+                resource.path.to_string_lossy(),
             )?;
 
             if schemas.is_empty() {
@@ -56,19 +56,19 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             if schema_w_paths.is_empty() {
                 if let Some(entry) = api::local::entries::get_commit_entry(
                     &repo,
-                    &resource.commit,
-                    &resource.file_path,
+                    &resource.commit.unwrap(),
+                    &resource.path,
                 )? {
                     let version_path = util::fs::version_path(&repo, &entry);
                     log::debug!(
                         "No schemas found, trying to get from file {:?}",
-                        resource.file_path
+                        resource.path
                     );
                     if util::fs::is_tabular(&version_path) {
                         let df = tabular::read_df(&version_path, DFOpts::empty())?;
                         let schema = Schema::from_polars(&df.schema());
                         schema_w_paths.push(SchemaWithPath::new(
-                            resource.file_path.to_string_lossy().into(),
+                            resource.path.to_string_lossy().into(),
                             schema,
                         ));
                     }
@@ -76,8 +76,8 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             }
 
             let resource = ResourceVersion {
-                path: resource.file_path.to_string_lossy().into(),
-                version: resource.version().to_owned(),
+                path: resource.path.to_string_lossy().into(),
+                version: resource.version.to_string_lossy().into(),
             };
             let response = ListSchemaResponse {
                 status: StatusMessage::resource_found(),

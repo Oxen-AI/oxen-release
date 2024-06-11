@@ -1,39 +1,30 @@
-use std::path::PathBuf;
-
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, path_param};
+use crate::params::{app_data, parse_resource, path_param};
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{HttpRequest, HttpResponse, Result};
 
 use liboxen::view::{ParseResourceResponse, StatusMessage};
 
-use liboxen::api;
+use log;
 
-pub async fn resolve_resource_attributes(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
 
     let repo_name = path_param(&req, "repo_name")?;
-    let resource = PathBuf::from(path_param(&req, "resource")?);
 
     let repository = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let parse_result = api::local::resource::parse_resource(&repository, &resource)?;
+    let resource = parse_resource(&req, &repository)?;
+    let response = ParseResourceResponse {
+        status: StatusMessage::resource_found(),
+        resource,
+    };
 
-    if let Some((commit_id, branch_name, file_path)) = parse_result {
-        let response = ParseResourceResponse {
-            status: StatusMessage::resource_found(),
-            commit_id,
-            branch_name,
-            resource: file_path.to_string_lossy().into_owned(),
-        };
-        log::debug!("Response: {:?}", response);
-        Ok(HttpResponse::Ok().json(response))
-    } else {
-        Err(OxenHttpError::NotFound)
-    }
+    log::debug!("Response: {:?}", response);
+    Ok(HttpResponse::Ok().json(response))
 }
 
 #[cfg(test)]
@@ -51,7 +42,7 @@ mod tests {
     use crate::test;
 
     #[actix_web::test]
-    async fn test_resolve_resource_attributes() -> Result<(), OxenError> {
+    async fn test_get() -> Result<(), OxenError> {
         let sync_dir = test::get_sync_dir()?;
         let queue = test::init_queue();
         let namespace = "Testing-Namespace";
@@ -77,9 +68,7 @@ mod tests {
             resource_str,
         );
 
-        let resp = controllers::revisions::resolve_resource_attributes(req)
-            .await
-            .unwrap();
+        let resp = controllers::revisions::get(req).await.unwrap();
         assert_eq!(resp.status(), http::StatusCode::OK);
 
         let body = to_bytes(resp.into_body()).await.unwrap();
@@ -87,8 +76,8 @@ mod tests {
         let parse_resp: liboxen::view::ParseResourceResponse =
             serde_json::from_str(text).map_err(OxenError::from)?;
 
-        assert_eq!(parse_resp.branch_name, "main");
-        assert_eq!(parse_resp.resource, "to/resource");
+        assert_eq!(parse_resp.resource.branch.unwrap().name, "main");
+        assert_eq!(parse_resp.resource.path.to_string_lossy(), "to/resource");
 
         util::fs::remove_dir_all(sync_dir)?;
 

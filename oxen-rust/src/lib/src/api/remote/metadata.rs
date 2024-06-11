@@ -98,8 +98,16 @@ mod tests {
             assert_eq!(entry.data_type, EntryDataType::Text);
             assert_eq!(entry.mime_type, "text/markdown");
             assert_eq!(
-                Path::new(&entry.resource.unwrap().path),
+                Path::new(&entry.resource.clone().unwrap().path),
                 Path::new("annotations").join("README.md")
+            );
+            assert_eq!(
+                &entry.resource.clone().unwrap().version,
+                Path::new(DEFAULT_BRANCH_NAME)
+            );
+            assert_eq!(
+                entry.resource.clone().unwrap().branch.unwrap().name,
+                DEFAULT_BRANCH_NAME
             );
 
             Ok(remote_repo)
