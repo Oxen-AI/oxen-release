@@ -154,7 +154,7 @@ pub async fn download_dir(
     let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
     api::remote::commits::download_commit_entries_db_to_path(
         remote_repo,
-        &revision,
+        revision,
         &repo_cache_dir,
     )
     .await?;
@@ -173,7 +173,7 @@ pub async fn download_dir(
 
     let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
 
-    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, &revision, object_reader)?;
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 

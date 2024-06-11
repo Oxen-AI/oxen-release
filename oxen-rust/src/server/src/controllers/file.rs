@@ -71,7 +71,7 @@ pub async fn get(
         }
     }
 
-    let entry = entry.ok_or(OxenError::path_does_not_exist(&path))?;
+    let entry = entry.ok_or(OxenError::path_does_not_exist(path))?;
 
     let version_path = util::fs::version_path(&repo, &entry);
 
