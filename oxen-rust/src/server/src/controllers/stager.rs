@@ -940,7 +940,7 @@ pub async fn get_staged_df(
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
         .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
 
-    let schema = api::local::schemas::get_by_path(&repo, &resource.path)?
+    let schema = api::local::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     log::debug!("got this schema for the endpoint {:?}", schema);

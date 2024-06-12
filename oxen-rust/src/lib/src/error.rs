@@ -278,13 +278,11 @@ impl OxenError {
 
     pub fn remote_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
-        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
+        OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
     pub fn local_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
         OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
