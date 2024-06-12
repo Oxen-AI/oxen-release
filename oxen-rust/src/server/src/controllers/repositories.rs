@@ -7,8 +7,8 @@ use liboxen::error::OxenError;
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
 use liboxen::view::repository::{
-    DataTypeView, RepositoryDataTypesResponse, RepositoryDataTypesView, RepositoryStatsResponse,
-    RepositoryStatsView,
+    DataTypeView, RepositoryCreationResponse, RepositoryCreationView, RepositoryDataTypesResponse,
+    RepositoryDataTypesView, RepositoryStatsResponse, RepositoryStatsView,
 };
 use liboxen::view::{
     ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage,
@@ -118,14 +118,33 @@ pub async fn create(
     let data: Result<RepoNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
         Ok(data) => match api::local::repositories::create(&app_data.path, data.to_owned()) {
-            Ok(_) => Ok(HttpResponse::Ok().json(RepositoryResponse {
-                status: STATUS_SUCCESS.to_string(),
-                status_message: MSG_RESOURCE_FOUND.to_string(),
-                repository: RepositoryView {
-                    namespace: data.namespace.clone(),
-                    name: data.name,
-                },
-            })),
+            Ok(repo) => match api::local::commits::latest_commit(&repo) {
+                Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
+                    status: STATUS_SUCCESS.to_string(),
+                    status_message: MSG_RESOURCE_FOUND.to_string(),
+                    repository: RepositoryCreationView {
+                        namespace: data.namespace.clone(),
+                        latest_commit: Some(latest_commit.clone()),
+                        name: data.name.clone(),
+                    },
+                })),
+                Err(OxenError::NoCommitsFound(_)) => {
+                    Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
+                        status: STATUS_SUCCESS.to_string(),
+                        status_message: MSG_RESOURCE_FOUND.to_string(),
+                        repository: RepositoryCreationView {
+                            namespace: data.namespace.clone(),
+                            latest_commit: None,
+                            name: data.name.clone(),
+                        },
+                    }))
+                }
+                Err(err) => {
+                    log::error!("Err api::local::commits::latest_commit: {:?}", err);
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::error("Failed to get latest commit.")))
+                }
+            },
             Err(OxenError::RepoAlreadyExists(path)) => {
                 log::debug!("Repo already exists: {:?}", path);
                 Ok(HttpResponse::Conflict().json(StatusMessage::error("Repo already exists.")))
@@ -217,12 +236,13 @@ pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, OxenH
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenError::resource_not_found(&resource.version.to_string_lossy()))?;
 
     let version_path =
-        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     log::debug!(
         "get_file_for_commit_id looking for {:?} -> {:?}",
-        resource.file_path,
+        resource.path,
         version_path
     );
     Ok(NamedFile::open(version_path)?)

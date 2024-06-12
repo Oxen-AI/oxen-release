@@ -55,6 +55,7 @@ pub enum OxenError {
     RevisionNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
     NothingToCommit(StringError),
+    NoCommitsFound(StringError),
     HeadNotFound(StringError),
 
     // Resources (paths, uris, etc.)
@@ -207,6 +208,10 @@ impl OxenError {
 
     pub fn root_commit_does_not_match(commit: Commit) -> Self {
         OxenError::RootCommitDoesNotMatch(Box::new(commit))
+    }
+
+    pub fn no_commits_found() -> Self {
+        OxenError::NoCommitsFound(StringError::from("\n No commits found.\n"))
     }
 
     pub fn local_repo_not_found() -> OxenError {
