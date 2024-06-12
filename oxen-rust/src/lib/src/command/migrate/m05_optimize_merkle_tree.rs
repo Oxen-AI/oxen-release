@@ -5,6 +5,7 @@ use super::Migrate;
 
 use std::path::{Path, PathBuf};
 
+use crate::core::db::tree_db::TreeObjectChild;
 use crate::core::db::{self, kv_db, str_json_db, str_val_db};
 use crate::core::index::commit_merkle_tree::{CommitMerkleTree, CommitMerkleTreeNode};
 use crate::core::index::{CommitReader, ObjectDBReader, TreeObjectReader};
@@ -225,79 +226,144 @@ fn convert_dirs_to_tree_dir(repo: &LocalRepository, commit: &Commit) -> Result<(
 }
 
 fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
-    // Old global objects dir
-    // .oxen/objects/
-    let objects_dir = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::OBJECTS_DIR);
-    // New global merkle tree dir
-    // .oxen/tree/
-    let merkle_tree_dir = repo
+    let tree_dir = repo
         .path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR);
 
+    if tree_dir.exists() {
+        println!("Clearing tree dir: {:?}", tree_dir);
+        util::fs::remove_dir_all(&tree_dir)?;
+    }
+
+    // Instantiate the object reader, most expensive operation
+    let object_reader = ObjectDBReader::new(repo)?;
+
     // iterate over the commit tree to get the root nodes
     let commit_merkle_tree = CommitMerkleTree::new(repo, commit)?;
-    r_migrate_merkle_nodes(repo, commit, &commit_merkle_tree.root)?;
+    r_migrate_merkle_nodes(repo, commit, &object_reader, &commit_merkle_tree.root)?;
 
     Ok(())
 }
 
-fn r_migrate_merkle_nodes(repo: &LocalRepository, commit: &Commit, node: &CommitMerkleTreeNode) -> Result<(), OxenError> {
+fn r_migrate_merkle_nodes(repo: &LocalRepository, commit: &Commit, reader: &ObjectDBReader, node: &CommitMerkleTreeNode) -> Result<(), OxenError> {
     if node.is_leaf() {
         return Ok(());
     }
 
-    // let object_reader = ObjectDBReader::new(repo)?;
-    let objects_dir = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::OBJECTS_DIR)
-        .join(constants::DIRS_DIR);
-    println!("objects_dir: {:?}", objects_dir);
-    let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&db::opts::default(), &objects_dir, false)?;
-
     for (hash, child) in &node.children {
         println!("hash: {} path: {:?}", hash, child.path);
-        r_migrate_merkle_nodes(repo, commit, &child)?;
-        migrate_sub_dir(&dir_hashes_db, &child)?;
+        r_migrate_merkle_nodes(repo, commit, &reader, &child)?;
+        migrate_vnodes(repo, &reader, &child)?;
     }
 
     Ok(())
 }
 
-fn migrate_sub_dir(
-    reader: &DBWithThreadMode<MultiThreaded>,
+fn migrate_vnodes(
+    repo: &LocalRepository,
+    reader: &ObjectDBReader,
     node: &CommitMerkleTreeNode
 ) -> Result<(), OxenError> {
     // Read the values from the .oxen/objects/dirs db and write them
     // to the proper .oxen/tree/{path} with their hash as the key and type 
     // and metadata as the value
     //
-    println!("Getting object for path: {:?}", node.path);
-    let obj: Option<serde_json::Value> = str_json_db::get(&reader, &node.hash)?;
+    println!("Getting object for path: {:?} -> {:?}", node.path, node.hash);
+    let obj = reader.get_dir(&node.hash)?;
 
     let Some(tree_obj) = obj else {
         return Err(OxenError::basic_str(format!("could not get dir objects for {}", node.hash)));
     };
 
-    for child in tree_obj["Dir"]["children"].as_array().unwrap() {
-        println!("child: {:?}", child);
+    // These should all be vnodes, so write them to .oxen/tree/{node.path}/{node.hash}
+    let tree_path = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::TREE_DIR)
+        .join(&node.path)
+        .join(&node.hash);
 
-        // TODO: these should all be vnodes, so write them to .oxen/tree/{node.path}
+    // Write all the VNodes
+    let tree_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
+    for child in tree_obj.children() {
+        match child {
+            TreeObjectChild::VNode { path, hash } => {
+                println!("child: {:?} -> {:?}", path, hash);
+                // mkdir if not exists
+                if !tree_path.exists() {
+                    util::fs::create_dir_all(&tree_path)?;
+                }
 
-        // My brain is broken, but we also need to quickly access them by their "path"
-        // So does that mean we have .oxen/tree/{node.path}/hashes and .oxen/tree/{node.path}/paths?
-        // which are reverse look up tables to each other?
-        // Then we have .oxen/tree/{node.path}/{hash} which contains all the children?
+                // serialize child to json
+                // TODO: row has hash twice, should just have path
+                // 16442f8e6fdc8ae0ff617e59211721d4	{"VNode":{"path":"57","hash":"16442f8e6fdc8ae0ff617e59211721d4"}}
 
-        // child: Object {"VNode": Object {"hash": String("b227e71fa9f60553e2b208398748d756"), "path": String("c8")}}
-        // child: Object {"VNode": Object {"hash": String("1d2e96a085e55fb5f9bfd07760fc8b60"), "path": String("d2")}}
-        // child: Object {"VNode": Object {"hash": String("76863bc183d815ee10a844cc6f53d4a7"), "path": String("e3")}}
-        // child: Object {"VNode": Object {"hash": String("28c4c6c571aaa27470ad26c10b616144"), "path": String("ff")}}
+                let child_json = serde_json::to_string(&child)?;
+                tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+
+                // Look up all the files from that vnode
+                migrate_files(repo, &reader, &node, &child)?;
+            },
+            _ => {
+                return Err(OxenError::basic_str(format!("unexpected child type: {:?}", child)));
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn migrate_files(
+    repo: &LocalRepository,
+    reader: &ObjectDBReader,
+    node: &CommitMerkleTreeNode,
+    vnode: &TreeObjectChild
+) -> Result<(), OxenError> {
+    match vnode {
+        TreeObjectChild::VNode { path, hash } => {
+            let tree_path = repo
+                .path
+                .join(constants::OXEN_HIDDEN_DIR)
+                .join(constants::TREE_DIR)
+                .join(&node.path)
+                .join(&node.hash)
+                .join(&path);
+
+            let tree_db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
+            
+            let tree_obj = reader.get_vnode(hash)?;
+            let Some(tree_obj) = tree_obj else {
+                return Err(OxenError::basic_str(format!("could not get vnode objects for {}", node.hash)));
+            };
+            for child in tree_obj.children() {
+                match child {
+                    TreeObjectChild::File { path, hash } => {
+                        println!("file: {:?} -> {:?}", path, hash);
+                        let child_json = serde_json::to_string(&child)?;
+                        tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                    }
+                    TreeObjectChild::Dir { path, hash } => {
+                        println!("dir: {:?} -> {:?}", path, hash);
+                        let child_json = serde_json::to_string(&child)?;
+                        tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                    }
+                    TreeObjectChild::Schema { path, hash } => {
+                        println!("vnode: {:?} -> {:?}", path, hash);
+                        let child_json = serde_json::to_string(&child)?;
+                        tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                    }
+                    _ => {
+                        return Err(OxenError::basic_str(format!("unexpected child type: {:?}", child)));
+                    }
+                }
+            }
+        },
+        _ => {
+            return Err(OxenError::basic_str(format!("unexpected child type: {:?}", vnode)));
+        }
     }
 
     Ok(())
