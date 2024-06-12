@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
@@ -19,6 +18,8 @@ use liboxen::view::remote_staged_status::DFIsEditableResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, constants, core::index};
 
+pub mod row;
+
 pub async fn get(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
@@ -30,12 +31,24 @@ pub async fn get(
     let identifier = path_param(&req, "identifier")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.ok_or(OxenError::resource_not_found(&resource.version.to_string_lossy()))?;
+    let commit = resource
+        .clone()
+        .commit
+        .ok_or(OxenError::resource_not_found(
+            resource.version.to_string_lossy(),
+        ))?;
 
+    log::debug!(
+        "controllers::workspace::data_frame::get resource: {:?}",
+        resource
+    );
+    log::debug!(
+        "controllers::workspace::data_frame::get commit: {:?}",
+        commit
+    );
 
-    let entry =
-        api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
-            .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
+    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
+        .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
 
     let schema = api::local::schemas::get_by_path(&repo, &resource.path)?
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
@@ -61,17 +74,11 @@ pub async fn get(
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
 
-    if !index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )? {
+    if !index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)? {
         return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
     }
 
-    let count =
-        index::remote_df_stager::count(&repo, &branch, resource.path.clone(), &identifier)?;
+    let count = index::remote_df_stager::count(&repo, &branch, resource.path.clone(), &identifier)?;
 
     let df = index::remote_df_stager::query_staged_df(&repo, &entry, &branch, &identifier, &opts)?;
 
@@ -128,7 +135,7 @@ pub async fn list(
                 &repo,
                 &branch,
                 &identifier,
-                &PathBuf::from(resource.path),
+                &resource.path,
             )? {
                 editable_entries.push(entry);
             }
@@ -168,12 +175,8 @@ pub async fn is_editable(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
 
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
-    let is_editable = index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )?;
+    let is_editable =
+        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
 
     Ok(HttpResponse::Ok().json(DFIsEditableResponse {
         status: StatusMessage::resource_found(),
