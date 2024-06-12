@@ -158,4 +158,3 @@ path = "src/server/src/main.rs"
 default-target = "x86_64-unknown-linux-gnu"
 features = ["duckdb"] # this is without "duckdb/bundled"
 no-default-features = true
-rustdoc-args = ["--no-deps"]
