@@ -230,10 +230,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                         // staging/data_frame
                         .service(
                             web::scope("/data_frame")
-                                .route(
-                                    "/{resource:.*}",
-                                    web::get().to(controllers::workspace::data_frame::get),
-                                )
+                                // TODO: Get rid of "list_editable" and "is_editable" in favor of a more RESTFUL /data_frame API
                                 .route(
                                     "/list_editable/{branch:.*}",
                                     web::get().to(controllers::workspace::data_frame::list),
@@ -243,16 +240,12 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                     web::get().to(controllers::workspace::data_frame::is_editable),
                                 )
                                 .route(
+                                    "/{resource:.*}",
+                                    web::get().to(controllers::workspace::data_frame::get),
+                                )
+                                .route(
                                     "/diff/{resource:.*}",
                                     web::get().to(controllers::workspace::data_frame::diff),
-                                )
-                                .route(
-                                    "/rows/{row_id}/restore/{resource:.*}",
-                                    web::post().to(controllers::workspace::df_restore_row),
-                                )
-                                .route(
-                                    "/rows/{resource:.*}",
-                                    web::post().to(controllers::workspace::df_add_row),
                                 )
                                 .route(
                                     "/index/{resource:.*}",
@@ -262,17 +255,39 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                     "/index/{resource:.*}",
                                     web::delete().to(controllers::workspace::unindex_dataset),
                                 )
-                                .route(
-                                    "/rows/{row_id}/{resource:.*}",
-                                    web::put().to(controllers::workspace::df_modify_row),
-                                )
-                                .route(
-                                    "/rows/{row_id}/{resource:.*}",
-                                    web::delete().to(controllers::workspace::df_delete_row),
-                                )
-                                .route(
-                                    "/rows/{row_id}/{resource:.*}",
-                                    web::get().to(controllers::workspace::df_get_row),
+                                // staging/data_frame/rows
+                                .service(
+                                    web::scope("/rows")
+                                        .route(
+                                            "/{resource:.*}",
+                                            web::post().to(
+                                                controllers::workspace::data_frame::row::create,
+                                            ),
+                                        )
+                                        // TODO: Refactor. This means we can't have a branch called "restore"
+                                        .route(
+                                            "/{row_id}/restore/{resource:.*}",
+                                            web::post().to(
+                                                controllers::workspace::data_frame::row::restore,
+                                            ),
+                                        )
+                                        .route(
+                                            "/{row_id}/{resource:.*}",
+                                            web::put().to(
+                                                controllers::workspace::data_frame::row::update,
+                                            ),
+                                        )
+                                        .route(
+                                            "/{row_id}/{resource:.*}",
+                                            web::delete().to(
+                                                controllers::workspace::data_frame::row::delete,
+                                            ),
+                                        )
+                                        .route(
+                                            "/{row_id}/{resource:.*}",
+                                            web::get()
+                                                .to(controllers::workspace::data_frame::row::get),
+                                        ),
                                 ),
                         ),
                 )

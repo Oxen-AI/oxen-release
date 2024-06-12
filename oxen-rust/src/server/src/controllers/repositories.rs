@@ -236,10 +236,14 @@ pub async fn get_file_for_commit_id(req: HttpRequest) -> Result<NamedFile, OxenH
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.ok_or(OxenError::resource_not_found(&resource.version.to_string_lossy()))?;
+    let commit = resource
+        .clone()
+        .commit
+        .ok_or(OxenError::resource_not_found(
+            resource.version.to_string_lossy(),
+        ))?;
 
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
+    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     log::debug!(
         "get_file_for_commit_id looking for {:?} -> {:?}",
         resource.path,
