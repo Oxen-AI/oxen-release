@@ -30,12 +30,14 @@ pub async fn get(
     let identifier = path_param(&req, "identifier")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenError::resource_not_found(&resource.version.to_string_lossy()))?;
+
 
     let entry =
-        api::local::entries::get_commit_entry(&repo, &resource.commit, &resource.file_path)?
-            .ok_or(OxenError::entry_does_not_exist(resource.file_path.clone()))?;
+        api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
+            .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
 
-    let schema = api::local::schemas::get_by_path(&repo, &resource.file_path)?
+    let schema = api::local::schemas::get_by_path(&repo, &resource.path)?
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     log::debug!("got this schema for the endpoint {:?}", schema);
@@ -63,13 +65,13 @@ pub async fn get(
         &repo,
         &branch,
         &identifier,
-        &resource.file_path,
+        &resource.path,
     )? {
-        return Err(OxenHttpError::DatasetNotIndexed(resource.file_path.into()));
+        return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
     }
 
     let count =
-        index::remote_df_stager::count(&repo, &branch, resource.file_path.clone(), &identifier)?;
+        index::remote_df_stager::count(&repo, &branch, resource.path.clone(), &identifier)?;
 
     let df = index::remote_df_stager::query_staged_df(&repo, &entry, &branch, &identifier, &opts)?;
 
@@ -77,8 +79,8 @@ pub async fn get(
 
     let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
     let resource = ResourceVersion {
-        path: resource.file_path.to_string_lossy().to_string(),
-        version: resource.version(),
+        path: resource.path.to_string_lossy().to_string(),
+        version: resource.version.to_string_lossy().to_string(),
     };
 
     let response = JsonDataFrameViewResponse {
@@ -170,7 +172,7 @@ pub async fn is_editable(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
         &repo,
         &branch,
         &identifier,
-        &resource.file_path,
+        &resource.path,
     )?;
 
     Ok(HttpResponse::Ok().json(DFIsEditableResponse {
@@ -208,7 +210,7 @@ pub async fn diff(
         &repo,
         &branch,
         &identifier,
-        &resource.file_path,
+        &resource.path,
     );
 
     let conn = df_db::get_connection(staged_db_path)?;
@@ -220,8 +222,8 @@ pub async fn diff(
     let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
 
     let resource = ResourceVersion {
-        path: resource.file_path.to_string_lossy().to_string(),
-        version: resource.version(),
+        path: resource.path.to_string_lossy().to_string(),
+        version: resource.version.to_string_lossy().to_string(),
     };
 
     let resource = JsonDataFrameViewResponse {

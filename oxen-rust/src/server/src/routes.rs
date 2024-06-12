@@ -86,6 +86,10 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                             web::get().to(controllers::commits::download_commit_entries_db),
                         ),
                 )
+                .service(
+                    web::scope("/revisions")
+                        .route("/{resource:.*}", web::get().to(controllers::revisions::get)),
+                )
                 // Branches
                 .service(
                     web::scope("/branches")
