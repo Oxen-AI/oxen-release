@@ -4,17 +4,27 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
-        LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry, SummarizedStagedDirStats,
+        Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry, SummarizedStagedDirStats
     },
     util,
 };
 
-use super::{JsonDataFrame, PaginatedDirEntries, StatusMessage};
+use super::{entry::ResourceVersion, json_data_frame_view::DerivedDFResource, JsonDataFrame, JsonDataFrameViews, PaginatedDirEntries, StatusMessage};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct DFIsEditableResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
+    pub is_editable: bool,
+}
+#[derive(Deserialize, Serialize, Debug)]
+pub struct DataFrameByResourceResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub data_frame: JsonDataFrameViews,
+    pub commit: Option<Commit>,
+    pub resource: Option<ResourceVersion>,
+    pub derived_resource: Option<DerivedDFResource>,
     pub is_editable: bool,
 }
 
