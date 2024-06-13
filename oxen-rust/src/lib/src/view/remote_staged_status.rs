@@ -4,12 +4,16 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     model::{
-        Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry, SummarizedStagedDirStats
+        Commit, LocalRepository, MetadataEntry, ModEntry, StagedData, StagedEntry,
+        SummarizedStagedDirStats,
     },
     util,
 };
 
-use super::{entry::ResourceVersion, json_data_frame_view::DerivedDFResource, JsonDataFrame, JsonDataFrameViews, PaginatedDirEntries, StatusMessage};
+use super::{
+    entry::ResourceVersion, json_data_frame_view::DerivedDFResource, JsonDataFrame,
+    JsonDataFrameViews, PaginatedDirEntries, StatusMessage,
+};
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct DFIsEditableResponse {

@@ -265,7 +265,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                 )
                                 .route(
                                     "/resource/{resource:.*}",
-                                    web::post().to(controllers::workspace::data_frame::post),
+                                    web::put().to(controllers::workspace::data_frame::post),
                                 )
                                 // staging/data_frame/rows
                                 // TODO: This conflicts with any branch named "row", should it just be /staging/rows? or /staging/data_frame_rows?
