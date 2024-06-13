@@ -209,7 +209,7 @@ pub async fn diff(
     Ok(HttpResponse::Ok().json(resource))
 }
 
-pub async fn post(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
+pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -228,17 +228,31 @@ pub async fn post(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHt
     let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
 
     let to_index = data.is_indexed;
-    let is_indexed = index::remote_df_stager::dataset_is_indexed(
-        &repo,
-        &branch,
-        &identifier,
-        &resource.path,
-    )?;
+    let is_indexed =
+        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
 
     if !is_indexed && to_index {
-        handle_indexing(&repo, &branch, &resource.path, &identifier, &namespace, &repo_name, &resource).await
+        handle_indexing(
+            &repo,
+            &branch,
+            &resource.path,
+            &identifier,
+            &namespace,
+            &repo_name,
+            &resource,
+        )
+        .await
     } else if is_indexed && !to_index {
-        handle_unindexing(&repo, &branch, &identifier, &resource.path, &namespace, &repo_name, &resource).await
+        handle_unindexing(
+            &repo,
+            &branch,
+            &identifier,
+            &resource.path,
+            &namespace,
+            &repo_name,
+            &resource,
+        )
+        .await
     } else {
         Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
     }
@@ -266,9 +280,7 @@ async fn handle_indexing(
             Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
         }
         Err(err) => {
-            log::error!(
-                "Failed to index dataset for {namespace}/{repo_name}/{resource}: {err}"
-            );
+            log::error!("Failed to index dataset for {namespace}/{repo_name}/{resource}: {err}");
             Err(OxenHttpError::InternalServerError)
         }
     }
@@ -296,11 +308,8 @@ async fn handle_unindexing(
             Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
         }
         Err(err) => {
-            log::error!(
-                "Failed to unindex dataset for {namespace}/{repo_name}/{resource}: {err}"
-            );
+            log::error!("Failed to unindex dataset for {namespace}/{repo_name}/{resource}: {err}");
             Err(OxenHttpError::InternalServerError)
         }
     }
 }
-
