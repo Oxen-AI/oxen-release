@@ -50,6 +50,9 @@ pub use pack::PackCmd;
 
 pub mod remote;
 
+pub mod tree;
+pub use tree::TreeCmd;
+
 pub mod schemas;
 pub use schemas::SchemasCmd;
 
