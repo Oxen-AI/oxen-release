@@ -227,18 +227,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                             "/commit/{resource:.*}",
                             web::post().to(controllers::workspace::commit),
                         )
-                        // staging/data_frame
-                        // GET /workspace/data_frame/branch/main
-                        // List all data frames on a branch
-                        //   GET /workspace/{workspace_id}/data_frame/resource/{branch:.*}
-                        // List a specific data frame on a branch
-                        //   GET /workspace/{workspace_id}/data_frame/resource/{resource:.*}
-                        //   GET /workspace/{workspace_id}/data_frame/resource/main/path/to/df.parquet
-                        //     { "is_editable": true }
-                        //   PUT /workspace/{workspace_id}/data_frame/resource/main/path/to/df.parquet
-                        //     { "is_indexed": true }
-                        // Get the diff for a data frame on a branch
-                        //   GET /workspace/{workspace_id}/data_frame/diff/main/path/to/df.parquet
                         // CRUD operations on a row
                         //   GET /workspace/{workspace_id}/data_frame/rows/resource/{resource:.*}
                         //   GET /workspace/{workspace_id}/data_frame/rows/resource/main/path/to/df.parquet
@@ -280,7 +268,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                             ),
                                         )
                                         .route(
-                                            "/{resource:.*}",
+                                            "/resource/{resource:.*}",
                                             web::post().to(
                                                 controllers::workspace::data_frame::row::create,
                                             ),

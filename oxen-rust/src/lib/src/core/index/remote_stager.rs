@@ -16,7 +16,7 @@ pub async fn status(
     let page_size = opts.limit;
     let page_num = opts.skip / page_size;
 
-    let remote_status = api::remote::staging::status(
+    let remote_status = api::remote::workspace::status(
         remote_repo,
         &branch.name,
         user_id,

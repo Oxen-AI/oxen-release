@@ -149,7 +149,7 @@ mod tests {
             let directory_name = "images";
             let identifier = UserConfig::identifier()?;
             let path = test::test_img_file();
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -162,7 +162,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -197,7 +197,7 @@ mod tests {
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::staging::add_files(
+            let result = api::remote::workspace::add_files(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -210,7 +210,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -242,7 +242,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let file_to_post = test::test_img_file();
             let directory_name = "data";
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -258,7 +258,7 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::staging::commit(&remote_repo, branch_name, &identifier, &body).await?;
+                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body).await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());

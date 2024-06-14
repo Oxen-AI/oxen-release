@@ -170,9 +170,9 @@ mod tests {
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::remote::staging::index_dataset(&remote_repo, branch_name, &identifier, &path).await?;
+            api::remote::workspace::put(&remote_repo, branch_name, &identifier, &path, true).await?;
             let result =
-                api::remote::staging::modify_df(
+                api::remote::workspace::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -208,7 +208,7 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let data = "{\"id\": 1, \"name\": \"greg\"}";
-            let result = api::remote::staging::modify_df(
+            let result = api::remote::workspace::modify_df(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -238,13 +238,14 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::remote::staging::index_dataset(
+            api::remote::workspace::put(
                 &remote_repo,
                 branch_name,
                 &identifier,
                 &path,
+                true
             ).await?;
-            api::remote::staging::modify_df(
+            api::remote::workspace::modify_df(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -256,7 +257,7 @@ mod tests {
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
