@@ -55,7 +55,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let directory_name = "images";
             let path = test::test_img_file();
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -66,7 +66,7 @@ mod tests {
             assert!(result.is_ok());
 
             // Remove the file
-            let result = api::remote::staging::rm_file(
+            let result = api::remote::workspace::rm_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -79,7 +79,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,

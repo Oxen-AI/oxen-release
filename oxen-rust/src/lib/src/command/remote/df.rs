@@ -14,6 +14,7 @@ use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
+use crate::view::StatusMessage;
 
 /// Interact with Remote DataFrames
 pub async fn df<P: AsRef<Path>>(
@@ -99,7 +100,7 @@ pub async fn add_row(
 
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
-        let (df, row_id) = api::remote::staging::modify_df(
+        let (df, row_id) = api::remote::workspace::modify_df(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -131,7 +132,7 @@ pub async fn delete_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let df = api::remote::staging::rm_df_mod(&remote_repo, &branch.name, &user_id, path, uuid)
+        let df = api::remote::workspace::rm_df_mod(&remote_repo, &branch.name, &user_id, path, uuid)
             .await?;
         Ok(df)
     } else {
@@ -149,7 +150,7 @@ pub async fn get_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let df_json = api::remote::staging::get_row(
+        let df_json = api::remote::workspace::get_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -170,15 +171,16 @@ pub async fn get_row(
 pub async fn index_dataset(
     repository: &LocalRepository,
     path: impl AsRef<Path>,
-) -> Result<(), OxenError> {
+) -> Result<StatusMessage, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        api::remote::staging::dataset::index_dataset(
+        api::remote::workspace::data_frame::put(
             &remote_repo,
             &branch.name,
             &user_id,
             path.as_ref(),
+            true
         )
         .await
     } else {

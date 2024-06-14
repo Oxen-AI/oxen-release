@@ -57,9 +57,9 @@ mod tests {
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name, &identifier, &path).await?;
+            api::remote::workspace::data_frame::put(&remote_repo, branch_name, &identifier, &path, true).await?;
 
-            let result_1 = api::remote::staging::modify_df(
+            let result_1 = api::remote::workspace::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -71,7 +71,7 @@ mod tests {
             assert!(result_1.is_ok());
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let result_2 = api::remote::staging::modify_df(
+            let result_2 = api::remote::workspace::modify_df(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -84,7 +84,7 @@ mod tests {
 
 
             // Make sure both got staged
-            let diff = api::remote::staging::diff(
+            let diff = api::remote::workspace::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -103,7 +103,7 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),    
             }
             // Delete result_2
-            let result_delete = api::remote::staging::restore_df(
+            let result_delete = api::remote::workspace::restore_df(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -112,7 +112,7 @@ mod tests {
             assert!(result_delete.is_ok());
 
             // Should be cleared
-            let diff = api::remote::staging::diff(
+            let diff = api::remote::workspace::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,
