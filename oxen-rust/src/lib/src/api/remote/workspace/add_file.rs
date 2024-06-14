@@ -15,7 +15,7 @@ pub async fn add_file(
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/staging/{identifier}/file/{branch_name}/{directory_name}");
+    let uri = format!("/workspace/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -83,7 +83,7 @@ pub async fn add_files(
         pluralize("file", paths.len() as isize, true)
     );
 
-    let uri = format!("/staging/{identifier}/file/{branch_name}/{directory_name}");
+    let uri = format!("/workspace/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -258,7 +258,8 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body).await?;
+                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                    .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());

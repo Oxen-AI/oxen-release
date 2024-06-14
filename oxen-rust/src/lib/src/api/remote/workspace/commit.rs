@@ -11,7 +11,7 @@ pub async fn commit_file(
     commit: &NewCommitBody,
     file_path: &str,
 ) -> Result<Commit, OxenError> {
-    let uri = format!("/staging/{identifier}/commit/{branch_name}/{file_path}");
+    let uri = format!("/workspace/{identifier}/commit/{branch_name}/{file_path}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("commit_staged {}\n{}", url, body);
@@ -51,7 +51,7 @@ pub async fn commit(
     identifier: &str,
     commit: &NewCommitBody,
 ) -> Result<Commit, OxenError> {
-    let uri = format!("/staging/{identifier}/commit/{branch_name}");
+    let uri = format!("/workspace/{identifier}/commit/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("commit_staged {}\n{}", url, body);
@@ -129,7 +129,8 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body).await?;
+                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                    .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());

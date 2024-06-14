@@ -13,7 +13,7 @@ pub mod merger;
 pub mod metadata;
 pub mod repositories;
 pub mod schemas;
-pub mod workspace;
 pub mod stats;
 pub mod text2sql;
 pub mod version;
+pub mod workspace;
