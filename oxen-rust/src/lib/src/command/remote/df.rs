@@ -100,7 +100,7 @@ pub async fn add_row(
 
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
-        let (df, row_id) = api::remote::workspace::modify_df(
+        let (df, row_id) = api::remote::workspace::row::create_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -132,8 +132,14 @@ pub async fn delete_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let df = api::remote::workspace::rm_df_mod(&remote_repo, &branch.name, &user_id, path, uuid)
-            .await?;
+        let df = api::remote::workspace::row::delete_row(
+            &remote_repo,
+            &branch.name,
+            &user_id,
+            path.as_ref(),
+            uuid,
+        )
+        .await?;
         Ok(df)
     } else {
         Err(OxenError::basic_str(
@@ -150,7 +156,7 @@ pub async fn get_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let df_json = api::remote::workspace::get_row(
+        let df_json = api::remote::workspace::row::get_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -180,7 +186,7 @@ pub async fn index_dataset(
             &branch.name,
             &user_id,
             path.as_ref(),
-            true
+            true,
         )
         .await
     } else {

@@ -55,7 +55,7 @@ pub async fn get_staged(
     let query_str = opts.to_http_query_params();
     log::debug!("got query string {:?}", query_str);
 
-    let uri = format!("/staging/{identifier}/df/{branch_name}/{path_str}?{query_str}");
+    let uri = format!("/workspace/{identifier}/data_frame/{branch_name}/{path_str}?{query_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;

@@ -12,7 +12,7 @@ pub async fn restore_df(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/{identifier}/modifications/{branch_name}/{file_name}");
+    let uri = format!("/workspace/{identifier}/modifications/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("restore_df {}", url);
     let client = client::new_for_url(&url)?;
@@ -59,7 +59,7 @@ mod tests {
 
             api::remote::workspace::data_frame::put(&remote_repo, branch_name, &identifier, &path, true).await?;
 
-            let result_1 = api::remote::workspace::modify_df(
+            let result_1 = api::remote::workspace::row::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -71,7 +71,7 @@ mod tests {
             assert!(result_1.is_ok());
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let result_2 = api::remote::workspace::modify_df(
+            let result_2 = api::remote::workspace::row::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,

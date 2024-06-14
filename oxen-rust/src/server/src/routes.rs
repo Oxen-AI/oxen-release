@@ -227,12 +227,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                             "/commit/{resource:.*}",
                             web::post().to(controllers::workspace::commit),
                         )
-                        // CRUD operations on a row
-                        //   GET /workspace/{workspace_id}/data_frame/rows/resource/{resource:.*}
-                        //   GET /workspace/{workspace_id}/data_frame/rows/resource/main/path/to/df.parquet
-                        //   PUT /workspace/{workspace_id}/data_frame/rows/resource/main/path/to/df.parquet
-                        //   POST /workspace/{workspace_id}/data_frame/rows/resource/main/path/to/df.parquet
-                        //   POST /workspace/{workspace_id}/data_frame/rows/restore/main/path/to/df.parquet
                         .service(
                             web::scope("/data_frame")
                                 // TODO: Get rid of "list_editable" and "is_editable" in favor of a more RESTFUL /data_frame API
@@ -246,7 +240,6 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                     web::get()
                                         .to(controllers::workspace::data_frame::get_by_resource),
                                 )
-                                // TODO: name conflict with resource:.*
                                 .route(
                                     "/diff/{resource:.*}",
                                     web::get().to(controllers::workspace::data_frame::diff),
@@ -255,12 +248,8 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                     "/resource/{resource:.*}",
                                     web::put().to(controllers::workspace::data_frame::put),
                                 )
-                                // staging/data_frame/rows
-                                // TODO: This conflicts with any branch named "row", should it just be /staging/rows? or /staging/data_frame_rows?
                                 .service(
                                     web::scope("/rows")
-                                        // TODO: Refactor. This means we can't have a branch called "restore"
-                                        // maybe we put it in /staging/restore_row
                                         .route(
                                             "/{row_id}/restore/{resource:.*}",
                                             web::post().to(
@@ -274,19 +263,19 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                                             ),
                                         )
                                         .route(
-                                            "/{row_id}/{resource:.*}",
+                                            "/{row_id}/resource/{resource:.*}",
                                             web::put().to(
                                                 controllers::workspace::data_frame::row::update,
                                             ),
                                         )
                                         .route(
-                                            "/{row_id}/{resource:.*}",
+                                            "/{row_id}/resource/{resource:.*}",
                                             web::delete().to(
                                                 controllers::workspace::data_frame::row::delete,
                                             ),
                                         )
                                         .route(
-                                            "/{row_id}/{resource:.*}",
+                                            "/{row_id}/resource/{resource:.*}",
                                             web::get()
                                                 .to(controllers::workspace::data_frame::row::get),
                                         ),
