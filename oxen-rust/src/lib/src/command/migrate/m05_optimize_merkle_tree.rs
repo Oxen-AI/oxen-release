@@ -144,7 +144,6 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
         path: PathBuf::from(""),
         hash: hash,
         dtype: MerkleTreeNodeType::Dir,
-        data: ".".to_string(),
         children: HashSet::new(),
     };
 
@@ -268,7 +267,6 @@ fn migrate_files(
                             path: path.to_owned(),
                             hash: hash.to_owned(),
                             dtype: MerkleTreeNodeType::Dir,
-                            data: file_name.to_owned(),
                             children: HashSet::new(),
                         };
                         migrate_vnodes(repo, &reader, &dir)?;
