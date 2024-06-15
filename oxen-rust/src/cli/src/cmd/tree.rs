@@ -58,8 +58,8 @@ impl RunCmd for TreeCmd {
             commit
         };
 
-        let tree = CommitMerkleTree::new(&repo, &commit)?;
-        tree.print_depth(depth);
+        let root = CommitMerkleTree::read(&repo, &commit)?;
+        CommitMerkleTree::print_depth(&root, depth);
 
         Ok(())
     }
