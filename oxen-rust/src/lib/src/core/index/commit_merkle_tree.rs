@@ -1,19 +1,19 @@
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use serde::{Deserialize, Serialize};
 use std::str;
 
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 
-use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
 use crate::constants::TREE_DIR;
+use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
 use crate::core::db::{self, str_val_db};
 
+use crate::core::index::commit_merkle_tree_node::CommitMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::LocalRepository;
 use crate::util;
-use crate::core::index::commit_merkle_tree_node::CommitMerkleTreeNode;
 
 use super::commit_merkle_tree_node::MerkleTreeNodeType;
 
@@ -67,7 +67,7 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         let node_db_dir = CommitMerkleTree::commit_db_dir(repo, commit);
         let node_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &node_db_dir, false)?;
+            DBWithThreadMode::open_for_read_only(&db::opts::default(), node_db_dir, false)?;
         let mut node_path_str = node_path.to_str().unwrap();
 
         // If it ends with a /, remove it
@@ -77,10 +77,13 @@ impl CommitMerkleTree {
 
         let node_hash: Option<String> = str_val_db::get(&node_db, node_path_str)?;
         let Some(node_hash) = node_hash else {
-            return Err(OxenError::basic_str(format!("Merkle tree hash not found for path: {}", node_path_str)));
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree hash not found for path: {}",
+                node_path_str
+            )));
         };
         // Dir hashes are stored with extra quotes in the db, remove them
-        let node_hash = node_hash.replace("\"", "");
+        let node_hash = node_hash.replace('"', "");
 
         let mut node = CommitMerkleTreeNode {
             path: node_path.to_path_buf(),
@@ -88,74 +91,70 @@ impl CommitMerkleTree {
             dtype: MerkleTreeNodeType::Dir,
             children: HashSet::new(),
         };
-        CommitMerkleTree::read_children_from_node(repo, commit, &mut node)?;
+        CommitMerkleTree::read_children_from_node(repo, &mut node)?;
         Ok(node)
     }
 
     fn read_children_from_node(
         repo: &LocalRepository,
-        commit: &Commit,
         node: &mut CommitMerkleTreeNode,
     ) -> Result<(), OxenError> {
-        let tree_db_dir = CommitMerkleTree::tree_db_dir(repo, &node);
+        let tree_db_dir = CommitMerkleTree::tree_db_dir(repo, node);
         if !tree_db_dir.exists() {
             log::error!("Could not open {:?}", tree_db_dir);
             return Ok(());
         }
 
-        if node.dtype != MerkleTreeNodeType::Dir &&
-           node.dtype != MerkleTreeNodeType::VNode {
+        if node.dtype != MerkleTreeNodeType::Dir && node.dtype != MerkleTreeNodeType::VNode {
             return Ok(());
         }
 
         let tree_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&db::opts::default(), &tree_db_dir, false)?;
         let iter = tree_db.iterator(IteratorMode::Start);
-    
-        for item in iter {
-            if let Ok((key, val)) = item {
-                let key = str::from_utf8(&key)?;
-                let val: MerkleNode = rmp_serde::from_slice(&val).unwrap();
 
-                match &val.dtype {
-                    MerkleNodeType::Dir => {
-                        let mut child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&val.path),
-                            hash: key.to_owned(),
-                            dtype: MerkleTreeNodeType::Dir,
-                            children: HashSet::new(),
-                        };
-                        CommitMerkleTree::read_children_from_node(repo, commit, &mut child)?;
-                        node.children.insert(child);
-                    }
-                    MerkleNodeType::VNode => {
-                        let mut child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&val.path),
-                            hash: key.to_owned(),
-                            dtype: MerkleTreeNodeType::VNode,
-                            children: HashSet::new(),
-                        };
-                        CommitMerkleTree::read_children_from_node(repo, commit, &mut child)?;
-                        node.children.insert(child);
-                    }
-                    MerkleNodeType::File => {
-                        let child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&val.path),
-                            hash: key.to_owned(),
-                            dtype: MerkleTreeNodeType::File,
-                            children: HashSet::new(),
-                        };
-                        node.children.insert(child);
-                    }
-                    MerkleNodeType::Schema => {
-                        let child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&val.path),
-                            hash: key.to_owned(),
-                            dtype: MerkleTreeNodeType::Schema,
-                            children: HashSet::new(),
-                        };
-                        node.children.insert(child);
-                    }
+        for (key, val) in iter.flatten() {
+            let key = str::from_utf8(&key)?;
+            let val: MerkleNode = rmp_serde::from_slice(&val).unwrap();
+
+            match &val.dtype {
+                MerkleNodeType::Dir => {
+                    let mut child = CommitMerkleTreeNode {
+                        path: PathBuf::from(&val.path),
+                        hash: key.to_owned(),
+                        dtype: MerkleTreeNodeType::Dir,
+                        children: HashSet::new(),
+                    };
+                    CommitMerkleTree::read_children_from_node(repo, &mut child)?;
+                    node.children.insert(child);
+                }
+                MerkleNodeType::VNode => {
+                    let mut child = CommitMerkleTreeNode {
+                        path: PathBuf::from(&val.path),
+                        hash: key.to_owned(),
+                        dtype: MerkleTreeNodeType::VNode,
+                        children: HashSet::new(),
+                    };
+                    CommitMerkleTree::read_children_from_node(repo, &mut child)?;
+                    node.children.insert(child);
+                }
+                MerkleNodeType::File => {
+                    let child = CommitMerkleTreeNode {
+                        path: PathBuf::from(&val.path),
+                        hash: key.to_owned(),
+                        dtype: MerkleTreeNodeType::File,
+                        children: HashSet::new(),
+                    };
+                    node.children.insert(child);
+                }
+                MerkleNodeType::Schema => {
+                    let child = CommitMerkleTreeNode {
+                        path: PathBuf::from(&val.path),
+                        hash: key.to_owned(),
+                        dtype: MerkleTreeNodeType::Schema,
+                        children: HashSet::new(),
+                    };
+                    node.children.insert(child);
                 }
             }
         }
@@ -178,9 +177,22 @@ impl CommitMerkleTree {
         }
 
         if MerkleTreeNodeType::VNode == node.dtype {
-            println!("{}[{:?}] {:?} -> {} ({})", "  ".repeat(indent as usize), node.dtype, node.path, node.hash, node.children.len());
+            println!(
+                "{}[{:?}] {:?} -> {} ({})",
+                "  ".repeat(indent as usize),
+                node.dtype,
+                node.path,
+                node.hash,
+                node.children.len()
+            );
         } else {
-            println!("{}[{:?}] {:?} -> {}", "  ".repeat(indent as usize), node.dtype, node.path, node.hash);
+            println!(
+                "{}[{:?}] {:?} -> {}",
+                "  ".repeat(indent as usize),
+                node.dtype,
+                node.path,
+                node.hash
+            );
         }
         for child in &node.children {
             CommitMerkleTree::r_print(child, indent + 1, depth);

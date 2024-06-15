@@ -137,7 +137,7 @@ where
                     match entry {
                         Ok(entry) => {
                             results.push((key, entry));
-                        },
+                        }
                         Err(err) => {
                             log::warn!("str_json_db::list() Could not deserialize entry '{}' -> '{}'\n{:?}", key, value, err);
                         }
