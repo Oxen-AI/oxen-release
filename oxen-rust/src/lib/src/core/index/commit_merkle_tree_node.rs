@@ -15,7 +15,6 @@ pub enum MerkleTreeNodeType {
 pub struct CommitMerkleTreeNode {
     pub path: PathBuf,
     pub hash: String,
-    pub data: String,
     pub dtype: MerkleTreeNodeType,
     pub children: HashSet<CommitMerkleTreeNode>,
 }
@@ -27,7 +26,6 @@ impl CommitMerkleTreeNode {
             path: PathBuf::new(), // Dummy value
             hash: hash.to_string(),
             dtype: MerkleTreeNodeType::File, // Dummy value
-            data: String::new(), // Dummy value
             children: HashSet::new(), // Dummy value
         };
         self.children.get(&lookup_node)

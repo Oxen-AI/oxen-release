@@ -28,6 +28,14 @@ impl RunCmd for TreeCmd {
                     .action(clap::ArgAction::Set),
             )
             .arg(
+                Arg::new("path")
+                    .long("path")
+                    .short('p')
+                    .help("The path to print the tree of.")
+                    .default_value("")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
                 Arg::new("depth")
                     .long("depth")
                     .short('d')
@@ -58,7 +66,8 @@ impl RunCmd for TreeCmd {
             commit
         };
 
-        let root = CommitMerkleTree::read(&repo, &commit)?;
+        let path = args.get_one::<String>("path").expect("Must supply path");
+        let root = CommitMerkleTree::read_path(&repo, &commit, path.as_str())?;
         CommitMerkleTree::print_depth(&root, depth);
 
         Ok(())
