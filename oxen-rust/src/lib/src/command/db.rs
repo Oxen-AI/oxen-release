@@ -3,9 +3,9 @@
 //! Print out values from a rocksdb key value database
 //!
 
+use crate::core::index::commit_merkle_tree::MerkleNode;
 use crate::error::OxenError;
 
-use bytevec::ByteDecodable;
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
 use std::path::Path;
 use std::str;
@@ -23,12 +23,17 @@ pub fn list(path: impl AsRef<Path>) -> Result<Vec<(String, String)>, OxenError> 
     for item in iter {
         match item {
             Ok((key, value)) => {
-                // try to decode u32 first (hacky but only two types we inspect right now)
-                if let (Ok(key), Ok(value)) = (str::from_utf8(&key), u32::decode::<u8>(&value)) {
-                    result.push((key.to_string(), value.to_string()));
-                } else if let (Ok(key), Ok(value)) = (str::from_utf8(&key), str::from_utf8(&value))
-                {
-                    result.push((key.to_string(), value.to_string()));
+                let Ok(key) = str::from_utf8(&key) else {
+                    continue;
+                };
+
+                // try decode MerkleNode
+                if let Ok(val) = rmp_serde::from_slice::<MerkleNode>(&value) {
+                    result.push((key.to_string(), format!("{:?}", val)));
+                } else {
+                    if let Ok(val) = str::from_utf8(&value) {
+                        result.push((key.to_string(), val.to_string()));
+                    }
                 }
             }
             _ => {
