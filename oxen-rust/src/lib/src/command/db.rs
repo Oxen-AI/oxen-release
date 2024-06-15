@@ -30,10 +30,8 @@ pub fn list(path: impl AsRef<Path>) -> Result<Vec<(String, String)>, OxenError> 
                 // try decode MerkleNode
                 if let Ok(val) = rmp_serde::from_slice::<MerkleNode>(&value) {
                     result.push((key.to_string(), format!("{:?}", val)));
-                } else {
-                    if let Ok(val) = str::from_utf8(&value) {
-                        result.push((key.to_string(), val.to_string()));
-                    }
+                } else if let Ok(val) = str::from_utf8(&value) {
+                    result.push((key.to_string(), val.to_string()));
                 }
             }
             _ => {

@@ -2,15 +2,15 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use super::Migrate;
 
+use rmp_serde::Serializer;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use serde::Serialize;
-use rmp_serde::Serializer;
 
 use crate::core::db::tree_db::TreeObjectChild;
 use crate::core::db::{self, str_val_db};
+use crate::core::index::commit_merkle_tree::{MerkleNode, MerkleNodeType};
 use crate::core::index::commit_merkle_tree_node::{CommitMerkleTreeNode, MerkleTreeNodeType};
-use crate::core::index::commit_merkle_tree::{MerkleNodeType, MerkleNode};
 use crate::core::index::{CommitReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -137,12 +137,12 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
         .join(&commit.id)
         .join(constants::DIR_HASHES_DIR);
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
 
     let root = CommitMerkleTreeNode {
         path: PathBuf::from(""),
-        hash: hash,
+        hash,
         dtype: MerkleTreeNodeType::Dir,
         children: HashSet::new(),
     };
@@ -155,18 +155,24 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
 fn migrate_vnodes(
     repo: &LocalRepository,
     reader: &ObjectDBReader,
-    node: &CommitMerkleTreeNode
+    node: &CommitMerkleTreeNode,
 ) -> Result<(), OxenError> {
     // Read the values from the .oxen/objects/dirs db and write them
-    // to the proper .oxen/tree/{path} with their hash as the key and type 
+    // to the proper .oxen/tree/{path} with their hash as the key and type
     // and metadata as the value
     //
-    println!("Getting object for node: {:?} -> {:?}", node.path, node.hash);
-    let hash = &node.hash.replace("\"", "");
-    let obj = reader.get_dir(&hash)?;
+    println!(
+        "Getting object for node: {:?} -> {:?}",
+        node.path, node.hash
+    );
+    let hash = &node.hash.replace('"', "");
+    let obj = reader.get_dir(hash)?;
 
     let Some(tree_obj) = obj else {
-        return Err(OxenError::basic_str(format!("could not get dir objects for {}", node.hash)));
+        return Err(OxenError::basic_str(format!(
+            "could not get dir objects for {}",
+            node.hash
+        )));
     };
 
     // These should all be vnodes, so write them to .oxen/tree/{node.hash}
@@ -174,11 +180,14 @@ fn migrate_vnodes(
         .path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
-        .join(&hash);
+        .join(hash);
 
     if tree_path.exists() {
-        println!("vnode database already exists at tree_path: {:?}", tree_path);
-        return Ok(())
+        println!(
+            "vnode database already exists at tree_path: {:?}",
+            tree_path
+        );
+        return Ok(());
     }
 
     println!("Writing vnodes to path: {:?}", tree_path);
@@ -204,10 +213,13 @@ fn migrate_vnodes(
                 tree_db.put(hash.as_bytes(), &buf)?;
 
                 // Look up all the files from that vnode
-                migrate_files(repo, &reader, &child)?;
-            },
+                migrate_files(repo, reader, child)?;
+            }
             _ => {
-                return Err(OxenError::basic_str(format!("unexpected child type: {:?}", child)));
+                return Err(OxenError::basic_str(format!(
+                    "unexpected child type: {:?}",
+                    child
+                )));
             }
         }
     }
@@ -218,7 +230,7 @@ fn migrate_vnodes(
 fn migrate_files(
     repo: &LocalRepository,
     reader: &ObjectDBReader,
-    vnode: &TreeObjectChild
+    vnode: &TreeObjectChild,
 ) -> Result<(), OxenError> {
     match vnode {
         TreeObjectChild::VNode { path, hash } => {
@@ -226,21 +238,27 @@ fn migrate_files(
                 .path
                 .join(constants::OXEN_HIDDEN_DIR)
                 .join(constants::TREE_DIR)
-                .join(&hash);
+                .join(hash);
 
             if tree_path.exists() {
-                println!("database {:?} already exists at tree_path: {:?}", path, tree_path);
-                return Ok(())
+                println!(
+                    "database {:?} already exists at tree_path: {:?}",
+                    path, tree_path
+                );
+                return Ok(());
             }
 
             println!("writing children {:?} to tree_path: {:?}", path, tree_path);
 
             let tree_db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
-            
+
             let tree_obj = reader.get_vnode(hash)?;
             let Some(tree_obj) = tree_obj else {
-                return Err(OxenError::basic_str(format!("could not get children objects for vnode {}", hash)));
+                return Err(OxenError::basic_str(format!(
+                    "could not get children objects for vnode {}",
+                    hash
+                )));
             };
             for child in tree_obj.children() {
                 match child {
@@ -269,7 +287,7 @@ fn migrate_files(
                             dtype: MerkleTreeNodeType::Dir,
                             children: HashSet::new(),
                         };
-                        migrate_vnodes(repo, &reader, &dir)?;
+                        migrate_vnodes(repo, reader, &dir)?;
                     }
                     TreeObjectChild::Schema { path, hash } => {
                         let val = MerkleNode {
@@ -281,13 +299,19 @@ fn migrate_files(
                         tree_db.put(hash.as_bytes(), &buf)?;
                     }
                     _ => {
-                        return Err(OxenError::basic_str(format!("unexpected child type: {:?}", child)));
+                        return Err(OxenError::basic_str(format!(
+                            "unexpected child type: {:?}",
+                            child
+                        )));
                     }
                 }
             }
-        },
+        }
         _ => {
-            return Err(OxenError::basic_str(format!("unexpected child type: {:?}", vnode)));
+            return Err(OxenError::basic_str(format!(
+                "unexpected child type: {:?}",
+                vnode
+            )));
         }
     }
 

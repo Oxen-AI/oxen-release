@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
 use std::hash::{Hash, Hasher};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum MerkleTreeNodeType {
@@ -26,14 +26,16 @@ impl CommitMerkleTreeNode {
             path: PathBuf::new(), // Dummy value
             hash: hash.to_string(),
             dtype: MerkleTreeNodeType::File, // Dummy value
-            children: HashSet::new(), // Dummy value
+            children: HashSet::new(),        // Dummy value
         };
         self.children.get(&lookup_node)
     }
 
     /// Linear time lookup by path
     pub fn get_by_path(&self, path: impl AsRef<Path>) -> Option<&CommitMerkleTreeNode> {
-        self.children.iter().find(|&child| child.path == path.as_ref())
+        self.children
+            .iter()
+            .find(|&child| child.path == path.as_ref())
     }
 
     /// Check if the node is a leaf node (i.e. it has no children)

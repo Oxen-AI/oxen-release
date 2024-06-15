@@ -61,7 +61,10 @@ impl RunCmd for TreeCmd {
             api::local::commits::head_commit(&repo)?
         } else {
             let Some(commit) = api::local::commits::get_by_id(&repo, commit_id)? else {
-                return Err(OxenError::basic_str(format!("Commit {} not found", commit_id)));
+                return Err(OxenError::basic_str(format!(
+                    "Commit {} not found",
+                    commit_id
+                )));
             };
             commit
         };
