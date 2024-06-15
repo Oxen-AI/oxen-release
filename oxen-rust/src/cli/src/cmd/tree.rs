@@ -4,6 +4,7 @@ use liboxen::api;
 use liboxen::core::index::commit_merkle_tree::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use std::time::Instant;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "tree";
@@ -70,8 +71,16 @@ impl RunCmd for TreeCmd {
         };
 
         let path = args.get_one::<String>("path").expect("Must supply path");
+
+        let load_start = Instant::now(); // Start timing
         let root = CommitMerkleTree::read_path(&repo, &commit, path.as_str())?;
+        let load_duration = load_start.elapsed(); // Calculate duration
+
+        let print_start = Instant::now(); // Start timing
         CommitMerkleTree::print_depth(&root, depth);
+        let print_duration = print_start.elapsed(); // Calculate duration
+        println!("Time to load tree: {:?}", load_duration);
+        println!("Time to print tree: {:?}", print_duration);
 
         Ok(())
     }
