@@ -4,11 +4,13 @@ use super::Migrate;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use serde::Serialize;
+use rmp_serde::Serializer;
 
 use crate::core::db::tree_db::TreeObjectChild;
 use crate::core::db::{self, str_val_db};
-use crate::core::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::index::commit_merkle_tree_node::{CommitMerkleTreeNode, MerkleTreeNodeType};
+use crate::core::index::commit_merkle_tree::{MerkleNodeType, MerkleNode};
 use crate::core::index::{CommitReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -168,12 +170,18 @@ fn migrate_vnodes(
         return Err(OxenError::basic_str(format!("could not get dir objects for {}", node.hash)));
     };
 
-    // These should all be vnodes, so write them to .oxen/tree/{node.path}/{node.hash}
+    // These should all be vnodes, so write them to .oxen/tree/{node.hash}
     let tree_path = repo
         .path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
         .join(&hash);
+
+    if tree_path.exists() {
+        println!("vnode database already exists at tree_path: {:?}", tree_path);
+        return Ok(())
+    }
+
     println!("Writing vnodes to path: {:?}", tree_path);
 
     // Write all the VNodes
@@ -188,15 +196,16 @@ fn migrate_vnodes(
                     util::fs::create_dir_all(&tree_path)?;
                 }
 
-                // serialize child to json
-                // TODO: row has hash twice, should just have path
-                // 16442f8e6fdc8ae0ff617e59211721d4	{"VNode":{"path":"57","hash":"16442f8e6fdc8ae0ff617e59211721d4"}}
-
-                let child_json = serde_json::to_string(&child)?;
-                tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                let val = MerkleNode {
+                    dtype: MerkleNodeType::VNode,
+                    path: path.to_str().unwrap().to_owned(),
+                };
+                let mut buf = Vec::new();
+                val.serialize(&mut Serializer::new(&mut buf)).unwrap();
+                tree_db.put(hash.as_bytes(), &buf)?;
 
                 // Look up all the files from that vnode
-                migrate_files(repo, &reader, &node, &child)?;
+                migrate_files(repo, &reader, &child)?;
             },
             _ => {
                 return Err(OxenError::basic_str(format!("unexpected child type: {:?}", child)));
@@ -210,7 +219,6 @@ fn migrate_vnodes(
 fn migrate_files(
     repo: &LocalRepository,
     reader: &ObjectDBReader,
-    node: &CommitMerkleTreeNode,
     vnode: &TreeObjectChild
 ) -> Result<(), OxenError> {
     match vnode {
@@ -220,31 +228,41 @@ fn migrate_files(
                 .join(constants::OXEN_HIDDEN_DIR)
                 .join(constants::TREE_DIR)
                 .join(&hash);
-            println!("writing files to tree_path: {:?}", tree_path);
+
+            if tree_path.exists() {
+                println!("database {:?} already exists at tree_path: {:?}", path, tree_path);
+                return Ok(())
+            }
+
+            println!("writing children {:?} to tree_path: {:?}", path, tree_path);
 
             let tree_db: DBWithThreadMode<MultiThreaded> =
                 DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
             
             let tree_obj = reader.get_vnode(hash)?;
             let Some(tree_obj) = tree_obj else {
-                return Err(OxenError::basic_str(format!("could not get vnode objects for {}", node.hash)));
+                return Err(OxenError::basic_str(format!("could not get children objects for vnode {}", hash)));
             };
             for child in tree_obj.children() {
                 match child {
                     TreeObjectChild::File { path, hash } => {
-                        let child_json = serde_json::to_string(&serde_json::json!({
-                            "File": {"path": path.file_name().unwrap().to_str().unwrap()}
-                        }))?;
-                        println!("\tfile: {:?}", child_json);
-                        tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                        let val = MerkleNode {
+                            dtype: MerkleNodeType::File,
+                            path: path.file_name().unwrap().to_str().unwrap().to_owned(),
+                        };
+                        let mut buf = Vec::new();
+                        val.serialize(&mut Serializer::new(&mut buf)).unwrap();
+                        tree_db.put(hash.as_bytes(), &buf)?;
                     }
                     TreeObjectChild::Dir { path, hash } => {
                         let file_name = path.file_name().unwrap().to_str().unwrap();
-                        let child_json = serde_json::to_string(&serde_json::json!({
-                            "Dir": {"path": file_name}
-                        }))?;
-                        println!("\tdir: {:?}", child_json);
-                        tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                        let val = MerkleNode {
+                            dtype: MerkleNodeType::Dir,
+                            path: file_name.to_owned(),
+                        };
+                        let mut buf = Vec::new();
+                        val.serialize(&mut Serializer::new(&mut buf)).unwrap();
+                        tree_db.put(hash.as_bytes(), &buf)?;
 
                         let dir = CommitMerkleTreeNode {
                             path: path.to_owned(),
@@ -256,11 +274,13 @@ fn migrate_files(
                         migrate_vnodes(repo, &reader, &dir)?;
                     }
                     TreeObjectChild::Schema { path, hash } => {
-                        let child_json = serde_json::to_string(&serde_json::json!({
-                            "Schema": {"path": path.file_name().unwrap().to_str().unwrap()}
-                        }))?;
-                        println!("\tschema: {:?}", child_json);
-                        tree_db.put(hash.as_bytes(), child_json.as_bytes())?;
+                        let val = MerkleNode {
+                            dtype: MerkleNodeType::Schema,
+                            path: path.file_name().unwrap().to_str().unwrap().to_owned(),
+                        };
+                        let mut buf = Vec::new();
+                        val.serialize(&mut Serializer::new(&mut buf)).unwrap();
+                        tree_db.put(hash.as_bytes(), &buf)?;
                     }
                     _ => {
                         return Err(OxenError::basic_str(format!("unexpected child type: {:?}", child)));
