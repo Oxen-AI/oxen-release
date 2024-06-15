@@ -31,20 +31,9 @@ pub struct MerkleNode {
     pub path: String,
 }
 
-pub struct CommitMerkleTree {
-    pub root: CommitMerkleTreeNode,
-}
+pub struct CommitMerkleTree {}
 
 impl CommitMerkleTree {
-    pub fn new(repo: &LocalRepository, commit: &Commit) -> Result<CommitMerkleTree, OxenError> {
-        let root = CommitMerkleTree::read_tree(repo, commit)?;
-        Ok(CommitMerkleTree { root })
-    }
-
-    pub fn get_tree_node(&self, path: impl AsRef<Path>) -> Option<&CommitMerkleTreeNode> {
-        self.root.get_by_path(path)
-    }
-
     // Commit db is the directories per commit
     // .oxen/history/{COMMIT_ID}/tree/path
     fn commit_db_dir(repo: &LocalRepository, commit: &Commit, path: impl AsRef<Path>) -> PathBuf {
@@ -63,7 +52,7 @@ impl CommitMerkleTree {
             .join(&node.hash)
     }
 
-    fn read_tree(
+    pub fn read(
         repo: &LocalRepository,
         commit: &Commit,
     ) -> Result<CommitMerkleTreeNode, OxenError> {
@@ -117,7 +106,7 @@ impl CommitMerkleTree {
                 match &val.dtype {
                     MerkleNodeType::Dir => {
                         let mut child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&node.path).join(val.path.clone()),
+                            path: PathBuf::from(&val.path),
                             hash: key.to_owned(),
                             dtype: MerkleTreeNodeType::Dir,
                             data: val.path,
@@ -128,7 +117,7 @@ impl CommitMerkleTree {
                     }
                     MerkleNodeType::VNode => {
                         let mut child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&node.path).join(val.path.clone()),
+                            path: PathBuf::from(&val.path),
                             hash: key.to_owned(),
                             dtype: MerkleTreeNodeType::VNode,
                             data: val.path,
@@ -139,7 +128,7 @@ impl CommitMerkleTree {
                     }
                     MerkleNodeType::File => {
                         let child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&node.path).join(val.path.clone()),
+                            path: PathBuf::from(&val.path),
                             hash: key.to_owned(),
                             dtype: MerkleTreeNodeType::File,
                             data: val.path,
@@ -149,7 +138,7 @@ impl CommitMerkleTree {
                     }
                     MerkleNodeType::Schema => {
                         let child = CommitMerkleTreeNode {
-                            path: PathBuf::from(&node.path).join(val.path.clone()),
+                            path: PathBuf::from(&val.path),
                             hash: key.to_owned(),
                             dtype: MerkleTreeNodeType::Schema,
                             data: val.path,
@@ -164,16 +153,16 @@ impl CommitMerkleTree {
         Ok(())
     }
 
-    pub fn print_depth(&self, depth: i32) {
-        self.r_print(&self.root, 0, depth);
+    pub fn print_depth(node: &CommitMerkleTreeNode, depth: i32) {
+        CommitMerkleTree::r_print(node, 0, depth);
     }
 
-    pub fn print(&self) {
+    pub fn print(node: &CommitMerkleTreeNode) {
         // print all the way down
-        self.r_print(&self.root, 0, -1);
+        CommitMerkleTree::r_print(node, 0, -1);
     }
 
-    fn r_print(&self, node: &CommitMerkleTreeNode, indent: i32, depth: i32) {
+    fn r_print(node: &CommitMerkleTreeNode, indent: i32, depth: i32) {
         if depth != -1 && depth > 0 && indent >= depth {
             return;
         }
@@ -184,7 +173,7 @@ impl CommitMerkleTree {
             println!("{}[{:?}] {} -> {}", "  ".repeat(indent as usize), node.dtype, node.path.to_string_lossy(), node.hash);
         }
         for child in &node.children {
-            self.r_print(child, indent + 1, depth);
+            CommitMerkleTree::r_print(child, indent + 1, depth);
         }
     }
 }
@@ -226,20 +215,19 @@ mod tests {
                 └── tulips
         */
 
-        let tree = CommitMerkleTree::new(&repo, &commit)?;
+        let root = CommitMerkleTree::read(&repo, &commit)?;
 
-        assert_eq!(tree.root.hash, "64f2e2e90a49d4fe9f52b95a053ad3fe");
-        assert_eq!(tree.root.children.len(), 1);
+        assert_eq!(root.hash, "64f2e2e90a49d4fe9f52b95a053ad3fe");
+        assert_eq!(root.children.len(), 1);
 
         // Make sure "images" and "train" are in the root children
-        assert!(tree
-            .root
+        assert!(root
             .children
             .iter()
             .any(|x| x.path == PathBuf::from("images")));
 
         // Get the "images" child
-        let images = tree.root.get_by_path(PathBuf::from("images"));
+        let images = root.get_by_path(PathBuf::from("images"));
         assert!(images.is_some());
         assert_eq!(images.unwrap().children.len(), 2);
 
