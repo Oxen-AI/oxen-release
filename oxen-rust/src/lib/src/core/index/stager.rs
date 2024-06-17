@@ -21,6 +21,8 @@ use crate::model::schema::staged_schema;
 use crate::model::schema::staged_schema::StagedSchema;
 use indicatif::ProgressStyle;
 use jwalk::WalkDirGeneric;
+use os_path::OsPath;
+use rocksdb::IteratorMode;
 
 use crate::opts::DFOpts;
 
@@ -898,6 +900,15 @@ impl Stager {
         let mut total: usize = 0;
         let repository = self.repository.to_owned();
 
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        pb.set_message("🐂 Looking for untracked files...".to_string());
+
         // TODO:
         // * Fix to be more readable
         let walk_dir = WalkDirGeneric::<((), Option<bool>)>::new(&dir)
@@ -973,6 +984,7 @@ impl Stager {
 
                                 files.entry(parent.to_path_buf()).or_default().push(path);
                                 total += 1;
+                                pb.set_message(format!("🐂 found {} files", total));
                             }
                         }
                     }
@@ -986,6 +998,8 @@ impl Stager {
                 }
             }
         }
+
+        pb.finish_and_clear();
         (files, total)
     }
 
@@ -1493,9 +1507,49 @@ impl Stager {
     }
 
     fn list_staged_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
-        let relative = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        let staged_dir = StagedDirEntryReader::new(&self.repository, &relative)?;
-        let paths = staged_dir.list_added_paths()?;
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                // .tick_strings(&["-", "\\", "|", "/"]) // Customize the spinner's appearance
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.enable_steady_tick(std::time::Duration::from_millis(100)); // Update the spinner every 100ms
+        pb.set_message("🐂 Reading staged files...".to_string());
+
+        let base_dir = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
+        let staged_dir = StagedDirEntryReader::new(&self.repository, &base_dir)?;
+
+        // We pulled this out to show progress over db
+        // TODO: have verbose flag to pass in function
+        // let paths = staged_dir.list_added_paths()?;
+        let db = staged_dir.db.db;
+        let iter = db.iterator(IteratorMode::Start);
+        let mut paths: Vec<PathBuf> = vec![];
+        for item in iter {
+            match item {
+                Ok((key, _value)) => {
+                    match str::from_utf8(&key) {
+                        Ok(key) => {
+                            // return path with native slashes
+                            let os_path = OsPath::from(key);
+                            let new_path = os_path.to_pathbuf();
+                            paths.push(base_dir.join(new_path));
+                            pb.set_message(format!("🐂 Found staged {} files... ", paths.len()));
+                        }
+                        _ => {
+                            log::error!("list_added_paths() Could not decode key {:?}", key)
+                        }
+                    }
+                }
+                _ => {
+                    return Err(OxenError::basic_str(
+                        "Could not read iterate over db values",
+                    ));
+                }
+            }
+        }
+
         Ok(paths)
     }
 
@@ -1533,7 +1587,7 @@ impl Stager {
         }
 
         // Count in fs from full path
-        stats.total_files = util::fs::count_files_in_dir(path);
+        stats.total_files = util::fs::count_files_in_dir_with_progress(path);
         stats.num_files_staged = num_files_staged;
 
         Ok(stats)

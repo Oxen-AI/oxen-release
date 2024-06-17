@@ -1,8 +1,8 @@
 pub mod df_db;
 pub mod index_db;
 pub mod kv_db;
-pub mod opts;
 pub mod merkle_node_db;
+pub mod opts;
 pub mod path_db;
 pub mod staged_df_db;
 pub mod str_json_db;

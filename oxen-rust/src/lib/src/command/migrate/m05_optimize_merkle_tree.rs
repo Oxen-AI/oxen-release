@@ -2,8 +2,6 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use super::Migrate;
 
-use rmp_serde::Serializer;
-use serde::Serialize;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -167,7 +165,6 @@ fn migrate_vnodes(
         node.path, node.hash
     );
 
-
     /*
     To tune this...
     Let's read in all the VNodes, and make this more configurable
@@ -183,8 +180,8 @@ fn migrate_vnodes(
 
     Opening and reading 256 files should not take a second?
     There's only 266 nodes in the entire tree.
-    
-    You could just loop over all the nodes and time how long it 
+
+    You could just loop over all the nodes and time how long it
     takes to read each.
     */
 
@@ -221,11 +218,8 @@ fn migrate_vnodes(
     let mut tree_db = MerkleNodeDB::open(&tree_path, false)?;
     let mut total_children: u64 = 0;
     for child in tree_obj.children() {
-        match child {
-            TreeObjectChild::VNode { path: _, hash: _ } => {
-                total_children += 1;
-            }
-            _ => {}
+        if let TreeObjectChild::VNode { path: _, hash: _ } = child {
+            total_children += 1;
         }
     }
 
@@ -313,7 +307,8 @@ fn migrate_files(
                         // let mut buf = Vec::new();
                         // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
                         // tree_db.put(hash.as_bytes(), &buf)?;
-                        let hash_int = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+                        let hash_int =
+                            u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
                         tree_db.write_one(hash_int, &val)?;
                     }
                     TreeObjectChild::Dir { path, hash } => {
@@ -325,7 +320,8 @@ fn migrate_files(
                         // let mut buf = Vec::new();
                         // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
                         // tree_db.put(hash.as_bytes(), &buf)?;
-                        let hash_int = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+                        let hash_int =
+                            u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
                         tree_db.write_one(hash_int, &val)?;
 
                         let dir = CommitMerkleTreeNode {
@@ -344,7 +340,8 @@ fn migrate_files(
                         // let mut buf = Vec::new();
                         // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
                         // tree_db.put(hash.as_bytes(), &buf)?;
-                        let hash_int = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+                        let hash_int =
+                            u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
                         tree_db.write_one(hash_int, &val)?;
                     }
                     _ => {

@@ -2,6 +2,8 @@
 //! and eventually abstract away the fs implementation
 //!
 
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
 use jwalk::WalkDir;
 
 use simdutf8::compat::from_utf8;
@@ -1020,6 +1022,44 @@ pub fn count_files_in_dir(dir: &Path) -> usize {
                             let path = entry.path();
                             if !is_in_oxen_hidden_dir(&path) && path.is_file() {
                                 count += 1;
+                            }
+                        }
+                        Err(err) => log::warn!("error reading dir entry: {}", err),
+                    }
+                }
+            }
+            Err(err) => log::warn!("error reading dir: {}", err),
+        }
+    }
+    count
+}
+
+pub fn count_files_in_dir_with_progress(dir: &Path) -> usize {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+    pb.set_message("🐂 Counting files...".to_string());
+
+    // TODO: Can we count in parallel by parallel walking dir?
+    let mut count: usize = 0;
+    if dir.is_dir() {
+        match std::fs::read_dir(dir) {
+            Ok(entries) => {
+                for entry in entries {
+                    match entry {
+                        Ok(entry) => {
+                            let path = entry.path();
+                            if !is_in_oxen_hidden_dir(&path) && path.is_file() {
+                                count += 1;
+                                pb.set_message(format!(
+                                    "🐂 dir {:?} has {} files...",
+                                    dir.file_name(),
+                                    count
+                                ))
                             }
                         }
                         Err(err) => log::warn!("error reading dir entry: {}", err),

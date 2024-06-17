@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 /// We keep a list of all the staged files in a directory
 /// for more efficient lookup per directory
 pub struct StagedDirEntryDB<T: ThreadMode> {
-    db: DBWithThreadMode<T>,
+    pub db: DBWithThreadMode<T>,
     dir: PathBuf,
     pub repository: LocalRepository,
 }
