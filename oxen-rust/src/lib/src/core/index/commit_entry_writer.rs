@@ -245,12 +245,12 @@ impl CommitEntryWriter {
         origin_path: &Path,
         commit_entry: CommitEntry,
     ) -> Result<(), OxenError> {
-        let entry = self.backup_file_to_versions_dir(origin_path, commit_entry)?;
-        log::debug!(
-            "add_commit_entry with hash {:?} -> {}",
-            entry.path,
-            entry.hash
-        );
+        let _entry = self.backup_file_to_versions_dir(origin_path, commit_entry)?;
+        // log::debug!(
+        //     "add_commit_entry with hash {:?} -> {}",
+        //     entry.path,
+        //     entry.hash
+        // );
 
         Ok(())
     }
@@ -262,11 +262,11 @@ impl CommitEntryWriter {
     ) -> Result<CommitEntry, OxenError> {
         let full_path = origin_path.join(&commit_entry.path);
 
-        log::debug!(
-            "backup_file_to_versions_dir {:?} -> {:?}",
-            commit_entry.path,
-            full_path
-        );
+        // log::debug!(
+        //     "backup_file_to_versions_dir {:?} -> {:?}",
+        //     commit_entry.path,
+        //     full_path
+        // );
 
         // create a copy to our versions directory
         // .oxen/versions/ENTRY_HASH/COMMIT_ID.ext

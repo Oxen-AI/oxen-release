@@ -17,7 +17,7 @@ pub struct StagedDirEntryReader {
     // Even with SingleThreaded, almost all of RocksDB operations is
     // multi-threaded unless the underlying RocksDB
     // instance is specifically configured otherwise
-    db: StagedDirEntryDB<MultiThreaded>,
+    pub db: StagedDirEntryDB<MultiThreaded>,
 }
 
 impl StagedDirEntryReader {

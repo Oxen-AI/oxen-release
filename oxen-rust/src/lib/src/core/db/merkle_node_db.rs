@@ -1,27 +1,26 @@
 /*
-Write a db that is optimized for opening, finding by hash, listing. 
-Rocks db is too slow. 
+Write a db that is optimized for opening, finding by hash, listing.
+Rocks db is too slow.
 Writing happens once at commit.
-Is also already sharded and optimized in the tree structure. 
-Reading, find by hash, listing is high throughput. 
+Is also already sharded and optimized in the tree structure.
+Reading, find by hash, listing is high throughput.
 
 On Disk
 size
-hash-int,data-offset,data-length 
+hash-int,data-offset,data-length
 data
 */
 
+use rmp_serde::{Serializer};
+use serde::{de, Serialize};
 use std::collections::HashMap;
-use std::path::Path;
-use std::path::PathBuf;
+use std::fmt::Debug;
 use std::fs::File;
-use std::io::Write;
 use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
-use serde::{de, Serialize};
-use std::fmt::Debug;
-use rmp_serde::{Serializer, Deserializer};
+use std::io::Write;
+use std::path::Path;
 
 use crate::error::OxenError;
 use crate::util;
@@ -29,6 +28,12 @@ use crate::util;
 pub struct MerkleNodeLookup {
     pub size: u64,
     pub offsets: HashMap<u128, (u64, u64)>,
+}
+
+impl Default for MerkleNodeLookup {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MerkleNodeLookup {
@@ -42,35 +47,32 @@ impl MerkleNodeLookup {
     pub fn load(lookup_table_file: &mut File) -> Result<Self, OxenError> {
         let mut file_data = Vec::new();
         lookup_table_file.read_to_end(&mut file_data)?;
-    
+
         let mut cursor = std::io::Cursor::new(file_data);
         let mut buffer = [0u8; 8]; // u64 is 8 bytes
         cursor.read_exact(&mut buffer)?;
         let size = u64::from_le_bytes(buffer); // Use from_le_bytes or from_be_bytes based on endianness
-    
+
         let mut offsets: HashMap<u128, (u64, u64)> = HashMap::new();
         offsets.reserve(size as usize);
-    
+
         for _ in 0..size {
             let mut buffer = [0u8; 16]; // u128 is 16 bytes
             cursor.read_exact(&mut buffer)?;
             let hash = u128::from_le_bytes(buffer);
-    
+
             let mut buffer = [0u8; 8]; // u64 is 8 bytes
             cursor.read_exact(&mut buffer)?;
             let data_offset = u64::from_le_bytes(buffer);
-    
+
             let mut buffer = [0u8; 8]; // u64 is 8 bytes
             cursor.read_exact(&mut buffer)?;
             let data_len = u64::from_le_bytes(buffer);
-    
+
             offsets.insert(hash, (data_offset, data_len));
         }
-    
-        Ok(Self {
-            size,
-            offsets,
-        })
+
+        Ok(Self { size, offsets })
     }
 }
 
@@ -80,6 +82,12 @@ pub struct MerkleNodeDB {
     lookup: Option<MerkleNodeLookup>,
     size: u64,
     data_offset: u64,
+}
+
+impl Default for MerkleNodeDB {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MerkleNodeDB {
@@ -101,25 +109,30 @@ impl MerkleNodeDB {
         self.size
     }
 
-    pub fn open(
-        path: impl AsRef<Path>,
-        read_only: bool,
-    ) -> Result<Self, OxenError> {
+    pub fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
         let path = path.as_ref();
 
         // mkdir if not exists
         if !path.exists() {
-            util::fs::create_dir_all(&path)?;
+            util::fs::create_dir_all(path)?;
         }
 
         let lookup_path = path.join("lookup");
         let data_path = path.join("data");
 
-        // println!("Opening merkle node db at {}", path.display());        
-        let (lookup, lookup_file, data_file): (Option<MerkleNodeLookup>, Option<File>, Option<File>) = if read_only {
+        // println!("Opening merkle node db at {}", path.display());
+        let (lookup, lookup_file, data_file): (
+            Option<MerkleNodeLookup>,
+            Option<File>,
+            Option<File>,
+        ) = if read_only {
             let mut lookup_file = File::open(lookup_path)?;
             let data_file = File::open(data_path)?;
-            (Some(MerkleNodeLookup::load(&mut lookup_file)?), Some(lookup_file), Some(data_file))
+            (
+                Some(MerkleNodeLookup::load(&mut lookup_file)?),
+                Some(lookup_file),
+                Some(data_file),
+            )
         } else {
             let lookup_file = File::create(lookup_path)?;
             let data_file = File::create(data_path)?;
@@ -159,10 +172,12 @@ impl MerkleNodeDB {
     pub fn write_one<S: Serialize + Debug>(
         &mut self,
         hash: u128,
-        item: &S
+        item: &S,
     ) -> Result<(), OxenError> {
         if self.size == 0 {
-            return Err(OxenError::basic_str("Must call write_size() before writing"));
+            return Err(OxenError::basic_str(
+                "Must call write_size() before writing",
+            ));
         }
 
         let Some(lookup_file) = self.lookup_file.as_mut() else {
@@ -189,10 +204,7 @@ impl MerkleNodeDB {
         Ok(())
     }
 
-    pub fn write_all<S: Serialize>(
-        &mut self,
-        data: HashMap<u128, S>
-    ) -> Result<(), OxenError> {
+    pub fn write_all<S: Serialize>(&mut self, data: HashMap<u128, S>) -> Result<(), OxenError> {
         let Some(lookup_file) = self.lookup_file.as_mut() else {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
@@ -223,12 +235,8 @@ impl MerkleNodeDB {
 
         Ok(())
     }
-    
-    pub fn get(
-        &mut self,
-        hash: u128
-    ) -> Result<Vec<u8>, OxenError>
-    {
+
+    pub fn get(&mut self, hash: u128) -> Result<Vec<u8>, OxenError> {
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
         };
@@ -251,11 +259,9 @@ impl MerkleNodeDB {
         Ok(data)
     }
 
-    pub fn list<D>(
-        &mut self
-    ) -> Result<Vec<D>, OxenError>
+    pub fn list<D>(&mut self) -> Result<Vec<D>, OxenError>
     where
-    D: de::DeserializeOwned,
+        D: de::DeserializeOwned,
     {
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
@@ -276,11 +282,9 @@ impl MerkleNodeDB {
         Ok(ret)
     }
 
-    pub fn map<D>(
-        &mut self
-    ) -> Result<HashMap<u128, D>, OxenError>
+    pub fn map<D>(&mut self) -> Result<HashMap<u128, D>, OxenError>
     where
-    D: de::DeserializeOwned,
+        D: de::DeserializeOwned,
     {
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
