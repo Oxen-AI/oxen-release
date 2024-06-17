@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str;
 
-use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::constants::TREE_DIR;
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
+use crate::core::db::merkle_node_db::MerkleNodeDB;
 use crate::core::db::{self, str_val_db};
 
 use crate::core::index::commit_merkle_tree_node::CommitMerkleTreeNode;
@@ -177,14 +178,19 @@ impl CommitMerkleTree {
             return Ok(());
         }
 
-        let tree_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &tree_db_dir, false)?;
-        let iter = tree_db.iterator(IteratorMode::Start);
+        // let tree_db: DBWithThreadMode<MultiThreaded> =
+        //     DBWithThreadMode::open_for_read_only(&db::opts::default(), &tree_db_dir, false)?;
+        // let iter = tree_db.iterator(IteratorMode::Start);
 
-        for (key, val) in iter.flatten() {
-            let key = str::from_utf8(&key)?;
-            let val: MerkleNode = rmp_serde::from_slice(&val).unwrap();
+        // for (key, val) in iter.flatten() {
+        //     let key = str::from_utf8(&key)?;
+        //     let val: MerkleNode = rmp_serde::from_slice(&val).unwrap();
 
+        let mut tree_db = MerkleNodeDB::open(&tree_db_dir, true)?;
+        let vals: HashMap<u128, MerkleNode> = tree_db.map()?;
+
+        for (hash, val) in vals {
+            let key = format!("{:x}", hash);
             match &val.dtype {
                 MerkleNodeType::Dir => {
                     let mut child = CommitMerkleTreeNode {
