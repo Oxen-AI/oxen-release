@@ -254,7 +254,8 @@ impl CommitMerkleTree {
             return;
         }
 
-        if MerkleTreeNodeType::VNode == node.dtype {
+        if MerkleTreeNodeType::VNode == node.dtype ||
+           MerkleTreeNodeType::Dir == node.dtype {
             println!(
                 "{}[{:?}] {:?} -> {} ({})",
                 "  ".repeat(indent as usize),

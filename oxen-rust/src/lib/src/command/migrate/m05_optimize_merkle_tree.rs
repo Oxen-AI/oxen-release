@@ -170,19 +170,30 @@ fn migrate_vnodes(
     Let's read in all the VNodes, and make this more configurable
     about how many files are within each VNode.
 
-    Could scale up to be a,aa,aaa,aaaa,etc...
+    Compute number of VNode Buckets based on number of children. 
 
-    OR
+    N = Number of Children
+    M = Number of VNodes
 
-    Do we really just need to find out why 256 openings is so slow?
-    Is it the pure file reads?
-    Is it copying strings in memory?
+    If we want each bucket to be ~10,000 entries
 
-    Opening and reading 256 files should not take a second?
-    There's only 266 nodes in the entire tree.
+    Should be N / (2^M) <= 10,000, solve for M
+    N / 10,000 = (2^M)
+    M = log2(N / 10000)
 
-    You could just loop over all the nodes and time how long it
-    takes to read each.
+    * log2(1,000,000 / 10,000)
+        * 1,000,000,000 / (2^16) = 1,000,000,000 / 65,536 = 15,258
+            * 65,536 VNodes
+            * 15,258 Children Per VNode
+        * 1,000,000 / (2^6) = 1,000,000 / 64 = 15,625
+            * 64 VNodes
+            * 15,625 Children Per VNode
+        * 500,000 / (2^5) = 500,000 / 32 = 15,625
+            * 32 VNodes
+            * 15,258 Children Per VNode
+        * 200,000 / (2^4) = 200,000 / 16 = 12,500
+            * 16 VNodes
+            * 12,500 Children Per VNode
     */
 
     let hash = &node.hash.replace('"', "");
