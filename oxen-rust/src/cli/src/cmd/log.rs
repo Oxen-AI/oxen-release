@@ -5,7 +5,7 @@ use minus::Pager;
 use std::fmt::Write;
 use time::format_description;
 
-use liboxen::api;
+use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::LogOpts;
@@ -49,19 +49,7 @@ impl RunCmd for LogCmd {
             remote: false,
         };
 
-        self.log_commits(&repo, &opts).await?;
-
-        Ok(())
-    }
-}
-
-impl LogCmd {
-    pub async fn log_commits(
-        &self,
-        repo: &LocalRepository,
-        opts: &LogOpts,
-    ) -> Result<(), OxenError> {
-        let commits = api::local::commits::list_with_opts(repo, opts).await?;
+        let commits = command::log_commits(&repo, &opts).await?;
 
         // Fri, 21 Oct 2022 16:08:39 -0700
         let format = format_description::parse(
