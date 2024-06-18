@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{arg, ArgMatches, Command};
+use clap::{arg, Arg, ArgMatches, Command};
 use colored::Colorize;
 use minus::Pager;
 use std::fmt::Write;
@@ -29,7 +29,14 @@ impl RunCmd for LogCmd {
 
     fn args(&self) -> Command {
         Command::new(NAME).about("See log of commits")
-        .arg(arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."),
+        .arg(arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."))
+        .arg(
+            Arg::new("number")
+                .long("number")
+                .short('n')
+                .help("Number of commits to show")
+                .default_value("20")
+                .action(clap::ArgAction::Set),
         )
     }
 
@@ -38,13 +45,19 @@ impl RunCmd for LogCmd {
         let repo = LocalRepository::from_current_dir()?;
 
         let revision = args.get_one::<String>("REVISION").map(String::from);
+        let num_commits = args
+            .get_one::<String>("number")
+            .expect("Must supply number")
+            .parse::<usize>()
+            .expect("number must be a valid integer.");
+
 
         let opts = LogOpts {
             revision,
             remote: false,
         };
 
-        self.log_commits(&repo, &opts).await?;
+        self.log_commits(&repo, &opts, num_commits).await?;
 
         Ok(())
     }
@@ -55,8 +68,10 @@ impl LogCmd {
         &self,
         repo: &LocalRepository,
         opts: &LogOpts,
+        num_commits: usize,
     ) -> Result<(), OxenError> {
         let commits = api::local::commits::list_with_opts(repo, opts).await?;
+        let commits = commits.iter().take(num_commits);
 
         // Fri, 21 Oct 2022 16:08:39 -0700
         let format = format_description::parse(
