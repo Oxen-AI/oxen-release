@@ -23,7 +23,7 @@ use std::path::{Path, PathBuf};
 
 use super::{CommitEntryReader, CommitReader};
 
-pub fn index_dataset(
+pub fn index_data_frame(
     repo: &LocalRepository,
     branch: &Branch,
     path: &Path,
@@ -108,7 +108,7 @@ fn copy_duckdb_if_already_indexed(
     Ok(())
 }
 
-pub fn unindex_df(
+pub fn unindex_data_frame(
     repo: &LocalRepository,
     branch: &Branch,
     identity: &str,

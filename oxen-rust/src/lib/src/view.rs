@@ -4,6 +4,7 @@
 pub mod branch;
 pub mod commit;
 pub mod compare;
+pub mod data_frame;
 pub mod data_type_count;
 pub mod df;
 pub mod diff;

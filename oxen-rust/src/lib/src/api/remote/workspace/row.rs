@@ -1,14 +1,49 @@
+use std::path::Path;
+
 use polars::frame::DataFrame;
 
 use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::entry::mod_entry::ModType;
-use crate::model::ContentType;
-use crate::model::RemoteRepository;
 use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
 
-use std::path::Path;
+use crate::model::{ContentType, RemoteRepository};
+
+pub async fn get_row(
+    remote_repo: &RemoteRepository,
+    branch_name: &str,
+    identifier: &str,
+    path: &Path,
+    row_id: &str,
+) -> Result<JsonDataFrameRowResponse, OxenError> {
+    let file_path_str = path.to_str().unwrap();
+    let uri = format!(
+        "/workspace/{identifier}/data_frame/rows/{row_id}/resource/{branch_name}/{file_path_str}"
+    );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("get_row {url}\n{row_id}");
+
+    let client = client::new_for_url(&url)?;
+    match client.get(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val),
+                Err(err) => {
+                    let err = format!("api::staging::get_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    Err(OxenError::basic_str(err))
+                }
+            }
+        }
+        Err(err) => {
+            let err = format!("api::staging::get_row Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
 
 pub async fn update_row(
     remote_repo: &RemoteRepository,
@@ -25,7 +60,9 @@ pub async fn update_row(
         )));
     };
 
-    let uri = format!("/staging/{identifier}/df/rows/{row_id}/{branch_name}/{file_path_str}");
+    let uri = format!(
+        "/workspace/{identifier}/data_frame/rows/{row_id}/resource/{branch_name}/{file_path_str}"
+    );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("update_row {url}\n{data}");
 
@@ -62,7 +99,7 @@ pub async fn delete_row(
     identifier: &str,
     path: &Path,
     row_id: &str,
-) -> Result<(), OxenError> {
+) -> Result<DataFrame, OxenError> {
     let Some(file_path_str) = path.to_str() else {
         return Err(OxenError::basic_str(format!(
             "Path must be a string: {:?}",
@@ -70,29 +107,35 @@ pub async fn delete_row(
         )));
     };
 
-    let uri = format!("/staging/{identifier}/df/rows/{row_id}/{branch_name}/{file_path_str}");
+    let uri = format!(
+        "/workspace/{identifier}/data_frame/rows/{row_id}/resource/{branch_name}/{file_path_str}"
+    );
+
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client
-        .delete(&url)
-        .header("Content-Type", "application/json")
-        .send()
-        .await
-    {
+    match client.delete(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            log::debug!("delete_row {url}\n{body}");
-            Ok(())
+            log::debug!("rm_df_mod got body: {}", body);
+            let response: Result<JsonDataFrameRowResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val.data_frame.view.to_df()),
+                Err(err) => {
+                    let err = format!("api::staging::rm_df_mod error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    Err(OxenError::basic_str(err))
+                }
+            }
         }
         Err(err) => {
-            let err = format!("api::staging::delete_row Request failed: {url}\n\nErr {err:?}");
+            let err = format!("rm_df_mod Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
 }
 
-pub async fn modify_df(
+pub async fn create_row(
     remote_repo: &RemoteRepository,
     branch_name: &str,
     identifier: &str,
@@ -114,7 +157,8 @@ pub async fn modify_df(
         )));
     };
 
-    let uri = format!("/staging/{identifier}/df/rows/{branch_name}/{file_path_str}");
+    let uri =
+        format!("/workspace/{identifier}/data_frame/rows/resource/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("modify_df {url}\n{data}");
 
@@ -170,9 +214,9 @@ mod tests {
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::remote::staging::index_dataset(&remote_repo, branch_name, &identifier, &path).await?;
+            api::remote::workspace::put(&remote_repo, branch_name, &identifier, &path, true).await?;
             let result =
-                api::remote::staging::modify_df(
+                api::remote::workspace::row::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -208,7 +252,7 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let data = "{\"id\": 1, \"name\": \"greg\"}";
-            let result = api::remote::staging::modify_df(
+            let result = api::remote::workspace::row::create_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -238,13 +282,14 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::remote::staging::index_dataset(
+            api::remote::workspace::put(
                 &remote_repo,
                 branch_name,
                 &identifier,
                 &path,
+                true
             ).await?;
-            api::remote::staging::modify_df(
+            api::remote::workspace::row::create_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -256,7 +301,7 @@ mod tests {
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,

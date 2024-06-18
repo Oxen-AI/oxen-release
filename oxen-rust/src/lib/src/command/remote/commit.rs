@@ -25,7 +25,8 @@ pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Comm
         email: cfg.email,
     };
     let user_id = UserConfig::identifier()?;
-    let commit = api::remote::staging::commit(&remote_repo, &branch.name, &user_id, &body).await?;
+    let commit =
+        api::remote::workspace::commit(&remote_repo, &branch.name, &user_id, &body).await?;
     Ok(Some(commit))
 }
 

@@ -1,3 +1,4 @@
+use std::path::{Path, PathBuf};
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
@@ -9,18 +10,18 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::constants::TABLE_NAME;
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::error::OxenError;
-use liboxen::model::Schema;
+use liboxen::model::{Branch, LocalRepository, ParsedResource, Schema};
 use liboxen::opts::DFOpts;
 use liboxen::util::paginate;
+use liboxen::view::data_frame::DataFramePayload;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
-use liboxen::view::remote_staged_status::DFIsEditableResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, constants, core::index};
 
 pub mod row;
 
-pub async fn get(
+pub async fn get_by_resource(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
 ) -> Result<HttpResponse, OxenHttpError> {
@@ -101,7 +102,7 @@ pub async fn get(
     Ok(HttpResponse::Ok().json(response))
 }
 
-pub async fn list(
+pub async fn get_by_branch(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
@@ -149,38 +150,6 @@ pub async fn list(
             entries: paginated_entries,
             pagination,
         },
-    }))
-}
-
-// TODO: This should be a more generic info or metadata api about a resource
-pub async fn is_editable(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req).unwrap();
-
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-
-    log::debug!(
-        "{} indexing dataset for resource {namespace}/{repo_name}/{resource}",
-        liboxen::current_function!()
-    );
-
-    // Staged dataframes must be on a branch.
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
-
-    let is_editable =
-        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
-
-    Ok(HttpResponse::Ok().json(DFIsEditableResponse {
-        status: StatusMessage::resource_found(),
-        is_editable,
     }))
 }
 
@@ -238,4 +207,109 @@ pub async fn diff(
     };
 
     Ok(HttpResponse::Ok().json(resource))
+}
+
+pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let identifier = path_param(&req, "identifier")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let data: DataFramePayload = serde_json::from_str(&body)?;
+
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or_else(|| OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Initialize the branch repository before any operations
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    let to_index = data.is_indexed;
+    let is_indexed =
+        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
+
+    if !is_indexed && to_index {
+        handle_indexing(
+            &repo,
+            &branch,
+            &resource.path,
+            &identifier,
+            &namespace,
+            &repo_name,
+            &resource,
+        )
+        .await
+    } else if is_indexed && !to_index {
+        handle_unindexing(
+            &repo,
+            &branch,
+            &identifier,
+            &resource.path,
+            &namespace,
+            &repo_name,
+            &resource,
+        )
+        .await
+    } else {
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_found()))
+    }
+}
+
+async fn handle_indexing(
+    repo: &LocalRepository,
+    branch: &Branch,
+    resource_path: &Path,
+    identifier: &str,
+    namespace: &str,
+    repo_name: &str,
+    resource: &ParsedResource,
+) -> Result<HttpResponse, OxenHttpError> {
+    match liboxen::core::index::remote_df_stager::index_data_frame(
+        repo,
+        branch,
+        resource_path,
+        identifier,
+    ) {
+        Ok(_) => {
+            log::info!(
+                "Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}"
+            );
+            Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
+        }
+        Err(err) => {
+            log::error!("Failed to index dataset for {namespace}/{repo_name}/{resource}: {err}");
+            Err(OxenHttpError::InternalServerError)
+        }
+    }
+}
+
+async fn handle_unindexing(
+    repo: &LocalRepository,
+    branch: &Branch,
+    identifier: &str,
+    resource_path: &PathBuf,
+    namespace: &str,
+    repo_name: &str,
+    resource: &ParsedResource,
+) -> Result<HttpResponse, OxenHttpError> {
+    match liboxen::core::index::remote_df_stager::unindex_data_frame(
+        repo,
+        branch,
+        identifier,
+        resource_path,
+    ) {
+        Ok(_) => {
+            log::info!(
+                "Dataset unindexing completed successfully for {namespace}/{repo_name}/{resource}"
+            );
+            Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+        }
+        Err(err) => {
+            log::error!("Failed to unindex dataset for {namespace}/{repo_name}/{resource}: {err}");
+            Err(OxenHttpError::InternalServerError)
+        }
+    }
 }
