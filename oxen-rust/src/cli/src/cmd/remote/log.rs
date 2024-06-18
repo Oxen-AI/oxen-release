@@ -28,14 +28,12 @@ impl RunCmd for RemoteLogCmd {
     }
 
     fn args(&self) -> Command {
-        Command::new(NAME).about("See log of commits")
-        .arg(
+        Command::new(NAME).about("See log of commits").arg(
             Arg::new("revision")
-            .long("revision")
-            .help( "The commit or branch id you want to get history from. Defaults to main.")
-            .action(clap::ArgAction::Set),
+                .long("revision")
+                .help("The commit or branch id you want to get history from. Defaults to main.")
+                .action(clap::ArgAction::Set),
         )
-      
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {

@@ -33,9 +33,7 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 crate::parse::remote::status::status(sub_matches).await;
             }
             (ADD, sub_matches) => {
-            
                 remote_add(sub_matches).await;
-                
             }
             (RM, sub_matches) => {
                 remote_rm(sub_matches).await;
@@ -53,7 +51,7 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 }
             }
             (LOG, sub_matches) => {
-                let cmd = cmd::remote::RemoteLogCmd {}; 
+                let cmd = cmd::remote::RemoteLogCmd {};
                 match cmd.run(sub_matches).await {
                     Ok(_) => {}
                     Err(err) => {
