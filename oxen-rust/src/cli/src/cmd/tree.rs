@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::api;
-use liboxen::core::index::commit_merkle_tree::{CommitMerkleTree};
+use liboxen::core::index::commit_merkle_tree::CommitMerkleTree;
 use liboxen::core::index::ObjectDBReader;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use std::path::Path;
-use std::time::{Instant};
+use std::time::Instant;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "tree";

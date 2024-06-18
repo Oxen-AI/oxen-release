@@ -11,7 +11,7 @@ hash-int,data-offset,data-length
 data
 */
 
-use rmp_serde::{Serializer};
+use rmp_serde::Serializer;
 use serde::{de, Serialize};
 use std::collections::HashMap;
 use std::fmt::Debug;
