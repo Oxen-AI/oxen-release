@@ -3,7 +3,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use super::Migrate;
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::{Path};
 
 use crate::core::db::merkle_node_db::MerkleNodeDB;
 use crate::core::db::tree_db::TreeObjectChild;
@@ -160,17 +160,14 @@ fn migrate_dir(
     // to the proper .oxen/tree/{path} with their hash as the key and type
     // and metadata as the value
     //
-    println!(
-        "Getting dir for node: {:?}",
-        dir_hash
-    );
+    println!("Getting dir for node: {:?}", dir_hash);
 
     /*
     To tune this...
     Let's read in all the VNodes, and make this more configurable
     about how many files are within each VNode.
 
-    Compute number of VNode Buckets based on number of children. 
+    Compute number of VNode Buckets based on number of children.
 
     N = Number of Children
     M = Number of VNodes
@@ -181,7 +178,7 @@ fn migrate_dir(
     N / 10,000 = (2^M)
     M = log2(N / 10000)
 
-    Or...we could just divide by the node count we want...? 
+    Or...we could just divide by the node count we want...?
     But I think I'd rather it be logarithmic than linear?
     TODO: Plot this function
 
@@ -213,16 +210,16 @@ fn migrate_dir(
     // Write all the VNodes
     // let tree_db: DBWithThreadMode<MultiThreaded> =
     //     DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
-    
+
     // TODO: We have to read/flatten each one of these VNodes
     //       Collect the subnodes, count them, save the count
     //       then bucket them based on count
-    
+
     let mut children: Vec<TreeObjectChild> = Vec::new();
     for child in dir_obj.children() {
         if let TreeObjectChild::VNode { path: _, hash } = child {
             let vnode_obj = reader.get_vnode(hash)?.expect("could not get vnode object");
-            
+
             for child in vnode_obj.children() {
                 children.push(child.clone());
             }
@@ -231,7 +228,7 @@ fn migrate_dir(
 
     // log2(N / 10000)
     let total_children = children.len();
-    let num_vnodes = (total_children as f32 / 10000 as f32).log2();
+    let num_vnodes = (total_children as f32 / 10000_f32).log2();
     let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
     println!("{} VNodes for {} children", num_vnodes, total_children);
 
@@ -260,9 +257,9 @@ fn migrate_dir(
         .path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
-        .join(&dir_hash);
+        .join(dir_hash);
 
-    let mut dir_db = MerkleNodeDB::open(&tree_path, false)?;
+    let mut dir_db = MerkleNodeDB::open(tree_path, false)?;
     dir_db.write_size(num_vnodes as u64)?;
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         let shash = format!("{:x}", bhash);
@@ -294,7 +291,6 @@ fn migrate_dir(
 
         println!("Writing vnodes to path: {:?}", tree_path);
 
-
         // Write the children of the VNodes
         let mut tree_db = MerkleNodeDB::open(&tree_path, false)?;
         let num_children = bucket.len();
@@ -320,7 +316,7 @@ fn migrate_dir(
 
             // Recurse if it's a directory
             if MerkleNodeType::Dir == dtype {
-                migrate_dir(repo, reader, &hash)?;
+                migrate_dir(repo, reader, hash)?;
             }
         }
     }

@@ -51,7 +51,6 @@ impl RunCmd for LogCmd {
             .parse::<usize>()
             .expect("number must be a valid integer.");
 
-
         let opts = LogOpts {
             revision,
             remote: false,

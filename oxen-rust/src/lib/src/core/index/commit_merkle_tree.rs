@@ -68,7 +68,7 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         let node_db_dir = CommitMerkleTree::commit_db_dir(repo, commit);
         let node_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &node_db_dir, false)?;
+            DBWithThreadMode::open_for_read_only(&db::opts::default(), node_db_dir, false)?;
         let mut node_path_str = node_path.to_str().unwrap();
 
         // If it ends with a /, remove it
@@ -258,8 +258,7 @@ impl CommitMerkleTree {
             return;
         }
 
-        if MerkleTreeNodeType::VNode == node.dtype ||
-           MerkleTreeNodeType::Dir == node.dtype {
+        if MerkleTreeNodeType::VNode == node.dtype || MerkleTreeNodeType::Dir == node.dtype {
             println!(
                 "{}[{:?}] {:?} -> {} ({})",
                 "  ".repeat(indent as usize),
