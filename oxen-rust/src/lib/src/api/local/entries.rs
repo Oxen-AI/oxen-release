@@ -35,7 +35,7 @@ pub fn get_meta_entry(
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let commit_reader = CommitReader::new(repo)?;
-    let mut commits = commit_reader.list_all()?;
+    let mut commits = commit_reader.history_from_commit_id(&commit.id)?;
     commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
     // Check if the path is a dir or is the root
@@ -332,7 +332,7 @@ pub fn list_directory(
     let commit_reader = CommitReader::new(repo)?;
 
     // Find all the commits once, so that we can re-use to find the latest commit per entry
-    let mut commits = commit_reader.list_all()?;
+    let mut commits = commit_reader.history_from_commit_id(&commit.id)?;
 
     // Sort on timestamp oldest to newest
     commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
