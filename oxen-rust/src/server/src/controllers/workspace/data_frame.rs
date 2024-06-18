@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
@@ -261,7 +261,7 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
 async fn handle_indexing(
     repo: &LocalRepository,
     branch: &Branch,
-    resource_path: &PathBuf,
+    resource_path: &Path,
     identifier: &str,
     namespace: &str,
     repo_name: &str,
