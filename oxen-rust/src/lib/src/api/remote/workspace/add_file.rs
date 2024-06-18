@@ -298,4 +298,49 @@ mod tests {
         })
         .await
     }
+
+    #[tokio::test]
+    async fn test_commit_schema_on_branch() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "test-schema-issues";
+            let branch = api::remote::branches::create_from_or_get(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let original_schemas = api::remote::schemas::list(&remote_repo, branch_name).await?;
+
+            let directory_name = "tabular";
+            let identifier = UserConfig::identifier()?;
+            let path = test::test_1k_parquet();
+            let result = api::remote::staging::add_file(
+                &remote_repo,
+                branch_name,
+                &identifier,
+                directory_name,
+                path,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add one data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            let commit =
+                api::remote::staging::commit(&remote_repo, branch_name, &identifier, &body).await?;
+            assert!(commit.message.contains("Add one data frame"));
+
+            // List the schemas on that branch
+            let schemas = api::remote::schemas::list(&remote_repo, branch_name).await?;
+            assert_eq!(schemas.len(), original_schemas.len() + 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
 }
