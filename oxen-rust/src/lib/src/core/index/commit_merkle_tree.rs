@@ -18,7 +18,7 @@ use crate::util;
 
 use super::commit_merkle_tree_node::MerkleTreeNodeType;
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub enum MerkleNodeType {
     Dir,
     VNode,
@@ -68,7 +68,7 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         let node_db_dir = CommitMerkleTree::commit_db_dir(repo, commit);
         let node_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), node_db_dir, false)?;
+            DBWithThreadMode::open_for_read_only(&db::opts::default(), &node_db_dir, false)?;
         let mut node_path_str = node_path.to_str().unwrap();
 
         // If it ends with a /, remove it
@@ -174,6 +174,8 @@ impl CommitMerkleTree {
             return Ok(());
         }
 
+        // println!("tree_db_dir: {:?}", tree_db_dir);
+
         if node.dtype != MerkleTreeNodeType::Dir && node.dtype != MerkleTreeNodeType::VNode {
             return Ok(());
         }
@@ -188,9 +190,11 @@ impl CommitMerkleTree {
 
         let mut tree_db = MerkleNodeDB::open(&tree_db_dir, true)?;
         let vals: HashMap<u128, MerkleNode> = tree_db.map()?;
+        // println!("Got {} vals", vals.len());
 
         for (hash, val) in vals {
             let key = format!("{:x}", hash);
+            // println!("val: {:?} -> {:?}", key, val);
             match &val.dtype {
                 MerkleNodeType::Dir => {
                     let mut child = CommitMerkleTreeNode {

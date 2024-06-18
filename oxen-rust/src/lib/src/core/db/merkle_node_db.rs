@@ -45,6 +45,7 @@ impl MerkleNodeLookup {
     }
 
     pub fn load(lookup_table_file: &mut File) -> Result<Self, OxenError> {
+        // println!("Loading lookup table from {:?}", lookup_table_file);
         let mut file_data = Vec::new();
         lookup_table_file.read_to_end(&mut file_data)?;
 
@@ -52,6 +53,8 @@ impl MerkleNodeLookup {
         let mut buffer = [0u8; 8]; // u64 is 8 bytes
         cursor.read_exact(&mut buffer)?;
         let size = u64::from_le_bytes(buffer); // Use from_le_bytes or from_be_bytes based on endianness
+
+        // println!("size: {}", size);
 
         let mut offsets: HashMap<u128, (u64, u64)> = HashMap::new();
         offsets.reserve(size as usize);

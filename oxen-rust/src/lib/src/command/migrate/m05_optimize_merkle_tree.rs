@@ -139,30 +139,30 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
         DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
 
-    let root = CommitMerkleTreeNode {
-        path: PathBuf::from(""),
-        hash,
-        dtype: MerkleTreeNodeType::Dir,
-        children: HashSet::new(),
-    };
+    // let root = CommitMerkleTreeNode {
+    //     path: PathBuf::from(""),
+    //     hash,
+    //     dtype: MerkleTreeNodeType::Dir,
+    //     children: HashSet::new(),
+    // };
 
-    migrate_vnodes(repo, &object_reader, &root)?;
+    migrate_dir(repo, &object_reader, &hash)?;
 
     Ok(())
 }
 
-fn migrate_vnodes(
+fn migrate_dir(
     repo: &LocalRepository,
     reader: &ObjectDBReader,
-    node: &CommitMerkleTreeNode,
+    dir_hash: &str,
 ) -> Result<(), OxenError> {
     // Read the values from the .oxen/objects/dirs db and write them
     // to the proper .oxen/tree/{path} with their hash as the key and type
     // and metadata as the value
     //
     println!(
-        "Getting object for node: {:?} -> {:?}",
-        node.path, node.hash
+        "Getting dir for node: {:?}",
+        dir_hash
     );
 
     /*
@@ -181,6 +181,10 @@ fn migrate_vnodes(
     N / 10,000 = (2^M)
     M = log2(N / 10000)
 
+    Or...we could just divide by the node count we want...? 
+    But I think I'd rather it be logarithmic than linear?
+    TODO: Plot this function
+
     * log2(1,000,000 / 10,000)
         * 1,000,000,000 / (2^16) = 1,000,000,000 / 65,536 = 15,258
             * 65,536 VNodes
@@ -193,81 +197,133 @@ fn migrate_vnodes(
             * 15,258 Children Per VNode
         * 200,000 / (2^4) = 200,000 / 16 = 12,500
             * 16 VNodes
-            * 12,500 Children Per VNode
+            * 12,5000 Children Per VNode
     */
 
-    let hash = &node.hash.replace('"', "");
-    let obj = reader.get_dir(hash)?;
+    let dir_hash = &dir_hash.replace('"', "");
+    let dir_obj = reader.get_dir(dir_hash)?;
 
-    let Some(tree_obj) = obj else {
+    let Some(dir_obj) = dir_obj else {
         return Err(OxenError::basic_str(format!(
             "could not get dir objects for {}",
-            node.hash
+            dir_hash
         )));
     };
-
-    // These should all be vnodes, so write them to .oxen/tree/{node.hash}
-    let tree_path = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::TREE_DIR)
-        .join(hash);
-
-    if tree_path.exists() {
-        println!(
-            "vnode database already exists at tree_path: {:?}",
-            tree_path
-        );
-        return Ok(());
-    }
-
-    println!("Writing vnodes to path: {:?}", tree_path);
 
     // Write all the VNodes
     // let tree_db: DBWithThreadMode<MultiThreaded> =
     //     DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
-    let mut tree_db = MerkleNodeDB::open(&tree_path, false)?;
-    let mut total_children: u64 = 0;
-    for child in tree_obj.children() {
-        if let TreeObjectChild::VNode { path: _, hash: _ } = child {
-            total_children += 1;
+    
+    // TODO: We have to read/flatten each one of these VNodes
+    //       Collect the subnodes, count them, save the count
+    //       then bucket them based on count
+    
+    let mut children: Vec<TreeObjectChild> = Vec::new();
+    for child in dir_obj.children() {
+        if let TreeObjectChild::VNode { path: _, hash } = child {
+            let vnode_obj = reader.get_vnode(hash)?.expect("could not get vnode object");
+            
+            for child in vnode_obj.children() {
+                children.push(child.clone());
+            }
         }
     }
 
-    tree_db.write_size(total_children)?;
-    for child in tree_obj.children() {
-        match child {
-            TreeObjectChild::VNode { path, hash } => {
-                // println!("vnode: {:?} -> {:?}", path, hash);
-                // mkdir if not exists
-                if !tree_path.exists() {
-                    util::fs::create_dir_all(&tree_path)?;
-                }
+    // log2(N / 10000)
+    let total_children = children.len();
+    let num_vnodes = (total_children as f32 / 10000 as f32).log2();
+    let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
+    println!("{} VNodes for {} children", num_vnodes, total_children);
 
+    // Group the children into their buckets
+    let mut buckets: Vec<Vec<TreeObjectChild>> = vec![Vec::new(); num_vnodes as usize];
+    for child in children {
+        let hash_int = u128::from_str_radix(child.hash(), 16).expect("Failed to parse hex string");
+        let bucket = hash_int % num_vnodes;
+        buckets[bucket as usize].push(child);
+    }
+
+    // Compute new hashes for each bucket
+    let mut bucket_hashes: Vec<u128> = vec![0; num_vnodes as usize];
+    for (i, bucket) in buckets.iter().enumerate() {
+        let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+        for child in bucket {
+            // TODO: child.hash() is a string and we should just use
+            //       the u128 hash for speed and consistency
+            hasher.update(child.hash().as_bytes());
+        }
+        bucket_hashes[i] = hasher.digest128();
+    }
+
+    // Write the buckets to the dir db
+    let tree_path = repo
+        .path
+        .join(constants::OXEN_HIDDEN_DIR)
+        .join(constants::TREE_DIR)
+        .join(&dir_hash);
+
+    let mut dir_db = MerkleNodeDB::open(&tree_path, false)?;
+    dir_db.write_size(num_vnodes as u64)?;
+    for (i, bhash) in bucket_hashes.iter().enumerate() {
+        let shash = format!("{:x}", bhash);
+        println!("Bucket [{}] for {:?}", i, shash);
+        let node = MerkleNode {
+            dtype: MerkleNodeType::VNode,
+            path: shash,
+        };
+        dir_db.write_one(*bhash, &node)?;
+    }
+
+    // Re-Write the N vnodes
+    for (i, bucket) in buckets.iter().enumerate() {
+        let uhash = bucket_hashes[i];
+        let shash = format!("{:x}", uhash);
+        let tree_path = repo
+            .path
+            .join(constants::OXEN_HIDDEN_DIR)
+            .join(constants::TREE_DIR)
+            .join(&shash);
+
+        if tree_path.exists() {
+            println!(
+                "vnode database already exists at tree_path: {:?}",
+                tree_path
+            );
+            return Ok(());
+        }
+
+        println!("Writing vnodes to path: {:?}", tree_path);
+
+
+        // Write the children of the VNodes
+        let mut tree_db = MerkleNodeDB::open(&tree_path, false)?;
+        let num_children = bucket.len();
+        tree_db.write_size(num_children as u64)?;
+        for (j, child) in bucket.iter().enumerate() {
+            let (dtype, hash, path) = match child {
+                TreeObjectChild::VNode { path, hash } => (MerkleNodeType::VNode, hash, path),
+                TreeObjectChild::File { path, hash } => (MerkleNodeType::File, hash, path),
+                TreeObjectChild::Dir { path, hash } => (MerkleNodeType::Dir, hash, path),
+                TreeObjectChild::Schema { path, hash } => (MerkleNodeType::Schema, hash, path),
+            };
+
+            if MerkleNodeType::VNode != dtype {
+                let file_name = path.file_name().unwrap().to_str().unwrap();
                 let val = MerkleNode {
-                    dtype: MerkleNodeType::VNode,
-                    path: path.to_str().unwrap().to_owned(),
+                    dtype: dtype.clone(),
+                    path: file_name.to_owned(),
                 };
-                // let mut buf = Vec::new();
-                // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
-                // tree_db.put(hash.as_bytes(), &buf)?;
-
-                let hash_int = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                tree_db.write_one(hash_int, &val)?;
-
-                // Look up all the files from that vnode
-                migrate_files(repo, reader, child)?;
+                let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+                println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
+                tree_db.write_one(uhash, &val)?;
             }
-            _ => {
-                return Err(OxenError::basic_str(format!(
-                    "unexpected child type: {:?}",
-                    child
-                )));
+
+            // Recurse if it's a directory
+            if MerkleNodeType::Dir == dtype {
+                migrate_dir(repo, reader, &hash)?;
             }
         }
     }
-    // tree_db.flush()?;
-
     Ok(())
 }
 
@@ -341,7 +397,7 @@ fn migrate_files(
                             dtype: MerkleTreeNodeType::Dir,
                             children: HashSet::new(),
                         };
-                        migrate_vnodes(repo, reader, &dir)?;
+                        // migrate_vnodes(repo, reader, &dir)?;
                     }
                     TreeObjectChild::Schema { path, hash } => {
                         let val = MerkleNode {
