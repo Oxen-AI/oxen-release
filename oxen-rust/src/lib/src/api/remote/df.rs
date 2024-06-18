@@ -62,7 +62,6 @@ pub async fn get_staged(
     match client.get(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            log::debug!("got body: {}", body);
             let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {

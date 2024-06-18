@@ -285,7 +285,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
             web::delete().to(controllers::stager::clear_modifications),
         )
         .route(
-            "/{namespace}/{repo_name}/staging/{identifier}/commit/{branch:.*}",
+            "/{namespace}/{repo_name}/staging/{identifier}/commit/{resource:.*}",
             web::post().to(controllers::stager::commit),
         )
         // ----- Dir ----- //

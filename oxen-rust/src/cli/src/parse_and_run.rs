@@ -8,7 +8,7 @@ use crate::cmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::BranchCmd;
 use crate::cmd::RunCmd;
-use crate::cmd_setup::{ADD, COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
+use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
 use crate::dispatch;
 
 use clap::ArgMatches;
@@ -32,7 +32,7 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (STATUS, sub_matches) => {
                 crate::parse::remote::status::status(sub_matches).await;
             }
-            (ADD, sub_matches) => {
+            ("add", sub_matches) => {
                 remote_add(sub_matches).await;
             }
             (RM, sub_matches) => {
@@ -665,17 +665,6 @@ pub async fn migrate(sub_matches: &ArgMatches) {
             command => {
                 eprintln!("Invalid subcommand: {}", command);
             }
-        }
-    }
-}
-
-pub fn kvdb_inspect(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let path = Path::new(path_str);
-    match dispatch::inspect(path) {
-        Ok(_) => {}
-        Err(err) => {
-            println!("Err: {err}")
         }
     }
 }

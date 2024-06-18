@@ -10,7 +10,7 @@ pub mod clone;
 pub mod commit;
 pub mod commit_cache;
 pub mod config;
-pub mod db_inspect;
+pub mod db;
 pub mod df;
 pub mod diff;
 pub mod fetch;
