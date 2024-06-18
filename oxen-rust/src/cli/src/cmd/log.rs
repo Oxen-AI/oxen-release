@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{arg, ArgMatches, Command};
+use clap::{Arg, ArgMatches, Command};
 use colored::Colorize;
 use minus::Pager;
 use std::fmt::Write;
@@ -29,15 +29,20 @@ impl RunCmd for LogCmd {
 
     fn args(&self) -> Command {
         Command::new(NAME).about("See log of commits")
-        .arg(arg!([REVISION] "The commit or branch id you want to get history from. Defaults to main."),
+        .arg(
+            Arg::new("revision")
+            .long("revision")
+            .help( "The commit or branch id you want to get history from. Defaults to main.")
+            .action(clap::ArgAction::Set),
         )
+      
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
         // Look up from the current dir for .oxen directory
         let repo = LocalRepository::from_current_dir()?;
 
-        let revision = args.get_one::<String>("REVISION").map(String::from);
+        let revision = args.get_one::<String>("revision").map(String::from);
 
         let opts = LogOpts {
             revision,
