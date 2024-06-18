@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
@@ -25,7 +26,6 @@ use super::{tabular, SchemaDiff};
 
 const TARGETS_HASH_COL: &str = "_targets_hash";
 const KEYS_HASH_COL: &str = "_keys_hash";
-const DIFF_STATUS_COL: &str = ".oxen.diff.status";
 
 const DIFF_STATUS_ADDED: &str = "added";
 const DIFF_STATUS_REMOVED: &str = "removed";

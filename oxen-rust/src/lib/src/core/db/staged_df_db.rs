@@ -22,13 +22,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     let df_schema = df.schema();
 
     if !table_schema.has_field_names(&df_schema.get_names()) {
-        return Err(OxenError::incompatible_schemas(
-            &df_schema
-                .iter_fields()
-                .map(|f| f.name.to_string())
-                .collect::<Vec<String>>(),
-            table_schema,
-        ));
+        return Err(OxenError::incompatible_schemas(table_schema.clone()));
     }
 
     let added_column = Series::new(
@@ -80,13 +74,7 @@ pub fn modify_row(
     let df_schema = df.schema();
 
     if !table_schema.has_field_names(&df_schema.get_names()) {
-        return Err(OxenError::incompatible_schemas(
-            &df_schema
-                .iter_fields()
-                .map(|f| f.name.to_string())
-                .collect::<Vec<String>>(),
-            table_schema,
-        ));
+        return Err(OxenError::incompatible_schemas(table_schema));
     }
 
     // get existing hash and status from db

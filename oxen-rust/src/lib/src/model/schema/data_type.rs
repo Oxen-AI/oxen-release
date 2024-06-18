@@ -99,7 +99,9 @@ impl DataType {
             DataType::Time => polars::prelude::DataType::Time,
             DataType::List(val) => polars::prelude::DataType::List(Box::new(val.to_polars())),
             DataType::Null => polars::prelude::DataType::Null,
-            DataType::Unknown => polars::prelude::DataType::Unknown,
+            DataType::Unknown => {
+                polars::prelude::DataType::Unknown(polars::prelude::UnknownKind::Any)
+            }
         }
     }
 
