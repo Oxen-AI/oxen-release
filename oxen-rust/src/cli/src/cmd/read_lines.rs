@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use clap::{arg, Arg, ArgMatches, Command};
+use clap::{Arg, ArgMatches, Command};
 
 use liboxen::command;
 use liboxen::error::OxenError;
@@ -20,7 +20,11 @@ impl RunCmd for ReadLinesCmd {
     fn args(&self) -> Command {
         Command::new("read-lines")
         .about("Read a set of lines from a file without loading it all into memory")
-        .arg(arg!(<PATH> "Path to file you want to read"))
+        .arg(
+            Arg::new("PATH")
+                .help("Path to file you want to read")
+                .required(true),
+        )
         .arg(
             Arg::new("START")
                 .help("Start index of file")
