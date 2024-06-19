@@ -30,6 +30,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::InitCmd),
         Box::new(cmd::LogCmd),
         Box::new(cmd::MooCmd),
+        Box::new(cmd::ReadLinesCmd),
         Box::new(cmd::SchemasCmd),
     ];
 
@@ -58,7 +59,6 @@ async fn main() -> ExitCode {
         .subcommand(cmd_setup::migrate())
         .subcommand(cmd_setup::pull())
         .subcommand(cmd_setup::push())
-        .subcommand(cmd_setup::read_lines())
         .subcommand(cmd_setup::remote())
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::rm())
@@ -80,7 +80,6 @@ async fn main() -> ExitCode {
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
-        Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),
         Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
