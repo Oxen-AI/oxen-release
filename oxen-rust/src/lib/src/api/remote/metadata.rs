@@ -65,13 +65,13 @@ pub async fn agg_dir(
 #[cfg(test)]
 mod tests {
 
-    use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;
     use crate::view::{JsonDataFrameViewResponse, MetadataEntryResponse};
+    use crate::{api, command};
 
     use std::path::Path;
 
@@ -146,6 +146,51 @@ mod tests {
 
             assert_eq!(meta.entry.mime_type, "inode/directory");
             assert_eq!(meta.entry.data_type, EntryDataType::Dir);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_latest_commit_by_branch() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            // Now push a new commit
+            let labels_path = local_repo.path.join("labels.txt");
+            let path = Path::new("labels.txt");
+
+            test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
+
+            command::add(&local_repo, &labels_path)?;
+
+            let first_commit = command::commit(&local_repo, "adding labels file")?;
+
+            command::push(&local_repo).await?;
+
+            let main_branch = DEFAULT_BRANCH_NAME;
+            let second_branch = "second";
+
+            command::create_checkout(&local_repo, second_branch)?;
+
+            test::write_txt_file_to_path(&labels_path, "I am the labels file v2")?;
+
+            command::add(&local_repo, &labels_path)?;
+
+            let second_commit = command::commit(&local_repo, "adding labels file v2")?;
+
+            command::push(&local_repo).await?;
+
+            let meta: MetadataEntryResponse =
+                api::remote::metadata::get_file(&remote_repo, main_branch, &path).await?;
+
+            let second_meta: MetadataEntryResponse =
+                api::remote::metadata::get_file(&remote_repo, second_branch, &path).await?;
+
+            assert_eq!(meta.entry.latest_commit.unwrap().id, first_commit.id);
+            assert_eq!(
+                second_meta.entry.latest_commit.unwrap().id,
+                second_commit.id
+            );
 
             Ok(remote_repo)
         })
