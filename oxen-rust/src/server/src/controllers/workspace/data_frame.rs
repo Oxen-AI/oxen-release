@@ -16,6 +16,7 @@ use liboxen::util::paginate;
 use liboxen::view::data_frame::DataFramePayload;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
+use liboxen::view::json_data_frame_view::EditableJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, constants, core::index};
 
@@ -85,18 +86,22 @@ pub async fn get_by_resource(
 
     let df_schema = Schema::from_polars(&df.schema());
 
+    let is_editable =
+        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
+
     let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
     let resource = ResourceVersion {
         path: resource.path.to_string_lossy().to_string(),
         version: resource.version.to_string_lossy().to_string(),
     };
 
-    let response = JsonDataFrameViewResponse {
+    let response = EditableJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
         data_frame: df_views,
         resource: Some(resource),
         commit: None, // Not at a committed state
         derived_resource: None,
+        is_editable,
     };
 
     Ok(HttpResponse::Ok().json(response))

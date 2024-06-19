@@ -316,7 +316,7 @@ mod tests {
             let directory_name = "tabular";
             let identifier = UserConfig::identifier()?;
             let path = test::test_1k_parquet();
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -332,7 +332,8 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::staging::commit(&remote_repo, branch_name, &identifier, &body).await?;
+                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                    .await?;
             assert!(commit.message.contains("Add one data frame"));
 
             // List the schemas on that branch

@@ -188,7 +188,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                     "/merge/{base_head:.*}",
                     web::post().to(controllers::merger::merge),
                 )
-                // Staging
+                // Workspaces
                 .service(
                     web::scope("/workspace/{identifier}")
                         .route(
