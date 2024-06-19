@@ -10,6 +10,7 @@ use crate::cmd::add::add_args;
 use crate::cmd::df::DFCmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::remote::df::RemoteDfCmd;
+use crate::cmd::remote::log::RemoteLogCmd;
 
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
@@ -53,6 +54,7 @@ pub fn remote() -> Command {
         )
         .subcommand(RemoteCommitCmd.args())
         .subcommand(RemoteDfCmd.args())
+        .subcommand(RemoteLogCmd.args())
         .subcommand(diff())
         .subcommand(download())
         .subcommand(ls())
