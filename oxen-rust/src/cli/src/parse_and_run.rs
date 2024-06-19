@@ -20,7 +20,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME}
 use liboxen::error::OxenError;
 use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
+use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
 use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
@@ -51,7 +51,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 }
             }
             (LOG, sub_matches) => {
-                remote_log(sub_matches).await;
+                let cmd = cmd::remote::RemoteLogCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (DF, sub_matches) => {
                 let cmd = cmd::remote::RemoteDfCmd {};
@@ -403,36 +409,6 @@ pub fn info(sub_matches: &ArgMatches) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("Error getting info: {err}")
-        }
-    }
-}
-
-async fn remote_log(sub_matches: &ArgMatches) {
-    let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
-
-    let opts = LogOpts {
-        revision,
-        remote: true,
-    };
-    match dispatch::log_commits(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn log(sub_matches: &ArgMatches) {
-    let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
-
-    let opts = LogOpts {
-        revision,
-        remote: false,
-    };
-    match dispatch::log_commits(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
         }
     }
 }
