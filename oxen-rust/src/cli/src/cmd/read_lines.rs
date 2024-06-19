@@ -23,7 +23,7 @@ impl RunCmd for ReadLinesCmd {
         .arg(
             Arg::new("PATH")
                 .help("Path to file you want to read")
-                .required(true),
+                .required(true)
         )
         .arg(
             Arg::new("START")
