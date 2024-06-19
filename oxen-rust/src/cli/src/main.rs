@@ -30,6 +30,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::InitCmd),
         Box::new(cmd::LogCmd),
         Box::new(cmd::MooCmd),
+        Box::new(cmd::RestoreCmd),
         Box::new(cmd::SchemasCmd),
     ];
 
@@ -60,7 +61,6 @@ async fn main() -> ExitCode {
         .subcommand(cmd_setup::push())
         .subcommand(cmd_setup::read_lines())
         .subcommand(cmd_setup::remote())
-        .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::rm())
         .subcommand(cmd_setup::save())
         .subcommand(cmd_setup::status())
