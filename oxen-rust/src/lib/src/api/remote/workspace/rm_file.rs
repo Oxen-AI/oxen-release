@@ -12,7 +12,7 @@ pub async fn rm_file(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/staging/{identifier}/file/{branch_name}/{file_name}");
+    let uri = format!("/workspace/{identifier}/file/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_file {}", url);
     let client = client::new_for_url(&url)?;
@@ -55,7 +55,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let directory_name = "images";
             let path = test::test_img_file();
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -66,7 +66,7 @@ mod tests {
             assert!(result.is_ok());
 
             // Remove the file
-            let result = api::remote::staging::rm_file(
+            let result = api::remote::workspace::rm_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -79,7 +79,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
