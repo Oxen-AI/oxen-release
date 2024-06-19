@@ -31,7 +31,15 @@ pub async fn df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val = api::remote::df::get(&remote_repo, &branch.name, input, opts).await?;
+        let identifier = UserConfig::identifier()?;
+        let val = api::remote::workspace::data_frame::get_by_resource(
+            &remote_repo,
+            &branch.name,
+            identifier,
+            input,
+            opts,
+        )
+        .await?;
         let mut df = val.data_frame.view.to_df();
         if let Some(output) = output {
             println!("Writing {output:?}");
@@ -64,8 +72,14 @@ pub async fn staged_df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val =
-            api::remote::df::get_staged(&remote_repo, &branch.name, &identifier, input, opts).await;
+        let val = api::remote::workspace::data_frame::get_by_resource(
+            &remote_repo,
+            &branch.name,
+            &identifier,
+            input,
+            opts,
+        )
+        .await;
         if let Ok(val) = val {
             let mut df = val.data_frame.view.to_df();
             if let Some(output) = output {
