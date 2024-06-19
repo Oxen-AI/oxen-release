@@ -718,24 +718,6 @@ pub fn migrate() -> Command {
         )
 }
 
-pub fn read_lines() -> Command {
-    Command::new("read-lines")
-        .about("Read a set of lines from a file without loading it all into memory")
-        .arg(arg!(<PATH> "Path to file you want to read"))
-        .arg(
-            Arg::new("START")
-                .help("Start index of file")
-                .default_value("0")
-                .default_missing_value("0"),
-        )
-        .arg(
-            Arg::new("LENGTH")
-                .help("Length you want to read")
-                .default_value("10")
-                .default_missing_value("10"),
-        )
-}
-
 pub fn save() -> Command {
     Command::new(SAVE)
         .arg(

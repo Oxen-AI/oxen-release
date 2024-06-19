@@ -21,7 +21,6 @@ use liboxen::error::OxenError;
 use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
 use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
-use liboxen::util;
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 
@@ -667,27 +666,6 @@ pub async fn migrate(sub_matches: &ArgMatches) {
             }
         }
     }
-}
-
-pub fn read_lines(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let start = sub_matches
-        .get_one::<String>("START")
-        .expect("Must supply START")
-        .parse::<usize>()
-        .expect("START must be a valid integer.");
-    let length = sub_matches
-        .get_one::<String>("LENGTH")
-        .expect("Must supply LENGTH")
-        .parse::<usize>()
-        .expect("LENGTH must be a valid integer.");
-
-    let path = Path::new(path_str);
-    let (lines, size) = util::fs::read_lines_paginated_ret_size(path, start, length);
-    for line in lines.iter() {
-        println!("{line}");
-    }
-    println!("Total: {size}");
 }
 
 pub fn run_migration(
