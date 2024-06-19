@@ -907,7 +907,7 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
+            remote_df_stager::index_data_frame(&repo, &branch, &path, &identity)?;
             let append_contents = "{\"NOT_REAL_COLUMN\": \"images/test.jpg\"}".to_string();
             let new_mod = NewMod {
                 entry: commit_entry,
@@ -947,7 +947,7 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            remote_df_stager::index_dataset(&repo, &branch, &path, &identity)?;
+            remote_df_stager::index_data_frame(&repo, &branch, &path, &identity)?;
             index::mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),

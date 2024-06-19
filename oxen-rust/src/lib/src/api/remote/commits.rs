@@ -477,6 +477,7 @@ pub async fn download_commit_entries_db_to_repo(
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
     download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
 }
+
 pub async fn download_objects_db_to_path(
     remote_repo: &RemoteRepository,
     dst: impl AsRef<Path>,

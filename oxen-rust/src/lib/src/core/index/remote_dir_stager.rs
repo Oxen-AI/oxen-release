@@ -53,6 +53,7 @@ pub fn init_or_get(
         }
         Err(e) => {
             let staging_dir = branch_staging_dir(repo, branch, identifier);
+            log::error!("error: {:?}", e);
             log::debug!(
                 "error branch staging dir for identifier {:?} at path {:?}",
                 identifier,
@@ -72,55 +73,29 @@ pub fn p_init_or_get(
     let staging_dir = branch_staging_dir(repo, branch, identifier);
     let oxen_dir = staging_dir.join(OXEN_HIDDEN_DIR);
     let branch_repo = if oxen_dir.exists() {
-        log::debug!("stage_file Already have oxen repo 🐂");
-        if local_staging_dir_is_up_to_date(repo, &staging_dir, branch)? {
-            LocalRepository::new(&staging_dir)?
-        } else {
-            // need to re-copy over data
-            let should_clear = true;
-            init_local_repo_staging_dir(repo, &staging_dir, should_clear)?
-        }
+        log::debug!("p_init_or_get already have oxen repo directory");
+        LocalRepository::new(&staging_dir)?
     } else {
-        log::debug!("stage_file Initializing oxen repo! 🐂");
-        let should_clear = false;
-        init_local_repo_staging_dir(repo, &staging_dir, should_clear)?
+        log::debug!("p_init_or_get Initializing oxen repo! 🐂");
+        let branch_repo = init_local_repo_staging_dir(repo, &staging_dir)?;
+        if !api::local::branches::exists(&branch_repo, &branch.name)? {
+            log::debug!("p_init_or_get creating branch {:?}", branch.name);
+            api::local::branches::create_checkout(&branch_repo, &branch.name)?;
+        }
+        branch_repo
     };
 
-    if !api::local::branches::exists(&branch_repo, &branch.name)? {
-        api::local::branches::create_checkout(&branch_repo, &branch.name)?;
-    }
-
     Ok(branch_repo)
-}
-
-fn local_staging_dir_is_up_to_date(
-    repo: &LocalRepository,
-    staging_dir: &Path,
-    branch: &Branch,
-) -> Result<bool, OxenError> {
-    log::debug!("local_staging_dir_is_up_to_date path {:?}", staging_dir);
-    let staging_repo = LocalRepository::new(staging_dir)?;
-    log::debug!(
-        "local_staging_dir_is_up_to_date staging_repo {:?}",
-        staging_repo
-    );
-
-    let oxen_commits = api::local::commits::list_from(repo, &branch.commit_id)?;
-    let staging_commits = api::local::commits::list(&staging_repo)?;
-
-    // If the number of commits is different, then we know we need to update
-    Ok(oxen_commits.len() == staging_commits.len())
 }
 
 pub fn init_local_repo_staging_dir(
     repo: &LocalRepository,
     staging_dir: &Path,
-    should_clear: bool,
 ) -> Result<LocalRepository, OxenError> {
     let oxen_hidden_dir = repo.path.join(constants::OXEN_HIDDEN_DIR);
     let staging_oxen_dir = staging_dir.join(constants::OXEN_HIDDEN_DIR);
-    log::debug!("Creating staging_oxen_dir: {staging_oxen_dir:?}");
-    std::fs::create_dir_all(&staging_oxen_dir)?;
+    log::debug!("Creating staging_oxen_dir {staging_oxen_dir:?}");
+    util::fs::create_dir_all(&staging_oxen_dir)?;
 
     let dirs_to_copy = vec![
         constants::COMMITS_DIR,
@@ -136,14 +111,8 @@ pub fn init_local_repo_staging_dir(
 
         log::debug!("Copying {dir} dir {oxen_dir:?} -> {staging_dir:?}");
         if oxen_dir.is_dir() {
-            if should_clear {
-                util::fs::remove_dir_all(&staging_dir)?;
-            }
             util::fs::copy_dir_all(oxen_dir, staging_dir)?;
         } else {
-            if should_clear {
-                util::fs::remove_file(&staging_dir)?;
-            }
             util::fs::copy(oxen_dir, staging_dir)?;
         }
     }

@@ -4,6 +4,7 @@
 pub mod branch;
 pub mod commit;
 pub mod compare;
+pub mod data_frame;
 pub mod data_type_count;
 pub mod df;
 pub mod diff;
@@ -21,6 +22,7 @@ pub mod oxen_response;
 pub mod pagination;
 pub mod remote_staged_status;
 pub mod repository;
+pub mod revision;
 pub mod schema;
 pub mod sql_parse_error;
 pub mod status_message;
@@ -60,6 +62,8 @@ pub use crate::view::branch::{
     BranchLockResponse, BranchNew, BranchNewFromExisting, BranchRemoteMerge, BranchResponse,
     BranchUpdate, ListBranchesResponse,
 };
+
+pub use crate::view::revision::ParseResourceResponse;
 
 pub use crate::view::compare::CompareResult;
 
