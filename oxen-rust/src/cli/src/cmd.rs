@@ -44,6 +44,9 @@ pub use log::LogCmd;
 
 pub mod remote;
 
+pub mod restore;
+pub use restore::RestoreCmd;
+
 pub mod schemas;
 pub use schemas::SchemasCmd;
 
