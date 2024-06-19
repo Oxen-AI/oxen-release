@@ -716,7 +716,7 @@ mod tests {
             // Use remote staging to commit without releasing lock (push releases lock)
             let labels_path = repo.path.join("labels.txt");
             test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
-            api::remote::staging::add_files(
+            api::remote::workspace::add_files(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 &identifier,
@@ -724,7 +724,7 @@ mod tests {
                 vec![labels_path],
             )
             .await?;
-            api::remote::staging::commit(
+            api::remote::workspace::commit(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 &identifier,

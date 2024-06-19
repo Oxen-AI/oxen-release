@@ -16,7 +16,7 @@ pub async fn status(
 ) -> Result<RemoteStagedStatus, OxenError> {
     let path_str = path.to_str().unwrap();
     let uri = format!(
-        "/staging/{identifier}/status/{branch_name}/{path_str}?page={page}&page_size={page_size}"
+        "/workspace/{identifier}/status/{branch_name}/{path_str}?page={page}&page_size={page_size}"
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("status url: {url}");
@@ -75,7 +75,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -108,7 +108,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
