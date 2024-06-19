@@ -6,6 +6,7 @@ use serde::Deserialize;
 pub struct DFOptsQuery {
     pub columns: Option<String>,
     pub delimiter: Option<String>,
+    pub filter: Option<String>,
     pub page_size: Option<usize>,
     pub page: Option<usize>,
     pub row: Option<usize>,
@@ -40,6 +41,7 @@ pub fn parse_opts(query: &web::Query<DFOptsQuery>, filter_ops: &mut DFOpts) -> D
     filter_ops.page = query.page;
     filter_ops.page_size = query.page_size;
     filter_ops.row = query.row;
+    filter_ops.filter.clone_from(&query.filter);
     filter_ops.should_randomize = query.randomize.unwrap_or(false);
     filter_ops.should_reverse = query.reverse.unwrap_or(false);
     filter_ops.sort_by.clone_from(&query.sort_by);

@@ -66,7 +66,7 @@ pub async fn upload_entries(
 
     // Stage all the files
     let identifier = UserConfig::identifier()?;
-    api::remote::staging::add_files(
+    api::remote::workspace::add_files(
         remote_repo,
         &branch_name,
         &identifier,
@@ -85,7 +85,7 @@ pub async fn upload_entries(
         email: user.email,
     };
     let commit =
-        api::remote::staging::commit(remote_repo, &branch_name, &identifier, &commit).await?;
+        api::remote::workspace::commit(remote_repo, &branch_name, &identifier, &commit).await?;
 
     println!("Commit {} done.", commit.id);
 
@@ -146,7 +146,7 @@ pub async fn download_dir(
     local_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
-    let revision = &entry.resource.as_ref().unwrap().version;
+    let revision = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
     let home_dir = util::fs::oxen_tmp_dir()?;
     let repo_dir = home_dir
         .join(&remote_repo.namespace)

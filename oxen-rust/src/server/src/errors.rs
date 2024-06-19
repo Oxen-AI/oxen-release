@@ -2,7 +2,9 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
-use liboxen::view::http::{MSG_BAD_REQUEST, MSG_UPDATE_REQUIRED, STATUS_ERROR};
+use liboxen::view::http::{
+    MSG_BAD_REQUEST, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
+};
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
 use serde_json::json;
@@ -18,6 +20,7 @@ pub enum OxenHttpError {
     SQLParseError(StringError),
     NotQueryable,
     DatasetNotIndexed(PathBufError),
+    DatasetAlreadyIndexed(PathBufError),
     UpdateRequired(StringError),
 
     // Translate OxenError to OxenHttpError
@@ -123,6 +126,20 @@ impl error::ResponseError for OxenHttpError {
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
+            OxenHttpError::DatasetAlreadyIndexed(path) => {
+                let error_json = json!({
+                    "error": {
+                        "type": "dataset_already_indexed",
+                        "title":
+                            "Dataset is already indexed.",
+                        "detail":
+                            format!("This dataset {} is already indexed for SQL and NLP querying.", path),
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_BAD_REQUEST,
+                });
+                HttpResponse::BadRequest().json(error_json)
+            }
             OxenHttpError::ActixError(_) => {
                 HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
             }
@@ -162,18 +179,32 @@ impl error::ResponseError for OxenHttpError {
                     OxenError::ParsedResourceNotFound(resource) => {
                         log::debug!("Resource not found: {}", resource);
 
-                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
-                            "Resource '{}' not found",
-                            resource
-                        )))
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Resource not found",
+                                "detail": format!("Could not find path: {}", resource)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::BranchNotFound(branch) => {
                         log::debug!("Branch not found: {}", branch);
 
-                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
-                            "Branch '{}' not found",
-                            branch
-                        )))
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Branch does not exist",
+                                "detail": format!("Could not find branch: {}", branch)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::RevisionNotFound(commit_id) => {
                         log::debug!("Not found: {}", commit_id);
@@ -186,10 +217,17 @@ impl error::ResponseError for OxenHttpError {
                     OxenError::PathDoesNotExist(path) => {
                         log::debug!("Path does not exist: {}", path);
 
-                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
-                            "'{}' not found",
-                            path
-                        )))
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Path does not exist",
+                                "detail": format!("Could not find path: {}", path)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::CommitEntryNotFound(msg) => {
                         log::error!("{msg}");
@@ -277,6 +315,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
             OxenHttpError::DatasetNotIndexed(_) => StatusCode::BAD_REQUEST,
+            OxenHttpError::DatasetAlreadyIndexed(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
             OxenHttpError::ActixError(_) => StatusCode::INTERNAL_SERVER_ERROR,
             OxenHttpError::SerdeError(_) => StatusCode::BAD_REQUEST,

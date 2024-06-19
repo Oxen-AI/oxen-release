@@ -24,7 +24,7 @@ pub async fn diff(
     let path_str = path.as_ref().to_str().unwrap();
     log::debug!("sending this identifier for remote diff: {}", identifier);
     let uri = format!(
-        "/staging/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
+        "/workspace/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
@@ -137,9 +137,9 @@ mod tests {
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+            api::remote::workspace::data_frame::put(&remote_repo, branch_name,&identifier, &path, true).await?;
 
-            api::remote::staging::modify_df(
+            api::remote::workspace::row::create_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -149,7 +149,7 @@ mod tests {
                 ModType::Append
             ).await?;
 
-            let diff = api::remote::staging::diff(
+            let diff = api::remote::workspace::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -190,9 +190,9 @@ mod tests {
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::staging::dataset::index_dataset(&remote_repo, branch_name,&identifier, &path).await?;
+            api::remote::workspace::data_frame::put(&remote_repo, branch_name,&identifier, &path, true).await?;
 
-            let (_df_1, _row_id_1) = api::remote::staging::modify_df(
+            let (_df_1, _row_id_1) = api::remote::workspace::row::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -203,7 +203,7 @@ mod tests {
                 ).await?;
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let (_df_2, row_id_2) = api::remote::staging::modify_df(
+            let (_df_2, row_id_2) = api::remote::workspace::row::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -214,7 +214,7 @@ mod tests {
                 ).await?;
 
             // Make sure both got staged
-            let diff = api::remote::staging::diff(
+            let diff = api::remote::workspace::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -231,9 +231,10 @@ mod tests {
                 _ => panic!("Diff result is not of tabular type."),
             }
 
+
             let uuid_2 = row_id_2.unwrap();
             // Delete result_2
-            let result_delete = api::remote::staging::rm_df_mod(
+            let result_delete = api::remote::workspace::row::delete_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -243,7 +244,7 @@ mod tests {
             assert!(result_delete.is_ok());
 
             // Make there is only one left
-            let diff = api::remote::staging::diff(
+            let diff = api::remote::workspace::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,

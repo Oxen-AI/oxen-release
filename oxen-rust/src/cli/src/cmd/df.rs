@@ -38,6 +38,13 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("filter")
+                .long("filter")
+                .short('f')
+                .help("A filter to apply to the data frame. Format: 'column op value' ie: 'category == dog'")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("columns")
                 .long("columns")
                 .short('c')
@@ -162,6 +169,12 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("at")
+                .long("at")
+                .help("Where to add the new column at. Should be an index. Ie: oxen df add-col 'name:val:dtype' --at 1")
+                .action(clap::ArgAction::Set),
+        )
+        .arg(
             Arg::new("add-row")
                 .long("add-row")
                 .help("Add a row and cast to the values data types to match the current schema. If used with --add-col, row is added first, then column. Format 'comma,separated,vals'")
@@ -208,6 +221,7 @@ impl DFCmd {
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
             delimiter: args.get_one::<String>("delimiter").map(String::from),
+            filter: args.get_one::<String>("filter").map(String::from),
             slice: args.get_one::<String>("slice").map(String::from),
             page_size: args
                 .get_one::<String>("page-size")
@@ -230,6 +244,9 @@ impl DFCmd {
             vstack,
             add_col: args.get_one::<String>("add-col").map(String::from),
             add_row: args.get_one::<String>("add-row").map(String::from),
+            at: args
+                .get_one::<String>("at")
+                .map(|x| x.parse::<usize>().expect("at must be valid int")),
             delete_row: args.get_one::<String>("delete-row").map(String::from),
             sort_by: args.get_one::<String>("sort").map(String::from),
             sql: args.get_one::<String>("sql").map(String::from),

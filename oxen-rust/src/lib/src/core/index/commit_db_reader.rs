@@ -28,7 +28,7 @@ impl CommitDBReader {
         }
 
         if latest_commit.is_none() {
-            return Err(OxenError::basic_str("no commits found"));
+            return Err(OxenError::no_commits_found());
         }
 
         Ok(latest_commit.unwrap())
