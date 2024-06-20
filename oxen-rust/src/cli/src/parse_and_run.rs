@@ -22,7 +22,7 @@ use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
 use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
 use liboxen::util;
-use liboxen::{command, opts::RestoreOpts};
+use liboxen::{command};
 use std::path::{Path, PathBuf};
 
 /// The subcommands for interacting with the remote staging area.
@@ -39,7 +39,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 remote_rm(sub_matches).await;
             }
             (RESTORE, sub_matches) => {
-                remote_restore(sub_matches).await;
+                let cmd = cmd::remote::RemoteRestoreCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (COMMIT, sub_matches) => {
                 let cmd = RemoteCommitCmd {};
@@ -511,26 +517,6 @@ pub async fn rm(sub_matches: &ArgMatches) {
         }
     }
 }
-
-pub async fn remote_restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("PATH").expect("required");
-
-    // For now, restore remote just un-stages all the changes done to the file on the remote
-    let opts = RestoreOpts {
-        path: PathBuf::from(path),
-        staged: sub_matches.get_flag("staged"),
-        is_remote: true,
-        source_ref: None,
-    };
-
-    match dispatch::restore(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
 
 pub fn merge(sub_matches: &ArgMatches) {
     let branch = sub_matches
