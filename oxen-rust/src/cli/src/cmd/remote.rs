@@ -8,4 +8,4 @@ pub mod df;
 pub use df::RemoteDfCmd;
 
 pub mod restore;
-pub use restore::RemoteRestoreCmd; 
+pub use restore::RemoteRestoreCmd;

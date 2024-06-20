@@ -12,6 +12,7 @@ use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, R
 use crate::dispatch;
 
 use clap::ArgMatches;
+use liboxen::command;
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
     Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
@@ -22,7 +23,6 @@ use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
 use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
 use liboxen::util;
-use liboxen::{command};
 use std::path::{Path, PathBuf};
 
 /// The subcommands for interacting with the remote staging area.
