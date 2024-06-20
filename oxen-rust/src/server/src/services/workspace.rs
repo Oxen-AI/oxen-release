@@ -46,7 +46,7 @@ pub fn workspace() -> Scope {
                 .route(
                     "/commit/{resource:.*}",
                     web::post().to(controllers::workspace::commit),
-                ),
+                )
+                .service(data_frame::data_frame()),
         )
-        .service(data_frame::data_frame())
 }

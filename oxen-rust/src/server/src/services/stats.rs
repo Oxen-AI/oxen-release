@@ -4,6 +4,5 @@ use actix_web::Scope;
 use crate::controllers;
 
 pub fn stats() -> Scope {
-    web::scope("/stats")
-        .route("", web::get().to(controllers::repositories::stats))
+    web::scope("/stats").route("", web::get().to(controllers::repositories::stats))
 }

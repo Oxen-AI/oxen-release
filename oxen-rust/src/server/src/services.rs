@@ -14,6 +14,7 @@ pub mod revisions;
 pub mod schemas;
 pub mod stats;
 pub mod tabular;
+pub mod transfer;
 pub mod versions;
 pub mod workspace;
 
@@ -33,5 +34,6 @@ pub use revisions::revisions;
 pub use schemas::schemas;
 pub use stats::stats;
 pub use tabular::tabular;
+pub use transfer::transfer;
 pub use versions::versions;
 pub use workspace::workspace;
