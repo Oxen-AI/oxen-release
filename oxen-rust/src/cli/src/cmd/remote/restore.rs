@@ -1,12 +1,12 @@
+use crate::helpers::check_repo_migration_needed;
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
-use crate::helpers::check_repo_migration_needed;
 use std::env;
 
+use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RestoreOpts;
-use liboxen::command;
 use std::path::PathBuf;
 
 use crate::cmd::RunCmd;
@@ -24,7 +24,6 @@ impl RunCmd for RemoteRestoreCmd {
         .about("Restore specified paths in the working tree with some contents from a restore source.")
         .arg(Arg::new("PATH")
             .help("The files or directory to restore")
-        
         )
         .arg_required_else_help(true)
         .arg(
@@ -32,8 +31,7 @@ impl RunCmd for RemoteRestoreCmd {
                 .long("source")
                 .help("Restores a specific revision of the file. Can supply commit id or branch name")
                 .action(clap::ArgAction::Set)
-                .requires("PATH"),
-              
+                .requires("PATH"),   
         )
         .arg(
             Arg::new("staged")
@@ -46,9 +44,8 @@ impl RunCmd for RemoteRestoreCmd {
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
         let path = args.get_one::<String>("PATH").expect("required");
-        
-        let opts = if let Some(source) = args.get_one::<String>("source") {
 
+        let opts = if let Some(source) = args.get_one::<String>("source") {
             RestoreOpts {
                 path: PathBuf::from(path),
                 staged: args.get_flag("staged"),
@@ -63,10 +60,10 @@ impl RunCmd for RemoteRestoreCmd {
                 source_ref: None,
             }
         };
-    
+
         let repo_dir = env::current_dir().unwrap();
         let repository = LocalRepository::from_dir(&repo_dir)?;
-    
+
         check_repo_migration_needed(&repository)?;
         command::remote::restore(&repository, opts).await?;
 
