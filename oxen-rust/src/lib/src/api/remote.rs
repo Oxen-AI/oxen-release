@@ -5,6 +5,7 @@ pub mod branches;
 pub mod client;
 pub mod commits;
 pub mod compare;
+pub mod data_frame;
 pub mod diff;
 pub mod dir;
 pub mod entries;

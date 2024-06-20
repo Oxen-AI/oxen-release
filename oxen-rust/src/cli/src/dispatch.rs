@@ -240,38 +240,6 @@ pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn remote_metadata_list_dir(path: impl AsRef<Path>) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
-
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-
-    let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.data_frame.view.to_df();
-
-    println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
-
-    Ok(())
-}
-
-pub async fn remote_metadata_list_image(path: impl AsRef<Path>) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
-
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-
-    let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.data_frame.view.to_df();
-
-    println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
-
-    Ok(())
-}
-
 pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
