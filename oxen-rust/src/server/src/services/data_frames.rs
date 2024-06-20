@@ -3,8 +3,8 @@ use actix_web::Scope;
 
 use crate::controllers;
 
-pub fn data_frame() -> Scope {
-    web::scope("/data_frame")
+pub fn data_frames() -> Scope {
+    web::scope("/data_frames")
         .route(
             "/index/{resource:.*}",
             web::post().to(controllers::data_frames::index),

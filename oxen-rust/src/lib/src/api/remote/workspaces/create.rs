@@ -4,21 +4,25 @@ use crate::error::OxenError;
 use crate::model::RemoteRepository;
 use crate::view::{WorkspaceResponseView, WorkspaceView};
 
+// TODO: Implement this in the same fashion as the hub, but so it can all work end to end open source
 pub async fn create(
     remote_repo: &RemoteRepository,
     branch_name: impl AsRef<str>,
     identifier: impl AsRef<str>,
+    resource_path: impl AsRef<str>,
 ) -> Result<WorkspaceView, OxenError> {
     let branch_name = branch_name.as_ref();
     let identifier = identifier.as_ref();
+    let resource_path = resource_path.as_ref();
     let uri = format!("/workspace");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("create workspace {}\n", url);
 
-    let body = serde_json::to_string(&serde_json::json!({
-        "branch_name": branch_name,
-        "identifier": identifier
-    }))?;
+    let body = serde_json::to_string(&WorkspaceView {
+        branch_name: branch_name.to_string(),
+        identifier: identifier.to_string(),
+        resource_path: resource_path.to_string(),
+    })?;
 
     let client = client::new_for_url(&url)?;
     let res = client

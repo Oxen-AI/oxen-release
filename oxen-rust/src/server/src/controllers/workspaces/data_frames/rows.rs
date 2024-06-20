@@ -1,4 +1,4 @@
-use crate::controllers::workspace::get_content_type;
+use crate::controllers::workspaces::get_content_type;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};

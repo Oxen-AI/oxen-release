@@ -22,7 +22,7 @@ use liboxen::view::entry::ResourceVersion;
 use liboxen::view::remote_staged_status::RemoteStagedStatus;
 use liboxen::view::{
     CommitResponse, FilePathsResponse, JsonDataFrameViewResponse, JsonDataFrameViews,
-    RemoteStagedStatusResponse, StatusMessage,
+    RemoteStagedStatusResponse, StatusMessage, WorkspaceResponseView, WorkspaceView,
 };
 use liboxen::{api, constants, core::index};
 
@@ -35,7 +35,42 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub mod data_frame;
+pub mod data_frames;
+
+pub async fn get_or_create(
+    req: HttpRequest,
+    body: String,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+
+    let data: Result<WorkspaceView, serde_json::Error> = serde_json::from_str(&body);
+    let data = match data {
+        Ok(data) => data,
+        Err(err) => {
+            log::error!("Unable to parse body. Err: {}\n{}", err, body);
+            return Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())));
+        }
+    };
+
+    let Some(branch) = api::local::branches::get_by_name(&repo, &data.branch_name)? else {
+        return Ok(
+            HttpResponse::BadRequest().json(StatusMessage::error("Branch not found".to_string()))
+        );
+    };
+
+    let identifier = data.identifier.clone();
+
+    // Get the branch repo for remote staging
+    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+
+    Ok(HttpResponse::Ok().json(WorkspaceResponseView {
+        status: StatusMessage::resource_created(),
+        workspace: data,
+    }))
+}
 
 pub async fn status_dir(
     req: HttpRequest,
@@ -449,33 +484,6 @@ pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
             &resource.path,
         ))
     }
-
-    // TODO convert this to result
-
-    // match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    // {
-    //     Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
-    //         Ok(Some((_, branch_name, file_name))) => {
-    //             delete_staged_file_on_branch(&repo, &branch_name, user_id, &file_name)
-    //         }
-    //         Ok(None) => {
-    //             log::error!("unable to find resource {:?}", resource);
-    //             HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-    //         }
-    //         Err(err) => {
-    //             log::error!("Could not parse resource  {repo_name} -> {err}");
-    //             HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-    //         }
-    //     },
-    //     Ok(None) => {
-    //         log::error!("unable to find repo {}", repo_name);
-    //         HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-    //     }
-    //     Err(err) => {
-    //         log::error!("Error getting repo by name {repo_name} -> {err}");
-    //         HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-    //     }
-    // }
 }
 
 fn clear_staged_modifications_on_branch(

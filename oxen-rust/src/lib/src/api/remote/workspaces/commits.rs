@@ -11,7 +11,7 @@ pub async fn commit_file(
     commit: &NewCommitBody,
     file_path: &str,
 ) -> Result<Commit, OxenError> {
-    let uri = format!("/workspace/{identifier}/commit/{branch_name}/{file_path}");
+    let uri = format!("/workspaces/{identifier}/commit/{branch_name}/{file_path}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("commit_staged {}\n{}", url, body);
@@ -51,7 +51,7 @@ pub async fn commit(
     identifier: &str,
     commit: &NewCommitBody,
 ) -> Result<Commit, OxenError> {
-    let uri = format!("/workspace/{identifier}/commit/{branch_name}");
+    let uri = format!("/workspaces/{identifier}/commit/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let body = serde_json::to_string(&commit).unwrap();
     log::debug!("commit_staged {}\n{}", url, body);
@@ -113,7 +113,7 @@ mod tests {
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::workspace::add_files(
+            let result = api::remote::workspaces::add_files(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -129,7 +129,7 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                api::remote::workspaces::commit(&remote_repo, branch_name, &identifier, &body)
                     .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;

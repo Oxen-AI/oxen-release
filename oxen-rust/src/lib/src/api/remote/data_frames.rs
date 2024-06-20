@@ -16,7 +16,7 @@ pub async fn get(
 ) -> Result<JsonDataFrameViewResponse, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
     let query_str = opts.to_http_query_params();
-    let uri = format!("/data_frame/{commit_or_branch}/{path_str}?{query_str}");
+    let uri = format!("/data_frames/{commit_or_branch}/{path_str}?{query_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -49,7 +49,7 @@ pub async fn index(
     path: impl AsRef<Path>,
 ) -> Result<StatusMessage, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
-    let uri = format!("/data_frame/index/{commit_or_branch}/{path_str}");
+    let uri = format!("/data_frames/index/{commit_or_branch}/{path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -162,7 +162,7 @@ mod tests {
             let mut opts = DFOpts::empty();
             opts.page_size = Some(10);
 
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 PathBuf::from("large_files").join("test.csv"),
@@ -228,7 +228,7 @@ mod tests {
             // Get the df
             let mut opts = DFOpts::empty();
             opts.page_size = Some(10);
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 PathBuf::from("large_files").join("test.csv"),
@@ -277,7 +277,7 @@ mod tests {
             let mut opts = DFOpts::empty();
             opts.page = Some(1);
             opts.page_size = Some(20);
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 "large_files/test.csv",
@@ -328,7 +328,7 @@ mod tests {
             command::push(&local_repo).await?;
 
             // Index the df on the remote repo
-            api::remote::data_frame::index(
+            api::remote::data_frames::index(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 "large_files/test.csv",
@@ -341,7 +341,7 @@ mod tests {
             opts.sql = Some(
                 "SELECT image_id,lefteye_x,lefteye_y FROM df WHERE lefteye_x > 70".to_string(),
             );
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 PathBuf::from("large_files").join("test.csv"),
@@ -370,7 +370,7 @@ mod tests {
             opts.sql = Some(
                 "SELECT image_id,lefteye_x,lefteye_y FROM df WHERE lefteye_x > 70".to_string(),
             );
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 PathBuf::from("large_files").join("test.csv"),
@@ -423,7 +423,7 @@ mod tests {
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
             let result =
-                api::remote::data_frame::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref, opts)
+                api::remote::data_frames::get(&remote_repo, DEFAULT_BRANCH_NAME, schema_ref, opts)
                     .await;
             assert!(result.is_err());
 
@@ -464,7 +464,7 @@ mod tests {
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
             let result =
-                api::remote::data_frame::get(&remote_repo, branch_name, schema_ref, opts).await;
+                api::remote::data_frames::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(result.is_err());
 
             // Push the repo
@@ -473,7 +473,7 @@ mod tests {
             // List the one schema
             let opts = DFOpts::empty();
             let results =
-                api::remote::data_frame::get(&remote_repo, branch_name, schema_ref, opts).await;
+                api::remote::data_frames::get(&remote_repo, branch_name, schema_ref, opts).await;
             assert!(results.is_ok());
 
             let result = results.unwrap();
@@ -528,7 +528,7 @@ mod tests {
             // Get the df
             let mut opts = DFOpts::empty();
             opts.columns = Some("id,title".to_string());
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 "data/test.parquet",
@@ -597,7 +597,7 @@ mod tests {
             opts.page = Some(4);
             opts.page_size = Some(5);
             opts.columns = Some("id,title".to_string());
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 "data/test.parquet",
@@ -659,7 +659,7 @@ mod tests {
             let mut opts = DFOpts::empty();
             opts.slice = Some("330..333".to_string());
             opts.columns = Some("id,title".to_string());
-            let df = api::remote::data_frame::get(
+            let df = api::remote::data_frames::get(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
                 "data/test.parquet",

@@ -15,7 +15,7 @@ pub async fn add_file(
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/workspace/{identifier}/file/{branch_name}/{directory_name}");
+    let uri = format!("/workspaces/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -83,7 +83,7 @@ pub async fn add_files(
         pluralize("file", paths.len() as isize, true)
     );
 
-    let uri = format!("/workspace/{identifier}/file/{branch_name}/{directory_name}");
+    let uri = format!("/workspaces/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -149,7 +149,7 @@ mod tests {
             let directory_name = "images";
             let identifier = UserConfig::identifier()?;
             let path = test::test_img_file();
-            let result = api::remote::workspace::add_file(
+            let result = api::remote::workspaces::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -162,7 +162,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::workspace::status(
+            let entries = api::remote::workspaces::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -197,7 +197,7 @@ mod tests {
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::workspace::add_files(
+            let result = api::remote::workspaces::add_files(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -210,7 +210,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::workspace::status(
+            let entries = api::remote::workspaces::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -242,7 +242,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let file_to_post = test::test_img_file();
             let directory_name = "data";
-            let result = api::remote::workspace::add_file(
+            let result = api::remote::workspaces::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -258,7 +258,7 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                api::remote::workspaces::commit(&remote_repo, branch_name, &identifier, &body)
                     .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
@@ -316,7 +316,7 @@ mod tests {
             let directory_name = "tabular";
             let identifier = UserConfig::identifier()?;
             let path = test::test_1k_parquet();
-            let result = api::remote::workspace::add_file(
+            let result = api::remote::workspaces::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -332,7 +332,7 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                api::remote::workspaces::commit(&remote_repo, branch_name, &identifier, &body)
                     .await?;
             assert!(commit.message.contains("Add one data frame"));
 

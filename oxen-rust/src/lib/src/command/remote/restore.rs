@@ -18,6 +18,6 @@ pub async fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), Ox
     let branch = branch.unwrap();
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     let user_id = UserConfig::identifier()?;
-    api::remote::workspace::restore_df(&remote_repo, &branch.name, &user_id, opts.path.to_owned())
+    api::remote::workspaces::restore_df(&remote_repo, &branch.name, &user_id, opts.path.to_owned())
         .await
 }
