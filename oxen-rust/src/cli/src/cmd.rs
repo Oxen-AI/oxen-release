@@ -45,6 +45,9 @@ pub use log::LogCmd;
 pub mod read_lines;
 pub use read_lines::ReadLinesCmd;
 
+pub mod rm;
+pub use rm::RmCmd; 
+
 pub mod remote;
 
 pub mod schemas;

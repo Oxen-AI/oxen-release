@@ -20,7 +20,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME}
 use liboxen::error::OxenError;
 use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
+use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, UploadOpts};
 use liboxen::{command, opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 
@@ -35,7 +35,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 remote_add(sub_matches).await;
             }
             (RM, sub_matches) => {
-                remote_rm(sub_matches).await;
+                let cmd = cmd::remote::RemoteRmCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (RESTORE, sub_matches) => {
                 remote_restore(sub_matches).await;
@@ -434,52 +440,6 @@ pub async fn add(sub_matches: &ArgMatches) {
         directory: None,
     };
     match dispatch::add(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn remote_rm(sub_matches: &ArgMatches) {
-    let paths: Vec<PathBuf> = sub_matches
-        .get_many::<String>("files")
-        .expect("Must supply files")
-        .map(PathBuf::from)
-        .collect();
-
-    let opts = RmOpts {
-        // The path will get overwritten for each file that is removed
-        path: paths.first().unwrap().to_path_buf(),
-        staged: sub_matches.get_flag("staged"),
-        recursive: sub_matches.get_flag("recursive"),
-        remote: true,
-    };
-
-    match dispatch::rm(paths, &opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn rm(sub_matches: &ArgMatches) {
-    let paths: Vec<PathBuf> = sub_matches
-        .get_many::<String>("files")
-        .expect("Must supply files")
-        .map(PathBuf::from)
-        .collect();
-
-    let opts = RmOpts {
-        // The path will get overwritten for each file that is removed
-        path: paths.first().unwrap().to_path_buf(),
-        staged: sub_matches.get_flag("staged"),
-        recursive: sub_matches.get_flag("recursive"),
-        remote: false,
-    };
-
-    match dispatch::rm(paths, &opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
