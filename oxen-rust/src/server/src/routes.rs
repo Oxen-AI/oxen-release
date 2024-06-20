@@ -29,7 +29,7 @@ pub fn config(cfg: &mut web::ServiceConfig) {
                 .service(services::commits())
                 .service(services::commits_db())
                 .service(services::compare())
-                .service(services::data_frame())
+                .service(services::data_frames())
                 .service(services::dir())
                 .service(services::file())
                 .service(services::merge())

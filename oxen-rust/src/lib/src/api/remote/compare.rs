@@ -89,7 +89,7 @@ pub async fn update_compare(
         display,
     };
 
-    let uri = format!("/compare/data_frame/{compare_id}");
+    let uri = format!("/compare/data_frames/{compare_id}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -116,7 +116,7 @@ pub async fn get_derived_compare_df(
     compare_id: &str,
 ) -> Result<JsonDataFrameView, OxenError> {
     // TODO: Factor out this basehead - not actually using it but needs to sync w/ routes on server
-    let uri = format!("/compare/data_frame/{}/diff/main..main", compare_id);
+    let uri = format!("/compare/data_frames/{}/diff/main..main", compare_id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;

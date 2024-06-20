@@ -13,14 +13,14 @@ use liboxen::error::OxenError;
 use liboxen::model::{Branch, LocalRepository, ParsedResource, Schema};
 use liboxen::opts::DFOpts;
 use liboxen::util::paginate;
-use liboxen::view::data_frame::DataFramePayload;
+use liboxen::view::data_frames::DataFramePayload;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::json_data_frame_view::EditableJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, constants, core::index};
 
-pub mod row;
+pub mod rows;
 
 pub async fn get_by_resource(
     req: HttpRequest,
@@ -41,11 +41,11 @@ pub async fn get_by_resource(
         ))?;
 
     log::debug!(
-        "controllers::workspace::data_frame::get resource: {:?}",
+        "controllers::workspaces::data_frames::get resource: {:?}",
         resource
     );
     log::debug!(
-        "controllers::workspace::data_frame::get commit: {:?}",
+        "controllers::workspaces::data_frames::get commit: {:?}",
         commit
     );
 

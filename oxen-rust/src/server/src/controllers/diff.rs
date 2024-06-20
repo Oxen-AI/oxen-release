@@ -666,7 +666,7 @@ pub async fn get_derived_df(
             let derived_resource = DerivedDFResource {
                 resource_type: DFResourceType::Compare,
                 resource_id: compare_id.clone(),
-                path: format!("/compare/data_frame/{}/diff", compare_id),
+                path: format!("/compare/data_frames/{}/diff", compare_id),
             };
 
             let response = JsonDataFrameViewResponse {

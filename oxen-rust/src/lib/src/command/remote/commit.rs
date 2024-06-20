@@ -26,7 +26,7 @@ pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Comm
     };
     let user_id = UserConfig::identifier()?;
     let commit =
-        api::remote::workspace::commit(&remote_repo, &branch.name, &user_id, &body).await?;
+        api::remote::workspaces::commit(&remote_repo, &branch.name, &user_id, &body).await?;
     Ok(Some(commit))
 }
 

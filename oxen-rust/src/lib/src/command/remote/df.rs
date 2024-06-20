@@ -32,7 +32,7 @@ pub async fn df<P: AsRef<Path>>(
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
         let identifier = UserConfig::identifier()?;
-        let val = api::remote::workspace::data_frame::get_by_resource(
+        let val = api::remote::workspaces::data_frames::get_by_resource(
             &remote_repo,
             &branch.name,
             identifier,
@@ -72,7 +72,7 @@ pub async fn staged_df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val = api::remote::workspace::data_frame::get_by_resource(
+        let val = api::remote::workspaces::data_frames::get_by_resource(
             &remote_repo,
             &branch.name,
             &identifier,
@@ -114,7 +114,7 @@ pub async fn add_row(
 
     if let Some(branch) = api::local::branches::current_branch(repo)? {
         let user_id = UserConfig::identifier()?;
-        let (df, row_id) = api::remote::workspace::row::create_row(
+        let (df, row_id) = api::remote::workspaces::data_frames::rows::create_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -146,7 +146,7 @@ pub async fn delete_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let df = api::remote::workspace::row::delete_row(
+        let df = api::remote::workspaces::data_frames::rows::delete_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -170,7 +170,7 @@ pub async fn get_row(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        let df_json = api::remote::workspace::row::get_row(
+        let df_json = api::remote::workspaces::data_frames::rows::get_row(
             &remote_repo,
             &branch.name,
             &user_id,
@@ -195,7 +195,7 @@ pub async fn index_dataset(
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
     if let Some(branch) = api::local::branches::current_branch(repository)? {
         let user_id = UserConfig::identifier()?;
-        api::remote::workspace::data_frame::put(
+        api::remote::workspaces::data_frames::put(
             &remote_repo,
             &branch.name,
             &user_id,

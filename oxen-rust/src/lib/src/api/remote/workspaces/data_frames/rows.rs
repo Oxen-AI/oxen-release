@@ -19,7 +19,7 @@ pub async fn get_row(
 ) -> Result<JsonDataFrameRowResponse, OxenError> {
     let file_path_str = path.to_str().unwrap();
     let uri = format!(
-        "/workspace/{identifier}/data_frame/rows/{row_id}/resource/{branch_name}/{file_path_str}"
+        "/workspaces/{identifier}/data_frames/rows/{row_id}/resource/{branch_name}/{file_path_str}"
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("get_row {url}\n{row_id}");
@@ -61,7 +61,7 @@ pub async fn update_row(
     };
 
     let uri = format!(
-        "/workspace/{identifier}/data_frame/rows/{row_id}/resource/{branch_name}/{file_path_str}"
+        "/workspaces/{identifier}/data_frames/rows/{row_id}/resource/{branch_name}/{file_path_str}"
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("update_row {url}\n{data}");
@@ -108,7 +108,7 @@ pub async fn delete_row(
     };
 
     let uri = format!(
-        "/workspace/{identifier}/data_frame/rows/{row_id}/resource/{branch_name}/{file_path_str}"
+        "/workspaces/{identifier}/data_frames/rows/{row_id}/resource/{branch_name}/{file_path_str}"
     );
 
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -158,7 +158,7 @@ pub async fn create_row(
     };
 
     let uri =
-        format!("/workspace/{identifier}/data_frame/rows/resource/{branch_name}/{file_path_str}");
+        format!("/workspaces/{identifier}/data_frames/rows/resource/{branch_name}/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("modify_df {url}\n{data}");
 
@@ -204,7 +204,7 @@ pub async fn restore_row(
     };
 
     let uri = format!(
-        "/workspace/{identifier}/data_frame/rows/{row_id}/restore/{branch_name}/{file_path_str}"
+        "/workspaces/{identifier}/data_frames/rows/{row_id}/restore/{branch_name}/{file_path_str}"
     );
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
@@ -262,9 +262,9 @@ mod tests {
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::remote::workspace::put(&remote_repo, branch_name, &identifier, &path, true).await?;
+            api::remote::workspaces::put(&remote_repo, branch_name, &identifier, &path, true).await?;
             let result =
-                api::remote::workspace::row::create_row(
+                api::remote::workspaces::data_frames::rows::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -299,7 +299,7 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let data = "{\"id\": 1, \"name\": \"greg\"}";
-            let result = api::remote::workspace::row::create_row(
+            let result = api::remote::workspaces::data_frames::rows::create_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -329,14 +329,14 @@ mod tests {
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data: &str = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            api::remote::workspace::put(
+            api::remote::workspaces::put(
                 &remote_repo,
                 branch_name,
                 &identifier,
                 &path,
                 true
             ).await?;
-            api::remote::workspace::row::create_row(
+            api::remote::workspaces::data_frames::rows::create_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -348,7 +348,7 @@ mod tests {
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::remote::workspace::status(
+            let entries = api::remote::workspaces::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -378,10 +378,10 @@ mod tests {
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::workspace::put(&remote_repo, branch_name, &identifier, &path, true).await?;
+            api::remote::workspaces::put(&remote_repo, branch_name, &identifier, &path, true).await?;
 
             // Create a new row
-            let result = api::remote::workspace::row::create_row(
+            let result = api::remote::workspaces::data_frames::rows::create_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -396,17 +396,17 @@ mod tests {
             let row_id: &String = result.as_ref().unwrap().1.as_ref().unwrap();
 
             // Get the newly created row
-            let row = api::remote::workspace::row::get_row(&remote_repo, branch_name, &identifier, &path, row_id).await?;
+            let row = api::remote::workspaces::data_frames::rows::get_row(&remote_repo, branch_name, &identifier, &path, row_id).await?;
 
             // Check the "_oxen_diff_status" field
             let data: Value = serde_json::from_value(row.data_frame.view.data[0].clone()).unwrap();
             assert_eq!(data.get("_oxen_diff_status").unwrap(), "added");
 
             // Restore the row
-            let _restore_resp = api::remote::workspace::row::restore_row(&remote_repo, branch_name, &identifier, &path, row_id).await?;
+            let _restore_resp = api::remote::workspaces::data_frames::rows::restore_row(&remote_repo, branch_name, &identifier, &path, row_id).await?;
 
             // Get the restored row
-            let restored_row: crate::view::json_data_frame_view::JsonDataFrameRowResponse = api::remote::workspace::row::get_row(&remote_repo, branch_name, &identifier, &path, row_id).await?;
+            let restored_row: crate::view::json_data_frame_view::JsonDataFrameRowResponse = api::remote::workspaces::data_frames::rows::get_row(&remote_repo, branch_name, &identifier, &path, row_id).await?;
 
             // Check that the restored data is null
             let restore_data: Value = serde_json::from_value(restored_row.data_frame.view.data[0].clone()).unwrap();
@@ -435,10 +435,10 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
 
-            api::remote::workspace::put(&remote_repo, branch_name, &identifier, &path, true)
+            api::remote::workspaces::put(&remote_repo, branch_name, &identifier, &path, true)
                 .await?;
 
-            let df = api::remote::workspace::data_frame::get_by_resource(
+            let df = api::remote::workspaces::data_frames::get_by_resource(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -458,7 +458,7 @@ mod tests {
 
             let row_id = row_id_value.as_str().unwrap();
 
-            let row = api::remote::workspace::row::get_row(
+            let row = api::remote::workspaces::data_frames::rows::get_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -471,7 +471,7 @@ mod tests {
 
             assert_eq!(data.get("_oxen_diff_status").unwrap(), "unchanged");
 
-            api::remote::workspace::row::delete_row(
+            api::remote::workspaces::data_frames::rows::delete_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -480,7 +480,7 @@ mod tests {
             )
             .await?;
 
-            let row = api::remote::workspace::row::get_row(
+            let row = api::remote::workspaces::data_frames::rows::get_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -516,10 +516,10 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
 
-            api::remote::workspace::put(&remote_repo, branch_name, &identifier, &path, true)
+            api::remote::workspaces::put(&remote_repo, branch_name, &identifier, &path, true)
                 .await?;
 
-            let df = api::remote::workspace::data_frame::get_by_resource(
+            let df = api::remote::workspaces::data_frames::get_by_resource(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -539,7 +539,7 @@ mod tests {
 
             let row_id = row_id_value.as_str().unwrap();
 
-            let row = api::remote::workspace::row::get_row(
+            let row = api::remote::workspaces::data_frames::rows::get_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -555,7 +555,7 @@ mod tests {
             let data: &str = "{\"file\":\"lebron>jordan.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
 
-            api::remote::workspace::row::update_row(
+            api::remote::workspaces::data_frames::rows::update_row(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -564,7 +564,7 @@ mod tests {
                 data.to_string()            )
             .await?;
 
-            let row = api::remote::workspace::row::get_row(
+            let row = api::remote::workspaces::data_frames::rows::get_row(
                 &remote_repo,
                 branch_name,
                 &identifier,

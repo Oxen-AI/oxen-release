@@ -12,7 +12,7 @@ pub async fn restore_df(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/workspace/{identifier}/modifications/{branch_name}/{file_name}");
+    let uri = format!("/workspaces/{identifier}/modifications/{branch_name}/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("restore_df {}", url);
     let client = client::new_for_url(&url)?;
@@ -57,9 +57,9 @@ mod tests {
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::workspace::data_frame::put(&remote_repo, branch_name, &identifier, &path, true).await?;
+            api::remote::workspaces::data_frames::put(&remote_repo, branch_name, &identifier, &path, true).await?;
 
-            let result_1 = api::remote::workspace::row::create_row(
+            let result_1 = api::remote::workspaces::data_frames::rows::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -71,7 +71,7 @@ mod tests {
             assert!(result_1.is_ok());
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let result_2 = api::remote::workspace::row::create_row(
+            let result_2 = api::remote::workspaces::data_frames::rows::create_row(
                     &remote_repo,
                     branch_name,
                     &identifier,
@@ -84,7 +84,7 @@ mod tests {
 
 
             // Make sure both got staged
-            let diff = api::remote::workspace::diff(
+            let diff = api::remote::workspaces::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -100,10 +100,10 @@ mod tests {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
                     assert_eq!(added_rows, 2);
                 }
-                _ => panic!("Expected tabular diff result"),    
+                _ => panic!("Expected tabular diff result"),
             }
             // Delete result_2
-            let result_delete = api::remote::workspace::restore_df(
+            let result_delete = api::remote::workspaces::restore_df(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -112,7 +112,7 @@ mod tests {
             assert!(result_delete.is_ok());
 
             // Should be cleared
-            let diff = api::remote::workspace::diff(
+            let diff = api::remote::workspaces::diff(
                 &remote_repo,
                 branch_name,
                 &identifier,

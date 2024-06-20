@@ -3,50 +3,50 @@ use actix_web::Scope;
 
 use crate::controllers;
 
-pub mod data_frame;
+pub mod data_frames;
 
 pub fn workspace() -> Scope {
-    web::scope("/workspace")
-        // .route("", web::post().to(controllers::workspace::create))
-        // .route("", web::get().to(controllers::workspace::list))
+    web::scope("/workspaces")
+        .route("", web::put().to(controllers::workspaces::get_or_create))
+        // .route("", web::get().to(controllers::workspaces::list))
         .service(
             web::scope("/{identifier}")
                 .route(
                     "/status/{resource:.*}",
-                    web::get().to(controllers::workspace::status_dir),
+                    web::get().to(controllers::workspaces::status_dir),
                 )
                 .route(
                     "/entries/{resource:.*}",
-                    web::post().to(controllers::workspace::add_file),
+                    web::post().to(controllers::workspaces::add_file),
                 )
                 .route(
                     "/entries/{resource:.*}",
-                    web::delete().to(controllers::workspace::delete_file),
+                    web::delete().to(controllers::workspaces::delete_file),
                 )
                 .route(
                     "/file/{resource:.*}",
-                    web::get().to(controllers::workspace::get_file),
+                    web::get().to(controllers::workspaces::get_file),
                 )
                 .route(
                     "/file/{resource:.*}",
-                    web::post().to(controllers::workspace::add_file),
+                    web::post().to(controllers::workspaces::add_file),
                 )
                 .route(
                     "/file/{resource:.*}",
-                    web::delete().to(controllers::workspace::delete_file),
+                    web::delete().to(controllers::workspaces::delete_file),
                 )
                 .route(
                     "/diff/{resource:.*}",
-                    web::get().to(controllers::workspace::diff_file),
+                    web::get().to(controllers::workspaces::diff_file),
                 )
                 .route(
                     "/modifications/{resource:.*}",
-                    web::delete().to(controllers::workspace::clear_modifications),
+                    web::delete().to(controllers::workspaces::clear_modifications),
                 )
                 .route(
                     "/commit/{resource:.*}",
-                    web::post().to(controllers::workspace::commit),
+                    web::post().to(controllers::workspaces::commit),
                 )
-                .service(data_frame::data_frame()),
+                .service(data_frames::data_frames()),
         )
 }
