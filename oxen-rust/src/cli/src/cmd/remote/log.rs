@@ -12,7 +12,7 @@ use liboxen::opts::LogOpts;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "log";
-pub struct LogCmd;
+pub struct RemoteLogCmd;
 
 fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
     match writeln!(output, "{}", text) {
@@ -22,7 +22,7 @@ fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
 }
 
 #[async_trait]
-impl RunCmd for LogCmd {
+impl RunCmd for RemoteLogCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -44,10 +44,10 @@ impl RunCmd for LogCmd {
 
         let opts = LogOpts {
             revision,
-            remote: false,
+            remote: true,
         };
 
-        let commits = command::log_commits(&repo, &opts).await?;
+        let commits = command::remote::log_commits(&repo, &opts).await?;
 
         // Fri, 21 Oct 2022 16:08:39 -0700
         let format = format_description::parse(

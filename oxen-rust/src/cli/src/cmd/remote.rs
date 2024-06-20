@@ -9,3 +9,6 @@ pub use df::RemoteDfCmd;
 
 pub mod restore;
 pub use restore::RemoteRestoreCmd;
+
+pub mod log;
+pub use log::RemoteLogCmd;

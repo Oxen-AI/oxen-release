@@ -21,8 +21,8 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME}
 use liboxen::error::OxenError;
 use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, LogOpts, RmOpts, UploadOpts};
-use liboxen::util;
+use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
+use liboxen::command;
 use std::path::{Path, PathBuf};
 
 /// The subcommands for interacting with the remote staging area.
@@ -57,7 +57,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 }
             }
             (LOG, sub_matches) => {
-                remote_log(sub_matches).await;
+                let cmd = cmd::remote::RemoteLogCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (DF, sub_matches) => {
                 let cmd = cmd::remote::RemoteDfCmd {};
@@ -413,36 +419,6 @@ pub fn info(sub_matches: &ArgMatches) {
     }
 }
 
-async fn remote_log(sub_matches: &ArgMatches) {
-    let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
-
-    let opts = LogOpts {
-        revision,
-        remote: true,
-    };
-    match dispatch::log_commits(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn log(sub_matches: &ArgMatches) {
-    let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
-
-    let opts = LogOpts {
-        revision,
-        remote: false,
-    };
-    match dispatch::log_commits(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
 pub async fn fetch(_: &ArgMatches) {
     match dispatch::fetch().await {
         Ok(_) => {}
@@ -651,27 +627,6 @@ pub async fn migrate(sub_matches: &ArgMatches) {
             }
         }
     }
-}
-
-pub fn read_lines(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let start = sub_matches
-        .get_one::<String>("START")
-        .expect("Must supply START")
-        .parse::<usize>()
-        .expect("START must be a valid integer.");
-    let length = sub_matches
-        .get_one::<String>("LENGTH")
-        .expect("Must supply LENGTH")
-        .parse::<usize>()
-        .expect("LENGTH must be a valid integer.");
-
-    let path = Path::new(path_str);
-    let (lines, size) = util::fs::read_lines_paginated_ret_size(path, start, length);
-    for line in lines.iter() {
-        println!("{line}");
-    }
-    println!("Total: {size}");
 }
 
 pub fn run_migration(
