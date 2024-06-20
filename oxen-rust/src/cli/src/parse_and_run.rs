@@ -251,9 +251,6 @@ async fn remote_metadata(sub_matches: &ArgMatches) -> Result<(), OxenError> {
             ("list", sub_matches) => {
                 remote_metadata_list(sub_matches).await;
             }
-            ("aggregate", sub_matches) => {
-                remote_metadata_aggregate(sub_matches).await?;
-            }
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
             }
@@ -266,43 +263,6 @@ async fn remote_metadata(sub_matches: &ArgMatches) -> Result<(), OxenError> {
             }
         }
     }
-    Ok(())
-}
-
-async fn remote_metadata_aggregate(sub_matches: &ArgMatches) -> Result<(), OxenError> {
-    let directory = sub_matches
-        .get_one::<String>("path")
-        .map(PathBuf::from)
-        .unwrap_or(PathBuf::from("."));
-
-    let column = sub_matches
-        .get_one::<String>("column")
-        .ok_or(OxenError::basic_str("Must supply column"))?;
-
-    match sub_matches.get_one::<String>("type") {
-        Some(data_type) => match data_type.parse::<EntryDataType>() {
-            Ok(EntryDataType::Dir) => {
-                match dispatch::remote_metadata_aggregate_dir(directory, &column).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
-            }
-            Ok(_) => {
-                todo!("implement other types")
-            }
-            Err(err) => {
-                let err = format!("{err:?}");
-                return Err(OxenError::basic_str(err));
-            }
-        },
-        None => {
-            let err = "Must supply type".to_string();
-            return Err(OxenError::basic_str(err));
-        }
-    };
-
     Ok(())
 }
 

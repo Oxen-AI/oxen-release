@@ -246,6 +246,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::entry::mod_entry::ModType;
     use crate::model::ContentType;
+    use crate::opts::DFOpts;
     use crate::test;
 
     use std::path::Path;
@@ -442,6 +443,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
+                DFOpts::empty(),
             )
             .await?;
 
@@ -522,6 +524,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
+                DFOpts::empty(),
             )
             .await?;
 
