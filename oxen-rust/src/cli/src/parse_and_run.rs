@@ -531,32 +531,6 @@ pub async fn remote_restore(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("PATH").expect("required");
-
-    let opts = if let Some(source) = sub_matches.get_one::<String>("source") {
-        RestoreOpts {
-            path: PathBuf::from(path),
-            staged: sub_matches.get_flag("staged"),
-            is_remote: false,
-            source_ref: Some(String::from(source)),
-        }
-    } else {
-        RestoreOpts {
-            path: PathBuf::from(path),
-            staged: sub_matches.get_flag("staged"),
-            is_remote: false,
-            source_ref: None,
-        }
-    };
-
-    match dispatch::restore(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
 
 pub fn merge(sub_matches: &ArgMatches) {
     let branch = sub_matches
