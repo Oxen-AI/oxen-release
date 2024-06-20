@@ -15,7 +15,6 @@ use liboxen::opts::InfoOpts;
 use liboxen::opts::ListOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
-use liboxen::opts::RestoreOpts;
 use liboxen::opts::RmOpts;
 use liboxen::opts::UploadOpts;
 use liboxen::util;
@@ -316,20 +315,6 @@ pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
     for path in paths {
         let path_opts = RmOpts::from_path_opts(&path, opts);
         command::rm(&repository, &path_opts).await?;
-    }
-
-    Ok(())
-}
-
-pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    check_repo_migration_needed(&repository)?;
-    if opts.is_remote {
-        command::remote::restore(&repository, opts).await?;
-    } else {
-        command::restore(&repository, opts)?;
     }
 
     Ok(())
