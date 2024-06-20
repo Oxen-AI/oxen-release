@@ -82,7 +82,6 @@ async fn main() -> ExitCode {
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
         Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),
         Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
-        Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
         Some((cmd_setup::SAVE, sub_matches)) => parse_and_run::save(sub_matches).await,
         Some((cmd_setup::STATUS, sub_matches)) => parse::status(sub_matches).await,
