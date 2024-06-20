@@ -6,15 +6,14 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
+use crate::command::helpers;
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 use crate::{api, core::index};
-use crate::command::helpers;
 
 use glob::glob;
-
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
