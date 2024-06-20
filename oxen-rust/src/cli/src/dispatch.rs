@@ -13,20 +13,13 @@ use liboxen::opts::DFOpts;
 use liboxen::opts::DownloadOpts;
 use liboxen::opts::InfoOpts;
 use liboxen::opts::ListOpts;
-use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
 use liboxen::opts::RestoreOpts;
-use liboxen::opts::RmOpts;
 use liboxen::opts::UploadOpts;
 use liboxen::util;
 use liboxen::view::PaginatedDirEntries;
 
-use colored::Colorize;
-use minus::Pager;
-use time::format_description;
-
 use std::env;
-use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -308,19 +301,6 @@ pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    check_repo_migration_needed(&repository)?;
-
-    for path in paths {
-        let path_opts = RmOpts::from_path_opts(&path, opts);
-        command::rm(&repository, &path_opts).await?;
-    }
-
-    Ok(())
-}
-
 pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
@@ -377,13 +357,6 @@ pub fn merge(branch: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
-    match writeln!(output, "{}", text) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(OxenError::basic_str("Could not write to pager")),
-    }
-}
-
 pub async fn fetch() -> Result<(), OxenError> {
     // Look up from the current dir for .oxen directory
     let current_dir = env::current_dir().unwrap();
@@ -396,43 +369,6 @@ pub async fn fetch() -> Result<(), OxenError> {
     check_repo_migration_needed(&repository)?;
     check_remote_version_blocking(host.clone()).await?;
     command::fetch(&repository).await?;
-    Ok(())
-}
-
-pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir =
-        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let commits = api::local::commits::list_with_opts(&repository, &opts).await?;
-
-    // Fri, 21 Oct 2022 16:08:39 -0700
-    let format = format_description::parse(
-        "[weekday], [day] [month repr:long] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory]",
-    ).unwrap();
-
-    let mut output = Pager::new();
-
-    for commit in commits {
-        let commit_id_str = format!("commit {}", commit.id).yellow();
-        write_to_pager(&mut output, &format!("{}\n", commit_id_str))?;
-        write_to_pager(&mut output, &format!("Author: {}", commit.author))?;
-        write_to_pager(
-            &mut output,
-            &format!("Date:   {}\n", commit.timestamp.format(&format).unwrap()),
-        )?;
-        write_to_pager(&mut output, &format!("    {}\n", commit.message))?;
-    }
-
-    match minus::page_all(output) {
-        Ok(_) => {}
-        Err(e) => {
-            eprintln!("Error while paging: {}", e);
-        }
-    }
-
     Ok(())
 }
 
