@@ -11,6 +11,7 @@ use crate::cmd::df::DFCmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::remote::df::RemoteDfCmd;
 use crate::cmd::remote::log::RemoteLogCmd;
+use crate::cmd::remote::rm::RemoteRmCmd;
 
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
@@ -59,7 +60,7 @@ pub fn remote() -> Command {
         .subcommand(download())
         .subcommand(ls())
         .subcommand(restore())
-        .subcommand(rm())
+        .subcommand(RemoteRmCmd.args())
         .subcommand(status())
         .subcommand(metadata())
         .arg(
@@ -338,29 +339,6 @@ pub fn upload() -> Command {
                 .long("remote")
                 .help("Remote to up the data to, for example: 'origin'")
                 .action(clap::ArgAction::Set),
-        )
-}
-
-pub fn rm() -> Command {
-    Command::new(RM)
-        .about("Removes the specified files from the index")
-        .arg(
-            Arg::new("files")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
-        .arg(
-            Arg::new("staged")
-                .long("staged")
-                .help("Removes the file from the staging area.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("recursive")
-                .long("recursive")
-                .short('r')
-                .help("Recursively removes directory.")
-                .action(clap::ArgAction::SetTrue),
         )
 }
 
