@@ -8,7 +8,8 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 use crate::cmd::add::add_args;
 use crate::cmd::df::DFCmd;
-use crate::cmd::remote::{RemoteCommitCmd, RemoteDfCmd, RemoteRestoreCmd};
+
+use crate::cmd::remote::{RemoteCommitCmd, RemoteDfCmd, RemoteLogCmd, RemoteRestoreCmd};
 
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
@@ -52,6 +53,7 @@ pub fn remote() -> Command {
         )
         .subcommand(RemoteCommitCmd.args())
         .subcommand(RemoteDfCmd.args())
+        .subcommand(RemoteLogCmd.args())
         .subcommand(diff())
         .subcommand(download())
         .subcommand(ls())
@@ -693,24 +695,6 @@ pub fn migrate() -> Command {
                             .action(clap::ArgAction::SetTrue),
                     ),
                 )
-        )
-}
-
-pub fn read_lines() -> Command {
-    Command::new("read-lines")
-        .about("Read a set of lines from a file without loading it all into memory")
-        .arg(arg!(<PATH> "Path to file you want to read"))
-        .arg(
-            Arg::new("START")
-                .help("Start index of file")
-                .default_value("0")
-                .default_missing_value("0"),
-        )
-        .arg(
-            Arg::new("LENGTH")
-                .help("Length you want to read")
-                .default_value("10")
-                .default_missing_value("10"),
         )
 }
 
