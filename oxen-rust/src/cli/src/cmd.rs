@@ -42,6 +42,9 @@ pub use moo::MooCmd;
 pub mod log;
 pub use log::LogCmd;
 
+pub mod read_lines;
+pub use read_lines::ReadLinesCmd;
+
 pub mod remote;
 
 pub mod restore;
