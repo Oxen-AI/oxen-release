@@ -53,6 +53,9 @@ pub mod remote;
 pub mod schemas;
 pub use schemas::SchemasCmd;
 
+pub mod status;
+pub use status::StatusCmd;
+
 #[async_trait]
 pub trait RunCmd {
     fn name(&self) -> &str;
