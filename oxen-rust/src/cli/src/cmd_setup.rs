@@ -73,35 +73,6 @@ pub fn remote() -> Command {
         )
 }
 
-pub fn status() -> Command {
-    Command::new(STATUS)
-        .about("See at what files are ready to be added or committed")
-        .arg(
-            Arg::new("skip")
-                .long("skip")
-                .short('s')
-                .help("Allows you to skip and paginate through the file list preview.")
-                .default_value("0")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("limit")
-                .long("limit")
-                .short('l')
-                .help("Allows you to view more file list preview.")
-                .default_value("10")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("print_all")
-                .long("print_all")
-                .short('a')
-                .help("If present, does not truncate the output of status at all.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(Arg::new("path").required(false))
-}
-
 pub fn info() -> Command {
     Command::new(INFO)
         .about("Get metadata information about a file such as the oxen hash, data type, etc.")
@@ -694,23 +665,6 @@ pub fn migrate() -> Command {
                             .action(clap::ArgAction::SetTrue),
                     ),
                 )
-        )
-}
-
-pub fn save() -> Command {
-    Command::new(SAVE)
-        .arg(
-            Arg::new("PATH")
-                .help("Path of the local repository to save")
-                .required(true)
-                .index(1), // This represents the position of the argument in the command line command.
-        )
-        .arg(
-            Arg::new("output")
-                .help("Name of the output .tar.gz archive")
-                .short('o')
-                .long("output")
-                .required(true),
         )
 }
 

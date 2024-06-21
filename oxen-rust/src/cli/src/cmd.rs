@@ -50,6 +50,9 @@ pub use rm::RmCmd;
 
 pub mod remote;
 
+pub mod save;
+pub use save::SaveCmd;
+
 pub mod schemas;
 pub use schemas::SchemasCmd;
 
