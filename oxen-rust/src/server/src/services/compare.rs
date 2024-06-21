@@ -38,7 +38,7 @@ pub fn compare() -> Scope {
             web::put().to(controllers::diff::update_df_diff),
         )
         .route(
-            "/data_frame",
+            "/data_frames",
             web::post().to(controllers::diff::create_df_diff),
         )
         .route(

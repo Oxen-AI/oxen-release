@@ -40,7 +40,7 @@ pub async fn create_compare(
         display,
     };
 
-    let uri = "/compare/data_frame".to_string();
+    let uri = "/compare/data_frames".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
