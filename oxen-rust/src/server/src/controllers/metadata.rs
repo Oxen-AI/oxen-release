@@ -216,38 +216,3 @@ pub async fn agg_dir(
         Ok(HttpResponse::BadRequest().json(StatusMessage::resource_not_found()))
     }
 }
-
-pub async fn images(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
-
-    log::debug!(
-        "{} resource {}/{}",
-        current_function!(),
-        repo_name,
-        resource
-    );
-
-    let latest_commit = api::local::commits::get_by_id(&repo, &commit.id)?
-        .ok_or(OxenError::revision_not_found(commit.id.clone().into()))?;
-
-    log::debug!(
-        "{} resolve commit {} -> '{}'",
-        current_function!(),
-        latest_commit.id,
-        latest_commit.message
-    );
-
-    // TODO: get stats dataframe given the directory...figure out what the best API and response is for this...
-    let mut entry = api::local::entries::get_meta_entry(&repo, &commit, &resource.path)?;
-    entry.resource = Some(resource.clone());
-    let meta = MetadataEntryResponse {
-        status: StatusMessage::resource_found(),
-        entry,
-    };
-    Ok(HttpResponse::Ok().json(meta))
-}
