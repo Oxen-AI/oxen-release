@@ -1,14 +1,14 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
+use liboxen::api;
 use liboxen::command;
-use std::path::PathBuf;
+use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::util;
-use liboxen::error;
-use liboxen::api;
+use std::path::PathBuf;
 
 use crate::helpers::check_repo_migration_needed;
 
@@ -47,15 +47,12 @@ impl RunCmd for StatusCmd {
                     .help("If present, does not truncate the output of status at all.")
                     .action(clap::ArgAction::SetTrue),
             )
-            .arg(
-                Arg::new("path").required(false)
-            )
+            .arg(Arg::new("path").required(false))
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
-
         let directory = args.get_one::<String>("path").map(PathBuf::from);
-        
+
         let skip = args
             .get_one::<String>("skip")
             .expect("Must supply skip")
@@ -78,13 +75,13 @@ impl RunCmd for StatusCmd {
 
         let repo_dir = util::fs::get_repo_root_from_current_dir()
             .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    
+
         let repository = LocalRepository::from_dir(&repo_dir)?;
         check_repo_migration_needed(&repository)?;
-    
+
         let directory = directory.unwrap_or(repository.path.clone());
         let repo_status = command::status_from_dir(&repository, &directory)?;
-    
+
         if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
             println!(
                 "On branch {} -> {}\n",
@@ -97,9 +94,9 @@ impl RunCmd for StatusCmd {
                 head.id, head.message
             );
         }
-    
+
         repo_status.print_stdout_with_params(&opts);
-    
+
         Ok(())
     }
 }

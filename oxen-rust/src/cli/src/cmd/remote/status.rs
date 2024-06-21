@@ -47,15 +47,12 @@ impl RunCmd for RemoteStatusCmd {
                     .help("If present, does not truncate the output of status at all.")
                     .action(clap::ArgAction::SetTrue),
             )
-            .arg(
-                Arg::new("path").required(false)
-            )
+            .arg(Arg::new("path").required(false))
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
-
         let directory = args.get_one::<String>("path").map(PathBuf::from);
-        
+
         let skip = args
             .get_one::<String>("skip")
             .expect("Must supply skip")
@@ -75,20 +72,20 @@ impl RunCmd for RemoteStatusCmd {
             print_all,
             is_remote,
         };
-  
+
         let repo_dir = util::fs::get_repo_root_from_current_dir()
-        .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-      
+            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
+
         let repository = LocalRepository::from_dir(&repo_dir)?;
-     
+
         let host = get_host_from_repo(&repository)?;
-      
+
         check_remote_version_blocking(host.clone()).await?;
- 
+
         check_remote_version(host).await?;
 
         let directory = directory.unwrap_or(PathBuf::from("."));
-    
+
         if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
             let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
             let repo_status =
@@ -109,7 +106,7 @@ impl RunCmd for RemoteStatusCmd {
                 head.id, head.message
             );
         }
-    
+
         Ok(())
     }
 }
