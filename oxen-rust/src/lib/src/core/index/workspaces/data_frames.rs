@@ -611,7 +611,6 @@ mod tests {
             let append_entry_1 =
                 workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
 
-            /*
             let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?.to_string();
             let append_1_id = append_1_id.replace('"', "");
 
@@ -652,7 +651,6 @@ mod tests {
                 }
                 _ => panic!("Expected tabular diff result"),
             }
-            */
 
             Ok(())
         })

@@ -170,6 +170,12 @@ impl CommitWriter {
         branch: &Branch,
         workspace_id: &str,
     ) -> Result<Commit, OxenError> {
+        let Some(old_commit) = CommitReader::new(&self.repository)?.get_commit_by_id(&branch.commit_id)? else {
+            return Err(OxenError::basic_str(format!(
+                "Could not commit, remote staging area is out of date with commit {}",
+                branch.commit_id
+            )));
+        };
         let commit = self.gen_commit(new_commit, status);
 
         let entries = workspaces::stager::list_files(&self.repository, &commit, workspace_id)?;
@@ -193,7 +199,7 @@ impl CommitWriter {
         );
 
         // Get the StagedData ready for commit
-        let staged = self.stage_files_for_commit(&commit, workspace_id, &entries)?;
+        let staged = self.stage_files_for_commit(&old_commit, workspace_id, &entries)?;
         // Write entries
         self.add_commit_from_status_on_remote_branch(&commit, &staged, origin_path, branch)?;
 
@@ -274,6 +280,7 @@ impl CommitWriter {
         }
 
         // Have to recompute staged data
+        log::debug!("recomputing status for workspace...");
         let staged_data = command::status(&workspace)?;
 
         staged_data.print_stdout();
