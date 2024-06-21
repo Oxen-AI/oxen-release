@@ -43,7 +43,7 @@ pub fn workspace() -> Scope {
                     web::delete().to(controllers::workspaces::clear_modifications),
                 )
                 .route(
-                    "/commit/{resource:.*}",
+                    "/commit/{branch:.*}",
                     web::post().to(controllers::workspaces::commit),
                 )
                 .service(data_frames::data_frames()),
