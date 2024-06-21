@@ -176,9 +176,8 @@ impl CommitWriter {
                 branch.commit_id
             )));
         };
-        let commit = self.gen_commit(new_commit, status);
 
-        let entries = workspaces::stager::list_files(&self.repository, &commit, workspace_id)?;
+        let entries = workspaces::stager::list_files(&self.repository, &old_commit, workspace_id)?;
         let object_reader = ObjectDBReader::new(&self.repository)?;
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(
             &self.repository,
@@ -193,19 +192,20 @@ impl CommitWriter {
             .collect();
 
         log::debug!(
-            "commit_from_new listing entries {} -> {}",
-            commit.id,
+            "commit_from_new_on_remote_branch listing entries {} -> {}",
+            old_commit.id,
             entries.len()
         );
 
         // Get the StagedData ready for commit
         let staged = self.stage_files_for_commit(&old_commit, workspace_id, &entries)?;
         // Write entries
-        self.add_commit_from_status_on_remote_branch(&commit, &staged, origin_path, branch)?;
+        let new_commit = self.gen_commit(new_commit, status);
+        self.add_commit_from_status_on_remote_branch(&new_commit, &staged, origin_path, branch)?;
 
         // Get the commit from the db post insert - it will now have the updated root hash
         let commit = CommitReader::new(&self.repository)?
-            .get_commit_by_id(&commit.id)?
+            .get_commit_by_id(&new_commit.id)?
             .unwrap();
 
         Ok(commit)
@@ -217,7 +217,7 @@ impl CommitWriter {
         workspace_id: &str,
         entries: &[CommitEntry],
     ) -> Result<StagedData, OxenError> {
-        let workspace_dir = workspaces::workspace_dir(&self.repository, commit, workspace_id);
+        let workspace_dir = workspaces::workspace_dir(&self.repository, workspace_id);
         let workspace = workspaces::init_or_get(&self.repository, commit, workspace_id).unwrap();
 
         log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());

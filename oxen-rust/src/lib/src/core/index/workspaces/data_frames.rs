@@ -44,7 +44,7 @@ pub fn previous_commit_ref_path(
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspaces::workspace_dir(repo, commit, identifier)
+    workspaces::workspace_dir(repo, identifier)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(MODS_DIR)
@@ -60,7 +60,7 @@ pub fn mods_db_path(
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspaces::workspace_dir(repo, commit, identifier)
+    workspaces::workspace_dir(repo, identifier)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(MODS_DIR)
