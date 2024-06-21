@@ -5,6 +5,7 @@ use std::path::Path;
 use time::OffsetDateTime;
 
 use crate::api;
+use crate::command;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR};
 use crate::core::index::CommitEntryReader;
@@ -76,7 +77,8 @@ pub fn p_init_or_get(
     } else {
         log::debug!("p_init_or_get Initializing oxen repo! 🐂");
 
-        init_local_repo(repo, &workspace_dir)?
+        let workspace = init_local_repo(repo, &workspace_dir)?;
+        workspace
     };
 
     Ok(workspace)
