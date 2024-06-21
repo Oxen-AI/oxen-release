@@ -463,7 +463,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
-                &row_id,
+                row_id,
             )
             .await?;
 
@@ -476,7 +476,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
-                &row_id,
+                row_id,
             )
             .await?;
 
@@ -485,7 +485,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
-                &row_id,
+                row_id,
             )
             .await?;
 
@@ -544,7 +544,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
-                &row_id,
+                row_id,
             )
             .await?;
 
@@ -560,7 +560,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
-                &row_id,
+                row_id,
                 data.to_string()            )
             .await?;
 
@@ -569,7 +569,7 @@ mod tests {
                 branch_name,
                 &identifier,
                 &path,
-                &row_id,
+                row_id,
             )
             .await?;
 

@@ -10,7 +10,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::constants::TABLE_NAME;
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::error::OxenError;
-use liboxen::model::{Branch, LocalRepository, ParsedResource, Schema};
+use liboxen::model::{Commit, LocalRepository, ParsedResource, Schema};
 use liboxen::opts::DFOpts;
 use liboxen::util::paginate;
 use liboxen::view::data_frames::DataFramePayload;
@@ -30,7 +30,7 @@ pub async fn get_by_resource(
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let commit = resource
@@ -49,9 +49,6 @@ pub async fn get_by_resource(
         commit
     );
 
-    let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
-        .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
-
     let schema = api::local::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
@@ -67,8 +64,9 @@ pub async fn get_by_resource(
         .branch
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -76,18 +74,29 @@ pub async fn get_by_resource(
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
 
-    if !index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)? {
+    if !index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)? {
         return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
     }
 
-    let count = index::remote_df_stager::count(&repo, &branch, resource.path.clone(), &identifier)?;
+    let count = index::workspaces::data_frames::count(
+        &repo,
+        &commit,
+        resource.path.clone(),
+        &workspace_id,
+    )?;
 
-    let df = index::remote_df_stager::query_staged_df(&repo, &entry, &branch, &identifier, &opts)?;
+    let df = index::workspaces::data_frames::query(
+        &repo,
+        &commit,
+        &workspace_id,
+        &resource.path,
+        &opts,
+    )?;
 
     let df_schema = Schema::from_polars(&df.schema());
 
     let is_editable =
-        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
+        index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)?;
 
     let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
     let resource = ResourceVersion {
@@ -115,7 +124,7 @@ pub async fn get_by_branch(
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let branch_name: &str = req.match_info().query("branch");
 
@@ -129,7 +138,7 @@ pub async fn get_by_branch(
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
         .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
 
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
     let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
 
@@ -137,10 +146,10 @@ pub async fn get_by_branch(
 
     for entry in entries {
         if let Some(resource) = entry.resource.clone() {
-            if index::remote_df_stager::dataset_is_indexed(
+            if index::workspaces::data_frames::is_indexed(
                 &repo,
-                &branch,
-                &identifier,
+                &commit,
+                &workspace_id,
                 &resource.path,
             )? {
                 editable_entries.push(entry);
@@ -167,7 +176,7 @@ pub async fn diff(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -181,12 +190,15 @@ pub async fn diff(
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
-    let staged_db_path = liboxen::core::index::mod_stager::mods_df_db_path(
+    // TODO: Let's not expose dbs right in the controller
+    let staged_db_path = liboxen::core::index::workspaces::data_frames::mods_db_path(
         &repo,
-        &branch,
-        &identifier,
+        &commit,
+        &workspace_id,
         &resource.path,
     );
 
@@ -219,7 +231,7 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let data: DataFramePayload = serde_json::from_str(&body)?;
@@ -228,20 +240,24 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
         .branch
         .clone()
         .ok_or_else(|| OxenError::parsed_resource_not_found(resource.to_owned()))?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
 
-    // Initialize the branch repository before any operations
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    // Must instantiate the workspace
+    // TODO: Might be better to return a Workspace object that we then need to pass into subsequent calls
+    //       to ensure it is initialized rather than relying on the consumer to call this
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
     let to_index = data.is_indexed;
     let is_indexed =
-        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
+        index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)?;
 
     if !is_indexed && to_index {
         handle_indexing(
             &repo,
-            &branch,
+            &commit,
             &resource.path,
-            &identifier,
+            &workspace_id,
             &namespace,
             &repo_name,
             &resource,
@@ -250,8 +266,8 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
     } else if is_indexed && !to_index {
         handle_unindexing(
             &repo,
-            &branch,
-            &identifier,
+            &commit,
+            &workspace_id,
             &resource.path,
             &namespace,
             &repo_name,
@@ -265,19 +281,14 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
 
 async fn handle_indexing(
     repo: &LocalRepository,
-    branch: &Branch,
+    commit: &Commit,
     resource_path: &Path,
-    identifier: &str,
+    workspace_id: &str,
     namespace: &str,
     repo_name: &str,
     resource: &ParsedResource,
 ) -> Result<HttpResponse, OxenHttpError> {
-    match liboxen::core::index::remote_df_stager::index_data_frame(
-        repo,
-        branch,
-        resource_path,
-        identifier,
-    ) {
+    match index::workspaces::data_frames::index(repo, commit, workspace_id, resource_path) {
         Ok(_) => {
             log::info!(
                 "Dataset indexing completed successfully for {namespace}/{repo_name}/{resource}"
@@ -293,19 +304,14 @@ async fn handle_indexing(
 
 async fn handle_unindexing(
     repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
+    commit: &Commit,
+    workspace_id: &str,
     resource_path: &PathBuf,
     namespace: &str,
     repo_name: &str,
     resource: &ParsedResource,
 ) -> Result<HttpResponse, OxenHttpError> {
-    match liboxen::core::index::remote_df_stager::unindex_data_frame(
-        repo,
-        branch,
-        identifier,
-        resource_path,
-    ) {
+    match index::workspaces::data_frames::unindex(repo, commit, workspace_id, resource_path) {
         Ok(_) => {
             log::info!(
                 "Dataset unindexing completed successfully for {namespace}/{repo_name}/{resource}"

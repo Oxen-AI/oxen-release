@@ -1,166 +1,421 @@
-//! # ModStager
-//!
-//! Stages modifications in the remote staging area that can later be applied
-//! to files on commit.
-//!
-
-use std::path::{Path, PathBuf};
-
+use duckdb::Connection;
 use polars::frame::DataFrame;
 
-use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded};
+use sql_query_builder::{Delete, Select};
 
-use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
+use crate::api;
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
+use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR, WORKSPACES_DIR};
+use crate::core::db::staged_df_db::select_cols_from_schema;
 use crate::core::db::{self, df_db, staged_df_db, str_json_db};
-use crate::core::df::tabular;
-use crate::core::index::remote_df_stager;
-use crate::error::OxenError;
-use crate::model::diff::DiffResult;
-use crate::model::entry::mod_entry::NewMod;
-use crate::model::{Branch, CommitEntry, LocalRepository};
+use crate::core::df::{sql, tabular};
+use crate::core::index::workspaces;
+use crate::core::index::CommitEntryReader;
+use crate::model::diff::tabular_diff::{
+    TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
+    TabularDiffSummary, TabularSchemaDiff,
+};
+use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 
-use crate::{api, util};
+use crate::model::staged_row_status::StagedRowStatus;
+use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::opts::DFOpts;
+use crate::{error::OxenError, util};
+use std::path::{Path, PathBuf};
 
-use super::remote_dir_stager;
+pub mod rows;
 
-pub fn mods_db_path(
+pub fn is_behind(
     repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
+    commit: &Commit,
+    workspace_id: &str,
     path: impl AsRef<Path>,
-) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-
-    remote_dir_stager::branch_staging_dir(repo, branch, identifier)
-        .join(OXEN_HIDDEN_DIR)
-        .join(STAGED_DIR)
-        .join(MODS_DIR)
-        .join(MODS_DIR)
-        .join(path_hash)
+) -> Result<bool, OxenError> {
+    let commit_path = previous_commit_ref_path(repo, commit, workspace_id, path);
+    let commit_id = util::fs::read_from_path(commit_path)?;
+    Ok(commit_id != commit.id)
 }
 
-pub fn mods_df_db_path(
+pub fn previous_commit_ref_path(
     repo: &LocalRepository,
-    branch: &Branch,
+    commit: &Commit,
     identifier: &str,
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    remote_dir_stager::branch_staging_dir(repo, branch, identifier)
+    workspaces::workspace_dir(repo, commit, identifier)
         .join(OXEN_HIDDEN_DIR)
-        .join(STAGED_DIR)
-        .join(MODS_DIR)
-        .join("duckdb")
-        .join(path_hash)
-        .join("db")
-}
-
-pub fn mods_commit_ref_path(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
-    path: impl AsRef<Path>,
-) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    remote_dir_stager::branch_staging_dir(repo, branch, identifier)
-        .join(OXEN_HIDDEN_DIR)
-        .join(STAGED_DIR)
+        .join(WORKSPACES_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
         .join("COMMIT_ID")
 }
 
-fn files_db_path(repo: &LocalRepository, branch: &Branch, identifier: &str) -> PathBuf {
-    remote_dir_stager::branch_staging_dir(repo, branch, identifier)
+pub fn mods_db_path(
+    repo: &LocalRepository,
+    commit: &Commit,
+    identifier: &str,
+    path: impl AsRef<Path>,
+) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    workspaces::workspace_dir(repo, commit, identifier)
         .join(OXEN_HIDDEN_DIR)
-        .join(STAGED_DIR)
+        .join(WORKSPACES_DIR)
         .join(MODS_DIR)
-        .join(FILES_DIR)
+        .join("duckdb")
+        .join(path_hash)
+        .join("db")
 }
 
-pub fn add_row(
+pub fn count(
     repo: &LocalRepository,
-    branch: &Branch,
+    commit: &Commit,
+    path: PathBuf,
     identifier: &str,
-    new_mod: &NewMod,
-) -> Result<DataFrame, OxenError> {
-    let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
-    log::debug!("add_row() got db_path: {:?}", db_path);
+) -> Result<usize, OxenError> {
+    let db_path = mods_db_path(repo, commit, identifier, path);
     let conn = df_db::get_connection(db_path)?;
 
-    let df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
-
-    let result = staged_df_db::append_row(&conn, &df)?;
-
-    track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
-
-    Ok(result)
+    let count = df_db::count(&conn, TABLE_NAME)?;
+    Ok(count)
 }
 
-pub fn modify_row(
+pub fn index(
     repo: &LocalRepository,
-    branch: &Branch,
-    identifier: &str,
-    row_id: &str,
-    new_mod: &NewMod,
-) -> Result<DataFrame, OxenError> {
-    let db_path = mods_df_db_path(repo, branch, identifier, &new_mod.entry.path);
-    let conn = df_db::get_connection(db_path)?;
-
-    let mut df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
-
-    let result = staged_df_db::modify_row(&conn, &mut df, row_id)?;
-
-    track_mod_commit_entry(repo, branch, identifier, &new_mod.entry)?;
-
-    let diff = api::local::diff::diff_staged_df(
-        repo,
-        branch,
-        PathBuf::from(&new_mod.entry.path),
-        identifier,
-    )?;
-
-    if let DiffResult::Tabular(diff) = diff {
-        if !diff.has_changes() {
-            // Restored to original state == delete file from staged db
-            let opts = db::opts::default();
-            let files_db_path = files_db_path(repo, branch, identifier);
-            let files_db: DBWithThreadMode<MultiThreaded> =
-                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-            let key = new_mod.entry.path.to_string_lossy();
-            str_json_db::delete(&files_db, key)?;
-        }
+    commit: &Commit,
+    workspace_id: &str,
+    path: &Path,
+) -> Result<(), OxenError> {
+    if !util::fs::is_tabular(path) {
+        return Err(OxenError::basic_str(
+            "File format not supported, must be tabular.must be tabular.",
+        ));
     }
 
-    Ok(result)
-}
+    // need to init or get the remote staging env - for if this was called from API? todo
+    let _workspace = workspaces::init_or_get(repo, commit, workspace_id)?;
 
-pub fn restore_df(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    path: impl AsRef<Path>,
-) -> Result<(), OxenError> {
-    // Unstage and then restage the df
-    remote_df_stager::unindex_data_frame(repo, branch, identity, &path)?;
+    let reader = CommitEntryReader::new(repo, commit)?;
+    let entry = reader.get_entry(path)?;
+    let entry = match entry {
+        Some(entry) => entry,
+        None => return Err(OxenError::resource_not_found(path.to_string_lossy())),
+    };
 
-    // TODO: we could do this more granularly without a full reset
-    remote_df_stager::index_data_frame(repo, branch, path.as_ref(), identity)?;
+    let db_path = mods_db_path(repo, commit, workspace_id, &entry.path);
+
+    if !db_path
+        .parent()
+        .expect("Failed to get parent directory")
+        .exists()
+    {
+        std::fs::create_dir_all(db_path.parent().expect("Failed to get parent directory"))?;
+    }
+
+    copy_duckdb_if_already_indexed(repo, &entry, &db_path)?;
+
+    let conn = df_db::get_connection(db_path)?;
+    if df_db::table_exists(&conn, TABLE_NAME)? {
+        df_db::drop_table(&conn, TABLE_NAME)?;
+    }
+    let version_path = util::fs::version_path(repo, &entry);
+
+    log::debug!(
+        "index_dataset({:?}) got version path: {:?}",
+        entry.path,
+        version_path
+    );
+
+    df_db::index_file_with_id(&version_path, &conn)?;
+    log::debug!("index_dataset({:?}) finished!", entry.path);
+
+    add_row_status_cols(&conn)?;
+
+    // Save the current commit id so we know if the branch has advanced
+    let commit_path = previous_commit_ref_path(repo, commit, workspace_id, path);
+    util::fs::write_to_path(commit_path, &commit.id)?;
 
     Ok(())
 }
 
-pub fn unstage_df(
+pub fn query(
     repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
+    commit: &Commit,
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let db_path = mods_db_path(repo, commit, workspace_id, path);
+    log::debug!("query_staged_df() got db_path: {:?}", db_path);
+
+    let conn = df_db::get_connection(db_path)?;
+
+    // Get the schema of this commit entry
+    let schema = api::local::schemas::get_by_path_from_ref(repo, &commit.id, path)?
+        .ok_or_else(|| OxenError::resource_not_found(path.to_string_lossy()))?;
+
+    // Enrich w/ oxen cols
+    let full_schema = staged_df_db::enhance_schema_with_oxen_cols(&schema)?;
+
+    let col_names = select_cols_from_schema(&schema)?;
+
+    let select = Select::new().select(&col_names).from(TABLE_NAME);
+
+    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
+
+    Ok(df)
+}
+
+fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
+    let query_status = format!(
+        "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT '{}'",
+        TABLE_NAME,
+        DIFF_STATUS_COL,
+        StagedRowStatus::Unchanged
+    );
+    conn.execute(&query_status, [])?;
+
+    let query_hash = format!(
+        "ALTER TABLE \"{}\" ADD COLUMN \"{}\" VARCHAR DEFAULT NULL",
+        TABLE_NAME, DIFF_HASH_COL
+    );
+    conn.execute(&query_hash, [])?;
+    Ok(())
+}
+
+fn copy_duckdb_if_already_indexed(
+    repo: &LocalRepository,
+    entry: &CommitEntry,
+    new_db_path: &Path,
+) -> Result<(), OxenError> {
+    let maybe_existing_db_path = sql::db_cache_path(repo, entry);
+    let conn = df_db::get_connection(&maybe_existing_db_path)?;
+    if df_db::table_exists(&conn, TABLE_NAME)? {
+        log::debug!(
+            "copying existing db from {:?} to {:?}",
+            maybe_existing_db_path,
+            new_db_path
+        );
+        std::fs::copy(&maybe_existing_db_path, new_db_path)?;
+        return Ok(());
+    }
+    Ok(())
+}
+
+pub fn unindex(
+    repo: &LocalRepository,
+    commit: &Commit,
+    workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
-    remote_df_stager::unindex_data_frame(repo, branch, identity, &path)?;
+    let path = path.as_ref();
+    let db_path = mods_db_path(repo, commit, workspace_id, path);
+    let conn = df_db::get_connection(db_path)?;
+    df_db::drop_table(&conn, TABLE_NAME)?;
+
+    Ok(())
+}
+
+pub fn is_indexed(
+    repo: &LocalRepository,
+    commit: &Commit,
+    identifier: &str,
+    path: &Path,
+) -> Result<bool, OxenError> {
+    log::debug!("checking dataset is indexed for {:?}", path);
+    let db_path = mods_db_path(repo, commit, identifier, path);
+    log::debug!("getting conn at path {:?}", db_path);
+    let conn = df_db::get_connection(db_path)?;
+
+    let table_exists = df_db::table_exists(&conn, TABLE_NAME)?;
+    log::debug!("dataset_is_indexed() got table_exists: {:?}", table_exists);
+    Ok(table_exists)
+}
+
+pub fn diff(
+    repo: &LocalRepository,
+    commit: &Commit,
+    workspace_id: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<DiffResult, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let path = path.as_ref();
+    // Get commit for the branch head
+    log::debug!("diff_workspace_df got repo at path {:?}", repo.path);
+
+    let entry = api::local::entries::get_commit_entry(repo, commit, path)?
+        .ok_or(OxenError::entry_does_not_exist(path))?;
+
+    let _branch_repo = workspaces::init_or_get(repo, commit, workspace_id)?;
+
+    if !workspaces::data_frames::is_indexed(repo, commit, workspace_id, path)? {
+        return Err(OxenError::basic_str("Dataset is not indexed"));
+    };
+
+    let db_path = workspaces::data_frames::mods_db_path(repo, commit, workspace_id, entry.path);
+
+    let conn = df_db::get_connection(db_path)?;
+
+    let diff_df = staged_df_db::df_diff(&conn)?;
+
+    if diff_df.is_empty() {
+        return Ok(DiffResult::Tabular(TabularDiff::empty()));
+    }
+
+    let row_mods = AddRemoveModifyCounts::from_diff_df(&diff_df)?;
+
+    let schema = staged_df_db::schema_without_oxen_cols(&conn, TABLE_NAME)?;
+
+    let schemas = TabularDiffSchemas {
+        left: schema.clone(),
+        right: schema.clone(),
+        diff: schema.clone(),
+    };
+
+    let diff_summary = TabularDiffSummary {
+        modifications: TabularDiffMods {
+            row_counts: row_mods,
+            col_changes: TabularSchemaDiff::empty(),
+        },
+        schemas,
+        dupes: TabularDiffDupes::empty(),
+    };
+
+    let diff_result = TabularDiff {
+        contents: diff_df,
+        parameters: TabularDiffParameters::empty(),
+        summary: diff_summary,
+    };
+
+    Ok(DiffResult::Tabular(diff_result))
+}
+
+pub fn extract_dataset_to_versions_dir(
+    repo: &LocalRepository,
+    commit: &Commit,
+    entry: &CommitEntry,
+    workspace_id: &str,
+) -> Result<(), OxenError> {
+    let version_path = util::fs::version_path(repo, entry);
+    let db_path = mods_db_path(repo, commit, workspace_id, entry.path.clone());
+    let conn = df_db::get_connection(db_path)?;
+
+    log::debug!("extracting to versions path: {:?}", version_path);
+
+    // Filter out any with removed status before extracting
+    let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
+        "\"{}\" = '{}'",
+        DIFF_STATUS_COL,
+        StagedRowStatus::Removed
+    ));
+    conn.execute(&delete.to_string(), [])?;
+
+    let df_before = tabular::read_df(&version_path, DFOpts::empty())?;
+    log::debug!(
+        "extract_dataset_to_versions_dir() got df_before: {:?}",
+        df_before
+    );
+
+    match entry.path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some("csv") => export_csv(&version_path, &conn)?,
+            Some("tsv") => export_tsv(&version_path, &conn)?,
+            Some("json") | Some("jsonl") | Some("ndjson") => export_rest(&version_path, &conn)?,
+            Some("parquet") => export_parquet(&version_path, &conn)?,
+            _ => {
+                return Err(OxenError::basic_str(
+                    "File format not supported, must be tabular.",
+                ))
+            }
+        },
+        None => {
+            return Err(OxenError::basic_str(
+                "File format not supported, must be tabular.",
+            ))
+        }
+    }
+
+    let df_after = tabular::read_df(&version_path, DFOpts::empty())?;
+    log::debug!(
+        "extract_dataset_to_versions_dir() got df_after: {:?}",
+        df_after
+    );
+
+    Ok(())
+}
+
+// TODONOW combine with versions dir export fn and genericize on path
+pub fn extract_dataset_to_working_dir(
+    repo: &LocalRepository,
+    workspace: &LocalRepository,
+    commit: &Commit,
+    entry: &CommitEntry,
+    workspace_id: &str,
+) -> Result<PathBuf, OxenError> {
+    let working_path = workspace.path.join(entry.path.clone());
+    let db_path = mods_db_path(repo, commit, workspace_id, entry.path.clone());
+    let conn = df_db::get_connection(db_path)?;
+    // Match on the extension
+
+    if !working_path.exists() {
+        util::fs::create_dir_all(
+            working_path
+                .parent()
+                .expect("Failed to get parent directory"),
+        )?;
+    }
+
+    log::debug!("created working path: {:?}", working_path);
+
+    let delete = Delete::new().delete_from(TABLE_NAME).where_clause(&format!(
+        "\"{}\" = '{}'",
+        DIFF_STATUS_COL,
+        StagedRowStatus::Removed
+    ));
+    let res = conn.execute(&delete.to_string(), [])?;
+    log::debug!("delete query result is: {:?}", res);
+
+    match entry.path.extension() {
+        Some(ext) => match ext.to_str() {
+            Some("csv") => export_csv(&working_path, &conn)?,
+            Some("tsv") => export_tsv(&working_path, &conn)?,
+            Some("json") | Some("jsonl") | Some("ndjson") => export_rest(&working_path, &conn)?,
+            Some("parquet") => export_parquet(&working_path, &conn)?,
+            _ => {
+                return Err(OxenError::basic_str(
+                    "File format not supported, must be tabular.",
+                ))
+            }
+        },
+        None => {
+            return Err(OxenError::basic_str(
+                "File format not supported, must be tabular.",
+            ))
+        }
+    }
+
+    let df_after = tabular::read_df(&working_path, DFOpts::empty())?;
+    log::debug!(
+        "extract_dataset_to_working_dir() got df_after: {:?}",
+        df_after
+    );
+
+    Ok(working_path)
+}
+
+pub fn unstage(
+    repo: &LocalRepository,
+    commit: &Commit,
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    unindex(repo, commit, workspace_id, &path)?;
 
     let opts = db::opts::default();
-    let files_db_path = files_db_path(repo, branch, identity);
+    let files_db_path = workspaces::stager::files_db_path(repo, commit, workspace_id);
     let files_db: DBWithThreadMode<MultiThreaded> =
         rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
     let key = path.as_ref().to_string_lossy();
@@ -169,108 +424,102 @@ pub fn unstage_df(
     Ok(())
 }
 
-pub fn restore_row(
+pub fn restore(
     repo: &LocalRepository,
-    branch: &Branch,
-    entry: &CommitEntry,
-    identity: &str,
-    row_id: &str,
-) -> Result<DataFrame, OxenError> {
-    let restored_row = remote_df_stager::restore_row(repo, branch, entry, identity, row_id)?;
-
-    let diff =
-        api::local::diff::diff_staged_df(repo, branch, PathBuf::from(&entry.path), identity)?;
-
-    if let DiffResult::Tabular(diff) = diff {
-        if !diff.has_changes() {
-            log::debug!("no changes, deleting file from staged db");
-            // Restored to original state == delete file from staged db
-            let opts = db::opts::default();
-            let files_db_path = files_db_path(repo, branch, identity);
-            let files_db: DBWithThreadMode<MultiThreaded> =
-                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-            let key = entry.path.to_string_lossy().to_string();
-            str_json_db::delete(&files_db, key)?;
-        }
-    }
-
-    Ok(restored_row)
-}
-
-pub fn delete_row(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    row_id: &str,
-    new_mod: &NewMod,
-) -> Result<DataFrame, OxenError> {
-    let db_path = mods_df_db_path(repo, branch, identity, &new_mod.entry.path);
-    let deleted_row = {
-        let conn = df_db::get_connection(db_path)?;
-        staged_df_db::delete_row(&conn, row_id)?
-    };
-
-    track_mod_commit_entry(repo, branch, identity, &new_mod.entry)?;
-
-    // TODO: Better way of tracking when a file is restored to its original state without diffing
-
-    let diff = api::local::diff::diff_staged_df(
-        repo,
-        branch,
-        PathBuf::from(&new_mod.entry.path),
-        identity,
-    )?;
-
-    if let DiffResult::Tabular(diff) = diff {
-        if !diff.has_changes() {
-            log::debug!("no changes, deleting file from staged db");
-            // Restored to original state == delete file from staged db
-            let opts = db::opts::default();
-            let files_db_path = files_db_path(repo, branch, identity);
-            let files_db: DBWithThreadMode<MultiThreaded> =
-                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-            let key = new_mod.entry.path.to_string_lossy();
-            str_json_db::delete(&files_db, key)?;
-        }
-    }
-    Ok(deleted_row)
-}
-
-pub fn list_mod_entries(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-) -> Result<Vec<PathBuf>, OxenError> {
-    let db_path = files_db_path(repo, branch, identity);
-    log::debug!("list_mod_entries from files_db_path {db_path:?}");
-    let opts = db::opts::default();
-    let db: DBWithThreadMode<SingleThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-    str_json_db::list_vals(&db)
-}
-
-fn track_mod_commit_entry(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
-    entry: &CommitEntry,
-) -> Result<(), OxenError> {
-    let db_path = files_db_path(repo, branch, identity);
-    log::debug!("track_mod_commit_entry from files_db_path {db_path:?}");
-    let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-    let key = entry.path.to_string_lossy();
-    str_json_db::put(&db, &key, &key)
-}
-
-pub fn branch_is_ahead_of_staging(
-    repo: &LocalRepository,
-    branch: &Branch,
-    identity: &str,
+    commit: &Commit,
+    workspace_id: &str,
     path: impl AsRef<Path>,
-) -> Result<bool, OxenError> {
-    let commit_path = mods_commit_ref_path(repo, branch, identity, path);
-    let commit_id = util::fs::read_from_path(commit_path)?;
-    Ok(commit_id != branch.commit_id)
+) -> Result<(), OxenError> {
+    // Unstage and then restage the df
+    unindex(repo, commit, workspace_id, &path)?;
+
+    // TODO: we could do this more granularly without a full reset
+    index(repo, commit, workspace_id, path.as_ref())?;
+
+    Ok(())
+}
+
+fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_rest()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}';",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_rest() got df: {:?}", temp_res);
+
+    conn.execute(&query, [])?;
+    Ok(())
+}
+
+fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_csv()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER ',');",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+
+    // let temp_select_query = Select::new().select("*").from(TABLE_NAME);
+
+    // let temp_res = df_db::select(conn, &temp_select_query)?;
+    // log::debug!("export_csv() got df: {:?}", temp_res);
+
+    conn.execute(&query, [])?;
+
+    Ok(())
+}
+
+fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_tsv()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (HEADER, DELIMITER '\t');",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+
+    conn.execute(&query, [])?;
+    Ok(())
+}
+
+fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
+    log::debug!("export_parquet()");
+    let excluded_cols = OXEN_COLS
+        .iter()
+        .map(|col| format!("\"{}\"", col))
+        .collect::<Vec<String>>()
+        .join(", ");
+
+    let query = format!(
+        "COPY (SELECT * EXCLUDE ({}) FROM '{}') to '{}' (FORMAT PARQUET);",
+        excluded_cols,
+        TABLE_NAME,
+        path.to_string_lossy()
+    );
+    conn.execute(&query, [])?;
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -281,9 +530,7 @@ mod tests {
     use crate::command;
     use crate::config::UserConfig;
     use crate::constants::OXEN_ID_COL;
-    use crate::core::index::mod_stager;
-    use crate::core::index::remote_df_stager;
-    use crate::core::index::remote_dir_stager;
+    use crate::core::index::workspaces;
     use crate::error::OxenError;
     use crate::model::diff::DiffResult;
     use crate::model::entry::mod_entry::ModType;
@@ -298,7 +545,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -314,14 +561,14 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
-            mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
+            workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
-            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            let diff = workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path)?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
@@ -342,7 +589,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -359,9 +606,12 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
-            let append_entry_1 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let append_entry_1 =
+                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+
+            /*
             let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?.to_string();
             let append_1_id = append_1_id.replace('"', "");
 
@@ -372,15 +622,16 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let _append_entry_2 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let _append_entry_2 = workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
+
 
             // List the staged mods
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
@@ -389,18 +640,11 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),
             }
 
-            let mod_entry = NewMod {
-                entry: commit_entry.clone(),
-                data: "".to_string(),
-                mod_type: ModType::Delete,
-                content_type: ContentType::Json,
-            };
-
             // Delete the first append
-            mod_stager::delete_row(&repo, &branch, &identity, &append_1_id, &mod_entry)?;
+            workspaces::data_frames::rows::delete(&repo, &commit, &workspace_id, &commit_entry.path, &append_1_id)?;
 
             // Should only be one mod now
-            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            let diff = workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
@@ -408,6 +652,7 @@ mod tests {
                 }
                 _ => panic!("Expected tabular diff result"),
             }
+            */
 
             Ok(())
         })
@@ -418,7 +663,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -437,10 +682,11 @@ mod tests {
             };
 
             log::debug!("indexing the dataset at filepath {:?}", file_path);
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
             log::debug!("indexed the dataset");
 
-            let append_entry_1 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let append_entry_1 =
+                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
             let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?;
             let append_1_id = append_1_id.get_str().unwrap();
             log::debug!("added the row");
@@ -452,17 +698,18 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let append_entry_2 = mod_stager::add_row(&repo, &branch, &identity, &new_mod)?;
+            let append_entry_2 =
+                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
             let append_2_id = append_entry_2.column(OXEN_ID_COL)?.get(0)?;
             let append_2_id = append_2_id.get_str().unwrap();
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
 
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
@@ -472,24 +719,31 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),
             }
             // Delete the first append
-            let delete_mod = NewMod {
-                entry: commit_entry.clone(),
-                data: "".to_string(),
-                mod_type: ModType::Delete,
-                content_type: ContentType::Json,
-            };
-            mod_stager::delete_row(&repo, &branch, &identity, append_1_id, &delete_mod)?;
+            workspaces::data_frames::rows::delete(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry.path,
+                append_1_id,
+            )?;
 
             // Delete the second append
-            mod_stager::delete_row(&repo, &branch, &identity, append_2_id, &delete_mod)?;
+            workspaces::data_frames::rows::delete(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry.path,
+                append_2_id,
+            )?;
 
             // Should be zero staged files
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             log::debug!("about to diff staged");
             // Should be zero mods left
-            let diff = api::local::diff::diff_staged_df(&repo, &branch, file_path, &identity)?;
+            let diff =
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             log::debug!("got diff staged");
 
             match diff {
@@ -504,11 +758,11 @@ mod tests {
     }
 
     #[test]
-    fn test_stage_json_delete_committed_row() -> Result<(), OxenError> {
+    fn test_delete_committed_row() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -516,44 +770,42 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let workspace = workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
-            // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
             page_opts.page = Some(0);
             page_opts.page_size = Some(10);
 
-            let staged_df = remote_df_stager::query_staged_df(
+            let staged_df = workspaces::data_frames::query(
                 &repo,
-                &commit_entry,
-                &branch,
-                &identity,
+                &commit,
+                &workspace_id,
+                &file_path,
                 &page_opts,
             )?;
 
             let id_to_delete = staged_df.column(OXEN_ID_COL)?.get(0)?.to_string();
             let id_to_delete = id_to_delete.replace('"', "");
 
-            let new_mod = NewMod {
-                entry: commit_entry.clone(),
-                data: "".to_string(),
-                mod_type: ModType::Delete,
-                content_type: ContentType::Json,
-            };
-
             // Stage a deletion
-            mod_stager::delete_row(&repo, &branch, &identity, &id_to_delete, &new_mod)?;
+            workspaces::data_frames::rows::delete(
+                &repo,
+                &commit,
+                &workspace_id,
+                commit_entry.path,
+                &id_to_delete,
+            )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
@@ -572,8 +824,14 @@ mod tests {
                 email: "email".to_string(),
                 message: "Deleting a row allegedly".to_string(),
             };
-            let commit_2 =
-                remote_dir_stager::commit(&repo, &branch_repo, &branch, &new_commit, &identity)?;
+            let commit_2 = workspaces::commit(
+                &repo,
+                &workspace,
+                &commit,
+                &workspace_id,
+                &new_commit,
+                branch_name,
+            )?;
 
             let file_1 = api::local::revisions::get_version_file_from_commit_id(
                 &repo, &commit.id, &file_path,
@@ -607,7 +865,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -615,11 +873,11 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _workspace = workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             // Add a row
             let add_mod = NewMod {
@@ -629,11 +887,12 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let new_row = mod_stager::add_row(&repo, &branch, &identity, &add_mod)?;
+            let new_row =
+                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &add_mod)?;
 
             // 1 row added
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
@@ -652,14 +911,20 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            mod_stager::modify_row(&repo, &branch, &identity, id_to_modify, &modify_mod)?;
+            workspaces::data_frames::rows::update(
+                &repo,
+                &commit,
+                &workspace_id,
+                id_to_modify,
+                &modify_mod,
+            )?;
             // List the files that are changed - this file should be back into unchanged state
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             log::debug!("found mod entries: {:?}", commit_entries);
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let modified_rows = tabular_diff.summary.modifications.row_counts.modified;
@@ -679,7 +944,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -687,11 +952,11 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _workspace = workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             // Add a row
             let add_mod = NewMod {
@@ -701,11 +966,12 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let new_row = mod_stager::add_row(&repo, &branch, &identity, &add_mod)?;
+            let new_row =
+                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &add_mod)?;
 
             // 1 row added
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;
@@ -717,23 +983,22 @@ mod tests {
             let id_to_delete = new_row.column(OXEN_ID_COL)?.get(0)?.to_string();
             let id_to_delete = id_to_delete.replace('"', "");
 
-            let delete_mod = NewMod {
-                entry: commit_entry.clone(),
-                data: "".to_string(),
-                mod_type: ModType::Delete,
-                content_type: ContentType::Json,
-            };
-
             // Stage a deletion
-            mod_stager::delete_row(&repo, &branch, &identity, &id_to_delete, &delete_mod)?;
+            workspaces::data_frames::rows::delete(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry.path,
+                &id_to_delete,
+            )?;
             log::debug!("done deleting row");
             // List the files that are changed - this file should be back into unchanged state
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             log::debug!("found mod entries: {:?}", commit_entries);
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
@@ -755,7 +1020,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -763,22 +1028,22 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _workspace = workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
             page_opts.page = Some(0);
             page_opts.page_size = Some(10);
 
-            let staged_df = remote_df_stager::query_staged_df(
+            let staged_df = workspaces::data_frames::query(
                 &repo,
-                &commit_entry,
-                &branch,
-                &identity,
+                &commit,
+                &workspace_id,
+                &file_path,
                 &page_opts,
             )?;
 
@@ -793,14 +1058,20 @@ mod tests {
             };
 
             // Stage a modification
-            mod_stager::modify_row(&repo, &branch, &identity, &id_to_modify, &new_mod)?;
+            workspaces::data_frames::rows::update(
+                &repo,
+                &commit,
+                &workspace_id,
+                &id_to_modify,
+                &new_mod,
+            )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let modified_rows = tabular_diff.summary.modifications.row_counts.modified;
@@ -817,16 +1088,21 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let res =
-                mod_stager::modify_row(&repo, &branch, &identity, &id_to_modify, &modify_mod)?;
+            let res = workspaces::data_frames::rows::update(
+                &repo,
+                &commit,
+                &workspace_id,
+                &id_to_modify,
+                &modify_mod,
+            )?;
 
             log::debug!("res is... {:?}", res);
 
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let modified_rows = tabular_diff.summary.modifications.row_counts.modified;
@@ -846,7 +1122,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -854,22 +1130,22 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _workspace = workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
             page_opts.page = Some(0);
             page_opts.page_size = Some(10);
 
-            let staged_df = remote_df_stager::query_staged_df(
+            let staged_df = workspaces::data_frames::query(
                 &repo,
-                &commit_entry,
-                &branch,
-                &identity,
+                &commit,
+                &workspace_id,
+                &file_path,
                 &page_opts,
             )?;
 
@@ -884,14 +1160,20 @@ mod tests {
             };
 
             // Stage a modification
-            mod_stager::modify_row(&repo, &branch, &identity, &id_to_modify, &new_mod)?;
+            workspaces::data_frames::rows::update(
+                &repo,
+                &commit,
+                &workspace_id,
+                &id_to_modify,
+                &new_mod,
+            )?;
 
             // List the files that are changed
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let modified_rows = tabular_diff.summary.modifications.row_counts.modified;
@@ -901,16 +1183,21 @@ mod tests {
             }
 
             // Now restore the row
-            let res =
-                mod_stager::restore_row(&repo, &branch, &commit_entry, &identity, &id_to_modify)?;
+            let res = workspaces::data_frames::rows::restore(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry,
+                &id_to_modify,
+            )?;
 
             log::debug!("res is... {:?}", res);
 
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let modified_rows = tabular_diff.summary.modifications.row_counts.modified;
@@ -935,7 +1222,7 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
-            let identity = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -943,42 +1230,41 @@ mod tests {
             let commit_entry =
                 api::local::entries::get_commit_entry(&repo, &commit, &file_path)?.unwrap();
 
-            let _branch_repo = remote_dir_stager::init_or_get(&repo, &branch, &identity)?;
+            let _workspace = workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
             // Could use cache path here but they're being sketchy at time of writing
             // Index the dataset
-            remote_df_stager::index_data_frame(&repo, &branch, &file_path, &identity)?;
+            workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             // Preview the dataset to grab some ids
             let mut page_opts = DFOpts::empty();
             page_opts.page = Some(0);
             page_opts.page_size = Some(10);
 
-            let staged_df = remote_df_stager::query_staged_df(
+            let staged_df = workspaces::data_frames::query(
                 &repo,
-                &commit_entry,
-                &branch,
-                &identity,
+                &commit,
+                &workspace_id,
+                &file_path,
                 &page_opts,
             )?;
 
             let id_to_delete = staged_df.column(OXEN_ID_COL)?.get(0)?.to_string();
             let id_to_delete = id_to_delete.replace('"', "");
 
-            let new_mod = NewMod {
-                entry: commit_entry.clone(),
-                data: "".to_string(),
-                mod_type: ModType::Delete,
-                content_type: ContentType::Json,
-            };
-
             // Stage a deletion
-            mod_stager::delete_row(&repo, &branch, &identity, &id_to_delete, &new_mod)?;
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            workspaces::data_frames::rows::delete(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry.path,
+                &id_to_delete,
+            )?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let removed_rows = tabular_diff.summary.modifications.row_counts.removed;
@@ -988,16 +1274,21 @@ mod tests {
             }
 
             // Now restore the row
-            let res =
-                mod_stager::restore_row(&repo, &branch, &commit_entry, &identity, &id_to_delete)?;
+            let res = workspaces::data_frames::rows::restore(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry,
+                &id_to_delete,
+            )?;
 
             log::debug!("res is... {:?}", res);
 
-            let commit_entries = mod_stager::list_mod_entries(&repo, &branch, &identity)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
-                api::local::diff::diff_staged_df(&repo, &branch, file_path.clone(), &identity)?;
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let modified_rows = tabular_diff.summary.modifications.row_counts.modified;

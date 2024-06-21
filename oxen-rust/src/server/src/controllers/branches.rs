@@ -74,7 +74,7 @@ pub async fn create_from_or_get(
     let from_branch = api::local::branches::get_by_name(&repo, &data.from_name)?
         .ok_or(OxenHttpError::NotFound)?;
 
-    let new_branch = api::local::branches::create(&repo, &data.new_name, &from_branch.commit_id)?;
+    let new_branch = api::local::branches::create(&repo, &data.new_name, from_branch.commit_id)?;
 
     Ok(HttpResponse::Ok().json(BranchResponse {
         status: StatusMessage::resource_created(),
@@ -112,7 +112,7 @@ pub async fn update(
     let data: Result<BranchUpdate, serde_json::Error> = serde_json::from_str(&body);
     let data = data.map_err(|err| OxenHttpError::BadRequest(format!("{:?}", err).into()))?;
 
-    let branch = api::local::branches::update(&repository, &branch_name, &data.commit_id)?;
+    let branch = api::local::branches::update(&repository, branch_name, data.commit_id)?;
 
     Ok(HttpResponse::Ok().json(BranchResponse {
         status: StatusMessage::resource_updated(),

@@ -4,11 +4,9 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
-use liboxen::core::index::mod_stager;
-use liboxen::core::index::remote_df_stager::{get_row_id, get_row_idx};
 use liboxen::error::OxenError;
 use liboxen::model::entry::mod_entry::{ModType, NewMod};
-use liboxen::model::{Branch, CommitEntry, ContentType, LocalRepository, Schema};
+use liboxen::model::{Commit, CommitEntry, ContentType, LocalRepository, Schema};
 use liboxen::opts::DFOpts;
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
@@ -19,10 +17,10 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     log::debug!("get_row with namespace {:?}", namespace);
     log::debug!("get_row with repo_name {:?}", repo_name);
-    log::debug!("get_row with identifier {:?}", identifier);
+    log::debug!("get_row with workspace_id {:?}", workspace_id);
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
@@ -33,8 +31,13 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    // Have to initialize this branch repo before we can do any operations on it
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let commit = resource
+        .commit
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    // Have to initialize this workspace before we can do any operations on it
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.ok_or(
         OxenError::revision_not_found(branch.commit_id.to_owned().into()),
@@ -45,11 +48,16 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
         .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
 
-    let row_df =
-        index::remote_df_stager::get_row_by_id(&repo, &branch, &entry, &identifier, &row_id)?;
+    let row_df = index::workspaces::data_frames::rows::get_row_by_id(
+        &repo,
+        &commit,
+        &workspace_id,
+        entry.path,
+        row_id,
+    )?;
 
-    let row_id = get_row_id(&row_df)?;
-    let row_index = get_row_idx(&row_df)?;
+    let row_id = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
+    let row_index = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
@@ -77,7 +85,7 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let resource = parse_resource(&req, &repo)?;
 
@@ -110,26 +118,32 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
+    let commit = resource
+        .commit
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
     log::info!(
-        "df_add_row {namespace}/{repo_name} on branch {} with id {}",
+        "df_add_row {namespace}/{repo_name} on branch {} with commit {} with id {}",
         branch.name,
-        identifier
+        commit.id,
+        workspace_id
     );
 
-    // Have to initialize this branch repo before we can do any operations on it
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    // Have to initialize this workspace before we can do any operations on it
+    let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
     log::debug!(
         "stager::df_add_row repo {resource} -> staged repo path {:?}",
         repo.path
     );
     log::debug!(
-        "stager::df_add_row branch repo {resource} -> staged repo path {:?}",
-        branch_repo.path
+        "stager::df_add_row workspace {resource} -> staged repo path {:?}",
+        workspace.path
     );
 
     // Make sure the data frame is indexed
     let is_editable =
-        index::remote_df_stager::dataset_is_indexed(&repo, &branch, &identifier, &resource.path)?;
+        index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
@@ -149,9 +163,10 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         data,
     };
 
-    let row_df = liboxen::core::index::mod_stager::add_row(&repo, &branch, &identifier, &new_mod)?;
-    let row_id: Option<String> = get_row_id(&row_df)?;
-    let row_index: Option<usize> = get_row_idx(&row_df)?;
+    let row_df =
+        index::workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+    let row_id: Option<String> = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
+    let row_index: Option<usize> = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
@@ -179,7 +194,7 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let identifier = req.match_info().get("identifier").unwrap();
+    let workspace_id = req.match_info().get("workspace_id").unwrap();
     let row_id = req.match_info().get("row_id").unwrap();
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
@@ -220,20 +235,15 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
 
     log::debug!("we got data {:?}", data);
 
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    // Have to initialize this branch repo before we can do any operations on it
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, identifier)?;
+    // Have to initialize this workspace before we can do any operations on it
+    let workspace = index::workspaces::init_or_get(&repo, &commit, workspace_id)?;
     log::debug!(
         "stager::df_modify_row repo {resource} -> staged repo path {:?}",
         repo.path
     );
     log::debug!(
-        "stager::df_modify_row branch repo {resource} -> staged repo path {:?}",
-        branch_repo.path
+        "stager::df_modify_row workspace {resource} -> staged repo path {:?}",
+        workspace.path
     );
 
     let new_mod = NewMod {
@@ -244,10 +254,16 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     };
 
     // TODO: Add, delete, and modify should use the resource schema here.
-    let modified_row = mod_stager::modify_row(&repo, &branch, identifier, row_id, &new_mod)?;
+    let modified_row = index::workspaces::data_frames::rows::update(
+        &repo,
+        &commit,
+        workspace_id,
+        row_id,
+        &new_mod,
+    )?;
 
-    let row_index = get_row_idx(&modified_row)?;
-    let row_id = get_row_id(&modified_row)?;
+    let row_index = index::workspaces::data_frames::rows::get_row_idx(&modified_row)?;
+    let row_id = index::workspaces::data_frames::rows::get_row_id(&modified_row)?;
 
     log::debug!("Modified row in controller is {:?}", modified_row);
     let schema = Schema::from_polars(&modified_row.schema());
@@ -270,7 +286,7 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
+    let workspace_id: &str = req.match_info().get("workspace_id").unwrap();
     let row_id: &str = req.match_info().get("row_id").unwrap();
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
@@ -285,23 +301,23 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
         .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
 
-    delete_row(&repo, &branch, user_id, &entry, row_id.to_string())
+    delete_row(&repo, &commit, workspace_id, &entry, row_id)
 }
 
 fn delete_row(
     repo: &LocalRepository,
-    branch: &Branch,
-    user_id: &str,
+    commit: &Commit,
+    workspace_id: &str,
     entry: &CommitEntry,
-    uuid: String,
+    row_id: &str,
 ) -> Result<HttpResponse, OxenHttpError> {
-    let new_mod = NewMod {
-        entry: entry.clone(),
-        data: "".to_string(),
-        mod_type: ModType::Delete,
-        content_type: ContentType::Json,
-    };
-    match liboxen::core::index::mod_stager::delete_row(repo, branch, user_id, &uuid, &new_mod) {
+    match index::workspaces::data_frames::rows::delete(
+        repo,
+        commit,
+        workspace_id,
+        &entry.path,
+        row_id,
+    ) {
         Ok(df) => {
             let schema = Schema::from_polars(&df.schema());
             Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -319,20 +335,18 @@ fn delete_row(
         }
         Err(OxenError::Basic(err)) => {
             log::error!(
-                "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
-                branch.name,
+                "unable to delete data to file {:?} workspace_id {}. Err: {}",
                 entry.path,
-                uuid,
+                workspace_id,
                 err
             );
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(err.to_string())))
         }
         Err(err) => {
             log::error!(
-                "unable to delete data to file {:?}/{:?} uuid {}. Err: {}",
-                branch.name,
+                "unable to delete data to file {:?} workspace_id {}. Err: {}",
                 entry.path,
-                uuid,
+                workspace_id,
                 err
             );
             Ok(HttpResponse::BadRequest().json(StatusMessage::error(format!("{err:?}"))))
@@ -345,7 +359,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let namespace: &str = req.match_info().get("namespace").unwrap();
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let identifier = req.match_info().get("identifier").unwrap();
+    let workspace_id = req.match_info().get("workspace_id").unwrap();
     let row_id = req.match_info().get("row_id").unwrap();
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
@@ -362,10 +376,16 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let entry = api::local::entries::get_commit_entry(&repo, &commit, &resource.path)?
         .ok_or(OxenError::entry_does_not_exist(resource.path.clone()))?;
 
-    let restored_row = mod_stager::restore_row(&repo, &branch, &entry, identifier, row_id)?;
+    let restored_row = index::workspaces::data_frames::rows::restore(
+        &repo,
+        &commit,
+        workspace_id,
+        &entry,
+        row_id,
+    )?;
 
-    let row_index = get_row_idx(&restored_row)?;
-    let row_id = get_row_id(&restored_row)?;
+    let row_index = index::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
+    let row_id = index::workspaces::data_frames::rows::get_row_id(&restored_row)?;
 
     log::debug!("Restored row in controller is {:?}", restored_row);
     let schema = Schema::from_polars(&restored_row.schema());
