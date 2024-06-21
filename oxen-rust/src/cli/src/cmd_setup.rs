@@ -12,6 +12,7 @@ use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::remote::df::RemoteDfCmd;
 use crate::cmd::remote::log::RemoteLogCmd;
 use crate::cmd::remote::rm::RemoteRmCmd;
+use crate::cmd::remote::status::RemoteStatusCmd;
 
 pub const CLONE: &str = "clone";
 pub const COMMIT_CACHE: &str = "commit-cache";
@@ -61,7 +62,7 @@ pub fn remote() -> Command {
         .subcommand(ls())
         .subcommand(restore())
         .subcommand(RemoteRmCmd.args())
-        .subcommand(status())
+        .subcommand(RemoteStatusCmd.args())
         .subcommand(metadata())
         .arg(
             Arg::new("verbose")

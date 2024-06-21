@@ -1,23 +1,23 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
+use liboxen::api;
 use liboxen::command;
-use std::path::PathBuf;
+use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::util;
-use liboxen::error;
-use liboxen::api;
+use std::path::PathBuf;
 
-use crate::helpers::check_repo_migration_needed;
+use crate::helpers::{check_remote_version, check_remote_version_blocking, get_host_from_repo};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "status";
-pub struct StatusCmd;
+pub struct RemoteStatusCmd;
 
 #[async_trait]
-impl RunCmd for StatusCmd {
+impl RunCmd for RemoteStatusCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -68,37 +68,47 @@ impl RunCmd for StatusCmd {
             .expect("limit must be a valid integer.");
         let print_all = args.get_flag("print_all");
 
-        let is_remote = false;
+        let is_remote = true;
         let opts = StagedDataOpts {
             skip,
             limit,
             print_all,
             is_remote,
         };
-
+  
         let repo_dir = util::fs::get_repo_root_from_current_dir()
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    
+        .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
+      
         let repository = LocalRepository::from_dir(&repo_dir)?;
-        check_repo_migration_needed(&repository)?;
-    
-        let directory = directory.unwrap_or(repository.path.clone());
-        let repo_status = command::status_from_dir(&repository, &directory)?;
+     
+        let host = get_host_from_repo(&repository)?;
+      
+        check_remote_version_blocking(host.clone()).await?;
+ 
+        check_remote_version(host).await?;
+
+        let directory = directory.unwrap_or(PathBuf::from("."));
     
         if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
-            println!(
-                "On branch {} -> {}\n",
-                current_branch.name, current_branch.commit_id
-            );
+            let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+            let repo_status =
+                command::remote::status(&remote_repo, &current_branch, &directory, &opts).await?;
+            if let Some(remote_branch) =
+                api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
+            {
+                println!(
+                    "Checking remote branch {} -> {}\n",
+                    remote_branch.name, remote_branch.commit_id
+                );
+                repo_status.print_stdout_with_params(&opts);
+            }
         } else {
             let head = api::local::commits::head_commit(&repository)?;
             println!(
-                "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
+                "You are in 'detached HEAD' state.\nHEAD is now at {} {}\nYou cannot query remote status unless you are on a branch.",
                 head.id, head.message
             );
         }
-    
-        repo_status.print_stdout_with_params(&opts);
     
         Ok(())
     }

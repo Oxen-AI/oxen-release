@@ -8,9 +8,7 @@ pub mod cmd;
 pub mod cmd_setup;
 pub mod dispatch;
 pub mod helpers;
-pub mod parse;
 pub mod parse_and_run;
-pub mod run;
 
 #[tokio::main]
 async fn main() -> ExitCode {

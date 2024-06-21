@@ -29,7 +29,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
             (STATUS, sub_matches) => {
-                crate::parse::remote::status::status(sub_matches).await;
+                let cmd = cmd::remote::RemoteStatusCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             ("add", sub_matches) => {
                 remote_add(sub_matches).await;
