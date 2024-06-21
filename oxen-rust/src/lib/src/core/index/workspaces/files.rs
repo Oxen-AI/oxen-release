@@ -15,10 +15,10 @@ pub fn add(
     repo: &LocalRepository,
     workspace: &LocalRepository,
     commit: &Commit,
-    identifier: &str,
+    workspace_id: &str,
     filepath: &Path,
 ) -> Result<PathBuf, OxenError> {
-    let staging_dir = workspace_dir(repo, commit, identifier);
+    let staging_dir = workspace_dir(repo, workspace_id);
     log::debug!("remote stager before add... staging_dir {:?}", staging_dir);
 
     // Stager will be in the new repo workspace

@@ -6,7 +6,7 @@ use crate::params::{
 
 use actix_files::NamedFile;
 
-use liboxen::constants::TABLE_NAME;
+use liboxen::constants::{OXEN_HIDDEN_DIR, TABLE_NAME};
 use liboxen::core::cache::commit_cacher;
 use liboxen::core::db::{df_db, staged_df_db};
 use liboxen::error::OxenError;
@@ -254,8 +254,7 @@ pub async fn get_file(
 
 async fn save_parts(
     repo: &LocalRepository,
-    commit: &Commit,
-    user_id: &str,
+    workspace_id: &str,
     directory: &Path,
     mut payload: Multipart,
 ) -> Result<Vec<PathBuf>, Error> {
@@ -281,7 +280,7 @@ async fn save_parts(
 
                 log::debug!("Got uploaded file name: {upload_filename:?}");
 
-                let staging_dir = index::workspaces::workspace_dir(repo, commit, user_id);
+                let staging_dir = index::workspaces::workspace_dir(repo, workspace_id);
                 let full_dir = staging_dir.join(directory);
 
                 if !full_dir.exists() {
@@ -317,7 +316,7 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let user_id = path_param(&req, "workspace_id")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
@@ -327,19 +326,26 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-    let workspace = index::workspaces::init_or_get(&repo, &commit, &user_id)?;
+    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id).join(OXEN_HIDDEN_DIR).join("WORKSPACE_COMMIT_ID");
+    let commit = if commit_id_file.exists() {
+        let commit_id = util::fs::read_from_path(&commit_id_file)?;
+        api::local::commits::get_by_id(&repo, &commit_id)?.unwrap()
+    } else {
+        api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap()
+    };
+
+    let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
     log::debug!(
         "stager::stage file repo {resource} -> staged repo path {:?}",
         repo.path
     );
 
-    let files = save_parts(&repo, &commit, &user_id, &resource.path, payload).await?;
+    let files = save_parts(&repo, &workspace_id, &resource.path, payload).await?;
     let mut ret_files = vec![];
 
     for file in files.iter() {
         log::debug!("stager::stage file {:?}", file);
-        let path = index::workspaces::files::add(&repo, &workspace, &commit, &user_id, file)?;
+        let path = index::workspaces::files::add(&repo, &workspace, &commit, &workspace_id, file)?;
         log::debug!("stager::stage ✅ success! staged file {:?}", path);
         ret_files.push(path);
     }
@@ -375,8 +381,16 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         }
     };
 
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id).join(OXEN_HIDDEN_DIR).join("WORKSPACE_COMMIT_ID");
+    let commit = if commit_id_file.exists() {
+        let commit_id = util::fs::read_from_path(&commit_id_file)?;
+        api::local::commits::get_by_id(&repo, &commit_id)?.unwrap()
+    } else {
+        api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap()
+    };
+
     let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
+
     match index::workspaces::commit(
         &repo,
         &workspace,
@@ -546,7 +560,7 @@ fn get_workspace_dir_status(
     let staged = index::workspaces::stager::status(repo, &workspace, commit, workspace_id, path)?;
 
     staged.print_stdout();
-    let full_path = index::workspaces::workspace_dir(repo, commit, workspace_id);
+    let full_path = index::workspaces::workspace_dir(repo, workspace_id);
     let workspace = LocalRepository::new(&full_path).unwrap();
 
     let response = RemoteStagedStatusResponse {

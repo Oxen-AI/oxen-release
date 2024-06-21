@@ -13,12 +13,12 @@ use crate::util;
 pub fn mods_db_path(
     repo: &LocalRepository,
     commit: &Commit,
-    identifier: &str,
+    workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
 
-    workspaces::workspace_dir(repo, commit, identifier)
+    workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(MODS_DIR)
@@ -26,8 +26,8 @@ pub fn mods_db_path(
         .join(path_hash)
 }
 
-pub fn files_db_path(repo: &LocalRepository, commit: &Commit, identifier: &str) -> PathBuf {
-    workspaces::workspace_dir(repo, commit, identifier)
+pub fn files_db_path(repo: &LocalRepository, commit: &Commit, workspace_id: &str) -> PathBuf {
+    workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(MODS_DIR)

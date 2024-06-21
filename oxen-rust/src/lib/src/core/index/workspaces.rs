@@ -5,7 +5,6 @@ use std::path::Path;
 use time::OffsetDateTime;
 
 use crate::api;
-use crate::command;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR};
 use crate::core::index::CommitEntryReader;
@@ -25,13 +24,12 @@ pub mod files;
 pub mod stager;
 
 // These methods create a directory within .oxen/workspaces/commit_id/workspace_id/ that is a local oxen repo
-pub fn workspace_dir(repo: &LocalRepository, commit: &Commit, workspace_id: &str) -> PathBuf {
+pub fn workspace_dir(repo: &LocalRepository, workspace_id: &str) -> PathBuf {
     // Just in case they pass in the email or some other random string, hash it for nice dir name
     let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
-        .join(&commit.id)
         .join(workspace_id_hash)
 }
 
@@ -51,7 +49,7 @@ pub fn init_or_get(
             Ok(repo)
         }
         Err(e) => {
-            let workspace_dir = workspace_dir(repo, commit, workspace_id);
+            let workspace_dir = workspace_dir(repo, workspace_id);
             log::error!("error: {:?}", e);
             log::debug!(
                 "error commit workspace dir for workspace_id {:?} at path {:?}",
@@ -69,7 +67,7 @@ pub fn p_init_or_get(
     commit: &Commit,
     workspace_id: &str,
 ) -> Result<LocalRepository, OxenError> {
-    let workspace_dir = workspace_dir(repo, commit, workspace_id);
+    let workspace_dir = workspace_dir(repo, workspace_id);
     let oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
     let workspace = if oxen_dir.exists() {
         log::debug!("p_init_or_get already have oxen repo directory");
@@ -78,6 +76,11 @@ pub fn p_init_or_get(
         log::debug!("p_init_or_get Initializing oxen repo! 🐂");
 
         let workspace = init_local_repo(repo, &workspace_dir)?;
+        // write the commit_id to the workspace dir
+        let commit_id_path = workspace.path.join(OXEN_HIDDEN_DIR).join("WORKSPACE_COMMIT_ID");
+        log::debug!("p_init_or_get writing commit_id to workspace_dir: {commit_id_path:?}");
+        util::fs::write_to_path(&commit_id_path, &commit.id)?;
+
         workspace
     };
 
@@ -149,7 +152,7 @@ pub fn commit(
         )));
     }
 
-    let staging_dir = workspace_dir(repo, commit, workspace_id);
+    let staging_dir = workspace_dir(repo, workspace_id);
     let status = status_for_workspace(repo, workspace, commit)?;
 
     log::debug!("got branch status: {:#?}", &status);
@@ -219,7 +222,7 @@ mod tests {
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
             let workspace_id = UserConfig::identifier()?;
-            let workspaces_dir = index::workspaces::workspace_dir(&repo, &commit, &workspace_id);
+            let workspaces_dir = index::workspaces::workspace_dir(&repo, &workspace_id);
             let full_dir = workspaces_dir.join(directory);
             let full_path = full_dir.join(filename);
             let entry_contents = "Hello World";
@@ -253,7 +256,7 @@ mod tests {
             let filename = Path::new("Readme.md");
             let workspace_id = UserConfig::identifier()?;
 
-            let workspace_dir = index::workspaces::workspace_dir(&repo, &commit, &workspace_id);
+            let workspace_dir = index::workspaces::workspace_dir(&repo, &workspace_id);
             let full_dir = workspace_dir.join(directory);
             let full_path = full_dir.join(filename);
             let entry_contents = "Hello World";
