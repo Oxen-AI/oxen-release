@@ -25,7 +25,7 @@ pub async fn create(
 
     let client = client::new_for_url(&url)?;
     let res = client
-        .post(&url)
+        .put(&url)
         .body(reqwest::Body::from(body))
         .send()
         .await?;

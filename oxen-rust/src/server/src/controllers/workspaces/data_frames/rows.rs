@@ -50,7 +50,6 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let row_df = index::workspaces::data_frames::rows::get_row_by_id(
         &repo,
-        &commit,
         &workspace_id,
         entry.path,
         row_id,

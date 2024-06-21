@@ -42,7 +42,7 @@ pub fn init_or_get(
     match p_init_or_get(repo, commit, workspace_id) {
         Ok(repo) => {
             log::debug!(
-                "Got branch staging dir for workspace_id {:?} at path {:?}",
+                "Got repo for workspace_id {:?} at path {:?}",
                 workspace_id,
                 repo.path
             );
@@ -77,7 +77,10 @@ pub fn p_init_or_get(
 
         let workspace = init_local_repo(repo, &workspace_dir)?;
         // write the commit_id to the workspace dir
-        let commit_id_path = workspace.path.join(OXEN_HIDDEN_DIR).join("WORKSPACE_COMMIT_ID");
+        let commit_id_path = workspace
+            .path
+            .join(OXEN_HIDDEN_DIR)
+            .join("WORKSPACE_COMMIT_ID");
         log::debug!("p_init_or_get writing commit_id to workspace_dir: {commit_id_path:?}");
         util::fs::write_to_path(&commit_id_path, &commit.id)?;
 
@@ -89,10 +92,10 @@ pub fn p_init_or_get(
 
 pub fn init_local_repo(
     repo: &LocalRepository,
-    staging_dir: &Path,
+    workspace_dir: &Path,
 ) -> Result<LocalRepository, OxenError> {
     let oxen_hidden_dir = repo.path.join(constants::OXEN_HIDDEN_DIR);
-    let staging_oxen_dir = staging_dir.join(constants::OXEN_HIDDEN_DIR);
+    let staging_oxen_dir = workspace_dir.join(constants::OXEN_HIDDEN_DIR);
     log::debug!("Creating staging_oxen_dir {staging_oxen_dir:?}");
     util::fs::create_dir_all(&staging_oxen_dir)?;
 
@@ -106,17 +109,17 @@ pub fn init_local_repo(
 
     for dir in dirs_to_copy {
         let oxen_dir = oxen_hidden_dir.join(dir);
-        let staging_dir = staging_oxen_dir.join(dir);
+        let workspace_dir = staging_oxen_dir.join(dir);
 
-        log::debug!("Copying {dir} dir {oxen_dir:?} -> {staging_dir:?}");
+        log::debug!("Copying {dir} dir {oxen_dir:?} -> {workspace_dir:?}");
         if oxen_dir.is_dir() {
-            util::fs::copy_dir_all(oxen_dir, staging_dir)?;
+            util::fs::copy_dir_all(oxen_dir, workspace_dir)?;
         } else {
-            util::fs::copy(oxen_dir, staging_dir)?;
+            util::fs::copy(oxen_dir, workspace_dir)?;
         }
     }
 
-    LocalRepository::new(staging_dir)
+    LocalRepository::new(workspace_dir)
 }
 
 pub fn commit(
@@ -128,9 +131,10 @@ pub fn commit(
     branch_name: &str,
 ) -> Result<Commit, OxenError> {
     log::debug!(
-        "commit_staged started for commit {} on branch: {}",
+        "commit_staged started for commit {} on branch: {} in workspace {}",
         commit.id,
-        branch_name
+        branch_name,
+        workspace_id
     );
 
     // Check if the branch exists, if not created it
@@ -138,12 +142,15 @@ pub fn commit(
     // If the commit ids don't match, we need to reject for now
     // TODO: Merge and handle conflicts better
     let mut branch = api::local::branches::get_by_name(repo, branch_name)?;
+    log::debug!("commit_staged looking up branch: {:#?}", &branch);
 
     if branch.is_none() {
         branch = Some(api::local::branches::create(repo, branch_name, &commit.id)?);
     }
 
     let branch = branch.unwrap();
+
+    log::debug!("commit_staged got branch: {:#?}", &branch);
 
     if branch.commit_id != commit.id {
         return Err(OxenError::basic_str(format!(
@@ -152,7 +159,7 @@ pub fn commit(
         )));
     }
 
-    let staging_dir = workspace_dir(repo, workspace_id);
+    let workspace_dir = workspace_dir(repo, workspace_id);
     let status = status_for_workspace(repo, workspace, commit)?;
 
     log::debug!("got branch status: {:#?}", &status);
@@ -173,16 +180,19 @@ pub fn commit(
     let commit = commit_writer.commit_from_new_on_remote_branch(
         &new_commit,
         &status,
-        &staging_dir,
+        &workspace_dir,
         &branch,
         workspace_id,
     )?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
-    log::debug!("commit_staged cleaning up staging dir: {:?}", staging_dir);
-    match util::fs::remove_dir_all(&staging_dir) {
-        Ok(_) => log::debug!("commit_staged: removed staging dir: {:?}", staging_dir),
-        Err(e) => log::error!("commit_staged: error removing staging dir: {:?}", e),
+    log::debug!(
+        "commit_staged cleaning up workspace dir: {:?}",
+        workspace_dir
+    );
+    match util::fs::remove_dir_all(&workspace_dir) {
+        Ok(_) => log::debug!("commit_staged: removed workspace dir: {:?}", workspace_dir),
+        Err(e) => log::error!("commit_staged: error removing workspace dir: {:?}", e),
     }
 
     Ok(commit)
