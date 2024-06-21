@@ -16,9 +16,9 @@ pub mod middleware;
 pub mod params;
 pub mod queues;
 pub mod routes;
+pub mod services;
 pub mod tasks;
 pub mod test;
-pub mod view;
 
 extern crate log;
 extern crate lru;

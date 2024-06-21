@@ -8,7 +8,7 @@ use crate::cmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::BranchCmd;
 use crate::cmd::RunCmd;
-use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, RM, STATUS};
+use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, RESTORE, RM, STATUS};
 use crate::dispatch;
 
 use clap::ArgMatches;
@@ -18,7 +18,6 @@ use liboxen::command::migrate::{
 };
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
-use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
 use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
 use liboxen::{command, opts::RestoreOpts};
@@ -82,12 +81,6 @@ pub async fn remote(sub_matches: &ArgMatches) {
             (LS, sub_matches) => {
                 remote_ls(sub_matches).await;
             }
-            (METADATA, sub_matches) => match remote_metadata(sub_matches).await {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
-            },
             (command, _) => {
                 eprintln!("Invalid subcommand: {command}")
             }
@@ -241,102 +234,6 @@ async fn remote_add(sub_matches: &ArgMatches) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")
-        }
-    }
-}
-
-async fn remote_metadata(sub_matches: &ArgMatches) -> Result<(), OxenError> {
-    if let Some(subcommand) = sub_matches.subcommand() {
-        match subcommand {
-            ("list", sub_matches) => {
-                remote_metadata_list(sub_matches).await;
-            }
-            ("aggregate", sub_matches) => {
-                remote_metadata_aggregate(sub_matches).await?;
-            }
-            (command, _) => {
-                eprintln!("Invalid subcommand: {command}")
-            }
-        }
-    } else {
-        match dispatch::remote_metadata_list_dir(PathBuf::from(".")).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    }
-    Ok(())
-}
-
-async fn remote_metadata_aggregate(sub_matches: &ArgMatches) -> Result<(), OxenError> {
-    let directory = sub_matches
-        .get_one::<String>("path")
-        .map(PathBuf::from)
-        .unwrap_or(PathBuf::from("."));
-
-    let column = sub_matches
-        .get_one::<String>("column")
-        .ok_or(OxenError::basic_str("Must supply column"))?;
-
-    match sub_matches.get_one::<String>("type") {
-        Some(data_type) => match data_type.parse::<EntryDataType>() {
-            Ok(EntryDataType::Dir) => {
-                match dispatch::remote_metadata_aggregate_dir(directory, &column).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
-            }
-            Ok(_) => {
-                todo!("implement other types")
-            }
-            Err(err) => {
-                let err = format!("{err:?}");
-                return Err(OxenError::basic_str(err));
-            }
-        },
-        None => {
-            let err = "Must supply type".to_string();
-            return Err(OxenError::basic_str(err));
-        }
-    };
-
-    Ok(())
-}
-
-async fn remote_metadata_list(sub_matches: &ArgMatches) {
-    let directory = sub_matches
-        .get_one::<String>("path")
-        .map(PathBuf::from)
-        .unwrap_or(PathBuf::from("."));
-
-    match sub_matches.get_one::<String>("type") {
-        Some(data_type) => match data_type.parse::<EntryDataType>() {
-            Ok(EntryDataType::Dir) => match dispatch::remote_metadata_list_dir(directory).await {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
-                }
-            },
-            Ok(EntryDataType::Image) => {
-                match dispatch::remote_metadata_list_image(directory).await {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
-                }
-            }
-            Ok(_) => {
-                todo!("implement other types")
-            }
-            Err(err) => {
-                eprintln!("{err:?}");
-            }
-        },
-        None => {
-            eprintln!("Must supply type");
         }
     }
 }

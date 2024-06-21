@@ -72,7 +72,11 @@ pub fn current_branch(repo: &LocalRepository) -> Result<Option<Branch>, OxenErro
 /// # Create a new branch from the head commit
 /// This creates a new pointer to the current commit with a name,
 /// it does not switch you to this branch, you still must call `checkout_branch`
-pub fn create_from_head(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn create_from_head(
+    repo: &LocalRepository,
+    name: impl AsRef<str>,
+) -> Result<Branch, OxenError> {
+    let name = name.as_ref();
     let ref_writer = RefWriter::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     let head_commit = commit_reader.head_commit()?;
@@ -80,7 +84,13 @@ pub fn create_from_head(repo: &LocalRepository, name: &str) -> Result<Branch, Ox
 }
 
 /// # Create a local branch from a specific commit id
-pub fn create(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
+pub fn create(
+    repo: &LocalRepository,
+    name: impl AsRef<str>,
+    commit_id: impl AsRef<str>,
+) -> Result<Branch, OxenError> {
+    let name = name.as_ref();
+    let commit_id = commit_id.as_ref();
     let ref_writer = RefWriter::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     if commit_reader.commit_id_exists(commit_id) {
@@ -93,7 +103,8 @@ pub fn create(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Bra
 /// # Create a branch and check it out in one go
 /// This creates a branch with name,
 /// then switches HEAD to point to the branch
-pub fn create_checkout(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn create_checkout(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, OxenError> {
+    let name = name.as_ref();
     println!("Create and checkout branch: {name}");
     let head_commit = api::local::commits::head_commit(repo)?;
     let ref_writer = RefWriter::new(repo)?;
@@ -104,7 +115,13 @@ pub fn create_checkout(repo: &LocalRepository, name: &str) -> Result<Branch, Oxe
 }
 
 /// Update the branch name to point to a commit id
-pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
+pub fn update(
+    repo: &LocalRepository,
+    name: impl AsRef<str>,
+    commit_id: impl AsRef<str>,
+) -> Result<Branch, OxenError> {
+    let name = name.as_ref();
+    let commit_id = commit_id.as_ref();
     let ref_reader = RefReader::new(repo)?;
     match ref_reader.get_branch_by_name(name)? {
         Some(branch) => {
@@ -119,7 +136,8 @@ pub fn update(repo: &LocalRepository, name: &str, commit_id: &str) -> Result<Bra
     }
 }
 
-pub fn delete(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, OxenError> {
+    let name = name.as_ref();
     // Make sure they don't delete the current checked out branch
     if let Ok(Some(branch)) = current_branch(repo) {
         if branch.name == name {
@@ -139,7 +157,8 @@ pub fn delete(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
 
 /// # Force delete a local branch
 /// Caution! Will delete a local branch without checking if it has been merged or pushed.
-pub fn force_delete(repo: &LocalRepository, name: &str) -> Result<Branch, OxenError> {
+pub fn force_delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, OxenError> {
+    let name = name.as_ref();
     if let Ok(Some(branch)) = current_branch(repo) {
         if branch.name == name {
             let err = format!("Err: Cannot delete current checked out branch '{name}'");
