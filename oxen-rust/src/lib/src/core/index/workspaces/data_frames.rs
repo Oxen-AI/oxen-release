@@ -32,19 +32,18 @@ pub fn is_behind(
     workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<bool, OxenError> {
-    let commit_path = previous_commit_ref_path(repo, commit, workspace_id, path);
+    let commit_path = previous_commit_ref_path(repo, workspace_id, path);
     let commit_id = util::fs::read_from_path(commit_path)?;
     Ok(commit_id != commit.id)
 }
 
 pub fn previous_commit_ref_path(
     repo: &LocalRepository,
-    commit: &Commit,
-    identifier: &str,
+    workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspaces::workspace_dir(repo, identifier)
+    workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(MODS_DIR)
@@ -55,12 +54,11 @@ pub fn previous_commit_ref_path(
 
 pub fn mods_db_path(
     repo: &LocalRepository,
-    commit: &Commit,
-    identifier: &str,
+    workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspaces::workspace_dir(repo, identifier)
+    workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(MODS_DIR)
@@ -73,9 +71,9 @@ pub fn count(
     repo: &LocalRepository,
     commit: &Commit,
     path: PathBuf,
-    identifier: &str,
+    workspace_id: &str,
 ) -> Result<usize, OxenError> {
-    let db_path = mods_db_path(repo, commit, identifier, path);
+    let db_path = mods_db_path(repo, workspace_id, path);
     let conn = df_db::get_connection(db_path)?;
 
     let count = df_db::count(&conn, TABLE_NAME)?;
@@ -104,7 +102,7 @@ pub fn index(
         None => return Err(OxenError::resource_not_found(path.to_string_lossy())),
     };
 
-    let db_path = mods_db_path(repo, commit, workspace_id, &entry.path);
+    let db_path = mods_db_path(repo, workspace_id, &entry.path);
 
     if !db_path
         .parent()
@@ -134,7 +132,7 @@ pub fn index(
     add_row_status_cols(&conn)?;
 
     // Save the current commit id so we know if the branch has advanced
-    let commit_path = previous_commit_ref_path(repo, commit, workspace_id, path);
+    let commit_path = previous_commit_ref_path(repo, workspace_id, path);
     util::fs::write_to_path(commit_path, &commit.id)?;
 
     Ok(())
@@ -148,7 +146,7 @@ pub fn query(
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let db_path = mods_db_path(repo, commit, workspace_id, path);
+    let db_path = mods_db_path(repo, workspace_id, path);
     log::debug!("query_staged_df() got db_path: {:?}", db_path);
 
     let conn = df_db::get_connection(db_path)?;
@@ -212,7 +210,7 @@ pub fn unindex(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let path = path.as_ref();
-    let db_path = mods_db_path(repo, commit, workspace_id, path);
+    let db_path = mods_db_path(repo, workspace_id, path);
     let conn = df_db::get_connection(db_path)?;
     df_db::drop_table(&conn, TABLE_NAME)?;
 
@@ -222,11 +220,11 @@ pub fn unindex(
 pub fn is_indexed(
     repo: &LocalRepository,
     commit: &Commit,
-    identifier: &str,
+    workspace_id: &str,
     path: &Path,
 ) -> Result<bool, OxenError> {
     log::debug!("checking dataset is indexed for {:?}", path);
-    let db_path = mods_db_path(repo, commit, identifier, path);
+    let db_path = mods_db_path(repo, workspace_id, path);
     log::debug!("getting conn at path {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -251,11 +249,11 @@ pub fn diff(
 
     let _branch_repo = workspaces::init_or_get(repo, commit, workspace_id)?;
 
-    if !workspaces::data_frames::is_indexed(repo, commit, workspace_id, path)? {
+    if !is_indexed(repo, commit, workspace_id, path)? {
         return Err(OxenError::basic_str("Dataset is not indexed"));
     };
 
-    let db_path = workspaces::data_frames::mods_db_path(repo, commit, workspace_id, entry.path);
+    let db_path = mods_db_path(repo, workspace_id, entry.path);
 
     let conn = df_db::get_connection(db_path)?;
 
@@ -300,7 +298,7 @@ pub fn extract_dataset_to_versions_dir(
     workspace_id: &str,
 ) -> Result<(), OxenError> {
     let version_path = util::fs::version_path(repo, entry);
-    let db_path = mods_db_path(repo, commit, workspace_id, entry.path.clone());
+    let db_path = mods_db_path(repo, workspace_id, entry.path.clone());
     let conn = df_db::get_connection(db_path)?;
 
     log::debug!("extracting to versions path: {:?}", version_path);
@@ -356,7 +354,7 @@ pub fn extract_dataset_to_working_dir(
     workspace_id: &str,
 ) -> Result<PathBuf, OxenError> {
     let working_path = workspace.path.join(entry.path.clone());
-    let db_path = mods_db_path(repo, commit, workspace_id, entry.path.clone());
+    let db_path = mods_db_path(repo, workspace_id, entry.path.clone());
     let conn = df_db::get_connection(db_path)?;
     // Match on the extension
 
@@ -621,12 +619,12 @@ mod tests {
                 mod_type: ModType::Append,
                 content_type: ContentType::Json,
             };
-            let _append_entry_2 = workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+            let _append_entry_2 =
+                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
 
             // List the files that are changed
             let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
-
 
             // List the staged mods
             let diff =
@@ -640,10 +638,17 @@ mod tests {
             }
 
             // Delete the first append
-            workspaces::data_frames::rows::delete(&repo, &commit, &workspace_id, &commit_entry.path, &append_1_id)?;
+            workspaces::data_frames::rows::delete(
+                &repo,
+                &commit,
+                &workspace_id,
+                &commit_entry.path,
+                &append_1_id,
+            )?;
 
             // Should only be one mod now
-            let diff = workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
+            let diff =
+                workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path.clone())?;
             match diff {
                 DiffResult::Tabular(tabular_diff) => {
                     let added_rows = tabular_diff.summary.modifications.row_counts.added;

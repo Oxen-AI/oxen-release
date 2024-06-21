@@ -170,7 +170,9 @@ impl CommitWriter {
         branch: &Branch,
         workspace_id: &str,
     ) -> Result<Commit, OxenError> {
-        let Some(old_commit) = CommitReader::new(&self.repository)?.get_commit_by_id(&branch.commit_id)? else {
+        let Some(old_commit) =
+            CommitReader::new(&self.repository)?.get_commit_by_id(&branch.commit_id)?
+        else {
             return Err(OxenError::basic_str(format!(
                 "Could not commit, remote staging area is out of date with commit {}",
                 branch.commit_id
@@ -222,6 +224,7 @@ impl CommitWriter {
 
         log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
         for entry in entries.iter() {
+            log::debug!("apply_mods entry: {:?}", entry);
             // Copy the version file to the staging dir and make the mods
             let version_path = util::fs::version_path(&self.repository, entry);
             let entry_path = workspace_dir.join(&entry.path);
@@ -242,7 +245,7 @@ impl CommitWriter {
                     &self.repository,
                     commit,
                     workspace_id,
-                    &entry_path,
+                    &entry.path,
                 )? {
                     return Err(OxenError::basic_str(format!(
                         "Could not commit, remote staging area is out of date with commit {}",
@@ -250,6 +253,7 @@ impl CommitWriter {
                     )));
                 }
 
+                log::debug!("apply_mods extracting dataset to working dir");
                 workspaces::data_frames::extract_dataset_to_working_dir(
                     &self.repository,
                     &workspace,
@@ -258,6 +262,7 @@ impl CommitWriter {
                     workspace_id,
                 )?;
 
+                log::debug!("apply_mods unstaging");
                 workspaces::data_frames::unstage(
                     &self.repository,
                     commit,
@@ -265,6 +270,7 @@ impl CommitWriter {
                     &entry.path,
                 )?;
             } else {
+                log::debug!("apply_mods copying non-tabular file");
                 // Non-tabular files are copied from their version path into the working dir
                 util::fs::copy(&version_path, &entry_path)?;
             }

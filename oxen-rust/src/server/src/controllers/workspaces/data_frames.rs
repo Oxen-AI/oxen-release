@@ -197,7 +197,6 @@ pub async fn diff(
     // TODO: Let's not expose dbs right in the controller
     let staged_db_path = liboxen::core::index::workspaces::data_frames::mods_db_path(
         &repo,
-        &commit,
         &workspace_id,
         &resource.path,
     );

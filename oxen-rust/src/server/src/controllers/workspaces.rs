@@ -184,8 +184,7 @@ pub async fn diff_df(
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
     let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
-    let staged_db_path =
-        index::workspaces::data_frames::mods_db_path(&repo, &commit, &workspace_id, &resource.path);
+    let staged_db_path = index::workspaces::data_frames::mods_db_path(&repo, &workspace_id, &resource.path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 
@@ -326,7 +325,9 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id).join(OXEN_HIDDEN_DIR).join("WORKSPACE_COMMIT_ID");
+    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id)
+        .join(OXEN_HIDDEN_DIR)
+        .join("WORKSPACE_COMMIT_ID");
     let commit = if commit_id_file.exists() {
         let commit_id = util::fs::read_from_path(&commit_id_file)?;
         api::local::commits::get_by_id(&repo, &commit_id)?.unwrap()
@@ -364,7 +365,12 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let branch_name = path_param(&req, "branch")?;
 
-    log::debug!("stager::commit {namespace}/{repo_name} workspace id {} to branch {} got body: {}", workspace_id, branch_name, body);
+    log::debug!(
+        "stager::commit {namespace}/{repo_name} workspace id {} to branch {} got body: {}",
+        workspace_id,
+        branch_name,
+        body
+    );
 
     let data: Result<NewCommitBody, serde_json::Error> = serde_json::from_str(&body);
 
@@ -376,8 +382,10 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         }
     };
 
-    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id).join(OXEN_HIDDEN_DIR).join("WORKSPACE_COMMIT_ID");
-    let commit_id = util::fs::read_from_path(&commit_id_file)?;
+    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id)
+        .join(OXEN_HIDDEN_DIR)
+        .join("WORKSPACE_COMMIT_ID");
+    let commit_id = util::fs::read_from_path(commit_id_file)?;
     let commit = api::local::commits::get_by_id(&repo, &commit_id)?.unwrap();
 
     let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
@@ -547,7 +555,11 @@ fn get_workspace_dir_status(
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let workspace = index::workspaces::init_or_get(repo, commit, workspace_id)?;
 
-    log::debug!("GOT WORKSPACE {:?} and DIR {:?}", repo.path, path);
+    log::debug!(
+        "Got workspace status {:?} for path {:?}",
+        workspace_id,
+        path
+    );
     let staged = index::workspaces::stager::status(repo, &workspace, commit, workspace_id, path)?;
 
     staged.print_stdout();

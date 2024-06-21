@@ -25,7 +25,6 @@ use std::path::{Path, PathBuf};
 // Get a single row by the _oxen_id val
 pub fn get_row_by_id(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
     row_id: impl AsRef<str>,
@@ -33,7 +32,7 @@ pub fn get_row_by_id(
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
     let row_id = row_id.as_ref();
-    let db_path = workspaces::data_frames::mods_db_path(repo, commit, workspace_id, path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, path);
     log::debug!("get_row_by_id() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -81,7 +80,7 @@ pub fn add(
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
     let db_path =
-        workspaces::data_frames::mods_db_path(repo, commit, workspace_id, &new_mod.entry.path);
+        workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -103,7 +102,7 @@ pub fn restore(
 ) -> Result<DataFrame, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let row_id = row_id.as_ref();
-    let restored_row = restore_row_in_db(repo, commit, workspace_id, entry, row_id)?;
+    let restored_row = restore_row_in_db(repo, workspace_id, entry, row_id)?;
     let diff = workspaces::data_frames::diff(repo, commit, workspace_id, &entry.path)?;
 
     if let DiffResult::Tabular(diff) = diff {
@@ -124,18 +123,17 @@ pub fn restore(
 
 pub fn restore_row_in_db(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: impl AsRef<str>,
     entry: &CommitEntry,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let row_id = row_id.as_ref();
-    let db_path = workspaces::data_frames::mods_db_path(repo, commit, workspace_id, &entry.path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &entry.path);
     let conn = df_db::get_connection(db_path)?;
 
     // Get the row by id
-    let row = get_row_by_id(repo, commit, workspace_id, &entry.path, row_id)?;
+    let row = get_row_by_id(repo, workspace_id, &entry.path, row_id)?;
 
     if row.height() == 0 {
         return Err(OxenError::resource_not_found(row_id));
@@ -224,7 +222,7 @@ pub fn delete(
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let db_path = workspaces::data_frames::mods_db_path(repo, commit, workspace_id, path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, path);
     let deleted_row = {
         let conn = df_db::get_connection(db_path)?;
         staged_df_db::delete_row(&conn, row_id)?
@@ -259,7 +257,7 @@ pub fn update(
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
     let db_path =
-        workspaces::data_frames::mods_db_path(repo, commit, workspace_id, &new_mod.entry.path);
+        workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
     let conn = df_db::get_connection(db_path)?;
 
     let mut df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;

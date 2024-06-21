@@ -1,11 +1,12 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param};
+use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 
 use liboxen::core;
 use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::df_opts::DFOptsView;
+use liboxen::opts::DFOpts;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::{
@@ -14,7 +15,7 @@ use liboxen::view::{
 };
 use liboxen::{api, current_function};
 
-use actix_web::{HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse};
 
 pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -126,4 +127,92 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         derived_resource: None,
     };
     Ok(HttpResponse::Ok().json(response))
+}
+
+pub async fn agg_dir(
+    req: HttpRequest,
+    query: web::Query<AggregateQuery>,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+
+    let column = query.column.clone().ok_or(OxenHttpError::BadRequest(
+        "Must supply column query parameter".into(),
+    ))?;
+
+    log::debug!(
+        "{} resource {}/{}",
+        current_function!(),
+        repo_name,
+        resource
+    );
+
+    let latest_commit = api::local::commits::get_by_id(&repo, &commit.id)?
+        .ok_or(OxenError::revision_not_found(commit.id.clone().into()))?;
+
+    log::debug!(
+        "{} resolve commit {} -> '{}'",
+        current_function!(),
+        latest_commit.id,
+        latest_commit.message
+    );
+
+    let directory = &resource.path;
+
+    let cached_path = core::cache::cachers::content_stats::dir_column_path(
+        &repo,
+        &latest_commit,
+        directory,
+        &column,
+    );
+    log::debug!("Reading aggregation from cached path: {:?}", cached_path);
+
+    if cached_path.exists() {
+        let mut df = core::df::tabular::read_df(&cached_path, DFOpts::empty())?;
+
+        let resource_version = ResourceVersion {
+            path: resource.path.to_string_lossy().into(),
+            version: resource.version.to_string_lossy().into(),
+        };
+
+        let df = JsonDataFrame::from_df(&mut df);
+        let full_df = JsonDataFrameSource {
+            schema: df.schema.clone(),
+            size: df.full_size.clone(),
+        };
+
+        let view_df = JsonDataFrameView {
+            data: df.data,
+            schema: df.view_schema.clone(),
+            size: df.view_size.clone(),
+            pagination: Pagination {
+                page_number: 1,
+                page_size: df.full_size.height,
+                total_pages: 1,
+                total_entries: df.full_size.height,
+            },
+            opts: DFOptsView::empty(),
+        };
+
+        let response = JsonDataFrameViewResponse {
+            status: StatusMessage::resource_found(),
+            data_frame: {
+                JsonDataFrameViews {
+                    source: full_df,
+                    view: view_df,
+                }
+            },
+            commit: Some(commit),
+            resource: Some(resource_version),
+            derived_resource: None,
+        };
+        Ok(HttpResponse::Ok().json(response))
+    } else {
+        log::error!("Metadata cache not computed for column {}", column);
+        Ok(HttpResponse::BadRequest().json(StatusMessage::resource_not_found()))
+    }
 }
