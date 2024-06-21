@@ -9,12 +9,11 @@ use actix_files::NamedFile;
 use liboxen::constants::TABLE_NAME;
 use liboxen::core::cache::commit_cacher;
 use liboxen::core::db::{df_db, staged_df_db};
-use liboxen::core::index::mod_stager;
 use liboxen::error::OxenError;
 use liboxen::model::diff::DiffResult;
 
 use liboxen::model::metadata::metadata_image::ImgResize;
-use liboxen::model::{Branch, LocalRepository, NewCommitBody, Schema};
+use liboxen::model::{Commit, LocalRepository, NewCommitBody, Schema};
 use liboxen::opts::DFOpts;
 use liboxen::util;
 use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
@@ -44,7 +43,7 @@ pub async fn get_or_create(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let data: Result<WorkspaceView, serde_json::Error> = serde_json::from_str(&body);
     let data = match data {
@@ -56,15 +55,15 @@ pub async fn get_or_create(
     };
 
     let Some(branch) = api::local::branches::get_by_name(&repo, &data.branch_name)? else {
-        return Ok(
-            HttpResponse::BadRequest().json(StatusMessage::error("Branch not found".to_string()))
-        );
+        return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Branch not found")));
     };
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
     let identifier = data.identifier.clone();
 
-    // Get the branch repo for remote staging
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    // Get or create the workspace
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &identifier)?;
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),
@@ -79,7 +78,7 @@ pub async fn status_dir(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
@@ -90,10 +89,17 @@ pub async fn status_dir(
         liboxen::current_function!()
     );
 
-    get_dir_status_for_branch(
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+
+    get_workspace_dir_status(
         &repo,
-        &resource.branch.ok_or(OxenHttpError::NotFound)?.name,
-        &identifier,
+        &commit,
+        &workspace_id,
         &resource.path,
         page_num,
         page_size,
@@ -104,7 +110,7 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
@@ -115,11 +121,12 @@ pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    // Get the branch repo for remote staging
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    // Get the workspace
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
     let diff_result =
-        api::local::diff::diff_staged_df(&repo, &branch, resource.path.clone(), &identifier)?;
+        index::workspaces::data_frames::diff(&repo, &commit, &workspace_id, resource.path.clone())?;
     let diff = match diff_result {
         DiffResult::Tabular(diff) => diff,
         _ => {
@@ -160,7 +167,7 @@ pub async fn diff_df(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -174,9 +181,11 @@ pub async fn diff_df(
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let _branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
-    let staged_db_path = mod_stager::mods_df_db_path(&repo, &branch, &identifier, &resource.path);
+    let staged_db_path =
+        index::workspaces::data_frames::mods_db_path(&repo, &commit, &workspace_id, &resource.path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 
@@ -211,7 +220,7 @@ pub async fn get_file(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
 
     // Remote staged calls must be on a branch
     let branch = resource
@@ -219,9 +228,10 @@ pub async fn get_file(
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let branch_repo = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
-    // The path in a remote staged context is just the working path of the branch repo
+    // The path in a workspace context is just the working path of the workspace repo
     let path = branch_repo.path.join(resource.path);
 
     log::debug!("got staged file path {:?}", path);
@@ -244,7 +254,7 @@ pub async fn get_file(
 
 async fn save_parts(
     repo: &LocalRepository,
-    branch: &Branch,
+    commit: &Commit,
     user_id: &str,
     directory: &Path,
     mut payload: Multipart,
@@ -271,8 +281,7 @@ async fn save_parts(
 
                 log::debug!("Got uploaded file name: {upload_filename:?}");
 
-                let staging_dir =
-                    index::remote_dir_stager::branch_staging_dir(repo, branch, user_id);
+                let staging_dir = index::workspaces::workspace_dir(repo, commit, user_id);
                 let full_dir = staging_dir.join(directory);
 
                 if !full_dir.exists() {
@@ -308,7 +317,7 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let user_id = path_param(&req, "identifier")?;
+    let user_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
@@ -318,19 +327,19 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &user_id)?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let workspace = index::workspaces::init_or_get(&repo, &commit, &user_id)?;
     log::debug!(
         "stager::stage file repo {resource} -> staged repo path {:?}",
         repo.path
     );
 
-    let files = save_parts(&repo, &branch, &user_id, &resource.path, payload).await?;
+    let files = save_parts(&repo, &commit, &user_id, &resource.path, payload).await?;
     let mut ret_files = vec![];
 
     for file in files.iter() {
         log::debug!("stager::stage file {:?}", file);
-        let path =
-            index::remote_dir_stager::stage_file(&repo, &branch_repo, &branch, &user_id, file)?;
+        let path = index::workspaces::files::add(&repo, &workspace, &commit, &user_id, file)?;
         log::debug!("stager::stage ✅ success! staged file {:?}", path);
         ret_files.push(path);
     }
@@ -345,7 +354,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let identifier = path_param(&req, "identifier")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
@@ -354,7 +363,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         .clone()
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
-    log::debug!("stager::commit {namespace}/{repo_name} on branch {} with id {} for resource {} got body: {}", branch.name, identifier, resource.path.to_string_lossy(), body);
+    log::debug!("stager::commit {namespace}/{repo_name} on branch {} with id {} for resource {} got body: {}", branch.name, workspace_id, resource.path.to_string_lossy(), body);
 
     let data: Result<NewCommitBody, serde_json::Error> = serde_json::from_str(&body);
 
@@ -366,8 +375,16 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         }
     };
 
-    let branch_repo = index::remote_dir_stager::init_or_get(&repo, &branch, &identifier)?;
-    match index::remote_dir_stager::commit(&repo, &branch_repo, &branch, &data, &identifier) {
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
+    match index::workspaces::commit(
+        &repo,
+        &workspace,
+        &commit,
+        &workspace_id,
+        &data,
+        &branch.name,
+    ) {
         Ok(commit) => {
             log::debug!("stager::commit ✅ success! commit {:?}", commit);
 
@@ -409,48 +426,28 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     }
 }
 
-pub async fn clear_modifications(req: HttpRequest) -> HttpResponse {
-    let app_data = app_data(&req).unwrap();
-    let namespace: &str = req.match_info().get("namespace").unwrap();
-    let repo_name: &str = req.match_info().get("repo_name").unwrap();
-    let user_id: &str = req.match_info().get("identifier").unwrap();
-    let resource: PathBuf = req.match_info().query("resource").parse().unwrap();
+pub async fn clear_modifications(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
 
-    log::debug!(
-        "stager::clear_modifications repo name {repo_name}/{}",
-        resource.to_string_lossy()
-    );
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
-        Ok(Some(repo)) => match api::local::resource::parse_resource(&repo, &resource) {
-            Ok(Some((_, branch_name, file_name))) => {
-                clear_staged_modifications_on_branch(&repo, &branch_name, user_id, &file_name)
-            }
-            Ok(None) => {
-                log::error!("unable to find resource {:?}", resource);
-                HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-            }
-            Err(err) => {
-                log::error!("Could not parse resource  {repo_name} -> {err}");
-                HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-            }
-        },
-        Ok(None) => {
-            log::error!("unable to find repo {}", repo_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
-        }
-        Err(err) => {
-            log::error!("Error getting repo by name {repo_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-        }
-    }
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let resource = parse_resource(&req, &repo)?;
+    let branch = resource
+        .branch
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+
+    clear_staged_modifications_on_workspace(&repo, &commit, &workspace_id, &resource.path)
 }
 
 pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let user_id = path_param(&req, "identifier")?;
+    let user_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
 
@@ -461,8 +458,8 @@ pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
         .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
 
     // Get commit for branch head
-    // let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
-    //     .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
 
     log::debug!(
         "stager::delete_file repo name {repo_name}/{}",
@@ -473,128 +470,88 @@ pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     // TODO: can we find the file / check if it's in the staging area?
 
     if util::fs::is_tabular(&resource.path) {
-        mod_stager::restore_df(&repo, &branch, &user_id, &resource.path)?;
+        index::workspaces::data_frames::restore(&repo, &commit, &user_id, &resource.path)?;
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
     } else {
         log::debug!("not tabular");
-        Ok(delete_staged_file_on_branch(
-            &repo,
-            &branch.name,
-            &user_id,
-            &resource.path,
-        ))
+        delete_staged_file_on_branch(&repo, &commit, &user_id, &resource.path)
     }
 }
 
-fn clear_staged_modifications_on_branch(
+fn clear_staged_modifications_on_workspace(
     repo: &LocalRepository,
-    branch_name: &str,
-    user_id: &str,
+    commit: &Commit,
+    workspace_id: &str,
     path: &Path,
-) -> HttpResponse {
-    match api::local::branches::get_by_name(repo, branch_name) {
-        Ok(Some(branch)) => {
-            index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
-            match mod_stager::restore_df(repo, &branch, user_id, path) {
-                Ok(_) => {
-                    log::debug!("clear_staged_modifications_on_branch success!");
-                    HttpResponse::Ok().json(StatusMessage::resource_deleted())
-                }
-                Err(err) => {
-                    log::error!("unable to delete file {:?}. Err: {}", path, err);
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
-                }
-            }
-        }
-        Ok(None) => {
-            log::error!("unable to find branch {}", branch_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+) -> Result<HttpResponse, OxenHttpError> {
+    index::workspaces::init_or_get(repo, commit, workspace_id).unwrap();
+    match index::workspaces::data_frames::restore(repo, commit, workspace_id, path) {
+        Ok(_) => {
+            log::debug!("clear_staged_modifications_on_workspace success!");
+            Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
         }
         Err(err) => {
-            log::error!("Error getting branch by name {branch_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            log::error!("unable to delete file {:?}. Err: {}", path, err);
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
     }
 }
 
 fn delete_staged_file_on_branch(
     repo: &LocalRepository,
-    branch_name: &str,
-    user_id: &str,
+    commit: &Commit,
+    workspace_id: &str,
     path: &Path,
-) -> HttpResponse {
+) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("delete_staged_file_on_branch()");
-    match api::local::branches::get_by_name(repo, branch_name) {
-        Ok(Some(branch)) => {
-            let branch_repo =
-                index::remote_dir_stager::init_or_get(repo, &branch, user_id).unwrap();
-            log::debug!("got branch_repo");
-            match index::remote_dir_stager::has_file(&branch_repo, path) {
-                Ok(true) => match index::remote_dir_stager::delete_file(&branch_repo, path) {
-                    Ok(_) => {
-                        log::debug!("stager::delete_file success!");
-                        HttpResponse::Ok().json(StatusMessage::resource_deleted())
-                    }
-                    Err(err) => {
-                        log::error!("unable to delete file {:?}. Err: {}", path, err);
-                        HttpResponse::InternalServerError()
-                            .json(StatusMessage::internal_server_error())
-                    }
-                },
-                Ok(false) => {
-                    log::error!("unable to find file {:?}", path);
-                    HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+
+    let workspace = index::workspaces::init_or_get(repo, commit, workspace_id).unwrap();
+    log::debug!("got workspace");
+    match index::workspaces::files::has_file(&workspace, path) {
+        Ok(true) => {
+            match index::workspaces::files::delete_file(&workspace, path) {
+                Ok(_) => {
+                    log::debug!("stager::delete_file success!");
+                    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
                 }
                 Err(err) => {
-                    log::error!("Error getting file by path {path:?} -> {err}");
-                    HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+                    log::error!("unable to delete file {:?}. Err: {}", path, err);
+                    Ok(HttpResponse::InternalServerError()
+                        .json(StatusMessage::internal_server_error()))
                 }
             }
         }
-        Ok(None) => {
-            log::error!("unable to find branch {}", branch_name);
-            HttpResponse::NotFound().json(StatusMessage::resource_not_found())
+        Ok(false) => {
+            log::error!("unable to find file {:?}", path);
+            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
         }
         Err(err) => {
-            log::error!("Error getting branch by name {branch_name} -> {err}");
-            HttpResponse::InternalServerError().json(StatusMessage::internal_server_error())
+            log::error!("Error getting file by path {path:?} -> {err}");
+            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
         }
     }
 }
 
-fn get_dir_status_for_branch(
+fn get_workspace_dir_status(
     repo: &LocalRepository,
-    branch_name: &str,
-    user_id: &str,
-    directory: &Path,
+    commit: &Commit,
+    workspace_id: &str,
+    path: &Path,
     page_num: usize,
     page_size: usize,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let branch = api::local::branches::get_by_name(repo, branch_name)?
-        .ok_or(OxenError::remote_branch_not_found(branch_name))?;
+    let workspace = index::workspaces::init_or_get(repo, commit, workspace_id)?;
 
-    let branch_repo = index::remote_dir_stager::init_or_get(repo, &branch, user_id)?;
-
-    log::debug!(
-        "GOT BRANCH REPO {:?} and DIR {:?}",
-        branch_repo.path,
-        directory
-    );
-    let staged = index::remote_dir_stager::list_staged_data(
-        repo,
-        &branch_repo,
-        &branch,
-        user_id,
-        directory,
-    )?;
+    log::debug!("GOT WORKSPACE {:?} and DIR {:?}", repo.path, path);
+    let staged = index::workspaces::stager::status(repo, &workspace, commit, workspace_id, path)?;
 
     staged.print_stdout();
-    let full_path = index::remote_dir_stager::branch_staging_dir(repo, &branch, user_id);
-    let branch_repo = LocalRepository::new(&full_path).unwrap();
+    let full_path = index::workspaces::workspace_dir(repo, commit, workspace_id);
+    let workspace = LocalRepository::new(&full_path).unwrap();
 
     let response = RemoteStagedStatusResponse {
         status: StatusMessage::resource_found(),
-        staged: RemoteStagedStatus::from_staged(&branch_repo, &staged, page_num, page_size),
+        staged: RemoteStagedStatus::from_staged(&workspace, &staged, page_num, page_size),
     };
     Ok(HttpResponse::Ok().json(response))
 }

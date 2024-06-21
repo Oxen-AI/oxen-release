@@ -5,11 +5,16 @@
 
 use std::path::Path;
 
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+use crate::api;
 use crate::config::UserConfig;
-use crate::core::index::remote_stager;
 use crate::error::OxenError;
 use crate::model::StagedData;
-use crate::model::{staged_data::StagedDataOpts, Branch, RemoteRepository};
+use crate::model::{
+    staged_data::StagedDataOpts, Branch, RemoteRepository, StagedEntry, StagedEntryStatus,
+};
 
 pub async fn status(
     remote_repo: &RemoteRepository,
@@ -17,6 +22,37 @@ pub async fn status(
     directory: &Path,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    let user_id = UserConfig::identifier()?;
-    remote_stager::status(remote_repo, branch, &user_id, directory, opts).await
+    let workspace_id = UserConfig::identifier()?;
+    let page_size = opts.limit;
+    let page_num = opts.skip / page_size;
+
+    let remote_status = api::remote::workspaces::status(
+        remote_repo,
+        &branch.name,
+        &workspace_id,
+        directory,
+        page_num,
+        page_size,
+    )
+    .await?;
+
+    let mut status = StagedData::empty();
+    status.staged_dirs = remote_status.added_dirs;
+    let added_files: HashMap<PathBuf, StagedEntry> =
+        HashMap::from_iter(remote_status.added_files.entries.into_iter().map(|e| {
+            (
+                PathBuf::from(e.filename),
+                StagedEntry::empty_status(StagedEntryStatus::Added),
+            )
+        }));
+    let added_mods: HashMap<PathBuf, StagedEntry> =
+        HashMap::from_iter(remote_status.modified_files.entries.into_iter().map(|e| {
+            (
+                PathBuf::from(e.filename),
+                StagedEntry::empty_status(StagedEntryStatus::Modified),
+            )
+        }));
+    status.staged_files = added_files.into_iter().chain(added_mods).collect();
+
+    Ok(status)
 }

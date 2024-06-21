@@ -14,8 +14,7 @@ pub async fn create(
     let branch_name = branch_name.as_ref();
     let identifier = identifier.as_ref();
     let resource_path = resource_path.as_ref();
-    let uri = format!("/workspace");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let url = api::endpoint::url_from_repo(remote_repo, "/workspace")?;
     log::debug!("create workspace {}\n", url);
 
     let body = serde_json::to_string(&WorkspaceView {
@@ -49,9 +48,17 @@ mod tests {
     use crate::test;
 
     #[tokio::test]
-    async fn test_commit_staged_multiple_files() -> Result<(), OxenError> {
+    async fn test_create_workspace() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            todo!();
+            let branch_name = "test_branch";
+            let identifier = "test_identifier";
+            let resource_path = "test_resource_path";
+            let workspace = create(&remote_repo, branch_name, identifier, resource_path).await?;
+
+            assert_eq!(workspace.branch_name, branch_name);
+            assert_eq!(workspace.identifier, identifier);
+            assert_eq!(workspace.resource_path, resource_path);
+
             Ok(remote_repo)
         })
         .await
