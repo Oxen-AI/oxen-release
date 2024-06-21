@@ -14,7 +14,7 @@ pub async fn create(
     let branch_name = branch_name.as_ref();
     let identifier = identifier.as_ref();
     let resource_path = resource_path.as_ref();
-    let url = api::endpoint::url_from_repo(remote_repo, "/workspace")?;
+    let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
     log::debug!("create workspace {}\n", url);
 
     let body = serde_json::to_string(&WorkspaceView {
