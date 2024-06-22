@@ -3,10 +3,10 @@ use clap::{Arg, ArgMatches, Command};
 
 use liboxen::api;
 use liboxen::command;
-use liboxen::error::OxenError;
-use liboxen::opts::UploadOpts;
 use liboxen::constants::DEFAULT_HOST;
 use liboxen::constants::DEFAULT_REMOTE_NAME;
+use liboxen::error::OxenError;
+use liboxen::opts::UploadOpts;
 use std::path::PathBuf;
 
 use crate::helpers::check_remote_version_blocking;
@@ -89,7 +89,7 @@ impl RunCmd for UploadCmd {
                 .map(String::from)
                 .unwrap_or(DEFAULT_HOST.to_string()),
         };
-    
+
         // `oxen upload $namespace/$repo_name $path`
         let paths = &opts.paths;
         if paths.is_empty() {
@@ -97,9 +97,9 @@ impl RunCmd for UploadCmd {
                 "Must supply repository and a file to upload.",
             ));
         }
-    
+
         check_remote_version_blocking(opts.clone().host).await?;
-    
+
         // Check if the first path is a valid remote repo
         let name = paths[0].to_string_lossy();
         if let Some(remote_repo) =
@@ -112,12 +112,12 @@ impl RunCmd for UploadCmd {
                 paths: remote_paths,
                 ..opts
             };
-    
+
             command::remote::upload(&remote_repo, &opts).await?;
         } else {
             eprintln!("Repository does not exist {}", name);
         }
-    
+
         Ok(())
     }
 }
