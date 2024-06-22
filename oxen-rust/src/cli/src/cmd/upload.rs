@@ -3,14 +3,13 @@ use clap::{Arg, ArgMatches, Command};
 
 use liboxen::api;
 use liboxen::command;
-use liboxen::error;
 use liboxen::error::OxenError;
-use liboxen::model::staged_data::StagedDataOpts;
-use liboxen::model::LocalRepository;
-use liboxen::util;
+use liboxen::opts::UploadOpts;
+use liboxen::constants::DEFAULT_HOST;
+use liboxen::constants::DEFAULT_REMOTE_NAME;
 use std::path::PathBuf;
 
-use crate::helpers::check_repo_migration_needed;
+use crate::helpers::check_remote_version_blocking;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "upload";
@@ -22,7 +21,7 @@ impl RunCmd for UploadCmd {
         NAME
     }
     fn args(&self) -> Command {
-        Command::new(UPLOAD)
+        Command::new(NAME)
         .about("Upload a specific file to the remote repository.")
         .arg(
             Arg::new("paths")
