@@ -16,6 +16,7 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
@@ -27,9 +28,9 @@ pub async fn get(
 
     let (paginated_entries, dir) = api::local::entries::list_directory(
         &repo,
-        &resource.commit,
-        &resource.file_path,
-        resource.version().as_str(),
+        &commit,
+        &resource.path,
+        resource.version.to_str().unwrap_or_default(),
         page,
         page_size,
     )?;

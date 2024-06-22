@@ -55,6 +55,7 @@ pub enum OxenError {
     RevisionNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
     NothingToCommit(StringError),
+    NoCommitsFound(StringError),
     HeadNotFound(StringError),
 
     // Resources (paths, uris, etc.)
@@ -209,6 +210,10 @@ impl OxenError {
         OxenError::RootCommitDoesNotMatch(Box::new(commit))
     }
 
+    pub fn no_commits_found() -> Self {
+        OxenError::NoCommitsFound(StringError::from("\n No commits found.\n"))
+    }
+
     pub fn local_repo_not_found() -> OxenError {
         OxenError::basic_str(NO_REPO_FOUND)
     }
@@ -273,13 +278,11 @@ impl OxenError {
 
     pub fn remote_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
-        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
+        OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
     pub fn local_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
         OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
@@ -302,8 +305,7 @@ impl OxenError {
     }
 
     pub fn entry_does_not_exist(path: impl AsRef<Path>) -> OxenError {
-        let err = format!("Entry does not exist: {:?}", path.as_ref());
-        OxenError::basic_str(err)
+        OxenError::ParsedResourceNotFound(Box::new(path.as_ref().into()))
     }
 
     pub fn file_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {

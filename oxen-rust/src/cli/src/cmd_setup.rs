@@ -12,6 +12,7 @@ use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::remote::df::RemoteDfCmd;
 use crate::cmd::remote::log::RemoteLogCmd;
 use crate::cmd::remote::rm::RemoteRmCmd;
+use crate::cmd::remote::restore::RemoteRestoreCmd;
 use crate::cmd::remote::status::RemoteStatusCmd;
 
 pub const CLONE: &str = "clone";
@@ -60,6 +61,8 @@ pub fn remote() -> Command {
         .subcommand(diff())
         .subcommand(download())
         .subcommand(ls())
+        .subcommand(RemoteRestoreCmd.args())
+        .subcommand(rm())
         .subcommand(restore())
         .subcommand(RemoteRmCmd.args())
         .subcommand(RemoteStatusCmd.args())

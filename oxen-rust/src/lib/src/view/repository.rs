@@ -1,4 +1,4 @@
-use crate::model::{EntryDataType, RemoteRepository};
+use crate::model::{Commit, EntryDataType, RemoteRepository};
 use serde::{Deserialize, Serialize};
 
 use super::{DataTypeCount, StatusMessage};
@@ -8,6 +8,13 @@ use std::str::FromStr;
 pub struct RepositoryView {
     pub namespace: String,
     pub name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RepositoryCreationView {
+    pub namespace: String,
+    pub name: String,
+    pub latest_commit: Option<Commit>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -23,6 +30,13 @@ pub struct RepositoryResponse {
     pub status: String,
     pub status_message: String,
     pub repository: RepositoryView,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct RepositoryCreationResponse {
+    pub status: String,
+    pub status_message: String,
+    pub repository: RepositoryCreationView,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

@@ -24,9 +24,11 @@ async fn main() -> ExitCode {
         Box::new(cmd::CreateRemoteCmd),
         Box::new(cmd::DbCmd),
         Box::new(cmd::DFCmd),
+        Box::new(cmd::DiffCmd),
         Box::new(cmd::InitCmd),
         Box::new(cmd::LogCmd),
         Box::new(cmd::MooCmd),
+        Box::new(cmd::RestoreCmd),
         Box::new(cmd::ReadLinesCmd),
         Box::new(cmd::RmCmd),
         Box::new(cmd::SaveCmd),
@@ -59,7 +61,9 @@ async fn main() -> ExitCode {
         .subcommand(cmd_setup::merge())
         .subcommand(cmd_setup::migrate())
         .subcommand(cmd_setup::pull())
-        .subcommand(cmd_setup::push());
+        .subcommand(cmd_setup::push())
+        .subcommand(cmd_setup::remote());
+
 
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
@@ -75,6 +79,7 @@ async fn main() -> ExitCode {
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
+        Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
         Some((command, args)) => {
             // Lookup command in runners and run on args

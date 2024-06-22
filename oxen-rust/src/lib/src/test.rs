@@ -1171,6 +1171,7 @@ pub fn test_audio_file_with_name(name: &str) -> PathBuf {
     PathBuf::from("data").join("test").join("audio").join(name)
 }
 
+/// Returns: data/test/text/celeb_a_200k.csv
 pub fn test_200k_csv() -> PathBuf {
     Path::new("data")
         .join("test")
@@ -1178,6 +1179,7 @@ pub fn test_200k_csv() -> PathBuf {
         .join("celeb_a_200k.csv")
 }
 
+/// Returns: data/test/parquet/wiki_1k.parquet
 pub fn test_1k_parquet() -> PathBuf {
     Path::new("data")
         .join("test")
@@ -1185,6 +1187,7 @@ pub fn test_1k_parquet() -> PathBuf {
         .join("wiki_1k.parquet")
 }
 
+/// Returns: data/test/nlp/classification/annotations/test.tsv
 pub fn test_nlp_classification_csv() -> PathBuf {
     Path::new("nlp")
         .join("classification")

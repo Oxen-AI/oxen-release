@@ -4,6 +4,8 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::constants::{DEFAULT_HOST, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, ROW_NUM_COL_NAME};
+use crate::core::df::filter::{self, DFFilterExp};
+use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::Schema;
 
@@ -24,9 +26,11 @@ pub struct IndexedItem {
 pub struct DFOpts {
     pub add_col: Option<String>,
     pub add_row: Option<String>,
+    pub at: Option<usize>,
     pub columns: Option<String>,
     pub delete_row: Option<String>,
     pub delimiter: Option<String>,
+    pub filter: Option<String>,
     pub head: Option<usize>,
     pub host: Option<String>,
     pub output: Option<PathBuf>,
@@ -61,10 +65,12 @@ impl DFOpts {
         DFOpts {
             add_col: None,
             add_row: None,
+            at: None,
             item: None,
             columns: None,
             delete_row: None,
             delimiter: None,
+            filter: None,
             head: None,
             host: None,
             output: None,
@@ -120,7 +126,10 @@ impl DFOpts {
     }
 
     pub fn has_filter_transform(&self) -> bool {
-        self.sql.is_some() || self.text2sql.is_some() || self.unique.is_some()
+        self.sql.is_some()
+            || self.text2sql.is_some()
+            || self.unique.is_some()
+            || self.filter.is_some()
     }
 
     pub fn has_transform(&self) -> bool {
@@ -199,6 +208,10 @@ impl DFOpts {
         None
     }
 
+    pub fn get_filter(&self) -> Result<Option<DFFilterExp>, OxenError> {
+        filter::parse(self.filter.clone())
+    }
+
     pub fn get_host(&self) -> String {
         match &self.host {
             Some(host) => host.to_owned(),
@@ -273,6 +286,7 @@ impl DFOpts {
             ("page", page),
             ("randomize", randomize),
             ("reverse", should_reverse),
+            ("filter", self.filter.clone()),
             ("slice", self.slice.clone()),
             ("sort_by", self.sort_by.clone()),
             ("sql", self.sql.clone()),
@@ -315,6 +329,7 @@ impl DFOptsView {
         let ordered_opts: Vec<DFOptView> = [
             DFOptView::from_opt("text2sql", &opts.text2sql),
             DFOptView::from_opt("sql", &opts.sql),
+            DFOptView::from_opt("filter", &opts.filter),
             DFOptView::from_opt("unique", &opts.unique),
             DFOptView::from_opt(
                 "should_randomize",
