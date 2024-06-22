@@ -8,9 +8,7 @@ pub mod cmd;
 pub mod cmd_setup;
 pub mod dispatch;
 pub mod helpers;
-pub mod parse;
 pub mod parse_and_run;
-pub mod run;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -33,7 +31,9 @@ async fn main() -> ExitCode {
         Box::new(cmd::RestoreCmd),
         Box::new(cmd::ReadLinesCmd),
         Box::new(cmd::RmCmd),
+        Box::new(cmd::SaveCmd),
         Box::new(cmd::SchemasCmd),
+        Box::new(cmd::StatusCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -64,8 +64,6 @@ async fn main() -> ExitCode {
         .subcommand(cmd_setup::remote())
         .subcommand(cmd_setup::rm())
         .subcommand(cmd_setup::restore())
-        .subcommand(cmd_setup::save())
-        .subcommand(cmd_setup::status())
         .subcommand(cmd_setup::upload());
 
     // Parse the command line args and run the appropriate command
@@ -85,8 +83,6 @@ async fn main() -> ExitCode {
         Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
-        Some((cmd_setup::SAVE, sub_matches)) => parse_and_run::save(sub_matches).await,
-        Some((cmd_setup::STATUS, sub_matches)) => parse::status(sub_matches).await,
         Some((cmd_setup::UPLOAD, sub_matches)) => parse_and_run::upload(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
         Some((command, args)) => {

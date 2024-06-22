@@ -53,8 +53,14 @@ pub mod remote;
 pub mod restore;
 pub use restore::RestoreCmd;
 
+pub mod save;
+pub use save::SaveCmd;
+
 pub mod schemas;
 pub use schemas::SchemasCmd;
+
+pub mod status;
+pub use status::StatusCmd;
 
 #[async_trait]
 pub trait RunCmd {

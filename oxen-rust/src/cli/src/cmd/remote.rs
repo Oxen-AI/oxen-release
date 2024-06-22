@@ -15,3 +15,6 @@ pub use log::RemoteLogCmd;
 
 pub mod rm;
 pub use rm::RemoteRmCmd;
+
+pub mod status;
+pub use status::RemoteStatusCmd;
