@@ -164,38 +164,6 @@ pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-/// Download allows the user to download a file or files without cloning the repo
-pub async fn upload(opts: UploadOpts) -> Result<(), OxenError> {
-    let paths = &opts.paths;
-    if paths.is_empty() {
-        return Err(OxenError::basic_str(
-            "Must supply repository and a file to upload.",
-        ));
-    }
-
-    check_remote_version_blocking(opts.clone().host).await?;
-
-    // Check if the first path is a valid remote repo
-    let name = paths[0].to_string_lossy();
-    if let Some(remote_repo) =
-        api::remote::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
-            .await?
-    {
-        // Remove the repo name from the list of paths
-        let remote_paths = paths[1..].to_vec();
-        let opts = UploadOpts {
-            paths: remote_paths,
-            ..opts
-        };
-
-        command::remote::upload(&remote_repo, &opts).await?;
-    } else {
-        eprintln!("Repository does not exist {}", name);
-    }
-
-    Ok(())
-}
-
 pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
     let paths = &opts.paths;
     if paths.is_empty() {
@@ -296,20 +264,6 @@ pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
         } else {
             command::add(&repository, path)?;
         }
-    }
-
-    Ok(())
-}
-
-pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    check_repo_migration_needed(&repository)?;
-    if opts.is_remote {
-        command::remote::restore(&repository, opts).await?;
-    } else {
-        command::restore(&repository, opts)?;
     }
 
     Ok(())

@@ -270,69 +270,6 @@ pub fn download() -> Command {
         )
 }
 
-pub fn upload() -> Command {
-    Command::new(UPLOAD)
-        .about("Upload a specific file to the remote repository.")
-        .arg(
-            Arg::new("paths")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
-        .arg(
-            Arg::new("dst")
-                .long("destination")
-                .short('d')
-                .help("The destination directory to upload the data to. Defaults to the root './' of the repository.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("The branch to upload the data to. Defaults to main branch.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("message")
-                .help("The message for the commit. Should be descriptive about what changed.")
-                .long("message")
-                .short('m')
-                .required(true)
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("host")
-                .long("host")
-                .help("Host to upload the data to, for example: 'hub.oxen.ai'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("Remote to up the data to, for example: 'origin'")
-                .action(clap::ArgAction::Set),
-        )
-}
-
-pub fn restore() -> Command {
-    Command::new(RESTORE)
-        .about("Restore specified paths in the working tree with some contents from a restore source.")
-        .arg(arg!(<PATH> ... "The files or directory to restore"))
-        .arg_required_else_help(true)
-        .arg(
-            Arg::new("source")
-                .long("source")
-                .help("Restores a specific revision of the file. Can supply commit id or branch name")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("staged")
-                .long("staged")
-                .help("Restore content in staging area. By default, if --staged is given, the contents are restored from HEAD. Use --source to restore from a different commit.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
 pub fn merge() -> Command {
     Command::new(MERGE)
         .about("Merges a branch into the current checked out branch.")

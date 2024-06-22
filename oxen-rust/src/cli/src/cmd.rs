@@ -59,6 +59,9 @@ pub use schemas::SchemasCmd;
 pub mod status;
 pub use status::StatusCmd;
 
+pub mod upload;
+pub use upload::UploadCmd;
+
 #[async_trait]
 pub trait RunCmd {
     fn name(&self) -> &str;
