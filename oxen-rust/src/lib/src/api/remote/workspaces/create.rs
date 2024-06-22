@@ -50,7 +50,7 @@ mod tests {
     #[tokio::test]
     async fn test_create_workspace() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let branch_name = "test_branch";
+            let branch_name = "main";
             let identifier = "test_identifier";
             let resource_path = "test_resource_path";
             let workspace = create(&remote_repo, branch_name, identifier, resource_path).await?;
