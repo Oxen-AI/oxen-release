@@ -64,7 +64,6 @@ async fn main() -> ExitCode {
         .subcommand(cmd_setup::push())
         .subcommand(cmd_setup::remote());
 
-
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
     match matches.subcommand() {
