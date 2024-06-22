@@ -75,12 +75,10 @@ pub fn get_row_status(row_df: &DataFrame) -> Result<Option<StagedRowStatus>, Oxe
 
 pub fn add(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-    let db_path =
-        workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -88,7 +86,7 @@ pub fn add(
 
     let result = staged_df_db::append_row(&conn, &df)?;
 
-    track_commit_entry(repo, commit, workspace_id, &new_mod.entry.path)?;
+    track_commit_entry(repo, workspace_id, &new_mod.entry.path)?;
 
     Ok(result)
 }
@@ -110,7 +108,7 @@ pub fn restore(
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
             let opts = db::opts::default();
-            let files_db_path = workspaces::stager::files_db_path(repo, commit, workspace_id);
+            let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
             let files_db: DBWithThreadMode<MultiThreaded> =
                 rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
             let key = entry.path.to_string_lossy().to_string();
@@ -228,7 +226,7 @@ pub fn delete(
         staged_df_db::delete_row(&conn, row_id)?
     };
 
-    track_commit_entry(repo, commit, workspace_id, path)?;
+    track_commit_entry(repo, workspace_id, path)?;
 
     // TODO: Better way of tracking when a file is restored to its original state without diffing
 
@@ -239,7 +237,7 @@ pub fn delete(
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
             let opts = db::opts::default();
-            let files_db_path = workspaces::stager::files_db_path(repo, commit, workspace_id);
+            let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
             let files_db: DBWithThreadMode<MultiThreaded> =
                 rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
             let key = path.to_string_lossy();
@@ -256,15 +254,14 @@ pub fn update(
     row_id: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-    let db_path =
-        workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
     let conn = df_db::get_connection(db_path)?;
 
     let mut df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
 
     let result = staged_df_db::modify_row(&conn, &mut df, row_id)?;
 
-    track_commit_entry(repo, commit, workspace_id, &new_mod.entry.path)?;
+    track_commit_entry(repo, workspace_id, &new_mod.entry.path)?;
 
     let diff = workspaces::data_frames::diff(
         repo,
@@ -277,7 +274,7 @@ pub fn update(
         if !diff.has_changes() {
             // Restored to original state == delete file from staged db
             let opts = db::opts::default();
-            let files_db_path = workspaces::stager::files_db_path(repo, commit, workspace_id);
+            let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
             let files_db: DBWithThreadMode<MultiThreaded> =
                 rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
             let key = new_mod.entry.path.to_string_lossy();
@@ -290,13 +287,12 @@ pub fn update(
 
 fn track_commit_entry(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
-    let db_path = workspaces::stager::files_db_path(repo, commit, workspace_id);
+    let db_path = workspaces::stager::files_db_path(repo, workspace_id);
     log::debug!("track_commit_entry from files_db_path {db_path:?}");
     let opts = db::opts::default();
     let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;

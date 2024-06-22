@@ -184,7 +184,8 @@ pub async fn diff_df(
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
     let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
 
-    let staged_db_path = index::workspaces::data_frames::mods_db_path(&repo, &workspace_id, &resource.path);
+    let staged_db_path =
+        index::workspaces::data_frames::mods_db_path(&repo, &workspace_id, &resource.path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 

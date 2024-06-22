@@ -74,16 +74,11 @@ pub async fn get_by_resource(
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
 
-    if !index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)? {
+    if !index::workspaces::data_frames::is_indexed(&repo, &workspace_id, &resource.path)? {
         return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
     }
 
-    let count = index::workspaces::data_frames::count(
-        &repo,
-        &commit,
-        resource.path.clone(),
-        &workspace_id,
-    )?;
+    let count = index::workspaces::data_frames::count(&repo, resource.path.clone(), &workspace_id)?;
 
     let df = index::workspaces::data_frames::query(
         &repo,
@@ -96,7 +91,7 @@ pub async fn get_by_resource(
     let df_schema = Schema::from_polars(&df.schema());
 
     let is_editable =
-        index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)?;
+        index::workspaces::data_frames::is_indexed(&repo, &workspace_id, &resource.path)?;
 
     let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
     let resource = ResourceVersion {
@@ -146,12 +141,7 @@ pub async fn get_by_branch(
 
     for entry in entries {
         if let Some(resource) = entry.resource.clone() {
-            if index::workspaces::data_frames::is_indexed(
-                &repo,
-                &commit,
-                &workspace_id,
-                &resource.path,
-            )? {
+            if index::workspaces::data_frames::is_indexed(&repo, &workspace_id, &resource.path)? {
                 editable_entries.push(entry);
             }
         }
@@ -249,7 +239,7 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
 
     let to_index = data.is_indexed;
     let is_indexed =
-        index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)?;
+        index::workspaces::data_frames::is_indexed(&repo, &workspace_id, &resource.path)?;
 
     if !is_indexed && to_index {
         handle_indexing(
@@ -265,7 +255,6 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
     } else if is_indexed && !to_index {
         handle_unindexing(
             &repo,
-            &commit,
             &workspace_id,
             &resource.path,
             &namespace,
@@ -303,14 +292,13 @@ async fn handle_indexing(
 
 async fn handle_unindexing(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: &str,
     resource_path: &PathBuf,
     namespace: &str,
     repo_name: &str,
     resource: &ParsedResource,
 ) -> Result<HttpResponse, OxenHttpError> {
-    match index::workspaces::data_frames::unindex(repo, commit, workspace_id, resource_path) {
+    match index::workspaces::data_frames::unindex(repo, workspace_id, resource_path) {
         Ok(_) => {
             log::info!(
                 "Dataset unindexing completed successfully for {namespace}/{repo_name}/{resource}"
