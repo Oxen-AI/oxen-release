@@ -52,11 +52,7 @@ pub fn previous_commit_ref_path(
         .join("COMMIT_ID")
 }
 
-pub fn mods_db_path(
-    repo: &LocalRepository,
-    workspace_id: &str,
-    path: impl AsRef<Path>,
-) -> PathBuf {
+pub fn mods_db_path(repo: &LocalRepository, workspace_id: &str, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)
@@ -69,7 +65,6 @@ pub fn mods_db_path(
 
 pub fn count(
     repo: &LocalRepository,
-    commit: &Commit,
     path: PathBuf,
     workspace_id: &str,
 ) -> Result<usize, OxenError> {
@@ -205,7 +200,6 @@ fn copy_duckdb_if_already_indexed(
 
 pub fn unindex(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
@@ -219,7 +213,6 @@ pub fn unindex(
 
 pub fn is_indexed(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: &str,
     path: &Path,
 ) -> Result<bool, OxenError> {
@@ -249,7 +242,7 @@ pub fn diff(
 
     let _branch_repo = workspaces::init_or_get(repo, commit, workspace_id)?;
 
-    if !is_indexed(repo, commit, workspace_id, path)? {
+    if !is_indexed(repo, workspace_id, path)? {
         return Err(OxenError::basic_str("Dataset is not indexed"));
     };
 
@@ -293,7 +286,6 @@ pub fn diff(
 
 pub fn extract_dataset_to_versions_dir(
     repo: &LocalRepository,
-    commit: &Commit,
     entry: &CommitEntry,
     workspace_id: &str,
 ) -> Result<(), OxenError> {
@@ -349,7 +341,6 @@ pub fn extract_dataset_to_versions_dir(
 pub fn extract_dataset_to_working_dir(
     repo: &LocalRepository,
     workspace: &LocalRepository,
-    commit: &Commit,
     entry: &CommitEntry,
     workspace_id: &str,
 ) -> Result<PathBuf, OxenError> {
@@ -406,14 +397,13 @@ pub fn extract_dataset_to_working_dir(
 
 pub fn unstage(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
-    unindex(repo, commit, workspace_id, &path)?;
+    unindex(repo, workspace_id, &path)?;
 
     let opts = db::opts::default();
-    let files_db_path = workspaces::stager::files_db_path(repo, commit, workspace_id);
+    let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
     let files_db: DBWithThreadMode<MultiThreaded> =
         rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
     let key = path.as_ref().to_string_lossy();
@@ -429,7 +419,7 @@ pub fn restore(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // Unstage and then restage the df
-    unindex(repo, commit, workspace_id, &path)?;
+    unindex(repo, workspace_id, &path)?;
 
     // TODO: we could do this more granularly without a full reset
     index(repo, commit, workspace_id, path.as_ref())?;
@@ -560,10 +550,10 @@ mod tests {
                 content_type: ContentType::Json,
             };
             workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
-            workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+            workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
 
             // List the files that are changed
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff = workspaces::data_frames::diff(&repo, &commit, &workspace_id, file_path)?;
@@ -607,7 +597,7 @@ mod tests {
             workspaces::data_frames::index(&repo, &commit, &workspace_id, &file_path)?;
 
             let append_entry_1 =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+                workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
 
             let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?.to_string();
             let append_1_id = append_1_id.replace('"', "");
@@ -620,10 +610,10 @@ mod tests {
                 content_type: ContentType::Json,
             };
             let _append_entry_2 =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+                workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
 
             // List the files that are changed
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
@@ -689,7 +679,7 @@ mod tests {
             log::debug!("indexed the dataset");
 
             let append_entry_1 =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+                workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
             let append_1_id = append_entry_1.column(OXEN_ID_COL)?.get(0)?;
             let append_1_id = append_1_id.get_str().unwrap();
             log::debug!("added the row");
@@ -702,12 +692,12 @@ mod tests {
                 content_type: ContentType::Json,
             };
             let append_entry_2 =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+                workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
             let append_2_id = append_entry_2.column(OXEN_ID_COL)?.get(0)?;
             let append_2_id = append_2_id.get_str().unwrap();
 
             // List the files that are changed
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             // List the staged mods
@@ -740,7 +730,7 @@ mod tests {
             )?;
 
             // Should be zero staged files
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             log::debug!("about to diff staged");
@@ -804,7 +794,7 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
@@ -890,8 +880,7 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let new_row =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &add_mod)?;
+            let new_row = workspaces::data_frames::rows::add(&repo, &workspace_id, &add_mod)?;
 
             // 1 row added
             let diff =
@@ -922,7 +911,7 @@ mod tests {
                 &modify_mod,
             )?;
             // List the files that are changed - this file should be back into unchanged state
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             log::debug!("found mod entries: {:?}", commit_entries);
             assert_eq!(commit_entries.len(), 1);
 
@@ -969,8 +958,7 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let new_row =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &add_mod)?;
+            let new_row = workspaces::data_frames::rows::add(&repo, &workspace_id, &add_mod)?;
 
             // 1 row added
             let diff =
@@ -996,7 +984,7 @@ mod tests {
             )?;
             log::debug!("done deleting row");
             // List the files that are changed - this file should be back into unchanged state
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             log::debug!("found mod entries: {:?}", commit_entries);
             assert_eq!(commit_entries.len(), 0);
 
@@ -1070,7 +1058,7 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
@@ -1101,7 +1089,7 @@ mod tests {
 
             log::debug!("res is... {:?}", res);
 
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
@@ -1172,7 +1160,7 @@ mod tests {
             )?;
 
             // List the files that are changed
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
@@ -1196,7 +1184,7 @@ mod tests {
 
             log::debug!("res is... {:?}", res);
 
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
@@ -1263,7 +1251,7 @@ mod tests {
                 &commit_entry.path,
                 &id_to_delete,
             )?;
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 1);
 
             let diff =
@@ -1287,7 +1275,7 @@ mod tests {
 
             log::debug!("res is... {:?}", res);
 
-            let commit_entries = workspaces::stager::list_files(&repo, &commit, &workspace_id)?;
+            let commit_entries = workspaces::stager::list_files(&repo, &workspace_id)?;
             assert_eq!(commit_entries.len(), 0);
 
             let diff =
