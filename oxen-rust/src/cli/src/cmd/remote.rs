@@ -12,3 +12,6 @@ pub use restore::RemoteRestoreCmd;
 
 pub mod log;
 pub use log::RemoteLogCmd;
+
+pub mod rm;
+pub use rm::RemoteRmCmd;
