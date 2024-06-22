@@ -6,3 +6,6 @@ pub use diff::RemoteDiffCmd;
 
 pub mod df;
 pub use df::RemoteDfCmd;
+
+pub mod log;
+pub use log::RemoteLogCmd;

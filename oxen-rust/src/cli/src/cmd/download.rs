@@ -15,8 +15,14 @@ pub const NAME: &str = "download";
 pub struct DownloadCmd;
 
 
-pub fn download_args() -> Command {
-    Command::new(NAME)
+#[async_trait]
+impl RunCmd for DownloadCmd {
+    fn name(&self) -> &str {
+        NAME
+    }
+
+    fn args(&self) -> Command {
+        Command::new(NAME)
         .about("Download a specific file from the remote repository")
         .arg(
             Arg::new("paths")
@@ -48,17 +54,6 @@ pub fn download_args() -> Command {
                 .help("The branch or commit id to download the data from. Defaults to main branch. If a branch is specified, it will download the latest commit from that branch.")
                 .action(clap::ArgAction::Set),
         )
-}
-
-
-#[async_trait]
-impl RunCmd for DownloadCmd {
-    fn name(&self) -> &str {
-        NAME
-    }
-
-    fn args(&self) -> Command {
-        download_args()
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {

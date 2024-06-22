@@ -13,13 +13,6 @@ pub const NAME: &str = "merge";
 pub struct MergeCmd;
 
 
-pub fn merge_args() -> Command {
-    Command::new(NAME)
-    .about("Merges a branch into the current checked out branch.")
-    .arg_required_else_help(true)
-    .arg(arg!(<BRANCH> "The name of the branch you want to merge in."))
-}
-
 #[async_trait]
 impl RunCmd for MergeCmd {
     fn name(&self) -> &str {
@@ -27,7 +20,10 @@ impl RunCmd for MergeCmd {
     }
 
     fn args(&self) -> Command {
-        merge_args()
+        Command::new(NAME)
+            .about("Merges a branch into the current checked out branch.")
+            .arg_required_else_help(true)
+            .arg(arg!(<BRANCH> "The name of the branch you want to merge in."))
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -43,8 +39,4 @@ impl RunCmd for MergeCmd {
         command::merge(&repository, branch)?;
         Ok(())
     }
-}
-
-impl MergeCmd { //
-    // Any single-use helper functions from dispatch refactor into here
 }

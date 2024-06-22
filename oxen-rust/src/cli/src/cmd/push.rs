@@ -15,30 +15,6 @@ pub const NAME: &str = "push";
 pub struct PushCmd;
 
 
-pub fn push_args() -> Command {
-    Command::new(NAME)
-        .about("Push the the files to the remote branch")
-        .arg(
-            Arg::new("REMOTE")
-                .help("Remote you want to push to")
-                .default_value(DEFAULT_REMOTE_NAME)
-                .default_missing_value(DEFAULT_REMOTE_NAME),
-        )
-        .arg(
-            Arg::new("BRANCH")
-                .help("Branch name to push to")
-                .default_value(DEFAULT_BRANCH_NAME)
-                .default_missing_value(DEFAULT_BRANCH_NAME),
-        )
-        .arg(
-            Arg::new("delete")
-                .long("delete")
-                .short('d')
-                .help("Remove the remote branch")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
 #[async_trait]
 impl RunCmd for PushCmd {
     fn name(&self) -> &str {
@@ -46,7 +22,27 @@ impl RunCmd for PushCmd {
     }
 
     fn args(&self) -> Command {
-        push_args()
+        Command::new(NAME)
+            .about("Push the the files to the remote branch")
+            .arg(
+                Arg::new("REMOTE")
+                    .help("Remote you want to push to")
+                    .default_value(DEFAULT_REMOTE_NAME)
+                    .default_missing_value(DEFAULT_REMOTE_NAME),
+            )
+            .arg(
+                Arg::new("BRANCH")
+                    .help("Branch name to push to")
+                    .default_value(DEFAULT_BRANCH_NAME)
+                    .default_missing_value(DEFAULT_BRANCH_NAME),
+            )
+            .arg(
+                Arg::new("delete")
+                    .long("delete")
+                    .short('d')
+                    .help("Remove the remote branch")
+                    .action(clap::ArgAction::SetTrue),
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
