@@ -14,25 +14,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "info";
 pub struct InfoCmd;
 
-pub fn info_args() -> Command {
-    Command::new(NAME)
-        .about("Get metadata information about a file such as the oxen hash, data type, etc.")
-        .arg(Arg::new("path").required(false))
-        .arg(Arg::new("revision").required(false))
-        .arg(
-            Arg::new("verbose")
-                .long("verbose")
-                .short('v')
-                .help("If present, will print all the field names when printing as tab separated list.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("json")
-                .long("json")
-                .help("If present, will print the metadata info as json.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
 
 #[async_trait]
 impl RunCmd for InfoCmd {
@@ -41,7 +22,23 @@ impl RunCmd for InfoCmd {
     }
 
     fn args(&self) -> Command {
-        info_args()
+        Command::new(NAME)
+            .about("Get metadata information about a file such as the oxen hash, data type, etc.")
+            .arg(Arg::new("path").required(false))
+            .arg(Arg::new("revision").required(false))
+            .arg(
+                Arg::new("verbose")
+                    .long("verbose")
+                    .short('v')
+                    .help("If present, will print all the field names when printing as tab separated list.")
+                    .action(clap::ArgAction::SetTrue),
+            )
+            .arg(
+                Arg::new("json")
+                    .long("json")
+                    .help("If present, will print the metadata info as json.")
+                    .action(clap::ArgAction::SetTrue),
+            )
     }
     
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {

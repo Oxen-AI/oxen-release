@@ -10,25 +10,6 @@ pub const NAME: &str = "load";
 pub struct LoadCmd;
 
 
-pub fn load_args() -> Command {
-    Command::new(NAME)
-    .about("Load a repository backup from a .tar.gz archive")
-    .arg(Arg::new("SRC_PATH")
-        .help("Path to the .tar.gz archive to load")
-        .required(true)
-        .index(1))
-    .arg(Arg::new("DEST_PATH")
-            .help("Path in which to unpack the repository")
-            .required(true)
-            .index(2))
-    .arg(
-        Arg::new("no-working-dir")
-        .long("no-working-dir")
-        .help("Don't unpack version files to local working directory (space-saving measure for server repos)")
-        .action(clap::ArgAction::SetTrue)
-    )
-}
-
 #[async_trait]
 impl RunCmd for LoadCmd {
     fn name(&self) -> &str {
@@ -36,7 +17,22 @@ impl RunCmd for LoadCmd {
     }
 
     fn args(&self) -> Command {
-        load_args()
+        Command::new(NAME)
+            .about("Load a repository backup from a .tar.gz archive")
+            .arg(Arg::new("SRC_PATH")
+                .help("Path to the .tar.gz archive to load")
+                .required(true)
+                .index(1))
+            .arg(Arg::new("DEST_PATH")
+                    .help("Path in which to unpack the repository")
+                    .required(true)
+                    .index(2))
+            .arg(
+                Arg::new("no-working-dir")
+                .long("no-working-dir")
+                .help("Don't unpack version files to local working directory (space-saving measure for server repos)")
+                .action(clap::ArgAction::SetTrue)
+            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {

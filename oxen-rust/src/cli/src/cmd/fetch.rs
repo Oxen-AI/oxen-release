@@ -14,9 +14,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "fetch";
 pub struct FetchCmd;
 
-pub fn fetch_args() -> Command {
-    Command::new(NAME).about("Download objects and refs from the remote repository")
-}
 
 #[async_trait]
 impl RunCmd for FetchCmd {
@@ -25,7 +22,7 @@ impl RunCmd for FetchCmd {
     }
 
     fn args(&self) -> Command {
-        fetch_args()
+        Command::new(NAME).about("Download objects and refs from the remote repository")
     }
     
     async fn run(&self, _args: &clap::ArgMatches) -> Result<(), OxenError> {
