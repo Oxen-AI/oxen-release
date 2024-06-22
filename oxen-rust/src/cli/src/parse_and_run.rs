@@ -6,21 +6,16 @@
 
 use crate::cmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
-use crate::cmd::BranchCmd;
 use crate::cmd::RunCmd;
 use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, RESTORE, RM, STATUS};
 use crate::dispatch;
 
 use clap::ArgMatches;
-use liboxen::command::migrate::{
-    AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
-    Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
-};
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
-use liboxen::{command, opts::RestoreOpts};
+use liboxen::opts::{AddOpts, DownloadOpts, ListOpts, RmOpts, UploadOpts};
+use liboxen::{opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 
 /// The subcommands for interacting with the remote staging area.
@@ -155,37 +150,6 @@ pub async fn upload(sub_matches: &ArgMatches) {
     }
 }
 
-pub async fn download(sub_matches: &ArgMatches) {
-    let opts = DownloadOpts {
-        paths: sub_matches
-            .get_many::<String>("paths")
-            .expect("Must supply paths")
-            .map(PathBuf::from)
-            .collect(),
-        dst: sub_matches
-            .get_one::<String>("output")
-            .map(PathBuf::from)
-            .unwrap_or(PathBuf::from(".")),
-        remote: sub_matches
-            .get_one::<String>("remote")
-            .map(String::from)
-            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
-        host: sub_matches
-            .get_one::<String>("host")
-            .map(String::from)
-            .unwrap_or(DEFAULT_HOST.to_string()),
-        revision: sub_matches.get_one::<String>("revision").map(String::from),
-    };
-
-    // `oxen download $namespace/$repo_name $path`
-    match dispatch::download(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
 async fn remote_download(sub_matches: &ArgMatches) {
     let opts = DownloadOpts {
         paths: sub_matches
@@ -277,43 +241,6 @@ async fn remote_ls(sub_matches: &ArgMatches) {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}");
-        }
-    }
-}
-
-pub fn info(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("path").map(PathBuf::from);
-    let revision = sub_matches.get_one::<String>("revision").map(String::from);
-
-    if path.is_none() {
-        eprintln!("Must supply path.");
-        return;
-    }
-
-    let path = path.unwrap();
-    let verbose = sub_matches.get_flag("verbose");
-    let output_as_json = sub_matches.get_flag("json");
-
-    let opts = InfoOpts {
-        path,
-        revision,
-        verbose,
-        output_as_json,
-    };
-
-    match dispatch::info(opts) {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("Error getting info: {err}")
-        }
-    }
-}
-
-pub async fn fetch(_: &ArgMatches) {
-    match dispatch::fetch().await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
         }
     }
 }
@@ -430,166 +357,6 @@ pub async fn restore(sub_matches: &ArgMatches) {
     }
 }
 
-pub fn merge(sub_matches: &ArgMatches) {
-    let branch = sub_matches
-        .get_one::<String>("BRANCH")
-        .expect("Must supply a branch");
-    match dispatch::merge(branch) {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn push(sub_matches: &ArgMatches) {
-    let remote = sub_matches
-        .get_one::<String>("REMOTE")
-        .expect("Must supply a remote");
-
-    let branch = sub_matches
-        .get_one::<String>("BRANCH")
-        .expect("Must supply a branch");
-
-    if sub_matches.get_flag("delete") {
-        let repo =
-            LocalRepository::from_current_dir().expect("Could not get current working directory");
-        BranchCmd
-            .delete_remote_branch(&repo, remote, branch)
-            .await
-            .expect("Could not delete remote branch");
-    } else {
-        match dispatch::push(remote, branch).await {
-            Ok(_) => {}
-            Err(err) => {
-                eprintln!("{err}")
-            }
-        }
-    }
-}
-
-pub async fn pull(sub_matches: &ArgMatches) {
-    let remote = sub_matches
-        .get_one::<String>("REMOTE")
-        .expect("Must supply a remote");
-    let branch = sub_matches
-        .get_one::<String>("BRANCH")
-        .expect("Must supply a branch");
-
-    let all = sub_matches.get_flag("all");
-    match dispatch::pull(remote, branch, all).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn compute_commit_cache(sub_matches: &ArgMatches) {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let path = Path::new(path_str);
-
-    let force = sub_matches.get_flag("force");
-
-    if sub_matches.get_flag("all") {
-        match command::commit_cache::compute_cache_on_all_repos(path, force).await {
-            Ok(_) => {}
-            Err(err) => {
-                println!("Err: {err}")
-            }
-        }
-    } else {
-        let revision = sub_matches.get_one::<String>("REVISION").map(String::from);
-
-        match LocalRepository::new(path) {
-            Ok(repo) => match command::commit_cache::compute_cache(&repo, revision, force).await {
-                Ok(_) => {}
-                Err(err) => {
-                    println!("Err: {err}")
-                }
-            },
-            Err(err) => {
-                println!("Err: {err}")
-            }
-        }
-    }
-}
-pub async fn migrate(sub_matches: &ArgMatches) {
-    if let Some((direction, sub_matches)) = sub_matches.subcommand() {
-        match direction {
-            "up" | "down" => {
-                if let Some((migration, sub_matches)) = sub_matches.subcommand() {
-                    if migration == UpdateVersionFilesMigration.name() {
-                        if let Err(err) =
-                            run_migration(&UpdateVersionFilesMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                        }
-                    } else if migration == PropagateSchemasMigration.name() {
-                        if let Err(err) =
-                            run_migration(&PropagateSchemasMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else if migration == CacheDataFrameSizeMigration.name() {
-                        if let Err(err) =
-                            run_migration(&CacheDataFrameSizeMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else if migration == CreateMerkleTreesMigration.name() {
-                        if let Err(err) =
-                            run_migration(&CreateMerkleTreesMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else if migration == AddDirectoriesToCacheMigration.name() {
-                        if let Err(err) =
-                            run_migration(&AddDirectoriesToCacheMigration, direction, sub_matches)
-                        {
-                            eprintln!("Error running migration: {}", err);
-                            std::process::exit(1);
-                        }
-                    } else {
-                        eprintln!("Invalid migration: {}", migration);
-                    }
-                }
-            }
-            command => {
-                eprintln!("Invalid subcommand: {}", command);
-            }
-        }
-    }
-}
-
-pub fn run_migration(
-    migration: &dyn Migrate,
-    direction: &str,
-    sub_matches: &ArgMatches,
-) -> Result<(), OxenError> {
-    let path_str = sub_matches.get_one::<String>("PATH").expect("required");
-    let path = Path::new(path_str);
-
-    let all = sub_matches.get_flag("all");
-
-    match direction {
-        "up" => {
-            migration.up(path, all)?;
-        }
-        "down" => {
-            migration.down(path, all)?;
-        }
-        _ => {
-            eprintln!("Invalid migration direction: {}", direction);
-        }
-    }
-
-    Ok(())
-}
-
 pub async fn save(sub_matches: &ArgMatches) {
     // Match on the PATH arg
     let repo_str = sub_matches.get_one::<String>("PATH").expect("Required");
@@ -599,18 +366,4 @@ pub async fn save(sub_matches: &ArgMatches) {
     let output_path = Path::new(output_str);
 
     dispatch::save(repo_path, output_path).expect("Error saving repo backup.");
-}
-
-pub async fn load(sub_matches: &ArgMatches) {
-    // Match on both SRC_PATH and DEST_PATH
-    let src_path_str = sub_matches.get_one::<String>("SRC_PATH").expect("required");
-    let dest_path_str = sub_matches
-        .get_one::<String>("DEST_PATH")
-        .expect("required");
-    let no_working_dir = sub_matches.get_flag("no-working-dir");
-
-    let src_path = Path::new(src_path_str);
-    let dest_path = Path::new(dest_path_str);
-
-    dispatch::load(src_path, dest_path, no_working_dir).expect("Error loading repo from backup.");
 }

@@ -11,7 +11,6 @@ use liboxen::model::RepoNew;
 use liboxen::opts::AddOpts;
 use liboxen::opts::DFOpts;
 use liboxen::opts::DownloadOpts;
-use liboxen::opts::InfoOpts;
 use liboxen::opts::ListOpts;
 use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
@@ -144,34 +143,6 @@ pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenErro
 }
 
 /// Download allows the user to download a file or files without cloning the repo
-pub async fn download(opts: DownloadOpts) -> Result<(), OxenError> {
-    let paths = &opts.paths;
-    if paths.is_empty() {
-        return Err(OxenError::basic_str("Must supply a path to download."));
-    }
-
-    check_remote_version_blocking(opts.clone().host).await?;
-
-    // Check if the first path is a valid remote repo
-    let name = paths[0].to_string_lossy();
-    if let Some(remote_repo) =
-        api::remote::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
-            .await?
-    {
-        // Download from the remote without having to have a local repo directory
-        let remote_paths = paths[1..].to_vec();
-        let commit_id = opts.remote_commit_id(&remote_repo).await?;
-        for path in remote_paths {
-            command::remote::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
-        }
-    } else {
-        eprintln!("Repository does not exist {}", name);
-    }
-
-    Ok(())
-}
-
-/// Download allows the user to download a file or files without cloning the repo
 pub async fn upload(opts: UploadOpts) -> Result<(), OxenError> {
     let paths = &opts.paths;
     if paths.is_empty() {
@@ -283,45 +254,10 @@ pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn push(remote: &str, branch: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let host = get_host_from_repo(&repository)?;
-
-    check_repo_migration_needed(&repository)?;
-    check_remote_version_blocking(host.clone()).await?;
-    check_remote_version(host).await?;
-
-    command::push_remote_branch(&repository, remote, branch).await?;
-    Ok(())
-}
-
-pub async fn pull(remote: &str, branch: &str, all: bool) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let host = get_host_from_repo(&repository)?;
-    check_repo_migration_needed(&repository)?;
-    check_remote_version_blocking(host.clone()).await?;
-    check_remote_version(host).await?;
-
-    command::pull_remote_branch(&repository, remote, branch, all).await?;
-    Ok(())
-}
-
 pub async fn unlock_branch(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::unlock(&repository, remote, branch).await?;
-    Ok(())
-}
-
-pub fn merge(branch: &str) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    check_repo_migration_needed(&repository)?;
-
-    command::merge(&repository, branch)?;
     Ok(())
 }
 
@@ -330,21 +266,6 @@ fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
         Ok(_) => Ok(()),
         Err(_) => Err(OxenError::basic_str("Could not write to pager")),
     }
-}
-
-pub async fn fetch() -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir =
-        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let host = get_host_from_repo(&repository)?;
-
-    check_repo_migration_needed(&repository)?;
-    check_remote_version_blocking(host.clone()).await?;
-    command::fetch(&repository).await?;
-    Ok(())
 }
 
 pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
@@ -379,44 +300,6 @@ pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
         Err(e) => {
             eprintln!("Error while paging: {}", e);
         }
-    }
-
-    Ok(())
-}
-
-pub fn info(opts: InfoOpts) -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir =
-        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    let metadata = command::info(&repository, opts.to_owned())?;
-
-    if opts.output_as_json {
-        let json = serde_json::to_string(&metadata)?;
-        println!("{}", json);
-    } else {
-        /*
-        hash size data_type mime_type extension last_updated_commit_id
-        */
-        if opts.verbose {
-            println!("hash\tsize\tdata_type\tmime_type\textension\tlast_updated_commit_id");
-        }
-
-        let mut last_updated_commit_id = String::from("None");
-        if let Some(commit) = metadata.last_updated {
-            last_updated_commit_id = commit.id;
-        }
-
-        println!(
-            "{}\t{}\t{}\t{}\t{}\t{}",
-            metadata.hash,
-            metadata.size,
-            metadata.data_type,
-            metadata.mime_type,
-            metadata.extension,
-            last_updated_commit_id
-        );
     }
 
     Ok(())
@@ -596,10 +479,5 @@ pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
 
     command::save(&repo, output_path)?;
 
-    Ok(())
-}
-
-pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
-    command::load(src_path, dest_path, no_working_dir)?;
     Ok(())
 }

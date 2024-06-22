@@ -1,10 +1,6 @@
 use crate::cmd::RunCmd;
 use clap::{arg, Arg, Command};
-use liboxen::command::migrate::{
-    AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
-    Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
-};
-use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
+use liboxen::constants::{DEFAULT_BRANCH_NAME};
 
 use crate::cmd::add::add_args;
 use crate::cmd::df::DFCmd;
@@ -13,23 +9,15 @@ use crate::cmd::remote::df::RemoteDfCmd;
 use crate::cmd::remote::log::RemoteLogCmd;
 
 pub const CLONE: &str = "clone";
-pub const COMMIT_CACHE: &str = "commit-cache";
 pub const COMMIT: &str = "commit";
 pub const COMPARE: &str = "compare";
 pub const CONFIG: &str = "config";
+pub const DOWNLOAD: &str = "download";
 pub const DF: &str = "df";
 pub const DIFF: &str = "diff";
-pub const DOWNLOAD: &str = "download";
-pub const INFO: &str = "info";
-pub const FETCH: &str = "fetch";
-pub const LOAD: &str = "load";
 pub const LOG: &str = "log";
 pub const LS: &str = "ls";
-pub const MERGE: &str = "merge";
 pub const METADATA: &str = "metadata";
-pub const MIGRATE: &str = "migrate";
-pub const PULL: &str = "pull";
-pub const PUSH: &str = "push";
 pub const READ_LINES: &str = "read-lines";
 pub const REMOTE: &str = "remote";
 pub const RESTORE: &str = "restore";
@@ -100,26 +88,6 @@ pub fn status() -> Command {
         .arg(Arg::new("path").required(false))
 }
 
-pub fn info() -> Command {
-    Command::new(INFO)
-        .about("Get metadata information about a file such as the oxen hash, data type, etc.")
-        .arg(Arg::new("path").required(false))
-        .arg(Arg::new("revision").required(false))
-        .arg(
-            Arg::new("verbose")
-                .long("verbose")
-                .short('v')
-                .help("If present, will print all the field names when printing as tab separated list.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("json")
-                .long("json")
-                .help("If present, will print the metadata info as json.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
 pub fn metadata() -> Command {
     Command::new(METADATA)
         .about("View computed metadata given a resource and commit")
@@ -141,10 +109,6 @@ pub fn metadata() -> Command {
                 .arg(Arg::new("column").required(true))
                 .arg(Arg::new("path").required(false)),
         )
-}
-
-pub fn fetch() -> Command {
-    Command::new(FETCH).about("Download objects and refs from the remote repository")
 }
 
 pub fn ls() -> Command {
@@ -383,13 +347,6 @@ pub fn restore() -> Command {
         )
 }
 
-pub fn merge() -> Command {
-    Command::new(MERGE)
-        .about("Merges a branch into the current checked out branch.")
-        .arg_required_else_help(true)
-        .arg(arg!(<BRANCH> "The name of the branch you want to merge in."))
-}
-
 pub fn clone() -> Command {
     Command::new(CLONE)
         .about("Clone a repository by its URL")
@@ -415,53 +372,6 @@ pub fn clone() -> Command {
                 .default_value(DEFAULT_BRANCH_NAME)
                 .default_missing_value(DEFAULT_BRANCH_NAME)
                 .action(clap::ArgAction::Set),
-        )
-}
-
-pub fn push() -> Command {
-    Command::new(PUSH)
-        .about("Push the the files to the remote branch")
-        .arg(
-            Arg::new("REMOTE")
-                .help("Remote you want to push to")
-                .default_value(DEFAULT_REMOTE_NAME)
-                .default_missing_value(DEFAULT_REMOTE_NAME),
-        )
-        .arg(
-            Arg::new("BRANCH")
-                .help("Branch name to push to")
-                .default_value(DEFAULT_BRANCH_NAME)
-                .default_missing_value(DEFAULT_BRANCH_NAME),
-        )
-        .arg(
-            Arg::new("delete")
-                .long("delete")
-                .short('d')
-                .help("Remove the remote branch")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
-pub fn pull() -> Command {
-    Command::new(PULL)
-        .about("Pull the files up from a remote branch")
-        .arg(
-            Arg::new("REMOTE")
-                .help("Remote you want to pull from")
-                .default_value(DEFAULT_REMOTE_NAME)
-                .default_missing_value(DEFAULT_REMOTE_NAME),
-        )
-        .arg(
-            Arg::new("BRANCH")
-                .help("Branch name to pull")
-                .default_value(DEFAULT_BRANCH_NAME)
-                .default_missing_value(DEFAULT_BRANCH_NAME),
-        )
-        .arg(
-            Arg::new("all")
-                .long("all")
-                .help("This pulls the full commit history, all the data files, and all the commit databases. Useful if you want to have the entire history locally or push to a new remote.")
-                .action(clap::ArgAction::SetTrue),
         )
 }
 
@@ -499,225 +409,6 @@ pub fn diff() -> Command {
             .action(clap::ArgAction::Set))
 }
 
-pub fn commit_cache() -> Command {
-    Command::new(COMMIT_CACHE)
-        .about("Compute a commit cache a server repository or set of repositories")
-        .arg(Arg::new("PATH").required(true))
-        .arg(
-            Arg::new("all")
-                .long("all")
-                .short('a')
-                .help("Compute the cache for all the oxen repositories in this directory")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("force")
-                .long("force")
-                .short('f')
-                .help("Force recompute the cache even if it already exists.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(arg!([REVISION] "The commit or branch id you want to compute the cache for. Defaults to main."))
-}
-
-// TODO: if future migration commands all are expected to follow the <path> --all structure,
-// move that arg parsing up to the top level of the command
-pub fn migrate() -> Command {
-    Command::new(MIGRATE)
-        .about("Run a named migration on a server repository or set of repositories")
-        .subcommand_required(true)
-        .subcommand(
-            Command::new("up")
-                .about("Apply a named migration forward.")
-                .subcommand_required(true)
-                .subcommand(
-                    Command::new(UpdateVersionFilesMigration.name())
-                        .about("Migrates version files from commit id to common prefix")
-                        .arg(
-                            Arg::new("PATH")
-                                .help("Directory in which to apply the migration")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::new("all")
-                                .long("all")
-                                .short('a')
-                                .help(
-                                    "Run the migration for all oxen repositories in this directory",
-                                )
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new(PropagateSchemasMigration.name())
-                        .about("Propagates schemas to the latest commit")
-                        .arg(
-                            Arg::new("PATH")
-                                .help("Directory in which to apply the migration")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::new("all")
-                                .long("all")
-                                .short('a')
-                                .help(
-                                    "Run the migration for all oxen repositories in this directory",
-                                )
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new(CacheDataFrameSizeMigration.name())
-                        .about("Caches size for existing data frames")
-                        .arg(
-                            Arg::new("PATH")
-                                .help("Directory in which to apply the migration")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::new("all")
-                                .long("all")
-                                .short('a')
-                                .help(
-                                    "Run the migration for all oxen repositories in this directory",
-                                )
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new(CreateMerkleTreesMigration.name())
-                    .about("Reformats the underlying data model into merkle trees for storage and lookup efficiency")
-                    .arg(
-                        Arg::new("PATH")
-                            .help("Directory in which to apply the migration")
-                            .required(true),
-                    )
-                    .arg(
-                        Arg::new("all")
-                            .long("all")
-                            .short('a')
-                            .help(
-                                "Run the migration for all oxen repositories in this directory",
-                            )
-                            .action(clap::ArgAction::SetTrue),
-                    ),
-                )
-                .subcommand(
-                    Command::new(AddDirectoriesToCacheMigration.name())
-                    .about("SERVER ONLY: Re-caches past commits to include directories in the cache")
-                    .arg(
-                        Arg::new("PATH")
-                            .help("Directory in which to apply the migration")
-                            .required(true),
-                    )
-                    .arg(
-                        Arg::new("all")
-                            .long("all")
-                            .short('a')
-                            .help(
-                                "Run the migration for all oxen repositories in this directory",
-                            )
-                            .action(clap::ArgAction::SetTrue),
-                    ),
-                )
-        )
-        .subcommand(
-            Command::new("down")
-                .about("Apply a named migration backward.")
-                .subcommand_required(true)
-                .subcommand(
-                    Command::new(CacheDataFrameSizeMigration.name())
-                        .about("Caches size for existing data frames")
-                        .arg(
-                            Arg::new("PATH")
-                                .help("Directory in which to apply the migration")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::new("all")
-                                .long("all")
-                                .short('a')
-                                .help(
-                                    "Run the migration for all oxen repositories in this directory",
-                                )
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new(PropagateSchemasMigration.name())
-                        .about("Propagates schemas to the latest commit")
-                        .arg(
-                            Arg::new("PATH")
-                                .help("Directory in which to apply the migration")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::new("all")
-                                .long("all")
-                                .short('a')
-                                .help(
-                                    "Run the migration for all oxen repositories in this directory",
-                                )
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new(UpdateVersionFilesMigration.name())
-                        .about("Migrates version files from commit id to common prefix")
-                        .arg(
-                            Arg::new("PATH")
-                                .help("Directory in which to apply the migration")
-                                .required(true),
-                        )
-                        .arg(
-                            Arg::new("all")
-                                .long("all")
-                                .short('a')
-                                .help(
-                                    "Run the migration for all oxen repositories in this directory",
-                                )
-                                .action(clap::ArgAction::SetTrue),
-                        ),
-                )
-                .subcommand(
-                    Command::new(CreateMerkleTreesMigration.name())
-                    .about("Reformats the underlying data model into merkle trees for storage and lookup efficiency")
-                    .arg(
-                        Arg::new("PATH")
-                            .help("Directory in which to apply the migration")
-                            .required(true),
-                    )
-                    .arg(
-                        Arg::new("all")
-                            .long("all")
-                            .short('a')
-                            .help(
-                                "Run the migration for all oxen repositories in this directory",
-                            )
-                            .action(clap::ArgAction::SetTrue),
-                    ),
-                )
-                .subcommand(
-                    Command::new(AddDirectoriesToCacheMigration.name())
-                    .about("SERVER ONLY: Re-caches past commits to include directories in the cache")
-                    .arg(
-                        Arg::new("PATH")
-                            .help("Directory in which to apply the migration")
-                            .required(true),
-                    )
-                    .arg(
-                        Arg::new("all")
-                            .long("all")
-                            .short('a')
-                            .help(
-                                "Run the migration for all oxen repositories in this directory",
-                            )
-                            .action(clap::ArgAction::SetTrue),
-                    ),
-                )
-        )
-}
-
 pub fn save() -> Command {
     Command::new(SAVE)
         .arg(
@@ -733,23 +424,4 @@ pub fn save() -> Command {
                 .long("output")
                 .required(true),
         )
-}
-
-pub fn load() -> Command {
-    Command::new(LOAD)
-            .about("Load a repository backup from a .tar.gz archive")
-            .arg(Arg::new("SRC_PATH")
-                .help("Path to the .tar.gz archive to load")
-                .required(true)
-                .index(1))
-            .arg(Arg::new("DEST_PATH")
-                    .help("Path in which to unpack the repository")
-                    .required(true)
-                    .index(2))
-            .arg(
-                Arg::new("no-working-dir")
-                .long("no-working-dir")
-                .help("Don't unpack version files to local working directory (space-saving measure for server repos)")
-                .action(clap::ArgAction::SetTrue)
-            )
 }
