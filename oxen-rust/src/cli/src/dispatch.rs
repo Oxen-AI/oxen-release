@@ -14,7 +14,6 @@ use liboxen::opts::DownloadOpts;
 use liboxen::opts::InfoOpts;
 use liboxen::opts::ListOpts;
 use liboxen::opts::PaginateOpts;
-use liboxen::opts::UploadOpts;
 use liboxen::util;
 use liboxen::view::PaginatedDirEntries;
 

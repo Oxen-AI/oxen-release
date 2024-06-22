@@ -62,8 +62,6 @@ pub fn remote() -> Command {
         .subcommand(download())
         .subcommand(ls())
         .subcommand(RemoteRestoreCmd.args())
-        .subcommand(rm())
-        .subcommand(restore())
         .subcommand(RemoteRmCmd.args())
         .subcommand(RemoteStatusCmd.args())
         .subcommand(metadata())
