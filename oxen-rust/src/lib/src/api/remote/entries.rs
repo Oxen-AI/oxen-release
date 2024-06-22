@@ -66,7 +66,7 @@ pub async fn upload_entries(
 
     // Stage all the files
     let identifier = UserConfig::identifier()?;
-    api::remote::staging::add_files(
+    api::remote::workspaces::add_files(
         remote_repo,
         &branch_name,
         &identifier,
@@ -85,7 +85,7 @@ pub async fn upload_entries(
         email: user.email,
     };
     let commit =
-        api::remote::staging::commit(remote_repo, &branch_name, &identifier, &commit).await?;
+        api::remote::workspaces::commit(remote_repo, &branch_name, &identifier, &commit).await?;
 
     println!("Commit {} done.", commit.id);
 

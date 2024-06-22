@@ -153,7 +153,7 @@ async fn remove_remote_staged_file(repo: &LocalRepository, path: &Path) -> Resul
     let branch_name = branch.name;
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     let user_id = UserConfig::identifier()?;
-    api::remote::staging::rm_file(&remote_repo, &branch_name, &user_id, path.to_path_buf()).await
+    api::remote::workspaces::rm_file(&remote_repo, &branch_name, &user_id, path.to_path_buf()).await
 }
 
 fn remove_staged(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {

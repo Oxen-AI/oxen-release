@@ -39,6 +39,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::MooCmd),
         Box::new(cmd::PullCmd),
         Box::new(cmd::PushCmd),
+        Box::new(cmd::ReadLinesCmd),
         Box::new(cmd::SchemasCmd),
     ];
 
@@ -58,7 +59,6 @@ async fn main() -> ExitCode {
 
     // TODO: Refactor these into their own modules
     command = command
-        .subcommand(cmd_setup::read_lines())
         .subcommand(cmd_setup::remote())
         .subcommand(cmd_setup::restore())
         .subcommand(cmd_setup::rm())
@@ -69,7 +69,6 @@ async fn main() -> ExitCode {
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
     match matches.subcommand() {
-        Some((cmd_setup::READ_LINES, sub_matches)) => parse_and_run::read_lines(sub_matches),
         Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
         Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
         Some((cmd_setup::RM, sub_matches)) => parse_and_run::rm(sub_matches).await,
