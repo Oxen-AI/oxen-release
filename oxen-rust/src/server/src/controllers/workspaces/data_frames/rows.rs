@@ -142,7 +142,7 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
 
     // Make sure the data frame is indexed
     let is_editable =
-        index::workspaces::data_frames::is_indexed(&repo, &commit, &workspace_id, &resource.path)?;
+        index::workspaces::data_frames::is_indexed(&repo, &workspace_id, &resource.path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
@@ -162,8 +162,7 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         data,
     };
 
-    let row_df =
-        index::workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+    let row_df = index::workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
     let row_id: Option<String> = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
     let row_index: Option<usize> = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 

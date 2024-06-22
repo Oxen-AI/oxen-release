@@ -10,12 +10,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, StagedData};
 use crate::util;
 
-pub fn mods_db_path(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
-    path: impl AsRef<Path>,
-) -> PathBuf {
+pub fn mods_db_path(repo: &LocalRepository, workspace_id: &str, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
 
     workspaces::workspace_dir(repo, workspace_id)
@@ -26,7 +21,7 @@ pub fn mods_db_path(
         .join(path_hash)
 }
 
-pub fn files_db_path(repo: &LocalRepository, commit: &Commit, workspace_id: &str) -> PathBuf {
+pub fn files_db_path(repo: &LocalRepository, workspace_id: &str) -> PathBuf {
     workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
@@ -55,11 +50,11 @@ pub fn status(
     if Path::new(".") == directory {
         log::debug!("list_staged_data: status for root");
         let mut status = stager.status(&reader)?;
-        list_staged_entries(repo, commit, workspace_id, &mut status)?;
+        list_staged_entries(repo, workspace_id, &mut status)?;
         Ok(status)
     } else {
         let mut status = stager.status_from_dir(&reader, directory)?;
-        list_staged_entries(repo, commit, workspace_id, &mut status)?;
+        list_staged_entries(repo, workspace_id, &mut status)?;
         Ok(status)
     }
 }
@@ -67,11 +62,10 @@ pub fn status(
 // Modifications to files are staged in a separate DB and applied on commit, so we fetch them from the mod_stager
 fn list_staged_entries(
     repo: &LocalRepository,
-    commit: &Commit,
     workspace_id: &str,
     status: &mut StagedData,
 ) -> Result<(), OxenError> {
-    let mod_entries = list_files(repo, commit, workspace_id)?;
+    let mod_entries = list_files(repo, workspace_id)?;
 
     for path in mod_entries {
         status.modified_files.push(path.to_owned());
@@ -80,12 +74,8 @@ fn list_staged_entries(
     Ok(())
 }
 
-pub fn list_files(
-    repo: &LocalRepository,
-    commit: &Commit,
-    identity: &str,
-) -> Result<Vec<PathBuf>, OxenError> {
-    let db_path = files_db_path(repo, commit, identity);
+pub fn list_files(repo: &LocalRepository, workspace_id: &str) -> Result<Vec<PathBuf>, OxenError> {
+    let db_path = files_db_path(repo, workspace_id);
     log::debug!("list_entries from files_db_path {db_path:?}");
     let opts = db::opts::default();
     let db: DBWithThreadMode<SingleThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;

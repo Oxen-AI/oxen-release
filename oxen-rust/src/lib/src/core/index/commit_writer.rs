@@ -179,7 +179,7 @@ impl CommitWriter {
             )));
         };
 
-        let entries = workspaces::stager::list_files(&self.repository, &old_commit, workspace_id)?;
+        let entries = workspaces::stager::list_files(&self.repository, workspace_id)?;
         let object_reader = ObjectDBReader::new(&self.repository)?;
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(
             &self.repository,
@@ -257,18 +257,12 @@ impl CommitWriter {
                 workspaces::data_frames::extract_dataset_to_working_dir(
                     &self.repository,
                     &workspace,
-                    commit,
                     entry,
                     workspace_id,
                 )?;
 
                 log::debug!("apply_mods unstaging");
-                workspaces::data_frames::unstage(
-                    &self.repository,
-                    commit,
-                    workspace_id,
-                    &entry.path,
-                )?;
+                workspaces::data_frames::unstage(&self.repository, workspace_id, &entry.path)?;
             } else {
                 log::debug!("apply_mods copying non-tabular file");
                 // Non-tabular files are copied from their version path into the working dir
@@ -933,8 +927,7 @@ mod tests {
                 content_type: ContentType::Json,
             };
 
-            let result =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod);
+            let result = workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod);
             // Should be an error
             assert!(result.is_err());
 
@@ -964,7 +957,7 @@ mod tests {
                 content_type: ContentType::Json,
             };
             workspaces::data_frames::index(&repo, &commit, &workspace_id, &path)?;
-            workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+            workspaces::data_frames::rows::add(&repo, &workspace_id, &new_mod)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),
                 email: user.email,
