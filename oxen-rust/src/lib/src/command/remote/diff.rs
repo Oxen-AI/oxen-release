@@ -21,7 +21,7 @@ pub async fn diff(
     let branch = api::local::branches::get_by_name_or_current(repo, branch_name)?;
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
     let user_id = UserConfig::identifier()?;
-    let diff = api::remote::staging::diff(
+    let diff = api::remote::workspaces::diff(
         &remote_repo,
         &branch.name,
         &user_id,

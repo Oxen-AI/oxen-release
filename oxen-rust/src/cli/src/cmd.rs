@@ -69,6 +69,9 @@ pub use pull::PullCmd;
 pub mod push;
 pub use push::PushCmd;
 
+pub mod read_lines;
+pub use read_lines::ReadLinesCmd;
+
 pub mod remote;
 
 pub mod schemas;

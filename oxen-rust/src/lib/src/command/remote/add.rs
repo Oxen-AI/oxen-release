@@ -56,7 +56,7 @@ pub async fn add<P: AsRef<Path>>(
     let directory_name = remote_directory.to_string_lossy().to_string();
 
     let user_id = UserConfig::identifier()?;
-    let result = api::remote::staging::add_file(
+    let result = api::remote::workspaces::add_file(
         &remote_repo,
         &branch.name,
         &user_id,
