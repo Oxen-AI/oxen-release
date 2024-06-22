@@ -5,6 +5,7 @@ use crate::model::RemoteRepository;
 use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
+use pluralizer::pluralize;
 use std::path::PathBuf;
 
 pub async fn add_file(
@@ -14,7 +15,7 @@ pub async fn add_file(
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/staging/{identifier}/file/{branch_name}/{directory_name}");
+    let uri = format!("/workspace/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -40,8 +41,12 @@ pub async fn add_file(
                 serde_json::from_str(&body);
             match response {
                 Ok(val) => {
-                    let path = val.paths[0].clone();
-                    Ok(path)
+                    log::debug!("File path response: {:?}", val);
+                    if let Some(path) = val.paths.first() {
+                        Ok(path.clone())
+                    } else {
+                        Err(OxenError::basic_str("No file path returned from server"))
+                    }
                 }
                 Err(err) => {
                     let err = format!("api::staging::add_file error parsing response from {url}\n\nErr {err:?} \n\n{body}");
@@ -71,15 +76,14 @@ pub async fn add_files(
         return Err(OxenError::basic_str(error_msg));
     }
 
-    let plural_files = if paths.len() > 1 { "files" } else { "file" };
     println!(
         "Uploading {} from {} {}",
         ByteSize(total_size),
         paths.len(),
-        plural_files
+        pluralize("file", paths.len() as isize, true)
     );
 
-    let uri = format!("/staging/{identifier}/file/{branch_name}/{directory_name}");
+    let uri = format!("/workspace/{identifier}/file/{branch_name}/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -93,7 +97,7 @@ pub async fn add_files(
             .unwrap();
         let file = std::fs::read(&path).unwrap();
         let file_part = reqwest::multipart::Part::bytes(file).file_name(file_name);
-        form = form.part("file", file_part);
+        form = form.part("file[]", file_part);
     }
 
     let client = client::new_for_url(&url)?;
@@ -145,7 +149,7 @@ mod tests {
             let directory_name = "images";
             let identifier = UserConfig::identifier()?;
             let path = test::test_img_file();
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -158,7 +162,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -193,7 +197,7 @@ mod tests {
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::staging::add_files(
+            let result = api::remote::workspace::add_files(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -206,7 +210,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::staging::status(
+            let entries = api::remote::workspace::status(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -238,7 +242,7 @@ mod tests {
             let identifier = UserConfig::identifier()?;
             let file_to_post = test::test_img_file();
             let directory_name = "data";
-            let result = api::remote::staging::add_file(
+            let result = api::remote::workspace::add_file(
                 &remote_repo,
                 branch_name,
                 &identifier,
@@ -254,7 +258,8 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::staging::commit(&remote_repo, branch_name, &identifier, &body).await?;
+                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                    .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
             assert!(remote_commit.is_some());
@@ -290,6 +295,52 @@ mod tests {
             .await?;
 
             Ok(remote_repo_cloned)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_commit_schema_on_branch() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "test-schema-issues";
+            let branch = api::remote::branches::create_from_or_get(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let original_schemas = api::remote::schemas::list(&remote_repo, branch_name).await?;
+
+            let directory_name = "tabular";
+            let identifier = UserConfig::identifier()?;
+            let path = test::test_1k_parquet();
+            let result = api::remote::workspace::add_file(
+                &remote_repo,
+                branch_name,
+                &identifier,
+                directory_name,
+                path,
+            )
+            .await;
+            assert!(result.is_ok());
+
+            let body = NewCommitBody {
+                message: "Add one data frame".to_string(),
+                author: "Test User".to_string(),
+                email: "test@oxen.ai".to_string(),
+            };
+            let commit =
+                api::remote::workspace::commit(&remote_repo, branch_name, &identifier, &body)
+                    .await?;
+            assert!(commit.message.contains("Add one data frame"));
+
+            // List the schemas on that branch
+            let schemas = api::remote::schemas::list(&remote_repo, branch_name).await?;
+            assert_eq!(schemas.len(), original_schemas.len() + 1);
+
+            Ok(remote_repo)
         })
         .await
     }

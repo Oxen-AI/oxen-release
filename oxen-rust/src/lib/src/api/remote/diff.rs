@@ -326,7 +326,7 @@ mod tests {
 
             let head_entry = compare.head_entry.as_ref().unwrap();
             assert_eq!(head_entry.filename, "llm_fine_tune.csv");
-            assert_eq!(head_entry.resource.as_ref().unwrap().path, "llm_fine_tune.csv");
+            assert_eq!(head_entry.resource.as_ref().unwrap().path, Path::new("llm_fine_tune.csv"));
             assert_eq!(head_entry.data_type, EntryDataType::Tabular);
 
             let metadata = head_entry.metadata.as_ref().unwrap();
@@ -340,7 +340,7 @@ mod tests {
 
             let base_entry = compare.base_entry.as_ref().unwrap();
             assert_eq!(base_entry.filename, "llm_fine_tune.csv");
-            assert_eq!(base_entry.resource.as_ref().unwrap().path, "llm_fine_tune.csv");
+            assert_eq!(base_entry.resource.as_ref().unwrap().path, Path::new("llm_fine_tune.csv"));
             assert_eq!(base_entry.data_type, EntryDataType::Tabular);
 
             let metadata = base_entry.metadata.as_ref().unwrap();
@@ -449,7 +449,7 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
             assert_eq!(head_entry.filename, "llm_fine_tune.csv");
             assert_eq!(
                 head_entry.resource.as_ref().unwrap().path,
-                "llm_fine_tune.csv"
+                Path::new("llm_fine_tune.csv")
             );
             assert_eq!(head_entry.data_type, EntryDataType::Tabular);
 
@@ -466,7 +466,7 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
             assert_eq!(base_entry.filename, "llm_fine_tune.csv");
             assert_eq!(
                 base_entry.resource.as_ref().unwrap().path,
-                "llm_fine_tune.csv"
+                Path::new("llm_fine_tune.csv")
             );
             assert_eq!(base_entry.data_type, EntryDataType::Tabular);
 
@@ -583,7 +583,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(head_entry.filename, "llm_fine_tune.csv");
             assert_eq!(
                 head_entry.resource.as_ref().unwrap().path,
-                "llm_fine_tune.csv"
+                Path::new("llm_fine_tune.csv")
             );
             assert_eq!(head_entry.data_type, EntryDataType::Tabular);
 
@@ -600,7 +600,7 @@ who won the game?,The packers beat up on the bears,packers
             assert_eq!(base_entry.filename, "llm_fine_tune.csv");
             assert_eq!(
                 base_entry.resource.as_ref().unwrap().path,
-                "llm_fine_tune.csv"
+                Path::new("llm_fine_tune.csv")
             );
             assert_eq!(base_entry.data_type, EntryDataType::Tabular);
 

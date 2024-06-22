@@ -12,6 +12,7 @@ use crate::cmd_setup::{COMMIT, DF, DIFF, DOWNLOAD, LOG, LS, METADATA, RESTORE, R
 use crate::dispatch;
 
 use clap::ArgMatches;
+use liboxen::command;
 use liboxen::command::migrate::{
     AddDirectoriesToCacheMigration, CacheDataFrameSizeMigration, CreateMerkleTreesMigration,
     Migrate, PropagateSchemasMigration, UpdateVersionFilesMigration,
@@ -20,8 +21,7 @@ use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME}
 use liboxen::error::OxenError;
 use liboxen::model::EntryDataType;
 use liboxen::model::LocalRepository;
-use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, UploadOpts};
-use liboxen::{command, opts::RestoreOpts};
+use liboxen::opts::{AddOpts, DownloadOpts, InfoOpts, ListOpts, RmOpts, UploadOpts};
 use std::path::{Path, PathBuf};
 
 /// The subcommands for interacting with the remote staging area.
@@ -50,7 +50,13 @@ pub async fn remote(sub_matches: &ArgMatches) {
                 }
             }
             (RESTORE, sub_matches) => {
-                remote_restore(sub_matches).await;
+                let cmd = cmd::remote::RemoteRestoreCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (COMMIT, sub_matches) => {
                 let cmd = RemoteCommitCmd {};

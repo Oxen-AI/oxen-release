@@ -50,6 +50,9 @@ pub use rm::RmCmd;
 
 pub mod remote;
 
+pub mod restore;
+pub use restore::RestoreCmd;
+
 pub mod save;
 pub use save::SaveCmd;
 
