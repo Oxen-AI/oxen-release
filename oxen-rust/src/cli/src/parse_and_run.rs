@@ -139,41 +139,6 @@ pub fn list_remotes_verbose(repo: &LocalRepository) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn upload(sub_matches: &ArgMatches) {
-    let opts = UploadOpts {
-        paths: sub_matches
-            .get_many::<String>("paths")
-            .expect("Must supply paths")
-            .map(PathBuf::from)
-            .collect(),
-        dst: sub_matches
-            .get_one::<String>("dst")
-            .map(PathBuf::from)
-            .unwrap_or(PathBuf::from(".")),
-        message: sub_matches
-            .get_one::<String>("message")
-            .map(String::from)
-            .expect("Must supply a commit message"),
-        branch: sub_matches.get_one::<String>("branch").map(String::from),
-        remote: sub_matches
-            .get_one::<String>("remote")
-            .map(String::from)
-            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
-        host: sub_matches
-            .get_one::<String>("host")
-            .map(String::from)
-            .unwrap_or(DEFAULT_HOST.to_string()),
-    };
-
-    // `oxen upload $namespace/$repo_name $path`
-    match dispatch::upload(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
 pub async fn download(sub_matches: &ArgMatches) {
     let opts = DownloadOpts {
         paths: sub_matches
@@ -446,52 +411,6 @@ pub async fn add(sub_matches: &ArgMatches) {
         directory: None,
     };
     match dispatch::add(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn remote_restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("PATH").expect("required");
-
-    // For now, restore remote just un-stages all the changes done to the file on the remote
-    let opts = RestoreOpts {
-        path: PathBuf::from(path),
-        staged: sub_matches.get_flag("staged"),
-        is_remote: true,
-        source_ref: None,
-    };
-
-    match dispatch::restore(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("PATH").expect("required");
-
-    let opts = if let Some(source) = sub_matches.get_one::<String>("source") {
-        RestoreOpts {
-            path: PathBuf::from(path),
-            staged: sub_matches.get_flag("staged"),
-            is_remote: false,
-            source_ref: Some(String::from(source)),
-        }
-    } else {
-        RestoreOpts {
-            path: PathBuf::from(path),
-            staged: sub_matches.get_flag("staged"),
-            is_remote: false,
-            source_ref: None,
-        }
-    };
-
-    match dispatch::restore(opts).await {
         Ok(_) => {}
         Err(err) => {
             eprintln!("{err}")

@@ -32,6 +32,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::SaveCmd),
         Box::new(cmd::SchemasCmd),
         Box::new(cmd::StatusCmd),
+        Box::new(cmd::UploadCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -58,10 +59,7 @@ async fn main() -> ExitCode {
         .subcommand(cmd_setup::merge())
         .subcommand(cmd_setup::migrate())
         .subcommand(cmd_setup::pull())
-        .subcommand(cmd_setup::push())
-        .subcommand(cmd_setup::remote())
-        .subcommand(cmd_setup::restore())
-        .subcommand(cmd_setup::upload());
+        .subcommand(cmd_setup::push());
 
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
@@ -77,9 +75,6 @@ async fn main() -> ExitCode {
         Some((cmd_setup::MIGRATE, sub_matches)) => parse_and_run::migrate(sub_matches).await,
         Some((cmd_setup::PULL, sub_matches)) => parse_and_run::pull(sub_matches).await,
         Some((cmd_setup::PUSH, sub_matches)) => parse_and_run::push(sub_matches).await,
-        Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
-        Some((cmd_setup::RESTORE, sub_matches)) => parse_and_run::restore(sub_matches).await,
-        Some((cmd_setup::UPLOAD, sub_matches)) => parse_and_run::upload(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
         Some((command, args)) => {
             // Lookup command in runners and run on args
