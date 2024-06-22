@@ -561,17 +561,6 @@ pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
-    let repo_path = Path::new(repo_path);
-    let repo_dir =
-        util::fs::get_repo_root(repo_path).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-
-    command::save(&repo, output_path)?;
-
-    Ok(())
-}
-
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
     command::load(src_path, dest_path, no_working_dir)?;
     Ok(())
