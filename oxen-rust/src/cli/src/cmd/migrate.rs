@@ -20,6 +20,8 @@ impl RunCmd for MigrateCmd {
     }
 
     fn args(&self) -> Command {
+        // TODO: if future migration commands all are expected to follow the <path> --all structure,
+        // move that arg parsing up to the top level of the command
         Command::new(NAME)
             .about("Run a named migration on a server repository or set of repositories")
             .subcommand_required(true)
