@@ -103,12 +103,12 @@ fn resolve_remote_add_file_path(
 mod tests {
     use std::path::Path;
 
-    use crate::command;
-    use crate::constants::OXEN_ID_COL;
+    use crate::constants::{DEFAULT_BRANCH_NAME, OXEN_ID_COL};
     use crate::error::OxenError;
     use crate::model::staged_data::StagedDataOpts;
     use crate::opts::DFOpts;
     use crate::test;
+    use crate::{api, command};
     use polars::prelude::AnyValue;
 
     // #[tokio::test]
@@ -176,7 +176,16 @@ mod tests {
                 let path = test::test_nlp_classification_csv();
 
                 // Index dataset
-                command::remote::df::index(&cloned_repo, &path).await?;
+                let workspace_id = "my_workspace";
+                api::remote::workspaces::create(
+                    &remote_repo,
+                    DEFAULT_BRANCH_NAME,
+                    &workspace_id,
+                    &path,
+                )
+                .await?;
+                api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path)
+                    .await?;
 
                 let mut opts = DFOpts::empty();
                 opts.add_row =

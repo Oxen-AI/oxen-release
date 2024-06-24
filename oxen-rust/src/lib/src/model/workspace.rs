@@ -39,6 +39,11 @@ impl Workspace {
         let commit_id_path = workspace_dir
             .join(OXEN_HIDDEN_DIR)
             .join(WORKSPACE_COMMIT_ID);
+
+        if !commit_id_path.exists() {
+            return Err(OxenError::workspace_not_found(workspace_id.into()));
+        }
+
         let commit_id = util::fs::read_from_path(commit_id_path)?;
         let Some(commit) = api::local::commits::get_by_id(repo, &commit_id)? else {
             return Err(OxenError::basic_str(format!(

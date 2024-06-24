@@ -12,15 +12,15 @@ pub fn data_frames() -> Scope {
             web::get().to(controllers::workspaces::data_frames::get_by_branch),
         )
         .route(
-            "/resource/{resource:.*}",
+            "/resource/{path:.*}",
             web::get().to(controllers::workspaces::data_frames::get_by_resource),
         )
         .route(
-            "/diff/{resource:.*}",
+            "/diff/{path:.*}",
             web::get().to(controllers::workspaces::data_frames::diff),
         )
         .route(
-            "/resource/{resource:.*}",
+            "/resource/{path:.*}",
             web::put().to(controllers::workspaces::data_frames::put),
         )
         .service(rows::rows())
