@@ -3,40 +3,35 @@ use polars::frame::DataFrame;
 
 use polars::prelude::NamedFrom;
 use polars::series::Series;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 use sql_query_builder::Select;
 
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use crate::opts::DFOpts;
 
-use crate::core::db::{self, df_db, staged_df_db, str_json_db};
+use crate::core::db::{df_db, workspace_df_db};
 use crate::core::df::tabular;
-
 use crate::core::index::workspaces;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
-use crate::model::entry::mod_entry::NewMod;
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Commit, CommitEntry, LocalRepository};
+use crate::model::{CommitEntry, LocalRepository, Workspace};
 use crate::util;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-// Get a single row by the _oxen_id val
-pub fn get_row_by_id(
-    repo: &LocalRepository,
-    workspace_id: impl AsRef<str>,
+/// Get a single row by the _oxen_id val
+pub fn get_by_id(
+    workspace: &Workspace,
     path: impl AsRef<Path>,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
-    let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
     let row_id = row_id.as_ref();
-    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, path);
+    let db_path = workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("get_row_by_id() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
-    let schema = staged_df_db::full_staged_table_schema(&conn)?;
+    let schema = workspace_df_db::full_staged_table_schema(&conn)?;
 
     let query = Select::new()
         .select("*")
@@ -74,45 +69,37 @@ pub fn get_row_status(row_df: &DataFrame) -> Result<Option<StagedRowStatus>, Oxe
 }
 
 pub fn add(
-    repo: &LocalRepository,
-    workspace_id: &str,
-    new_mod: &NewMod,
+    workspace: &Workspace,
+    file_path: impl AsRef<Path>,
+    data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
+    let file_path = file_path.as_ref();
+    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
-    let df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
+    let df = tabular::parse_json_to_df(data)?;
 
-    let result = staged_df_db::append_row(&conn, &df)?;
-
-    track_commit_entry(repo, workspace_id, &new_mod.entry.path)?;
+    let result = workspace_df_db::append_row(&conn, &df)?;
+    workspaces::stager::add(workspace, file_path)?;
 
     Ok(result)
 }
 
 pub fn restore(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: impl AsRef<str>,
+    workspace: &Workspace,
     entry: &CommitEntry,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
-    let workspace_id = workspace_id.as_ref();
     let row_id = row_id.as_ref();
-    let restored_row = restore_row_in_db(repo, workspace_id, entry, row_id)?;
-    let diff = workspaces::data_frames::diff(repo, commit, workspace_id, &entry.path)?;
+    let restored_row = restore_row_in_db(workspace, entry, row_id)?;
+    let diff = workspaces::data_frames::diff(workspace, &entry.path)?;
 
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
-            let opts = db::opts::default();
-            let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
-            let files_db: DBWithThreadMode<MultiThreaded> =
-                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-            let key = entry.path.to_string_lossy().to_string();
-            str_json_db::delete(&files_db, key)?;
+            workspaces::stager::rm(workspace, &entry.path)?;
         }
     }
 
@@ -120,18 +107,16 @@ pub fn restore(
 }
 
 pub fn restore_row_in_db(
-    repo: &LocalRepository,
-    workspace_id: impl AsRef<str>,
+    workspace: &Workspace,
     entry: &CommitEntry,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
-    let workspace_id = workspace_id.as_ref();
     let row_id = row_id.as_ref();
-    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &entry.path);
+    let db_path = workspaces::data_frames::duckdb_path(workspace, &entry.path);
     let conn = df_db::get_connection(db_path)?;
 
     // Get the row by id
-    let row = get_row_by_id(repo, workspace_id, &entry.path, row_id)?;
+    let row = get_by_id(workspace, &entry.path, row_id)?;
 
     if row.height() == 0 {
         return Err(OxenError::resource_not_found(row_id));
@@ -144,13 +129,14 @@ pub fn restore_row_in_db(
         StagedRowStatus::Added => {
             // Row is added, just delete it
             log::debug!("restore_row() row is added, deleting");
-            staged_df_db::delete_row(&conn, row_id)?
+            workspace_df_db::delete_row(&conn, row_id)?
         }
         StagedRowStatus::Modified | StagedRowStatus::Removed => {
             // Row is modified, just delete it
             log::debug!("restore_row() row is modified, deleting");
-            let mut insert_row = prepare_modified_or_removed_row(repo, entry, &row)?;
-            staged_df_db::modify_row(&conn, &mut insert_row, row_id)?
+            let mut insert_row =
+                prepare_modified_or_removed_row(&workspace.base_repo, entry, &row)?;
+            workspace_df_db::modify_row(&conn, &mut insert_row, row_id)?
         }
         StagedRowStatus::Unchanged => {
             // Row is unchanged, just return it
@@ -183,6 +169,9 @@ pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
     }
 }
 
+/// TODO: we should really be storing the original row contents
+///       so that we can both do row level diffs and restore
+///       this is very inefficient to load the entire original data frame
 fn prepare_modified_or_removed_row(
     repo: &LocalRepository,
     entry: &CommitEntry,
@@ -213,89 +202,59 @@ fn prepare_modified_or_removed_row(
 }
 
 pub fn delete(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
+    workspace: &Workspace,
     path: impl AsRef<Path>,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, path);
+    let db_path = workspaces::data_frames::duckdb_path(workspace, path);
     let deleted_row = {
         let conn = df_db::get_connection(db_path)?;
-        staged_df_db::delete_row(&conn, row_id)?
+        workspace_df_db::delete_row(&conn, row_id)?
     };
 
-    track_commit_entry(repo, workspace_id, path)?;
+    // We track that the file has been modified
+    workspaces::stager::add(workspace, path)?;
 
     // TODO: Better way of tracking when a file is restored to its original state without diffing
-
-    let diff = workspaces::data_frames::diff(repo, commit, workspace_id, path)?;
+    //       this could be really slow
+    let diff = workspaces::data_frames::diff(workspace, path)?;
 
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
-            let opts = db::opts::default();
-            let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
-            let files_db: DBWithThreadMode<MultiThreaded> =
-                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-            let key = path.to_string_lossy();
-            str_json_db::delete(&files_db, key)?;
+            workspaces::stager::rm(workspace, path)?;
         }
     }
     Ok(deleted_row)
 }
 
 pub fn update(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
     row_id: &str,
-    new_mod: &NewMod,
+    data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
-    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
+    let path = path.as_ref();
+    let db_path = workspaces::data_frames::duckdb_path(workspace, path);
     let conn = df_db::get_connection(db_path)?;
 
-    let mut df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
+    let mut df = tabular::parse_json_to_df(data)?;
 
-    let result = staged_df_db::modify_row(&conn, &mut df, row_id)?;
+    let result = workspace_df_db::modify_row(&conn, &mut df, row_id)?;
 
-    track_commit_entry(repo, workspace_id, &new_mod.entry.path)?;
+    workspaces::stager::add(workspace, path)?;
 
-    let diff = workspaces::data_frames::diff(
-        repo,
-        commit,
-        workspace_id,
-        PathBuf::from(&new_mod.entry.path),
-    )?;
-
+    // TODO: Better way of tracking when a file is restored to its original state without diffing
+    //       this could be really slow
+    let diff = workspaces::data_frames::diff(workspace, path)?;
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
             // Restored to original state == delete file from staged db
-            let opts = db::opts::default();
-            let files_db_path = workspaces::stager::files_db_path(repo, workspace_id);
-            let files_db: DBWithThreadMode<MultiThreaded> =
-                rocksdb::DBWithThreadMode::open(&opts, files_db_path)?;
-            let key = new_mod.entry.path.to_string_lossy();
-            str_json_db::delete(&files_db, key)?;
+            workspaces::stager::rm(workspace, path)?;
         }
     }
 
     Ok(result)
-}
-
-fn track_commit_entry(
-    repo: &LocalRepository,
-    workspace_id: impl AsRef<str>,
-    path: impl AsRef<Path>,
-) -> Result<(), OxenError> {
-    let workspace_id = workspace_id.as_ref();
-    let path = path.as_ref();
-    let db_path = workspaces::stager::files_db_path(repo, workspace_id);
-    log::debug!("track_commit_entry from files_db_path {db_path:?}");
-    let opts = db::opts::default();
-    let db: DBWithThreadMode<MultiThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
-    let key = path.to_string_lossy();
-    str_json_db::put(&db, &key, &key)
 }

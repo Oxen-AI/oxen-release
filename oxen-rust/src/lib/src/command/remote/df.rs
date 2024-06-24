@@ -11,7 +11,6 @@ use crate::api;
 use crate::config::UserConfig;
 use crate::core::df::tabular;
 use crate::error::OxenError;
-use crate::model::entry::mod_entry::ModType;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
 use crate::view::StatusMessage;
@@ -29,17 +28,11 @@ pub async fn df<P: AsRef<Path>>(
         delete_row(repo, input, uuid).await
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-        let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let identifier = UserConfig::identifier()?;
-        let val = api::remote::workspaces::data_frames::get_by_resource(
-            &remote_repo,
-            &branch.name,
-            identifier,
-            input,
-            opts,
-        )
-        .await?;
+        let workspace_id = UserConfig::identifier()?;
+        let val =
+            api::remote::workspaces::data_frames::get(&remote_repo, workspace_id, input, opts)
+                .await?;
         let mut df = val.data_frame.view.to_df();
         if let Some(output) = output {
             println!("Writing {output:?}");
@@ -70,16 +63,9 @@ pub async fn staged_df<P: AsRef<Path>>(
         delete_row(repo, input, uuid).await
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-        let branch = api::local::branches::current_branch(repo)?.unwrap();
         let output = opts.output.clone();
-        let val = api::remote::workspaces::data_frames::get_by_resource(
-            &remote_repo,
-            &branch.name,
-            &identifier,
-            input,
-            opts,
-        )
-        .await;
+        let val =
+            api::remote::workspaces::data_frames::get(&remote_repo, &identifier, input, opts).await;
         if let Ok(val) = val {
             let mut df = val.data_frame.view.to_df();
             if let Some(output) = output {
@@ -112,30 +98,18 @@ pub async fn add_row(
     // let data = format!(r#"{{"data": {}}}"#, data);
     let data = data.to_string();
 
-    if let Some(branch) = api::local::branches::current_branch(repo)? {
-        let user_id = UserConfig::identifier()?;
-        let (df, row_id) = api::remote::workspaces::data_frames::rows::create_row(
-            &remote_repo,
-            &branch.name,
-            &user_id,
-            path,
-            data,
-            crate::model::ContentType::Json,
-            ModType::Append,
-        )
-        .await?;
+    // TODO: Pass in workspace id from CLI
+    let workspace_id = UserConfig::identifier()?;
+    let (df, row_id) =
+        api::remote::workspaces::data_frames::rows::add(&remote_repo, &workspace_id, path, data)
+            .await?;
 
-        if let Some(row_id) = row_id {
-            println!("\nAdded row: {row_id:?}");
-        }
-
-        println!("{:?}", df);
-        Ok(df)
-    } else {
-        Err(OxenError::basic_str(
-            "Must be on a branch to stage remote changes.",
-        ))
+    if let Some(row_id) = row_id {
+        println!("\nAdded row: {row_id:?}");
     }
+
+    println!("{:?}", df);
+    Ok(df)
 }
 
 pub async fn delete_row(
@@ -144,22 +118,16 @@ pub async fn delete_row(
     uuid: &str,
 ) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    if let Some(branch) = api::local::branches::current_branch(repository)? {
-        let user_id = UserConfig::identifier()?;
-        let df = api::remote::workspaces::data_frames::rows::delete_row(
-            &remote_repo,
-            &branch.name,
-            &user_id,
-            path.as_ref(),
-            uuid,
-        )
-        .await?;
-        Ok(df)
-    } else {
-        Err(OxenError::basic_str(
-            "Must be on a branch to stage remote changes.",
-        ))
-    }
+
+    let workspace_id = UserConfig::identifier()?;
+    let df = api::remote::workspaces::data_frames::rows::delete(
+        &remote_repo,
+        &workspace_id,
+        path.as_ref(),
+        uuid,
+    )
+    .await?;
+    Ok(df)
 }
 
 pub async fn get_row(
@@ -168,44 +136,24 @@ pub async fn get_row(
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    if let Some(branch) = api::local::branches::current_branch(repository)? {
-        let user_id = UserConfig::identifier()?;
-        let df_json = api::remote::workspaces::data_frames::rows::get_row(
-            &remote_repo,
-            &branch.name,
-            &user_id,
-            path.as_ref(),
-            row_id,
-        )
-        .await?;
-        let df = df_json.data_frame.view.to_df();
-        println!("{:?}", df);
-        Ok(df)
-    } else {
-        Err(OxenError::basic_str(
-            "Must be on a branch to stage remote changes.",
-        ))
-    }
+    let workspace_id = UserConfig::identifier()?;
+    let df_json = api::remote::workspaces::data_frames::rows::get(
+        &remote_repo,
+        &workspace_id,
+        path.as_ref(),
+        row_id,
+    )
+    .await?;
+    let df = df_json.data_frame.view.to_df();
+    println!("{:?}", df);
+    Ok(df)
 }
 
-pub async fn index_dataset(
+pub async fn index(
     repository: &LocalRepository,
     path: impl AsRef<Path>,
 ) -> Result<StatusMessage, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    if let Some(branch) = api::local::branches::current_branch(repository)? {
-        let user_id = UserConfig::identifier()?;
-        api::remote::workspaces::data_frames::put(
-            &remote_repo,
-            &branch.name,
-            &user_id,
-            path.as_ref(),
-            true,
-        )
-        .await
-    } else {
-        Err(OxenError::basic_str(
-            "Must be on a branch to stage remote changes.",
-        ))
-    }
+    let workspace_id = UserConfig::identifier()?;
+    api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, path.as_ref()).await
 }

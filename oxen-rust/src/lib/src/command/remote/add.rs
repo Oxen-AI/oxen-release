@@ -55,11 +55,10 @@ pub async fn add<P: AsRef<Path>>(
     let (remote_directory, resolved_path) = resolve_remote_add_file_path(repo, path, opts)?;
     let directory_name = remote_directory.to_string_lossy().to_string();
 
-    let user_id = UserConfig::identifier()?;
-    let result = api::remote::workspaces::add_file(
+    let workspace_id = UserConfig::identifier()?;
+    let result = api::remote::workspaces::files::add(
         &remote_repo,
-        &branch.name,
-        &user_id,
+        &workspace_id,
         &directory_name,
         resolved_path,
     )
@@ -104,7 +103,6 @@ fn resolve_remote_add_file_path(
 mod tests {
     use std::path::Path;
 
-    use crate::api;
     use crate::command;
     use crate::constants::OXEN_ID_COL;
     use crate::error::OxenError;
@@ -178,7 +176,7 @@ mod tests {
                 let path = test::test_nlp_classification_csv();
 
                 // Index dataset
-                command::remote::df::index_dataset(&cloned_repo, &path).await?;
+                command::remote::df::index(&cloned_repo, &path).await?;
 
                 let mut opts = DFOpts::empty();
                 opts.add_row =
@@ -191,14 +189,12 @@ mod tests {
                 };
 
                 // Make sure it is listed as modified
-                let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
                 let directory = Path::new("");
                 let opts = StagedDataOpts {
                     is_remote: true,
                     ..Default::default()
                 };
-                let status =
-                    command::remote::status(&remote_repo, &branch, directory, &opts).await?;
+                let status = command::remote::status(&remote_repo, directory, &opts).await?;
                 assert_eq!(status.staged_files.len(), 1);
 
                 // Delete it
@@ -207,8 +203,7 @@ mod tests {
                 command::remote::df(&cloned_repo, &path, delete_opts).await?;
 
                 // Now status should be empty
-                let status =
-                    command::remote::status(&remote_repo, &branch, directory, &opts).await?;
+                let status = command::remote::status(&remote_repo, directory, &opts).await?;
                 assert_eq!(status.staged_files.len(), 0);
 
                 Ok(repo_dir)

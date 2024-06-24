@@ -1,6 +1,6 @@
 //! # oxen remote commit
 //!
-//! Commit remote staged data on a branch
+//! Commit workspace data on a to a branch
 //!
 
 use crate::api;
@@ -56,7 +56,7 @@ mod tests {
                 let path = test::test_nlp_classification_csv();
 
                 // Index the dataset
-                command::remote::df::index_dataset(&cloned_repo, &path).await?;
+                command::remote::df::index(&cloned_repo, &path).await?;
 
                 log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();

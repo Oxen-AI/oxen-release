@@ -5,30 +5,6 @@ use crate::model::RemoteRepository;
 
 use std::path::Path;
 
-pub async fn rm_file(
-    remote_repo: &RemoteRepository,
-    branch_name: &str,
-    identifier: &str,
-    path: impl AsRef<Path>,
-) -> Result<(), OxenError> {
-    let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/workspaces/{identifier}/file/{branch_name}/{file_name}");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    log::debug!("rm_file {}", url);
-    let client = client::new_for_url(&url)?;
-    match client.delete(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("rm_file got body: {}", body);
-            Ok(())
-        }
-        Err(err) => {
-            let err = format!("rm_file Request failed: {url}\n\nErr {err:?}");
-            Err(OxenError::basic_str(err))
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
 

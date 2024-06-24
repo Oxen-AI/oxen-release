@@ -27,8 +27,7 @@ pub async fn remote_status(
 
     if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
         let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
-        let repo_status =
-            command::remote::status(&remote_repo, &current_branch, &directory, opts).await?;
+        let repo_status = command::remote::status(&remote_repo, &directory, opts).await?;
         if let Some(remote_branch) =
             api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
         {

@@ -65,11 +65,10 @@ pub async fn upload_entries(
     log::debug!("Uploading to {}", branch_name);
 
     // Stage all the files
-    let identifier = UserConfig::identifier()?;
-    api::remote::workspaces::add_files(
+    let workspace_id = UserConfig::identifier()?;
+    api::remote::workspaces::files::add_many(
         remote_repo,
-        &branch_name,
-        &identifier,
+        &workspace_id,
         &opts.dst.to_string_lossy(),
         file_paths,
     )
@@ -85,7 +84,7 @@ pub async fn upload_entries(
         email: user.email,
     };
     let commit =
-        api::remote::workspaces::commit(remote_repo, &branch_name, &identifier, &commit).await?;
+        api::remote::workspaces::commit(remote_repo, &branch_name, &workspace_id, &commit).await?;
 
     println!("Commit {} done.", commit.id);
 

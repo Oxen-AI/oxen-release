@@ -1,27 +1,19 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{
-    app_data, df_opts_query, parse_resource, path_param, DFOptsQuery, PageNumQuery,
-};
+use crate::params::{app_data, path_param, PageNumQuery};
 
 use actix_files::NamedFile;
 
-use liboxen::constants::{OXEN_HIDDEN_DIR, TABLE_NAME};
 use liboxen::core::cache::commit_cacher;
-use liboxen::core::db::{df_db, staged_df_db};
-use liboxen::error::OxenError;
-use liboxen::model::diff::DiffResult;
 
 use liboxen::model::metadata::metadata_image::ImgResize;
-use liboxen::model::{Commit, LocalRepository, NewCommitBody, Schema};
-use liboxen::opts::DFOpts;
+use liboxen::model::{NewCommitBody, Workspace};
 use liboxen::util;
-use liboxen::view::compare::{CompareTabular, CompareTabularResponseWithDF};
-use liboxen::view::entry::ResourceVersion;
 use liboxen::view::remote_staged_status::RemoteStagedStatus;
+use liboxen::view::workspaces::WorkspaceResponse;
 use liboxen::view::{
-    CommitResponse, FilePathsResponse, JsonDataFrameViewResponse, JsonDataFrameViews,
-    RemoteStagedStatusResponse, StatusMessage, WorkspaceResponseView, WorkspaceView,
+    CommitResponse, FilePathsResponse, RemoteStagedStatusResponse, StatusMessage,
+    WorkspaceResponseView, WorkspaceView,
 };
 use liboxen::{api, constants, core::index};
 
@@ -60,14 +52,19 @@ pub async fn get_or_create(
 
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
-    let identifier = data.identifier.clone();
+    let workspace_id = data.workspace_id.clone();
 
     // Get or create the workspace
-    let _workspace = index::workspaces::init_or_get(&repo, &commit, &identifier)?;
+    index::workspaces::create(&repo, &commit, &workspace_id)?;
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),
-        workspace: data,
+        workspace: WorkspaceResponse {
+            workspace_id,
+            branch_name: branch.name,
+            path: data.path,
+            commit,
+        },
     }))
 }
 
@@ -79,136 +76,26 @@ pub async fn status_dir(
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
-    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let path = PathBuf::from(path_param(&req, "path")?);
     let page_num = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    log::debug!(
-        "{} resource {namespace}/{repo_name}/{resource}",
-        liboxen::current_function!()
-    );
+    let workspace = index::workspaces::get(&repo, workspace_id)?;
+    let staged = index::workspaces::stager::status(&workspace, &path)?;
 
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+    staged.print_stdout();
 
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-
-    get_workspace_dir_status(
-        &repo,
-        &commit,
-        &workspace_id,
-        &resource.path,
-        page_num,
-        page_size,
-    )
-}
-
-pub async fn diff_file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let workspace_id = path_param(&req, "workspace_id")?;
-
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-
-    // Need resource to have a branch
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    // Get the workspace
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
-
-    let diff_result =
-        index::workspaces::data_frames::diff(&repo, &commit, &workspace_id, resource.path.clone())?;
-    let diff = match diff_result {
-        DiffResult::Tabular(diff) => diff,
-        _ => {
-            return Err(OxenHttpError::BadRequest(
-                "Expected tabular diff result".into(),
-            ))
-        }
-    };
-    // TODO expensive clone
-    let diff_df = diff.contents.clone();
-    let diff_view = CompareTabular::from(diff);
-
-    // TODO: Oxen schema vs polars inferred schema
-
-    let diff_schema = Schema::from_polars(&diff_df.schema().clone());
-
-    let opts = DFOpts::empty();
-    let diff_json_df = JsonDataFrameViews::from_df_and_opts(diff_df, diff_schema, &opts);
-
-    let response = CompareTabularResponseWithDF {
-        data: diff_json_df,
-        dfs: diff_view,
+    let response = RemoteStagedStatusResponse {
         status: StatusMessage::resource_found(),
-        messages: vec![],
+        staged: RemoteStagedStatus::from_staged(
+            &workspace.workspace_repo,
+            &staged,
+            page_num,
+            page_size,
+        ),
     };
-
-    // The path to the actual file is just the working directory here...
-
     Ok(HttpResponse::Ok().json(response))
-}
-
-pub async fn diff_df(
-    req: HttpRequest,
-    query: web::Query<DFOptsQuery>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-    let workspace_id = path_param(&req, "workspace_id")?;
-
-    let mut opts = DFOpts::empty();
-    opts = df_opts_query::parse_opts(&query, &mut opts);
-
-    opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
-    opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
-
-    // Remote staged calls must be on a branch
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-    let _workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
-
-    let staged_db_path =
-        index::workspaces::data_frames::mods_db_path(&repo, &workspace_id, &resource.path);
-
-    let conn = df_db::get_connection(staged_db_path)?;
-
-    let diff_df = staged_df_db::df_diff(&conn)?;
-
-    let df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
-
-    let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
-
-    let resource = ResourceVersion {
-        path: resource.path.to_string_lossy().to_string(),
-        version: resource.version.to_string_lossy().to_string(),
-    };
-
-    let resource = JsonDataFrameViewResponse {
-        data_frame: df_views,
-        status: StatusMessage::resource_found(),
-        resource: Some(resource),
-        commit: None,
-        derived_resource: None,
-    };
-
-    Ok(HttpResponse::Ok().json(resource))
 }
 
 pub async fn get_file(
@@ -219,25 +106,17 @@ pub async fn get_file(
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
     let workspace_id = path_param(&req, "workspace_id")?;
-
-    // Remote staged calls must be on a branch
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-    let branch_repo = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
+    let workspace = index::workspaces::get(&repo, workspace_id)?;
+    let path = path_param(&req, "path")?;
 
     // The path in a workspace context is just the working path of the workspace repo
-    let path = branch_repo.path.join(resource.path);
+    let path = workspace.workspace_repo.path.join(path);
 
-    log::debug!("got staged file path {:?}", path);
+    log::debug!("got workspace file path {:?}", path);
 
+    // TODO: This probably isn't the best place for the resize logic
     let img_resize = query.into_inner();
-
     if img_resize.width.is_some() || img_resize.height.is_some() {
         let resized_path = util::fs::resized_path_for_staged_entry(
             repo,
@@ -253,8 +132,7 @@ pub async fn get_file(
 }
 
 async fn save_parts(
-    repo: &LocalRepository,
-    workspace_id: &str,
+    workspace: &Workspace,
     directory: &Path,
     mut payload: Multipart,
 ) -> Result<Vec<PathBuf>, Error> {
@@ -280,8 +158,8 @@ async fn save_parts(
 
                 log::debug!("Got uploaded file name: {upload_filename:?}");
 
-                let staging_dir = index::workspaces::workspace_dir(repo, workspace_id);
-                let full_dir = staging_dir.join(directory);
+                let workspace_dir = workspace.dir();
+                let full_dir = workspace_dir.join(directory);
 
                 if !full_dir.exists() {
                     std::fs::create_dir_all(&full_dir)?;
@@ -307,10 +185,6 @@ async fn save_parts(
     Ok(files)
 }
 
-fn get_content_type(req: &HttpRequest) -> Option<&str> {
-    req.headers().get("content-type")?.to_str().ok()
-}
-
 pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
@@ -318,37 +192,17 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-    log::debug!("stager::stage repo name {repo_name} -> {:?}", resource);
+    let path = PathBuf::from(path_param(&req, "path")?);
 
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
 
-    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id)
-        .join(OXEN_HIDDEN_DIR)
-        .join("WORKSPACE_COMMIT_ID");
-    let commit = if commit_id_file.exists() {
-        let commit_id = util::fs::read_from_path(&commit_id_file)?;
-        api::local::commits::get_by_id(&repo, &commit_id)?.unwrap()
-    } else {
-        api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap()
-    };
-
-    let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
-    log::debug!(
-        "stager::stage file repo {resource} -> staged repo path {:?}",
-        repo.path
-    );
-
-    let files = save_parts(&repo, &workspace_id, &resource.path, payload).await?;
+    let files = save_parts(&workspace, &path, payload).await?;
     let mut ret_files = vec![];
 
     for file in files.iter() {
-        log::debug!("stager::stage file {:?}", file);
-        let path = index::workspaces::files::add(&repo, &workspace, &commit, &workspace_id, file)?;
-        log::debug!("stager::stage ✅ success! staged file {:?}", path);
+        log::debug!("add_file file {:?}", file);
+        let path = index::workspaces::files::add(&workspace, file)?;
+        log::debug!("add_file ✅ success! staged file {:?}", path);
         ret_files.push(path);
     }
     Ok(HttpResponse::Ok().json(FilePathsResponse {
@@ -383,22 +237,9 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         }
     };
 
-    let commit_id_file = index::workspaces::workspace_dir(&repo, &workspace_id)
-        .join(OXEN_HIDDEN_DIR)
-        .join("WORKSPACE_COMMIT_ID");
-    let commit_id = util::fs::read_from_path(commit_id_file)?;
-    let commit = api::local::commits::get_by_id(&repo, &commit_id)?.unwrap();
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
 
-    let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id)?;
-
-    match index::workspaces::commit(
-        &repo,
-        &workspace,
-        &commit,
-        &workspace_id,
-        &data,
-        &branch_name,
-    ) {
+    match index::workspaces::commit(&workspace, &data, &branch_name) {
         Ok(commit) => {
             log::debug!("stager::commit ✅ success! commit {:?}", commit);
 
@@ -440,136 +281,24 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     }
 }
 
-pub async fn clear_modifications(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let workspace_id = path_param(&req, "workspace_id")?;
-    let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-
-    clear_staged_modifications_on_workspace(&repo, &commit, &workspace_id, &resource.path)
-}
-
 pub async fn delete_file(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let user_id = path_param(&req, "workspace_id")?;
-    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let path = PathBuf::from(path_param(&req, "path")?);
 
-    // Staging calls must be on a branch
-    let branch = resource
-        .branch
-        .clone()
-        .ok_or(OxenError::parsed_resource_not_found(resource.to_owned()))?;
-
-    // Get commit for branch head
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
-        .ok_or(OxenError::resource_not_found(branch.commit_id.clone()))?;
-
-    log::debug!(
-        "stager::delete_file repo name {repo_name}/{}",
-        resource.path.to_string_lossy()
-    );
+    let workspace = index::workspaces::get(&repo, user_id)?;
 
     // This may not be in the commit if it's added, so have to parse tabular-ness from the path.
-    // TODO: can we find the file / check if it's in the staging area?
-
-    if util::fs::is_tabular(&resource.path) {
-        index::workspaces::data_frames::restore(&repo, &commit, &user_id, &resource.path)?;
+    if util::fs::is_tabular(&path) {
+        index::workspaces::data_frames::restore(&workspace, &path)?;
+        Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+    } else if index::workspaces::files::has_file(&workspace, &path)? {
+        index::workspaces::files::delete_file(&workspace, &path)?;
         Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
     } else {
-        log::debug!("not tabular");
-        delete_staged_file_on_branch(&repo, &commit, &user_id, &resource.path)
+        Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
     }
-}
-
-fn clear_staged_modifications_on_workspace(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
-    path: &Path,
-) -> Result<HttpResponse, OxenHttpError> {
-    index::workspaces::init_or_get(repo, commit, workspace_id).unwrap();
-    match index::workspaces::data_frames::restore(repo, commit, workspace_id, path) {
-        Ok(_) => {
-            log::debug!("clear_staged_modifications_on_workspace success!");
-            Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
-        }
-        Err(err) => {
-            log::error!("unable to delete file {:?}. Err: {}", path, err);
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
-}
-
-fn delete_staged_file_on_branch(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
-    path: &Path,
-) -> Result<HttpResponse, OxenHttpError> {
-    log::debug!("delete_staged_file_on_branch()");
-
-    let workspace = index::workspaces::init_or_get(repo, commit, workspace_id).unwrap();
-    log::debug!("got workspace");
-    match index::workspaces::files::has_file(&workspace, path) {
-        Ok(true) => {
-            match index::workspaces::files::delete_file(&workspace, path) {
-                Ok(_) => {
-                    log::debug!("stager::delete_file success!");
-                    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
-                }
-                Err(err) => {
-                    log::error!("unable to delete file {:?}. Err: {}", path, err);
-                    Ok(HttpResponse::InternalServerError()
-                        .json(StatusMessage::internal_server_error()))
-                }
-            }
-        }
-        Ok(false) => {
-            log::error!("unable to find file {:?}", path);
-            Ok(HttpResponse::NotFound().json(StatusMessage::resource_not_found()))
-        }
-        Err(err) => {
-            log::error!("Error getting file by path {path:?} -> {err}");
-            Ok(HttpResponse::InternalServerError().json(StatusMessage::internal_server_error()))
-        }
-    }
-}
-
-fn get_workspace_dir_status(
-    repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
-    path: &Path,
-    page_num: usize,
-    page_size: usize,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let workspace = index::workspaces::init_or_get(repo, commit, workspace_id)?;
-
-    log::debug!(
-        "Got workspace status {:?} for path {:?}",
-        workspace_id,
-        path
-    );
-    let staged = index::workspaces::stager::status(repo, &workspace, commit, workspace_id, path)?;
-
-    staged.print_stdout();
-    let full_path = index::workspaces::workspace_dir(repo, workspace_id);
-    let workspace = LocalRepository::new(&full_path).unwrap();
-
-    let response = RemoteStagedStatusResponse {
-        status: StatusMessage::resource_found(),
-        staged: RemoteStagedStatus::from_staged(&workspace, &staged, page_num, page_size),
-    };
-    Ok(HttpResponse::Ok().json(response))
 }

@@ -7,7 +7,7 @@ use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::{ContentType, DataFrameSize};
+use crate::model::DataFrameSize;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::{fs, hasher};
 
@@ -207,8 +207,8 @@ pub fn add_col(
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
-
-    let new_row = parse_data_into_df(&data, ContentType::Json)?;
+    let data = serde_json::from_str(&data)?;
+    let new_row = parse_json_to_df(&data)?;
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
 }
@@ -219,33 +219,16 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     Ok(n_dupes)
 }
 
-pub fn parse_data_into_df(data: &str, content_type: ContentType) -> Result<DataFrame, OxenError> {
-    log::debug!("Parsing content into df: {content_type:?}\n{data}");
-    match content_type {
-        ContentType::Json => {
-            // getting an internal error if not jsonl, so do a quick check that it starts with a '{'
-            if !data.trim().starts_with('{') {
-                return Err(OxenError::basic_str(format!(
-                    "Invalid json content: {data}"
-                )));
-            }
+pub fn parse_json_to_df(data: &serde_json::Value) -> Result<DataFrame, OxenError> {
+    let data = serde_json::to_string(data)?;
+    if data == "{}" {
+        return Ok(DataFrame::default());
+    }
 
-            if data == "{}" {
-                return Ok(DataFrame::default());
-            }
-
-            let cursor = Cursor::new(data.as_bytes());
-            match JsonLineReader::new(cursor).finish() {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
-        _ => {
-            let err = format!("Unsupported content type: {content_type:?}");
-            Err(OxenError::basic_str(err))
-        }
+    let cursor = Cursor::new(data.as_bytes());
+    match JsonLineReader::new(cursor).finish() {
+        Ok(df) => Ok(df),
+        Err(err) => Err(OxenError::basic_str(format!("Error parsing json: {err}"))),
     }
 }
 

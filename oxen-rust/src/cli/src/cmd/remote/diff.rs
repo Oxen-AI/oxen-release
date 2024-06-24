@@ -30,8 +30,7 @@ impl RunCmd for RemoteDiffCmd {
         let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
-        let mut remote_diff =
-            command::remote::diff(&repository, opts.revision_1, &opts.path_1).await?;
+        let mut remote_diff = command::remote::diff(&repository, &opts.path_1).await?;
         DiffCmd::print_diff_result(&remote_diff)?;
         DiffCmd::maybe_save_diff_output(&mut remote_diff, opts.output)?;
 

@@ -36,7 +36,7 @@ impl RunCmd for RemoteDfCmd {
                         return Err(OxenError::basic_str("Must supply a DataFrame to process."));
                     };
                     let repository = LocalRepository::from_current_dir()?;
-                    match command::remote::df::index_dataset(&repository, path).await {
+                    match command::remote::df::index(&repository, path).await {
                         Ok(_) => return Ok(()),
                         Err(e) => return Err(e),
                     }

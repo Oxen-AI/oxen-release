@@ -139,7 +139,7 @@ pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenErro
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::index_dataset(&repository, path).await?;
+    command::remote::df::index(&repository, path).await?;
     Ok(())
 }
 
