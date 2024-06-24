@@ -407,6 +407,7 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
 
+            api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
 
             let df = api::remote::workspaces::data_frames::get(

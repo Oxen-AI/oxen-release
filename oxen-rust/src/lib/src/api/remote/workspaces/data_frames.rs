@@ -302,13 +302,9 @@ mod tests {
             let workspace_id = "some_workspace";
             let path = Path::new("annotations/train/bounding_box.csv");
 
-            let res = api::remote::workspaces::create(
-                &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                workspace_id,
-                path,
-            )
-            .await;
+            let res =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
             assert!(res.is_ok());
 
             let res = api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path)

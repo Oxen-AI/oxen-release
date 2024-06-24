@@ -34,8 +34,9 @@ pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Comm
 mod tests {
     // use std::path::Path;
 
-    // use crate::api;
+    use crate::api;
     use crate::command;
+    use crate::constants::DEFAULT_BRANCH_NAME;
     // use crate::config::UserConfig;
     // use crate::constants;
     use crate::error::OxenError;
@@ -55,15 +56,20 @@ mod tests {
                 // Remote stage row
                 let path = test::test_nlp_classification_csv();
 
+                // Create workspace
+                let workspace_id = "my_workspace";
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+
                 // Index the dataset
-                command::remote::df::index(&cloned_repo, &path).await?;
+                command::remote::df::index(&cloned_repo, workspace_id, &path).await?;
 
                 log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();
 
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
-                command::remote::df(&cloned_repo, &path, opts).await?;
+                command::remote::df(&cloned_repo, workspace_id, &path, opts).await?;
 
                 // Local add col
                 let full_path = cloned_repo.path.join(path);

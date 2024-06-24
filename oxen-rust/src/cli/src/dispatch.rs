@@ -124,22 +124,29 @@ Happy Mooooooving of data 🐂
     Ok(())
 }
 
-pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
+pub async fn remote_delete_row(
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+    row_id: &str,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::delete_row(&repository, path, uuid).await?;
+    command::remote::df::delete_row(&repository, workspace_id, path, row_id).await?;
 
     Ok(())
 }
 
-pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub async fn remote_index_dataset(
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::index(&repository, path).await?;
+    command::remote::df::index(&repository, workspace_id, path).await?;
     Ok(())
 }
 
@@ -521,14 +528,18 @@ fn maybe_display_types(entries: &PaginatedDirEntries) {
     }
 }
 
-pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+pub async fn remote_df(
+    workspace_id: &str,
+    input: impl AsRef<Path>,
+    opts: DFOpts,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repo)?;
     check_remote_version(host).await?;
 
-    command::remote::staged_df(&repo, input, opts).await?;
+    command::remote::staged_df(&repo, workspace_id, input, opts).await?;
 
     Ok(())
 }

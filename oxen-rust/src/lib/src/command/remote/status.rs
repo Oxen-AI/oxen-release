@@ -9,22 +9,21 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::api;
-use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::StagedData;
 use crate::model::{staged_data::StagedDataOpts, RemoteRepository, StagedEntry, StagedEntryStatus};
 
 pub async fn status(
     remote_repo: &RemoteRepository,
+    workspace_id: &str,
     directory: &Path,
     opts: &StagedDataOpts,
 ) -> Result<StagedData, OxenError> {
-    let workspace_id = UserConfig::identifier()?;
     let page_size = opts.limit;
     let page_num = opts.skip / page_size;
 
     let remote_status =
-        api::remote::workspaces::status(remote_repo, &workspace_id, directory, page_num, page_size)
+        api::remote::workspaces::status(remote_repo, workspace_id, directory, page_num, page_size)
             .await?;
 
     let mut status = StagedData::empty();

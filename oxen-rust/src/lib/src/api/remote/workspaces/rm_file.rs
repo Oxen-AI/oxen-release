@@ -28,7 +28,10 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
+            let workspace = api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let directory_name = "images";
             let path = test::test_img_file();
             let result = api::remote::workspaces::add_file(

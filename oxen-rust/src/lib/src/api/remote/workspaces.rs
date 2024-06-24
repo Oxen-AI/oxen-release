@@ -13,28 +13,23 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::workspaces::WorkspaceResponse;
+use crate::view::workspaces::{NewWorkspace, WorkspaceResponse};
+use crate::view::WorkspaceResponseView;
 use crate::view::{RemoteStagedStatus, RemoteStagedStatusResponse};
-use crate::view::{WorkspaceResponseView, WorkspaceView};
 
 pub async fn create(
     remote_repo: &RemoteRepository,
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
-    path: impl AsRef<Path>,
 ) -> Result<WorkspaceResponse, OxenError> {
     let branch_name = branch_name.as_ref();
     let workspace_id = workspace_id.as_ref();
-    let Some(path) = path.as_ref().to_str() else {
-        return Err(OxenError::basic_str("path must be a string"));
-    };
     let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
     log::debug!("create workspace {}\n", url);
 
-    let body = serde_json::to_string(&WorkspaceView {
+    let body = serde_json::to_string(&NewWorkspace {
         branch_name: branch_name.to_string(),
         workspace_id: workspace_id.to_string(),
-        path: path.to_string(),
     })?;
 
     let client = client::new_for_url(&url)?;
@@ -107,12 +102,10 @@ mod tests {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "main";
             let workspace_id = "test_workspace_id";
-            let path = "test_path";
-            let workspace = create(&remote_repo, branch_name, workspace_id, path).await?;
+            let workspace = create(&remote_repo, branch_name, workspace_id).await?;
 
             assert_eq!(workspace.branch_name, branch_name);
             assert_eq!(workspace.workspace_id, workspace_id);
-            assert_eq!(workspace.path, path);
 
             Ok(remote_repo)
         })
