@@ -229,9 +229,15 @@ mod tests {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let path = Path::new("annotations/train/bounding_box.csv");
 
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
             api::remote::workspaces::data_frames::put(
                 &remote_repo,
-                "some_workspace",
+                workspace_id,
                 path,
                 &serde_json::json!({"is_indexed": true}),
             )
@@ -239,7 +245,7 @@ mod tests {
 
             let res = api::remote::workspaces::data_frames::get(
                 &remote_repo,
-                "some_workspace",
+                workspace_id,
                 path,
                 DFOpts::empty(),
             )
@@ -256,14 +262,18 @@ mod tests {
     async fn test_list_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let path = Path::new("annotations/train/bounding_box.csv");
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
 
-            api::remote::workspaces::data_frames::index(&remote_repo, "some_workspace", path)
-                .await?;
+            api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path).await?;
 
             let res = api::remote::workspaces::data_frames::list(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                "some_workspace",
+                workspace_id,
             )
             .await?;
 
@@ -278,15 +288,19 @@ mod tests {
     async fn test_index_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let path = Path::new("annotations/train/bounding_box.csv");
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
 
-            let res =
-                api::remote::workspaces::data_frames::index(&remote_repo, "some_workspace", path)
-                    .await?;
+            let res = api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path)
+                .await?;
 
             assert_eq!(res.status, "success");
 
             let res =
-                api::remote::workspaces::data_frames::unindex(&remote_repo, "some_workspace", path)
+                api::remote::workspaces::data_frames::unindex(&remote_repo, workspace_id, path)
                     .await?;
 
             assert_eq!(res.status, "success");
@@ -329,6 +343,10 @@ mod tests {
             let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
             assert_eq!(branch.name, branch_name);
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
