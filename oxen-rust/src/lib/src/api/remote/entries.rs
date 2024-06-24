@@ -64,8 +64,12 @@ pub async fn upload_entries(
 
     log::debug!("Uploading to {}", branch_name);
 
-    // Stage all the files
-    let workspace_id = UserConfig::identifier()?;
+    // Create uniq workspace id
+    let workspace_id = uuid::Uuid::new_v4().to_string();
+    let workspace =
+        api::remote::workspaces::create(remote_repo, &branch_name, &workspace_id).await?;
+    assert_eq!(workspace.workspace_id, workspace_id);
+
     api::remote::workspaces::files::add_many(
         remote_repo,
         &workspace_id,

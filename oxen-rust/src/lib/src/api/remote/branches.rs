@@ -712,6 +712,10 @@ mod tests {
             api::remote::branches::lock(&remote_repo, DEFAULT_BRANCH_NAME).await?;
 
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
 
             // Use remote staging to commit without releasing lock (push releases lock)
             let labels_path = repo.path.join("labels.txt");

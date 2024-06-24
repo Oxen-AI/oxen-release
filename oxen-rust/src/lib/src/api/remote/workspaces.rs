@@ -131,6 +131,10 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &identifier).await;
+            assert!(workspace.is_ok());
+
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
@@ -163,6 +167,10 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
