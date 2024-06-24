@@ -181,3 +181,18 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }
+
+pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let file_path = PathBuf::from(path_param(&req, "path")?);
+    let workspace = index::workspaces::get(&repo, workspace_id)?;
+
+    index::workspaces::data_frames::restore(&workspace, file_path)?;
+
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
+}

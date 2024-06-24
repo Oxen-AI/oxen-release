@@ -161,7 +161,7 @@ pub async fn restore(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/workspaces/{workspace_id}/modifications/{file_name}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/resource/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("workspaces::data_frames::restore {}", url);
     let client = client::new_for_url(&url)?;
