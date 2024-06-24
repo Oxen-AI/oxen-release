@@ -172,6 +172,10 @@ mod tests {
 
             let directory_name = "images";
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let path = test::test_img_file();
             let result = api::remote::workspaces::files::add(
                 &remote_repo,
@@ -214,6 +218,10 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let directory_name = "data";
             let paths = vec![
                 test::test_img_file(),
@@ -260,6 +268,10 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let file_to_post = test::test_img_file();
             let directory_name = "data";
             let result = api::remote::workspaces::files::add(
@@ -334,6 +346,10 @@ mod tests {
 
             let directory_name = "tabular";
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let path = test::test_1k_parquet();
             let result = api::remote::workspaces::files::add(
                 &remote_repo,
@@ -376,6 +392,10 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let directory_name = "images";
             let path = test::test_img_file();
             let result = api::remote::workspaces::files::add(

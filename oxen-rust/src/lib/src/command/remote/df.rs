@@ -16,16 +16,17 @@ use crate::opts::DFOpts;
 use crate::view::StatusMessage;
 
 /// Interact with Remote DataFrames
-pub async fn df<P: AsRef<Path>>(
+pub async fn df(
     repo: &LocalRepository,
-    input: P,
+    workspace_id: &str,
+    input: impl AsRef<Path>,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
     if let Some(row) = &opts.add_row {
-        add_row(repo, input.as_ref(), row).await
+        add_row(repo, workspace_id, input.as_ref(), row).await
     } else if let Some(uuid) = &opts.delete_row {
-        delete_row(repo, input, uuid).await
+        delete_row(repo, workspace_id, input, uuid).await
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let output = opts.output.clone();
@@ -52,15 +53,16 @@ pub async fn df<P: AsRef<Path>>(
 // the "else" can be factored into a shared method
 pub async fn staged_df<P: AsRef<Path>>(
     repo: &LocalRepository,
+    workspace_id: &str,
     input: P,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     // Special case where we are writing data
     let identifier = UserConfig::identifier()?;
     if let Some(row) = &opts.add_row {
-        add_row(repo, input.as_ref(), row).await
+        add_row(repo, workspace_id, input.as_ref(), row).await
     } else if let Some(uuid) = &opts.delete_row {
-        delete_row(repo, input, uuid).await
+        delete_row(repo, workspace_id, input, uuid).await
     } else {
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let output = opts.output.clone();
@@ -90,6 +92,7 @@ pub async fn staged_df<P: AsRef<Path>>(
 
 pub async fn add_row(
     repo: &LocalRepository,
+    workspace_id: &str,
     path: &Path,
     data: &str,
 ) -> Result<DataFrame, OxenError> {
@@ -97,11 +100,8 @@ pub async fn add_row(
 
     // let data = format!(r#"{{"data": {}}}"#, data);
     let data = data.to_string();
-
-    // TODO: Pass in workspace id from CLI
-    let workspace_id = UserConfig::identifier()?;
     let (df, row_id) =
-        api::remote::workspaces::data_frames::rows::add(&remote_repo, &workspace_id, path, data)
+        api::remote::workspaces::data_frames::rows::add(&remote_repo, workspace_id, path, data)
             .await?;
 
     if let Some(row_id) = row_id {
@@ -114,17 +114,16 @@ pub async fn add_row(
 
 pub async fn delete_row(
     repository: &LocalRepository,
+    workspace_id: &str,
     path: impl AsRef<Path>,
-    uuid: &str,
+    row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-
-    let workspace_id = UserConfig::identifier()?;
     let df = api::remote::workspaces::data_frames::rows::delete(
         &remote_repo,
-        &workspace_id,
+        workspace_id,
         path.as_ref(),
-        uuid,
+        row_id,
     )
     .await?;
     Ok(df)
@@ -132,14 +131,14 @@ pub async fn delete_row(
 
 pub async fn get_row(
     repository: &LocalRepository,
+    workspace_id: &str,
     path: impl AsRef<Path>,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    let workspace_id = UserConfig::identifier()?;
     let df_json = api::remote::workspaces::data_frames::rows::get(
         &remote_repo,
-        &workspace_id,
+        workspace_id,
         path.as_ref(),
         row_id,
     )
@@ -151,9 +150,9 @@ pub async fn get_row(
 
 pub async fn index(
     repository: &LocalRepository,
+    workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<StatusMessage, OxenError> {
     let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    let workspace_id = UserConfig::identifier()?;
-    api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, path.as_ref()).await
+    api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path.as_ref()).await
 }

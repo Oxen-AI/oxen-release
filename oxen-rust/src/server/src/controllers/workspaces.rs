@@ -10,10 +10,10 @@ use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::{NewCommitBody, Workspace};
 use liboxen::util;
 use liboxen::view::remote_staged_status::RemoteStagedStatus;
-use liboxen::view::workspaces::WorkspaceResponse;
+use liboxen::view::workspaces::{NewWorkspace, WorkspaceResponse};
 use liboxen::view::{
     CommitResponse, FilePathsResponse, RemoteStagedStatusResponse, StatusMessage,
-    WorkspaceResponseView, WorkspaceView,
+    WorkspaceResponseView,
 };
 use liboxen::{api, constants, core::index};
 
@@ -37,7 +37,7 @@ pub async fn get_or_create(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let data: Result<WorkspaceView, serde_json::Error> = serde_json::from_str(&body);
+    let data: Result<NewWorkspace, serde_json::Error> = serde_json::from_str(&body);
     let data = match data {
         Ok(data) => data,
         Err(err) => {
@@ -62,7 +62,6 @@ pub async fn get_or_create(
         workspace: WorkspaceResponse {
             workspace_id,
             branch_name: branch.name,
-            path: data.path,
             commit,
         },
     }))

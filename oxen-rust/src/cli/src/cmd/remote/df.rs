@@ -20,6 +20,7 @@ impl RunCmd for RemoteDfCmd {
         // Setups the CLI args for the command
         Command::new(NAME)
         .about("Interact with remote data frames. Supported types: csv, tsv, ndjson, jsonl, parquet.")
+        .arg(Arg::new("WORKSPACE_ID").help("The workspace id to use."))
         .subcommand(
             Command::new("index")
                 .about("Index the data frame for querying.")
@@ -29,6 +30,9 @@ impl RunCmd for RemoteDfCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
+        let Some(workspace_id) = args.get_one::<String>("WORKSPACE_ID") else {
+            return Err(OxenError::basic_str("Must supply a workspace id."));
+        };
         if let Some(subcommand) = args.subcommand() {
             match subcommand {
                 ("index", sub_m) => {
@@ -36,7 +40,7 @@ impl RunCmd for RemoteDfCmd {
                         return Err(OxenError::basic_str("Must supply a DataFrame to process."));
                     };
                     let repository = LocalRepository::from_current_dir()?;
-                    match command::remote::df::index(&repository, path).await {
+                    match command::remote::df::index(&repository, workspace_id, path).await {
                         Ok(_) => return Ok(()),
                         Err(e) => return Err(e),
                     }

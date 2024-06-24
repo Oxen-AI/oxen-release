@@ -207,7 +207,7 @@ pub fn add_col(
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
-    let new_row = parse_str_to_df(&data)?;
+    let new_row = parse_str_to_df(data)?;
     log::debug!("add_row og df: {:?}", df);
     log::debug!("add_row new_row: {:?}", new_row);
     let df = df.vstack(&new_row).unwrap().lazy();
@@ -235,7 +235,7 @@ pub fn parse_str_to_df(data: impl AsRef<str>) -> Result<DataFrame, OxenError> {
 
 pub fn parse_json_to_df(data: &serde_json::Value) -> Result<DataFrame, OxenError> {
     let data = serde_json::to_string(data)?;
-    parse_str_to_df(&data)
+    parse_str_to_df(data)
 }
 
 fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {

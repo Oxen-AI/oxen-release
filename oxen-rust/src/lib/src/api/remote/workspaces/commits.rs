@@ -113,6 +113,7 @@ mod tests {
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
+            api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             let result = api::remote::workspaces::files::add_many(
                 &remote_repo,
                 &workspace_id,

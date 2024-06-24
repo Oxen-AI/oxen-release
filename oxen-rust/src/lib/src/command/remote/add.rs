@@ -177,21 +177,16 @@ mod tests {
 
                 // Index dataset
                 let workspace_id = "my_workspace";
-                api::remote::workspaces::create(
-                    &remote_repo,
-                    DEFAULT_BRANCH_NAME,
-                    &workspace_id,
-                    &path,
-                )
-                .await?;
-                api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path)
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+                api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
                     .await?;
 
                 let mut opts = DFOpts::empty();
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
                 // Grab ID from the row we just added
-                let df = command::remote::df(&cloned_repo, &path, opts).await?;
+                let df = command::remote::df(&cloned_repo, workspace_id, &path, opts).await?;
                 let uuid = match df.column(OXEN_ID_COL).unwrap().get(0).unwrap() {
                     AnyValue::String(s) => s.to_string(),
                     _ => panic!("Expected string"),
@@ -203,16 +198,18 @@ mod tests {
                     is_remote: true,
                     ..Default::default()
                 };
-                let status = command::remote::status(&remote_repo, directory, &opts).await?;
+                let status =
+                    command::remote::status(&remote_repo, workspace_id, directory, &opts).await?;
                 assert_eq!(status.staged_files.len(), 1);
 
                 // Delete it
                 let mut delete_opts = DFOpts::empty();
                 delete_opts.delete_row = Some(uuid);
-                command::remote::df(&cloned_repo, &path, delete_opts).await?;
+                command::remote::df(&cloned_repo, workspace_id, &path, delete_opts).await?;
 
                 // Now status should be empty
-                let status = command::remote::status(&remote_repo, directory, &opts).await?;
+                let status =
+                    command::remote::status(&remote_repo, workspace_id, directory, &opts).await?;
                 assert_eq!(status.staged_files.len(), 0);
 
                 Ok(repo_dir)
