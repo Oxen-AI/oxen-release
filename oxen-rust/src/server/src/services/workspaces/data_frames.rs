@@ -23,5 +23,9 @@ pub fn data_frames() -> Scope {
             "/resource/{path:.*}",
             web::put().to(controllers::workspaces::data_frames::put),
         )
+        .route(
+            "/resource/{path:.*}",
+            web::delete().to(controllers::workspaces::data_frames::delete),
+        )
         .service(rows::rows())
 }
