@@ -1,13 +1,11 @@
 pub mod commits;
 pub mod data_frames;
-pub mod diff;
 pub mod files;
 
 use std::path::Path;
 
 pub use commits::commit;
 pub use commits::commit_file;
-pub use diff::diff;
 
 use crate::api;
 use crate::api::remote::client;

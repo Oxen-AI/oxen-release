@@ -179,7 +179,6 @@ pub async fn add(
 
 pub async fn restore_row(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
     workspace_id: &str,
     path: &Path,
     row_id: &str,
@@ -191,9 +190,8 @@ pub async fn restore_row(
         )));
     };
 
-    let uri = format!(
-        "/workspaces/{workspace_id}/data_frames/rows/{row_id}/restore/{branch_name}/{file_path_str}"
-    );
+    let uri =
+        format!("/workspaces/{workspace_id}/data_frames/rows/{row_id}/restore/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -382,7 +380,7 @@ mod tests {
             assert_eq!(data.get("_oxen_diff_status").unwrap(), "added");
 
             // Restore the row
-            let _restore_resp = api::remote::workspaces::data_frames::rows::restore_row(&remote_repo, branch_name, &workspace_id, &path, row_id).await?;
+            let _restore_resp = api::remote::workspaces::data_frames::rows::restore_row(&remote_repo, &workspace_id, &path, row_id).await?;
 
             // Get the restored row
             let restored_row: JsonDataFrameRowResponse = api::remote::workspaces::data_frames::rows::get(&remote_repo, &workspace_id, &path, row_id).await?;

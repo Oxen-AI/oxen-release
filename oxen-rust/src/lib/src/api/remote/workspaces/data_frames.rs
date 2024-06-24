@@ -8,7 +8,7 @@ use crate::view::entry::PaginatedMetadataEntriesResponse;
 use std::path::Path;
 
 use crate::model::RemoteRepository;
-use crate::view::{JsonDataFrameViewResponse, StatusMessage};
+use crate::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 
 pub mod rows;
 
@@ -181,31 +181,33 @@ pub async fn restore(
 
 pub async fn diff(
     remote_repo: &RemoteRepository,
-    identifier: &str,
+    workspace_id: &str,
     path: &Path,
-) -> Result<StatusMessage, OxenError> {
+    page_num: usize,
+    page_size: usize,
+) -> Result<JsonDataFrameViews, OxenError> {
     let file_path_str = path.to_str().unwrap();
 
-    let uri = format!("/workspaces/{identifier}/data_frames/diff/{file_path_str}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/diff/{file_path_str}?page={page_num}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+            log::debug!("diff got body: {}", body);
+            let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
-                Ok(response) => Ok(response),
-                Err(err) => {
-                    let err = format!(
-                        "api::workspaces::diff error parsing from {url}\n\nErr {err:?} \n\n{body}"
-                    );
-                    Err(OxenError::basic_str(err))
-                }
+                Ok(data) => Ok(data.data_frame),
+
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "api::staging::diff error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                ))),
             }
         }
         Err(err) => {
-            let err = format!("api::workspaces::diff Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::diff Request failed: {url}\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -220,7 +222,6 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
-    use crate::model::diff::DiffResult;
     use crate::opts::DFOpts;
     use crate::test;
 
@@ -326,10 +327,16 @@ mod tests {
 
             assert_eq!(res.status, "success");
 
-            let res = api::remote::workspaces::data_frames::diff(&remote_repo, workspace_id, path)
-                .await?;
+            let res = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                workspace_id,
+                path,
+                1,
+                100,
+            )
+            .await;
 
-            assert_eq!(res.status, "success");
+            assert!(res.is_ok());
 
             Ok(remote_repo)
         })
@@ -374,7 +381,7 @@ mod tests {
 
 
             // Make sure both got staged
-            let diff = api::remote::workspaces::diff(
+            let diff = api::remote::workspaces::data_frames::diff(
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -383,14 +390,8 @@ mod tests {
             ).await?;
 
             log::debug!("Got this diff {:?}", diff);
+            assert_eq!(diff.view.size.height, 2);
 
-            match diff {
-                DiffResult::Tabular(tabular_diff) => {
-                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
-                    assert_eq!(added_rows, 2);
-                }
-                _ => panic!("Expected tabular diff result"),
-            }
             // Delete result_2
             let result_delete = api::remote::workspaces::data_frames::restore(
                 &remote_repo,
@@ -400,20 +401,134 @@ mod tests {
             assert!(result_delete.is_ok());
 
             // Should be cleared
-            let diff = api::remote::workspaces::diff(
+            let diff = api::remote::workspaces::data_frames::diff(
                 &remote_repo,
                 &workspace_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
             ).await?;
-            match diff {
-                DiffResult::Tabular(tabular_diff) => {
-                    let added_rows = tabular_diff.summary.modifications.row_counts.added;
-                    assert_eq!(added_rows, 0);
-                }
-                _ => panic!("Expected tabular diff result."),
-            }
+            assert_eq!(diff.view.size.height, 0);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_modified_dataframe() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(branch.name, branch_name);
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let directory = Path::new("annotations").join("train");
+            let path = directory.join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::workspaces::data_frames::index(
+                &remote_repo,
+                &workspace_id,
+                &path
+            ).await?;
+
+            api::remote::workspaces::data_frames::rows::add(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                data.to_string()
+            ).await?;
+
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+
+            assert_eq!(diff.view.size.height, 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_delete_row_from_modified_dataframe() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(branch.name, branch_name);
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let directory = Path::new("annotations").join("train");
+            let path = directory.join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+            let (_df_1, _row_id_1) = api::remote::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    data.to_string()
+                ).await?;
+
+            let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            let (_df_2, row_id_2) = api::remote::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    data.to_string(),
+                ).await?;
+
+            // Make sure both got staged
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+
+            assert_eq!(diff.view.size.height, 2);
+
+            let uuid_2 = row_id_2.unwrap();
+            // Delete result_2
+            let result_delete = api::remote::workspaces::data_frames::rows::delete(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                &uuid_2
+            ).await;
+            assert!(result_delete.is_ok());
+
+            // Make there is only one left
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+            assert_eq!(diff.view.size.height, 1);
 
             Ok(remote_repo)
         })

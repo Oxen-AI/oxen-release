@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use clap::Arg;
 use clap::Command;
 
 use liboxen::command;
@@ -20,19 +21,27 @@ impl RunCmd for RemoteDiffCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        DiffCmd.args()
+        DiffCmd.args().arg(
+            Arg::new("workspace_id")
+                .long("workspace_id")
+                .short('w')
+                .help("The workspace to compare against.")
+                .action(clap::ArgAction::Set),
+        )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         let opts = DiffCmd::parse_args(args);
+        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+            return Err(OxenError::basic_str("Must supply a workspace id."));
+        };
 
         let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
-        let mut remote_diff = command::remote::diff(&repository, &opts.path_1).await?;
-        DiffCmd::print_diff_result(&remote_diff)?;
-        DiffCmd::maybe_save_diff_output(&mut remote_diff, opts.output)?;
+        let remote_diff = command::remote::diff(&repository, workspace_id, &opts.path_1).await?;
+        println!("{:?}", remote_diff);
 
         // TODO: Allow them to save a remote diff to disk
 
