@@ -63,8 +63,13 @@ impl Workspace {
         let workspace_id = workspace_id.as_ref();
         let workspace_dir = workspace_dir(base_repo, workspace_id);
         let oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
-        if !oxen_dir.exists() {
-            log::debug!("index::workspaces::create already have oxen repo directory");
+        log::debug!("index::workspaces::create called! {:?}", oxen_dir);
+
+        if oxen_dir.exists() {
+            log::debug!(
+                "index::workspaces::create already have oxen repo directory {:?}",
+                oxen_dir
+            );
             return Err(OxenError::basic_str(format!(
                 "Workspace {} already exists",
                 workspace_id
@@ -97,9 +102,9 @@ impl Workspace {
         workspace_dir: &Path,
     ) -> Result<LocalRepository, OxenError> {
         let oxen_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
-        let staging_oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
-        log::debug!("Creating staging_oxen_dir {staging_oxen_dir:?}");
-        util::fs::create_dir_all(&staging_oxen_dir)?;
+        let workspace_hidden_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
+        log::debug!("init_workspace_repo {workspace_hidden_dir:?}");
+        util::fs::create_dir_all(&workspace_hidden_dir)?;
 
         let dirs_to_copy = vec![
             constants::COMMITS_DIR,
@@ -111,13 +116,13 @@ impl Workspace {
 
         for dir in dirs_to_copy {
             let oxen_dir = oxen_hidden_dir.join(dir);
-            let workspace_dir = staging_oxen_dir.join(dir);
+            let target_dir = workspace_hidden_dir.join(dir);
 
-            log::debug!("Copying {dir} dir {oxen_dir:?} -> {workspace_dir:?}");
+            log::debug!("init_workspace_repo copying {dir} dir {oxen_dir:?} -> {target_dir:?}");
             if oxen_dir.is_dir() {
-                util::fs::copy_dir_all(oxen_dir, workspace_dir)?;
+                util::fs::copy_dir_all(oxen_dir, target_dir)?;
             } else {
-                util::fs::copy(oxen_dir, workspace_dir)?;
+                util::fs::copy(oxen_dir, target_dir)?;
             }
         }
 
