@@ -15,17 +15,15 @@ use std::path::Path;
 
 pub async fn diff(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
-    identifier: &str,
+    workspace_id: &str,
     path: impl AsRef<Path>,
     page: usize,
     page_size: usize,
 ) -> Result<DiffResult, OxenError> {
     let path_str = path.as_ref().to_str().unwrap();
-    log::debug!("sending this identifier for remote diff: {}", identifier);
-    let uri = format!(
-        "/workspaces/{identifier}/diff/{branch_name}/{path_str}?page={page}&page_size={page_size}"
-    );
+    log::debug!("sending this workspace_id to diff: {}", workspace_id);
+    let uri =
+        format!("/workspaces/{workspace_id}/diff/{path_str}?page={page}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -118,8 +116,6 @@ mod tests {
     use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
     use crate::model::diff::DiffResult;
-    use crate::model::entry::mod_entry::ModType;
-    use crate::model::ContentType;
     use crate::test;
 
     use std::path::Path;
@@ -130,29 +126,29 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
             assert_eq!(branch.name, branch_name);
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::workspaces::data_frames::put(&remote_repo, branch_name,&identifier, &path, true).await?;
-
-            api::remote::workspaces::data_frames::rows::create_row(
+            api::remote::workspaces::data_frames::index(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
+                &path
+            ).await?;
+
+            api::remote::workspaces::data_frames::rows::add(
+                &remote_repo,
+                &workspace_id,
                 &path,
-                data.to_string(),
-                ContentType::Json,
-                ModType::Append
+                data.to_string()
             ).await?;
 
             let diff = api::remote::workspaces::diff(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
@@ -183,41 +179,34 @@ mod tests {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
             assert_eq!(branch.name, branch_name);
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
             let path = directory.join("bounding_box.csv");
             let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
 
-            api::remote::workspaces::data_frames::put(&remote_repo, branch_name,&identifier, &path, true).await?;
+            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
 
-            let (_df_1, _row_id_1) = api::remote::workspaces::data_frames::rows::create_row(
+            let (_df_1, _row_id_1) = api::remote::workspaces::data_frames::rows::add(
                     &remote_repo,
-                    branch_name,
-                    &identifier,
+                    &workspace_id,
                     &path,
-                    data.to_string(),
-                    ContentType::Json,
-                    ModType::Append
+                    data.to_string()
                 ).await?;
 
             let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-            let (_df_2, row_id_2) = api::remote::workspaces::data_frames::rows::create_row(
+            let (_df_2, row_id_2) = api::remote::workspaces::data_frames::rows::add(
                     &remote_repo,
-                    branch_name,
-                    &identifier,
+                    &workspace_id,
                     &path,
                     data.to_string(),
-                    ContentType::Json,
-                    ModType::Append
                 ).await?;
 
             // Make sure both got staged
             let diff = api::remote::workspaces::diff(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE
@@ -234,10 +223,9 @@ mod tests {
 
             let uuid_2 = row_id_2.unwrap();
             // Delete result_2
-            let result_delete = api::remote::workspaces::data_frames::rows::delete_row(
+            let result_delete = api::remote::workspaces::data_frames::rows::delete(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
                 &path,
                 &uuid_2
             ).await;
@@ -246,8 +234,7 @@ mod tests {
             // Make there is only one left
             let diff = api::remote::workspaces::diff(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
                 &path,
                 DEFAULT_PAGE_NUM,
                 DEFAULT_PAGE_SIZE

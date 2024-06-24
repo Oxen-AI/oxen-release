@@ -107,16 +107,15 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let directory_name = "data";
             let paths = vec![
                 test::test_img_file(),
                 test::test_img_file_with_name("cole_anthony.jpeg"),
             ];
-            let result = api::remote::workspaces::add_files(
+            let result = api::remote::workspaces::files::add_many(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
                 directory_name,
                 paths,
             )
@@ -129,7 +128,7 @@ mod tests {
                 email: "test@oxen.ai".to_string(),
             };
             let commit =
-                api::remote::workspaces::commit(&remote_repo, branch_name, &identifier, &body)
+                api::remote::workspaces::commit(&remote_repo, branch_name, &workspace_id, &body)
                     .await?;
 
             let remote_commit = api::remote::commits::get_by_id(&remote_repo, &commit.id).await?;
