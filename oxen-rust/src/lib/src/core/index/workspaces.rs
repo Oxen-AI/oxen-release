@@ -30,6 +30,28 @@ pub fn create(
     Workspace::create(base_repo, commit, workspace_id)
 }
 
+pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
+    let workspace_id = workspace.id.to_string();
+    let workspace_dir = workspace.dir();
+    if !workspace_dir.exists() {
+        return Err(OxenError::workspace_not_found(workspace_id.into()));
+    }
+
+    log::debug!(
+        "workspace::delete cleaning up workspace dir: {:?}",
+        workspace_dir
+    );
+    match util::fs::remove_dir_all(&workspace_dir) {
+        Ok(_) => log::debug!(
+            "workspace::delete removed workspace dir: {:?}",
+            workspace_dir
+        ),
+        Err(e) => log::error!("workspace::delete error removing workspace dir: {:?}", e),
+    }
+
+    Ok(())
+}
+
 pub fn commit(
     workspace: &Workspace,
     new_commit: &NewCommitBody,
@@ -69,7 +91,6 @@ pub fn commit(
         )));
     }
 
-    let workspace_dir = workspace.dir();
     let status = status_for_workspace(workspace)?;
 
     log::debug!("got branch status: {:#?}", &status);
@@ -90,14 +111,8 @@ pub fn commit(
     let commit = commit_writer.commit_workspace(workspace, &branch, &new_commit, &status)?;
     api::local::branches::update(repo, &branch.name, &commit.id)?;
 
-    log::debug!(
-        "commit_staged cleaning up workspace dir: {:?}",
-        workspace_dir
-    );
-    match util::fs::remove_dir_all(&workspace_dir) {
-        Ok(_) => log::debug!("commit_staged: removed workspace dir: {:?}", workspace_dir),
-        Err(e) => log::error!("commit_staged: error removing workspace dir: {:?}", e),
-    }
+    // Cleanup workspace on commit
+    delete(workspace)?;
 
     Ok(commit)
 }

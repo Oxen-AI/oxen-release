@@ -48,6 +48,28 @@ pub async fn create(
     }
 }
 
+pub async fn delete(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+) -> Result<WorkspaceResponse, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let url = api::endpoint::url_from_repo(remote_repo, &format!("/workspaces/{workspace_id}"))?;
+    log::debug!("delete workspace {}\n", url);
+
+    let client = client::new_for_url(&url)?;
+    let res = client.delete(&url).send().await?;
+
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("delete workspace got body: {}", body);
+    let response: Result<WorkspaceResponseView, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.workspace),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
+    }
+}
+
 pub async fn status(
     remote_repo: &RemoteRepository,
     workspace_id: &str,
@@ -97,13 +119,29 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_workspace() -> Result<(), OxenError> {
-        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "main";
             let workspace_id = "test_workspace_id";
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
 
-            assert_eq!(workspace.branch_name, branch_name);
             assert_eq!(workspace.workspace_id, workspace_id);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_delete_workspace() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+            let branch_name = "main";
+            let workspace_id = "test_workspace_id";
+            let workspace = create(&remote_repo, branch_name, workspace_id).await?;
+
+            assert_eq!(workspace.workspace_id, workspace_id);
+
+            let res = delete(&remote_repo, workspace_id).await;
+            assert!(res.is_ok());
 
             Ok(remote_repo)
         })
