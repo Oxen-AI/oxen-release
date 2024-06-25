@@ -327,7 +327,7 @@ mod tests {
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
                 &workspace_id,
                 &directory,
