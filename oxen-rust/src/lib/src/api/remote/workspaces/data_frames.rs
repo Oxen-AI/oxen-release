@@ -5,6 +5,7 @@ use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::opts::DFOpts;
 use crate::view::entry::PaginatedMetadataEntriesResponse;
+use crate::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use std::path::Path;
 
 use crate::model::RemoteRepository;
@@ -22,7 +23,7 @@ pub async fn get(
     workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
     opts: DFOpts,
-) -> Result<JsonDataFrameViewResponse, OxenError> {
+) -> Result<WorkspaceJsonDataFrameViewResponse, OxenError> {
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
     let Some(file_path_str) = path.to_str() else {
@@ -40,7 +41,7 @@ pub async fn get(
     match client.get(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
+            let response: Result<WorkspaceJsonDataFrameViewResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
@@ -56,6 +57,16 @@ pub async fn get(
         }
     }
 }
+
+pub async fn is_indexed(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &Path,
+) -> Result<bool, OxenError> {
+    let res = get(remote_repo, workspace_id, path, DFOpts::empty()).await?;
+    Ok(res.is_indexed)
+}
+
 pub async fn list(
     remote_repo: &RemoteRepository,
     branch_name: &str,
