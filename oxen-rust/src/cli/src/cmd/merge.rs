@@ -12,7 +12,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "merge";
 pub struct MergeCmd;
 
-
 #[async_trait]
 impl RunCmd for MergeCmd {
     fn name(&self) -> &str {
@@ -35,7 +34,7 @@ impl RunCmd for MergeCmd {
         let repo_dir = env::current_dir().unwrap();
         let repository = LocalRepository::from_dir(&repo_dir)?;
         check_repo_migration_needed(&repository)?;
-    
+
         command::merge(&repository, branch)?;
         Ok(())
     }

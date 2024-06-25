@@ -9,7 +9,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "load";
 pub struct LoadCmd;
 
-
 #[async_trait]
 impl RunCmd for LoadCmd {
     fn name(&self) -> &str {
@@ -37,12 +36,8 @@ impl RunCmd for LoadCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Match on both SRC_PATH and DEST_PATH
-        let src_path_str = args
-           .get_one::<String>("SRC_PATH")
-           .expect("required");
-        let dest_path_str = args
-            .get_one::<String>("DEST_PATH")
-            .expect("required");
+        let src_path_str = args.get_one::<String>("SRC_PATH").expect("required");
+        let dest_path_str = args.get_one::<String>("DEST_PATH").expect("required");
         let no_working_dir = args.get_flag("no-working-dir");
 
         let src_path = Path::new(src_path_str);

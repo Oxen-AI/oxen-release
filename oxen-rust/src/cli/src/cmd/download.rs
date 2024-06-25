@@ -1,19 +1,18 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::error::OxenError;
 use liboxen::api;
+use liboxen::error::OxenError;
 use std::path::PathBuf;
 
 use liboxen::command;
 use liboxen::opts::DownloadOpts;
 
-use liboxen::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::helpers::check_remote_version_blocking;
+use liboxen::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "download";
 pub struct DownloadCmd;
-
 
 #[async_trait]
 impl RunCmd for DownloadCmd {

@@ -11,7 +11,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "commit-cache";
 pub struct CommitCacheCmd;
 
-
 #[async_trait]
 impl RunCmd for CommitCacheCmd {
     fn name(&self) -> &str {
@@ -43,9 +42,9 @@ impl RunCmd for CommitCacheCmd {
         // Parse args
         let path_str = args.get_one::<String>("PATH").expect("required");
         let path = Path::new(path_str);
-    
+
         let force = args.get_flag("force");
-    
+
         // Call into liboxen
         if args.get_flag("all") {
             match command::commit_cache::compute_cache_on_all_repos(path, force).await {
@@ -57,15 +56,17 @@ impl RunCmd for CommitCacheCmd {
             }
         } else {
             let revision = args.get_one::<String>("REVISION").map(String::from);
-    
+
             match LocalRepository::new(path) {
-                Ok(repo) => match command::commit_cache::compute_cache(&repo, revision, force).await {
-                    Ok(_) => Ok(()),
-                    Err(err) => {
-                        println!("Err: {err}");
-                        Err(err)
+                Ok(repo) => {
+                    match command::commit_cache::compute_cache(&repo, revision, force).await {
+                        Ok(_) => Ok(()),
+                        Err(err) => {
+                            println!("Err: {err}");
+                            Err(err)
+                        }
                     }
-                },
+                }
                 Err(err) => {
                     println!("Err: {err}");
                     Err(err)
