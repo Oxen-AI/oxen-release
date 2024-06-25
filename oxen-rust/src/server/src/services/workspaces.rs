@@ -10,37 +10,30 @@ pub fn workspace() -> Scope {
         .route("", web::put().to(controllers::workspaces::get_or_create))
         .service(
             web::scope("/{workspace_id}")
+                .route("", web::delete().to(controllers::workspaces::delete))
                 .route(
-                    "/status/{resource:.*}",
+                    "/status/{path:.*}",
                     web::get().to(controllers::workspaces::status_dir),
                 )
                 .route(
-                    "/entries/{resource:.*}",
+                    "/entries/{path:.*}",
                     web::post().to(controllers::workspaces::add_file),
                 )
                 .route(
-                    "/entries/{resource:.*}",
+                    "/entries/{path:.*}",
                     web::delete().to(controllers::workspaces::delete_file),
                 )
                 .route(
-                    "/file/{resource:.*}",
+                    "/file/{path:.*}",
                     web::get().to(controllers::workspaces::get_file),
                 )
                 .route(
-                    "/file/{resource:.*}",
+                    "/file/{path:.*}",
                     web::post().to(controllers::workspaces::add_file),
                 )
                 .route(
-                    "/file/{resource:.*}",
+                    "/file/{path:.*}",
                     web::delete().to(controllers::workspaces::delete_file),
-                )
-                .route(
-                    "/diff/{resource:.*}",
-                    web::get().to(controllers::workspaces::diff_file),
-                )
-                .route(
-                    "/modifications/{resource:.*}",
-                    web::delete().to(controllers::workspaces::clear_modifications),
                 )
                 .route(
                     "/commit/{branch:.*}",

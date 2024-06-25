@@ -8,7 +8,7 @@ use crate::view::entry::PaginatedMetadataEntriesResponse;
 use std::path::Path;
 
 use crate::model::RemoteRepository;
-use crate::view::{JsonDataFrameViewResponse, StatusMessage};
+use crate::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 
 pub mod rows;
 
@@ -17,21 +17,23 @@ struct PutParam {
     is_indexed: bool,
 }
 
-pub async fn get_by_resource(
+pub async fn get(
     remote_repo: &RemoteRepository,
-    branch_name: impl AsRef<str>,
-    identifier: impl AsRef<str>,
+    workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
     opts: DFOpts,
 ) -> Result<JsonDataFrameViewResponse, OxenError> {
-    let branch_name = branch_name.as_ref();
-    let identifier = identifier.as_ref();
+    let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
-    let file_path_str = path.to_str().unwrap();
+    let Some(file_path_str) = path.to_str() else {
+        return Err(OxenError::basic_str(format!(
+            "Path must be a string: {:?}",
+            path
+        )));
+    };
     let query_str = opts.to_http_query_params();
-    let uri = format!(
-        "/workspaces/{identifier}/data_frames/resource/{branch_name}/{file_path_str}?{query_str}"
-    );
+    let uri =
+        format!("/workspaces/{workspace_id}/data_frames/resource/{file_path_str}?{query_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -43,24 +45,23 @@ pub async fn get_by_resource(
             match response {
                 Ok(response) => Ok(response),
                 Err(err) => {
-                    let err = format!("api::workspaces::get_by_resource error parsing from {url}\n\nErr {err:?} \n\n{body}");
+                    let err = format!("workspaces::data_frames::get error parsing from {url}\n\nErr {err:?} \n\n{body}");
                     Err(OxenError::basic_str(err))
                 }
             }
         }
         Err(err) => {
-            let err =
-                format!("api::workspaces::get_by_resource Request failed: {url}\n\nErr {err:?}");
+            let err = format!("workspaces::data_frames::get Request failed: {url}\n\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
 }
-pub async fn get_by_branch(
+pub async fn list(
     remote_repo: &RemoteRepository,
     branch_name: &str,
-    identifier: &str,
+    workspace_id: &str,
 ) -> Result<PaginatedMetadataEntriesResponse, OxenError> {
-    let uri = format!("/workspaces/{identifier}/data_frames/branch/{branch_name}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/branch/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -85,22 +86,52 @@ pub async fn get_by_branch(
     }
 }
 
+pub async fn index(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &Path,
+) -> Result<StatusMessage, OxenError> {
+    put(
+        remote_repo,
+        workspace_id,
+        path,
+        &serde_json::json!({"is_indexed": true}),
+    )
+    .await
+}
+
+pub async fn unindex(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &Path,
+) -> Result<StatusMessage, OxenError> {
+    put(
+        remote_repo,
+        workspace_id,
+        path,
+        &serde_json::json!({"is_indexed": false}),
+    )
+    .await
+}
+
 pub async fn put(
     remote_repo: &RemoteRepository,
-    branch_name: impl AsRef<str>,
-    identifier: impl AsRef<str>,
+    workspace_id: impl AsRef<str>,
     path: impl AsRef<Path>,
-    is_indexed: bool,
+    data: &serde_json::Value,
 ) -> Result<StatusMessage, OxenError> {
-    let branch_name = branch_name.as_ref();
-    let identifier = identifier.as_ref();
+    let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
-    let file_path_str = path.to_str().unwrap();
+    let Some(file_path_str) = path.to_str() else {
+        return Err(OxenError::basic_str(format!(
+            "Path must be a string: {:?}",
+            path
+        )));
+    };
 
-    let uri =
-        format!("/workspaces/{identifier}/data_frames/resource/{branch_name}/{file_path_str}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/resource/{file_path_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let params = serde_json::to_string(&PutParam { is_indexed })?;
+    let params = serde_json::to_string(data)?;
 
     let client = client::new_for_url(&url)?;
     match client.put(&url).body(params).send().await {
@@ -124,34 +155,59 @@ pub async fn put(
     }
 }
 
+pub async fn restore(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let file_name = path.as_ref().to_string_lossy();
+    let uri = format!("/workspaces/{workspace_id}/data_frames/resource/{file_name}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("workspaces::data_frames::restore {}", url);
+    let client = client::new_for_url(&url)?;
+    match client.delete(&url).send().await {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            log::debug!("workspaces::data_frames::restore got body: {}", body);
+            Ok(())
+        }
+        Err(err) => {
+            let err =
+                format!("workspaces::data_frames::restore Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 pub async fn diff(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
-    identifier: &str,
+    workspace_id: &str,
     path: &Path,
-) -> Result<StatusMessage, OxenError> {
+    page_num: usize,
+    page_size: usize,
+) -> Result<JsonDataFrameViews, OxenError> {
     let file_path_str = path.to_str().unwrap();
 
-    let uri = format!("/workspaces/{identifier}/data_frames/diff/{branch_name}/{file_path_str}");
+    let uri = format!("/workspaces/{workspace_id}/data_frames/diff/{file_path_str}?page={page_num}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
-            let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
+            log::debug!("diff got body: {}", body);
+            let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
+                serde_json::from_str(&body);
             match response {
-                Ok(response) => Ok(response),
-                Err(err) => {
-                    let err = format!(
-                        "api::workspaces::diff error parsing from {url}\n\nErr {err:?} \n\n{body}"
-                    );
-                    Err(OxenError::basic_str(err))
-                }
+                Ok(data) => Ok(data.data_frame),
+
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "api::staging::diff error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+                ))),
             }
         }
         Err(err) => {
-            let err = format!("api::workspaces::diff Request failed: {url}\n\nErr {err:?}");
+            let err = format!("api::staging::diff Request failed: {url}\nErr {err:?}");
             Err(OxenError::basic_str(err))
         }
     }
@@ -163,6 +219,8 @@ mod tests {
     use std::path::Path;
 
     use crate::api;
+    use crate::config::UserConfig;
+    use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_PAGE_NUM, DEFAULT_PAGE_SIZE};
     use crate::error::OxenError;
     use crate::opts::DFOpts;
     use crate::test;
@@ -170,22 +228,25 @@ mod tests {
     #[tokio::test]
     async fn test_get_by_resource() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let name = "main";
             let path = Path::new("annotations/train/bounding_box.csv");
+
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
 
             api::remote::workspaces::data_frames::put(
                 &remote_repo,
-                name,
-                "some_workspace",
+                workspace_id,
                 path,
-                true,
+                &serde_json::json!({"is_indexed": true}),
             )
             .await?;
 
-            let res = api::remote::workspaces::data_frames::get_by_resource(
+            let res = api::remote::workspaces::data_frames::get(
                 &remote_repo,
-                name,
-                "some_workspace",
+                workspace_id,
                 path,
                 DFOpts::empty(),
             )
@@ -199,24 +260,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_get_by_branch() -> Result<(), OxenError> {
+    async fn test_list_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let name = "main";
             let path = Path::new("annotations/train/bounding_box.csv");
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
 
-            api::remote::workspaces::data_frames::put(
-                &remote_repo,
-                name,
-                "some_workspace",
-                path,
-                true,
-            )
-            .await?;
+            api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path).await?;
 
-            let res = api::remote::workspaces::data_frames::get_by_branch(
+            let res = api::remote::workspaces::data_frames::list(
                 &remote_repo,
-                name,
-                "some_workspace",
+                DEFAULT_BRANCH_NAME,
+                workspace_id,
             )
             .await?;
 
@@ -228,30 +286,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_put() -> Result<(), OxenError> {
+    async fn test_index_workspace_data_frames() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let name = "main";
             let path = Path::new("annotations/train/bounding_box.csv");
+            let workspace_id = "some_workspace";
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
 
-            let res = api::remote::workspaces::data_frames::put(
-                &remote_repo,
-                name,
-                "some_workspace",
-                path,
-                true,
-            )
-            .await?;
+            let res = api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path)
+                .await?;
 
             assert_eq!(res.status, "success");
 
-            let res = api::remote::workspaces::data_frames::put(
-                &remote_repo,
-                name,
-                "some_workspace",
-                path,
-                false,
-            )
-            .await?;
+            let res =
+                api::remote::workspaces::data_frames::unindex(&remote_repo, workspace_id, path)
+                    .await?;
 
             assert_eq!(res.status, "success");
 
@@ -263,29 +314,221 @@ mod tests {
     #[tokio::test]
     async fn test_data_frame_diff() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
-            let name = "main";
+            let workspace_id = "some_workspace";
             let path = Path::new("annotations/train/bounding_box.csv");
 
-            let res = api::remote::workspaces::data_frames::put(
-                &remote_repo,
-                name,
-                "some_workspace",
-                path,
-                true,
-            )
-            .await?;
+            let res =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, workspace_id)
+                    .await;
+            assert!(res.is_ok());
+
+            let res = api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path)
+                .await?;
 
             assert_eq!(res.status, "success");
 
             let res = api::remote::workspaces::data_frames::diff(
                 &remote_repo,
-                name,
-                "some_workspace",
+                workspace_id,
                 path,
+                1,
+                100,
             )
-            .await?;
+            .await;
 
-            assert_eq!(res.status, "success");
+            assert!(res.is_ok());
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_restore_modified_dataframe() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(branch.name, branch_name);
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let directory = Path::new("annotations").join("train");
+            let path = directory.join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+            let result_1 = api::remote::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    data.to_string()
+                ).await;
+            assert!(result_1.is_ok());
+
+            let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            let result_2 = api::remote::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    data.to_string(),
+                ).await;
+            assert!(result_2.is_ok());
+
+
+            // Make sure both got staged
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+
+            log::debug!("Got this diff {:?}", diff);
+            assert_eq!(diff.view.size.height, 2);
+
+            // Delete result_2
+            let result_delete = api::remote::workspaces::data_frames::restore(
+                &remote_repo,
+                &workspace_id,
+                &path,
+            ).await;
+            assert!(result_delete.is_ok());
+
+            // Should be cleared
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+            assert_eq!(diff.view.size.height, 0);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_modified_dataframe() -> Result<(), OxenError> {
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(branch.name, branch_name);
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let directory = Path::new("annotations").join("train");
+            let path = directory.join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::workspaces::data_frames::index(
+                &remote_repo,
+                &workspace_id,
+                &path
+            ).await?;
+
+            api::remote::workspaces::data_frames::rows::add(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                data.to_string()
+            ).await?;
+
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+
+            assert_eq!(diff.view.size.height, 1);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_diff_delete_row_from_modified_dataframe() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_from_or_get(&remote_repo, branch_name, DEFAULT_BRANCH_NAME).await?;
+            assert_eq!(branch.name, branch_name);
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id)
+                    .await;
+            assert!(workspace.is_ok());
+
+            // train/dog_1.jpg,dog,101.5,32.0,385,330
+            let directory = Path::new("annotations").join("train");
+            let path = directory.join("bounding_box.csv");
+            let data = "{\"file\":\"image1.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+
+            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+            let (_df_1, _row_id_1) = api::remote::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    data.to_string()
+                ).await?;
+
+            let data = "{\"file\":\"image2.jpg\", \"label\": \"cat\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
+            let (_df_2, row_id_2) = api::remote::workspaces::data_frames::rows::add(
+                    &remote_repo,
+                    &workspace_id,
+                    &path,
+                    data.to_string(),
+                ).await?;
+
+            // Make sure both got staged
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+
+            assert_eq!(diff.view.size.height, 2);
+
+            let uuid_2 = row_id_2.unwrap();
+            // Delete result_2
+            let result_delete = api::remote::workspaces::data_frames::rows::delete(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                &uuid_2
+            ).await;
+            assert!(result_delete.is_ok());
+
+            // Make there is only one left
+            let diff = api::remote::workspaces::data_frames::diff(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DEFAULT_PAGE_NUM,
+                DEFAULT_PAGE_SIZE
+            ).await?;
+            assert_eq!(diff.view.size.height, 1);
 
             Ok(remote_repo)
         })
