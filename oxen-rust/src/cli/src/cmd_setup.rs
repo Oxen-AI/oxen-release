@@ -7,6 +7,9 @@ use crate::cmd::df::DFCmd;
 use crate::cmd::remote::commit::RemoteCommitCmd;
 use crate::cmd::remote::df::RemoteDfCmd;
 use crate::cmd::remote::log::RemoteLogCmd;
+use crate::cmd::remote::restore::RemoteRestoreCmd;
+use crate::cmd::remote::rm::RemoteRmCmd;
+use crate::cmd::remote::status::RemoteStatusCmd;
 
 pub const CLONE: &str = "clone";
 pub const COMMIT: &str = "commit";
@@ -46,9 +49,9 @@ pub fn remote() -> Command {
         .subcommand(diff())
         .subcommand(download())
         .subcommand(ls())
-        .subcommand(restore())
-        .subcommand(rm())
-        .subcommand(status())
+        .subcommand(RemoteRestoreCmd.args())
+        .subcommand(RemoteRmCmd.args())
+        .subcommand(RemoteStatusCmd.args())
         .subcommand(metadata())
         .arg(
             Arg::new("verbose")
@@ -57,35 +60,6 @@ pub fn remote() -> Command {
                 .help("List the remotes that exist on this repository.")
                 .action(clap::ArgAction::SetTrue),
         )
-}
-
-pub fn status() -> Command {
-    Command::new(STATUS)
-        .about("See at what files are ready to be added or committed")
-        .arg(
-            Arg::new("skip")
-                .long("skip")
-                .short('s')
-                .help("Allows you to skip and paginate through the file list preview.")
-                .default_value("0")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("limit")
-                .long("limit")
-                .short('l')
-                .help("Allows you to view more file list preview.")
-                .default_value("10")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("print_all")
-                .long("print_all")
-                .short('a')
-                .help("If present, does not truncate the output of status at all.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(Arg::new("path").required(false))
 }
 
 pub fn metadata() -> Command {
@@ -261,120 +235,6 @@ pub fn download() -> Command {
         )
 }
 
-pub fn upload() -> Command {
-    Command::new(UPLOAD)
-        .about("Upload a specific file to the remote repository.")
-        .arg(
-            Arg::new("paths")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
-        .arg(
-            Arg::new("dst")
-                .long("destination")
-                .short('d')
-                .help("The destination directory to upload the data to. Defaults to the root './' of the repository.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("The branch to upload the data to. Defaults to main branch.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("message")
-                .help("The message for the commit. Should be descriptive about what changed.")
-                .long("message")
-                .short('m')
-                .required(true)
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("host")
-                .long("host")
-                .help("Host to upload the data to, for example: 'hub.oxen.ai'")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("remote")
-                .long("remote")
-                .help("Remote to up the data to, for example: 'origin'")
-                .action(clap::ArgAction::Set),
-        )
-}
-
-pub fn rm() -> Command {
-    Command::new(RM)
-        .about("Removes the specified files from the index")
-        .arg(
-            Arg::new("files")
-                .required(true)
-                .action(clap::ArgAction::Append),
-        )
-        .arg(
-            Arg::new("staged")
-                .long("staged")
-                .help("Removes the file from the staging area.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("recursive")
-                .long("recursive")
-                .short('r')
-                .help("Recursively removes directory.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
-pub fn restore() -> Command {
-    Command::new(RESTORE)
-        .about("Restore specified paths in the working tree with some contents from a restore source.")
-        .arg(arg!(<PATH> ... "The files or directory to restore"))
-        .arg_required_else_help(true)
-        .arg(
-            Arg::new("source")
-                .long("source")
-                .help("Restores a specific revision of the file. Can supply commit id or branch name")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("staged")
-                .long("staged")
-                .help("Restore content in staging area. By default, if --staged is given, the contents are restored from HEAD. Use --source to restore from a different commit.")
-                .action(clap::ArgAction::SetTrue),
-        )
-}
-
-pub fn clone() -> Command {
-    Command::new(CLONE)
-        .about("Clone a repository by its URL")
-        .arg_required_else_help(true)
-        .arg(arg!(<URL> "URL of the repository you want to clone"))
-        .arg(
-            Arg::new("shallow")
-                .long("shallow")
-                .help("A shallow clone doesn't actually clone the data files. Useful if you want to soley interact with the remote.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("all")
-                .long("all")
-                .help("This downloads the full commit history, all the data files, and all the commit databases. Useful if you want to have the entire history locally or push to a new remote.")
-                .action(clap::ArgAction::SetTrue),
-        )
-        .arg(
-            Arg::new("branch")
-                .long("branch")
-                .short('b')
-                .help("The branch you want to pull to when you clone.")
-                .default_value(DEFAULT_BRANCH_NAME)
-                .default_missing_value(DEFAULT_BRANCH_NAME)
-                .action(clap::ArgAction::Set),
-        )
-}
-
 pub fn diff() -> Command {
     Command::new(DIFF)
         .about("Compare two files against each other or against versions. The two resource paramaters can be specified by filepath or `file:revision` syntax.")
@@ -407,21 +267,4 @@ pub fn diff() -> Command {
             .short('o')
             .help("Output directory path to write the results of the comparison. Will write both match.csv (rows with same keys and compares) and diff.csv (rows with different compares between files.")
             .action(clap::ArgAction::Set))
-}
-
-pub fn save() -> Command {
-    Command::new(SAVE)
-        .arg(
-            Arg::new("PATH")
-                .help("Path of the local repository to save")
-                .required(true)
-                .index(1), // This represents the position of the argument in the command line command.
-        )
-        .arg(
-            Arg::new("output")
-                .help("Name of the output .tar.gz archive")
-                .short('o')
-                .long("output")
-                .required(true),
-        )
 }

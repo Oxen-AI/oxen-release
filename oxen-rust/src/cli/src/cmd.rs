@@ -72,10 +72,25 @@ pub use push::PushCmd;
 pub mod read_lines;
 pub use read_lines::ReadLinesCmd;
 
+pub mod rm;
+pub use rm::RmCmd;
+
 pub mod remote;
+
+pub mod restore;
+pub use restore::RestoreCmd;
+
+pub mod save;
+pub use save::SaveCmd;
 
 pub mod schemas;
 pub use schemas::SchemasCmd;
+
+pub mod status;
+pub use status::StatusCmd;
+
+pub mod upload;
+pub use upload::UploadCmd;
 
 #[async_trait]
 pub trait RunCmd {

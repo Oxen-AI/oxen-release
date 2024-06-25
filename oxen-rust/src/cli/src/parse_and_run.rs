@@ -14,25 +14,42 @@ use clap::ArgMatches;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::opts::RestoreOpts;
-use liboxen::opts::{AddOpts, DownloadOpts, ListOpts, RmOpts, UploadOpts};
-use std::path::{Path, PathBuf};
+use liboxen::opts::{AddOpts, DownloadOpts, ListOpts};
+use std::path::PathBuf;
 
 /// The subcommands for interacting with the remote staging area.
 pub async fn remote(sub_matches: &ArgMatches) {
     if let Some(subcommand) = sub_matches.subcommand() {
         match subcommand {
             (STATUS, sub_matches) => {
-                crate::parse::remote::status::status(sub_matches).await;
+                let cmd = cmd::remote::RemoteStatusCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             ("add", sub_matches) => {
                 remote_add(sub_matches).await;
             }
             (RM, sub_matches) => {
-                remote_rm(sub_matches).await;
+                let cmd = cmd::remote::RemoteRmCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (RESTORE, sub_matches) => {
-                remote_restore(sub_matches).await;
+                let cmd = cmd::remote::RemoteRestoreCmd {};
+                match cmd.run(sub_matches).await {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
+                }
             }
             (COMMIT, sub_matches) => {
                 let cmd = RemoteCommitCmd {};
@@ -113,41 +130,6 @@ pub fn list_remotes_verbose(repo: &LocalRepository) -> Result<(), OxenError> {
     }
 
     Ok(())
-}
-
-pub async fn upload(sub_matches: &ArgMatches) {
-    let opts = UploadOpts {
-        paths: sub_matches
-            .get_many::<String>("paths")
-            .expect("Must supply paths")
-            .map(PathBuf::from)
-            .collect(),
-        dst: sub_matches
-            .get_one::<String>("dst")
-            .map(PathBuf::from)
-            .unwrap_or(PathBuf::from(".")),
-        message: sub_matches
-            .get_one::<String>("message")
-            .map(String::from)
-            .expect("Must supply a commit message"),
-        branch: sub_matches.get_one::<String>("branch").map(String::from),
-        remote: sub_matches
-            .get_one::<String>("remote")
-            .map(String::from)
-            .unwrap_or(DEFAULT_REMOTE_NAME.to_string()),
-        host: sub_matches
-            .get_one::<String>("host")
-            .map(String::from)
-            .unwrap_or(DEFAULT_HOST.to_string()),
-    };
-
-    // `oxen upload $namespace/$repo_name $path`
-    match dispatch::upload(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
 }
 
 async fn remote_download(sub_matches: &ArgMatches) {
@@ -263,107 +245,4 @@ pub async fn add(sub_matches: &ArgMatches) {
             eprintln!("{err}")
         }
     }
-}
-
-pub async fn remote_rm(sub_matches: &ArgMatches) {
-    let paths: Vec<PathBuf> = sub_matches
-        .get_many::<String>("files")
-        .expect("Must supply files")
-        .map(PathBuf::from)
-        .collect();
-
-    let opts = RmOpts {
-        // The path will get overwritten for each file that is removed
-        path: paths.first().unwrap().to_path_buf(),
-        staged: sub_matches.get_flag("staged"),
-        recursive: sub_matches.get_flag("recursive"),
-        remote: true,
-    };
-
-    match dispatch::rm(paths, &opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn rm(sub_matches: &ArgMatches) {
-    let paths: Vec<PathBuf> = sub_matches
-        .get_many::<String>("files")
-        .expect("Must supply files")
-        .map(PathBuf::from)
-        .collect();
-
-    let opts = RmOpts {
-        // The path will get overwritten for each file that is removed
-        path: paths.first().unwrap().to_path_buf(),
-        staged: sub_matches.get_flag("staged"),
-        recursive: sub_matches.get_flag("recursive"),
-        remote: false,
-    };
-
-    match dispatch::rm(paths, &opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn remote_restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("PATH").expect("required");
-
-    // For now, restore remote just un-stages all the changes done to the file on the remote
-    let opts = RestoreOpts {
-        path: PathBuf::from(path),
-        staged: sub_matches.get_flag("staged"),
-        is_remote: true,
-        source_ref: None,
-    };
-
-    match dispatch::restore(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn restore(sub_matches: &ArgMatches) {
-    let path = sub_matches.get_one::<String>("PATH").expect("required");
-
-    let opts = if let Some(source) = sub_matches.get_one::<String>("source") {
-        RestoreOpts {
-            path: PathBuf::from(path),
-            staged: sub_matches.get_flag("staged"),
-            is_remote: false,
-            source_ref: Some(String::from(source)),
-        }
-    } else {
-        RestoreOpts {
-            path: PathBuf::from(path),
-            staged: sub_matches.get_flag("staged"),
-            is_remote: false,
-            source_ref: None,
-        }
-    };
-
-    match dispatch::restore(opts).await {
-        Ok(_) => {}
-        Err(err) => {
-            eprintln!("{err}")
-        }
-    }
-}
-
-pub async fn save(sub_matches: &ArgMatches) {
-    // Match on the PATH arg
-    let repo_str = sub_matches.get_one::<String>("PATH").expect("Required");
-    let output_str = sub_matches.get_one::<String>("output").expect("Required");
-
-    let repo_path = Path::new(repo_str);
-    let output_path = Path::new(output_str);
-
-    dispatch::save(repo_path, output_path).expect("Error saving repo backup.");
 }

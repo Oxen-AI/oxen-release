@@ -4,25 +4,17 @@ use crate::api;
 use crate::core::index::commit_entry_reader::CommitEntryReader;
 use crate::core::index::schema_reader::SchemaReader;
 use crate::core::index::stager::Stager;
-use crate::core::index::workspaces::workspace_dir;
 use crate::error::OxenError;
-use crate::model::Commit;
-use crate::model::LocalRepository;
+use crate::model::workspace::Workspace;
 use crate::util;
 
 // Stages a file in a specified directory
-pub fn add(
-    repo: &LocalRepository,
-    workspace: &LocalRepository,
-    commit: &Commit,
-    workspace_id: &str,
-    filepath: &Path,
-) -> Result<PathBuf, OxenError> {
-    let staging_dir = workspace_dir(repo, workspace_id);
-    log::debug!("remote stager before add... staging_dir {:?}", staging_dir);
-
+pub fn add(workspace: &Workspace, filepath: &Path) -> Result<PathBuf, OxenError> {
+    let repo = &workspace.base_repo;
+    let workspace_repo = &workspace.workspace_repo;
+    let commit = &workspace.commit;
     // Stager will be in the new repo workspace
-    let stager = Stager::new(workspace)?;
+    let stager = Stager::new(workspace_repo)?;
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &commit.id)?.unwrap();
     let reader = CommitEntryReader::new(repo, &commit)?;
@@ -34,21 +26,22 @@ pub fn add(
     stager.add_file(filepath.as_ref(), &reader, &schema_reader)?;
     log::debug!("done adding file in the stager");
 
-    let relative_path = util::fs::path_relative_to_dir(filepath, &staging_dir)?;
+    let relative_path = util::fs::path_relative_to_dir(filepath, &workspace_repo.path)?;
     Ok(relative_path)
 }
 
-pub fn has_file(workspace: &LocalRepository, filepath: &Path) -> Result<bool, OxenError> {
+pub fn has_file(workspace: &Workspace, filepath: &Path) -> Result<bool, OxenError> {
     // Stager will be in the new repo workspace
-    let stager = Stager::new(workspace)?;
+    let stager = Stager::new(&workspace.workspace_repo)?;
     stager.has_staged_file(filepath)
 }
 
-pub fn delete_file(workspace: &LocalRepository, filepath: &Path) -> Result<(), OxenError> {
+pub fn delete_file(workspace: &Workspace, filepath: &Path) -> Result<(), OxenError> {
     // Stager will be in the repo workspace
-    let stager = Stager::new(workspace)?;
+    let workspace_repo = &workspace.workspace_repo;
+    let stager = Stager::new(workspace_repo)?;
     stager.remove_staged_file(filepath)?;
-    let full_path = workspace.path.join(filepath);
+    let full_path = workspace_repo.path.join(filepath);
     match util::fs::remove_file(&full_path) {
         Ok(_) => Ok(()),
         Err(e) => {

@@ -96,8 +96,10 @@ pub const VERSION_FILE_NAME: &str = "data";
 pub const MERGE_DIR: &str = "merge";
 /// mods/ is where we can stage appends, modifications, deletions to files to be merged later
 pub const MODS_DIR: &str = "mods";
-/// workspaces/ is where we can stage remote changes without havnig to clone locally
+/// workspaces/ is where we can make remote changes without having to clone locally
 pub const WORKSPACES_DIR: &str = "workspaces";
+/// workspace commit id
+pub const WORKSPACE_COMMIT_ID: &str = "WORKSPACE_COMMIT_ID";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 

@@ -82,4 +82,4 @@ pub use crate::view::remote_staged_status::{
 pub use crate::view::sql_parse_error::SQLParseError;
 
 pub use crate::view::tabular_diff_view::TabularDiffView;
-pub use crate::view::workspaces::{WorkspaceResponseView, WorkspaceView};
+pub use crate::view::workspaces::WorkspaceResponseView;
