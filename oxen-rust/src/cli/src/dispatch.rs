@@ -12,20 +12,11 @@ use liboxen::opts::AddOpts;
 use liboxen::opts::DFOpts;
 use liboxen::opts::DownloadOpts;
 use liboxen::opts::ListOpts;
-use liboxen::opts::LogOpts;
 use liboxen::opts::PaginateOpts;
-use liboxen::opts::RestoreOpts;
-use liboxen::opts::RmOpts;
-use liboxen::opts::UploadOpts;
 use liboxen::util;
 use liboxen::view::PaginatedDirEntries;
 
-use colored::Colorize;
-use minus::Pager;
-use time::format_description;
-
 use std::env;
-use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -123,54 +114,29 @@ Happy Mooooooving of data 🐂
     Ok(())
 }
 
-pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
+pub async fn remote_delete_row(
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+    row_id: &str,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::delete_row(&repository, path, uuid).await?;
+    command::remote::df::delete_row(&repository, workspace_id, path, row_id).await?;
 
     Ok(())
 }
 
-pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub async fn remote_index_dataset(
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::index_dataset(&repository, path).await?;
-    Ok(())
-}
-
-/// Download allows the user to download a file or files without cloning the repo
-pub async fn upload(opts: UploadOpts) -> Result<(), OxenError> {
-    let paths = &opts.paths;
-    if paths.is_empty() {
-        return Err(OxenError::basic_str(
-            "Must supply repository and a file to upload.",
-        ));
-    }
-
-    check_remote_version_blocking(opts.clone().host).await?;
-
-    // Check if the first path is a valid remote repo
-    let name = paths[0].to_string_lossy();
-    if let Some(remote_repo) =
-        api::remote::repositories::get_by_name_host_and_remote(&name, &opts.host, &opts.remote)
-            .await?
-    {
-        // Remove the repo name from the list of paths
-        let remote_paths = paths[1..].to_vec();
-        let opts = UploadOpts {
-            paths: remote_paths,
-            ..opts
-        };
-
-        command::remote::upload(&remote_repo, &opts).await?;
-    } else {
-        eprintln!("Repository does not exist {}", name);
-    }
-
+    command::remote::df::index(&repository, workspace_id, path).await?;
     Ok(())
 }
 
@@ -227,81 +193,10 @@ pub async fn add(opts: AddOpts) -> Result<(), OxenError> {
     Ok(())
 }
 
-pub async fn rm(paths: Vec<PathBuf>, opts: &RmOpts) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-    check_repo_migration_needed(&repository)?;
-
-    for path in paths {
-        let path_opts = RmOpts::from_path_opts(&path, opts);
-        command::rm(&repository, &path_opts).await?;
-    }
-
-    Ok(())
-}
-
-pub async fn restore(opts: RestoreOpts) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    check_repo_migration_needed(&repository)?;
-    if opts.is_remote {
-        command::remote::restore(&repository, opts).await?;
-    } else {
-        command::restore(&repository, opts)?;
-    }
-
-    Ok(())
-}
-
 pub async fn unlock_branch(remote: &str, branch: &str) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     command::unlock(&repository, remote, branch).await?;
-    Ok(())
-}
-
-fn write_to_pager(output: &mut Pager, text: &str) -> Result<(), OxenError> {
-    match writeln!(output, "{}", text) {
-        Ok(_) => Ok(()),
-        Err(_) => Err(OxenError::basic_str("Could not write to pager")),
-    }
-}
-
-pub async fn log_commits(opts: LogOpts) -> Result<(), OxenError> {
-    // Look up from the current dir for .oxen directory
-    let current_dir = env::current_dir().unwrap();
-    let repo_dir =
-        util::fs::get_repo_root(&current_dir).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    let repository = LocalRepository::from_dir(&repo_dir)?;
-
-    let commits = api::local::commits::list_with_opts(&repository, &opts).await?;
-
-    // Fri, 21 Oct 2022 16:08:39 -0700
-    let format = format_description::parse(
-        "[weekday], [day] [month repr:long] [year] [hour]:[minute]:[second] [offset_hour sign:mandatory]",
-    ).unwrap();
-
-    let mut output = Pager::new();
-
-    for commit in commits {
-        let commit_id_str = format!("commit {}", commit.id).yellow();
-        write_to_pager(&mut output, &format!("{}\n", commit_id_str))?;
-        write_to_pager(&mut output, &format!("Author: {}", commit.author))?;
-        write_to_pager(
-            &mut output,
-            &format!("Date:   {}\n", commit.timestamp.format(&format).unwrap()),
-        )?;
-        write_to_pager(&mut output, &format!("    {}\n", commit.message))?;
-    }
-
-    match minus::page_all(output) {
-        Ok(_) => {}
-        Err(e) => {
-            eprintln!("Error while paging: {}", e);
-        }
-    }
-
     Ok(())
 }
 
@@ -404,14 +299,18 @@ fn maybe_display_types(entries: &PaginatedDirEntries) {
     }
 }
 
-pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+pub async fn remote_df(
+    workspace_id: &str,
+    input: impl AsRef<Path>,
+    opts: DFOpts,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repo)?;
     check_remote_version(host).await?;
 
-    command::remote::staged_df(&repo, input, opts).await?;
+    command::remote::staged_df(&repo, workspace_id, input, opts).await?;
 
     Ok(())
 }
@@ -468,16 +367,5 @@ pub async fn list_remote_branches(name: &str) -> Result<(), OxenError> {
     for branch in branches.iter() {
         println!("{}\t{}", &remote.name, branch.name);
     }
-    Ok(())
-}
-
-pub fn save(repo_path: &Path, output_path: &Path) -> Result<(), OxenError> {
-    let repo_path = Path::new(repo_path);
-    let repo_dir =
-        util::fs::get_repo_root(repo_path).ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-    let repo = LocalRepository::from_dir(&repo_dir)?;
-
-    command::save(&repo, output_path)?;
-
     Ok(())
 }

@@ -58,6 +58,9 @@ pub enum OxenError {
     NoCommitsFound(StringError),
     HeadNotFound(StringError),
 
+    // Workspaces
+    WorkspaceNotFound(Box<StringError>),
+
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
     PathDoesNotExist(Box<PathBufError>),
@@ -204,6 +207,10 @@ impl OxenError {
 
     pub fn revision_not_found(value: StringError) -> Self {
         OxenError::RevisionNotFound(Box::new(value))
+    }
+
+    pub fn workspace_not_found(value: StringError) -> Self {
+        OxenError::WorkspaceNotFound(Box::new(value))
     }
 
     pub fn root_commit_does_not_match(commit: Commit) -> Self {

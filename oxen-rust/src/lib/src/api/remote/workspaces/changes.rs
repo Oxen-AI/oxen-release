@@ -1,4 +1,5 @@
 use crate::api;
+
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
@@ -6,18 +7,16 @@ use crate::view::{RemoteStagedStatus, RemoteStagedStatusResponse};
 
 use std::path::Path;
 
-pub async fn status(
+pub async fn list(
     remote_repo: &RemoteRepository,
-    branch_name: &str,
-    identifier: &str,
+    workspace_id: &str,
     path: &Path,
     page: usize,
     page_size: usize,
 ) -> Result<RemoteStagedStatus, OxenError> {
     let path_str = path.to_str().unwrap();
-    let uri = format!(
-        "/workspaces/{identifier}/status/{branch_name}/{path_str}?page={page}&page_size={page_size}"
-    );
+    let uri =
+        format!("/workspaces/{workspace_id}/changes/{path_str}?page={page}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("status url: {url}");
 
@@ -54,7 +53,7 @@ mod tests {
     use std::path::Path;
 
     #[tokio::test]
-    async fn test_list_empty_staging_dir_empty_remote() -> Result<(), OxenError> {
+    async fn test_list_empty_changes_none_pushed() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
             let branch_name = "add-images";
             api::local::branches::create_checkout(&local_repo, branch_name)?;
@@ -72,12 +71,15 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &identifier).await;
+            assert!(workspace.is_ok());
+
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
-                branch_name,
                 &identifier,
                 path,
                 page_num,
@@ -93,7 +95,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_empty_staging_dir_all_data_pushed() -> Result<(), OxenError> {
+    async fn test_list_empty_changes_all_data_pushed() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
             let branch = api::remote::branches::create_from_or_get(
@@ -104,14 +106,17 @@ mod tests {
             .await?;
             assert_eq!(branch.name, branch_name);
 
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.workspace_id, workspace_id);
+
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new("images");
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
-                branch_name,
-                &identifier,
+                &workspace_id,
                 path,
                 page_num,
                 page_size,

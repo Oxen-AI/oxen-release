@@ -229,6 +229,21 @@ impl error::ResponseError for OxenHttpError {
 
                         HttpResponse::NotFound().json(error_json)
                     }
+                    OxenError::WorkspaceNotFound(workspace) => {
+                        log::error!("Workspace not found: {}", workspace);
+
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Workspace does not exist",
+                                "detail": format!("Could not find workspace: {}", workspace)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
+                    }
                     OxenError::CommitEntryNotFound(msg) => {
                         log::error!("{msg}");
 

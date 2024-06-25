@@ -8,7 +8,7 @@ use crate::core::index::{
     CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
 };
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry};
+use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, Workspace};
 
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{command, util};
@@ -162,13 +162,14 @@ impl CommitWriter {
         Ok(commit)
     }
 
-    pub fn commit_from_new_on_remote_branch(
+    // used to be commit_from_new_on_remote_branch
+    /// Commit a workspace to a branch with a new commit
+    pub fn commit_workspace(
         &self,
+        workspace: &Workspace,
+        branch: &Branch,
         new_commit: &NewCommit,
         status: &StagedData,
-        origin_path: &Path,
-        branch: &Branch,
-        workspace_id: &str,
     ) -> Result<Commit, OxenError> {
         let Some(old_commit) =
             CommitReader::new(&self.repository)?.get_commit_by_id(&branch.commit_id)?
@@ -179,7 +180,7 @@ impl CommitWriter {
             )));
         };
 
-        let entries = workspaces::stager::list_files(&self.repository, &old_commit, workspace_id)?;
+        let entries = workspaces::stager::list_files(workspace)?;
         let object_reader = ObjectDBReader::new(&self.repository)?;
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(
             &self.repository,
@@ -200,10 +201,10 @@ impl CommitWriter {
         );
 
         // Get the StagedData ready for commit
-        let staged = self.stage_files_for_commit(&old_commit, workspace_id, &entries)?;
+        let staged = self.stage_files_for_commit(workspace, &entries)?;
         // Write entries
         let new_commit = self.gen_commit(new_commit, status);
-        self.add_commit_from_status_on_remote_branch(&new_commit, &staged, origin_path, branch)?;
+        self.write_commit_to_branch(workspace, branch, &new_commit, &staged)?;
 
         // Get the commit from the db post insert - it will now have the updated root hash
         let commit = CommitReader::new(&self.repository)?
@@ -215,12 +216,11 @@ impl CommitWriter {
 
     pub fn stage_files_for_commit(
         &self,
-        commit: &Commit,
-        workspace_id: &str,
+        workspace: &Workspace,
         entries: &[CommitEntry],
     ) -> Result<StagedData, OxenError> {
-        let workspace_dir = workspaces::workspace_dir(&self.repository, workspace_id);
-        let workspace = workspaces::init_or_get(&self.repository, commit, workspace_id).unwrap();
+        let commit = &workspace.commit;
+        let workspace_dir = workspace.dir();
 
         log::debug!("apply_mods CommitWriter Apply {} mods", entries.len());
         for entry in entries.iter() {
@@ -241,12 +241,7 @@ impl CommitWriter {
             );
 
             if util::fs::is_tabular(&entry_path) {
-                if workspaces::data_frames::is_behind(
-                    &self.repository,
-                    commit,
-                    workspace_id,
-                    &entry.path,
-                )? {
+                if workspaces::data_frames::is_behind(workspace, &entry.path)? {
                     return Err(OxenError::basic_str(format!(
                         "Could not commit, remote staging area is out of date with commit {}",
                         commit.id
@@ -254,40 +249,23 @@ impl CommitWriter {
                 }
 
                 log::debug!("apply_mods extracting dataset to working dir");
-                workspaces::data_frames::extract_dataset_to_working_dir(
-                    &self.repository,
-                    &workspace,
-                    commit,
-                    entry,
-                    workspace_id,
-                )?;
+                workspaces::data_frames::extract_to_working_dir(workspace, entry)?;
 
                 log::debug!("apply_mods unstaging");
-                workspaces::data_frames::unstage(
-                    &self.repository,
-                    commit,
-                    workspace_id,
-                    &entry.path,
-                )?;
+                workspaces::data_frames::unstage(workspace, &entry.path)?;
             } else {
                 log::debug!("apply_mods copying non-tabular file");
                 // Non-tabular files are copied from their version path into the working dir
                 util::fs::copy(&version_path, &entry_path)?;
             }
 
-            workspaces::files::add(
-                &self.repository,
-                &workspace,
-                commit,
-                workspace_id,
-                &entry_path,
-            )?;
+            workspaces::files::add(workspace, &entry_path)?;
             log::debug!("Staged file {:?}", entry_path);
         }
 
         // Have to recompute staged data
         log::debug!("recomputing status for workspace...");
-        let staged_data = command::status(&workspace)?;
+        let staged_data = command::status(&workspace.workspace_repo)?;
 
         staged_data.print_stdout();
 
@@ -326,9 +304,9 @@ impl CommitWriter {
         let commit = Commit::from_new_and_id(&commit, id);
         log::debug!("adding commit from status on local branch");
         self.add_commit_from_status_on_local_branch(
+            &self.repository.path,
             &commit,
             status,
-            &self.repository.path,
             branch,
         )?;
         Ok(commit)
@@ -364,18 +342,18 @@ impl CommitWriter {
         Ok(())
     }
 
-    pub fn add_commit_from_status_on_local_branch(
+    fn add_commit_from_status_on_local_branch(
         &self,
+        working_dir: impl AsRef<Path>,
         commit: &Commit,
         status: &StagedData,
-        origin_path: &Path,
         branch: Branch,
     ) -> Result<Commit, OxenError> {
         // Write entries
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
         // Commit all staged files from db
-        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+        entry_writer.commit_staged_entries(working_dir, commit, status)?;
 
         // Add to commits db id -> commit_json
         log::debug!(
@@ -409,13 +387,13 @@ impl CommitWriter {
         &self,
         commit: &Commit,
         status: &StagedData,
-        origin_path: &Path,
+        working_dir: &Path,
     ) -> Result<Commit, OxenError> {
         // Write entries
         log::debug!("init'ing CommitEntryWriter");
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         // Commit all staged files from db
-        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+        entry_writer.commit_staged_entries(working_dir, commit, status)?;
 
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
@@ -441,12 +419,13 @@ impl CommitWriter {
         Ok(commit)
     }
 
-    pub fn add_commit_from_status_on_remote_branch(
+    // add_commit_from_status_on_remote_branch
+    fn write_commit_to_branch(
         &self,
+        workspace: &Workspace,
+        branch: &Branch,
         commit: &Commit,
         status: &StagedData,
-        origin_path: &Path,
-        branch: &Branch,
     ) -> Result<(), OxenError> {
         log::debug!(
             "add from status on remote branch has repository path {:?}",
@@ -456,7 +435,7 @@ impl CommitWriter {
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
 
         // Commit all staged files from db
-        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+        entry_writer.commit_staged_entries(&workspace.workspace_repo.path, commit, status)?;
 
         let mut commit = commit.clone();
 
@@ -470,46 +449,6 @@ impl CommitWriter {
         commit.update_root_hash(hash.clone());
 
         // Add to commits db id -> commit_json
-        self.add_commit_to_db(&commit)?;
-
-        let ref_writer = RefWriter::new(&self.repository)?;
-        log::debug!(
-            "add_commit_from_status got branch {} updating branch commit id {}",
-            branch.name,
-            commit.id
-        );
-        ref_writer.set_branch_commit_id(&branch.name, &commit.id)?;
-
-        Ok(())
-    }
-
-    pub fn add_commit_on_remote_branch(
-        &self,
-        commit: &Commit,
-        status: &StagedData,
-        origin_path: &Path,
-        branch: &Branch,
-    ) -> Result<(), OxenError> {
-        // Write entries
-        let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
-
-        log::debug!("add_commit_from_status about to commit staged entries...");
-        // Commit all staged files from db
-        entry_writer.commit_staged_entries(commit, status, origin_path)?;
-
-        let mut commit = commit.clone();
-        let opts = db::opts::default();
-        let dir_hashes_db_dir =
-            CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db_dir, false)?;
-
-        let hash: String = path_db::get_entry(&dir_hashes_db, "")?.unwrap();
-        commit.update_root_hash(hash.clone());
-        log::debug!("got hash {} for commit {}", hash, commit.id);
-
-        // Add to commits db id -> commit_json
-        log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
         self.add_commit_to_db(&commit)?;
 
         let ref_writer = RefWriter::new(&self.repository)?;
@@ -837,15 +776,16 @@ impl CommitWriter {
 mod tests {
     use std::path::Path;
 
+    use serde_json::json;
+
     use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::df;
     use crate::core::index::{
-        self, workspaces, CommitDBReader, CommitEntryReader, CommitWriter, SchemaReader,
+        workspaces, CommitDBReader, CommitEntryReader, CommitWriter, SchemaReader,
     };
     use crate::error::OxenError;
-    use crate::model::entry::mod_entry::{ModType, NewMod};
-    use crate::model::{ContentType, NewCommitBody, StagedData};
+    use crate::model::{NewCommitBody, StagedData};
     use crate::opts::DFOpts;
     use crate::{api, test, util};
 
@@ -918,23 +858,14 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let branch = api::local::branches::current_branch(&repo)?.unwrap();
-            let workspace_id = UserConfig::identifier()?;
 
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-            let commit_entry =
-                api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
 
-            workspaces::data_frames::index(&repo, &commit, &workspace_id, &path)?;
-            let append_contents = "{\"NOT_REAL_COLUMN\": \"images/test.jpg\"}".to_string();
-            let new_mod = NewMod {
-                entry: commit_entry,
-                data: append_contents,
-                mod_type: ModType::Append,
-                content_type: ContentType::Json,
-            };
-
-            let result =
-                workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod);
+            let workspace_id = UserConfig::identifier()?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            workspaces::data_frames::index(&workspace, &path)?;
+            let json_data = json!({"NOT_REAL_COLUMN": "images/test.jpg"});
+            let result = workspaces::data_frames::rows::add(&workspace, &path, &json_data);
             // Should be an error
             assert!(result.is_err());
 
@@ -953,32 +884,18 @@ mod tests {
             let commit = api::local::commits::head_commit(&repo)?;
             let user = UserConfig::get()?.to_user();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = index::workspaces::init_or_get(&repo, &commit, &workspace_id).unwrap();
-            let commit_entry =
-                api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();
-            let append_contents = "{\"file\": \"images/test.jpg\", \"label\": \"dog\", \"min_x\": 2.0, \"min_y\": 3.0, \"width\": 100, \"height\": 120}".to_string();
-            let new_mod = NewMod {
-                entry: commit_entry,
-                data: append_contents,
-                mod_type: ModType::Append,
-                content_type: ContentType::Json,
-            };
-            workspaces::data_frames::index(&repo, &commit, &workspace_id, &path)?;
-            workspaces::data_frames::rows::add(&repo, &commit, &workspace_id, &new_mod)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+
+            let json_data = json!({"file": "images/test.jpg", "label": "dog", "min_x": 2.0, "min_y": 3.0, "width": 100, "height": 120});
+            workspaces::data_frames::index(&workspace, &path)?;
+            workspaces::data_frames::rows::add(&workspace, &path, &json_data)?;
             let new_commit = NewCommitBody {
                 author: user.name.to_owned(),
                 email: user.email,
                 message: "Appending tabular data".to_string(),
             };
 
-            let commit = workspaces::commit(
-                &repo,
-                &workspace,
-                &commit,
-                &workspace_id,
-                &new_commit,
-                DEFAULT_BRANCH_NAME,
-            )?;
+            let commit = workspaces::commit(&workspace, &new_commit, DEFAULT_BRANCH_NAME)?;
 
             // Make sure version file is updated
             let entry = api::local::entries::get_commit_entry(&repo, &commit, &path)?.unwrap();

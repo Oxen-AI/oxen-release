@@ -11,6 +11,7 @@ pub mod download;
 pub mod log;
 pub mod ls;
 pub mod restore;
+pub mod rm;
 pub mod status;
 pub mod upload;
 
@@ -22,5 +23,6 @@ pub use download::download;
 pub use log::log_commits;
 pub use ls::ls;
 pub use restore::restore;
+pub use rm::rm;
 pub use status::status;
 pub use upload::upload;
