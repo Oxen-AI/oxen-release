@@ -4,9 +4,8 @@
 pub mod branch;
 pub mod commit;
 pub mod compare;
-pub mod data_frame;
+pub mod data_frames;
 pub mod data_type_count;
-pub mod df;
 pub mod diff;
 pub mod entry;
 pub mod entry_metadata;
@@ -28,6 +27,7 @@ pub mod sql_parse_error;
 pub mod status_message;
 pub mod tabular_diff_view;
 pub mod version;
+pub mod workspaces;
 
 pub use crate::view::compare::CompareEntriesResponse;
 pub use crate::view::data_type_count::DataTypeCount;
@@ -82,3 +82,4 @@ pub use crate::view::remote_staged_status::{
 pub use crate::view::sql_parse_error::SQLParseError;
 
 pub use crate::view::tabular_diff_view::TabularDiffView;
+pub use crate::view::workspaces::WorkspaceResponseView;
