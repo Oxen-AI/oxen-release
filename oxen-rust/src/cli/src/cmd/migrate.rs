@@ -12,7 +12,6 @@ use crate::cmd::RunCmd;
 pub const NAME: &str = "migrate";
 pub struct MigrateCmd;
 
-
 #[async_trait]
 impl RunCmd for MigrateCmd {
     fn name(&self) -> &str {
@@ -223,39 +222,54 @@ impl RunCmd for MigrateCmd {
                 "up" | "down" => {
                     if let Some((migration, args)) = args.subcommand() {
                         if migration == UpdateVersionFilesMigration.name() {
-                            if let Err(err) = MigrateCmd::run_migration(&UpdateVersionFilesMigration, direction, args) {
-                                return Err(err);
-                            }
+                            MigrateCmd::run_migration(
+                                &UpdateVersionFilesMigration,
+                                direction,
+                                args,
+                            )?
                         } else if migration == PropagateSchemasMigration.name() {
-                            if let Err(err) = MigrateCmd::run_migration(&PropagateSchemasMigration, direction, args) {
-                                return Err(err);
-                            }
+                            MigrateCmd::run_migration(
+                                &PropagateSchemasMigration,
+                                direction,
+                                args,
+                            )?
                         } else if migration == CacheDataFrameSizeMigration.name() {
-                            if let Err(err) = MigrateCmd::run_migration(&CacheDataFrameSizeMigration, direction, args) {
-                                return Err(err);
-                            }
+                            MigrateCmd::run_migration(
+                                &CacheDataFrameSizeMigration,
+                                direction,
+                                args,
+                            )?
                         } else if migration == CreateMerkleTreesMigration.name() {
-                            if let Err(err) = MigrateCmd::run_migration(&CreateMerkleTreesMigration, direction, args) {
-                                return Err(err);
-                            }
+                            MigrateCmd::run_migration(
+                                &CreateMerkleTreesMigration,
+                                direction,
+                                args,
+                            )?
                         } else if migration == AddDirectoriesToCacheMigration.name() {
-                            if let Err(err) = MigrateCmd::run_migration(&AddDirectoriesToCacheMigration, direction, args) {
-                                return Err(err);
-                            }
+                            MigrateCmd::run_migration(
+                                &AddDirectoriesToCacheMigration,
+                                direction,
+                                args,
+                            )?
                         } else {
-                            return Err(OxenError::basic_str(format!("Invalid migration: {}", migration))); // Adjust this line for your error type.
+                            return Err(OxenError::basic_str(format!(
+                                "Invalid migration: {}",
+                                migration
+                            ))); // Adjust this line for your error type.
                         }
                     }
                 }
                 command => {
-                    return Err(OxenError::basic_str(format!("Invalid subcommand: {}", command)));  // Adjust this line for your error type.
+                    return Err(OxenError::basic_str(format!(
+                        "Invalid subcommand: {}",
+                        command
+                    ))); // Adjust this line for your error type.
                 }
             }
         }
         Ok(())
     }
 }
-
 
 impl MigrateCmd {
     pub fn run_migration(
@@ -265,9 +279,9 @@ impl MigrateCmd {
     ) -> Result<(), OxenError> {
         let path_str = args.get_one::<String>("PATH").expect("required");
         let path = Path::new(path_str);
-    
+
         let all = args.get_flag("all");
-    
+
         match direction {
             "up" => {
                 migration.up(path, all)?;
@@ -279,7 +293,7 @@ impl MigrateCmd {
                 eprintln!("Invalid migration direction: {}", direction);
             }
         }
-    
+
         Ok(())
     }
 }

@@ -6,13 +6,15 @@ use std::env;
 
 use liboxen::command;
 
-use liboxen::constants::{DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME};
-use crate::helpers::{get_host_from_repo, check_repo_migration_needed, check_remote_version_blocking, check_remote_version};
+use crate::helpers::{
+    check_remote_version, check_remote_version_blocking, check_repo_migration_needed,
+    get_host_from_repo,
+};
+use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "pull";
 pub struct PullCmd;
-
 
 #[async_trait]
 impl RunCmd for PullCmd {
@@ -57,12 +59,12 @@ impl RunCmd for PullCmd {
         // Get the repo
         let repo_dir = env::current_dir().unwrap();
         let repository = LocalRepository::from_dir(&repo_dir)?;
-    
+
         let host = get_host_from_repo(&repository)?;
         check_repo_migration_needed(&repository)?;
         check_remote_version_blocking(host.clone()).await?;
         check_remote_version(host).await?;
-    
+
         command::pull_remote_branch(&repository, remote, branch, all).await?;
         Ok(())
     }

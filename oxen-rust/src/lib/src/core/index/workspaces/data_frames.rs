@@ -52,11 +52,7 @@ pub fn previous_commit_ref_path(
         .join("COMMIT_ID")
 }
 
-pub fn mods_db_path(
-    repo: &LocalRepository,
-    workspace_id: &str,
-    path: impl AsRef<Path>,
-) -> PathBuf {
+pub fn mods_db_path(repo: &LocalRepository, workspace_id: &str, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspaces::workspace_dir(repo, workspace_id)
         .join(OXEN_HIDDEN_DIR)

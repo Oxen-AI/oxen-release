@@ -1,6 +1,6 @@
 use crate::cmd::RunCmd;
 use clap::{arg, Arg, Command};
-use liboxen::constants::{DEFAULT_BRANCH_NAME};
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 
 use crate::cmd::add::add_args;
 use crate::cmd::df::DFCmd;

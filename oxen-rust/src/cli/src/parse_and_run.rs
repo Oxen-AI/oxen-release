@@ -14,8 +14,8 @@ use clap::ArgMatches;
 use liboxen::constants::{DEFAULT_BRANCH_NAME, DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::opts::RestoreOpts;
 use liboxen::opts::{AddOpts, DownloadOpts, ListOpts, RmOpts, UploadOpts};
-use liboxen::{opts::RestoreOpts};
 use std::path::{Path, PathBuf};
 
 /// The subcommands for interacting with the remote staging area.

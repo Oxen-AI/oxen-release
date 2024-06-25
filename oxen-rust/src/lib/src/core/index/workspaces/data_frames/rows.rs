@@ -79,8 +79,7 @@ pub fn add(
     workspace_id: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-    let db_path =
-        workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -256,8 +255,7 @@ pub fn update(
     row_id: &str,
     new_mod: &NewMod,
 ) -> Result<DataFrame, OxenError> {
-    let db_path =
-        workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
+    let db_path = workspaces::data_frames::mods_db_path(repo, workspace_id, &new_mod.entry.path);
     let conn = df_db::get_connection(db_path)?;
 
     let mut df = tabular::parse_data_into_df(&new_mod.data, new_mod.content_type.to_owned())?;
