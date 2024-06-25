@@ -115,22 +115,29 @@ Happy Mooooooving of data 🐂
     Ok(())
 }
 
-pub async fn remote_delete_row(path: impl AsRef<Path>, uuid: &str) -> Result<(), OxenError> {
+pub async fn remote_delete_row(
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+    row_id: &str,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::delete_row(&repository, path, uuid).await?;
+    command::remote::df::delete_row(&repository, workspace_id, path, row_id).await?;
 
     Ok(())
 }
 
-pub async fn remote_index_dataset(path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub async fn remote_index_dataset(
+    workspace_id: &str,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repository = LocalRepository::from_dir(&repo_dir)?;
     let path = path.as_ref();
 
-    command::remote::df::index_dataset(&repository, path).await?;
+    command::remote::df::index(&repository, workspace_id, path).await?;
     Ok(())
 }
 
@@ -195,58 +202,6 @@ pub async fn remote_download(opts: DownloadOpts) -> Result<(), OxenError> {
                 .await?;
         }
     }
-
-    Ok(())
-}
-
-pub async fn remote_metadata_list_dir(path: impl AsRef<Path>) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
-
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-
-    let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.data_frame.view.to_df();
-
-    println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
-
-    Ok(())
-}
-
-pub async fn remote_metadata_aggregate_dir(
-    path: impl AsRef<Path>,
-    column: impl AsRef<str>,
-) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
-
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-
-    let response =
-        api::remote::metadata::agg_dir(&remote_repo, &head_commit.id, path, column).await?;
-    let df = response.data_frame.view.to_df();
-
-    println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
-
-    Ok(())
-}
-
-pub async fn remote_metadata_list_image(path: impl AsRef<Path>) -> Result<(), OxenError> {
-    let repo_dir = env::current_dir().unwrap();
-    let local_repo = LocalRepository::from_dir(&repo_dir)?;
-    let path = path.as_ref();
-
-    let head_commit = api::local::commits::head_commit(&local_repo)?;
-    let remote_repo = api::remote::repositories::get_default_remote(&local_repo).await?;
-
-    let response = api::remote::metadata::list_dir(&remote_repo, &head_commit.id, path).await?;
-    let df = response.data_frame.view.to_df();
-
-    println!("{}\t{:?}\n{:?}", head_commit.id, path, df);
 
     Ok(())
 }
@@ -461,14 +416,18 @@ fn maybe_display_types(entries: &PaginatedDirEntries) {
     }
 }
 
-pub async fn remote_df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+pub async fn remote_df(
+    workspace_id: &str,
+    input: impl AsRef<Path>,
+    opts: DFOpts,
+) -> Result<(), OxenError> {
     let repo_dir = env::current_dir().unwrap();
     let repo = LocalRepository::from_dir(&repo_dir)?;
 
     let host = get_host_from_repo(&repo)?;
     check_remote_version(host).await?;
 
-    command::remote::staged_df(&repo, input, opts).await?;
+    command::remote::staged_df(&repo, workspace_id, input, opts).await?;
 
     Ok(())
 }

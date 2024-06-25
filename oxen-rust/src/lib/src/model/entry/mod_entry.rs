@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::model::{CommitEntry, ContentType, Schema};
+use crate::model::Schema;
 
 #[derive(Deserialize, Serialize, Debug, Clone, PartialEq)]
 pub enum ModType {
@@ -14,18 +14,9 @@ pub enum ModType {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
-pub struct NewMod {
-    pub content_type: ContentType,
-    pub mod_type: ModType,
-    pub entry: CommitEntry, // can only modify a committed file
-    pub data: String,
-}
-
-#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ModEntry {
     pub uuid: String,
     pub modification_type: ModType, // append, delete, modify
-    pub content_type: ContentType,  // text, json, csv
     pub schema: Option<Schema>,
     pub data: String,
     pub path: PathBuf,

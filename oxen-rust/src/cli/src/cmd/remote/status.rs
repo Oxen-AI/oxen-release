@@ -25,6 +25,13 @@ impl RunCmd for RemoteStatusCmd {
         Command::new(NAME)
             .about("See at what files are ready to be added or committed")
             .arg(
+                Arg::new("workspace")
+                    .long("workspace")
+                    .short('w')
+                    .help("Pass in the workspace id.")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
                 Arg::new("skip")
                     .long("skip")
                     .short('s')
@@ -52,6 +59,10 @@ impl RunCmd for RemoteStatusCmd {
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
         let directory = args.get_one::<String>("path").map(PathBuf::from);
+
+        let Some(workspace_id) = args.get_one::<String>("workspace") else {
+            return Err(OxenError::basic_str("Must supply workspace id."));
+        };
 
         let skip = args
             .get_one::<String>("skip")
@@ -86,26 +97,10 @@ impl RunCmd for RemoteStatusCmd {
 
         let directory = directory.unwrap_or(PathBuf::from("."));
 
-        if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
-            let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
-            let repo_status =
-                command::remote::status(&remote_repo, &current_branch, &directory, &opts).await?;
-            if let Some(remote_branch) =
-                api::remote::branches::get_by_name(&remote_repo, &current_branch.name).await?
-            {
-                println!(
-                    "Checking remote branch {} -> {}\n",
-                    remote_branch.name, remote_branch.commit_id
-                );
-                repo_status.print_stdout_with_params(&opts);
-            }
-        } else {
-            let head = api::local::commits::head_commit(&repository)?;
-            println!(
-                "You are in 'detached HEAD' state.\nHEAD is now at {} {}\nYou cannot query remote status unless you are on a branch.",
-                head.id, head.message
-            );
-        }
+        let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+        let repo_status =
+            command::remote::status(&remote_repo, &workspace_id, &directory, &opts).await?;
+        repo_status.print_stdout_with_params(&opts);
 
         Ok(())
     }

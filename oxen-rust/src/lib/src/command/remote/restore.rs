@@ -11,13 +11,8 @@ use crate::opts::RestoreOpts;
 
 /// Remove all staged changes from file on remote
 pub async fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
-    let branch = api::local::branches::current_branch(repo)?;
-    if branch.is_none() {
-        return Err(OxenError::must_be_on_valid_branch());
-    }
-    let branch = branch.unwrap();
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-    let user_id = UserConfig::identifier()?;
-    api::remote::workspace::restore_df(&remote_repo, &branch.name, &user_id, opts.path.to_owned())
+    let workspace_id = UserConfig::identifier()?;
+    api::remote::workspaces::data_frames::restore(&remote_repo, &workspace_id, opts.path.to_owned())
         .await
 }

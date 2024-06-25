@@ -58,6 +58,9 @@ pub enum OxenError {
     NoCommitsFound(StringError),
     HeadNotFound(StringError),
 
+    // Workspaces
+    WorkspaceNotFound(Box<StringError>),
+
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
     PathDoesNotExist(Box<PathBufError>),
@@ -204,6 +207,10 @@ impl OxenError {
 
     pub fn revision_not_found(value: StringError) -> Self {
         OxenError::RevisionNotFound(Box::new(value))
+    }
+
+    pub fn workspace_not_found(value: StringError) -> Self {
+        OxenError::WorkspaceNotFound(Box::new(value))
     }
 
     pub fn root_commit_does_not_match(commit: Commit) -> Self {
@@ -432,11 +439,6 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn invalid_agg_query(query: impl AsRef<str>) -> OxenError {
-        let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
-        OxenError::basic_str(err)
-    }
-
     pub fn invalid_set_remote_url(url: impl AsRef<str>) -> OxenError {
         let err = format!("\nRemote invalid, must be fully qualified URL, got: {:?}\n\n  oxen config --set-remote origin https://hub.oxen.ai/<namespace>/<reponame>\n", url.as_ref());
         OxenError::basic_str(err)
@@ -453,11 +455,6 @@ impl OxenError {
 
     pub fn parse_error(value: impl AsRef<str>) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
-        OxenError::basic_str(err)
-    }
-
-    pub fn unknown_agg_fn(name: impl AsRef<str>) -> OxenError {
-        let err = format!("Unknown aggregation function: {:?}", name.as_ref());
         OxenError::basic_str(err)
     }
 
