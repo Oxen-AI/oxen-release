@@ -58,7 +58,6 @@ pub async fn get_or_create(
             status: StatusMessage::resource_created(),
             workspace: WorkspaceResponse {
                 workspace_id,
-                branch_name: branch.name,
                 commit: workspace.commit,
             },
         }));
@@ -73,8 +72,27 @@ pub async fn get_or_create(
         status: StatusMessage::resource_created(),
         workspace: WorkspaceResponse {
             workspace_id,
-            branch_name: branch.name,
             commit,
+        },
+    }))
+}
+
+pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+
+    index::workspaces::delete(&workspace)?;
+
+    Ok(HttpResponse::Ok().json(WorkspaceResponseView {
+        status: StatusMessage::resource_created(),
+        workspace: WorkspaceResponse {
+            workspace_id,
+            commit: workspace.commit,
         },
     }))
 }

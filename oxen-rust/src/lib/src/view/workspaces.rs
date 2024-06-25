@@ -13,7 +13,6 @@ pub struct NewWorkspace {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct WorkspaceResponse {
     pub workspace_id: String,
-    pub branch_name: String,
     pub commit: Commit,
 }
 
