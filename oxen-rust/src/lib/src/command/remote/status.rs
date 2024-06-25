@@ -22,9 +22,14 @@ pub async fn status(
     let page_size = opts.limit;
     let page_num = opts.skip / page_size;
 
-    let remote_status =
-        api::remote::workspaces::status(remote_repo, workspace_id, directory, page_num, page_size)
-            .await?;
+    let remote_status = api::remote::workspaces::changes::list(
+        remote_repo,
+        workspace_id,
+        directory,
+        page_num,
+        page_size,
+    )
+    .await?;
 
     let mut status = StagedData::empty();
     status.staged_dirs = remote_status.added_dirs;
