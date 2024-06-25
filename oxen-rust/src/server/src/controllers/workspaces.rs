@@ -50,9 +50,21 @@ pub async fn get_or_create(
         return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Branch not found")));
     };
 
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
-
+    // Return workspace if it already exists
     let workspace_id = data.workspace_id.clone();
+    log::debug!("get_or_create workspace_id {:?}", workspace_id);
+    if let Ok(workspace) = index::workspaces::get(&repo, &workspace_id) {
+        return Ok(HttpResponse::Ok().json(WorkspaceResponseView {
+            status: StatusMessage::resource_created(),
+            workspace: WorkspaceResponse {
+                workspace_id,
+                branch_name: branch.name,
+                commit: workspace.commit,
+            },
+        }));
+    }
+
+    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
     // Get or create the workspace
     index::workspaces::create(&repo, &commit, &workspace_id)?;
@@ -191,11 +203,13 @@ pub async fn add_file(req: HttpRequest, payload: Multipart) -> Result<HttpRespon
     let repo_name = path_param(&req, "repo_name")?;
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
-    let path = PathBuf::from(path_param(&req, "path")?);
+    let directory = PathBuf::from(path_param(&req, "path")?);
 
     let workspace = index::workspaces::get(&repo, &workspace_id)?;
 
-    let files = save_parts(&workspace, &path, payload).await?;
+    log::debug!("add_file directory {:?}", directory);
+
+    let files = save_parts(&workspace, &directory, payload).await?;
     let mut ret_files = vec![];
 
     for file in files.iter() {
@@ -220,7 +234,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let branch_name = path_param(&req, "branch")?;
 
     log::debug!(
-        "stager::commit {namespace}/{repo_name} workspace id {} to branch {} got body: {}",
+        "workspace::commit {namespace}/{repo_name} workspace id {} to branch {} got body: {}",
         workspace_id,
         branch_name,
         body
@@ -240,7 +254,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     match index::workspaces::commit(&workspace, &data, &branch_name) {
         Ok(commit) => {
-            log::debug!("stager::commit ✅ success! commit {:?}", commit);
+            log::debug!("workspace::commit ✅ success! commit {:?}", commit);
 
             // Clone the commit so we can move it into the thread
             let ret_commit = commit.clone();

@@ -167,6 +167,7 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
     let workspace_id = path_param(&req, "workspace_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
+
     let workspace = index::workspaces::get(&repo, workspace_id)?;
     let data: DataFramePayload = serde_json::from_str(&body)?;
 
