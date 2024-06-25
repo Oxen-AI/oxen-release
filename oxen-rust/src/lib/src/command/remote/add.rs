@@ -55,11 +55,10 @@ pub async fn add<P: AsRef<Path>>(
     let (remote_directory, resolved_path) = resolve_remote_add_file_path(repo, path, opts)?;
     let directory_name = remote_directory.to_string_lossy().to_string();
 
-    let user_id = UserConfig::identifier()?;
-    let result = api::remote::workspaces::add_file(
+    let workspace_id = UserConfig::identifier()?;
+    let result = api::remote::workspaces::files::add(
         &remote_repo,
-        &branch.name,
-        &user_id,
+        &workspace_id,
         &directory_name,
         resolved_path,
     )
@@ -104,13 +103,12 @@ fn resolve_remote_add_file_path(
 mod tests {
     use std::path::Path;
 
-    use crate::api;
-    use crate::command;
-    use crate::constants::OXEN_ID_COL;
+    use crate::constants::{DEFAULT_BRANCH_NAME, OXEN_ID_COL};
     use crate::error::OxenError;
     use crate::model::staged_data::StagedDataOpts;
     use crate::opts::DFOpts;
     use crate::test;
+    use crate::{api, command};
     use polars::prelude::AnyValue;
 
     // #[tokio::test]
@@ -178,37 +176,40 @@ mod tests {
                 let path = test::test_nlp_classification_csv();
 
                 // Index dataset
-                command::remote::df::index_dataset(&cloned_repo, &path).await?;
+                let workspace_id = "my_workspace";
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+                api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
+                    .await?;
 
                 let mut opts = DFOpts::empty();
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
                 // Grab ID from the row we just added
-                let df = command::remote::df(&cloned_repo, &path, opts).await?;
+                let df = command::remote::df(&cloned_repo, workspace_id, &path, opts).await?;
                 let uuid = match df.column(OXEN_ID_COL).unwrap().get(0).unwrap() {
                     AnyValue::String(s) => s.to_string(),
                     _ => panic!("Expected string"),
                 };
 
                 // Make sure it is listed as modified
-                let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
                 let directory = Path::new("");
                 let opts = StagedDataOpts {
                     is_remote: true,
                     ..Default::default()
                 };
                 let status =
-                    command::remote::status(&remote_repo, &branch, directory, &opts).await?;
+                    command::remote::status(&remote_repo, workspace_id, directory, &opts).await?;
                 assert_eq!(status.staged_files.len(), 1);
 
                 // Delete it
                 let mut delete_opts = DFOpts::empty();
                 delete_opts.delete_row = Some(uuid);
-                command::remote::df(&cloned_repo, &path, delete_opts).await?;
+                command::remote::df(&cloned_repo, workspace_id, &path, delete_opts).await?;
 
                 // Now status should be empty
                 let status =
-                    command::remote::status(&remote_repo, &branch, directory, &opts).await?;
+                    command::remote::status(&remote_repo, workspace_id, directory, &opts).await?;
                 assert_eq!(status.staged_files.len(), 0);
 
                 Ok(repo_dir)

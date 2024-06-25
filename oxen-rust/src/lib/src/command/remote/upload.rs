@@ -10,10 +10,10 @@ use crate::opts::UploadOpts;
 
 pub async fn upload(repo: &RemoteRepository, opts: &UploadOpts) -> Result<(), OxenError> {
     // Ping server telling it we are about to upload, todo: make configurable
-    api::remote::repositories::pre_download(repo).await?;
+    api::remote::repositories::pre_upload(repo).await?;
     api::remote::entries::upload_entries(repo, opts).await?;
     // Ping server telling it we finished uploading, todo: make configurable
-    api::remote::repositories::post_download(repo).await?;
+    api::remote::repositories::post_upload(repo).await?;
     Ok(())
 }
 
