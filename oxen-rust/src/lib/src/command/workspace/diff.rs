@@ -1,4 +1,4 @@
-//! # oxen remote diff
+//! # oxen workspace diff
 //!
 //! Compare remote files and directories between versions
 //!

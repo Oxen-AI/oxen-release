@@ -14,10 +14,10 @@ use crate::helpers::{check_remote_version, check_remote_version_blocking, get_ho
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "status";
-pub struct RemoteStatusCmd;
+pub struct WorkspaceStatusCmd;
 
 #[async_trait]
-impl RunCmd for RemoteStatusCmd {
+impl RunCmd for WorkspaceStatusCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -99,7 +99,7 @@ impl RunCmd for RemoteStatusCmd {
 
         let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
         let repo_status =
-            command::remote::status(&remote_repo, &workspace_id, &directory, &opts).await?;
+            command::workspace::status(&remote_repo, &workspace_id, &directory, &opts).await?;
         repo_status.print_stdout_with_params(&opts);
 
         Ok(())

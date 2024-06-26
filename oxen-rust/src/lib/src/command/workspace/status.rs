@@ -1,4 +1,4 @@
-//! # oxen remote status
+//! # oxen workspace status
 //!
 //! Query a remote repository for the status of a branch
 //!

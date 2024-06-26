@@ -75,7 +75,8 @@ pub use read_lines::ReadLinesCmd;
 pub mod rm;
 pub use rm::RmCmd;
 
-pub mod remote;
+pub mod workspace;
+pub use workspace::WorkspaceCmd;
 
 pub mod restore;
 pub use restore::RestoreCmd;

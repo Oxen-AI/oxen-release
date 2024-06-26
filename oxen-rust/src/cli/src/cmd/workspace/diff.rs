@@ -11,10 +11,10 @@ use crate::cmd::RunCmd;
 use crate::helpers::check_repo_migration_needed;
 
 pub const NAME: &str = "commit";
-pub struct RemoteDiffCmd;
+pub struct WorkspaceDiffCmd;
 
 #[async_trait]
-impl RunCmd for RemoteDiffCmd {
+impl RunCmd for WorkspaceDiffCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -40,7 +40,7 @@ impl RunCmd for RemoteDiffCmd {
         let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
-        let remote_diff = command::remote::diff(&repository, workspace_id, &opts.path_1).await?;
+        let remote_diff = command::workspace::diff(&repository, workspace_id, &opts.path_1).await?;
         println!("{:?}", remote_diff);
 
         // TODO: Allow them to save a remote diff to disk

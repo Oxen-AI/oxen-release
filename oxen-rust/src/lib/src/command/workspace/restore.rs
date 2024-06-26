@@ -1,4 +1,4 @@
-//! # oxen remote restore
+//! # oxen workspace restore
 //!
 //! List files in a remote repository branch
 //!

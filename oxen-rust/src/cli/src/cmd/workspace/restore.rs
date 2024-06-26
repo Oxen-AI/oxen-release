@@ -11,10 +11,10 @@ use std::path::PathBuf;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "restore";
-pub struct RemoteRestoreCmd;
+pub struct WorkspaceRestoreCmd;
 
 #[async_trait]
-impl RunCmd for RemoteRestoreCmd {
+impl RunCmd for WorkspaceRestoreCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -65,7 +65,7 @@ impl RunCmd for RemoteRestoreCmd {
         let repository = LocalRepository::from_dir(&repo_dir)?;
 
         check_repo_migration_needed(&repository)?;
-        command::remote::restore(&repository, opts).await?;
+        command::workspace::restore(&repository, opts).await?;
 
         Ok(())
     }

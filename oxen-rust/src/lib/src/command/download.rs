@@ -70,7 +70,7 @@ mod tests {
 
             // Download the directory
             let output_dir = repo.path.join("output");
-            command::remote::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
+            command::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
 
             // Check that the files are there
             for i in 0..num_files {
@@ -114,7 +114,7 @@ mod tests {
 
             // Download the directory
             let output_dir = Path::new("output");
-            command::remote::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
+            command::download(&remote_repo, &dir, &output_dir, &branch.name).await?;
 
             // Check that the files are there
             for i in 0..num_files {

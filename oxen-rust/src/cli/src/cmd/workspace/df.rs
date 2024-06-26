@@ -8,10 +8,10 @@ use liboxen::model::LocalRepository;
 use crate::cmd::RunCmd;
 
 pub const NAME: &str = "df";
-pub struct RemoteDfCmd;
+pub struct WorkspaceDfCmd;
 
 #[async_trait]
-impl RunCmd for RemoteDfCmd {
+impl RunCmd for WorkspaceDfCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -40,7 +40,7 @@ impl RunCmd for RemoteDfCmd {
                         return Err(OxenError::basic_str("Must supply a DataFrame to process."));
                     };
                     let repository = LocalRepository::from_current_dir()?;
-                    match command::remote::df::index(&repository, workspace_id, path).await {
+                    match command::workspace::df::index(&repository, workspace_id, path).await {
                         Ok(_) => return Ok(()),
                         Err(e) => return Err(e),
                     }
