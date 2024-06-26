@@ -39,10 +39,20 @@ pub async fn get_by_resource(
     opts.page = Some(query.page.unwrap_or(constants::DEFAULT_PAGE_NUM));
     opts.page_size = Some(query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE));
 
-    if !index::workspaces::data_frames::is_indexed(&workspace, &file_path)? {
-        return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
-    }
+    let is_indexed = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
+    if !is_indexed {
+        let response = WorkspaceJsonDataFrameViewResponse {
+            status: StatusMessage::resource_found(),
+            data_frame: None,
+            resource: None,
+            commit: None, // Not at a committed state
+            derived_resource: None,
+            is_indexed,
+        };
+
+        return Ok(HttpResponse::Ok().json(response));
+    }
     let count = index::workspaces::data_frames::count(&workspace, &file_path)?;
 
     let df = index::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
@@ -59,7 +69,7 @@ pub async fn get_by_resource(
 
     let response = WorkspaceJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
-        data_frame: df_views,
+        data_frame: Some(df_views),
         resource: Some(resource),
         commit: None, // Not at a committed state
         derived_resource: None,
