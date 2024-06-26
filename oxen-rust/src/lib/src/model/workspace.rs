@@ -102,9 +102,7 @@ impl Workspace {
         util::fs::write_to_path(&commit_id_path, &commit.id)?;
 
         // write the workspace name to the workspace dir
-        let workspace_name_path = workspace_dir
-            .join(OXEN_HIDDEN_DIR)
-            .join(WORKSPACE_NAME);
+        let workspace_name_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
         util::fs::write_to_path(&workspace_name_path, &workspace_name)?;
 
         Ok(Workspace {

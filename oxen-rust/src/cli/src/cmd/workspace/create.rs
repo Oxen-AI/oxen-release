@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use liboxen::model::LocalRepository;
 use liboxen::command;
 use liboxen::error::OxenError;
+use liboxen::model::LocalRepository;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "create";

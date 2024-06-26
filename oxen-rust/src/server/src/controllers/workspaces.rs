@@ -9,7 +9,7 @@ use liboxen::core::cache::commit_cacher;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::{NewCommitBody, Workspace};
 use liboxen::util;
-use liboxen::view::workspaces::{NewWorkspace, WorkspaceResponse};
+use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
 use liboxen::view::{CommitResponse, FilePathsResponse, StatusMessage, WorkspaceResponseView};
 use liboxen::{api, core::index};
 
@@ -71,6 +71,27 @@ pub async fn get_or_create(
             workspace_id,
             commit,
         },
+    }))
+}
+
+pub async fn list(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let workspaces = index::workspaces::list(&repo)?;
+    let workspace_views = workspaces
+        .iter()
+        .map(|workspace| WorkspaceResponse {
+            workspace_id: workspace.id.clone(),
+            commit: workspace.commit.clone(),
+        })
+        .collect();
+
+    Ok(HttpResponse::Ok().json(ListWorkspaceResponseView {
+        status: StatusMessage::resource_created(),
+        workspaces: workspace_views,
     }))
 }
 
