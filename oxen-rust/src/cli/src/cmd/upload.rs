@@ -113,7 +113,7 @@ impl RunCmd for UploadCmd {
                 ..opts
             };
 
-            command::remote::upload(&remote_repo, &opts).await?;
+            command::workspace::upload(&remote_repo, &opts).await?;
         } else {
             eprintln!("Repository does not exist {}", name);
         }

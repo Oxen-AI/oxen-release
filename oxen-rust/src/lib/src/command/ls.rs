@@ -1,4 +1,4 @@
-//! # oxen remote ls
+//! # oxen workspace ls
 //!
 //! List files in a remote repository branch
 //!
@@ -82,7 +82,7 @@ mod tests {
                 page_num: 1,
                 page_size: 10,
             };
-            let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
+            let paginated = command::workspace::ls(&remote_repo, &branch, dir, &opts).await?;
             assert_eq!(paginated.entries.len(), 10);
             assert_eq!(paginated.page_number, 1);
             assert_eq!(paginated.page_size, 10);
@@ -125,7 +125,7 @@ mod tests {
                 page_num: 1,
                 page_size: 10,
             };
-            let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
+            let paginated = command::workspace::ls(&remote_repo, &branch, dir, &opts).await?;
 
             // serialize into an array of DataTypeCount
             let metadata = paginated.metadata.unwrap();
@@ -201,7 +201,7 @@ mod tests {
                 page_num: 1,
                 page_size: 10,
             };
-            let paginated = command::remote::ls(&remote_repo, &branch, dir, &opts).await?;
+            let paginated = command::workspace::ls(&remote_repo, &branch, dir, &opts).await?;
 
             // serialize into an array of DataTypeCount
             let metadata = paginated.metadata.unwrap();

@@ -9,10 +9,10 @@ use crate::cmd::RunCmd;
 use crate::helpers::check_repo_migration_needed;
 
 pub const NAME: &str = "commit";
-pub struct RemoteCommitCmd;
+pub struct WorkspaceCommitCmd;
 
 #[async_trait]
-impl RunCmd for RemoteCommitCmd {
+impl RunCmd for WorkspaceCommitCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -43,7 +43,7 @@ impl RunCmd for RemoteCommitCmd {
         check_repo_migration_needed(&repo)?;
 
         println!("Committing to remote with message: {message}");
-        command::remote::commit(&repo, message).await?;
+        command::workspace::commit(&repo, message).await?;
 
         Ok(())
     }

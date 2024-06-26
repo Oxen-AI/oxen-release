@@ -49,47 +49,6 @@ pub async fn df(
     }
 }
 
-// TODO: Only difference between this and `df` is for `get` operations - everything above
-// the "else" can be factored into a shared method
-pub async fn staged_df<P: AsRef<Path>>(
-    repo: &LocalRepository,
-    workspace_id: &str,
-    input: P,
-    opts: DFOpts,
-) -> Result<DataFrame, OxenError> {
-    // Special case where we are writing data
-    let identifier = UserConfig::identifier()?;
-    if let Some(row) = &opts.add_row {
-        add_row(repo, workspace_id, input.as_ref(), row).await
-    } else if let Some(uuid) = &opts.delete_row {
-        delete_row(repo, workspace_id, input, uuid).await
-    } else {
-        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-        let output = opts.output.clone();
-        let val =
-            api::remote::workspaces::data_frames::get(&remote_repo, &identifier, input, opts).await;
-        if let Ok(val) = val {
-            let mut df = val.data_frame.view.to_df();
-            if let Some(output) = output {
-                println!("Writing {output:?}");
-                tabular::write_df(&mut df, output)?;
-            }
-
-            println!(
-                "Full shape: ({}, {})\n",
-                val.data_frame.source.size.height, val.data_frame.source.size.width
-            );
-            println!("Slice {df:?}");
-            Ok(df)
-        } else {
-            println!(
-                    "Dataset not indexed for remote editing. Use `oxen df --index <path>` to index it, or `oxen df <path> --committed` to view the committed resource in view-only mode.\n"
-                );
-            Err(OxenError::basic_str("No dataset staged for this resource."))
-        }
-    }
-}
-
 pub async fn add_row(
     repo: &LocalRepository,
     workspace_id: &str,

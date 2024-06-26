@@ -11,10 +11,10 @@ use std::path::PathBuf;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "rm";
-pub struct RemoteRmCmd;
+pub struct WorkspaceRmCmd;
 
 #[async_trait]
-impl RunCmd for RemoteRmCmd {
+impl RunCmd for WorkspaceRmCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -63,7 +63,7 @@ impl RunCmd for RemoteRmCmd {
 
         for path in paths {
             let path_opts = RmOpts::from_path_opts(&path, &opts);
-            command::remote::rm(&repository, &path_opts).await?;
+            command::workspace::rm(&repository, &path_opts).await?;
         }
 
         Ok(())

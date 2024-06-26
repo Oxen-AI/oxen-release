@@ -1,4 +1,4 @@
-//! # oxen remote commit
+//! # oxen workspace commit
 //!
 //! Commit workspace data on a to a branch
 //!
@@ -62,14 +62,14 @@ mod tests {
                     .await?;
 
                 // Index the dataset
-                command::remote::df::index(&cloned_repo, workspace_id, &path).await?;
+                command::workspace::df::index(&cloned_repo, workspace_id, &path).await?;
 
                 log::debug!("the path in question is {:?}", path);
                 let mut opts = DFOpts::empty();
 
                 opts.add_row =
                     Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
-                command::remote::df(&cloned_repo, workspace_id, &path, opts).await?;
+                command::workspace::df(&cloned_repo, workspace_id, &path, opts).await?;
 
                 // Local add col
                 let full_path = cloned_repo.path.join(path);
@@ -84,7 +84,7 @@ mod tests {
                 command::push(&cloned_repo).await?;
 
                 // Try to commit the remote changes, should fail
-                let result = command::remote::commit(&cloned_repo, "Remotely committing").await;
+                let result = command::workspace::commit(&cloned_repo, "Remotely committing").await;
                 println!("{:?}", result);
                 assert!(result.is_err());
 
@@ -95,7 +95,7 @@ mod tests {
                 //     is_remote: true,
                 //     ..Default::default()
                 // };
-                // let status = command::remote_status(&remote_repo, &branch, directory, &opts).await?;
+                // let status = command::workspace_status(&remote_repo, &branch, directory, &opts).await?;
                 // assert_eq!(status.modified_files.len(), 1);
 
                 Ok(repo_dir)

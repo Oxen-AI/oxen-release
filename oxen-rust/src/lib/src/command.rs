@@ -13,6 +13,7 @@ pub mod config;
 pub mod db;
 pub mod df;
 pub mod diff;
+pub mod download;
 pub mod fetch;
 pub mod helpers;
 pub mod info;
@@ -23,12 +24,13 @@ pub mod merge;
 pub mod migrate;
 pub mod pull;
 pub mod push;
-pub mod remote;
 pub mod restore;
 pub mod rm;
 pub mod save;
 pub mod schemas;
 pub mod status;
+pub mod workspace;
+
 
 pub use crate::command::add::add;
 pub use crate::command::branch::unlock;
@@ -39,6 +41,7 @@ pub use crate::command::clone::{clone, clone_url, deep_clone_url, shallow_clone_
 pub use crate::command::commit::commit;
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::{diff, diff_commits};
+pub use crate::command::download::download;
 pub use crate::command::fetch::fetch;
 pub use crate::command::info::info;
 pub use crate::command::init::init;

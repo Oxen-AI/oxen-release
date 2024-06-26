@@ -5,10 +5,7 @@ use clap::Command;
 use env_logger::Env;
 
 pub mod cmd;
-pub mod cmd_setup;
-pub mod dispatch;
 pub mod helpers;
-pub mod parse_and_run;
 
 #[tokio::main]
 async fn main() -> ExitCode {
@@ -44,6 +41,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::SchemasCmd),
         Box::new(cmd::StatusCmd),
         Box::new(cmd::UploadCmd),
+        Box::new(cmd::WorkspaceCmd),
     ];
 
     let mut command = Command::new("oxen")
@@ -63,7 +61,6 @@ async fn main() -> ExitCode {
     // Parse the command line args and run the appropriate command
     let matches = command.get_matches();
     match matches.subcommand() {
-        Some((cmd_setup::REMOTE, sub_matches)) => parse_and_run::remote(sub_matches).await,
         // TODO: Get these in the help command instead of just falling back
         Some((command, args)) => {
             // Lookup command in runners and run on args
