@@ -55,7 +55,7 @@ pub struct JsonDataFrameViewResponse {
 pub struct WorkspaceJsonDataFrameViewResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
-    pub data_frame: JsonDataFrameViews,
+    pub data_frame: Option<JsonDataFrameViews>,
     pub commit: Option<Commit>,
     pub resource: Option<ResourceVersion>,
     pub derived_resource: Option<DerivedDFResource>,
