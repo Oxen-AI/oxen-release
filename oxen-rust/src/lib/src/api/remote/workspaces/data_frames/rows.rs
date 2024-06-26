@@ -424,8 +424,8 @@ mod tests {
             .await?;
 
             // Extract the first _oxen_row_id from the data frame
-            let row_id_value = df
-                .data_frame
+            let binding = df.data_frame.unwrap();
+            let row_id_value = binding
                 .view
                 .data
                 .get(0)
@@ -503,8 +503,10 @@ mod tests {
             .await?;
 
             // Extract the first _oxen_row_id from the data frame
-            let row_id_value = df
+            let binding = df
                 .data_frame
+                .unwrap();
+            let row_id_value = binding
                 .view
                 .data
                 .get(0)
