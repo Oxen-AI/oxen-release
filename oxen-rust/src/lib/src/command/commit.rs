@@ -8,8 +8,8 @@ use crate::command;
 use crate::core::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository};
 use crate::model::StagedEntryStatus;
+use crate::model::{Commit, LocalRepository};
 
 /// # Commit the staged files in the repo
 ///
@@ -59,14 +59,14 @@ Stage a file or directory with `oxen add <file>`"
         match entry.status {
             StagedEntryStatus::Added => {
                 let full_path = repo.path.join(path);
-                if  !full_path.exists() {
+                if !full_path.exists() {
                     status.staged_files.remove(&path.clone());
                 }
-            } 
+            }
             StagedEntryStatus::Modified => {
                 let full_path = repo.path.join(path);
                 if !full_path.exists() {
-                    status.staged_files.remove(&path.clone()); 
+                    status.staged_files.remove(&path.clone());
                 }
             }
             _ => continue,
@@ -142,7 +142,7 @@ mod tests {
             // Get status and make sure the file was not committed
             let head = api::local::commits::head_commit(&repo)?;
             let commit_reader = CommitEntryReader::new(&repo, &head)?;
-            let commit_list = commit_reader.list_files()?;   
+            let commit_list = commit_reader.list_files()?;
             assert_eq!(commit_list.len(), 0);
 
             // Test subsequent commit
