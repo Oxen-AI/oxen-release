@@ -9,6 +9,7 @@ use crate::core::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
+use crate::model::StagedEntryStatus;
 
 /// # Commit the staged files in the repo
 ///
@@ -40,7 +41,7 @@ use crate::model::{Commit, LocalRepository};
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = command::status::status_without_untracked(repo)?;
+    let mut status = command::status::status_without_untracked(repo)?;
 
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
         return Err(OxenError::NothingToCommit(
@@ -51,6 +52,27 @@ Stage a file or directory with `oxen add <file>`"
             ),
         ));
     }
+
+    // Logs?
+    let status_clone = status.clone();
+    for (path, entry) in status_clone.staged_files.iter() {
+        match entry.status {
+            StagedEntryStatus::Added => {
+                let full_path = repo.path.join(path);
+                if  !full_path.exists() {
+                    status.staged_files.remove(&path.clone());
+                }
+            } 
+            StagedEntryStatus::Modified => {
+                let full_path = repo.path.join(path);
+                if !full_path.exists() {
+                    status.staged_files.remove(&path.clone()); 
+                }
+            }
+            _ => continue,
+        }
+    }
+
     let commit = api::local::commits::commit(repo, &status, message)?;
     // Open then close commit entry writer to force indexing on rocksbds
     {
@@ -96,6 +118,42 @@ mod tests {
 
             let commits = api::local::commits::list(&repo)?;
             assert_eq!(commits.len(), 2);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_removed_file() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test(|repo| {
+            // Write to file
+            let hello_file = repo.path.join("hello.txt");
+            util::fs::write_to_path(&hello_file, "Hello World")?;
+
+            // Track the file
+            command::add(&repo, &hello_file)?;
+
+            // Remove the file
+            util::fs::remove_file(&hello_file)?;
+
+            // Commit the file
+            command::commit(&repo, "My message")?;
+
+            // Get status and make sure the file was not committed
+            let head = api::local::commits::head_commit(&repo)?;
+            let commit_reader = CommitEntryReader::new(&repo, &head)?;
+            let commit_list = commit_reader.list_files()?;   
+            assert_eq!(commit_list.len(), 0);
+
+            // Test subsequent commit
+            let goodbye_file = repo.path.join("goodbye.txt");
+            util::fs::write_to_path(&goodbye_file, "Goodbye World")?;
+
+            command::add(&repo, &goodbye_file)?;
+
+            util::fs::remove_file(&goodbye_file)?;
+
+            command::commit(&repo, "Second Message")?;
 
             Ok(())
         })
