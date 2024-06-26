@@ -8,7 +8,7 @@ pub mod data_frames;
 pub fn workspace() -> Scope {
     web::scope("/workspaces")
         .route("", web::put().to(controllers::workspaces::get_or_create))
-        // TODO: List Workspaces
+        .route("", web::get().to(controllers::workspaces::list))
         .service(
             web::scope("/{workspace_id}")
                 .route("", web::delete().to(controllers::workspaces::delete))

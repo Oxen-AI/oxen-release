@@ -22,3 +22,10 @@ pub struct WorkspaceResponseView {
     pub status: StatusMessage,
     pub workspace: WorkspaceResponse,
 }
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct ListWorkspaceResponseView {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub workspaces: Vec<WorkspaceResponse>,
+}

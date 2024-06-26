@@ -228,11 +228,7 @@ impl RunCmd for MigrateCmd {
                                 args,
                             )?
                         } else if migration == PropagateSchemasMigration.name() {
-                            MigrateCmd::run_migration(
-                                &PropagateSchemasMigration,
-                                direction,
-                                args,
-                            )?
+                            MigrateCmd::run_migration(&PropagateSchemasMigration, direction, args)?
                         } else if migration == CacheDataFrameSizeMigration.name() {
                             MigrateCmd::run_migration(
                                 &CacheDataFrameSizeMigration,
@@ -240,11 +236,7 @@ impl RunCmd for MigrateCmd {
                                 args,
                             )?
                         } else if migration == CreateMerkleTreesMigration.name() {
-                            MigrateCmd::run_migration(
-                                &CreateMerkleTreesMigration,
-                                direction,
-                                args,
-                            )?
+                            MigrateCmd::run_migration(&CreateMerkleTreesMigration, direction, args)?
                         } else if migration == AddDirectoriesToCacheMigration.name() {
                             MigrateCmd::run_migration(
                                 &AddDirectoriesToCacheMigration,

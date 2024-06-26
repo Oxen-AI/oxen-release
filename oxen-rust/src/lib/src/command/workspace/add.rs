@@ -6,7 +6,6 @@
 use std::path::{Path, PathBuf};
 
 use crate::api;
-use crate::config::UserConfig;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::index::oxenignore;
 use crate::error::OxenError;
@@ -14,11 +13,13 @@ use crate::model::{LocalRepository, RemoteBranch};
 use crate::opts::AddOpts;
 use crate::util;
 
-pub async fn add<P: AsRef<Path>>(
+pub async fn add(
     repo: &LocalRepository,
-    path: P,
+    workspace_id: impl AsRef<str>,
+    path: impl AsRef<Path>,
     opts: &AddOpts,
 ) -> Result<(), OxenError> {
+    let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
     // * make sure we are on a branch
     let branch = api::local::branches::current_branch(repo)?;
@@ -55,7 +56,10 @@ pub async fn add<P: AsRef<Path>>(
     let (remote_directory, resolved_path) = resolve_remote_add_file_path(repo, path, opts)?;
     let directory_name = remote_directory.to_string_lossy().to_string();
 
-    let workspace_id = UserConfig::identifier()?;
+    log::debug!("command::workspace::add Resolved path: {:?}", resolved_path);
+    log::debug!("command::workspace::add Remote directory: {:?}", remote_directory);
+    log::debug!("command::workspace::add Directory name: {:?}", directory_name);
+
     let result = api::remote::workspaces::files::add(
         &remote_repo,
         &workspace_id,
@@ -152,7 +156,8 @@ mod tests {
                     ..Default::default()
                 };
                 let status =
-                    command::workspace::status(&remote_repo, workspace_id, directory, &opts).await?;
+                    command::workspace::status(&remote_repo, workspace_id, directory, &opts)
+                        .await?;
                 assert_eq!(status.staged_files.len(), 1);
 
                 // Delete it
@@ -162,7 +167,8 @@ mod tests {
 
                 // Now status should be empty
                 let status =
-                    command::workspace::status(&remote_repo, workspace_id, directory, &opts).await?;
+                    command::workspace::status(&remote_repo, workspace_id, directory, &opts)
+                        .await?;
                 assert_eq!(status.staged_files.len(), 0);
 
                 Ok(repo_dir)

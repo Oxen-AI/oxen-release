@@ -9,8 +9,24 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
+use crate::view::workspaces::ListWorkspaceResponseView;
 use crate::view::workspaces::{NewWorkspace, WorkspaceResponse};
 use crate::view::WorkspaceResponseView;
+
+pub async fn list(remote_repo: &RemoteRepository) -> Result<Vec<WorkspaceResponse>, OxenError> {
+    let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<ListWorkspaceResponseView, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.workspaces),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
+    }
+}
 
 pub async fn create(
     remote_repo: &RemoteRepository,
@@ -83,6 +99,21 @@ mod tests {
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
 
             assert_eq!(workspace.workspace_id, workspace_id);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_workspaces() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+            let branch_name = "main";
+            create(&remote_repo, branch_name, "test_workspace_id").await?;
+            create(&remote_repo, branch_name, "test_workspace_id2").await?;
+
+            let workspaces = list(&remote_repo).await?;
+            assert_eq!(workspaces.len(), 2);
 
             Ok(remote_repo)
         })

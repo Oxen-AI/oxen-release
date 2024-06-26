@@ -31,7 +31,6 @@ pub mod schemas;
 pub mod status;
 pub mod workspace;
 
-
 pub use crate::command::add::add;
 pub use crate::command::branch::unlock;
 pub use crate::command::checkout::{

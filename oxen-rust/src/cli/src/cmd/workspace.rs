@@ -13,6 +13,9 @@ pub use diff::WorkspaceDiffCmd;
 pub mod df;
 pub use df::WorkspaceDfCmd;
 
+pub mod list;
+pub use list::WorkspaceListCmd;
+
 pub mod restore;
 pub use restore::WorkspaceRestoreCmd;
 
@@ -25,8 +28,8 @@ pub use status::WorkspaceStatusCmd;
 use async_trait::async_trait;
 use clap::Command;
 
-use std::collections::HashMap;
 use liboxen::error::OxenError;
+use std::collections::HashMap;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "workspace";
@@ -40,9 +43,7 @@ impl RunCmd for WorkspaceCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        let mut command = Command::new(NAME)
-            .about("Manage workspaces")
-        ;
+        let mut command = Command::new(NAME).about("Manage workspaces");
 
         // These are all the subcommands for the schemas command
         // including `create`, `add`, `rm`, `commit`, and `status`
@@ -80,6 +81,7 @@ impl WorkspaceCmd {
             Box::new(WorkspaceCreateCmd),
             Box::new(WorkspaceDfCmd),
             Box::new(WorkspaceDiffCmd),
+            Box::new(WorkspaceListCmd),
             Box::new(WorkspaceRmCmd),
             Box::new(WorkspaceStatusCmd),
         ];

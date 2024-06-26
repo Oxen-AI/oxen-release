@@ -22,6 +22,10 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
     Workspace::new(repo, workspace_id)
 }
 
+pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
+    Workspace::list(repo)
+}
+
 pub fn create(
     base_repo: &LocalRepository,
     commit: &Commit,
