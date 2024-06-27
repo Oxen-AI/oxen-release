@@ -9,7 +9,9 @@ use crate::core::index::{
     RefWriter,
 };
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry};
+use crate::model::{
+    Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, StagedEntryStatus,
+};
 
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{command, util};
@@ -394,11 +396,33 @@ impl CommitWriter {
         status: &StagedData,
         origin_path: &Path,
     ) -> Result<Commit, OxenError> {
+        // Make sure all the added and modified files exist
+        log::debug!("Removing non-existent files from status");
+        let mut status = status.clone();
+        let status_clone = status.clone();
+        for (path, entry) in status_clone.staged_files.iter() {
+            match entry.status {
+                StagedEntryStatus::Added => {
+                    let full_path = self.repository.path.join(path);
+                    if !full_path.exists() {
+                        status.staged_files.remove(&path.clone());
+                    }
+                }
+                StagedEntryStatus::Modified => {
+                    let full_path = self.repository.path.join(path);
+                    if !full_path.exists() {
+                        status.staged_files.remove(&path.clone());
+                    }
+                }
+                _ => continue,
+            }
+        }
+
         // Write entries
         log::debug!("init'ing CommitEntryWriter");
         let entry_writer = CommitEntryWriter::new(&self.repository, commit)?;
         // Commit all staged files from db
-        entry_writer.commit_staged_entries(commit, status, origin_path)?;
+        entry_writer.commit_staged_entries(commit, &status, origin_path)?;
 
         // Add to commits db id -> commit_json
         log::debug!("add_commit_from_status add commit [{}] to db", commit.id);
