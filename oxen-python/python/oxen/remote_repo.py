@@ -209,39 +209,6 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def add(self, src: str, dst: str = ""):
-        """
-        Stage a file to the remote workspace
-
-        Args:
-            src: `str`
-                The path to the local file to be staged
-            dst: `str`
-                The path in the remote repo where the file will be added
-        """
-        self._repo.add(src, dst)
-
-    def remove(self, path: str):
-        """
-        Unstage a file from the remote workspace
-
-        Args:
-            path: `str`
-                The path to the file on remote to be removed from staging
-        """
-        self._repo.remove(path)
-
-    def restore_df(self, path: str):
-        """
-        Unstage any changes to the schema or contents of a dataframe file
-        on the remote repo
-
-        Args:
-            path: `str`
-                The path to the df on the remote to be restored
-        """
-        self._repo.restore_df(path)
-
     def status(self, path: str = ""):
         """
         Get the status of the remote repo. Returns a StagedData object.

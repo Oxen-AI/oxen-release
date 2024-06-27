@@ -1,7 +1,7 @@
 
 from oxen import RemoteRepo
 from oxen import RemoteDataset
-from oxen.remote_dataset import index_dataset
+from oxen.workspace_data_frame import index_dataset
 import time
 
 print("Creating Remote Repo")
