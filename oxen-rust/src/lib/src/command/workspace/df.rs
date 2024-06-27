@@ -84,7 +84,8 @@ pub async fn staged_df<P: AsRef<Path>>(
         let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
         let output = opts.output.clone();
         let val =
-            api::remote::workspaces::data_frames::get(&remote_repo, &workspace_id, input, opts).await;
+            api::remote::workspaces::data_frames::get(&remote_repo, &workspace_id, input, opts)
+                .await;
 
         if let Ok(val) = val {
             if let Some(data_frame) = val.data_frame {

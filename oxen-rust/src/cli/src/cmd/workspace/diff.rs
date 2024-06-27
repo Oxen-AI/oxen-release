@@ -10,7 +10,7 @@ use crate::cmd::DiffCmd;
 use crate::cmd::RunCmd;
 use crate::helpers::check_repo_migration_needed;
 
-pub const NAME: &str = "commit";
+pub const NAME: &str = "diff";
 pub struct WorkspaceDiffCmd;
 
 #[async_trait]

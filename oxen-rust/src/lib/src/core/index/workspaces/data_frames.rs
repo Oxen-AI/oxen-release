@@ -38,6 +38,7 @@ pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -
         .path
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
+        .join(&workspace.id)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -52,6 +53,7 @@ pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
         .path
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
+        .join(&workspace.id)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)

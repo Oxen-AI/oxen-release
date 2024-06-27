@@ -121,6 +121,17 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_list_empty_workspaces() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
+            let workspaces = list(&remote_repo).await?;
+            assert_eq!(workspaces.len(), 0);
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_delete_workspace() -> Result<(), OxenError> {
         test::run_empty_remote_repo_test(|_local_repo, remote_repo| async move {
             let branch_name = "main";

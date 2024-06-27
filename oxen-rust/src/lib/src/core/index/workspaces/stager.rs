@@ -16,6 +16,7 @@ fn files_db_path(workspace: &Workspace) -> PathBuf {
         .path
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
+        .join(&workspace.id)
         .join(MODS_DIR)
         .join(FILES_DIR)
 }

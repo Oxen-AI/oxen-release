@@ -57,12 +57,18 @@ pub async fn add(
     let directory_name = remote_directory.to_string_lossy().to_string();
 
     log::debug!("command::workspace::add Resolved path: {:?}", resolved_path);
-    log::debug!("command::workspace::add Remote directory: {:?}", remote_directory);
-    log::debug!("command::workspace::add Directory name: {:?}", directory_name);
+    log::debug!(
+        "command::workspace::add Remote directory: {:?}",
+        remote_directory
+    );
+    log::debug!(
+        "command::workspace::add Directory name: {:?}",
+        directory_name
+    );
 
     let result = api::remote::workspaces::files::add(
         &remote_repo,
-        &workspace_id,
+        workspace_id,
         &directory_name,
         resolved_path,
     )

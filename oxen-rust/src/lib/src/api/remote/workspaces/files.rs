@@ -27,8 +27,14 @@ pub async fn add(
         .into_string()
         .ok()
         .unwrap();
-    log::info!("api::remote::workspaces::files::add sending file_name: {:?}", file_name);
-    log::info!("api::remote::workspaces::files::add reading path: {:?}", path);
+    log::info!(
+        "api::remote::workspaces::files::add sending file_name: {:?}",
+        file_name
+    );
+    log::info!(
+        "api::remote::workspaces::files::add reading path: {:?}",
+        path
+    );
 
     let Ok(file) = std::fs::read(&path) else {
         let err = format!("Error reading file at path: {path:?}");

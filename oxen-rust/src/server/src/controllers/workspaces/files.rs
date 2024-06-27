@@ -1,15 +1,14 @@
-
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_files::NamedFile;
 
+use liboxen::core::index;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::util;
 use liboxen::view::{FilePathsResponse, StatusMessage};
-use liboxen::core::index;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -123,11 +122,14 @@ async fn save_parts(
         // (the old client is sending "file" instead of "file[]", but "file[]" makes sense for more than 1 file)
         if let Some(name) = content_disposition.get_name() {
             if "file[]" == name || "file" == name {
-                let upload_filename = content_disposition
-                    .get_filename()
-                    .map_or_else(|| uuid::Uuid::new_v4().to_string(), sanitize_filename::sanitize);
+                let upload_filename = content_disposition.get_filename().map_or_else(
+                    || uuid::Uuid::new_v4().to_string(),
+                    sanitize_filename::sanitize,
+                );
 
-                log::debug!("workspace::files::save_parts Got uploaded file name: {upload_filename:?}");
+                log::debug!(
+                    "workspace::files::save_parts Got uploaded file name: {upload_filename:?}"
+                );
 
                 let workspace_dir = workspace.dir();
 
@@ -144,7 +146,10 @@ async fn save_parts(
                 // Need copy to pass to thread and return the name
                 let filepath = full_dir.join(&upload_filename);
                 let filepath_cpy = filepath.clone();
-                log::debug!("workspace::files::save_parts writing file to {:?}", filepath);
+                log::debug!(
+                    "workspace::files::save_parts writing file to {:?}",
+                    filepath
+                );
 
                 // File::create is blocking operation, use threadpool
                 let mut f = web::block(|| std::fs::File::create(filepath)).await??;
