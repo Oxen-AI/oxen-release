@@ -31,7 +31,7 @@ impl RunCmd for RestoreCmd {
                 .long("source")
                 .help("Restores a specific revision of the file. Can supply commit id or branch name")
                 .action(clap::ArgAction::Set)
-                .requires("PATH"),      
+                .requires("PATH"),
         )
         .arg(
             Arg::new("staged")

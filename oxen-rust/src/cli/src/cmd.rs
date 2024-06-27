@@ -81,6 +81,9 @@ pub use workspace::WorkspaceCmd;
 pub mod restore;
 pub use restore::RestoreCmd;
 
+pub mod remote;
+pub use remote::RemoteCmd;
+
 pub mod save;
 pub use save::SaveCmd;
 
