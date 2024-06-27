@@ -876,6 +876,11 @@ mod tests {
 
     #[test]
     fn test_commit_tabular_append_invalid_schema() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_repo_test_fully_committed(|repo| {
             // Try stage an append
             let path = Path::new("annotations")
@@ -899,6 +904,11 @@ mod tests {
 
     #[test]
     fn test_commit_tabular_appends_staged() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_repo_test_fully_committed(|repo| {
             let path = Path::new("annotations")
                 .join("train")

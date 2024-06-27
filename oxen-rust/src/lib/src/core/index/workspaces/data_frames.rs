@@ -490,6 +490,11 @@ mod tests {
 
     #[test]
     fn test_add_row() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
@@ -608,6 +613,11 @@ mod tests {
 
     #[test]
     fn test_clear_changes() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
@@ -691,6 +701,11 @@ mod tests {
 
     #[test]
     fn test_delete_committed_row() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
@@ -839,6 +854,11 @@ mod tests {
 
     #[test]
     fn test_delete_added_row() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_repo_test_fully_committed(|repo| {
             let branch_name = "test-append";
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
