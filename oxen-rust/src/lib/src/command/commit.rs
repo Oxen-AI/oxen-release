@@ -8,7 +8,6 @@ use crate::command;
 use crate::core::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
-use crate::model::StagedEntryStatus;
 use crate::model::{Commit, LocalRepository};
 
 /// # Commit the staged files in the repo
@@ -41,8 +40,7 @@ use crate::model::{Commit, LocalRepository};
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let mut status = command::status::status_without_untracked(repo)?;
-
+    let status = command::status::status_without_untracked(repo)?;
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
         return Err(OxenError::NothingToCommit(
             error::string_error::StringError::new(
@@ -51,26 +49,6 @@ Stage a file or directory with `oxen add <file>`"
                     .to_string(),
             ),
         ));
-    }
-
-    // Logs?
-    let status_clone = status.clone();
-    for (path, entry) in status_clone.staged_files.iter() {
-        match entry.status {
-            StagedEntryStatus::Added => {
-                let full_path = repo.path.join(path);
-                if !full_path.exists() {
-                    status.staged_files.remove(&path.clone());
-                }
-            }
-            StagedEntryStatus::Modified => {
-                let full_path = repo.path.join(path);
-                if !full_path.exists() {
-                    status.staged_files.remove(&path.clone());
-                }
-            }
-            _ => continue,
-        }
     }
 
     let commit = api::local::commits::commit(repo, &status, message)?;
