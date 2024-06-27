@@ -1,4 +1,4 @@
-from oxen import LocalRepo
+from oxen import Repo
 from oxen.fs import rcount_files_in_repo
 
 
@@ -9,7 +9,7 @@ def test_repo_clone(celeba_remote_repo_fully_pushed, empty_local_dir):
 
     # now we clone the remote repo
     # and verify that the local repo is the same as the original
-    local_repo = LocalRepo(empty_local_dir)
+    local_repo = Repo(empty_local_dir)
     local_repo.clone(remote_repo.url)
 
     print("og_local_repo")

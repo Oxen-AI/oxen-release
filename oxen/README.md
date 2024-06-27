@@ -4,17 +4,17 @@ The Oxen python interface makes it easy to integrate Oxen datasets directly into
 
 ## Repositories
 
-There are two types of repositories one can interact with, a `LocalRepo` and a `RemoteRepo`.
+There are two types of repositories one can interact with, a `Repo` and a `RemoteRepo`.
 
 
 ## Local Repo
 
-To fully clone all the data to your local machine, you can use the `LocalRepo` class.
+To fully clone all the data to your local machine, you can use the `Repo` class.
 
 ```python
 import oxen
 
-repo = LocalRepo("path/to/repository")
+repo = oxen.Repo("path/to/repository")
 repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
 ```
 
@@ -31,7 +31,7 @@ For example, you can checkout a branch, add a file, commit, and push the data to
 ```python
 import oxen
 
-repo = LocalRepo("path/to/repository")
+repo = oxen.Repo("path/to/repository")
 repo.clone("https://hub.oxen.ai/ox/CatDogBBox")
 repo.checkout()
 ```

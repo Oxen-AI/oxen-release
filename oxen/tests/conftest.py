@@ -4,7 +4,7 @@ import logging
 import uuid
 import os
 
-from oxen import LocalRepo, RemoteRepo
+from oxen import Repo, RemoteRepo
 
 FORMAT = "%(levelname)s %(name)s %(asctime)-15s %(filename)s:%(lineno)d %(message)s"
 logging.basicConfig(format=FORMAT)
@@ -16,6 +16,7 @@ if "OXEN_TEST_LOG" in os.environ:
     elif "info" == level:
         logging.getLogger().setLevel(logging.INFO)
 
+TEST_SCHEME = "http"
 TEST_HOST = "localhost:3000"
 if "OXEN_TEST_HOST" in os.environ:
     TEST_HOST = os.environ["OXEN_TEST_HOST"]
@@ -43,7 +44,7 @@ def empty_local_dir(shared_datadir):
 
 @pytest.fixture
 def empty_local_repo(empty_local_dir):
-    repo = LocalRepo(empty_local_dir)
+    repo = Repo(empty_local_dir)
     repo.init()
 
     yield repo
@@ -52,7 +53,7 @@ def empty_local_repo(empty_local_dir):
 @pytest.fixture
 def celeba_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "CelebA")
-    repo = LocalRepo(repo_dir)
+    repo = Repo(repo_dir)
     repo.init()
 
     yield repo
@@ -61,7 +62,7 @@ def celeba_local_repo_no_commits(shared_datadir):
 @pytest.fixture
 def chat_bot_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "ChatBot")
-    repo = LocalRepo(repo_dir)
+    repo = Repo(repo_dir)
     repo.init()
 
     yield repo
@@ -70,7 +71,7 @@ def chat_bot_local_repo_no_commits(shared_datadir):
 @pytest.fixture
 def house_prices_local_repo_no_commits(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "HousePrices")
-    repo = LocalRepo(repo_dir)
+    repo = Repo(repo_dir)
     repo.init()
 
     yield repo
@@ -79,8 +80,8 @@ def house_prices_local_repo_no_commits(shared_datadir):
 @pytest.fixture
 def empty_remote_repo():
     repo_name = f"py-ox/test_repo_{str(uuid.uuid4())}"
-    repo = RemoteRepo(repo_name, host=TEST_HOST)
-    repo.create()
+    repo = RemoteRepo(repo_name, host=TEST_HOST, scheme=TEST_SCHEME)
+    repo.create(empty=True)
     yield repo
     repo.delete()
 

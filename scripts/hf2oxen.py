@@ -4,7 +4,7 @@ import os
 from huggingface_hub import list_repo_refs, HfApi
 from datasets import load_dataset
 from oxen.remote_repo import create_repo, get_repo
-from oxen import LocalRepo
+from oxen import Repo
 import urllib.request
 
 def human_size(bytes, units=[' bytes','KB','MB','GB','TB', 'PB', 'EB']):
@@ -180,7 +180,7 @@ if __name__ == "__main__":
 
     # Create Oxen Remote Repo
     remote_repo = create_repo(name, description=description, host=host)
-    local_repo = LocalRepo(output_dir)
+    local_repo = Repo(output_dir)
     local_repo.init()
     local_repo.set_remote("origin", remote_repo.url())
 
