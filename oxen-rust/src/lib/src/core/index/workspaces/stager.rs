@@ -2,7 +2,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 
 use std::path::{Path, PathBuf};
 
-use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, WORKSPACES_DIR};
+use crate::constants::{FILES_DIR, MODS_DIR};
 use crate::core::db;
 use crate::core::db::str_json_db;
 use crate::core::index::{CommitEntryReader, Stager};
@@ -11,14 +11,7 @@ use crate::model::workspace::Workspace;
 use crate::model::StagedData;
 
 fn files_db_path(workspace: &Workspace) -> PathBuf {
-    workspace
-        .base_repo
-        .path
-        .join(OXEN_HIDDEN_DIR)
-        .join(WORKSPACES_DIR)
-        .join(&workspace.id)
-        .join(MODS_DIR)
-        .join(FILES_DIR)
+    workspace.dir().join(MODS_DIR).join(FILES_DIR)
 }
 
 pub fn status(workspace: &Workspace, directory: &Path) -> Result<StagedData, OxenError> {

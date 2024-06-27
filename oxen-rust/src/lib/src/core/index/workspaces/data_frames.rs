@@ -4,8 +4,8 @@ use polars::frame::DataFrame;
 use sql_query_builder::{Delete, Select};
 
 use crate::api;
+use crate::constants::MODS_DIR;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
-use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR, WORKSPACES_DIR};
 use crate::core::db::workspace_df_db::select_cols_from_schema;
 use crate::core::db::{df_db, workspace_df_db};
 use crate::core::df::{sql, tabular};
@@ -34,11 +34,7 @@ pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, 
 pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
-        .workspace_repo
-        .path
-        .join(OXEN_HIDDEN_DIR)
-        .join(WORKSPACES_DIR)
-        .join(&workspace.id)
+        .dir()
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -49,11 +45,7 @@ pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -
 pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
-        .workspace_repo
-        .path
-        .join(OXEN_HIDDEN_DIR)
-        .join(WORKSPACES_DIR)
-        .join(&workspace.id)
+        .dir()
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
