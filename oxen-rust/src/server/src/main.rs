@@ -1,7 +1,6 @@
+use dotenv::dotenv;
+use dotenv::from_filename;
 use liboxen::config::UserConfig;
-
-use liboxen::core::cache::cacher_status::CacherStatus;
-use liboxen::core::cache::commit_cacher;
 use liboxen::model::User;
 
 pub mod app_data;
@@ -11,11 +10,12 @@ pub mod errors;
 pub mod helpers;
 pub mod middleware;
 pub mod params;
+pub mod queue_poller;
 pub mod queues;
 pub mod routes;
+pub mod services;
 pub mod tasks;
 pub mod test;
-pub mod view;
 
 extern crate log;
 extern crate lru;
@@ -27,14 +27,9 @@ use actix_web_httpauth::middleware::HttpAuthentication;
 use clap::{Arg, Command};
 use env_logger::Env;
 
+use std::env;
 use std::io::Write;
-
 use std::path::{Path, PathBuf};
-use std::time::Duration;
-use tokio::time::sleep;
-
-use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
-use crate::tasks::{Runnable, Task};
 
 const VERSION: &str = liboxen::constants::OXEN_VERSION;
 
@@ -47,6 +42,13 @@ const INVALID_PORT_MSG: &str = "Port must a valid number between 0-65535";
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
+    dotenv().ok();
+
+    match from_filename("src/server/.env.local") {
+        Ok(_) => log::debug!("Loaded .env file from current directory"),
+        Err(e) => log::debug!("Failed to load .env file: {}", e),
+    }
+
     env_logger::Builder::from_env(Env::default().default_filter_or("info,debug"))
         .format(|buf, record| {
             writeln!(
@@ -62,69 +64,10 @@ async fn main() -> std::io::Result<()> {
 
     // env_logger::init_from_env(Env::default().default_filter_or("info,debug"));
 
-    let sync_dir = match std::env::var("SYNC_DIR") {
+    let sync_dir = match env::var("SYNC_DIR") {
         Ok(dir) => dir,
         Err(_) => String::from("data"),
     };
-
-    // Polling worker setup
-    async fn poll_queue(mut queue: TaskQueue) {
-        log::debug!("Starting queue poller");
-        loop {
-            match queue.pop() {
-                Some(task) => {
-                    log::debug!("Got queue item: {:?}", task);
-                    let result = std::panic::catch_unwind(|| {
-                        task.run();
-                    });
-                    if let Err(e) = result {
-                        log::error!("Error or panic processing commit {:?}", e);
-                        // Set the task to failed
-                        match task {
-                            Task::PostPushComplete(post_push_complete) => {
-                                let repo = post_push_complete.repo;
-                                let commit = post_push_complete.commit;
-
-                                match commit_cacher::set_all_cachers_status(
-                                    &repo,
-                                    &commit,
-                                    CacherStatus::failed("Panic in commit cache"),
-                                ) {
-                                    Ok(_) => {
-                                        log::debug!("Set all cachers to failed status");
-                                    }
-                                    Err(e) => {
-                                        log::error!(
-                                            "Error setting all cachers to failed status: {:?}",
-                                            e
-                                        );
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-                None => {
-                    // log::debug!("No queue items found, sleeping");
-                    sleep(Duration::from_millis(1000)).await;
-                }
-            }
-        }
-    }
-
-    // If redis connection is available, use redis queue, else in-memory
-    pub fn init_queue() -> TaskQueue {
-        match helpers::get_redis_connection() {
-            Ok(pool) => {
-                println!("connecting to redis established, initializing queue");
-                TaskQueue::Redis(RedisTaskQueue { pool })
-            }
-            Err(_) => {
-                println!("Failed to connect to Redis. Falling back to in-memory queue.");
-                TaskQueue::InMemory(InMemoryTaskQueue::new())
-            }
-        }
-    }
 
     let command = Command::new("oxen-server")
         .version(VERSION)
@@ -206,12 +149,12 @@ async fn main() -> std::io::Result<()> {
                     let enable_auth = sub_matches.get_flag("auth");
 
                     log::debug!("initializing queue");
-                    let queue = init_queue();
+                    let queue = queue_poller::init_queue();
                     log::debug!("initialized queue");
                     let data = app_data::OxenAppData::new(PathBuf::from(sync_dir), queue.clone());
                     // Poll for post-commit tasks in background
                     log::debug!("initialized app data, spawning polling worker");
-                    tokio::spawn(async move { poll_queue(queue.clone()).await });
+                    tokio::spawn(async move { queue_poller::poll_queue(queue.clone()).await });
 
                     HttpServer::new(move || {
                         App::new()

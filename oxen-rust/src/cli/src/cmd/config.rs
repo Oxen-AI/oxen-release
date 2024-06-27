@@ -34,8 +34,7 @@ impl RunCmd for ConfigCmd {
                     .help("Set the email you want your commits to be saved as.")
                     .action(clap::ArgAction::Set),
             )
-            // Note: we differ from git here because we have the concept of a remote
-            //       staging area which uses the `oxen remote add` subcommand
+            // Note: we differ from git here
             .arg(
                 Arg::new("set-remote")
                     .long("set-remote")
@@ -70,24 +69,18 @@ impl RunCmd for ConfigCmd {
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
-        let mut repo = LocalRepository::from_current_dir()?;
-
-        // Parse Args
-        if let Some(remote) = args.get_many::<String>("set-remote") {
-            if let [name, url] = remote.collect::<Vec<_>>()[..] {
-                match self.set_remote(&mut repo, name, url) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        eprintln!("{err}")
-                    }
+        // Non-Repo Dependent
+        if let Some(name) = args.get_one::<String>("name") {
+            match self.set_user_name(name) {
+                Ok(_) => {}
+                Err(err) => {
+                    eprintln!("{err}")
                 }
-            } else {
-                eprintln!("invalid arguments for --set-remote");
             }
         }
 
-        if let Some(name) = args.get_one::<String>("delete-remote") {
-            match self.delete_remote(&mut repo, name) {
+        if let Some(email) = args.get_one::<String>("email") {
+            match self.set_user_email(email) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{err}")
@@ -108,8 +101,8 @@ impl RunCmd for ConfigCmd {
             }
         }
 
-        if let Some(name) = args.get_one::<String>("name") {
-            match self.set_user_name(name) {
+        if let Some(default_host) = args.get_one::<String>("default-host") {
+            match self.set_default_host(default_host) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{err}")
@@ -117,17 +110,24 @@ impl RunCmd for ConfigCmd {
             }
         }
 
-        if let Some(email) = args.get_one::<String>("email") {
-            match self.set_user_email(email) {
-                Ok(_) => {}
-                Err(err) => {
-                    eprintln!("{err}")
+        // Repo Dependent
+        if let Some(remote) = args.get_many::<String>("set-remote") {
+            let mut repo = LocalRepository::from_current_dir()?;
+            if let [name, url] = remote.collect::<Vec<_>>()[..] {
+                match self.set_remote(&mut repo, name, url) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        eprintln!("{err}")
+                    }
                 }
+            } else {
+                eprintln!("invalid arguments for --set-remote");
             }
         }
 
-        if let Some(email) = args.get_one::<String>("default-host") {
-            match self.set_default_host(email) {
+        if let Some(name) = args.get_one::<String>("delete-remote") {
+            let mut repo = LocalRepository::from_current_dir()?;
+            match self.delete_remote(&mut repo, name) {
                 Ok(_) => {}
                 Err(err) => {
                     eprintln!("{err}")

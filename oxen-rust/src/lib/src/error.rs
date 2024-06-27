@@ -20,6 +20,7 @@ pub mod string_error;
 
 pub use crate::error::path_buf_error::PathBufError;
 pub use crate::error::string_error::StringError;
+
 use polars::prelude::PolarsError;
 
 pub const NO_REPO_FOUND: &str = "No oxen repository exists, looking for directory: .oxen";
@@ -54,7 +55,11 @@ pub enum OxenError {
     RevisionNotFound(Box<StringError>),
     RootCommitDoesNotMatch(Box<Commit>),
     NothingToCommit(StringError),
+    NoCommitsFound(StringError),
     HeadNotFound(StringError),
+
+    // Workspaces
+    WorkspaceNotFound(Box<StringError>),
 
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
@@ -70,11 +75,8 @@ pub enum OxenError {
 
     // Schema
     InvalidSchema(Box<Schema>),
-    IncompatibleSchemas(StringError),
+    IncompatibleSchemas(Box<Schema>),
     InvalidFileType(StringError),
-
-    // Generic
-    ParsingError(Box<StringError>),
 
     // Metadata
     ImageMetadataParseError(StringError),
@@ -207,8 +209,16 @@ impl OxenError {
         OxenError::RevisionNotFound(Box::new(value))
     }
 
+    pub fn workspace_not_found(value: StringError) -> Self {
+        OxenError::WorkspaceNotFound(Box::new(value))
+    }
+
     pub fn root_commit_does_not_match(commit: Commit) -> Self {
         OxenError::RootCommitDoesNotMatch(Box::new(commit))
+    }
+
+    pub fn no_commits_found() -> Self {
+        OxenError::NoCommitsFound(StringError::from("\n No commits found.\n"))
     }
 
     pub fn local_repo_not_found() -> OxenError {
@@ -275,13 +285,11 @@ impl OxenError {
 
     pub fn remote_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
-        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
+        OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
     pub fn local_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
         OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
@@ -304,8 +312,7 @@ impl OxenError {
     }
 
     pub fn entry_does_not_exist(path: impl AsRef<Path>) -> OxenError {
-        let err = format!("Entry does not exist: {:?}", path.as_ref());
-        OxenError::basic_str(err)
+        OxenError::ParsedResourceNotFound(Box::new(path.as_ref().into()))
     }
 
     pub fn file_error(path: impl AsRef<Path>, error: std::io::Error) -> OxenError {
@@ -376,9 +383,9 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn remote_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
+    pub fn workspace_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
         let err = format!(
-            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
+            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen workspace add /path/to/file.png -p my-images/\n",
             path.as_ref()
         );
         OxenError::basic_str(err)
@@ -432,11 +439,6 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn invalid_agg_query(query: impl AsRef<str>) -> OxenError {
-        let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
-        OxenError::basic_str(err)
-    }
-
     pub fn invalid_set_remote_url(url: impl AsRef<str>) -> OxenError {
         let err = format!("\nRemote invalid, must be fully qualified URL, got: {:?}\n\n  oxen config --set-remote origin https://hub.oxen.ai/<namespace>/<reponame>\n", url.as_ref());
         OxenError::basic_str(err)
@@ -447,21 +449,12 @@ impl OxenError {
         OxenError::InvalidFileType(StringError::from(err))
     }
 
-    pub fn incompatible_schemas(cols: &[String], schema: Schema) -> OxenError {
-        let err = format!(
-            "\nERROR: Incompatible schemas. \n\nCols: {:?}\n\nare not compatible with schema: {:?}",
-            cols, schema
-        );
-        OxenError::IncompatibleSchemas(StringError::from(err))
+    pub fn incompatible_schemas(schema: Schema) -> OxenError {
+        OxenError::IncompatibleSchemas(Box::new(schema))
     }
 
     pub fn parse_error(value: impl AsRef<str>) -> OxenError {
         let err = format!("Parse error: {:?}", value.as_ref());
-        OxenError::basic_str(err)
-    }
-
-    pub fn unknown_agg_fn(name: impl AsRef<str>) -> OxenError {
-        let err = format!("Unknown aggregation function: {:?}", name.as_ref());
         OxenError::basic_str(err)
     }
 
@@ -473,11 +466,11 @@ To fetch data from the remote, run:
 
     oxen pull origin main
 
-Or you can interact with the remote directly with the `oxen remote` subcommand:
+Or you can interact with the remote directly with the `oxen workspace` subcommand:
 
-    oxen remote status
-    oxen remote add path/to/image.jpg
-    oxen remote commit -m 'Committing data to remote without ever pulling it locally'
+    oxen workspace status -w workspace-id
+    oxen workspace add path/to/image.jpg -w workspace-id
+    oxen workspace commit -m 'Committing data to remote without ever pulling it locally' -w workspace-id -b branch-name
 ";
         OxenError::basic_str(err)
     }
