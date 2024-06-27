@@ -30,8 +30,8 @@ impl PyWorkspace {
         pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::workspaces::create(
                 &repo.repo,
-                &id,
                 &branch_name,
+                &id,
             )
             .await
         })?;

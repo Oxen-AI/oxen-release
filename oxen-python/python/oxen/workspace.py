@@ -1,15 +1,16 @@
 
 from typing import Optional
-from .oxen import PyRemoteRepo, PyWorkspace
+from oxen import RemoteRepo
+from .oxen import PyWorkspace
 
 class Workspace:
     """
     The Workspace class allows you to interact with an Oxen workspace
     without downloading the data locally.
-    
+
     Workspaces can be created off a branch and is tied to the commit id of the branch
     at the time of creation.
-    
+
     You can commit a Workspace back to the same branch if the branch has not
     advanced, otherwise you will have to commit to a new branch and merge.
 
@@ -25,17 +26,17 @@ class Workspace:
 
     # Connect to the remote repo
     repo = RemoteRepo("ox/CatDogBBox")
-    
+
     # Create the workspace
     workspace = Workspace(repo, "my-branch")
-    
+
     # Add a file to the workspace
     workspace.add("my-image.png")
-    
+
     # Print the status of the workspace
     status = workspace.status()
     print(status.added_files())
-    
+
     # Commit the workspace
     workspace.commit("Adding my image to the workspace.")
     ```
@@ -43,7 +44,7 @@ class Workspace:
 
     def __init__(
         self,
-        repo: PyRemoteRepo,
+        repo: RemoteRepo,
         branch: str,
         workspace_id: Optional[str] = None,
     ):
@@ -62,12 +63,12 @@ class Workspace:
         """
         self._repo = repo
         self._branch = branch
-        self._workspace = PyWorkspace(repo, branch, workspace_id)
+        self._workspace = PyWorkspace(repo._repo, branch, workspace_id)
 
     def __repr__(self):
         return f"Workspace({self._repo.url()}, {self._branch})"
 
-    def status(self, path: str):
+    def status(self, path: str = ""):
         """
         Get the status of the workspace.
 
@@ -75,8 +76,8 @@ class Workspace:
             path: `str`
                 The path to check the status of.
         """
-        self.workspace.status(path)
-        
+        return self._workspace.status(path)
+
     def add(self, src: str, dst: str = ""):
         """
         Add a file to the workspace
@@ -87,7 +88,7 @@ class Workspace:
             dst: `str`
                 The path in the remote repo where the file will be added
         """
-        self._repo.add(src, dst)
+        self._workspace.add(src, dst)
 
     def rm(self, path: str):
         """
@@ -97,5 +98,20 @@ class Workspace:
             path: `str`
                 The path to the file on workspace to be removed
         """
-        self._repo.remove(path)
+        self._workspace.rm(path)
+
+    def commit(self, message: str, branch_name: Optional[str] = None):
+        """
+        Commit the workspace to a branch
+
+        Args:
+            message: `str`
+                The message to commit with
+            branch_name: `Optional[str]`
+                The name of the branch to commit to. If left empty, will commit to the branch
+                the workspace was created from.
+        """
+        if branch_name is None:
+            branch_name = self._branch
+        return self._workspace.commit(message, branch_name)
 
