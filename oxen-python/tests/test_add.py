@@ -1,11 +1,11 @@
 import os
 
-from oxen import LocalRepo
+from oxen import Repo
 
 
 def test_add(shared_datadir):
     repo_dir = os.path.join(shared_datadir, "CelebA")
-    repo = LocalRepo(repo_dir)
+    repo = Repo(repo_dir)
     repo.init()
     annotations_dir = "annotations"
     full_path = os.path.join(repo_dir, annotations_dir)

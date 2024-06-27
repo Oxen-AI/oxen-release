@@ -1,5 +1,5 @@
 from typing import Optional
-from oxen.local_repo import LocalRepo
+from oxen.repo import Repo
 
 
 def clone(
@@ -31,8 +31,8 @@ def clone(
         all: `bool`
             Whether to clone the full commit history or not. Default: False
      Returns:
-        [LocalRepo](/python-api/local_repo)
-            A LocalRepo object that can be used to interact with the cloned repo.
+        [Repo](/python-api/repo)
+            A Repo object that can be used to interact with the cloned repo.
     """
     # Verify repo_id format
     if "/" not in repo_id:
@@ -45,6 +45,6 @@ def clone(
     # Get repo url
     repo_url = f"{protocol}://{host}/{repo_id}"
     # Clone repo
-    local_repo = LocalRepo(path)
-    local_repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
-    return local_repo
+    repo = Repo(path)
+    repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
+    return repo
