@@ -122,7 +122,7 @@ pub async fn get(
         return Ok(HttpResponse::Ok().json(json_df));
     }
 
-    let df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
+    let mut df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
 
     if let Some(text2sql) = opts.text2sql.clone() {
         let mut conn = sql::get_conn(&repo, &entry)?;
