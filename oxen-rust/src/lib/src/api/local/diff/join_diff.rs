@@ -266,7 +266,7 @@ fn join_hashed_dfs(
     targets: Vec<&str>,
     schema_diff: SchemaDiff,
 ) -> Result<DataFrame, OxenError> {
-    let mut joined_df = left_df.outer_join(right_df, [KEYS_HASH_COL], [KEYS_HASH_COL])?;
+    let mut joined_df = left_df.full_join(right_df, [KEYS_HASH_COL], [KEYS_HASH_COL])?;
 
     let mut cols_to_rename = targets.clone();
     for key in keys.iter() {
