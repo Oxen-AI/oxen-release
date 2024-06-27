@@ -178,8 +178,10 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let workspace = index::workspaces::get(&repo, workspace_id)?;
+    log::debug!("workspace {} data frame put {:?}", workspace_id, file_path);
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
     let data: DataFramePayload = serde_json::from_str(&body)?;
+    log::debug!("workspace {} data frame put {:?}", workspace_id, data);
 
     let to_index = data.is_indexed;
     let is_indexed = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;

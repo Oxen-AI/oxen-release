@@ -17,6 +17,10 @@ pub fn workspace() -> Scope {
                     web::get().to(controllers::workspaces::changes::list),
                 )
                 .route(
+                    "/changes/{path:.*}",
+                    web::delete().to(controllers::workspaces::files::delete),
+                )
+                .route(
                     "/files/{path:.*}",
                     web::get().to(controllers::workspaces::files::get),
                 )
