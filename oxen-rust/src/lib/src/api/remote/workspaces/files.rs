@@ -17,7 +17,7 @@ pub async fn add(
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/workspaces/{workspace_id}/file/{directory_name}");
+    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -86,7 +86,7 @@ pub async fn add_many(
         pluralize("file", paths.len() as isize, true)
     );
 
-    let uri = format!("/workspaces/{workspace_id}/file/{directory_name}");
+    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -130,7 +130,7 @@ pub async fn rm(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/workspaces/{workspace_id}/file/{file_name}");
+    let uri = format!("/workspaces/{workspace_id}/files/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_file {}", url);
     let client = client::new_for_url(&url)?;

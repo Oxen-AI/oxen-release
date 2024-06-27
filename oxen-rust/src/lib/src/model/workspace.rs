@@ -37,6 +37,7 @@ impl Workspace {
         // They may pass in a string that is not a valid directory name, so we hash it
         // We keep workspace_name as the original string for display purposes
         let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
+        log::debug!("workspace::new got workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
 
         let workspace_dir = workspace_dir(repo, &workspace_id_hash);
         let commit_id_path = workspace_dir
@@ -162,6 +163,7 @@ impl Workspace {
 
     /// Returns the path to the workspace directory
     pub fn dir(&self) -> PathBuf {
-        workspace_dir(&self.base_repo, &self.id)
+        let workspace_id_hash = util::hasher::hash_str_sha256(&self.id);
+        workspace_dir(&self.base_repo, &workspace_id_hash)
     }
 }
