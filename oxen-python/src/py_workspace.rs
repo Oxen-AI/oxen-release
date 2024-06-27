@@ -40,6 +40,14 @@ impl PyWorkspace {
         Ok(Self { repo, branch_name, id })
     }
 
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn branch(&self) -> String {
+        self.branch_name.clone()
+    }
+
     fn status(&self, path: PathBuf) -> Result<PyStagedData, PyOxenError> {
         let remote_status = pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::workspaces::changes::list(

@@ -5,7 +5,7 @@ from typing import List
 
 class WorkspaceDataFrame:
     """
-    The WorkspaceDataFrame class allows you to perform CRUD operations on a data frame 
+    The WorkspaceDataFrame class allows you to perform CRUD operations on a data frame
     that is indexed into DuckDB on an oxen-server without downloading the data locally.
 
     ## Examples
@@ -21,40 +21,40 @@ class WorkspaceDataFrame:
 
     # Connect to the remote repo
     repo = RemoteRepo("ox/CatDogBBox")
-    
+
     # Create the workspace
     workspace = Workspace(repo, "my-branch")
-    
+
     # Connect to and index the data frame
     # Note: This must be an existing file committed to the repo
     #       indexing may take a while for large files
     data_frame = WorkspaceDataFrame(workspace, "data.csv")
-    
+
     # Paginate over rows
     rows = data_frame.list_page(1)
     print(rows)
 
     # Get total pages
     print(data_frame.total_pages())
-    
+
     # Add a row
     row_id = data_frame.insert_row({"id": "1", "name": "John Doe"})
-    
+
     # Get a row by id
     row = data_frame.get_row_by_id(row_id)
     print(row)
-    
+
     # Update a row
     row = data_frame.update_row(row_id, {"name": "Jane Doe"})
     print(row)
-    
+
     # Delete a row
     data_frame.delete_row(row_id)
-    
+
     # Get the current changes to the data frame
     status = data_frame.diff()
     print(status.added_files())
-    
+
     # Commit the changes to the workspace
     workspace.commit("Updating data.csv")
     ```
@@ -64,7 +64,7 @@ class WorkspaceDataFrame:
         """
         Initialize the WorkspaceDataFrame class. Will index the data frame
         into duckdb on init.
-        
+
         Will throw an error if the data frame does not exist.
 
         Args:
@@ -77,7 +77,7 @@ class WorkspaceDataFrame:
         self._path = path
 
         # this will return an error if the data frame file does not exist
-        self.data_frame = PyWorkspaceDataFrame(workspace, path)
+        self.data_frame = PyWorkspaceDataFrame(workspace._workspace, path)
         self.filter_keys = ["_oxen_diff_hash", "_oxen_diff_status", "_oxen_row_id"]
 
     def __repr__(self):
@@ -88,7 +88,7 @@ class WorkspaceDataFrame:
         Get the size of the data frame. Returns a tuple of (rows, columns)
         """
         return self.data_frame.size()
-    
+
     def page_size(self) -> int:
         """
         Get the page size of the data frame for pagination in list() command.
@@ -97,7 +97,7 @@ class WorkspaceDataFrame:
             The page size of the data frame.
         """
         return self.data_frame.page_size()
-    
+
     def total_pages(self) -> int:
         """
         Get the total number of pages in the data frame for pagination in list() command.
@@ -128,12 +128,12 @@ class WorkspaceDataFrame:
     def insert_row(self, data: dict):
         """
         Insert a single row of data into the data frame.
-        
+
         Args:
             data: `dict`
-                A dictionary representing a single row of data. 
-                The keys must match a subset of the columns in the data frame. 
-                If a column is not present in the dictionary, 
+                A dictionary representing a single row of data.
+                The keys must match a subset of the columns in the data frame.
+                If a column is not present in the dictionary,
                 it will be set to an empty value.
 
         Returns:
@@ -147,7 +147,7 @@ class WorkspaceDataFrame:
     def get_row_by_id(self, id: str):
         """
         Get a single row of data by id.
-        
+
         Args:
             id: `str`
                 The id of the row to get.
@@ -174,9 +174,9 @@ class WorkspaceDataFrame:
             id: `str`
                 The id of the row to update.
             data: `dict`
-                A dictionary representing a single row of data. 
-                The keys must match a subset of the columns in the data frame. 
-                If a column is not present in the dictionary, 
+                A dictionary representing a single row of data.
+                The keys must match a subset of the columns in the data frame.
+                If a column is not present in the dictionary,
                 it will be set to an empty value.
 
         Returns:
@@ -191,7 +191,7 @@ class WorkspaceDataFrame:
     def delete_row(self, id: str):
         """
         Delete a single row of data by id.
-        
+
         Args:
             id: `str`
                 The id of the row to delete.
