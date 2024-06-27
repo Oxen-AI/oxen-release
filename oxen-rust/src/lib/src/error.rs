@@ -383,9 +383,9 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn remote_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
+    pub fn workspace_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
         let err = format!(
-            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
+            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen workspace add /path/to/file.png -p my-images/\n",
             path.as_ref()
         );
         OxenError::basic_str(err)
@@ -466,11 +466,11 @@ To fetch data from the remote, run:
 
     oxen pull origin main
 
-Or you can interact with the remote directly with the `oxen remote` subcommand:
+Or you can interact with the remote directly with the `oxen workspace` subcommand:
 
-    oxen remote status
-    oxen remote add path/to/image.jpg
-    oxen remote commit -m 'Committing data to remote without ever pulling it locally'
+    oxen workspace status -w workspace-id
+    oxen workspace add path/to/image.jpg -w workspace-id
+    oxen workspace commit -m 'Committing data to remote without ever pulling it locally' -w workspace-id -b branch-name
 ";
         OxenError::basic_str(err)
     }

@@ -327,7 +327,7 @@ mod tests {
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
                 &workspace_id,
                 &directory,
@@ -528,7 +528,6 @@ mod tests {
             assert_eq!(data.get("_oxen_diff_status").unwrap(), "unchanged");
 
             let data: &str = "{\"file\":\"lebron>jordan.jpg\", \"label\": \"dog\", \"min_x\":13, \"min_y\":14, \"width\": 100, \"height\": 100}";
-
 
             api::remote::workspaces::data_frames::rows::update(
                 &remote_repo,

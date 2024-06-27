@@ -17,7 +17,7 @@ pub async fn add(
     directory_name: &str,
     path: PathBuf,
 ) -> Result<PathBuf, OxenError> {
-    let uri = format!("/workspaces/{workspace_id}/file/{directory_name}");
+    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let file_name = path
@@ -27,6 +27,14 @@ pub async fn add(
         .into_string()
         .ok()
         .unwrap();
+    log::info!(
+        "api::remote::workspaces::files::add sending file_name: {:?}",
+        file_name
+    );
+    log::info!(
+        "api::remote::workspaces::files::add reading path: {:?}",
+        path
+    );
 
     let Ok(file) = std::fs::read(&path) else {
         let err = format!("Error reading file at path: {path:?}");
@@ -84,7 +92,7 @@ pub async fn add_many(
         pluralize("file", paths.len() as isize, true)
     );
 
-    let uri = format!("/workspaces/{workspace_id}/file/{directory_name}");
+    let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let mut form = reqwest::multipart::Form::new();
@@ -128,7 +136,7 @@ pub async fn rm(
     path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     let file_name = path.as_ref().to_string_lossy();
-    let uri = format!("/workspaces/{workspace_id}/file/{file_name}");
+    let uri = format!("/workspaces/{workspace_id}/files/{file_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("rm_file {}", url);
     let client = client::new_for_url(&url)?;
@@ -189,7 +197,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
                 &workspace_id,
                 path,
@@ -239,7 +247,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
                 &workspace_id,
                 path,
@@ -417,7 +425,7 @@ mod tests {
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
             let path = Path::new(directory_name);
-            let entries = api::remote::workspaces::status(
+            let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
                 &workspace_id,
                 path,

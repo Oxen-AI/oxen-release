@@ -3,14 +3,13 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 use crate::constants;
+use crate::constants::WORKSPACE_NAME;
 use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_COMMIT_ID};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
 
-fn workspace_dir(repo: &LocalRepository, workspace_id: &str) -> PathBuf {
-    // Just in case they pass in the email or some other random string, hash it for nice dir name
-    let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
+fn workspace_dir(repo: &LocalRepository, workspace_id_hash: &str) -> PathBuf {
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
@@ -35,7 +34,14 @@ impl Workspace {
     /// Returns an error if the workspace does not exist
     pub fn new(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Self, OxenError> {
         let workspace_id = workspace_id.as_ref();
-        let workspace_dir = workspace_dir(repo, workspace_id);
+        // They may pass in a string that is not a valid directory name, so we hash it
+        // We keep workspace_name as the original string for display purposes
+        let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
+        log::debug!(
+            "workspace::new got workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}"
+        );
+
+        let workspace_dir = workspace_dir(repo, &workspace_id_hash);
         let commit_id_path = workspace_dir
             .join(OXEN_HIDDEN_DIR)
             .join(WORKSPACE_COMMIT_ID);
@@ -66,7 +72,11 @@ impl Workspace {
         workspace_id: impl AsRef<str>,
     ) -> Result<Self, OxenError> {
         let workspace_id = workspace_id.as_ref();
-        let workspace_dir = workspace_dir(base_repo, workspace_id);
+        let workspace_name = workspace_id.to_owned();
+        // They may pass in a string that is not a valid directory name, so we hash it
+        // We keep workspace_name as the original string for display purposes
+        let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
+        let workspace_dir = workspace_dir(base_repo, &workspace_id_hash);
         let oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
         log::debug!("index::workspaces::create called! {:?}", oxen_dir);
 
@@ -94,12 +104,38 @@ impl Workspace {
         );
         util::fs::write_to_path(&commit_id_path, &commit.id)?;
 
+        // write the workspace name to the workspace dir
+        let workspace_name_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
+        util::fs::write_to_path(workspace_name_path, workspace_name)?;
+
         Ok(Workspace {
             id: workspace_id.to_owned(),
             base_repo: base_repo.clone(),
             workspace_repo,
             commit: commit.clone(),
         })
+    }
+
+    pub fn list(repo: &LocalRepository) -> Result<Vec<Self>, OxenError> {
+        let workspaces_dir = repo.path.join(OXEN_HIDDEN_DIR).join(WORKSPACES_DIR);
+        log::debug!("workspace::list got workspaces_dir: {workspaces_dir:?}");
+        if !workspaces_dir.exists() {
+            return Ok(vec![]);
+        }
+
+        let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir)?;
+        log::debug!("workspace::list got workspaces_hashes: {workspaces_hashes:?}");
+
+        let workspaces = workspaces_hashes
+            .iter()
+            .map(|workspace_hash| {
+                // read the workspace name from the workspace dir
+                let workspace_name_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
+                let workspace_name = util::fs::read_from_path(workspace_name_path)?;
+                Workspace::new(repo, workspace_name)
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        Ok(workspaces)
     }
 
     fn init_workspace_repo(
@@ -136,6 +172,7 @@ impl Workspace {
 
     /// Returns the path to the workspace directory
     pub fn dir(&self) -> PathBuf {
-        workspace_dir(&self.base_repo, &self.id)
+        let workspace_id_hash = util::hasher::hash_str_sha256(&self.id);
+        workspace_dir(&self.base_repo, &workspace_id_hash)
     }
 }
