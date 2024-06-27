@@ -62,11 +62,16 @@ class Workspace:
                 If left empty, will create a unique workspace id.
         """
         self._repo = repo
-        self._branch = branch
         self._workspace = PyWorkspace(repo._repo, branch, workspace_id)
 
     def __repr__(self):
-        return f"Workspace({self._repo.url()}, {self._branch})"
+        return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"
+
+    def id(self):
+        return self._workspace.id()
+
+    def branch(self):
+        return self._workspace.branch()
 
     def status(self, path: str = ""):
         """
@@ -112,6 +117,6 @@ class Workspace:
                 the workspace was created from.
         """
         if branch_name is None:
-            branch_name = self._branch
+            branch_name = self._workspace.branch()
         return self._workspace.commit(message, branch_name)
 

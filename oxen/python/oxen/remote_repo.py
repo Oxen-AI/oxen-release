@@ -242,64 +242,6 @@ class RemoteRepo:
         """
         return self._repo.list_branches()
 
-    def get_df_size(self, path: str):
-        """
-        Get the size of a dataframe file on the remote repo
-
-        Args:
-            path: `str`
-                The path to the df on the remote
-        """
-        return self._repo.get_df_size(path)
-
-    def get_df_row(self, path: str, idx: int):
-        """
-        Fetches a row from the dataframe at the specified path on the remote repo
-
-        Args:
-            path: `str`
-                Path to the dataframe on the remote repo
-            idx: `int`
-                The index of the row to return
-        """
-        return self._repo.get_df_row(path, idx)
-
-    def get_df_slice(
-        self, path: str, start: int, end: int, columns: Optional[List[str]] = None
-    ):
-        """
-        Gets a slice of rows from the dataframe at the specified path on the remote repo
-
-        Args:
-            path: `str`
-                Path to the dataframe on the remote repo
-            start: `int`
-                The start index of the data frame to return
-            end: `int`
-                The end index of the data frame to return
-            columns: `List[str]`
-                A list of column names to return. If None, will return all columns.
-        """
-        if columns is None:
-            # rust interface expects an empty list, not None
-            columns = []
-        return self._repo.get_df_slice(path, start, end, columns)
-
-    def add_df_row(self, path: str, row: dict):
-        """
-        Adds a row to the dataframe at the specified path on the remote repo
-
-        Args:
-            path: `str`
-                Path to the dataframe on the remote repo
-            row: `dict`
-                A dictionary representing the row to be added to the dataframe,
-                where keys are column names and values are the values to be inserted.
-                Schema must exactly match DF on remote repo.
-        """
-        data = json.dumps(row)
-        return self._repo.add_df_row(path, data)
-
     def get_branch(self, branch: str):
         """
         Return a branch by name on this repo, if exists
