@@ -37,7 +37,9 @@ impl Workspace {
         // They may pass in a string that is not a valid directory name, so we hash it
         // We keep workspace_name as the original string for display purposes
         let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
-        log::debug!("workspace::new got workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}");
+        log::debug!(
+            "workspace::new got workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}"
+        );
 
         let workspace_dir = workspace_dir(repo, &workspace_id_hash);
         let commit_id_path = workspace_dir
@@ -104,7 +106,7 @@ impl Workspace {
 
         // write the workspace name to the workspace dir
         let workspace_name_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
-        util::fs::write_to_path(&workspace_name_path, &workspace_name)?;
+        util::fs::write_to_path(workspace_name_path, workspace_name)?;
 
         Ok(Workspace {
             id: workspace_id.to_owned(),
@@ -116,7 +118,14 @@ impl Workspace {
 
     pub fn list(repo: &LocalRepository) -> Result<Vec<Self>, OxenError> {
         let workspaces_dir = repo.path.join(OXEN_HIDDEN_DIR).join(WORKSPACES_DIR);
+        log::debug!("workspace::list got workspaces_dir: {workspaces_dir:?}");
+        if !workspaces_dir.exists() {
+            return Ok(vec![]);
+        }
+
         let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir)?;
+        log::debug!("workspace::list got workspaces_hashes: {workspaces_hashes:?}");
+
         let workspaces = workspaces_hashes
             .iter()
             .map(|workspace_hash| {

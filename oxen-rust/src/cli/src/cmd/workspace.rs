@@ -13,6 +13,9 @@ pub use diff::WorkspaceDiffCmd;
 pub mod df;
 pub use df::WorkspaceDfCmd;
 
+pub mod delete;
+pub use delete::WorkspaceDeleteCmd;
+
 pub mod list;
 pub use list::WorkspaceListCmd;
 
@@ -81,6 +84,7 @@ impl WorkspaceCmd {
             Box::new(WorkspaceCreateCmd),
             Box::new(WorkspaceDfCmd),
             Box::new(WorkspaceDiffCmd),
+            Box::new(WorkspaceDeleteCmd),
             Box::new(WorkspaceListCmd),
             Box::new(WorkspaceRmCmd),
             Box::new(WorkspaceStatusCmd),

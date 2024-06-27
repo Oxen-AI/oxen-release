@@ -22,6 +22,13 @@ impl RunCmd for WorkspaceCommitCmd {
         Command::new(NAME)
             .about("Commit the staged files to the repository.")
             .arg(
+                Arg::new("workspace_id")
+                    .long("workspace_id")
+                    .short('w')
+                    .required(true)
+                    .help("The workspace_id of the workspace"),
+            )
+            .arg(
                 Arg::new("message")
                     .help("The message for the commit. Should be descriptive about what changed.")
                     .long("message")
@@ -35,7 +42,13 @@ impl RunCmd for WorkspaceCommitCmd {
         // Parse Args
         let Some(message) = args.get_one::<String>("message") else {
             return Err(OxenError::basic_str(
-                "Err: Usage `oxen commit -m <message>`",
+                "Err: Usage `oxen workspace commit -w <workspace_id> -m <message>`",
+            ));
+        };
+
+        let Some(workspace_id) = args.get_one::<String>("workspace_id") else {
+            return Err(OxenError::basic_str(
+                "Err: Usage `oxen workspace commit -w <workspace_id> -m <message>`",
             ));
         };
 
@@ -43,7 +56,7 @@ impl RunCmd for WorkspaceCommitCmd {
         check_repo_migration_needed(&repo)?;
 
         println!("Committing to remote with message: {message}");
-        command::workspace::commit(&repo, message).await?;
+        command::workspace::commit(&repo, workspace_id, message).await?;
 
         Ok(())
     }

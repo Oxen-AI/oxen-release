@@ -1408,8 +1408,14 @@ impl CommitEntryWriter {
                     if child_with_status.status != StagedEntryStatus::Removed {
                         log::info!("get_affected_vnodes child_with_status.status != StagedEntryStatus::Removed: {:?}", path);
                         let Some(dir_hash) = path_db::get_entry(&self.dir_hashes_db, path)? else {
-                            let db_path = CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &self.commit.id);
-                            log::error!("get_affected_vnodes path_db::get_entry failed for path: {:?}", db_path);
+                            let db_path = CommitEntryWriter::commit_dir_hash_db(
+                                &self.repository.path,
+                                &self.commit.id,
+                            );
+                            log::error!(
+                                "get_affected_vnodes path_db::get_entry failed for path: {:?}",
+                                db_path
+                            );
                             return Err(OxenError::basic_str("Failed to get dir hash"));
                         };
                         TreeObjectChild::Dir {

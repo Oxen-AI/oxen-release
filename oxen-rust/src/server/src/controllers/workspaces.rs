@@ -70,6 +70,7 @@ pub async fn list(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let repo_name = path_param(&req, "repo_name")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    log::debug!("workspaces::list got repo: {:?}", repo.path);
     let workspaces = index::workspaces::list(&repo)?;
     let workspace_views = workspaces
         .iter()

@@ -16,14 +16,13 @@ impl RunCmd for WorkspaceAddCmd {
     }
 
     fn args(&self) -> Command {
-        add_args()
-            .arg(
-                Arg::new("workspace_id")
-                    .long("workspace_id")
-                    .short('w')
-                    .required(true)
-                    .help("The workspace_id of the workspace"),
-            )
+        add_args().arg(
+            Arg::new("workspace_id")
+                .long("workspace_id")
+                .short('w')
+                .required(true)
+                .help("The workspace_id of the workspace"),
+        )
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {

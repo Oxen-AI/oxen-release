@@ -10,7 +10,11 @@ use crate::model::{Commit, LocalRepository, NewCommitBody};
 
 /// Commit changes that are staged on the remote repository on the current
 /// checked out local branch
-pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Commit>, OxenError> {
+pub async fn commit(
+    repo: &LocalRepository,
+    workspace_id: &str,
+    message: &str,
+) -> Result<Option<Commit>, OxenError> {
     let branch = api::local::branches::current_branch(repo)?;
     if branch.is_none() {
         return Err(OxenError::must_be_on_valid_branch());
@@ -24,9 +28,8 @@ pub async fn commit(repo: &LocalRepository, message: &str) -> Result<Option<Comm
         author: cfg.name,
         email: cfg.email,
     };
-    let user_id = UserConfig::identifier()?;
     let commit =
-        api::remote::workspaces::commit(&remote_repo, &branch.name, &user_id, &body).await?;
+        api::remote::workspaces::commit(&remote_repo, &branch.name, workspace_id, &body).await?;
     Ok(Some(commit))
 }
 
@@ -84,7 +87,9 @@ mod tests {
                 command::push(&cloned_repo).await?;
 
                 // Try to commit the remote changes, should fail
-                let result = command::workspace::commit(&cloned_repo, "Remotely committing").await;
+                let result =
+                    command::workspace::commit(&cloned_repo, workspace_id, "Remotely committing")
+                        .await;
                 println!("{:?}", result);
                 assert!(result.is_err());
 
