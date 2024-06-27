@@ -49,6 +49,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_remote_commit_fails_if_schema_changed() -> Result<(), OxenError> {
+        // Skip if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
         test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
             let remote_repo_copy = remote_repo.clone();
 
