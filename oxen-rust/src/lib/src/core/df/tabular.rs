@@ -270,7 +270,6 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
 }
 
 fn val_from_df_and_filter<'a>(df: &mut LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
-
     if let Some(value) = df
         .schema()
         .expect("Unable to get schema from data frame")
