@@ -18,7 +18,7 @@ pub fn add(workspace: &Workspace, filepath: &Path) -> Result<PathBuf, OxenError>
     // But we will read from the commit in the main repo
     let commit = api::local::commits::get_by_id(repo, &commit.id)?.unwrap();
     let reader = CommitEntryReader::new(repo, &commit)?;
-    log::debug!("about to add file in the stager");
+    log::debug!("core::index::workspaces::files::add adding file {filepath:?}");
     // Add a schema_reader to stager.add_file for?
 
     let schema_reader = SchemaReader::new(repo, &commit.id)?;

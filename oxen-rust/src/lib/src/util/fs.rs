@@ -455,6 +455,17 @@ pub fn read_lines_paginated_ret_size(
     (lines, i)
 }
 
+pub fn list_dirs_in_dir(dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
+    let mut dirs: Vec<PathBuf> = vec![];
+    for entry in std::fs::read_dir(dir)? {
+        let path = entry?.path();
+        if path.is_dir() {
+            dirs.push(path);
+        }
+    }
+    Ok(dirs)
+}
+
 pub fn list_files_in_dir(dir: &Path) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
     match std::fs::read_dir(dir) {

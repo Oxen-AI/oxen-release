@@ -22,6 +22,10 @@ pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Work
     Workspace::new(repo, workspace_id)
 }
 
+pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
+    Workspace::list(repo)
+}
+
 pub fn create(
     base_repo: &LocalRepository,
     commit: &Commit,
@@ -93,7 +97,7 @@ pub fn commit(
 
     let status = status_for_workspace(workspace)?;
 
-    log::debug!("got branch status: {:#?}", &status);
+    // log::debug!("got branch status: {:#?}", &status);
 
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();
