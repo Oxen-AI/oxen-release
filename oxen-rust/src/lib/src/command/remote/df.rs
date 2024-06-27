@@ -16,6 +16,7 @@ use crate::opts::DFOpts;
 use crate::view::StatusMessage;
 
 /// Interact with Remote DataFrames
+/// Interact with Remote DataFrames
 pub async fn df(
     repo: &LocalRepository,
     workspace_id: &str,
@@ -33,20 +34,37 @@ pub async fn df(
         let workspace_id = UserConfig::identifier()?;
         let val =
             api::remote::workspaces::data_frames::get(&remote_repo, workspace_id, input, opts)
-                .await?;
-        let mut df = val.data_frame.view.to_df();
-        if let Some(output) = output {
-            println!("Writing {output:?}");
-            tabular::write_df(&mut df, output)?;
-        }
+                .await;
 
-        println!(
-            "Full shape: ({}, {})\n",
-            val.data_frame.source.size.height, val.data_frame.source.size.width
-        );
-        println!("Slice {df:?}");
-        Ok(df)
+        match val {
+            Ok(val) => {
+                if let Some(data_frame) = val.data_frame {
+                    let mut df = data_frame.view.to_df();
+                    if let Some(output) = output {
+                        println!("Writing {output:?}");
+                        tabular::write_df(&mut df, output)?;
+                    }
+
+                    println!(
+                        "Full shape: ({}, {})\n",
+                        data_frame.source.size.height, data_frame.source.size.width
+                    );
+                    println!("Slice {df:?}");
+                    Ok(df)
+                } else {
+                    handle_unindexed_error()
+                }
+            }
+            Err(_) => handle_unindexed_error(),
+        }
     }
+}
+
+fn handle_unindexed_error() -> Result<DataFrame, OxenError> {
+    println!(
+        "Dataset not indexed for remote editing. Use `oxen df --index <path>` to index it, or `oxen df <path> --committed` to view the committed resource in view-only mode.\n"
+    );
+    Err(OxenError::basic_str("No dataset staged for this resource."))
 }
 
 // TODO: Only difference between this and `df` is for `get` operations - everything above
@@ -68,25 +86,28 @@ pub async fn staged_df<P: AsRef<Path>>(
         let output = opts.output.clone();
         let val =
             api::remote::workspaces::data_frames::get(&remote_repo, &identifier, input, opts).await;
-        if let Ok(val) = val {
-            let mut df = val.data_frame.view.to_df();
-            if let Some(output) = output {
-                println!("Writing {output:?}");
-                tabular::write_df(&mut df, output)?;
-            }
 
-            println!(
-                "Full shape: ({}, {})\n",
-                val.data_frame.source.size.height, val.data_frame.source.size.width
-            );
-            println!("Slice {df:?}");
-            Ok(df)
-        } else {
-            println!(
-                    "Dataset not indexed for remote editing. Use `oxen df --index <path>` to index it, or `oxen df <path> --committed` to view the committed resource in view-only mode.\n"
+        if let Ok(val) = val {
+            if let Some(data_frame) = val.data_frame {
+                let mut df = data_frame.view.to_df();
+                if let Some(output) = output {
+                    println!("Writing {output:?}");
+                    tabular::write_df(&mut df, output)?;
+                }
+
+                println!(
+                    "Full shape: ({}, {})\n",
+                    data_frame.source.size.height, data_frame.source.size.width
                 );
-            Err(OxenError::basic_str("No dataset staged for this resource."))
+                println!("Slice {df:?}");
+                return Ok(df);
+            }
         }
+
+        println!(
+            "Dataset not indexed for remote editing. Use `oxen df --index <path>` to index it, or `oxen df <path> --committed` to view the committed resource in view-only mode.\n"
+        );
+        Err(OxenError::basic_str("No dataset staged for this resource."))
     }
 }
 
