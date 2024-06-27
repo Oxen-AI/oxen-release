@@ -36,6 +36,7 @@ async fn main() -> ExitCode {
         Box::new(cmd::PushCmd),
         Box::new(cmd::RestoreCmd),
         Box::new(cmd::ReadLinesCmd),
+        Box::new(cmd::RemoteCmd),
         Box::new(cmd::RmCmd),
         Box::new(cmd::SaveCmd),
         Box::new(cmd::SchemasCmd),
