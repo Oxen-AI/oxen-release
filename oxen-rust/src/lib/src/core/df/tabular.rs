@@ -3,10 +3,11 @@ use polars::prelude::*;
 use std::fs::File;
 
 use crate::constants;
+use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::{ContentType, DataFrameSize};
+use crate::model::DataFrameSize;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::{fs, hasher};
 
@@ -19,27 +20,34 @@ use std::ffi::OsStr;
 use std::io::Cursor;
 use std::path::Path;
 
+use super::filter::{DFFilterExp, DFFilterOp, DFFilterVal};
+
 const DEFAULT_INFER_SCHEMA_LEN: usize = 10000;
-const DEFAULT_SAMPLE_SIZE: usize = 1024;
 const READ_ERROR: &str = "Could not read tabular data from path";
 const COLLECT_ERROR: &str = "Could not collect DataFrame";
 const TAKE_ERROR: &str = "Could not take DataFrame";
 const CSV_READ_ERROR: &str = "Could not read csv from path";
 
-fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFrame, OxenError> {
-    log::debug!("try_infer_schema_csv delimiter: {:?}", delimiter as char);
-    let result = reader
-        .infer_schema(Some(DEFAULT_INFER_SCHEMA_LEN))
-        .sample_size(DEFAULT_SAMPLE_SIZE)
+fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader {
+    let path = path.as_ref();
+    let reader = LazyCsvReader::new(path);
+    reader
+        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
         .with_ignore_errors(true)
-        .has_header(true)
-        .truncate_ragged_lines(true)
+        .with_has_header(true)
+        .with_truncate_ragged_lines(true)
         .with_separator(delimiter)
-        .with_end_of_line_char(b'\n')
+        .with_eol_char(b'\n')
         .with_quote_char(Some(b'"'))
         .with_rechunk(true)
         .with_encoding(CsvEncoding::LossyUtf8)
-        .finish();
+}
+
+pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    log::debug!("read_df_csv path: {:?}", path);
+    let reader = base_lazy_csv_reader(path, delimiter);
+    let result = reader.finish()?.collect();
 
     match result {
         Ok(df) => Ok(df),
@@ -54,28 +62,14 @@ fn try_infer_schema_csv(reader: CsvReader<File>, delimiter: u8) -> Result<DataFr
     }
 }
 
-pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
-    let path = path.as_ref();
-    log::debug!("read_df_csv path: {:?}", path);
-    match CsvReader::from_path(path) {
-        Ok(reader) => Ok(try_infer_schema_csv(reader, delimiter)?),
-        Err(err) => {
-            let err = format!("{CSV_READ_ERROR}: {err:?}");
-            Err(OxenError::basic_str(err))
-        }
-    }
-}
-
-pub fn scan_df_csv<P: AsRef<Path>>(
-    path: P,
+pub fn scan_df_csv(
+    path: impl AsRef<Path>,
     delimiter: u8,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
-    LazyCsvReader::new(&path)
-        .with_separator(delimiter)
-        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+    let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
+    reader
         .with_n_rows(Some(total_rows))
-        .has_header(true)
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
@@ -176,6 +170,7 @@ pub fn add_col_lazy(
     name: &str,
     val: &str,
     dtype: &str,
+    at: Option<usize>,
 ) -> Result<LazyFrame, OxenError> {
     let mut df = df.collect().expect(COLLECT_ERROR);
 
@@ -185,7 +180,11 @@ pub fn add_col_lazy(
     let column = column
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .expect("Could not extend df");
-    df.with_column(column).expect(COLLECT_ERROR);
+    if let Some(at) = at {
+        df.insert_column(at, column).expect(COLLECT_ERROR);
+    } else {
+        df.with_column(column).expect(COLLECT_ERROR);
+    }
     let df = df.lazy();
     Ok(df)
 }
@@ -208,8 +207,9 @@ pub fn add_col(
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
-
-    let new_row = parse_data_into_df(&data, ContentType::Json)?;
+    let new_row = parse_str_to_df(data)?;
+    log::debug!("add_row og df: {:?}", df);
+    log::debug!("add_row new_row: {:?}", new_row);
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
 }
@@ -220,34 +220,22 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     Ok(n_dupes)
 }
 
-pub fn parse_data_into_df(data: &str, content_type: ContentType) -> Result<DataFrame, OxenError> {
-    log::debug!("Parsing content into df: {content_type:?}\n{data}");
-    match content_type {
-        ContentType::Json => {
-            // getting an internal error if not jsonl, so do a quick check that it starts with a '{'
-            if !data.trim().starts_with('{') {
-                return Err(OxenError::basic_str(format!(
-                    "Invalid json content: {data}"
-                )));
-            }
-
-            if data == "{}" {
-                return Ok(DataFrame::default());
-            }
-
-            let cursor = Cursor::new(data.as_bytes());
-            match JsonLineReader::new(cursor).finish() {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
-        _ => {
-            let err = format!("Unsupported content type: {content_type:?}");
-            Err(OxenError::basic_str(err))
-        }
+pub fn parse_str_to_df(data: impl AsRef<str>) -> Result<DataFrame, OxenError> {
+    let data = data.as_ref();
+    if data == "{}" {
+        return Ok(DataFrame::default());
     }
+
+    let cursor = Cursor::new(data.as_bytes());
+    match JsonLineReader::new(cursor).finish() {
+        Ok(df) => Ok(df),
+        Err(err) => Err(OxenError::basic_str(format!("Error parsing json: {err}"))),
+    }
+}
+
+pub fn parse_json_to_df(data: &serde_json::Value) -> Result<DataFrame, OxenError> {
+    let data = serde_json::to_string(data)?;
+    parse_str_to_df(data)
 }
 
 fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {
@@ -279,6 +267,64 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
         polars::prelude::DataType::Null => AnyValue::Null,
         _ => panic!("Currently do not support data type {}", dtype),
     }
+}
+
+fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
+    if let Some(value) = df
+        .schema()
+        .expect("Unable to get schema from data frame")
+        .iter_fields()
+        .find(|f| f.name == filter.field)
+    {
+        val_from_str_and_dtype(&filter.value, value.data_type())
+    } else {
+        log::error!("Unknown field {:?}", filter.field);
+        AnyValue::Null
+    }
+}
+
+fn lit_from_any(value: &AnyValue) -> Expr {
+    match value {
+        AnyValue::Boolean(val) => lit(*val),
+        AnyValue::Float64(val) => lit(*val),
+        AnyValue::Float32(val) => lit(*val),
+        AnyValue::Int64(val) => lit(*val),
+        AnyValue::Int32(val) => lit(*val),
+        AnyValue::String(val) => lit(*val),
+        val => panic!("Unknown data type for [{}] to create literal", val),
+    }
+}
+
+fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
+    let val = val_from_df_and_filter(df, filter);
+    let val = lit_from_any(&val);
+    match filter.op {
+        DFFilterOp::EQ => col(&filter.field).eq(val),
+        DFFilterOp::GT => col(&filter.field).gt(val),
+        DFFilterOp::LT => col(&filter.field).lt(val),
+        DFFilterOp::GTE => col(&filter.field).gt_eq(val),
+        DFFilterOp::LTE => col(&filter.field).lt_eq(val),
+        DFFilterOp::NEQ => col(&filter.field).neq(val),
+    }
+}
+
+fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
+    log::debug!("Got filter: {:?}", filter);
+    if filter.vals.is_empty() {
+        return Ok(df);
+    }
+    let mut vals = filter.vals.iter();
+    let mut expr: Expr = filter_from_val(&df, vals.next().unwrap());
+    for op in &filter.logical_ops {
+        let chain_expr: Expr = filter_from_val(&df, vals.next().unwrap());
+
+        match op {
+            DFLogicalOp::AND => expr = expr.and(chain_expr),
+            DFLogicalOp::OR => expr = expr.or(chain_expr),
+        }
+    }
+
+    Ok(df.filter(expr))
 }
 
 fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError> {
@@ -317,7 +363,24 @@ pub fn transform_lazy(
     }
 
     if let Some(col_vals) = opts.add_col_vals() {
-        df = add_col_lazy(df, &col_vals.name, &col_vals.value, &col_vals.dtype)?;
+        df = add_col_lazy(
+            df,
+            &col_vals.name,
+            &col_vals.value,
+            &col_vals.dtype,
+            opts.at,
+        )?;
+    }
+
+    match opts.get_filter() {
+        Ok(filter) => {
+            if let Some(filter) = filter {
+                df = filter_df(df, &filter)?;
+            }
+        }
+        Err(err) => {
+            log::error!("Could not parse filter: {err}");
+        }
     }
 
     if let Some(columns) = opts.unique_columns() {
@@ -939,10 +1002,103 @@ pub fn polars_schema_to_flat_str(schema: &Schema) -> String {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::df::tabular;
+    use crate::core::df::{filter, tabular};
     use crate::view::JsonDataFrameView;
     use crate::{error::OxenError, opts::DFOpts};
     use polars::prelude::*;
+
+    #[test]
+    fn test_filter_single_expr() -> Result<(), OxenError> {
+        let query = Some("label == dog".to_string());
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["cat", "dog", "unknown"],
+            "min_x" => &["0.0", "1.0", "2.0"],
+            "max_x" => &["3.0", "4.0", "5.0"],
+        )
+        .unwrap();
+
+        let filter = filter::parse(query)?.unwrap();
+        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
+
+        assert_eq!(
+            r"shape: (1, 4)
+┌──────────┬───────┬───────┬───────┐
+│ image    ┆ label ┆ min_x ┆ max_x │
+│ ---      ┆ ---   ┆ ---   ┆ ---   │
+│ str      ┆ str   ┆ str   ┆ str   │
+╞══════════╪═══════╪═══════╪═══════╡
+│ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
+└──────────┴───────┴───────┴───────┘",
+            format!("{filtered_df}")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter_multiple_or_expr() -> Result<(), OxenError> {
+        let query = Some("label == dog || label == cat".to_string());
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["cat", "dog", "unknown"],
+            "min_x" => &["0.0", "1.0", "2.0"],
+            "max_x" => &["3.0", "4.0", "5.0"],
+        )
+        .unwrap();
+
+        let filter = filter::parse(query)?.unwrap();
+        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
+
+        println!("{filtered_df}");
+
+        assert_eq!(
+            r"shape: (2, 4)
+┌──────────┬───────┬───────┬───────┐
+│ image    ┆ label ┆ min_x ┆ max_x │
+│ ---      ┆ ---   ┆ ---   ┆ ---   │
+│ str      ┆ str   ┆ str   ┆ str   │
+╞══════════╪═══════╪═══════╪═══════╡
+│ 0000.jpg ┆ cat   ┆ 0.0   ┆ 3.0   │
+│ 0001.jpg ┆ dog   ┆ 1.0   ┆ 4.0   │
+└──────────┴───────┴───────┴───────┘",
+            format!("{filtered_df}")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_filter_multiple_and_expr() -> Result<(), OxenError> {
+        let query = Some("label == dog && is_correct == true".to_string());
+        let df = df!(
+            "image" => &["0000.jpg", "0001.jpg", "0002.jpg"],
+            "label" => &["dog", "dog", "unknown"],
+            "min_x" => &[0.0, 1.0, 2.0],
+            "max_x" => &[3.0, 4.0, 5.0],
+            "is_correct" => &[true, false, false],
+        )
+        .unwrap();
+
+        let filter = filter::parse(query)?.unwrap();
+        let filtered_df = tabular::filter_df(df.lazy(), &filter)?.collect().unwrap();
+
+        println!("{filtered_df}");
+
+        assert_eq!(
+            r"shape: (1, 5)
+┌──────────┬───────┬───────┬───────┬────────────┐
+│ image    ┆ label ┆ min_x ┆ max_x ┆ is_correct │
+│ ---      ┆ ---   ┆ ---   ┆ ---   ┆ ---        │
+│ str      ┆ str   ┆ f64   ┆ f64   ┆ bool       │
+╞══════════╪═══════╪═══════╪═══════╪════════════╡
+│ 0000.jpg ┆ dog   ┆ 0.0   ┆ 3.0   ┆ true       │
+└──────────┴───────┴───────┴───────┴────────────┘",
+            format!("{filtered_df}")
+        );
+
+        Ok(())
+    }
 
     #[test]
     fn test_unique_single_field() -> Result<(), OxenError> {

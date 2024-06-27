@@ -5,8 +5,13 @@
 
 use crate::api;
 use crate::error::OxenError;
-use crate::model::LocalRepository;
+use crate::model::{Branch, LocalRepository};
 use crate::view::StatusMessage;
+
+pub fn current(repo: &LocalRepository) -> Result<Option<Branch>, OxenError> {
+    let branch = api::local::branches::current_branch(repo)?;
+    Ok(branch)
+}
 
 pub async fn unlock(
     repository: &LocalRepository,

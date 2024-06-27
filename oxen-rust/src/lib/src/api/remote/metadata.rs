@@ -5,7 +5,7 @@ use crate::api;
 use crate::api::remote::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
-use crate::view::{JsonDataFrameViewResponse, MetadataEntryResponse};
+use crate::view::MetadataEntryResponse;
 
 use std::path::Path;
 
@@ -26,52 +26,16 @@ pub async fn get_file(
     Ok(serde_json::from_str(&body)?)
 }
 
-/// Get the metadata about a resource from the remote.
-pub async fn list_dir(
-    remote_repo: &RemoteRepository,
-    revision: impl AsRef<str>,
-    path: impl AsRef<Path>,
-) -> Result<JsonDataFrameViewResponse, OxenError> {
-    let path = path.as_ref().to_string_lossy();
-    let revision = revision.as_ref();
-    let uri = format!("/meta/dir/{}/{}", revision, path);
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let client = client::new_for_url(&url)?;
-    let response = client.get(&url).send().await?;
-    let body = client::parse_json_body(&url, response).await?;
-    Ok(serde_json::from_str(&body)?)
-}
-
-/// Aggregate metadata about a resource from the remote.
-pub async fn agg_dir(
-    remote_repo: &RemoteRepository,
-    revision: impl AsRef<str>,
-    path: impl AsRef<Path>,
-    column: impl AsRef<str>,
-) -> Result<JsonDataFrameViewResponse, OxenError> {
-    let path = path.as_ref().to_string_lossy();
-    let revision = revision.as_ref();
-    let column = column.as_ref();
-    let uri = format!("/meta/agg/dir/{revision}/{path}?column={column}");
-    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-
-    let client = client::new_for_url(&url)?;
-    let response = client.get(&url).send().await?;
-    let body = client::parse_json_body(&url, response).await?;
-    Ok(serde_json::from_str(&body)?)
-}
-
 #[cfg(test)]
 mod tests {
 
-    use crate::api;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;
-    use crate::view::{JsonDataFrameViewResponse, MetadataEntryResponse};
+    use crate::view::MetadataEntryResponse;
+    use crate::{api, command};
 
     use std::path::Path;
 
@@ -98,8 +62,16 @@ mod tests {
             assert_eq!(entry.data_type, EntryDataType::Text);
             assert_eq!(entry.mime_type, "text/markdown");
             assert_eq!(
-                Path::new(&entry.resource.unwrap().path),
+                Path::new(&entry.resource.clone().unwrap().path),
                 Path::new("annotations").join("README.md")
+            );
+            assert_eq!(
+                &entry.resource.clone().unwrap().version,
+                Path::new(DEFAULT_BRANCH_NAME)
+            );
+            assert_eq!(
+                entry.resource.clone().unwrap().branch.unwrap().name,
+                DEFAULT_BRANCH_NAME
             );
 
             Ok(remote_repo)
@@ -145,98 +117,43 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_remote_metadata_table_list_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let branch = DEFAULT_BRANCH_NAME;
-            let directory = Path::new("train");
+    async fn test_latest_commit_by_branch() -> Result<(), OxenError> {
+        test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
+            // Now push a new commit
+            let labels_path = local_repo.path.join("labels.txt");
+            let path = Path::new("labels.txt");
 
-            let meta: JsonDataFrameViewResponse =
-                api::remote::metadata::list_dir(&remote_repo, branch, directory).await?;
+            test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
 
-            let _df = meta.data_frame.view.to_df();
+            command::add(&local_repo, &labels_path)?;
 
-            assert_eq!(meta.data_frame.source.size.width, 11);
-            assert_eq!(meta.data_frame.source.size.height, 5);
+            let first_commit = command::commit(&local_repo, "adding labels file")?;
 
-            Ok(remote_repo)
-        })
-        .await
-    }
+            command::push(&local_repo).await?;
 
-    #[tokio::test]
-    async fn test_remote_metadata_table_agg_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let branch = DEFAULT_BRANCH_NAME;
-            let directory = Path::new("");
+            let main_branch = DEFAULT_BRANCH_NAME;
+            let second_branch = "second";
 
-            let meta: JsonDataFrameViewResponse =
-                api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
-                    .await?;
-            println!("meta: {:?}", meta);
+            command::create_checkout(&local_repo, second_branch)?;
 
-            let df = meta.data_frame.view.to_df();
-            println!("df: {:?}", df);
+            test::write_txt_file_to_path(&labels_path, "I am the labels file v2")?;
 
-            // df: shape: (4, 2)
-            // ┌───────────┬───────┐
-            // │ data_type ┆ count │
-            // │ ---       ┆ ---   │
-            // │ str       ┆ i64   │
-            // ╞═══════════╪═══════╡
-            // │ directory ┆ 8     │
-            // │ image     ┆ 5     │
-            // │ tabular   ┆ 7     │
-            // │ text      ┆ 4     │
-            // └───────────┴───────┘
+            command::add(&local_repo, &labels_path)?;
 
-            assert_eq!(meta.data_frame.source.size.width, 2);
-            assert_eq!(meta.data_frame.source.size.height, 4);
+            let second_commit = command::commit(&local_repo, "adding labels file v2")?;
 
-            Ok(remote_repo)
-        })
-        .await
-    }
+            command::push(&local_repo).await?;
 
-    #[tokio::test]
-    async fn test_remote_metadata_table_agg_train_dir() -> Result<(), OxenError> {
-        test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
-            let branch = DEFAULT_BRANCH_NAME;
-            let directory = Path::new("train");
+            let meta: MetadataEntryResponse =
+                api::remote::metadata::get_file(&remote_repo, main_branch, &path).await?;
 
-            let meta: JsonDataFrameViewResponse =
-                api::remote::metadata::agg_dir(&remote_repo, branch, directory, "data_type")
-                    .await?;
-            println!("meta: {:?}", meta);
+            let second_meta: MetadataEntryResponse =
+                api::remote::metadata::get_file(&remote_repo, second_branch, &path).await?;
 
-            let df = meta.data_frame.view.to_df();
-            println!("df: {:?}", df);
-
-            /*
-            df: shape: (1, 2)
-            ┌───────────┬───────┐
-            │ data_type ┆ count │
-            │ ---       ┆ ---   │
-            │ str       ┆ i64   │
-            ╞═══════════╪═══════╡
-            │ Image     ┆ 5     │
-            └───────────┴───────┘
-            */
-
-            assert_eq!(meta.data_frame.source.size.width, 2);
-            assert_eq!(meta.data_frame.source.size.height, 1);
-
-            // make sure that there are 5 images in the polars dataframe
-            let df_str = format!("{:?}", df);
+            assert_eq!(meta.entry.latest_commit.unwrap().id, first_commit.id);
             assert_eq!(
-                df_str,
-                r"shape: (1, 2)
-┌───────────┬───────┐
-│ data_type ┆ count │
-│ ---       ┆ ---   │
-│ str       ┆ i64   │
-╞═══════════╪═══════╡
-│ image     ┆ 5     │
-└───────────┴───────┘"
+                second_meta.entry.latest_commit.unwrap().id,
+                second_commit.id
             );
 
             Ok(remote_repo)

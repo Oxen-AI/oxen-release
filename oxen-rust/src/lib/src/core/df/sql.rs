@@ -89,10 +89,10 @@ pub fn index_df(
     entry: &CommitEntry,
     conn: &mut duckdb::Connection,
 ) -> Result<(), OxenError> {
-    log::debug!("df::sql::index_df()");
     let duckdb_path = db_cache_path(repo, entry);
     let default_parent = PathBuf::from("");
     let parent = duckdb_path.parent().unwrap_or(&default_parent);
+    log::debug!("df::sql::index_df(): {:?}", duckdb_path);
 
     if df_db::table_exists(conn, DUCKDB_DF_TABLE_NAME)? {
         log::warn!(
