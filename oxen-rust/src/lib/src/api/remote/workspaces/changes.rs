@@ -62,7 +62,7 @@ mod tests {
             command::push(&local_repo).await?;
 
             // client can decide what to use for id
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
             let branch = api::remote::branches::create_from_or_get(
                 &remote_repo,
                 branch_name,
@@ -72,7 +72,7 @@ mod tests {
             assert_eq!(branch.name, branch_name);
 
             let workspace =
-                api::remote::workspaces::create(&remote_repo, &branch_name, &identifier).await;
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await;
             assert!(workspace.is_ok());
 
             let page_num = constants::DEFAULT_PAGE_NUM;
@@ -80,7 +80,7 @@ mod tests {
             let path = Path::new("images");
             let entries = api::remote::workspaces::changes::list(
                 &remote_repo,
-                &identifier,
+                &workspace_id,
                 path,
                 page_num,
                 page_size,

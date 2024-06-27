@@ -17,24 +17,16 @@ pub fn workspace() -> Scope {
                     web::get().to(controllers::workspaces::changes::list),
                 )
                 .route(
-                    "/entries/{path:.*}",
-                    web::post().to(controllers::workspaces::add_file),
+                    "/files/{path:.*}",
+                    web::get().to(controllers::workspaces::files::get),
                 )
                 .route(
-                    "/entries/{path:.*}",
-                    web::delete().to(controllers::workspaces::delete_file),
+                    "/files/{path:.*}",
+                    web::post().to(controllers::workspaces::files::add),
                 )
                 .route(
-                    "/file/{path:.*}",
-                    web::get().to(controllers::workspaces::get_file),
-                )
-                .route(
-                    "/file/{path:.*}",
-                    web::post().to(controllers::workspaces::add_file),
-                )
-                .route(
-                    "/file/{path:.*}",
-                    web::delete().to(controllers::workspaces::delete_file),
+                    "/files/{path:.*}",
+                    web::delete().to(controllers::workspaces::files::delete),
                 )
                 .route(
                     "/commit/{branch:.*}",
