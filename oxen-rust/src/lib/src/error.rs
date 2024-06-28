@@ -11,6 +11,7 @@ use std::num::ParseIntError;
 use std::path::Path;
 use std::path::StripPrefixError;
 
+use crate::model::Branch;
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
 use crate::model::{Remote, RepoNew};
@@ -60,6 +61,7 @@ pub enum OxenError {
 
     // Workspaces
     WorkspaceNotFound(Box<StringError>),
+    WorkspaceBehind(Branch),
 
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
@@ -211,6 +213,10 @@ impl OxenError {
 
     pub fn workspace_not_found(value: StringError) -> Self {
         OxenError::WorkspaceNotFound(Box::new(value))
+    }
+
+    pub fn workspace_behind(branch: Branch) -> Self {
+        OxenError::WorkspaceBehind(branch)
     }
 
     pub fn root_commit_does_not_match(commit: Commit) -> Self {

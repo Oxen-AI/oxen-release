@@ -89,10 +89,14 @@ pub fn commit(
 
     if branch.commit_id != commit.id {
         // TODO: Merge and handle conflicts better
-        return Err(OxenError::basic_str(format!(
-            "Branch {} is not up to date, cannot commit",
+        log::error!(
+            "Branch '{}' is not up to date with commit ID '{}'",
             branch_name,
-        )));
+            commit.id
+        );
+
+        // Return the custom error variant
+        return Err(OxenError::workspace_behind(branch));
     }
 
     let status = status_for_workspace(workspace)?;

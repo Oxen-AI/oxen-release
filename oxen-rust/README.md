@@ -20,7 +20,7 @@ Oxen is purely written in Rust 🦀. You should install the Rust toolchain with 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-If you are a developer and want to learn more about adding code or the overall architecture [start here](docs/dev/AddLibraryCode.md). Otherwise a quick start to make sure everything is working follows.
+If you are a developer and want to learn more about adding code or the overall architecture [start here](docs/dev/AddLibraryCode.md). Otherwise, a quick start to make sure everything is working follows.
 
 ## Build
 
@@ -89,9 +89,40 @@ rustflags = [ "-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld", ]
 
 ```
 
-## Run
+# Run: CLI
 
-Generate a config file and token to give user access to the server
+To run Oxen from the command line, add the `Oxen/target/debug` directory to the 'PATH' environment variable
+
+```
+export PATH="$PATH:/path/to/Oxen/target/debug"
+```
+
+On Windows, you can use 
+
+```
+$env:PATH += ";/path/to/Oxen/target/debug" 
+```
+
+Initialize a new repository or clone an existing one
+
+```
+oxen init
+oxen clone https://hub.oxen.ai/path/to/repository
+```
+
+This will create the `.oxen` dir in your current directory and allow you to run Oxen CLI commands
+
+```
+oxen status
+oxen add images/
+oxen commit -m "added images"
+oxen push origin main
+```
+
+
+## Run: Oxen Server
+
+To run a local Oxen Server, generate a config file and token to authenticate the user 
 
 ```
 ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
@@ -131,23 +162,24 @@ To run the server with live reload, first install cargo-watch
 cargo install cargo-watch
 ```
 
+On Windows, you may need to use `cargo-watch --locked`
+
+```
+cargo install cargo-watch --locked
+```
+
 Then run the server like this
 
 ```
 cargo watch -- cargo run --bin oxen-server start
 ```
 
-On Windows, you may need to install cargo-watch with the following
-
-```
-cargo install cargo-watch --locked
-```
 
 ## Nix Flake
 
 If you have [Nix installed](https://github.com/DeterminateSystems/nix-installer)
 you can use the flake to build and run the server. This will automatically
-install and configure the required build toolchain dependencies for linux & macos.
+install and configure the required build toolchain dependencies for Linux & macOS.
 
 ```
 nix build .#oxen-server
@@ -230,17 +262,6 @@ To set a different test host you can set the `OXEN_TEST_HOST` environment variab
 
 ```
 env OXEN_TEST_HOST=0.0.0.0:4000 cargo test
-```
-
-# CLI Commands
-
-```
-oxen init .
-oxen status
-oxen add images/
-oxen status
-oxen commit -m "added images"
-oxen push origin main
 ```
 
 # Oxen Server
