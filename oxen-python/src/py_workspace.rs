@@ -36,7 +36,6 @@ impl PyWorkspace {
             .await
         })?;
 
-
         Ok(Self { repo, branch_name, id })
     }
 
@@ -84,11 +83,11 @@ impl PyWorkspace {
         Ok(())
     }
 
-    fn commit(&self, message: String, branch_name: Option<String>) -> Result<PyCommit, PyOxenError> {
+    fn commit(&self, message: String, should_delete: bool, branch_name: Option<String>) -> Result<PyCommit, PyOxenError> {
         let branch_name = branch_name.unwrap_or(self.branch_name.clone());
         let user = UserConfig::get()?.to_user();
         let commit = NewCommitBody { message, author: user.name, email: user.email };
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let commit = pyo3_asyncio::tokio::get_runtime().block_on(async {
             let commit = api::remote::workspaces::commit(
                 &self.repo.repo,
                 &branch_name,
@@ -96,6 +95,21 @@ impl PyWorkspace {
                 &commit,
             ).await?;
             Ok(PyCommit { commit })
-        })
+        });
+
+        if !should_delete {
+            // Commit will delete the workspace, since they are tied to commits
+            // so we create a new one off the branch if success
+            pyo3_asyncio::tokio::get_runtime().block_on(async {
+                api::remote::workspaces::create(
+                    &self.repo.repo,
+                    &branch_name,
+                    &self.id,
+                )
+                .await
+            })?;
+        }
+
+        commit
     }
 }
