@@ -28,8 +28,8 @@ pub struct ResourceVersion {
 impl ResourceVersion {
     pub fn from_parsed_resource(resource: &crate::model::ParsedResource) -> ResourceVersion {
         ResourceVersion {
-            path: resource.file_path.to_string_lossy().to_string(),
-            version: resource.version(),
+            path: resource.path.to_string_lossy().to_string(),
+            version: resource.version.to_string_lossy().to_string(),
         }
     }
 }

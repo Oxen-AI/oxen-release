@@ -96,6 +96,12 @@ pub const VERSION_FILE_NAME: &str = "data";
 pub const MERGE_DIR: &str = "merge";
 /// mods/ is where we can stage appends, modifications, deletions to files to be merged later
 pub const MODS_DIR: &str = "mods";
+/// workspaces/ is where we can make remote changes without having to clone locally
+pub const WORKSPACES_DIR: &str = "workspaces";
+/// workspace commit id
+pub const WORKSPACE_COMMIT_ID: &str = "WORKSPACE_COMMIT_ID";
+/// workspace commit id
+pub const WORKSPACE_NAME: &str = "WORKSPACE_NAME";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 
@@ -135,9 +141,9 @@ pub const TARGETS_HASH_COL: &str = "_targets_hash";
 // Internal Name When Performing Computation
 pub const KEYS_HASH_COL: &str = "_keys_hash";
 // Internal Name When Performing Computation
-pub const DIFF_STATUS_COL: &str = ".oxen.diff.status";
+pub const DIFF_STATUS_COL: &str = "_oxen_diff_status";
 // Internal Name When Performing Computation
-pub const DIFF_HASH_COL: &str = ".oxen.diff.hash";
+pub const DIFF_HASH_COL: &str = "_oxen_diff_hash";
 
 // Data transfer
 // Average chunk size of ~4mb

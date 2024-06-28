@@ -13,6 +13,7 @@ cli-test/pkg/
 cli-test/spec/reports/
 cli-test/tmp/
 cli-test/.env
+src/server/.env.local
 
 # rspec failure tracking
 cli-test/.rspec_status
@@ -25,3 +26,5 @@ cli-test/spec/fixtures/*
 # development, so we don't want to track those changes
 .cargo/config.toml
 
+# Nix outputs
+result

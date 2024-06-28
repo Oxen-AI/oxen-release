@@ -4,8 +4,8 @@
 pub mod branch;
 pub mod commit;
 pub mod compare;
+pub mod data_frames;
 pub mod data_type_count;
-pub mod df;
 pub mod diff;
 pub mod entry;
 pub mod entry_metadata;
@@ -21,11 +21,13 @@ pub mod oxen_response;
 pub mod pagination;
 pub mod remote_staged_status;
 pub mod repository;
+pub mod revision;
 pub mod schema;
 pub mod sql_parse_error;
 pub mod status_message;
 pub mod tabular_diff_view;
 pub mod version;
+pub mod workspaces;
 
 pub use crate::view::compare::CompareEntriesResponse;
 pub use crate::view::data_type_count::DataTypeCount;
@@ -61,6 +63,8 @@ pub use crate::view::branch::{
     BranchUpdate, ListBranchesResponse,
 };
 
+pub use crate::view::revision::ParseResourceResponse;
+
 pub use crate::view::compare::CompareResult;
 
 pub use crate::view::entry_metadata::MetadataEntryResponse;
@@ -78,3 +82,4 @@ pub use crate::view::remote_staged_status::{
 pub use crate::view::sql_parse_error::SQLParseError;
 
 pub use crate::view::tabular_diff_view::TabularDiffView;
+pub use crate::view::workspaces::WorkspaceResponseView;

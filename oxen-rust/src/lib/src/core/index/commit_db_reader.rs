@@ -13,8 +13,8 @@ impl CommitDBReader {
     /// Return the latest commit by timestamp
     pub fn latest_commit(db: &DBWithThreadMode<MultiThreaded>) -> Result<Commit, OxenError> {
         let commits: Vec<Commit> = str_json_db::list_vals(db)?;
-        log::debug!("Looking for latest commit in path: {:?}", db.path());
-        log::debug!("Finding latest commit from {} commits", commits.len());
+        // log::debug!("Looking for latest commit in path: {:?}", db.path());
+        // log::debug!("Finding latest commit from {} commits", commits.len());
         let mut latest_commit: Option<Commit> = None;
         for commit in commits.iter() {
             if latest_commit.is_none() {
@@ -28,7 +28,7 @@ impl CommitDBReader {
         }
 
         if latest_commit.is_none() {
-            return Err(OxenError::basic_str("no commits found"));
+            return Err(OxenError::no_commits_found());
         }
 
         Ok(latest_commit.unwrap())

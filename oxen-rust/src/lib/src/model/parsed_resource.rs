@@ -6,26 +6,20 @@ use std::path::PathBuf;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct ParsedResource {
-    pub commit: Commit,         // Always resolve to a commit
+    pub commit: Option<Commit>, // Maybe resolves to a commit
     pub branch: Option<Branch>, // Maybe resolves to a branch
-    pub file_path: PathBuf,     // File path that was past the commit or branch
+    pub path: PathBuf,          // File path that was past the commit or branch
+    pub version: PathBuf,       // This is the split out branch / commit id
     pub resource: PathBuf,      // full resource we parsed
-}
-
-impl ParsedResource {
-    pub fn version(&self) -> String {
-        match &self.branch {
-            Some(branch) => branch.name.clone(),
-            None => self.commit.id.clone(),
-        }
-    }
 }
 
 impl std::fmt::Display for ParsedResource {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.branch {
-            Some(branch) => write!(f, "{}/{}", branch.name, self.file_path.to_string_lossy()),
-            None => write!(f, "{}/{}", self.commit.id, self.file_path.to_string_lossy()),
-        }
+        write!(
+            f,
+            "{}/{}",
+            self.version.to_string_lossy(),
+            self.path.to_string_lossy()
+        )
     }
 }
