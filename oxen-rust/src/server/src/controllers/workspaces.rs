@@ -4,6 +4,7 @@ use crate::params::{app_data, path_param};
 
 use liboxen::core::cache::commit_cacher;
 
+use liboxen::error::OxenError;
 use liboxen::model::NewCommitBody;
 use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
 use liboxen::view::{CommitResponse, StatusMessage, WorkspaceResponseView};
@@ -169,6 +170,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
                 commit: ret_commit,
             }))
         }
+        Err(OxenError::WorkspaceBehind(branch)) => Err(OxenHttpError::WorkspaceBehind(branch)),
         Err(err) => {
             log::error!("unable to commit branch {:?}. Err: {}", branch_name, err);
             Ok(HttpResponse::UnprocessableEntity().json(StatusMessage::error(format!("{err:?}"))))
