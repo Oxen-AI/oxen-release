@@ -8,7 +8,7 @@ Oxen at it's core is a data version control library, written in Rust. It's goals
 
 # 📚 Documentation
 
-The documentation for liboxen is automatically generated and uploaded to [docs.rs](https://docs.rs/liboxen/latest/liboxen/).
+The documentation for the Oxen.ai tool chain can be found [here](https://docs.oxen.ai).
 
 # 🔨 Build & Run
 
@@ -20,7 +20,7 @@ Oxen is purely written in Rust 🦀. You should install the Rust toolchain with 
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-If you are a developer and want to learn more about adding code or the overall architecture [start here](docs/dev/AddLibraryCode.md). Otherwise a quick start to make sure everything is working follows.
+If you are a developer and want to learn more about adding code or the overall architecture [start here](docs/dev/AddLibraryCode.md). Otherwise, a quick start to make sure everything is working follows.
 
 ## Build
 
@@ -35,17 +35,26 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
+If on Windows, you may need to build on a developer CLI and add the following directories to the 'INCLUDE' environment variable
+
+```
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include"
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.27023\include"
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\Llvm\lib\clang\12.0.0\include"
+```
+These are example paths and will vary between machines. If you install 'C++ Clang tools for Windows' through [Microsoft Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019), the directories can be located from the Visual Studio installation under 'BuildTools\VC\Tools'
+
 ### Speed up the build process
 
-You can use
-the [mold](https://github.com/rui314/mold) linker to speed up builds (The
-commercial Mac OS version is [sold](https://github.com/bluewhalesystems/sold)).
+You can use the [mold](https://github.com/rui314/mold) linker to speed up builds (The MIT-licensed macOS version is [sold](https://github.com/bluewhalesystems/sold)).
 
-Assuming you have purchased a license, you can use the following instructions to
+Use the following instructions to
 install sold and configure cargo to use it for building Oxen:
 
 ```
-git clone https://github.com/bluewhalesystems/sold.git
+git clone --depth=1 --single-branch https://github.com/bluewhalesystems/sold.git
 
 mkdir sold/build
 cd sold/build
@@ -80,9 +89,40 @@ rustflags = [ "-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld", ]
 
 ```
 
-## Run
+# Run: CLI
 
-Generate a config file and token to give user access to the server
+To run Oxen from the command line, add the `Oxen/target/debug` directory to the 'PATH' environment variable
+
+```
+export PATH="$PATH:/path/to/Oxen/target/debug"
+```
+
+On Windows, you can use 
+
+```
+$env:PATH += ";/path/to/Oxen/target/debug" 
+```
+
+Initialize a new repository or clone an existing one
+
+```
+oxen init
+oxen clone https://hub.oxen.ai/path/to/repository
+```
+
+This will create the `.oxen` dir in your current directory and allow you to run Oxen CLI commands
+
+```
+oxen status
+oxen add images/
+oxen commit -m "added images"
+oxen push origin main
+```
+
+
+## Run: Oxen Server
+
+To run a local Oxen Server, generate a config file and token to authenticate the user 
 
 ```
 ./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
@@ -108,6 +148,8 @@ Set where you want the data to be synced to. The default sync directory is `./da
 export SYNC_DIR=/path/to/sync/dir
 ```
 
+You can also create a .env.local file in the /src/server directory which can contain the SYNC_DIR variable to avoid setting it every time you run the server.
+
 Run the server
 
 ```
@@ -120,15 +162,71 @@ To run the server with live reload, first install cargo-watch
 cargo install cargo-watch
 ```
 
+On Windows, you may need to use `cargo-watch --locked`
+
+```
+cargo install cargo-watch --locked
+```
+
 Then run the server like this
 
 ```
 cargo watch -- cargo run --bin oxen-server start
 ```
 
+
+## Nix Flake
+
+If you have [Nix installed](https://github.com/DeterminateSystems/nix-installer)
+you can use the flake to build and run the server. This will automatically
+install and configure the required build toolchain dependencies for Linux & macOS.
+
+```
+nix build .#oxen-server
+nix build .#oxen-cli
+nix build .#liboxen
+```
+
+```
+nix run .#oxen-server -- start
+nix run .#oxen-cli -- init
+```
+
+To develop with the standard rust toolchain in a Nix dev shell:
+
+```
+nix develop -c $SHELL
+cargo build
+cargo run --bin oxen-server start
+cargo run --bin oxen start
+```
+
+The flake also provides derviations to build OCI (Docker) images with the minimal
+set of dependencies required to build and run `oxen` & `oxen-server`.
+
+```
+nix build .#oci-oxen-server
+nix build .#oci-oxen-cli
+```
+
+This will export the OCI image and can be loaded with:
+
+```
+docker load -i result
+```
+
 # Unit & Integration Tests
 
-Make sure your server is running on the default port and host, then run
+Make sure your user is configured and server is running on the default port and host, by following these setup steps:
+
+```bash
+# Configure a user
+mkdir ./data/test/runs
+./target/debug/oxen-server add-user --email ox@oxen.ai --name Ox --output user_config.toml
+cp user_config.toml data/test/config/user_config.toml
+# Start the oxen-server
+./target/debug/oxen-server start
+```
 
 *Note:* tests open up a lot of file handles, so limit num test threads if running everything.
 
@@ -164,17 +262,6 @@ To set a different test host you can set the `OXEN_TEST_HOST` environment variab
 
 ```
 env OXEN_TEST_HOST=0.0.0.0:4000 cargo test
-```
-
-# CLI Commands
-
-```
-oxen init .
-oxen status
-oxen add images/
-oxen status
-oxen commit -m "added images"
-oxen push origin main
 ```
 
 # Oxen Server
