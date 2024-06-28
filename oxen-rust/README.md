@@ -89,7 +89,9 @@ rustflags = [ "-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld", ]
 
 ```
 
-# Run: CLI
+# Run 
+
+## CLI
 
 To run Oxen from the command line, add the `Oxen/target/debug` directory to the 'PATH' environment variable
 
@@ -120,7 +122,7 @@ oxen push origin main
 ```
 
 
-## Run: Oxen Server
+## Oxen Server
 
 To run a local Oxen Server, generate a config file and token to authenticate the user 
 
