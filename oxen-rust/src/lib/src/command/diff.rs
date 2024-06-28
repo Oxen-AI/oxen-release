@@ -163,6 +163,7 @@ mod tests {
     use polars::lazy::frame::IntoLazy;
 
     use crate::command;
+    use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
     use crate::model::diff::{ChangeType, DiffResult};
     use crate::model::entry::commit_entry::CommitPath;
@@ -280,7 +281,7 @@ mod tests {
 
             let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
 
-            let diff_col = ".oxen.diff.status";
+            let diff_col = DIFF_STATUS_COL;
             match compare_result {
                 DiffResult::Tabular(result) => {
                     let df = result.contents;
@@ -347,7 +348,7 @@ mod tests {
                 vec![],
             )?;
 
-            let diff_col = ".oxen.diff.status";
+            let diff_col = DIFF_STATUS_COL;
             match compare_result {
                 DiffResult::Tabular(result) => {
                     let df = result.contents;
@@ -418,7 +419,7 @@ mod tests {
                 vec![],
             )?;
 
-            let diff_col = ".oxen.diff.status";
+            let diff_col = DIFF_STATUS_COL;
             match compare_result {
                 DiffResult::Tabular(result) => {
                     let df = result.contents;
@@ -490,7 +491,7 @@ mod tests {
             )?;
 
             // Should return empty df
-            let diff_col = ".oxen.diff.status";
+            let diff_col = DIFF_STATUS_COL;
             match compare_result {
                 DiffResult::Tabular(result) => {
                     let df = result.contents;
@@ -553,7 +554,7 @@ mod tests {
             let compare_result = command::diff_commits(&repo, c1, c2, vec![], vec![], vec![])?;
 
             // Should return empty df
-            let diff_col = ".oxen.diff.status";
+            let diff_col = DIFF_STATUS_COL;
             match compare_result {
                 DiffResult::Tabular(result) => {
                     let df = result.contents;
@@ -624,7 +625,7 @@ mod tests {
             )?;
 
             // Should return empty df
-            let diff_col = ".oxen.diff.status";
+            let diff_col = DIFF_STATUS_COL;
             match compare_result {
                 DiffResult::Tabular(result) => {
                     let df = result.contents;

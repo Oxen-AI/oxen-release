@@ -141,7 +141,7 @@ async fn remove_remote(repo: &LocalRepository, opts: &RmOpts) -> Result<(), Oxen
 
     if opts.recursive {
         Err(OxenError::basic_str(
-            "`oxen remote rm` does not support removing directories yet",
+            "`oxen workspace rm` does not support removing directories yet",
         ))
     } else {
         remove_remote_staged_file(repo, path).await
@@ -149,11 +149,9 @@ async fn remove_remote(repo: &LocalRepository, opts: &RmOpts) -> Result<(), Oxen
 }
 
 async fn remove_remote_staged_file(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
-    let branch = api::local::branches::current_branch(repo)?.expect("Must be on branch.");
-    let branch_name = branch.name;
     let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-    let user_id = UserConfig::identifier()?;
-    api::remote::staging::rm_file(&remote_repo, &branch_name, &user_id, path.to_path_buf()).await
+    let workspace_id = UserConfig::identifier()?;
+    api::remote::workspaces::files::rm(&remote_repo, &workspace_id, path.to_path_buf()).await
 }
 
 fn remove_staged(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {

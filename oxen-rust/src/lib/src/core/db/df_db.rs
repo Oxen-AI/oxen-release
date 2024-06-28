@@ -185,7 +185,7 @@ pub fn count_where(
 }
 
 // IMPORTANT: with_explicit_nulls=True is used to extract complete derived schemas
-// for situations (such as staged_df_db) that use non-schema oxen virtual columns.
+// for situations (such as workspace_df_db) that use non-schema oxen virtual columns.
 // This should be set to false in any cases which may have null array / struct fields
 // (such as the commit metadata db queries, which it currently breaks.)
 

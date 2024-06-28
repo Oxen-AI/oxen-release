@@ -13,12 +13,20 @@ pub struct ErrorResponse {
     title: String,
     #[serde(rename = "type")]
     error_type: String,
+    detail: Option<String>,
 }
 
 impl OxenResponse {
     pub fn desc_or_msg(&self) -> String {
         match self.status_description.to_owned() {
             Some(desc) => desc,
+            None => self.status_message.to_owned(),
+        }
+    }
+
+    pub fn full_err_msg(&self) -> String {
+        match self.error.to_owned() {
+            Some(err) => format!("{}\n{}", err.title, err.detail.unwrap_or("".to_string())),
             None => self.status_message.to_owned(),
         }
     }

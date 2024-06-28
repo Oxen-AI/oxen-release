@@ -1,14 +1,12 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
-use crate::view::PaginatedLinesResponse;
 
 use liboxen::constants::AVG_CHUNK_SIZE;
 use liboxen::error::OxenError;
 use liboxen::util::fs::replace_file_name_keep_extension;
 use liboxen::util::paginate;
 use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
-use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::StatusMessage;
 use liboxen::{api, util};
 use liboxen::{constants, current_function};
@@ -103,6 +101,7 @@ pub async fn download_chunk(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
 
     log::debug!(
         "{} resource {}/{}",
@@ -111,8 +110,7 @@ pub async fn download_chunk(
         resource
     );
 
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
+    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     let chunk_start: u64 = query.chunk_start.unwrap_or(0);
     let chunk_size: u64 = query.chunk_size.unwrap_or(AVG_CHUNK_SIZE);
 
@@ -122,52 +120,6 @@ pub async fn download_chunk(
     f.read_exact(&mut buffer).unwrap();
 
     Ok(HttpResponse::Ok().body(buffer))
-}
-
-pub async fn list_lines_in_file(
-    req: HttpRequest,
-    query: web::Query<PageNumQuery>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    let app_data = app_data(&req)?;
-    let namespace = path_param(&req, "namespace")?;
-    let repo_name = path_param(&req, "repo_name")?;
-    let repo = get_repo(&app_data.path, namespace, &repo_name)?;
-    let resource = parse_resource(&req, &repo)?;
-
-    log::debug!(
-        "{} resource {}/{}",
-        current_function!(),
-        repo_name,
-        resource
-    );
-
-    // default to first page with first ten values
-    let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
-    let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-
-    log::debug!(
-        "{} page {} page_size {}",
-        current_function!(),
-        page,
-        page_size,
-    );
-
-    let version_path =
-        util::fs::version_path_for_commit_id(&repo, &resource.commit.id, &resource.file_path)?;
-    let start = page * page_size;
-    let (lines, total_entries) =
-        liboxen::util::fs::read_lines_paginated_ret_size(&version_path, start, page_size);
-
-    let total_pages = (total_entries as f64 / page_size as f64).ceil() as usize;
-    Ok(HttpResponse::Ok().json(PaginatedLinesResponse {
-        status: String::from(STATUS_SUCCESS),
-        status_message: String::from(MSG_RESOURCE_FOUND),
-        lines,
-        page_size,
-        page_number: page,
-        total_pages,
-        total_entries,
-    }))
 }
 
 pub async fn list_tabular(
