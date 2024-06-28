@@ -105,7 +105,10 @@ class Workspace:
         """
         self._workspace.rm(path)
 
-    def commit(self, message: str, branch_name: Optional[str] = None):
+    def commit(self, 
+               message: str, 
+               branch_name: Optional[str] = None,
+               should_delete: bool = False):
         """
         Commit the workspace to a branch
 
@@ -115,8 +118,10 @@ class Workspace:
             branch_name: `Optional[str]`
                 The name of the branch to commit to. If left empty, will commit to the branch
                 the workspace was created from.
+            should_delete: `bool`
+                Whether to delete the workspace after the commit.
         """
         if branch_name is None:
             branch_name = self._workspace.branch()
-        return self._workspace.commit(message, branch_name)
+        return self._workspace.commit(message, branch_name, should_delete)
 
