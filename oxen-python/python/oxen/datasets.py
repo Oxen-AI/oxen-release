@@ -40,7 +40,14 @@ def _load_hf(path: str):
         raise ValueError(f"Unsupported file extension: {path}")
 
 
-def download(repo_id: str, path: str, revision=None, dst=None):
+def download(
+    repo_id: str,
+    path: str,
+    revision=None,
+    dst=None,
+    host="hub.oxen.ai",
+    scheme="https"
+):
     """
     Download files or directories from a remote Oxen repository.
 
@@ -53,9 +60,13 @@ def download(repo_id: str, path: str, revision=None, dst=None):
             The commit id or branch name of the version of the data to download
         dst: `str | None`
             The path to download the data to.
+        host: `str`
+            The host to download the data from.
+        scheme: `str`
+            The scheme to download the data with. (default: "https")
     """
 
-    repo = RemoteRepo(repo_id)
+    repo = RemoteRepo(repo_id, host=host, scheme=scheme)
     repo.download(path, revision=revision, dst=dst)
 
 
