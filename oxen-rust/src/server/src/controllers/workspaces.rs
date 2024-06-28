@@ -171,7 +171,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
             }))
         }
         Err(OxenError::WorkspaceBehind(branch)) => {
-            return Err(OxenHttpError::WorkspaceBehind(branch))
+            Err(OxenHttpError::WorkspaceBehind(branch))
         }
         Err(err) => {
             log::error!("unable to commit branch {:?}. Err: {}", branch_name, err);
