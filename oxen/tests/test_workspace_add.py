@@ -2,6 +2,7 @@ import os
 from oxen import RemoteRepo
 from oxen import Workspace
 
+
 def test_workspace_add_single_file(
     celeba_remote_repo_one_image_pushed: RemoteRepo, shared_datadir
 ):
