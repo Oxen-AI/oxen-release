@@ -3,10 +3,14 @@ from .oxen import PyWorkspaceDataFrame
 import json
 from typing import List
 
-class WorkspaceDataFrame:
+
+class DataFrame:
     """
-    The WorkspaceDataFrame class allows you to perform CRUD operations on a data frame
-    that is indexed into DuckDB on an oxen-server without downloading the data locally.
+    The DataFrame class allows you to perform CRUD operations on a data frame.
+
+    If you pass in a [Workspace](/concepts/workspaces) or a [RemoteRepo](/concepts/remote-repos) the data is indexed into DuckDB on an oxen-server without downloading the data locally.
+
+    If you pass in a path to a local file the data is read into a Polars DataFrame.
 
     ## Examples
 
@@ -17,7 +21,7 @@ class WorkspaceDataFrame:
     ```python
     from oxen import RemoteRepo
     from oxen import Workspace
-    from oxen import WorkspaceDataFrame
+    from oxen import DataFrame
 
     # Connect to the remote repo
     repo = RemoteRepo("ox/CatDogBBox")
@@ -28,7 +32,7 @@ class WorkspaceDataFrame:
     # Connect to and index the data frame
     # Note: This must be an existing file committed to the repo
     #       indexing may take a while for large files
-    data_frame = WorkspaceDataFrame(workspace, "data.csv")
+    data_frame = DataFrame(workspace, "data.csv")
 
     # Paginate over rows
     rows = data_frame.list_page(1)
@@ -62,7 +66,7 @@ class WorkspaceDataFrame:
 
     def __init__(self, workspace: Workspace, path: str):
         """
-        Initialize the WorkspaceDataFrame class. Will index the data frame
+        Initialize the DataFrame class. Will index the data frame
         into duckdb on init.
 
         Will throw an error if the data frame does not exist.
@@ -81,7 +85,7 @@ class WorkspaceDataFrame:
         self.filter_keys = ["_oxen_diff_hash", "_oxen_diff_status", "_oxen_row_id"]
 
     def __repr__(self):
-        return f"WorkspaceDataFrame(repo={self.repo}, filename={self.filename})"
+        return f"DataFrame(repo={self.repo}, filename={self.filename})"
 
     def size(self) -> (int, int):
         """

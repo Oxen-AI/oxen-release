@@ -2,9 +2,7 @@ import os
 from oxen import Workspace
 
 
-def test_workspace_add_to_branch(
-    celeba_remote_repo_one_image_pushed, shared_datadir
-):
+def test_workspace_add_to_branch(celeba_remote_repo_one_image_pushed, shared_datadir):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     remote_repo.create_branch("newbranch")
     remote_repo.checkout("newbranch")

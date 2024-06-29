@@ -41,12 +41,7 @@ def _load_hf(path: str):
 
 
 def download(
-    repo_id: str,
-    path: str,
-    revision=None,
-    dst=None,
-    host="hub.oxen.ai",
-    scheme="https"
+    repo_id: str, path: str, revision=None, dst=None, host="hub.oxen.ai", scheme="https"
 ):
     """
     Download files or directories from a remote Oxen repository.
