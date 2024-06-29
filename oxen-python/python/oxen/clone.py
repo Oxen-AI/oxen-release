@@ -7,7 +7,7 @@ def clone(
     path: Optional[str] = None,
     host: str = "hub.oxen.ai",
     branch: str = "main",
-    protocol: str = "https",
+    scheme: str = "https",
     shallow=False,
     all=False,
 ):
@@ -24,8 +24,8 @@ def clone(
             The host to connect to. Defaults to 'hub.oxen.ai'
         branch: `str`
             The branch name id to clone. Defaults to 'main'
-        protocol: `str`
-            The protocol to use. Defaults to 'https'
+        scheme: `str`
+            The scheme to use. Defaults to 'https'
         shallow: `bool`
             Whether to do a shallow clone or not. Default: False
         all: `bool`
@@ -43,7 +43,7 @@ def clone(
     if path is None:
         path = repo_name
     # Get repo url
-    repo_url = f"{protocol}://{host}/{repo_id}"
+    repo_url = f"{scheme}://{host}/{repo_id}"
     # Clone repo
     repo = Repo(path)
     repo.clone(repo_url, branch=branch, shallow=shallow, all=all)

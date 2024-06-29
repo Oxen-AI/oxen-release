@@ -1,4 +1,3 @@
-import json
 import os
 
 from typing import Optional
@@ -180,7 +179,7 @@ class RemoteRepo:
         if directory is None:
             return self._repo.ls("", page_num, page_size)
 
-        return self._repo.ls(directory, page_num, page_size).entries
+        return self._repo.ls(directory, page_num, page_size)
 
     def download(
         self, src: str, dst: Optional[str] = None, revision: Optional[str] = None
@@ -208,27 +207,6 @@ class RemoteRepo:
             self._repo.download(src, dst, self.revision)
         else:
             self._repo.download(src, dst, revision)
-
-    def status(self, path: str = ""):
-        """
-        Get the status of the remote repo. Returns a StagedData object.
-
-        Args:
-            path: `str`
-                The directory or file path on the remote that
-                will be checked for modifications
-        """
-        return self._repo.status(path)
-
-    def commit(self, message: str):
-        """
-        Commit the staged data in the remote repo with a message.
-
-        Args:
-            message: `str`
-                The commit message.
-        """
-        return self._repo.commit(message)
 
     def log(self):
         """

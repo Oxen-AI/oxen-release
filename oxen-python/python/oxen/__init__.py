@@ -1,14 +1,22 @@
 """Core Oxen Functionality"""
 
 # Rust wrappers
-from .oxen import PyRepo, PyStagedData, PyCommit, PyRemoteRepo, PyDataset, PyWorkspace, PyWorkspaceDataFrame
+from .oxen import (
+    PyRepo,
+    PyStagedData,
+    PyCommit,
+    PyRemoteRepo,
+    PyDataset,
+    PyWorkspace,
+    PyWorkspaceDataFrame,
+)
 from .oxen import util
 
 # Python classes
 from oxen.repo import Repo
 from oxen.remote_repo import RemoteRepo
 from oxen.workspace import Workspace
-from oxen.workspace_data_frame import WorkspaceDataFrame
+from oxen.data_frame import DataFrame
 from oxen.dag import DAG
 from oxen.op import Op
 from oxen import auth
@@ -35,7 +43,7 @@ __all__ = [
     "is_configured",
     "RemoteRepo",
     "Workspace",
-    "WorkspaceDataFrame",
+    "DataFrame",
     "Repo",
     "auth",
     "loaders",

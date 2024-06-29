@@ -1,11 +1,12 @@
-# TODO: switch this to our own DF stuff later
 import pandas as pd
 import pytest
 import os
-from oxen import Workspace, WorkspaceDataFrame
+from oxen import Workspace, DataFrame
 
 
-def test_workspace_df_add_row_success(celeba_remote_repo_one_image_pushed, shared_datadir):
+def test_workspace_df_add_row_success(
+    celeba_remote_repo_one_image_pushed, shared_datadir
+):
     _, remote_repo = celeba_remote_repo_one_image_pushed
     workspace = Workspace(remote_repo, "main")
 
@@ -15,7 +16,7 @@ def test_workspace_df_add_row_success(celeba_remote_repo_one_image_pushed, share
     workspace.commit("add train.csv")
 
     new_row = {"file": "images/123456.png", "hair_color": "purple"}
-    remote_df = WorkspaceDataFrame(workspace, "csvs/train.csv")
+    remote_df = DataFrame(workspace, "csvs/train.csv")
     remote_df.insert_row(new_row)
     workspace.commit("add row to train.csv")
 
@@ -45,6 +46,6 @@ def test_remote_df_add_row_invalid_schema(
 
     workspace.add(file_path, "csvs")
     workspace.commit("add train.csv")
-    remote_df = WorkspaceDataFrame(workspace, "csvs/train.csv")
+    remote_df = DataFrame(workspace, "csvs/train.csv")
     with pytest.raises(ValueError):
         remote_df.insert_row(new_row)

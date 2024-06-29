@@ -1,7 +1,7 @@
-
 from typing import Optional
 from oxen import RemoteRepo
 from .oxen import PyWorkspace
+
 
 class Workspace:
     """
@@ -105,10 +105,12 @@ class Workspace:
         """
         self._workspace.rm(path)
 
-    def commit(self, 
-               message: str, 
-               branch_name: Optional[str] = None,
-               should_delete: bool = False):
+    def commit(
+        self,
+        message: str,
+        branch_name: Optional[str] = None,
+        should_delete: bool = False,
+    ):
         """
         Commit the workspace to a branch
 
@@ -123,5 +125,4 @@ class Workspace:
         """
         if branch_name is None:
             branch_name = self._workspace.branch()
-        return self._workspace.commit(message, branch_name, should_delete)
-
+        return self._workspace.commit(message, should_delete, branch_name)

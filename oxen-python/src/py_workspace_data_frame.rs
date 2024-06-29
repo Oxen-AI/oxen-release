@@ -80,11 +80,12 @@ impl PyWorkspaceDataFrame {
         Ok(Self { workspace, path, _first_page: df })
     }
 
-    fn size(&self) -> Result<(usize, usize), PyOxenError> {
-        let size = &self._first_page.view.size;
+    fn size(&mut self) -> Result<(usize, usize), PyOxenError> {
+        let df = _get(&self.workspace.repo.repo, &self.workspace.id, &self.path)?;
+        let size = &df.view.size;
         let width = size.width;
         let height = size.height;
-
+        self._first_page = df;
         Ok((width, height))
     }
 
