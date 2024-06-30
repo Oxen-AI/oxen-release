@@ -250,7 +250,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
@@ -317,7 +317,7 @@ mod tests {
             assert_eq!(branch.name, branch_name);
             let workspace_id = UserConfig::identifier()?;
             let workspace = api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
             let directory = Path::new("annotations").join("train");
@@ -367,7 +367,7 @@ mod tests {
 
             let workspace_id = UserConfig::identifier()?;
             let workspace = api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             // Path to the CSV file
             let path = Path::new("annotations").join("train").join("bounding_box.csv");
@@ -510,7 +510,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             // Path to the CSV file
             let path = Path::new("annotations")

@@ -128,6 +128,12 @@ impl Workspace {
 
         let workspaces = workspaces_hashes
             .iter()
+            .filter(|workspace_hash| {
+                workspace_hash
+                    .join(OXEN_HIDDEN_DIR)
+                    .join(WORKSPACE_NAME)
+                    .exists()
+            })
             .map(|workspace_hash| {
                 // read the workspace name from the workspace dir
                 let workspace_name_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);

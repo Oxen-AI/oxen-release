@@ -25,7 +25,7 @@ impl RunCmd for WorkspaceListCmd {
         for workspace in workspaces {
             println!(
                 "{}\t{}\t{}",
-                workspace.workspace_id, workspace.commit.id, workspace.commit.message
+                workspace.id, workspace.commit.id, workspace.commit.message
             );
         }
         Ok(())

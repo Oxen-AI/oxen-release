@@ -68,7 +68,7 @@ pub async fn upload_entries(
     let workspace_id = uuid::Uuid::new_v4().to_string();
     let workspace =
         api::remote::workspaces::create(remote_repo, &branch_name, &workspace_id).await?;
-    assert_eq!(workspace.workspace_id, workspace_id);
+    assert_eq!(workspace.id, workspace_id);
 
     api::remote::workspaces::files::add_many(
         remote_repo,

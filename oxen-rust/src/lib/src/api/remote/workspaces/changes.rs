@@ -132,7 +132,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let page_num = constants::DEFAULT_PAGE_NUM;
             let page_size = constants::DEFAULT_PAGE_SIZE;
