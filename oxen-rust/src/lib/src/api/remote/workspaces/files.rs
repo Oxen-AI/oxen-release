@@ -182,7 +182,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_img_file();
             let result = api::remote::workspaces::files::add(
@@ -228,7 +228,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let directory_name = "data";
             let paths = vec![
@@ -278,7 +278,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let file_to_post = test::test_img_file();
             let directory_name = "data";
@@ -356,7 +356,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_1k_parquet();
             let result = api::remote::workspaces::files::add(
@@ -402,7 +402,7 @@ mod tests {
             let workspace_id = UserConfig::identifier()?;
             let workspace =
                 api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let directory_name = "images";
             let path = test::test_img_file();

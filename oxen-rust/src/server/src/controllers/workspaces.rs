@@ -45,8 +45,8 @@ pub async fn get_or_create(
         return Ok(HttpResponse::Ok().json(WorkspaceResponseView {
             status: StatusMessage::resource_created(),
             workspace: WorkspaceResponse {
-                workspace_id,
-                commit: workspace.commit,
+                id: workspace_id,
+                commit: workspace.commit.into(),
             },
         }));
     }
@@ -59,8 +59,8 @@ pub async fn get_or_create(
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),
         workspace: WorkspaceResponse {
-            workspace_id,
-            commit,
+            id: workspace_id,
+            commit: commit.into(),
         },
     }))
 }
@@ -76,8 +76,8 @@ pub async fn list(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let workspace_views = workspaces
         .iter()
         .map(|workspace| WorkspaceResponse {
-            workspace_id: workspace.id.clone(),
-            commit: workspace.commit.clone(),
+            id: workspace.id.clone(),
+            commit: workspace.commit.clone().into(),
         })
         .collect();
 
@@ -101,8 +101,8 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),
         workspace: WorkspaceResponse {
-            workspace_id,
-            commit: workspace.commit,
+            id: workspace_id,
+            commit: workspace.commit.into(),
         },
     }))
 }
@@ -170,9 +170,7 @@ pub async fn commit(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
                 commit: ret_commit,
             }))
         }
-        Err(OxenError::WorkspaceBehind(branch)) => {
-            Err(OxenHttpError::WorkspaceBehind(branch))
-        }
+        Err(OxenError::WorkspaceBehind(branch)) => Err(OxenHttpError::WorkspaceBehind(branch)),
         Err(err) => {
             log::error!("unable to commit branch {:?}. Err: {}", branch_name, err);
             Ok(HttpResponse::UnprocessableEntity().json(StatusMessage::error(format!("{err:?}"))))

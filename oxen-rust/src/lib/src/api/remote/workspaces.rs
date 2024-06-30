@@ -41,6 +41,9 @@ pub async fn create(
     let body = serde_json::to_string(&NewWorkspace {
         branch_name: branch_name.to_string(),
         workspace_id: workspace_id.to_string(),
+        // These two are needed for the oxen hub right now, ignored by the server
+        resource_path: "/".to_string(),
+        entity_type: "user".to_string(),
     })?;
 
     let client = client::new_for_url(&url)?;
@@ -98,7 +101,7 @@ mod tests {
             let workspace_id = "test_workspace_id";
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
 
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             Ok(remote_repo)
         })
@@ -138,7 +141,7 @@ mod tests {
             let workspace_id = "test_workspace_id";
             let workspace = create(&remote_repo, branch_name, workspace_id).await?;
 
-            assert_eq!(workspace.workspace_id, workspace_id);
+            assert_eq!(workspace.id, workspace_id);
 
             let res = delete(&remote_repo, workspace_id).await;
             assert!(res.is_ok());
