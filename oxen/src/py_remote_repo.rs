@@ -36,7 +36,7 @@ impl PyRemoteRepo {
             Some((namespace, repo_name)) => (namespace.to_string(), repo_name.to_string()),
             None => {
                 return Err(PyValueError::new_err(
-                    "Invalid repo name, must be in format namespace/repo_name",
+                    format!("Invalid repo name, must be in format namespace/repo_name. Got {}", repo),
                 ))
             }
         };

@@ -63,6 +63,7 @@ class Workspace:
         """
         self._repo = repo
         self._workspace = PyWorkspace(repo._repo, branch, workspace_id)
+        print(f"Created workspace with id: {self._workspace.id()}")
 
     def __repr__(self):
         return f"Workspace({self._workspace.id()}, {self._workspace.branch()})"

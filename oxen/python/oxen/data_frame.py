@@ -1,16 +1,15 @@
 from oxen.workspace import Workspace
+from oxen.remote_repo import RemoteRepo
 from .oxen import PyWorkspaceDataFrame
 import json
-from typing import List
+from typing import List, Union, Optional
 
 
 class DataFrame:
     """
-    The DataFrame class allows you to perform CRUD operations on a data frame.
+    The DataFrame class allows you to perform CRUD operations on a remote data frame.
 
     If you pass in a [Workspace](/concepts/workspaces) or a [RemoteRepo](/concepts/remote-repos) the data is indexed into DuckDB on an oxen-server without downloading the data locally.
-
-    If you pass in a path to a local file the data is read into a Polars DataFrame.
 
     ## Examples
 
@@ -19,37 +18,22 @@ class DataFrame:
     Index a data frame in a workspace.
 
     ```python
-    from oxen import RemoteRepo
-    from oxen import Workspace
     from oxen import DataFrame
-
-    # Connect to the remote repo
-    repo = RemoteRepo("ox/CatDogBBox")
-
-    # Create the workspace
-    workspace = Workspace(repo, "my-branch")
 
     # Connect to and index the data frame
     # Note: This must be an existing file committed to the repo
     #       indexing may take a while for large files
-    data_frame = DataFrame(workspace, "data.csv")
-
-    # Paginate over rows
-    rows = data_frame.list_page(1)
-    print(rows)
-
-    # Get total pages
-    print(data_frame.total_pages())
+    data_frame = DataFrame("datasets/LLM-Zero-Hero", "finetune/SMSSpamCollection.tsv")
 
     # Add a row
-    row_id = data_frame.insert_row({"id": "1", "name": "John Doe"})
+    row_id = data_frame.insert_row({"category": "spam", "message": "Hello, do I have an offer for you!"})
 
     # Get a row by id
     row = data_frame.get_row_by_id(row_id)
     print(row)
 
     # Update a row
-    row = data_frame.update_row(row_id, {"name": "Jane Doe"})
+    row = data_frame.update_row(row_id, {"category": "ham"})
     print(row)
 
     # Delete a row
@@ -59,12 +43,19 @@ class DataFrame:
     status = data_frame.diff()
     print(status.added_files())
 
-    # Commit the changes to the workspace
-    workspace.commit("Updating data.csv")
+    # Commit the changes
+    data_frame.commit("Updating data.csv")
     ```
     """
 
-    def __init__(self, workspace: Workspace, path: str):
+    def __init__(
+        self,
+        remote: Union[str, RemoteRepo, Workspace],
+        path: str,
+        host: str = "hub.oxen.ai",
+        branch: str = "main",
+        scheme: str = "https",
+    ):
         """
         Initialize the DataFrame class. Will index the data frame
         into duckdb on init.
@@ -72,20 +63,35 @@ class DataFrame:
         Will throw an error if the data frame does not exist.
 
         Args:
-            workspace: `Workspace`
-                The workspace the data frame is in.
+            remote: `str`, `RemoteRepo`, or `Workspace`
+                The workspace or remote repo the data frame is in.
             path: `str`
                 The path of the data frame file in the repository.
+            host: `str`
+                The host of the oxen-server. Defaults to "hub.oxen.ai".
+            branch: `str`
+                The branch of the remote repo. Defaults to "main".
+            scheme: `str`
+                The scheme of the remote repo. Defaults to "https".
         """
-        self._workspace = workspace
+        if isinstance(remote, str):
+            remote_repo = RemoteRepo(remote, host, branch, scheme)
+            self._workspace = Workspace(remote_repo, branch)
+        elif isinstance(remote, RemoteRepo):
+            self._workspace = Workspace(remote, branch)
+        elif isinstance(remote, Workspace):
+            self._workspace = remote
+        else:
+            raise ValueError("Invalid remote type. Must be a string, RemoteRepo, or Workspace")
         self._path = path
 
         # this will return an error if the data frame file does not exist
-        self.data_frame = PyWorkspaceDataFrame(workspace._workspace, path)
+        self.data_frame = PyWorkspaceDataFrame(self._workspace._workspace, path)
         self.filter_keys = ["_oxen_diff_hash", "_oxen_diff_status", "_oxen_row_id"]
 
     def __repr__(self):
-        return f"DataFrame(repo={self.repo}, filename={self.filename})"
+        name = f"{self._workspace._repo.namespace}/{self._workspace._repo.name}"
+        return f"DataFrame(repo={name}, path={self._path})"
 
     def size(self) -> (int, int):
         """
@@ -207,6 +213,18 @@ class DataFrame:
         Unstage any changes to the schema or contents of a data frame
         """
         self.data_frame.restore()
+
+    def commit(self, message: str, branch: Optional[str] = None):
+        """
+        Commit the current changes to the data frame.
+        
+        Args:
+            message: `str`
+                The message to commit the changes.
+            branch: `str`
+                The branch to commit the changes to. Defaults to the current branch.
+        """
+        self._workspace.commit(message, branch)
 
     def _filter_keys(self, data: dict):
         """
