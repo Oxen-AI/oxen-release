@@ -52,6 +52,17 @@ pub struct JsonDataFrameViewResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorkspaceJsonDataFrameViewResponse {
+    #[serde(flatten)]
+    pub status: StatusMessage,
+    pub data_frame: Option<JsonDataFrameViews>,
+    pub commit: Option<Commit>,
+    pub resource: Option<ResourceVersion>,
+    pub derived_resource: Option<DerivedDFResource>,
+    pub is_indexed: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrameRowResponse {
     #[serde(flatten)]
     pub status: StatusMessage,

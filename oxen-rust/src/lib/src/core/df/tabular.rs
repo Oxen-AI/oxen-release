@@ -1,13 +1,14 @@
 use duckdb::ToSql;
 use polars::prelude::*;
 use std::fs::File;
+use std::num::NonZeroUsize;
 
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::{ContentType, DataFrameSize};
+use crate::model::DataFrameSize;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::{fs, hasher};
 
@@ -22,7 +23,6 @@ use std::path::Path;
 
 use super::filter::{DFFilterExp, DFFilterOp, DFFilterVal};
 
-const DEFAULT_INFER_SCHEMA_LEN: usize = 10000;
 const READ_ERROR: &str = "Could not read tabular data from path";
 const COLLECT_ERROR: &str = "Could not collect DataFrame";
 const TAKE_ERROR: &str = "Could not take DataFrame";
@@ -32,7 +32,7 @@ fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader 
     let path = path.as_ref();
     let reader = LazyCsvReader::new(path);
     reader
-        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .with_infer_schema_length(Some(10000))
         .with_ignore_errors(true)
         .with_has_header(true)
         .with_truncate_ragged_lines(true)
@@ -79,7 +79,7 @@ pub fn read_df_json(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let error_str = format!("Could not read json data from path {path:?}");
     let file = File::open(path)?;
     let df = JsonReader::new(file)
-        .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .infer_schema_len(Some(NonZeroUsize::new(10000).unwrap()))
         .finish()
         .expect(&error_str);
     Ok(df)
@@ -90,7 +90,7 @@ pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     let error_str = format!("Could not read line delimited data from path {path:?}");
     let file = File::open(path)?;
     let df = JsonLineReader::new(file)
-        .infer_schema_len(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .infer_schema_len(Some(NonZeroUsize::new(10000).unwrap()))
         .finish()
         .expect(&error_str);
     Ok(df)
@@ -98,7 +98,7 @@ pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
 
 pub fn scan_df_jsonl(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
     LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
-        .with_infer_schema_length(Some(DEFAULT_INFER_SCHEMA_LEN))
+        .with_infer_schema_length(Some(NonZeroUsize::new(10000).unwrap()))
         .with_n_rows(Some(total_rows))
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
@@ -207,8 +207,9 @@ pub fn add_col(
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
-
-    let new_row = parse_data_into_df(&data, ContentType::Json)?;
+    let new_row = parse_str_to_df(data)?;
+    log::debug!("add_row og df: {:?}", df);
+    log::debug!("add_row new_row: {:?}", new_row);
     let df = df.vstack(&new_row).unwrap().lazy();
     Ok(df)
 }
@@ -219,34 +220,22 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     Ok(n_dupes)
 }
 
-pub fn parse_data_into_df(data: &str, content_type: ContentType) -> Result<DataFrame, OxenError> {
-    log::debug!("Parsing content into df: {content_type:?}\n{data}");
-    match content_type {
-        ContentType::Json => {
-            // getting an internal error if not jsonl, so do a quick check that it starts with a '{'
-            if !data.trim().starts_with('{') {
-                return Err(OxenError::basic_str(format!(
-                    "Invalid json content: {data}"
-                )));
-            }
-
-            if data == "{}" {
-                return Ok(DataFrame::default());
-            }
-
-            let cursor = Cursor::new(data.as_bytes());
-            match JsonLineReader::new(cursor).finish() {
-                Ok(df) => Ok(df),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "Error parsing {content_type:?}: {err}"
-                ))),
-            }
-        }
-        _ => {
-            let err = format!("Unsupported content type: {content_type:?}");
-            Err(OxenError::basic_str(err))
-        }
+pub fn parse_str_to_df(data: impl AsRef<str>) -> Result<DataFrame, OxenError> {
+    let data = data.as_ref();
+    if data == "{}" {
+        return Ok(DataFrame::default());
     }
+
+    let cursor = Cursor::new(data.as_bytes());
+    match JsonLineReader::new(cursor).finish() {
+        Ok(df) => Ok(df),
+        Err(err) => Err(OxenError::basic_str(format!("Error parsing json: {err}"))),
+    }
+}
+
+pub fn parse_json_to_df(data: &serde_json::Value) -> Result<DataFrame, OxenError> {
+    let data = serde_json::to_string(data)?;
+    parse_str_to_df(data)
 }
 
 fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {
@@ -280,7 +269,7 @@ fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> 
     }
 }
 
-fn val_from_df_and_filter<'a>(df: &'a LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
+fn val_from_df_and_filter<'a>(df: &mut LazyFrame, filter: &'a DFFilterVal) -> AnyValue<'a> {
     if let Some(value) = df
         .schema()
         .expect("Unable to get schema from data frame")
@@ -306,7 +295,7 @@ fn lit_from_any(value: &AnyValue) -> Expr {
     }
 }
 
-fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
+fn filter_from_val(df: &mut LazyFrame, filter: &DFFilterVal) -> Expr {
     let val = val_from_df_and_filter(df, filter);
     let val = lit_from_any(&val);
     match filter.op {
@@ -319,15 +308,15 @@ fn filter_from_val(df: &LazyFrame, filter: &DFFilterVal) -> Expr {
     }
 }
 
-fn filter_df(df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
+fn filter_df(mut df: LazyFrame, filter: &DFFilterExp) -> Result<LazyFrame, OxenError> {
     log::debug!("Got filter: {:?}", filter);
     if filter.vals.is_empty() {
         return Ok(df);
     }
     let mut vals = filter.vals.iter();
-    let mut expr: Expr = filter_from_val(&df, vals.next().unwrap());
+    let mut expr: Expr = filter_from_val(&mut df, vals.next().unwrap());
     for op in &filter.logical_ops {
-        let chain_expr: Expr = filter_from_val(&df, vals.next().unwrap());
+        let chain_expr: Expr = filter_from_val(&mut df, vals.next().unwrap());
 
         match op {
             DFLogicalOp::AND => expr = expr.and(chain_expr),
@@ -775,7 +764,7 @@ pub fn scan_df(
 pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
     // Don't need that many rows to get the width
     let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
-    let lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
+    let mut lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
     let schema = lazy_df.schema()?;
     let width = schema.len();
 
@@ -963,7 +952,7 @@ pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenE
     let opts = DFOpts::empty();
     // don't need many rows to get schema
     let total_rows = constants::DEFAULT_PAGE_SIZE;
-    let df = scan_df(input, &opts, total_rows)?;
+    let mut df = scan_df(input, &opts, total_rows)?;
     let schema = df.schema().expect("Could not get schema");
 
     Ok(crate::model::Schema::from_polars(&schema))
@@ -974,7 +963,7 @@ pub fn schema_to_string<P: AsRef<Path>>(
     flatten: bool,
     opts: &DFOpts,
 ) -> Result<String, OxenError> {
-    let df = scan_df(input, opts, constants::DEFAULT_PAGE_SIZE)?;
+    let mut df = scan_df(input, opts, constants::DEFAULT_PAGE_SIZE)?;
     let schema = df.schema().expect("Could not get schema");
 
     if flatten {

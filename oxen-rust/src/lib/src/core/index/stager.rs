@@ -1228,6 +1228,7 @@ impl Stager {
         //   /Users/username/Datasets/MyRepo/train -> train
         //   /Users/username/Datasets/MyRepo/annotations/train.txt -> annotations/train.txt
         let path = util::fs::path_relative_to_dir(path, &self.repository.path)?;
+        log::debug!("Add file: got relative path {:?}", path);
 
         let mut staged_entry = StagedEntry {
             hash: hash.to_owned(),

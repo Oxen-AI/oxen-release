@@ -77,7 +77,10 @@ mod tests {
             serde_json::from_str(text).map_err(OxenError::from)?;
 
         assert_eq!(parse_resp.resource.branch.unwrap().name, "main");
-        assert_eq!(parse_resp.resource.path.to_string_lossy(), "to/resource");
+        // fix windows tests
+        let path = parse_resp.resource.path.to_string_lossy();
+        let path = path.replace('\\', "/");
+        assert_eq!(path, "to/resource");
 
         util::fs::remove_dir_all(sync_dir)?;
 

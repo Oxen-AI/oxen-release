@@ -56,11 +56,7 @@ impl RunCmd for AddCmd {
         check_repo_migration_needed(&repository)?;
 
         for path in &opts.paths {
-            if opts.is_remote {
-                command::remote::add(&repository, path, &opts).await?;
-            } else {
-                command::add(&repository, path)?;
-            }
+            command::add(&repository, path)?;
         }
 
         Ok(())

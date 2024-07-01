@@ -11,6 +11,7 @@ use std::num::ParseIntError;
 use std::path::Path;
 use std::path::StripPrefixError;
 
+use crate::model::Branch;
 use crate::model::Schema;
 use crate::model::{Commit, ParsedResource};
 use crate::model::{Remote, RepoNew};
@@ -57,6 +58,10 @@ pub enum OxenError {
     NothingToCommit(StringError),
     NoCommitsFound(StringError),
     HeadNotFound(StringError),
+
+    // Workspaces
+    WorkspaceNotFound(Box<StringError>),
+    WorkspaceBehind(Branch),
 
     // Resources (paths, uris, etc.)
     ResourceNotFound(StringError),
@@ -206,6 +211,14 @@ impl OxenError {
         OxenError::RevisionNotFound(Box::new(value))
     }
 
+    pub fn workspace_not_found(value: StringError) -> Self {
+        OxenError::WorkspaceNotFound(Box::new(value))
+    }
+
+    pub fn workspace_behind(branch: Branch) -> Self {
+        OxenError::WorkspaceBehind(branch)
+    }
+
     pub fn root_commit_does_not_match(commit: Commit) -> Self {
         OxenError::RootCommitDoesNotMatch(Box::new(commit))
     }
@@ -278,13 +291,11 @@ impl OxenError {
 
     pub fn remote_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Remote branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
-        OxenError::BranchNotFound(Box::new(StringError::from(name.as_ref())))
+        OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
     pub fn local_branch_not_found(name: impl AsRef<str>) -> OxenError {
         let err = format!("Branch '{}' not found", name.as_ref());
-        log::warn!("{}", err);
         OxenError::BranchNotFound(Box::new(StringError::from(err)))
     }
 
@@ -378,9 +389,9 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn remote_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
+    pub fn workspace_add_file_not_in_repo(path: impl AsRef<Path>) -> OxenError {
         let err = format!(
-            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen remote add /path/to/file.png -p my-images/\n",
+            "File is outside of the repo {:?}\n\nYou must specify a path you would like to add the file at with the -p flag.\n\n  oxen workspace add /path/to/file.png -p my-images/\n",
             path.as_ref()
         );
         OxenError::basic_str(err)
@@ -434,11 +445,6 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn invalid_agg_query(query: impl AsRef<str>) -> OxenError {
-        let err = format!("Invalid aggregate opt: {:?}", query.as_ref());
-        OxenError::basic_str(err)
-    }
-
     pub fn invalid_set_remote_url(url: impl AsRef<str>) -> OxenError {
         let err = format!("\nRemote invalid, must be fully qualified URL, got: {:?}\n\n  oxen config --set-remote origin https://hub.oxen.ai/<namespace>/<reponame>\n", url.as_ref());
         OxenError::basic_str(err)
@@ -458,11 +464,6 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn unknown_agg_fn(name: impl AsRef<str>) -> OxenError {
-        let err = format!("Unknown aggregation function: {:?}", name.as_ref());
-        OxenError::basic_str(err)
-    }
-
     pub fn repo_is_shallow() -> OxenError {
         let err = r"
 Repo is in a shallow clone state. You can only perform operations remotely.
@@ -471,11 +472,11 @@ To fetch data from the remote, run:
 
     oxen pull origin main
 
-Or you can interact with the remote directly with the `oxen remote` subcommand:
+Or you can interact with the remote directly with the `oxen workspace` subcommand:
 
-    oxen remote status
-    oxen remote add path/to/image.jpg
-    oxen remote commit -m 'Committing data to remote without ever pulling it locally'
+    oxen workspace status -w workspace-id
+    oxen workspace add path/to/image.jpg -w workspace-id
+    oxen workspace commit -m 'Committing data to remote without ever pulling it locally' -w workspace-id -b branch-name
 ";
         OxenError::basic_str(err)
     }

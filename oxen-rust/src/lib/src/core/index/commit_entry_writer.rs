@@ -206,14 +206,14 @@ impl CommitEntryWriter {
 
     fn add_staged_entry_to_db(
         &self,
+        working_dir: impl AsRef<Path>,
         new_commit: &Commit,
-        origin_path: &Path,
         file_path: &Path,
     ) -> Result<(), OxenError> {
         // log::debug!("Commit [{}] add file {:?}", new_commit.id, path);
 
         // then metadata from the full file path
-        let full_path = origin_path.join(file_path);
+        let full_path = working_dir.as_ref().join(file_path);
 
         // // Get last modified time
         let metadata =
@@ -236,16 +236,16 @@ impl CommitEntryWriter {
         };
 
         // Write to db & backup
-        self.add_commit_entry(origin_path, entry)?;
+        self.add_commit_entry(working_dir, entry)?;
         Ok(())
     }
 
     fn add_commit_entry(
         &self,
-        origin_path: &Path,
+        working_dir: impl AsRef<Path>,
         commit_entry: CommitEntry,
     ) -> Result<(), OxenError> {
-        let _entry = self.backup_file_to_versions_dir(origin_path, commit_entry)?;
+        let _entry = self.backup_file_to_versions_dir(working_dir, commit_entry)?;
         // log::debug!(
         //     "add_commit_entry with hash {:?} -> {}",
         //     entry.path,
@@ -257,10 +257,11 @@ impl CommitEntryWriter {
 
     fn backup_file_to_versions_dir(
         &self,
-        origin_path: &Path, // could be copying from a different base directory
+        // could be copying from a workspace.path or the repo.path
+        working_dir: impl AsRef<Path>,
         commit_entry: CommitEntry,
     ) -> Result<CommitEntry, OxenError> {
-        let full_path = origin_path.join(&commit_entry.path);
+        let full_path = working_dir.as_ref().join(&commit_entry.path);
 
         // log::debug!(
         //     "backup_file_to_versions_dir {:?} -> {:?}",
@@ -286,18 +287,19 @@ impl CommitEntryWriter {
 
     pub fn commit_staged_entries(
         &self,
+        // This might be a workspace or the repo itself
+        working_dir: impl AsRef<Path>,
         commit: &Commit,
         staged_data: &StagedData,
-        origin_path: &Path,
     ) -> Result<(), OxenError> {
         let _bar = oxen_progress_bar(
             staged_data.staged_files.len() as u64,
             ProgressBarType::Counter,
         );
         self.copy_parent_dbs(&self.repository, &commit.parent_ids.clone())?;
-        self.commit_staged_entries_with_prog(commit, staged_data, origin_path)?;
+        self.commit_staged_entries_with_prog(staged_data)?;
         self.commit_schemas(commit, &staged_data.staged_schemas)?;
-        self.construct_commit_merkle_tree(staged_data, origin_path)?;
+        self.construct_commit_merkle_tree(working_dir, staged_data)?;
         // self.new_temp_print_tree_db()?;
         Ok(())
     }
@@ -324,13 +326,14 @@ impl CommitEntryWriter {
 
     fn construct_commit_merkle_tree(
         &self,
+        // This could be a workspace or the repo itself
+        working_dir: impl AsRef<Path>,
         staged_data: &StagedData,
-        origin_path: &Path,
     ) -> Result<(), OxenError> {
         if self.commit.parent_ids.is_empty() {
-            self.construct_merkle_tree_empty(origin_path)
+            self.construct_merkle_tree_empty()
         } else {
-            self.construct_merkle_tree_from_parent(staged_data, origin_path)
+            self.construct_merkle_tree_from_parent(working_dir, staged_data)
         }
     }
 
@@ -353,8 +356,9 @@ impl CommitEntryWriter {
     }
     pub fn construct_merkle_tree_from_parent(
         &self,
+        // This could be a workspace or the repo itself
+        working_dir: impl AsRef<Path>,
         staged_data: &StagedData,
-        origin_path: &Path,
     ) -> Result<(), OxenError> {
         // Get all dirs so we can find which changed
         // Get last commit id
@@ -419,7 +423,7 @@ impl CommitEntryWriter {
             dir_map,
             staged_data,
             parent_commit_id.to_string(),
-            origin_path,
+            working_dir,
         )?;
 
         let root_hash: String =
@@ -485,7 +489,7 @@ impl CommitEntryWriter {
         Ok(())
     }
 
-    pub fn construct_merkle_tree_empty(&self, _origin_path: &Path) -> Result<(), OxenError> {
+    pub fn construct_merkle_tree_empty(&self) -> Result<(), OxenError> {
         // Initial commits will never have entries - just need to populate the root node
 
         let empty_root = TreeObject::Dir {
@@ -808,7 +812,8 @@ impl CommitEntryWriter {
         dir_map: HashMap<PathBuf, Vec<PathBuf>>,
         status: &StagedData,
         parent_commit_id: String,
-        origin_path: &Path,
+        // working_dir is either the workspace.path or the repo.path
+        working_dir: impl AsRef<Path>,
     ) -> Result<(), OxenError> {
         let parent_hash_db_dir =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &parent_commit_id);
@@ -817,11 +822,8 @@ impl CommitEntryWriter {
             dunce::simplified(&parent_hash_db_dir),
         )?;
 
-        let mut staged_entries_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>> =
-            HashMap::new();
-
-        staged_entries_map =
-            self.group_staged_files_to_dirs_with_status(staged_entries_map, status, origin_path)?;
+        let mut staged_entries_map =
+            self.group_staged_files_to_dirs_with_status(working_dir, status)?;
         staged_entries_map =
             self.group_staged_schemas_to_dirs_with_status(staged_entries_map, status)?;
         staged_entries_map =
@@ -1165,12 +1167,7 @@ impl CommitEntryWriter {
         }
     }
 
-    fn commit_staged_entries_with_prog(
-        &self,
-        _commit: &Commit,
-        staged_data: &StagedData,
-        _origin_path: &Path,
-    ) -> Result<(), OxenError> {
+    fn commit_staged_entries_with_prog(&self, staged_data: &StagedData) -> Result<(), OxenError> {
         let size: u64 = unsafe { std::mem::transmute(staged_data.staged_files.len()) };
         if size == 0 {
             return Ok(());
@@ -1228,15 +1225,17 @@ impl CommitEntryWriter {
 
     fn commit_staged_entry(
         &self,
+        // working_dir is either the workspace.path or the repo.path
+        working_dir: impl AsRef<Path>,
         commit: &Commit,
-        origin_path: &Path,
+        // path is the file path relative to the working_dir
         path: &Path,
         entry: &StagedEntry,
     ) {
         match entry.status {
             StagedEntryStatus::Removed => {}
             StagedEntryStatus::Modified => {
-                match self.add_staged_entry_to_db(commit, origin_path, path) {
+                match self.add_staged_entry_to_db(working_dir, commit, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to commit MODIFIED file: {err}");
@@ -1245,7 +1244,7 @@ impl CommitEntryWriter {
                 }
             }
             StagedEntryStatus::Added => {
-                match self.add_staged_entry_to_db(commit, origin_path, path) {
+                match self.add_staged_entry_to_db(working_dir, commit, path) {
                     Ok(_) => {}
                     Err(err) => {
                         let err = format!("Failed to ADD file: {err}");
@@ -1258,9 +1257,9 @@ impl CommitEntryWriter {
 
     fn group_staged_files_to_dirs_with_status(
         &self,
-        _staged_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>,
+        // working_dir is either the workspace.path or the repo.path
+        working_dir: impl AsRef<Path>,
         staged_data: &StagedData,
-        origin_path: &Path,
     ) -> Result<HashMap<PathBuf, Vec<TreeObjectChildWithStatus>>, OxenError> {
         let mut staged_entries_map: HashMap<PathBuf, Vec<TreeObjectChildWithStatus>> =
             HashMap::new();
@@ -1273,20 +1272,20 @@ impl CommitEntryWriter {
         );
 
         // Collect staged FILES into a map of dir -> TreeChildWithStatus
-
+        let working_dir = working_dir.as_ref();
         let results: Vec<(PathBuf, TreeObjectChildWithStatus)> = staged_data
             .staged_files
             .par_iter()
             .map(|(path, entry)| {
                 // Backup to versions dir
 
-                self.commit_staged_entry(&self.commit, origin_path, path, entry);
+                self.commit_staged_entry(working_dir, &self.commit, path, entry);
 
                 let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
                 // Add commit entry metadata to this file node
                 let file_object = match entry.status {
                     StagedEntryStatus::Added | StagedEntryStatus::Modified => {
-                        let full_path = origin_path.join(path);
+                        let full_path = working_dir.join(path);
                         let metadata = fs::metadata(&full_path).unwrap();
                         let mtime = FileTime::from_last_modification_time(&metadata);
 
@@ -1408,8 +1407,18 @@ impl CommitEntryWriter {
             let child_object = match &child_with_status.child {
                 TreeObjectChild::Dir { path, .. } => {
                     if child_with_status.status != StagedEntryStatus::Removed {
-                        let dir_hash: String =
-                            path_db::get_entry(&self.dir_hashes_db, path)?.unwrap();
+                        log::info!("get_affected_vnodes child_with_status.status != StagedEntryStatus::Removed: {:?}", path);
+                        let Some(dir_hash) = path_db::get_entry(&self.dir_hashes_db, path)? else {
+                            let db_path = CommitEntryWriter::commit_dir_hash_db(
+                                &self.repository.path,
+                                &self.commit.id,
+                            );
+                            log::error!(
+                                "get_affected_vnodes path_db::get_entry failed for path: {:?}",
+                                db_path
+                            );
+                            return Err(OxenError::basic_str("Failed to get dir hash"));
+                        };
                         TreeObjectChild::Dir {
                             path: path.clone(),
                             hash: dir_hash,

@@ -24,6 +24,7 @@ pub mod staged_dir_stats;
 pub mod staged_row_status;
 pub mod summarized_staged_dir_stats;
 pub mod user;
+pub mod workspace;
 
 // Repository
 pub use crate::model::repository::local_repository::LocalRepository;
@@ -78,3 +79,5 @@ pub use crate::model::namespace::Namespace;
 
 // Dataset
 pub use crate::model::remote_dataset::RemoteDataset;
+
+pub use crate::model::workspace::Workspace;

@@ -96,6 +96,7 @@ impl SchemasCmd {
             Box::new(SchemasAddCmd),
             Box::new(SchemasListCmd),
             Box::new(SchemasNameCmd),
+            Box::new(SchemasRmCmd),
         ];
         let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
         for cmd in commands {
