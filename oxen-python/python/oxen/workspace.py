@@ -47,6 +47,7 @@ class Workspace:
         repo: RemoteRepo,
         branch: str,
         workspace_id: Optional[str] = None,
+        path: Optional[str] = None,
     ):
         """
         Create a new Workspace.
@@ -62,7 +63,7 @@ class Workspace:
                 If left empty, will create a unique workspace id.
         """
         self._repo = repo
-        self._workspace = PyWorkspace(repo._repo, branch, workspace_id)
+        self._workspace = PyWorkspace(repo._repo, branch, workspace_id, path)
         print(f"Created workspace with id: {self._workspace.id()}")
 
     def __repr__(self):
