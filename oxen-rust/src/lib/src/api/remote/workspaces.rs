@@ -3,6 +3,8 @@ pub mod commits;
 pub mod data_frames;
 pub mod files;
 
+use std::path::Path;
+
 pub use commits::commit;
 
 use crate::api;
@@ -33,8 +35,18 @@ pub async fn create(
     branch_name: impl AsRef<str>,
     workspace_id: impl AsRef<str>,
 ) -> Result<WorkspaceResponse, OxenError> {
+    create_with_path(remote_repo, branch_name, workspace_id, Path::new("/")).await
+}
+
+pub async fn create_with_path(
+    remote_repo: &RemoteRepository,
+    branch_name: impl AsRef<str>,
+    workspace_id: impl AsRef<str>,
+    path: impl AsRef<Path>,
+) -> Result<WorkspaceResponse, OxenError> {
     let branch_name = branch_name.as_ref();
     let workspace_id = workspace_id.as_ref();
+    let path = path.as_ref();
     let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
     log::debug!("create workspace {}\n", url);
 
@@ -42,7 +54,7 @@ pub async fn create(
         branch_name: branch_name.to_string(),
         workspace_id: workspace_id.to_string(),
         // These two are needed for the oxen hub right now, ignored by the server
-        resource_path: Some("/".to_string()),
+        resource_path: Some(path.to_str().unwrap().to_string()),
         entity_type: Some("user".to_string()),
     })?;
 
