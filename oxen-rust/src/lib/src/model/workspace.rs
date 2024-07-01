@@ -126,8 +126,16 @@ impl Workspace {
             workspace_commit_id: commit.id.clone(),
             is_editable,
         };
-        let toml_string = toml::to_string(&workspace_config)
-            .expect("Failed to serialize workspace config to TOML");
+
+        let toml_string = match toml::to_string(&workspace_config) {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(OxenError::basic_str(format!(
+                    "Failed to serialize workspace config to TOML: {}",
+                    e
+                )));
+            }
+        };
 
         // Write the TOML string to WORKSPACE_CONFIG
         let commit_id_path = workspace_repo
