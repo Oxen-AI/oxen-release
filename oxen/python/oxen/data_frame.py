@@ -76,9 +76,9 @@ class DataFrame:
         """
         if isinstance(remote, str):
             remote_repo = RemoteRepo(remote, host, branch, scheme)
-            self._workspace = Workspace(remote_repo, branch)
+            self._workspace = Workspace(remote_repo, branch, path=path)
         elif isinstance(remote, RemoteRepo):
-            self._workspace = Workspace(remote, branch)
+            self._workspace = Workspace(remote, branch, path=path)
         elif isinstance(remote, Workspace):
             self._workspace = remote
         else:
@@ -217,7 +217,7 @@ class DataFrame:
     def commit(self, message: str, branch: Optional[str] = None):
         """
         Commit the current changes to the data frame.
-        
+
         Args:
             message: `str`
                 The message to commit the changes.

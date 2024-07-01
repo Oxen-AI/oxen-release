@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use liboxen::api;
 use liboxen::config::UserConfig;
 use liboxen::model::NewCommitBody;
@@ -21,17 +21,18 @@ pub struct PyWorkspace {
 #[pymethods]
 impl PyWorkspace {
     #[new]
-    #[pyo3(signature = (repo, branch_name, name))]
-    fn new(repo: PyRemoteRepo, branch_name: String, name: Option<String>) -> Result<Self, PyOxenError> {
+    #[pyo3(signature = (repo, branch_name, name, path))]
+    fn new(repo: PyRemoteRepo, branch_name: String, name: Option<String>, path: Option<String>) -> Result<Self, PyOxenError> {
         let name = name.unwrap_or_else(|| {
             format!("workspace-{}", Uuid::new_v4())
         });
 
         let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
-            api::remote::workspaces::create(
+            api::remote::workspaces::create_with_path(
                 &repo.repo,
                 &branch_name,
                 &name,
+                Path::new(&path.unwrap_or("/".to_string()))
             )
             .await
         })?;
