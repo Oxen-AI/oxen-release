@@ -1,5 +1,5 @@
 from typing import Optional
-from oxen.local_repo import LocalRepo
+from oxen.repo import Repo
 
 
 def clone(
@@ -7,7 +7,7 @@ def clone(
     path: Optional[str] = None,
     host: str = "hub.oxen.ai",
     branch: str = "main",
-    protocol: str = "https",
+    scheme: str = "https",
     shallow=False,
     all=False,
 ):
@@ -24,15 +24,15 @@ def clone(
             The host to connect to. Defaults to 'hub.oxen.ai'
         branch: `str`
             The branch name id to clone. Defaults to 'main'
-        protocol: `str`
-            The protocol to use. Defaults to 'https'
+        scheme: `str`
+            The scheme to use. Defaults to 'https'
         shallow: `bool`
             Whether to do a shallow clone or not. Default: False
         all: `bool`
             Whether to clone the full commit history or not. Default: False
      Returns:
-        [LocalRepo](/python-api/local_repo)
-            A LocalRepo object that can be used to interact with the cloned repo.
+        [Repo](/python-api/repo)
+            A Repo object that can be used to interact with the cloned repo.
     """
     # Verify repo_id format
     if "/" not in repo_id:
@@ -43,8 +43,8 @@ def clone(
     if path is None:
         path = repo_name
     # Get repo url
-    repo_url = f"{protocol}://{host}/{repo_id}"
+    repo_url = f"{scheme}://{host}/{repo_id}"
     # Clone repo
-    local_repo = LocalRepo(path)
-    local_repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
-    return local_repo
+    repo = Repo(path)
+    repo.clone(repo_url, branch=branch, shallow=shallow, all=all)
+    return repo

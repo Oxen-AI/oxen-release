@@ -10,7 +10,7 @@ pub struct PyEntry {
 #[pymethods]
 impl PyEntry {
     fn __repr__(&self) -> String {
-        format!("PyEntry(filename={}, is_dir={} data_type={}, mime_type={}, size={})", self._entry.filename, self._entry.is_dir, self._entry.data_type, self._entry.mime_type, self._entry.size)
+        self._entry.filename.to_owned()
     }
 
     fn __str__(&self) -> String {
