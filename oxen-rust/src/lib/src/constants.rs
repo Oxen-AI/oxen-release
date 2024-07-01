@@ -69,7 +69,7 @@ pub const DUCKDB_CACHE_DIR: &str = "duckdb";
 /// Default name for duckdb table used for indexing dataframes
 pub const DUCKDB_DF_TABLE_NAME: &str = "df";
 /// Max number of rows to query from a dataframe
-pub const MAX_QUERYABLE_ROWS: usize = 1_000_000;
+pub const MAX_QUERYABLE_ROWS: usize = 5_000_000;
 /// prefix for the sync status dirs to tell if commits are synced locally
 pub const SYNC_STATUS_DIR: &str = "sync_status";
 /// Flag for if the repository was cloned in a shallow fashion
@@ -96,6 +96,12 @@ pub const VERSION_FILE_NAME: &str = "data";
 pub const MERGE_DIR: &str = "merge";
 /// mods/ is where we can stage appends, modifications, deletions to files to be merged later
 pub const MODS_DIR: &str = "mods";
+/// workspaces/ is where we can make remote changes without having to clone locally
+pub const WORKSPACES_DIR: &str = "workspaces";
+/// workspace commit id
+pub const WORKSPACE_COMMIT_ID: &str = "WORKSPACE_COMMIT_ID";
+/// workspace commit id
+pub const WORKSPACE_NAME: &str = "WORKSPACE_NAME";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 

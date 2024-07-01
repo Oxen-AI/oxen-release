@@ -34,8 +34,7 @@ impl RunCmd for ConfigCmd {
                     .help("Set the email you want your commits to be saved as.")
                     .action(clap::ArgAction::Set),
             )
-            // Note: we differ from git here because we have the concept of a remote
-            //       staging area which uses the `oxen remote add` subcommand
+            // Note: we differ from git here
             .arg(
                 Arg::new("set-remote")
                     .long("set-remote")

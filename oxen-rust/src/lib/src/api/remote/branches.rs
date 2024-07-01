@@ -711,23 +711,26 @@ mod tests {
             // Lock up the branch
             api::remote::branches::lock(&remote_repo, DEFAULT_BRANCH_NAME).await?;
 
-            let identifier = UserConfig::identifier()?;
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+            assert_eq!(workspace.id, workspace_id);
 
             // Use remote staging to commit without releasing lock (push releases lock)
             let labels_path = repo.path.join("labels.txt");
             test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
-            api::remote::staging::add_files(
+            api::remote::workspaces::files::add_many(
                 &remote_repo,
-                DEFAULT_BRANCH_NAME,
-                &identifier,
+                &workspace_id,
                 "./",
                 vec![labels_path],
             )
             .await?;
-            api::remote::staging::commit(
+            api::remote::workspaces::commit(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                &identifier,
+                &workspace_id,
                 &NewCommitBody {
                     message: "adding labels file".to_string(),
                     author: "me".to_string(),

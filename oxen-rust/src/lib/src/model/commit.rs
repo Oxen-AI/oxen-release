@@ -3,10 +3,11 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
+use super::{Branch, User};
 use crate::core::index::CommitReader;
 use crate::error::OxenError;
-
-use super::{Branch, User};
+use crate::view::workspaces::WorkspaceCommit;
+use core::convert::Into;
 
 /// NewCommitBody is used to parse the json into a Commit from the API
 #[derive(Deserialize, Serialize, Debug, Clone)]
@@ -49,6 +50,18 @@ pub struct Commit {
     pub root_hash: Option<String>, // Option for now to facilitate migration from older stored commits
     #[serde(with = "time::serde::rfc3339")]
     pub timestamp: OffsetDateTime,
+}
+
+impl From<Commit> for WorkspaceCommit {
+    fn from(val: Commit) -> Self {
+        WorkspaceCommit {
+            id: val.id,
+            message: val.message,
+            author: val.author,
+            email: val.email,
+            timestamp: val.timestamp,
+        }
+    }
 }
 
 impl fmt::Display for Commit {

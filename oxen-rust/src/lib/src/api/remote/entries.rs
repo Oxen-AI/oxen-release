@@ -64,12 +64,15 @@ pub async fn upload_entries(
 
     log::debug!("Uploading to {}", branch_name);
 
-    // Stage all the files
-    let identifier = UserConfig::identifier()?;
-    api::remote::staging::add_files(
+    // Create uniq workspace id
+    let workspace_id = uuid::Uuid::new_v4().to_string();
+    let workspace =
+        api::remote::workspaces::create(remote_repo, &branch_name, &workspace_id).await?;
+    assert_eq!(workspace.id, workspace_id);
+
+    api::remote::workspaces::files::add_many(
         remote_repo,
-        &branch_name,
-        &identifier,
+        &workspace_id,
         &opts.dst.to_string_lossy(),
         file_paths,
     )
@@ -85,7 +88,7 @@ pub async fn upload_entries(
         email: user.email,
     };
     let commit =
-        api::remote::staging::commit(remote_repo, &branch_name, &identifier, &commit).await?;
+        api::remote::workspaces::commit(remote_repo, &branch_name, &workspace_id, &commit).await?;
 
     println!("Commit {} done.", commit.id);
 

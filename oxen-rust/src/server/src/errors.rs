@@ -2,8 +2,9 @@ use actix_web::{error, http::StatusCode, HttpResponse};
 use derive_more::{Display, Error};
 use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
+use liboxen::model::Branch;
 use liboxen::view::http::{
-    MSG_BAD_REQUEST, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
+    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
 };
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
@@ -22,6 +23,7 @@ pub enum OxenHttpError {
     DatasetNotIndexed(PathBufError),
     DatasetAlreadyIndexed(PathBufError),
     UpdateRequired(StringError),
+    WorkspaceBehind(Branch),
 
     // Translate OxenError to OxenHttpError
     InternalOxenError(OxenError),
@@ -126,6 +128,19 @@ impl error::ResponseError for OxenHttpError {
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
+            OxenHttpError::WorkspaceBehind(branch) => {
+                let error_json = json!({
+                    "error": {
+                        "type": MSG_CONFLICT,
+                        "title": "Workspace is behind",
+                        "detail": format!("This workspace is behind on branch '{}'", branch.name)
+                    },
+                    "status": STATUS_ERROR,
+                    "status_message": MSG_CONFLICT,
+                });
+
+                HttpResponse::NotFound().json(error_json)
+            }
             OxenHttpError::DatasetAlreadyIndexed(path) => {
                 let error_json = json!({
                     "error": {
@@ -229,6 +244,21 @@ impl error::ResponseError for OxenHttpError {
 
                         HttpResponse::NotFound().json(error_json)
                     }
+                    OxenError::WorkspaceNotFound(workspace) => {
+                        log::error!("Workspace not found: {}", workspace);
+
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Workspace does not exist",
+                                "detail": format!("Could not find workspace: {}", workspace)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
+                    }
                     OxenError::CommitEntryNotFound(msg) => {
                         log::error!("{msg}");
 
@@ -314,6 +344,7 @@ impl error::ResponseError for OxenHttpError {
             OxenHttpError::SQLParseError(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::NotFound => StatusCode::NOT_FOUND,
             OxenHttpError::NotQueryable => StatusCode::BAD_REQUEST,
+            OxenHttpError::WorkspaceBehind(_) => StatusCode::CONFLICT,
             OxenHttpError::DatasetNotIndexed(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::DatasetAlreadyIndexed(_) => StatusCode::BAD_REQUEST,
             OxenHttpError::UpdateRequired(_) => StatusCode::UPGRADE_REQUIRED,
