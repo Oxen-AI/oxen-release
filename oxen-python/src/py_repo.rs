@@ -20,12 +20,12 @@ use crate::py_commit::PyCommit;
 use crate::py_staged_data::PyStagedData;
 
 #[pyclass]
-pub struct PyLocalRepo {
+pub struct PyRepo {
     path: PathBuf,
 }
 
 #[pymethods]
-impl PyLocalRepo {
+impl PyRepo {
     #[new]
     #[pyo3(signature = (path))]
     fn py_new(path: PathBuf) -> PyResult<Self> {

@@ -30,3 +30,21 @@ def test_text_diff_added_row(shared_datadir):
 
     assert result.text.num_added == 3
     assert result.text.num_removed == 1
+
+
+def test_text_diff_markdown_file_no_changes(shared_datadir):
+    repo_dir = os.path.join(shared_datadir, "Diffs")
+
+    # Add markdown file
+    filename = os.path.join(repo_dir, "README.md")
+    with open(filename, "w") as f:
+        f.write(
+            "# Cats vs. Dogs\n\nWhich is it? We will be using machine learning to find out!"
+        )
+
+    result = diff(filename, filename)
+
+    print(result.get())
+
+    assert result.text.num_added == 0
+    assert result.text.num_removed == 0

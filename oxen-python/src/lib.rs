@@ -11,10 +11,14 @@ pub mod py_commit;
 pub mod py_dataset;
 pub mod py_diff;
 pub mod py_entry;
-pub mod py_local_repo;
+pub mod py_repo;
 pub mod py_remote_repo;
+pub mod py_remote_data_frame;
+pub mod py_workspace;
+pub mod py_workspace_data_frame;
 pub mod py_paginated_dir_entries;
 pub mod py_staged_data;
+pub mod py_schema;
 pub mod py_user;
 pub mod remote;
 pub mod user;
@@ -50,10 +54,22 @@ fn oxen(m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<diff::py_text_diff::PyTextDiff>()?;
     m.add_class::<diff::py_text_diff::PyLineDiff>()?;
     m.add_class::<diff::py_text_diff::PyChangeType>()?;
-    m.add_class::<py_local_repo::PyLocalRepo>()?;
+    m.add_class::<py_repo::PyRepo>()?;
+    m.add_class::<py_workspace::PyWorkspace>()?;
+    m.add_class::<py_remote_data_frame::PyRemoteDataFrame>()?;
+    m.add_class::<py_workspace_data_frame::PyWorkspaceDataFrame>()?;
     m.add_class::<py_remote_repo::PyRemoteRepo>()?;
     m.add_class::<py_staged_data::PyStagedData>()?;
     m.add_class::<py_user::PyUser>()?;
+    m.add_class::<py_schema::PySchema>()?;
+
+    // Workspace
+    let workspace_module = PyModule::new_bound(m.py(), "workspace")?;
+    // Workspace Data Frame
+    let workspace_dataset_module = PyModule::new_bound(workspace_module.py(), "dataset")?;
+    workspace_dataset_module.add_function(wrap_pyfunction!(py_workspace_data_frame::index, &workspace_dataset_module)?)?;
+    workspace_module.add_submodule(&workspace_dataset_module)?;
+    m.add_submodule(&workspace_module)?;
 
     // Util Module
     let util_module = PyModule::new_bound(m.py(), "util")?;

@@ -1,10 +1,10 @@
-from oxen import PyLocalRepo
+from oxen import PyRepo
 import os
 
 
-class LocalRepo:
+class Repo:
     """
-    The LocalRepo class that allows you to interact with your local oxen repo.
+    The Repo class that allows you to interact with your local oxen repo.
 
     ## Examples
 
@@ -14,11 +14,11 @@ class LocalRepo:
 
     ```python
     import os
-    from oxen import LocalRepo
+    from oxen import Repo
 
     # Initialize the Oxen Repository in a CatsAndDogs directory
     directory = "CatsAndDogs"
-    repo = LocalRepo(directory)
+    repo = Repo(directory)
     repo.init()
     repo.add("images")
     repo.commit("Adding all the images")
@@ -45,7 +45,7 @@ class LocalRepo:
             if not os.path.exists(path) and mkdir:
                 os.makedirs(path)
 
-        self._repo = PyLocalRepo(path)
+        self._repo = PyRepo(path)
 
     def __repr__(self):
         return f"Repo({self.path})"
@@ -117,7 +117,6 @@ class LocalRepo:
         Add schema to the local repository
         """
         self._repo.add_schema_metadata(path, column_name, metadata)
-
 
     def rm(self, path: str, recursive=False, staged=False, remote=False):
         """

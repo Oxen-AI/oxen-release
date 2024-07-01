@@ -28,21 +28,20 @@ pub struct PyPaginatedDirEntries {
 #[pymethods]
 impl PyPaginatedDirEntries {
     fn __repr__(&self) -> String {
-        format!("PaginatedDirEntries(page_size={}, page_number={}, total_pages={}, total_entries={})", self._entries.page_size, self._entries.page_number, self._entries.total_pages, self._entries.total_entries)
+        let entries = self._entries.entries.iter().map(|e| {
+            if e.is_dir {
+                format!("{}/", e.filename)
+            } else {
+                format!("{}", e.filename)
+            }
+        } ).collect::<Vec<String>>();
+        let entries_str = entries
+            .join("\n");
+        format!("{}\n\nShowing {} of {} entries", entries_str, self._entries.entries.len(), self._entries.total_entries)
     }
 
     fn __str__(&self) -> String {
-        let result: String = self._entries.entries
-            .iter().map(|e| {
-                if e.is_dir {
-                    format!("{}/", e.filename)
-                } else {
-                    format!("{}", e.filename)
-                }
-            })
-            .collect::<Vec<String>>()
-            .join("\n");
-        result
+        self.__repr__()
     }
 
     fn __len__(&self) -> usize {

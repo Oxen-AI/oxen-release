@@ -1,5 +1,5 @@
 from git import Repo as GitRepo
-from oxen import LocalRepo as OxenRepo
+from oxen import Repo as OxenRepo
 
 import pandas as pd
 import time

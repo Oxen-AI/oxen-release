@@ -2,7 +2,7 @@ import oxen
 import sys
 
 repo_path = sys.argv[1]
-repo = oxen.LocalRepo(repo_path)
+repo = oxen.Repo(repo_path)
 repo.clone("https://hub.oxen.ai/ox/CatDogBBox", branch="my-pets")
 
 # repo = oxen.RemoteRepo("ox/CatsVsDogs", host="0.0.0.0:3001")

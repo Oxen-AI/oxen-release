@@ -1,5 +1,5 @@
 import os
-from oxen import LocalRepo
+from oxen import Repo
 
 
 def rcount_files_in_dir(directory: str) -> int:
@@ -31,7 +31,7 @@ def rcount_files_in_dir_ignore_oxen(directory: str) -> int:
     return total
 
 
-def rcount_files_in_repo(repo: LocalRepo) -> int:
+def rcount_files_in_repo(repo: Repo) -> int:
     """
     Recursively counts the number of files in a repo ignoring the .oxen directory.
 
@@ -43,7 +43,7 @@ def rcount_files_in_repo(repo: LocalRepo) -> int:
     return rcount_files_in_dir_ignore_oxen(repo.path)
 
 
-def rcount_files_in_repo_dir(repo: LocalRepo, directory: str) -> int:
+def rcount_files_in_repo_dir(repo: Repo, directory: str) -> int:
     """
     Recursively counts the number of files in a directory repo within a repo.
 
