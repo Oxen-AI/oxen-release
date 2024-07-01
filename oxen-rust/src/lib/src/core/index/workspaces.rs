@@ -31,7 +31,8 @@ pub fn create(
     commit: &Commit,
     workspace_id: impl AsRef<str>,
 ) -> Result<Workspace, OxenError> {
-    Workspace::create(base_repo, commit, workspace_id)
+    // here we set is_editable to true by default because only editable workspaces are created in this endpoint for now
+    Workspace::create(base_repo, commit, workspace_id, true)
 }
 
 pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
