@@ -42,8 +42,8 @@ pub async fn create(
         branch_name: branch_name.to_string(),
         workspace_id: workspace_id.to_string(),
         // These two are needed for the oxen hub right now, ignored by the server
-        resource_path: "/".to_string(),
-        entity_type: "user".to_string(),
+        resource_path: Some("/".to_string()),
+        entity_type: Some("user".to_string()),
     })?;
 
     let client = client::new_for_url(&url)?;

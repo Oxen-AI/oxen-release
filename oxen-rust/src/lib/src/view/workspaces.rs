@@ -9,8 +9,8 @@ use crate::model::Commit;
 pub struct NewWorkspace {
     pub workspace_id: String,
     pub branch_name: String,
-    pub resource_path: String,
-    pub entity_type: String,
+    pub resource_path: Option<String>,
+    pub entity_type: Option<String>,
 }
 
 // HACK to get this to work with our hub where we don't keep parent_ids 🤦‍♂️
