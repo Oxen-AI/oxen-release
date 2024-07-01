@@ -150,6 +150,12 @@ $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 $ maturin develop
 ```
 
+## Test
+
+```Bash
+$ pytest -s tests/
+```
+
 ## Why build Oxen?
 
 Oxen was build by a team of machine learning engineers, who have spent countless hours in their careers managing datasets. We have used many different tools, but none of them were as easy to use and as ergonomic as we would like. 

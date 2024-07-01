@@ -1,14 +1,17 @@
 
 from oxen import RemoteRepo
-from oxen import RemoteDataset
-from oxen.workspace_data_frame import index_dataset
+from oxen import Workspace
+from oxen import DataFrame
 import time
 
 print("Creating Remote Repo")
 repo = RemoteRepo("ox/LLM-Dataset", "localhost:3001", scheme="http")
 
-print("Creating Remote Dataset")
-dataset = RemoteDataset(repo, "openhermes_train.parquet", index=True)
+print("Creating Workspace")
+workspace = Workspace(repo, "main")
 
-print("Indexing dataset")
-index_dataset(repo, "openhermes_train.parquet")
+print("Creating DataFrame")
+df = DataFrame(workspace, "openhermes_train.parquet")
+
+print("Indexing DataFrame")
+df.index()

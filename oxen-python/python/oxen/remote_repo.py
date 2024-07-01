@@ -97,9 +97,9 @@ class RemoteRepo:
     def __init__(
         self,
         path: str,
-        host: Optional[str] = None,
+        host: str = "hub.oxen.ai",
         revision: str = "main",
-        scheme="https",
+        scheme: str = "https",
     ):
         """
         Create a new RemoteRepo object to interact with.
@@ -115,9 +115,6 @@ class RemoteRepo:
             scheme: `str`
                 The scheme to use for the remote url. Default: 'https'
         """
-        if host is None:
-            host = "hub.oxen.ai"
-
         self._repo = PyRemoteRepo(path, host, revision, scheme)
 
     def __repr__(self):
@@ -266,6 +263,13 @@ class RemoteRepo:
         The name of the repo.
         """
         return self._repo.name()
+
+    @property
+    def identifier(self):
+        """
+        The namespace/name of the repo.
+        """
+        return f"{self.namespace}/{self.name}"
 
     @property
     def url(self) -> str:

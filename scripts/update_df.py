@@ -1,13 +1,5 @@
-from oxen import RemoteRepo
-from oxen import RemoteDataset
-from oxen.workspace_data_frame import index_dataset
+from oxen import DataFrame
 import time
-
-print("Creating Remote Repo")
-repo = RemoteRepo("ox/OpenHermes", "localhost:3001", scheme="http")
-print("Repo object created")
-
-file_name = "openhermes_train.parquet"
 
 # Loop over 10 questions
 questions = [
@@ -26,47 +18,34 @@ questions = [
     {"input": "What is the capital of Ireland?", "instruction": "Answer the question plz.", "output": "Dublin"},
 ]
 
-index_times = []
-connection_times = []
+init_times = []
 insert_times = []
 commit_times = []
 
 for i, question in enumerate(questions):
-    # time indexing
-    print("==== Indexing dataset", i, "====")
+    print("==== Question", i, "====")
     start = time.time()
-    index_dataset(repo, file_name)
-    end = time.time()
-    index_time = end - start
-    print("Indexing time: ", index_time)
-    index_times.append(index_time)
-
+    df = DataFrame("ox/prompts", "fine-tune.jsonl", host="localhost:3001", scheme="http")
+    print(f"Connected to DataFrame with workspace {df._workspace.id()}")
+    init_time = time.time() - start
+    print("Init time: ", init_time)
+    init_times.append(init_time)
+    
     start = time.time()
-    print("Connecting to Remote Dataset")
-    # Gets dataset if exists
-    dataset = RemoteDataset(repo, file_name)
-    connection_time = time.time() - start
-    print("Connection time: ", connection_time)
-    connection_times.append(connection_time)
-
-    start = time.time()
-    id = dataset.insert_row(question)
+    id = df.insert_row(question)
     print("Inserted row with id: ", id)
     insert_time = time.time() - start
     print("Insert time: ", insert_time)
     insert_times.append(insert_time)
 
     start = time.time()
-    commit_id = dataset.commit("Added question: " + question["input"])
+    commit_id = df.commit("Added question: " + question["input"])
     print("Committed row with id: ", commit_id)
     commit_time = time.time() - start
     print("Commit time: ", commit_time)
     commit_times.append(commit_time)
-    
-    time.sleep(2)
 
 # print average times
-print("Average indexing time: ", sum(index_times) / len(index_times))
-print("Average connection time: ", sum(connection_times) / len(connection_times))
+print("Average init time: ", sum(init_times) / len(init_times))
 print("Average insert time: ", sum(insert_times) / len(insert_times))
 print("Average commit time: ", sum(commit_times) / len(commit_times))
