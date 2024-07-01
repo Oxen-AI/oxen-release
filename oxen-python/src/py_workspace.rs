@@ -21,22 +21,22 @@ pub struct PyWorkspace {
 #[pymethods]
 impl PyWorkspace {
     #[new]
-    #[pyo3(signature = (repo, branch_name, id))]
-    fn new(repo: PyRemoteRepo, branch_name: String, id: Option<String>) -> Result<Self, PyOxenError> {
-        let id = id.unwrap_or_else(|| {
+    #[pyo3(signature = (repo, branch_name, name))]
+    fn new(repo: PyRemoteRepo, branch_name: String, name: Option<String>) -> Result<Self, PyOxenError> {
+        let name = name.unwrap_or_else(|| {
             format!("workspace-{}", Uuid::new_v4())
         });
 
-        pyo3_asyncio::tokio::get_runtime().block_on(async {
+        let workspace = pyo3_asyncio::tokio::get_runtime().block_on(async {
             api::remote::workspaces::create(
                 &repo.repo,
                 &branch_name,
-                &id,
+                &name,
             )
             .await
         })?;
 
-        Ok(Self { repo, branch_name, id })
+        Ok(Self { repo, branch_name, id: workspace.id })
     }
 
     fn id(&self) -> String {
