@@ -5,8 +5,8 @@ import tqdm
 
 
 print("Creating Remote Repo")
-# df = DataFrame("ox/SpamOrHam", "data.tsv", host="staging.hub.oxen.ai")
-df = DataFrame("ox/SpamOrHam", "data.tsv", host="localhost:3001", scheme="http")
+df = DataFrame("ox/SpamOrHam", "data.tsv", host="staging.hub.oxen.ai")
+# df = DataFrame("ox/SpamOrHam", "data.tsv", host="localhost:3001", scheme="http")
 
 size = df.size()
 print("size: ", size)

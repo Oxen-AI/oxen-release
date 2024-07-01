@@ -23,7 +23,7 @@ class DataFrame:
     # Connect to and index the data frame
     # Note: This must be an existing file committed to the repo
     #       indexing may take a while for large files
-    data_frame = DataFrame("datasets/LLM-Zero-Hero", "finetune/SMSSpamCollection.tsv")
+    data_frame = DataFrame("datasets/SpamOrHam", "data.tsv")
 
     # Add a row
     row_id = data_frame.insert_row({"category": "spam", "message": "Hello, do I have an offer for you!"})
