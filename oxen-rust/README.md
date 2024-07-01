@@ -46,7 +46,7 @@ If on Windows, you may need to build on a developer CLI and add the following di
 ```
 These are example paths and will vary between machines. If you install 'C++ Clang tools for Windows' through [Microsoft Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/#build-tools-for-visual-studio-2019), the directories can be located from the Visual Studio installation under 'BuildTools\VC\Tools'
 
-### Speed up the build process
+## Speed up the build process
 
 You can use the [mold](https://github.com/rui314/mold) linker to speed up builds (The MIT-licensed macOS version is [sold](https://github.com/bluewhalesystems/sold)).
 
@@ -89,7 +89,9 @@ rustflags = [ "-C", "link-arg=-fuse-ld=/opt/homebrew/opt/llvm/bin/ld64.lld", ]
 
 ```
 
-# Run: CLI
+# Run 
+
+## CLI
 
 To run Oxen from the command line, add the `Oxen/target/debug` directory to the 'PATH' environment variable
 
@@ -107,7 +109,7 @@ Initialize a new repository or clone an existing one
 
 ```
 oxen init
-oxen clone https://hub.oxen.ai/path/to/repository
+oxen clone https://hub.oxen.ai/namespace/repository
 ```
 
 This will create the `.oxen` dir in your current directory and allow you to run Oxen CLI commands
@@ -120,7 +122,7 @@ oxen push origin main
 ```
 
 
-## Run: Oxen Server
+## Oxen Server
 
 To run a local Oxen Server, generate a config file and token to authenticate the user 
 
