@@ -2721,7 +2721,7 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "liboxen"
-version = "0.18.0"
+version = "0.18.2"
 dependencies = [
  "actix-files",
  "actix-web",
