@@ -1,16 +1,11 @@
-
 from oxen import RemoteRepo
 
 from typing import Optional
 
 from datasets import load_dataset as hf_load_dataset
 
-def load_dataset(
-    repo_id: str,
-    path: str,
-    fmt: str = "hugging_face",
-    revision=None
-):
+
+def load_dataset(repo_id: str, path: str, fmt: str = "hugging_face", revision=None):
     """
     Load a dataset from a repo into memory.
 
@@ -33,6 +28,7 @@ def load_dataset(
     else:
         raise ValueError(f"Unsupported load format: {fmt}")
 
+
 def _load_hf(path: str):
     if path.endswith(".csv"):
         return hf_load_dataset("csv", data_files=path)
@@ -43,7 +39,10 @@ def _load_hf(path: str):
     else:
         raise ValueError(f"Unsupported file extension: {path}")
 
-def download(repo_id: str, path: str, revision=None, dst=None):
+
+def download(
+    repo_id: str, path: str, revision=None, dst=None, host="hub.oxen.ai", scheme="https"
+):
     """
     Download files or directories from a remote Oxen repository.
 
@@ -56,12 +55,19 @@ def download(repo_id: str, path: str, revision=None, dst=None):
             The commit id or branch name of the version of the data to download
         dst: `str | None`
             The path to download the data to.
+        host: `str`
+            The host to download the data from.
+        scheme: `str`
+            The scheme to download the data with. (default: "https")
     """
 
-    repo = RemoteRepo(repo_id)
+    repo = RemoteRepo(repo_id, host=host, scheme=scheme)
     repo.download(path, revision=revision, dst=dst)
 
-def upload(repo_id: str, path: str, message: str, branch: Optional[str]=None, dst: str=""):
+
+def upload(
+    repo_id: str, path: str, message: str, branch: Optional[str] = None, dst: str = ""
+):
     """
     Upload files or directories to a remote Oxen repository.
 

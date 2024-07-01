@@ -1,4 +1,3 @@
-import json
 import os
 
 from typing import Optional
@@ -98,9 +97,9 @@ class RemoteRepo:
     def __init__(
         self,
         path: str,
-        host: Optional[str] = None,
+        host: str = "hub.oxen.ai",
         revision: str = "main",
-        scheme="https",
+        scheme: str = "https",
     ):
         """
         Create a new RemoteRepo object to interact with.
@@ -116,9 +115,6 @@ class RemoteRepo:
             scheme: `str`
                 The scheme to use for the remote url. Default: 'https'
         """
-        if host is None:
-            host = "hub.oxen.ai"
-
         self._repo = PyRemoteRepo(path, host, revision, scheme)
 
     def __repr__(self):
@@ -180,7 +176,7 @@ class RemoteRepo:
         if directory is None:
             return self._repo.ls("", page_num, page_size)
 
-        return self._repo.ls(directory, page_num, page_size).entries
+        return self._repo.ls(directory, page_num, page_size)
 
     def download(
         self, src: str, dst: Optional[str] = None, revision: Optional[str] = None
@@ -209,60 +205,6 @@ class RemoteRepo:
         else:
             self._repo.download(src, dst, revision)
 
-    def add(self, src: str, dst: str = ""):
-        """
-        Stage a file to the remote workspace
-
-        Args:
-            src: `str`
-                The path to the local file to be staged
-            dst: `str`
-                The path in the remote repo where the file will be added
-        """
-        self._repo.add(src, dst)
-
-    def remove(self, path: str):
-        """
-        Unstage a file from the remote workspace
-
-        Args:
-            path: `str`
-                The path to the file on remote to be removed from staging
-        """
-        self._repo.remove(path)
-
-    def restore_df(self, path: str):
-        """
-        Unstage any changes to the schema or contents of a dataframe file
-        on the remote repo
-
-        Args:
-            path: `str`
-                The path to the df on the remote to be restored
-        """
-        self._repo.restore_df(path)
-
-    def status(self, path: str = ""):
-        """
-        Get the status of the remote repo. Returns a StagedData object.
-
-        Args:
-            path: `str`
-                The directory or file path on the remote that
-                will be checked for modifications
-        """
-        return self._repo.status(path)
-
-    def commit(self, message: str):
-        """
-        Commit the staged data in the remote repo with a message.
-
-        Args:
-            message: `str`
-                The commit message.
-        """
-        return self._repo.commit(message)
-
     def log(self):
         """
         Get the commit history for a remote repo
@@ -274,64 +216,6 @@ class RemoteRepo:
         List all branches for a remote repo
         """
         return self._repo.list_branches()
-
-    def get_df_size(self, path: str):
-        """
-        Get the size of a dataframe file on the remote repo
-
-        Args:
-            path: `str`
-                The path to the df on the remote
-        """
-        return self._repo.get_df_size(path)
-
-    def get_df_row(self, path: str, idx: int):
-        """
-        Fetches a row from the dataframe at the specified path on the remote repo
-
-        Args:
-            path: `str`
-                Path to the dataframe on the remote repo
-            idx: `int`
-                The index of the row to return
-        """
-        return self._repo.get_df_row(path, idx)
-
-    def get_df_slice(
-        self, path: str, start: int, end: int, columns: Optional[List[str]] = None
-    ):
-        """
-        Gets a slice of rows from the dataframe at the specified path on the remote repo
-
-        Args:
-            path: `str`
-                Path to the dataframe on the remote repo
-            start: `int`
-                The start index of the data frame to return
-            end: `int`
-                The end index of the data frame to return
-            columns: `List[str]`
-                A list of column names to return. If None, will return all columns.
-        """
-        if columns is None:
-            # rust interface expects an empty list, not None
-            columns = []
-        return self._repo.get_df_slice(path, start, end, columns)
-
-    def add_df_row(self, path: str, row: dict):
-        """
-        Adds a row to the dataframe at the specified path on the remote repo
-
-        Args:
-            path: `str`
-                Path to the dataframe on the remote repo
-            row: `dict`
-                A dictionary representing the row to be added to the dataframe,
-                where keys are column names and values are the values to be inserted.
-                Schema must exactly match DF on remote repo.
-        """
-        data = json.dumps(row)
-        return self._repo.add_df_row(path, data)
 
     def get_branch(self, branch: str):
         """
@@ -379,6 +263,13 @@ class RemoteRepo:
         The name of the repo.
         """
         return self._repo.name()
+
+    @property
+    def identifier(self):
+        """
+        The namespace/name of the repo.
+        """
+        return f"{self.namespace}/{self.name}"
 
     @property
     def url(self) -> str:

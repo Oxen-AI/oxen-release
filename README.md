@@ -70,7 +70,7 @@ Oxen is built around ergonomics, ease of use, and it is easy to learn. If you kn
 * 📊 Native DataFrame processing (index, compare and serve up DataFrames)
 * 📈 Tracks changes over time (never worry about losing the state of your data)
 * 🤝 Collaborate with your team (sync to an oxen-server)
-* 🌎 [Remote Workspaces](https://docs.oxen.ai/concepts/remote-workspace) to interact with the data without downloading it
+* 🌎 [Workspaces](https://docs.oxen.ai/concepts/workspace) to interact with the data without downloading it
 * 👀 Better data visualization on [OxenHub](https://oxen.ai)
 
 ## 🐮 Learn The Basics
@@ -148,6 +148,12 @@ $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 # Run maturin
 $ maturin develop
+```
+
+## Test
+
+```Bash
+$ pytest -s tests/
 ```
 
 ## Why build Oxen?

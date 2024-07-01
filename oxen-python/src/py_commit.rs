@@ -54,3 +54,9 @@ impl PyCommit {
         self.commit.parent_ids.to_owned()
     }
 }
+
+impl From<OxenCommit> for PyCommit {
+    fn from(commit: OxenCommit) -> PyCommit {
+        PyCommit { commit }
+    }
+}
