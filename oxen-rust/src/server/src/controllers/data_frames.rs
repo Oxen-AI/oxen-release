@@ -3,7 +3,6 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
-use async_std::path::PathBuf;
 use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
@@ -11,7 +10,7 @@ use liboxen::core::cache::cachers;
 use liboxen::core::db::df_db;
 use liboxen::core::index::CommitEntryReader;
 use liboxen::error::{OxenError, PathBufError};
-use liboxen::model::{Commit, DataFrameSize, ParsedResource, Schema};
+use liboxen::model::{Commit, DataFrameSize, ParsedResource, Schema, Workspace};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
@@ -71,14 +70,28 @@ pub async fn get(
         page_size: constants::DEFAULT_PAGE_SIZE,
     };
 
-    // Block big big dfs
-    if opts.sql.is_some() || opts.text2sql.is_some() {
+    let mut workspace: Option<Workspace> = None;
+
+    if opts.sql.is_some() {
         if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
             return Err(OxenHttpError::NotQueryable);
         }
 
-        if !sql::df_is_indexed(&repo, &entry)? {
-            return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
+        match index::workspaces::data_frames::get_queryable_data_frame_workspace(
+            &repo,
+            &resource.path,
+            &commit,
+        ) {
+            Ok(found_workspace) => {
+                // Assign the found workspace to the workspace variable
+                workspace = Some(found_workspace);
+            }
+            Err(e) => match e {
+                OxenError::QueryableWorkspaceNotFound() => {
+                    return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
+                }
+                _ => return Err(OxenHttpError::from(e)),
+            },
         }
     }
 
@@ -109,10 +122,12 @@ pub async fn get(
         log::debug!("imputed slice params {:?}", opts.slice);
     }
 
-    if let Some(sql) = opts.sql.clone() {
-        let mut conn = sql::get_conn(&repo, &entry)?;
+    if let (Some(sql), Some(workspace)) = (opts.sql.clone(), workspace) {
+        let db_path = index::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
+        let mut conn = df_db::get_connection(db_path)?;
+
         let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
-        let df = sql::query_df(&repo, &entry, sql, &mut conn)?;
+        let df = sql::query_df(sql, &mut conn)?;
 
         let json_df = format_sql_df_response(
             df,
@@ -127,30 +142,6 @@ pub async fn get(
     }
 
     let mut df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
-
-    if let Some(text2sql) = opts.text2sql.clone() {
-        let mut conn = sql::get_conn(&repo, &entry)?;
-        let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
-
-        let df = sql::text2sql_df(
-            &repo,
-            &entry,
-            &db_schema,
-            text2sql,
-            &mut conn,
-            opts.get_host(),
-        )?;
-        let json_df = format_sql_df_response(
-            df,
-            &commit,
-            &opts,
-            &page_opts,
-            &resource,
-            &db_schema,
-            &data_frame_size,
-        )?;
-        return Ok(HttpResponse::Ok().json(json_df));
-    }
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
@@ -250,20 +241,21 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
     let path = resource.clone().path;
 
-    match index::workspaces::data_frames::get_queryable_data_frame_workspace(&repo, resource) {
-        Ok(_) => {
-            return Err(OxenHttpError::DatasetAlreadyIndexed(PathBufError::from(
-                path,
-            )));
-        }
-        Err(e) => match e {
-            OxenError::QueryableWorkspaceNotFound() => {
-                let workspace_id = Uuid::new_v4().to_string();
-                let workspace = index::workspaces::create(&repo, &commit, &workspace_id, false)?;
-                index::workspaces::data_frames::index(&workspace, &path)?;
-            }
-            _ => return Err(OxenHttpError::from(e)),
-        },
+    // Check if the data frame is already indexed.
+    if index::workspaces::data_frames::is_queryable_data_frame_indexed(
+        &repo,
+        &resource.path,
+        &commit,
+    )? {
+        // If the data frame is already indexed, return the appropriate error.
+        return Err(OxenHttpError::DatasetAlreadyIndexed(PathBufError::from(
+            path,
+        )));
+    } else {
+        // If not, proceed to create a new workspace and index the data frame.
+        let workspace_id = Uuid::new_v4().to_string();
+        let workspace = index::workspaces::create(&repo, &commit, &workspace_id, false)?;
+        index::workspaces::data_frames::index(&workspace, &path)?;
     }
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))

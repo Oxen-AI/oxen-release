@@ -8,7 +8,7 @@ use crate::constants::MODS_DIR;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
 use crate::core::db::workspace_df_db::select_cols_from_schema;
 use crate::core::db::{df_db, workspace_df_db};
-use crate::core::df::{sql, tabular};
+use crate::core::df::tabular;
 use crate::core::index::CommitEntryReader;
 use crate::core::index::{self, workspaces};
 use crate::model::diff::tabular_diff::{
@@ -18,7 +18,7 @@ use crate::model::diff::tabular_diff::{
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{CommitEntry, LocalRepository, ParsedResource, Workspace};
+use crate::model::{Commit, CommitEntry, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
@@ -62,26 +62,23 @@ pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, Oxe
 
 pub fn get_queryable_data_frame_workspace(
     repo: &LocalRepository,
-    resource: ParsedResource,
+    path: &PathBuf,
+    commit: &Commit,
 ) -> Result<Workspace, OxenError> {
-    if !util::fs::is_tabular(&resource.path) {
+    if !util::fs::is_tabular(path) {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
     }
 
-    let commit = resource
-        .commit
-        .ok_or_else(|| OxenError::basic_str("No commit found for resource."))?;
-
     let workspaces = index::workspaces::list(repo)?;
 
     for workspace in workspaces {
         // Ensure the workspace is not editable and matches the commit ID of the resource
-        if !workspace.is_editable && workspace.commit == commit {
+        if !workspace.is_editable && workspace.commit == *commit {
             // Construct the path to the DuckDB resource within the workspace
             let workspace_file_db_path =
-                index::workspaces::data_frames::duckdb_path(&workspace, &resource.path);
+                index::workspaces::data_frames::duckdb_path(&workspace, path);
 
             // Check if the DuckDB file exists in the workspace's directory
             if workspace_file_db_path.exists() {
@@ -92,6 +89,20 @@ pub fn get_queryable_data_frame_workspace(
     }
 
     return Err(OxenError::QueryableWorkspaceNotFound());
+}
+
+pub fn is_queryable_data_frame_indexed(
+    repo: &LocalRepository,
+    path: &PathBuf,
+    commit: &Commit,
+) -> Result<bool, OxenError> {
+    match index::workspaces::data_frames::get_queryable_data_frame_workspace(repo, path, commit) {
+        Ok(_workspace) => Ok(true),
+        Err(e) => match e {
+            OxenError::QueryableWorkspaceNotFound() => Ok(false),
+            _ => Err(e),
+        },
+    }
 }
 
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
@@ -123,8 +134,6 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     if !parent.exists() {
         util::fs::create_dir_all(parent)?;
     }
-
-    copy_duckdb_if_already_indexed(repo, &entry, &db_path)?;
 
     let conn = df_db::get_connection(db_path)?;
     if df_db::table_exists(&conn, TABLE_NAME)? {
@@ -196,25 +205,6 @@ fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
         TABLE_NAME, DIFF_HASH_COL
     );
     conn.execute(&query_hash, [])?;
-    Ok(())
-}
-
-fn copy_duckdb_if_already_indexed(
-    repo: &LocalRepository,
-    entry: &CommitEntry,
-    new_db_path: &Path,
-) -> Result<(), OxenError> {
-    let maybe_existing_db_path = sql::db_cache_path(repo, entry);
-    let conn = df_db::get_connection(&maybe_existing_db_path)?;
-    if df_db::table_exists(&conn, TABLE_NAME)? {
-        log::debug!(
-            "copying existing db from {:?} to {:?}",
-            maybe_existing_db_path,
-            new_db_path
-        );
-        std::fs::copy(&maybe_existing_db_path, new_db_path)?;
-        return Ok(());
-    }
     Ok(())
 }
 
