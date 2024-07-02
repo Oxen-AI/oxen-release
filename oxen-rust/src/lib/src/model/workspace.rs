@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 use crate::constants;
-use crate::constants::WORKSPACE_NAME;
 use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_CONFIG};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -22,6 +21,7 @@ fn workspace_dir(repo: &LocalRepository, workspace_id_hash: &str) -> PathBuf {
 struct WorkspaceConfig {
     workspace_commit_id: String,
     is_editable: bool,
+    workspace_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -125,6 +125,7 @@ impl Workspace {
         let workspace_config = WorkspaceConfig {
             workspace_commit_id: commit.id.clone(),
             is_editable,
+            workspace_name: workspace_name.clone(),
         };
 
         let toml_string = match toml::to_string(&workspace_config) {
@@ -148,10 +149,6 @@ impl Workspace {
         );
         util::fs::write_to_path(&commit_id_path, &toml_string)?;
 
-        // Write the workspace name to the workspace dir
-        let workspace_name_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
-        util::fs::write_to_path(&workspace_name_path, &workspace_name)?;
-
         Ok(Workspace {
             id: workspace_id.to_owned(),
             base_repo: base_repo.clone(),
@@ -163,29 +160,57 @@ impl Workspace {
 
     pub fn list(repo: &LocalRepository) -> Result<Vec<Self>, OxenError> {
         let workspaces_dir = repo.path.join(OXEN_HIDDEN_DIR).join(WORKSPACES_DIR);
-        log::debug!("workspace::list got workspaces_dir: {workspaces_dir:?}");
+        log::debug!("workspace::list got workspaces_dir: {:?}", workspaces_dir);
         if !workspaces_dir.exists() {
+            // Return early if the workspaces directory does not exist
             return Ok(vec![]);
         }
 
-        let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir)?;
-        log::debug!("workspace::list got workspaces_hashes: {workspaces_hashes:?}");
+        let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir).map_err(|e| {
+            OxenError::basic_str(format!("Error listing workspace directories: {}", e))
+        })?;
+        log::debug!(
+            "workspace::list got workspaces_hashes: {:?}",
+            workspaces_hashes
+        );
 
-        let workspaces = workspaces_hashes
-            .iter()
-            .filter(|workspace_hash| {
-                workspace_hash
-                    .join(OXEN_HIDDEN_DIR)
-                    .join(WORKSPACE_NAME)
-                    .exists()
-            })
-            .map(|workspace_hash| {
-                // read the workspace name from the workspace dir
-                let workspace_name_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
-                let workspace_name = util::fs::read_from_path(workspace_name_path)?;
-                Workspace::new(repo, workspace_name)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut workspaces = Vec::new();
+        for workspace_hash in workspaces_hashes {
+            let workspace_config_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
+
+            if !workspace_config_path.exists() {
+                log::warn!("Workspace config not found at: {:?}", workspace_config_path);
+                continue;
+            }
+
+            // Read the workspace config file
+            let config_toml = match util::fs::read_from_path(&workspace_config_path) {
+                Ok(content) => content,
+                Err(e) => {
+                    log::error!("Failed to read workspace config: {}", e);
+                    continue;
+                }
+            };
+
+            // Deserialize the TOML content
+            let workspace_config: WorkspaceConfig = match toml::from_str(&config_toml) {
+                Ok(config) => config,
+                Err(e) => {
+                    log::error!("Failed to deserialize workspace config: {}", e);
+                    continue;
+                }
+            };
+
+            // Construct the Workspace and add it to the list
+            match Workspace::new(repo, workspace_config.workspace_name) {
+                Ok(workspace) => workspaces.push(workspace),
+                Err(e) => {
+                    log::error!("Failed to create workspace: {}", e);
+                    continue;
+                }
+            }
+        }
+
         Ok(workspaces)
     }
 
