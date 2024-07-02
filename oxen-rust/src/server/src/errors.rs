@@ -4,7 +4,8 @@ use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
 use liboxen::model::Branch;
 use liboxen::view::http::{
-    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
+    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_NOT_FOUND,
+    MSG_UPDATE_REQUIRED, STATUS_ERROR,
 };
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
@@ -151,7 +152,7 @@ impl error::ResponseError for OxenHttpError {
                             format!("This dataset {} is already indexed for SQL and NLP querying.", path),
                     },
                     "status": STATUS_ERROR,
-                    "status_message": MSG_BAD_REQUEST,
+                    "status_message": MSG_RESOURCE_ALREADY_EXISTS,
                 });
                 HttpResponse::BadRequest().json(error_json)
             }

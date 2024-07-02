@@ -1,7 +1,6 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
-use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -13,9 +12,9 @@ use crate::{api, util};
 use os_path::OsPath;
 use rayon::prelude::*;
 
-use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
+use crate::core::{self, index};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
@@ -254,7 +253,13 @@ pub fn meta_entry_from_commit_entry(
     let data_type = util::fs::file_data_type(&version_path);
 
     let is_indexed = if data_type == EntryDataType::Tabular {
-        Some(sql::df_is_indexed(repo, entry)?)
+        Some(
+            index::workspaces::data_frames::is_queryable_data_frame_indexed(
+                &repo,
+                &entry.path,
+                &latest_commit,
+            )?,
+        )
     } else {
         None
     };
