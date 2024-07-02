@@ -61,6 +61,7 @@ pub enum OxenError {
 
     // Workspaces
     WorkspaceNotFound(Box<StringError>),
+    QueryableWorkspaceNotFound(),
     WorkspaceBehind(Branch),
 
     // Resources (paths, uris, etc.)
