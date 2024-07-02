@@ -9,8 +9,8 @@ use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
 use crate::core::db::workspace_df_db::select_cols_from_schema;
 use crate::core::db::{df_db, workspace_df_db};
 use crate::core::df::{sql, tabular};
-use crate::core::index::workspaces;
 use crate::core::index::CommitEntryReader;
+use crate::core::index::{self, workspaces};
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
     TabularDiffSummary, TabularSchemaDiff,
@@ -18,7 +18,7 @@ use crate::model::diff::tabular_diff::{
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{CommitEntry, LocalRepository, Workspace};
+use crate::model::{CommitEntry, LocalRepository, ParsedResource, Workspace};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
@@ -58,6 +58,40 @@ pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, Oxe
 
     let count = df_db::count(&conn, TABLE_NAME)?;
     Ok(count)
+}
+
+pub fn get_queryable_data_frame_workspace(
+    repo: &LocalRepository,
+    resource: ParsedResource,
+) -> Result<Workspace, OxenError> {
+    if !util::fs::is_tabular(&resource.path) {
+        return Err(OxenError::basic_str(
+            "File format not supported, must be tabular.",
+        ));
+    }
+
+    let commit = resource
+        .commit
+        .ok_or_else(|| OxenError::basic_str("No commit found for resource."))?;
+
+    let workspaces = index::workspaces::list(repo)?;
+
+    for workspace in workspaces {
+        // Ensure the workspace is not editable and matches the commit ID of the resource
+        if !workspace.is_editable && workspace.commit == commit {
+            // Construct the path to the DuckDB resource within the workspace
+            let workspace_file_db_path =
+                index::workspaces::data_frames::duckdb_path(&workspace, &resource.path);
+
+            // Check if the DuckDB file exists in the workspace's directory
+            if workspace_file_db_path.exists() {
+                // The file exists in this non-editable workspace, and the commit IDs match
+                return Ok(workspace);
+            }
+        }
+    }
+
+    return Err(OxenError::QueryableWorkspaceNotFound());
 }
 
 pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {

@@ -3,13 +3,14 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
+use async_std::path::PathBuf;
 use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
 use liboxen::core::cache::cachers;
 use liboxen::core::db::df_db;
 use liboxen::core::index::CommitEntryReader;
-use liboxen::error::OxenError;
+use liboxen::error::{OxenError, PathBufError};
 use liboxen::model::{Commit, DataFrameSize, ParsedResource, Schema};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
@@ -24,6 +25,9 @@ use liboxen::view::{
 
 use liboxen::util;
 use polars::frame::DataFrame;
+
+use liboxen::core::index;
+use uuid::Uuid;
 
 // TODO: This is getting long...condense and factor out whatever possible here
 pub async fn get(
@@ -243,24 +247,24 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
-    let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-    let entry = entry_reader
-        .get_entry(&resource.path)?
-        .ok_or(OxenHttpError::NotFound)?;
 
-    let mut conn = sql::get_conn(&repo, &entry)?;
+    let path = resource.clone().path;
 
-    log::debug!("data_frames controller index()");
-
-    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
-    let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
-
-    if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
-        return Err(OxenHttpError::NotQueryable);
+    match index::workspaces::data_frames::get_queryable_data_frame_workspace(&repo, resource) {
+        Ok(_) => {
+            return Err(OxenHttpError::DatasetAlreadyIndexed(PathBufError::from(
+                path,
+            )));
+        }
+        Err(e) => match e {
+            OxenError::QueryableWorkspaceNotFound() => {
+                let workspace_id = Uuid::new_v4().to_string();
+                let workspace = index::workspaces::create(&repo, &commit, &workspace_id, false)?;
+                index::workspaces::data_frames::index(&workspace, &path)?;
+            }
+            _ => return Err(OxenHttpError::from(e)),
+        },
     }
-
-    sql::index_df(&repo, &entry, &mut conn)?;
-    log::debug!("successfully indexed");
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }
