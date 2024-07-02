@@ -100,8 +100,6 @@ pub const MODS_DIR: &str = "mods";
 pub const WORKSPACES_DIR: &str = "workspaces";
 /// workspace commit id
 pub const WORKSPACE_CONFIG: &str = "WORKSPACE_CONFIG";
-/// workspace commit id
-pub const WORKSPACE_NAME: &str = "WORKSPACE_NAME";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 
