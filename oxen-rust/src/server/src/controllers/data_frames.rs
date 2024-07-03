@@ -209,9 +209,9 @@ fn handle_sql_querying(
         }
 
         match index::workspaces::data_frames::get_queryable_data_frame_workspace(
-            &repo,
+            repo,
             &resource.path,
-            &commit,
+            commit,
         ) {
             Ok(found_workspace) => {
                 // Assign the found workspace to the workspace variable
@@ -236,12 +236,12 @@ fn handle_sql_querying(
 
         let json_df = format_sql_df_response(
             df,
-            &commit,
-            &opts,
-            &page_opts,
-            &resource,
+            commit,
+            opts,
+            page_opts,
+            resource,
             &db_schema,
-            &data_frame_size,
+            data_frame_size,
         )?;
         return Ok(HttpResponse::Ok().json(json_df));
     }
@@ -272,7 +272,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     } else {
         // If not, proceed to create a new workspace and index the data frame.
         let workspace_id = Uuid::new_v4().to_string();
-        let workspace = index::workspaces::create(&repo, &commit, &workspace_id, false)?;
+        let workspace = index::workspaces::create(&repo, &commit, workspace_id, false)?;
         index::workspaces::data_frames::index(&workspace, &path)?;
     }
 

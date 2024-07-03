@@ -674,10 +674,12 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use uuid::Uuid;
+
     use crate::api;
     use crate::command;
     use crate::core;
-    use crate::core::df::sql;
+    use crate::core::index;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -1445,7 +1447,7 @@ mod tests {
             // And write a file in the same dir that is not tabular
             let filename = "README.md";
             let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "readme....")?;
+            util::fs::write(&filepath, "readme....")?;
 
             // Add and commit all
             command::add(&repo, &repo.path)?;
@@ -1462,8 +1464,9 @@ mod tests {
             assert_eq!(meta2.is_queryable, Some(false));
 
             // Now index df2
-            let mut conn = sql::get_conn(&repo, &entry2)?;
-            sql::index_df(&repo, &entry2, &mut conn)?;
+            let workspace_id = Uuid::new_v4().to_string();
+            let workspace = index::workspaces::create(&repo, &commit, workspace_id, false)?;
+            index::workspaces::data_frames::index(&workspace, &filepath)?;
 
             // Now get the metadata entries for the two dataframes
             let meta1 = api::local::entries::get_meta_entry(&repo, &commit, &path_1)?;
