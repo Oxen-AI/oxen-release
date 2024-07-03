@@ -516,7 +516,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -562,7 +562,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -639,7 +639,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -727,7 +727,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -807,7 +807,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -880,7 +880,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -943,7 +943,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -1026,7 +1026,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -1107,7 +1107,7 @@ mod tests {
             let branch = api::local::branches::create_checkout(&repo, branch_name)?;
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
