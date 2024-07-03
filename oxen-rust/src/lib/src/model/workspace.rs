@@ -147,7 +147,7 @@ impl Workspace {
             "index::workspaces::create writing workspace config to: {:?}",
             commit_id_path
         );
-        util::fs::write_to_path(&commit_id_path, &toml_string)?;
+        util::fs::write_to_path(&commit_id_path, toml_string)?;
 
         Ok(Workspace {
             id: workspace_id.to_owned(),

@@ -88,7 +88,7 @@ pub fn get_queryable_data_frame_workspace(
         }
     }
 
-    return Err(OxenError::QueryableWorkspaceNotFound());
+    Err(OxenError::QueryableWorkspaceNotFound());
 }
 
 pub fn is_queryable_data_frame_indexed(
