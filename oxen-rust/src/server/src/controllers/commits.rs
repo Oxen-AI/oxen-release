@@ -1378,7 +1378,7 @@ mod tests {
         command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
-        let uri = format!("/oxen/{namespace}/{repo_name}/commits/{branch_name}/history");
+        let uri = format!("/oxen/{namespace}/{repo_name}/commits/history/{branch_name}");
         let req = test::repo_request_with_param(
             &sync_dir,
             queue,
@@ -1429,7 +1429,7 @@ mod tests {
 
         // List commits from the first branch
         let uri = format!(
-            "/oxen/{}/{}/commits/{}/history",
+            "/oxen/{}/{}/commits/history/{}",
             namespace, repo_name, og_branch.name
         );
         let req = test::repo_request_with_param(
