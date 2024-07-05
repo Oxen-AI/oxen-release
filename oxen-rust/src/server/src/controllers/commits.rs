@@ -77,11 +77,10 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     Ok(HttpResponse::Ok().json(ListCommitResponse::success(commits)))
 }
 
-// List history for a branch or commit
 pub async fn commit_history(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
@@ -90,24 +89,39 @@ pub async fn commit_history(
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    // Assuming `parse_resource` and `commit_or_branch` determination happens here
-    let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+    let resource_param = path_param(&req, "resource")?;
 
-    // Adjusted logic to handle both cases within a proper scope
-    if resource.path == Path::new("") {
-        let commits = api::local::commits::list_from_paginated(&repo, &commit.id, page, page_size)?;
-        Ok(HttpResponse::Ok().json(commits))
+    // This checks if the parameter received from the client is two commits split by "..", in this case we don't parse the resource
+    let (resource, revision, commit) = if resource_param.contains("..") {
+        (None, Some(resource_param), None)
     } else {
-        let commits = api::local::commits::list_by_file_from_paginated(
-            &repo,
-            &resource.path,
-            &commit,
-            page,
-            page_size,
-        )?;
+        let resource = parse_resource(&req, &repo)?;
+        let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+        (Some(resource), None, Some(commit))
+    };
 
-        Ok(HttpResponse::Ok().json(commits))
+    match &resource {
+        Some(resource) if resource.path != Path::new("") => {
+            let commits = api::local::commits::list_by_file_from_paginated(
+                &repo,
+                &resource.path,
+                commit.as_ref().unwrap(), // Safe unwrap: `commit` is Some if `resource` is Some
+                page,
+                page_size,
+            )?;
+            Ok(HttpResponse::Ok().json(commits))
+        }
+        _ => {
+            // Handling the case where resource is None or its path is empty
+            let revision_id = revision.as_ref().or_else(|| commit.as_ref().map(|c| &c.id));
+            if let Some(revision_id) = revision_id {
+                let commits =
+                    api::local::commits::list_from_paginated(&repo, revision_id, page, page_size)?;
+                Ok(HttpResponse::Ok().json(commits))
+            } else {
+                Err(OxenHttpError::NotFound)
+            }
+        }
     }
 }
 
