@@ -24,6 +24,13 @@ impl RunCmd for DFCmd {
         .arg(arg!(<DF_SPEC> ... "The DataFrame you want to process. If in the schema subcommand the schema ref."))
         .arg_required_else_help(true)
         .arg(
+            Arg::new("write")
+                .long("write")
+                .short('w')
+                .help("Write transformed data back to the file")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("output")
                 .long("output")
                 .short('o')
@@ -216,45 +223,87 @@ impl DFCmd {
             None
         };
 
+        let write_path: Option<PathBuf>; 
+        
+        if args.get_flag("write") {
+            write_path = args.get_one::<String>("DF_SPEC").map(std::path::PathBuf::from);
+        } else {
+            write_path = None;
+        }
+
         liboxen::opts::DFOpts {
+            write: write_path,
             output: args
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
-            delimiter: args.get_one::<String>("delimiter").map(String::from),
-            filter: args.get_one::<String>("filter").map(String::from),
-            slice: args.get_one::<String>("slice").map(String::from),
+            delimiter: args
+                .get_one::<String>("delimiter").map(String::from),
+            filter: args
+                .get_one::<String>("filter").map(String::from),
+            slice: args
+                .get_one::<String>("slice").map(String::from),
             page_size: args
                 .get_one::<String>("page-size")
-                .map(|x| x.parse::<usize>().expect("page-size must be valid int")),
+                .map(|x| x.parse::<usize>()
+                .expect("page-size must be valid int")),
             page: args
                 .get_one::<String>("page")
-                .map(|x| x.parse::<usize>().expect("page must be valid int")),
+                .map(|x| x.parse::<usize>()
+                .expect("page must be valid int")),
             head: args
                 .get_one::<String>("head")
-                .map(|x| x.parse::<usize>().expect("head must be valid int")),
+                .map(|x| x.parse::<usize>()
+                .expect("head must be valid int")),
             tail: args
                 .get_one::<String>("tail")
-                .map(|x| x.parse::<usize>().expect("tail must be valid int")),
+                .map(|x| x.parse::<usize>()
+                .expect("tail must be valid int")),
             row: args
                 .get_one::<String>("row")
-                .map(|x| x.parse::<usize>().expect("row must be valid int")),
-            take: args.get_one::<String>("take").map(String::from),
-            columns: args.get_one::<String>("columns").map(String::from),
-            item: args.get_one::<String>("item").map(String::from),
+                .map(|x| x.parse::<usize>()
+                .expect("row must be valid int")),
+            take: args
+                .get_one::<String>("take")
+                .map(String::from),
+            columns: args
+                .get_one::<String>("columns")
+                .map(String::from),
+            item: args
+                .get_one::<String>("item")
+                .map(String::from),
             vstack,
-            add_col: args.get_one::<String>("add-col").map(String::from),
-            add_row: args.get_one::<String>("add-row").map(String::from),
+            add_col: args
+                .get_one::<String>("add-col")
+                .map(String::from),
+            add_row: args
+                .get_one::<String>("add-row")
+                .map(String::from),
             at: args
                 .get_one::<String>("at")
-                .map(|x| x.parse::<usize>().expect("at must be valid int")),
-            delete_row: args.get_one::<String>("delete-row").map(String::from),
-            sort_by: args.get_one::<String>("sort").map(String::from),
-            sql: args.get_one::<String>("sql").map(String::from),
-            text2sql: args.get_one::<String>("text2sql").map(String::from),
-            host: args.get_one::<String>("host").map(String::from),
-            unique: args.get_one::<String>("unique").map(String::from),
-            should_randomize: args.get_flag("randomize"),
-            should_reverse: args.get_flag("reverse"),
+                .map(|x| x.parse::<usize>()
+                .expect("at must be valid int")),
+            delete_row: args
+                .get_one::<String>("delete-row")
+                .map(String::from),
+            sort_by: args
+                .get_one::<String>("sort")
+                .map(String::from),
+            sql: args
+                .get_one::<String>("sql")
+                .map(String::from),
+            text2sql: args
+                .get_one::<String>("text2sql")
+                .map(String::from),
+            host: args
+                .get_one::<String>("host")
+                .map(String::from),
+            unique: args
+                .get_one::<String>("unique")
+                .map(String::from),
+            should_randomize: args
+                .get_flag("randomize"),
+            should_reverse: args
+                .get_flag("reverse"),
         }
     }
 }
