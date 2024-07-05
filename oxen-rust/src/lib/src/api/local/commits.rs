@@ -11,8 +11,8 @@ use crate::core::db::tree_db::{self, TreeObject};
 use crate::core::db::{self, path_db};
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
-    self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
-    Stager, TreeObjectReader,
+    self, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
+    ObjectDBReader, RefReader, RefWriter, Stager, TreeObjectReader,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -379,6 +379,45 @@ pub fn list_from_paginated(
     page_size: usize,
 ) -> Result<PaginatedCommits, OxenError> {
     let commits = list_from(repo, revision)?;
+    let (commits, pagination) = util::paginate(commits, page_number, page_size);
+    Ok(PaginatedCommits {
+        status: StatusMessage::resource_found(),
+        commits,
+        pagination,
+    })
+}
+
+/// List paginated commits starting from the given revision
+pub fn list_by_file_from_paginated(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+    page_number: usize,
+    page_size: usize,
+) -> Result<PaginatedCommits, OxenError> {
+    let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
+
+    let object_reader = ObjectDBReader::new(repo)?;
+
+    let dir_entry_reader =
+        CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
+    let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
+
+    let entry = dir_entry_reader
+        .get_entry(base_name)?
+        .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
+
+    // load all commit entry readers once
+    let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    let commit_reader = CommitReader::new(repo)?;
+    let commits = commit_reader.history_from_commit_id(&commit.id)?;
+
+    for c in commits {
+        let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
+        commit_entry_readers.push((c.clone(), reader));
+    }
+
+    let commits = api::local::entries::get_commit_history_for_entry(&commit_entry_readers, &entry)?;
     let (commits, pagination) = util::paginate(commits, page_number, page_size);
     Ok(PaginatedCommits {
         status: StatusMessage::resource_found(),
