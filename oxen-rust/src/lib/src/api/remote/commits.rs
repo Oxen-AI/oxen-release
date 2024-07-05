@@ -155,7 +155,7 @@ async fn list_commit_history_paginated(
 ) -> Result<PaginatedCommits, OxenError> {
     let page_num = page_opts.page_num;
     let page_size = page_opts.page_size;
-    let uri = format!("/commits/{revision}/history?page={page_num}&page_size={page_size}");
+    let uri = format!("/commits/history/{revision}?page={page_num}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
