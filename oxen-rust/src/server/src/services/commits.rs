@@ -44,7 +44,7 @@ pub fn commits() -> Scope {
             web::post().to(controllers::commits::upload_chunk),
         )
         .route(
-            "/{commit_or_branch:.*}/history",
+            "/history/{resource:.*}",
             web::get().to(controllers::commits::commit_history),
         )
         .route(

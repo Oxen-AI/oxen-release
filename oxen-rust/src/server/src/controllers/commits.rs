@@ -35,6 +35,7 @@ use os_path::OsPath;
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
+use crate::params::parse_resource;
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
 use crate::tasks;
@@ -84,15 +85,30 @@ pub async fn commit_history(
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    let commits =
-        api::local::commits::list_from_paginated(&repo, &commit_or_branch, page, page_size)?;
-    Ok(HttpResponse::Ok().json(commits))
+    // Assuming `parse_resource` and `commit_or_branch` determination happens here
+    let resource = parse_resource(&req, &repo)?;
+    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+
+    // Adjusted logic to handle both cases within a proper scope
+    if resource.path == Path::new("") {
+        let commits = api::local::commits::list_from_paginated(&repo, &commit.id, page, page_size)?;
+        Ok(HttpResponse::Ok().json(commits))
+    } else {
+        let commits = api::local::commits::list_by_file_from_paginated(
+            &repo,
+            &resource.path,
+            &commit,
+            page,
+            page_size,
+        )?;
+
+        Ok(HttpResponse::Ok().json(commits))
+    }
 }
 
 // List all commits in the rpeo
