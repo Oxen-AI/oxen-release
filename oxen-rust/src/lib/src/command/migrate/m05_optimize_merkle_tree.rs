@@ -1,15 +1,12 @@
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::path::Path;
 
 use super::Migrate;
-
-use std::collections::HashSet;
-use std::path::{Path};
 
 use crate::core::db::merkle_node_db::MerkleNodeDB;
 use crate::core::db::tree_db::TreeObjectChild;
 use crate::core::db::{self, str_val_db};
 use crate::core::index::commit_merkle_tree::{MerkleNode, MerkleNodeType};
-use crate::core::index::commit_merkle_tree_node::{CommitMerkleTreeNode, MerkleTreeNodeType};
 use crate::core::index::{CommitReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -122,12 +119,6 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
     // Instantiate the object reader, most expensive operation
     let object_reader = ObjectDBReader::new(repo)?;
-
-    // // iterate over the commit tree to get the root nodes
-    // let commit_merkle_tree = CommitMerkleTree::new(repo, commit)?;
-    // println!("Commit {} -> '{}' merkle tree:", commit.id, commit.message);
-    // commit_merkle_tree.print();
-
     // Get the root hash
     let dir_hashes_dir = repo
         .path
@@ -138,13 +129,6 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
-
-    // let root = CommitMerkleTreeNode {
-    //     path: PathBuf::from(""),
-    //     hash,
-    //     dtype: MerkleTreeNodeType::Dir,
-    //     children: HashSet::new(),
-    // };
 
     migrate_dir(repo, &object_reader, &hash)?;
 
@@ -163,11 +147,11 @@ fn migrate_dir(
     println!("Getting dir for node: {:?}", dir_hash);
 
     /*
-    To tune this...
-    Let's read in all the VNodes, and make this more configurable
-    about how many files are within each VNode.
+    The number of VNodes is dynamic depending on the number of children in
+    the directory.
 
-    Compute number of VNode Buckets based on number of children.
+    This helps us with reads/writes making them lean if we have many
+    children in a directory.
 
     N = Number of Children
     M = Number of VNodes
@@ -178,9 +162,7 @@ fn migrate_dir(
     N / 10,000 = (2^M)
     M = log2(N / 10000)
 
-    Or...we could just divide by the node count we want...?
-    But I think I'd rather it be logarithmic than linear?
-    TODO: Plot this function
+    It's logarithmic, because we don't want too many vnodes per dir
 
     * log2(1,000,000 / 10,000)
         * 1,000,000,000 / (2^16) = 1,000,000,000 / 65,536 = 15,258
@@ -208,13 +190,6 @@ fn migrate_dir(
     };
 
     // Write all the VNodes
-    // let tree_db: DBWithThreadMode<MultiThreaded> =
-    //     DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
-
-    // TODO: We have to read/flatten each one of these VNodes
-    //       Collect the subnodes, count them, save the count
-    //       then bucket them based on count
-
     let mut children: Vec<TreeObjectChild> = Vec::new();
     for child in dir_obj.children() {
         if let TreeObjectChild::VNode { path: _, hash } = child {
@@ -259,7 +234,7 @@ fn migrate_dir(
         .join(constants::TREE_DIR)
         .join(dir_hash);
 
-    let mut dir_db = MerkleNodeDB::open(tree_path, false)?;
+    let mut dir_db = MerkleNodeDB::open_read_write(tree_path)?;
     dir_db.write_size(num_vnodes as u64)?;
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         let shash = format!("{:x}", bhash);
@@ -320,110 +295,6 @@ fn migrate_dir(
             }
         }
     }
-    Ok(())
-}
-
-fn migrate_files(
-    repo: &LocalRepository,
-    reader: &ObjectDBReader,
-    vnode: &TreeObjectChild,
-) -> Result<(), OxenError> {
-    match vnode {
-        TreeObjectChild::VNode { path, hash } => {
-            let tree_path = repo
-                .path
-                .join(constants::OXEN_HIDDEN_DIR)
-                .join(constants::TREE_DIR)
-                .join(hash);
-
-            if tree_path.exists() {
-                println!(
-                    "database {:?} already exists at tree_path: {:?}",
-                    path, tree_path
-                );
-                return Ok(());
-            }
-
-            println!("writing children {:?} to tree_path: {:?}", path, tree_path);
-
-            // let tree_db: DBWithThreadMode<MultiThreaded> =
-            //     DBWithThreadMode::open(&db::opts::default(), &tree_path)?;
-
-            let tree_obj = reader.get_vnode(hash)?;
-            let Some(tree_obj) = tree_obj else {
-                return Err(OxenError::basic_str(format!(
-                    "could not get children objects for vnode {}",
-                    hash
-                )));
-            };
-
-            let mut tree_db = MerkleNodeDB::open(&tree_path, false)?;
-            tree_db.write_size(tree_obj.children().len() as u64)?;
-
-            for child in tree_obj.children() {
-                match child {
-                    TreeObjectChild::File { path, hash } => {
-                        let val = MerkleNode {
-                            dtype: MerkleNodeType::File,
-                            path: path.file_name().unwrap().to_str().unwrap().to_owned(),
-                        };
-                        // let mut buf = Vec::new();
-                        // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
-                        // tree_db.put(hash.as_bytes(), &buf)?;
-                        let hash_int =
-                            u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                        tree_db.write_one(hash_int, &val)?;
-                    }
-                    TreeObjectChild::Dir { path, hash } => {
-                        let file_name = path.file_name().unwrap().to_str().unwrap();
-                        let val = MerkleNode {
-                            dtype: MerkleNodeType::Dir,
-                            path: file_name.to_owned(),
-                        };
-                        // let mut buf = Vec::new();
-                        // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
-                        // tree_db.put(hash.as_bytes(), &buf)?;
-                        let hash_int =
-                            u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                        tree_db.write_one(hash_int, &val)?;
-
-                        let dir = CommitMerkleTreeNode {
-                            path: path.to_owned(),
-                            hash: hash.to_owned(),
-                            dtype: MerkleTreeNodeType::Dir,
-                            children: HashSet::new(),
-                        };
-                        // migrate_vnodes(repo, reader, &dir)?;
-                    }
-                    TreeObjectChild::Schema { path, hash } => {
-                        let val = MerkleNode {
-                            dtype: MerkleNodeType::Schema,
-                            path: path.file_name().unwrap().to_str().unwrap().to_owned(),
-                        };
-                        // let mut buf = Vec::new();
-                        // val.serialize(&mut Serializer::new(&mut buf)).unwrap();
-                        // tree_db.put(hash.as_bytes(), &buf)?;
-                        let hash_int =
-                            u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                        tree_db.write_one(hash_int, &val)?;
-                    }
-                    _ => {
-                        return Err(OxenError::basic_str(format!(
-                            "unexpected child type: {:?}",
-                            child
-                        )));
-                    }
-                }
-            }
-        }
-        _ => {
-            return Err(OxenError::basic_str(format!(
-                "unexpected child type: {:?}",
-                vnode
-            )));
-        }
-    }
-
     Ok(())
 }
 
