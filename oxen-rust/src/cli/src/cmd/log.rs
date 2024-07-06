@@ -28,20 +28,21 @@ impl RunCmd for LogCmd {
     }
 
     fn args(&self) -> Command {
-        Command::new(NAME).about("See log of commits")
-        .arg(
-            Arg::new("revision")
-                .long("revision")
-                .help("The commit or branch id you want to get history from. Defaults to main.")
-                .action(clap::ArgAction::Set),
-        )
-        .arg(
-            Arg::new("number")
-                .long("number")
-                .short('n')
-                .help("Number of commits to show")
-                .default_value("20")
-        )
+        Command::new(NAME)
+            .about("See log of commits")
+            .arg(
+                Arg::new("revision")
+                    .long("revision")
+                    .help("The commit or branch id you want to get history from. Defaults to main.")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
+                Arg::new("number")
+                    .long("number")
+                    .short('n')
+                    .help("Number of commits to show")
+                    .default_value("20"),
+            )
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {

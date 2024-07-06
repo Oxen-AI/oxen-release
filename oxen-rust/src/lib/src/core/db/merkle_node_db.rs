@@ -1,11 +1,18 @@
 /*
 Write a db that is optimized for opening, finding by hash, listing.
-Rocks db is too slow.
-Writing happens once at commit.
+
+Rocks db is too slow. It was taking ~100ms to open a db, and if we have > 10 vnodes,
+that means we are taking > 1 second to open before doing any operations.
+
+We can make this faster by using a simple file format.
+
+Writing happens once at commit, then we read many times from the server and status.
+
 Is also already sharded and optimized in the tree structure.
 Reading, find by hash, listing is high throughput.
 
-On Disk
+On Disk Format:
+
 size
 hash-int,data-offset,data-length
 data
@@ -80,6 +87,7 @@ impl MerkleNodeLookup {
 }
 
 pub struct MerkleNodeDB {
+    read_only: bool,
     data_file: Option<File>,
     lookup_file: Option<File>,
     lookup: Option<MerkleNodeLookup>,
@@ -87,29 +95,21 @@ pub struct MerkleNodeDB {
     data_offset: u64,
 }
 
-impl Default for MerkleNodeDB {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MerkleNodeDB {
-    pub fn new() -> Self {
-        Self {
-            data_file: None,
-            lookup_file: None,
-            lookup: None,
-            size: 0,
-            data_offset: 0,
-        }
-    }
-
     pub fn size(&self) -> u64 {
         if let Some(lookup) = &self.lookup {
             return lookup.size;
         }
 
         self.size
+    }
+
+    pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self, OxenError> {
+        Self::open(path, true)
+    }
+
+    pub fn open_read_write(path: impl AsRef<Path>) -> Result<Self, OxenError> {
+        Self::open(path, false)
     }
 
     pub fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
@@ -137,12 +137,14 @@ impl MerkleNodeDB {
                 Some(data_file),
             )
         } else {
+            // self.lookup does not exist yet if we are writing (only write once)
             let lookup_file = File::create(lookup_path)?;
             let data_file = File::create(data_path)?;
             (None, Some(lookup_file), Some(data_file))
         };
 
         Ok(Self {
+            read_only,
             data_file,
             lookup_file,
             lookup,
@@ -151,7 +153,32 @@ impl MerkleNodeDB {
         })
     }
 
+    pub fn close(&mut self) -> Result<(), OxenError> {
+        if let Some(data_file) = &mut self.data_file {
+            data_file.flush()?;
+            data_file.sync_data()?;
+        } else {
+            return Err(OxenError::basic_str("Must call open before closing"));
+        }
+
+        if let Some(lookup_file) = &mut self.lookup_file {
+            lookup_file.flush()?;
+            lookup_file.sync_data()?;
+        } else {
+            return Err(OxenError::basic_str("Must call open before closing"));
+        }
+
+        self.data_file = None;
+        self.lookup_file = None;
+        self.lookup = None;
+        Ok(())
+    }
+
     pub fn write_size(&mut self, size: u64) -> Result<(), OxenError> {
+        if self.read_only {
+            return Err(OxenError::basic_str("Cannot write to read-only db"));
+        }
+
         if self.size > 0 {
             return Err(OxenError::basic_str("Cannot write size twice"));
         }
@@ -177,6 +204,10 @@ impl MerkleNodeDB {
         hash: u128,
         item: &S,
     ) -> Result<(), OxenError> {
+        if self.read_only {
+            return Err(OxenError::basic_str("Cannot write to read-only db"));
+        }
+
         if self.size == 0 {
             return Err(OxenError::basic_str(
                 "Must call write_size() before writing",
@@ -208,6 +239,10 @@ impl MerkleNodeDB {
     }
 
     pub fn write_all<S: Serialize>(&mut self, data: HashMap<u128, S>) -> Result<(), OxenError> {
+        if self.read_only {
+            return Err(OxenError::basic_str("Cannot write to read-only db"));
+        }
+
         let Some(lookup_file) = self.lookup_file.as_mut() else {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
@@ -239,12 +274,15 @@ impl MerkleNodeDB {
         Ok(())
     }
 
-    pub fn get(&mut self, hash: u128) -> Result<Vec<u8>, OxenError> {
+    pub fn get<D>(&self, hash: u128) -> Result<D, OxenError>
+    where
+        D: de::DeserializeOwned,
+    {
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
         };
 
-        let Some(data_file) = self.data_file.as_mut() else {
+        let Some(mut data_file) = self.data_file.as_ref() else {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
 
@@ -259,7 +297,13 @@ impl MerkleNodeDB {
         data_file.seek(SeekFrom::Start(offset.0))?;
         data_file.read_exact(&mut data)?;
 
-        Ok(data)
+        let val: D = rmp_serde::from_slice(&data).map_err(|e| {
+            OxenError::basic_str(format!(
+                "MerkleNodeDB.get({}): Error deserializing data: {:?}",
+                hash, e
+            ))
+        })?;
+        Ok(val)
     }
 
     pub fn list<D>(&mut self) -> Result<Vec<D>, OxenError>
@@ -325,12 +369,39 @@ impl MerkleNodeDB {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::core::index::commit_merkle_tree::{MerkleNode, MerkleNodeType};
     use crate::test;
 
     #[test]
     fn test_merkle_node_db() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
-            todo!("Test merkle node db");
+            let mut writer_db = MerkleNodeDB::open_read_write(dir)?;
+            writer_db.write_size(2)?;
+
+            let node_readme = MerkleNode {
+                dtype: MerkleNodeType::VNode,
+                path: "README.md".to_string(),
+            };
+            writer_db.write_one(1234, &node_readme)?;
+
+            let node_license = MerkleNode {
+                dtype: MerkleNodeType::VNode,
+                path: "LICENSE".to_string(),
+            };
+            writer_db.write_one(5678, &node_license)?;
+            writer_db.close()?;
+
+            let reader_db = MerkleNodeDB::open_read_only(dir)?;
+
+            let size = reader_db.size();
+            assert_eq!(size, 2);
+
+            let data: MerkleNode = reader_db.get(1234)?;
+            assert_eq!(data, node_readme);
+
+            let data: MerkleNode = reader_db.get(5678)?;
+            assert_eq!(data, node_license);
+
             Ok(())
         })
     }

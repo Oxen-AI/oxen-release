@@ -26,7 +26,7 @@ pub enum MerkleNodeType {
     Schema,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct MerkleNode {
     pub dtype: MerkleNodeType,
     pub path: String,
