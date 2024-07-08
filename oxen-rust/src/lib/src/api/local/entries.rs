@@ -20,7 +20,7 @@ use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -190,42 +190,75 @@ fn compute_dir_size(
     Ok(total_size)
 }
 
+pub fn get_commit_history_for_entry(
+    commits: &[(Commit, CommitDirEntryReader)],
+    entry: &CommitEntry,
+) -> Result<Vec<Commit>, OxenError> {
+    let os_path = OsPath::from(&entry.path).to_pathbuf();
+    log::debug!(
+        "get_commit_history_for_entry got native filename {:?}",
+        os_path
+    );
+
+    let path = os_path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(&entry.path))?;
+
+    let mut latest_hash: Option<String> = None;
+    let mut history: Vec<Commit> = Vec::new();
+
+    for (commit, entry_reader) in commits.iter().rev() {
+        if let Some(old_entry) = entry_reader.get_entry(path)? {
+            if latest_hash.is_none() {
+                // This is the first encountered entry; set it as the baseline for comparison.
+                latest_hash = Some(old_entry.hash.clone());
+                history.push(commit.clone()); // Include the first commit as the starting point of history
+            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
+                // A change in hash is detected, indicating an edit. Include this commit in history.
+                latest_hash = Some(old_entry.hash.clone());
+                history.push(commit.clone());
+            }
+        }
+    }
+
+    Ok(history)
+}
+
 pub fn get_latest_commit_for_entry(
     commits: &[(Commit, CommitDirEntryReader)],
     entry: &CommitEntry,
 ) -> Result<Option<Commit>, OxenError> {
-    let mut result: Vec<Commit> = Vec::new();
-    let mut seen_hashes: HashSet<String> = HashSet::new();
-
-    // turn to native path
     let os_path = OsPath::from(&entry.path).to_pathbuf();
     log::debug!(
         "get_latest_commit_for_entry got native filename {:?}",
         os_path
     );
 
-    let path = &os_path
+    let path = os_path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
 
-    for (commit, entry_reader) in commits {
-        let old_entry = entry_reader.get_entry(path)?;
+    let mut latest_hash: Option<String> = None;
+    // Store the commit from the previous iteration. Initialized as None.
+    let mut previous_commit: Option<Commit> = None;
 
-        if let Some(old_entry) = old_entry {
-            if !seen_hashes.contains(&old_entry.hash) {
-                seen_hashes.insert(old_entry.hash.clone());
-                result.push(commit.clone());
+    for (commit, entry_reader) in commits.iter().rev() {
+        if let Some(old_entry) = entry_reader.get_entry(path)? {
+            if latest_hash.is_none() {
+                // This is the first encountered entry, setting it as the baseline for comparison.
+                latest_hash = Some(old_entry.hash.clone());
+            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
+                // A change is detected, return the previous commit which introduced the change.
+                return Ok(previous_commit);
             }
+            // Update previous_commit after the check, so it holds the commit before the change was detected.
+            previous_commit = Some(commit.clone());
         }
     }
 
-    result.reverse();
-
-    if result.is_empty() {
-        return Ok(None);
-    }
-
-    Ok(Some(result.first().unwrap().clone()))
+    // If no change was detected (all entries have the same hash), or the entry was not found,
+    // return None or consider returning the oldest commit if previous_commit has been set.
+    Ok(previous_commit)
 }
 
 pub fn meta_entry_from_commit_entry(
