@@ -1399,7 +1399,7 @@ mod tests {
             &uri,
             namespace,
             repo_name,
-            "commit_or_branch",
+            "resource",
             branch_name,
         );
 
@@ -1452,7 +1452,7 @@ mod tests {
             &uri,
             namespace,
             repo_name,
-            "commit_or_branch",
+            "resource",
             og_branch.name,
         );
 
