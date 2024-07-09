@@ -432,6 +432,7 @@ fn list_by_directory(
             }
         }
     }
+    all_commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
     Ok(all_commits)
 }
