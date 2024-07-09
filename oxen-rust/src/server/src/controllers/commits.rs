@@ -102,7 +102,7 @@ pub async fn commit_history(
 
     match &resource {
         Some(resource) if resource.path != Path::new("") => {
-            let commits = api::local::commits::list_by_file_from_paginated(
+            let commits = api::local::commits::list_by_resource_from_paginated(
                 &repo,
                 &resource.path,
                 commit.as_ref().unwrap(), // Safe unwrap: `commit` is Some if `resource` is Some
