@@ -4,6 +4,7 @@ use clap::{Arg, ArgMatches, Command};
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "create";
@@ -22,7 +23,7 @@ impl RunCmd for WorkspaceCreateCmd {
                 Arg::new("branch")
                     .long("branch")
                     .short('b')
-                    .required(true)
+                    .default_value(DEFAULT_BRANCH_NAME)
                     .help("The branch to create the workspace from"),
             )
             .arg(
