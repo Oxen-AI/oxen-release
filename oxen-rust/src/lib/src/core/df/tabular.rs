@@ -372,6 +372,12 @@ pub fn transform_lazy(
         )?;
     }
 
+    if opts.should_randomize {
+        let mut rand_indices: Vec<u32> = (0..height as u32).collect();
+        rand_indices.shuffle(&mut thread_rng());
+        df = take(df, rand_indices)?.lazy();
+    }
+
     match opts.get_filter() {
         Ok(filter) => {
             if let Some(filter) = filter {
@@ -385,12 +391,6 @@ pub fn transform_lazy(
 
     if let Some(columns) = opts.unique_columns() {
         df = unique_df(df, columns)?;
-    }
-
-    if opts.should_randomize {
-        let mut rand_indices: Vec<u32> = (0..height as u32).collect();
-        rand_indices.shuffle(&mut thread_rng());
-        df = take(df, rand_indices)?.lazy();
     }
 
     if let Some(sort_by) = &opts.sort_by {
