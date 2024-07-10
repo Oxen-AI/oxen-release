@@ -4,7 +4,8 @@ use liboxen::constants;
 use liboxen::error::{OxenError, PathBufError, StringError};
 use liboxen::model::Branch;
 use liboxen::view::http::{
-    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_RESOURCE_NOT_FOUND, MSG_UPDATE_REQUIRED, STATUS_ERROR,
+    MSG_BAD_REQUEST, MSG_CONFLICT, MSG_RESOURCE_ALREADY_EXISTS, MSG_RESOURCE_NOT_FOUND,
+    MSG_UPDATE_REQUIRED, STATUS_ERROR,
 };
 use liboxen::view::{SQLParseError, StatusMessage, StatusMessageDescription};
 
@@ -151,7 +152,7 @@ impl error::ResponseError for OxenHttpError {
                             format!("This dataset {} is already indexed for SQL and NLP querying.", path),
                     },
                     "status": STATUS_ERROR,
-                    "status_message": MSG_BAD_REQUEST,
+                    "status_message": MSG_RESOURCE_ALREADY_EXISTS,
                 });
                 HttpResponse::BadRequest().json(error_json)
             }
@@ -222,12 +223,17 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::RevisionNotFound(commit_id) => {
-                        log::debug!("Not found: {}", commit_id);
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "File does not exist",
+                                "detail": format!("Could not find file in commit: {}", commit_id)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
 
-                        HttpResponse::NotFound().json(StatusMessageDescription::not_found(format!(
-                            "'{}' not found",
-                            commit_id
-                        )))
+                        HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::PathDoesNotExist(path) => {
                         log::debug!("Path does not exist: {}", path);
@@ -262,8 +268,17 @@ impl error::ResponseError for OxenHttpError {
                     OxenError::CommitEntryNotFound(msg) => {
                         log::error!("{msg}");
 
-                        HttpResponse::NotFound()
-                            .json(StatusMessageDescription::not_found(format!("{msg}")))
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Entry does not exist",
+                                "detail": format!("{}",msg )
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::InvalidSchema(schema) => {
                         log::error!("Invalid schema: {}", schema);

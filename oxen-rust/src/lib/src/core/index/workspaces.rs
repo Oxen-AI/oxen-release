@@ -30,8 +30,10 @@ pub fn create(
     base_repo: &LocalRepository,
     commit: &Commit,
     workspace_id: impl AsRef<str>,
+    is_editable: bool,
 ) -> Result<Workspace, OxenError> {
-    Workspace::create(base_repo, commit, workspace_id)
+    // here we set is_editable to true by default because only editable workspaces are created in this endpoint for now
+    Workspace::create(base_repo, commit, workspace_id, is_editable)
 }
 
 pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
@@ -159,7 +161,7 @@ mod tests {
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
             let workspace_id = UserConfig::identifier()?;
-            let workspace = index::workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = index::workspaces::create(&repo, &commit, workspace_id, true)?;
             let workspaces_dir = workspace.dir();
             let full_dir = workspaces_dir.join(directory);
             let full_path = full_dir.join(filename);
@@ -186,7 +188,7 @@ mod tests {
             let directory = Path::new("data/");
             let filename = Path::new("Readme.md");
             let workspace_id = UserConfig::identifier()?;
-            let workspace = index::workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = index::workspaces::create(&repo, &commit, workspace_id, true)?;
             let workspace_dir = workspace.dir();
             let full_dir = workspace_dir.join(directory);
             let full_path = full_dir.join(filename);
