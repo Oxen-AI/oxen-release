@@ -137,6 +137,7 @@ impl DFOpts {
             || self.add_row.is_some()
             || self.item.is_some()
             || self.columns.is_some()
+            || self.filter.is_some()
             || self.head.is_some()
             || self.page_size.is_some()
             || self.page.is_some()
