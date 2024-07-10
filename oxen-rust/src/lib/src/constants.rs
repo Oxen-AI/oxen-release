@@ -99,9 +99,7 @@ pub const MODS_DIR: &str = "mods";
 /// workspaces/ is where we can make remote changes without having to clone locally
 pub const WORKSPACES_DIR: &str = "workspaces";
 /// workspace commit id
-pub const WORKSPACE_COMMIT_ID: &str = "WORKSPACE_COMMIT_ID";
-/// workspace commit id
-pub const WORKSPACE_NAME: &str = "WORKSPACE_NAME";
+pub const WORKSPACE_CONFIG: &str = "WORKSPACE_CONFIG";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 

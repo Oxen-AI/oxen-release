@@ -1,7 +1,6 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
-use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -13,9 +12,9 @@ use crate::{api, util};
 use os_path::OsPath;
 use rayon::prelude::*;
 
-use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
+use crate::core::{self, index};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
@@ -287,7 +286,13 @@ pub fn meta_entry_from_commit_entry(
     let data_type = util::fs::file_data_type(&version_path);
 
     let is_indexed = if data_type == EntryDataType::Tabular {
-        Some(sql::df_is_indexed(repo, entry)?)
+        Some(
+            index::workspaces::data_frames::is_queryable_data_frame_indexed(
+                repo,
+                &entry.path,
+                &latest_commit,
+            )?,
+        )
     } else {
         None
     };
@@ -702,10 +707,12 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use uuid::Uuid;
+
     use crate::api;
     use crate::command;
     use crate::core;
-    use crate::core::df::sql;
+    use crate::core::index;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -1473,7 +1480,7 @@ mod tests {
             // And write a file in the same dir that is not tabular
             let filename = "README.md";
             let filepath = dir_path.join(filename);
-            util::fs::write(filepath, "readme....")?;
+            util::fs::write(&filepath, "readme....")?;
 
             // Add and commit all
             command::add(&repo, &repo.path)?;
@@ -1490,8 +1497,9 @@ mod tests {
             assert_eq!(meta2.is_queryable, Some(false));
 
             // Now index df2
-            let mut conn = sql::get_conn(&repo, &entry2)?;
-            sql::index_df(&repo, &entry2, &mut conn)?;
+            let workspace_id = Uuid::new_v4().to_string();
+            let workspace = index::workspaces::create(&repo, &commit, workspace_id, false)?;
+            index::workspaces::data_frames::index(&workspace, &entry2.path)?;
 
             // Now get the metadata entries for the two dataframes
             let meta1 = api::local::entries::get_meta_entry(&repo, &commit, &path_1)?;
