@@ -46,7 +46,10 @@ impl RunCmd for WorkspaceCmd {
 
     fn args(&self) -> Command {
         // Setups the CLI args for the command
-        let mut command = Command::new(NAME).about("Manage workspaces");
+        let mut command = Command::new(NAME)
+            .about("Manage workspaces")
+            .subcommand_required(true)
+            .arg_required_else_help(true);
 
         // These are all the subcommands for the schemas command
         // including `create`, `add`, `rm`, `commit`, and `status`
