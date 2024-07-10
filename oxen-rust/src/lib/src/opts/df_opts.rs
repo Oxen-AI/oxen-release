@@ -48,6 +48,7 @@ pub struct DFOpts {
     pub take: Option<String>,
     pub unique: Option<String>,
     pub vstack: Option<Vec<PathBuf>>,
+    pub write: Option<PathBuf>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DFOptsView {
@@ -87,6 +88,7 @@ impl DFOpts {
             take: None,
             unique: None,
             vstack: None,
+            write: None,
         }
     }
 
