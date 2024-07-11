@@ -3,14 +3,26 @@ use polars::prelude::*;
 use std::fs::File;
 use std::num::NonZeroUsize;
 
-use crate::constants;
+use crate::constants; 
+use crate::core::df::sql;
+use crate::core::index::CommitReader;
 use crate::core::df::filter::DFLogicalOp;
-use crate::core::df::pretty_print;
+use crate::core::df::pretty_print; 
+use crate::core::index::commit_entry_reader;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::DataFrameSize;
+use crate::model::LocalRepository;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
-use crate::util::{fs, hasher};
+use crate::util::hasher;
+
+use crate::model::Commit;
+use std::path::PathBuf;
+use crate::util;
+use crate::util::fs;
+use crate::constants::HISTORY_DIR;
+use crate::constants::CACHE_DIR;
+use crate::core::db::df_db;
 
 use colored::Colorize;
 use comfy_table::Table;
@@ -338,6 +350,13 @@ pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
     transform_slice_lazy(df.lazy(), height, opts)
 }
 
+
+pub fn r_transform(df: DataFrame, opts: DFOpts, repo: &LocalRepository) -> Result<DataFrame, OxenError> {
+    let height = df.height();
+    let df = r_transform_lazy(df.lazy(), height, opts.clone(), repo)?;
+    transform_slice_lazy(df.lazy(), height, opts)
+}
+
 pub fn transform_lazy(
     mut df: LazyFrame,
     height: usize,
@@ -387,6 +406,123 @@ pub fn transform_lazy(
         Err(err) => {
             log::error!("Could not parse filter: {err}");
         }
+    }
+
+    if let Some(columns) = opts.unique_columns() {
+        df = unique_df(df, columns)?;
+    }
+
+    if let Some(sort_by) = &opts.sort_by {
+        df = df.sort([sort_by], Default::default());
+    }
+
+    if opts.should_reverse {
+        df = df.reverse();
+    }
+
+    if let Some(columns) = opts.columns_names() {
+        if !columns.is_empty() {
+            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+            df = df.select(&cols);
+        }
+    }
+
+    // These ops should be the last ops since they depends on order
+    if let Some(indices) = opts.take_indices() {
+        match take(df.clone(), indices) {
+            Ok(new_df) => {
+                df = new_df.lazy();
+            }
+            Err(err) => {
+                log::error!("error taking indices from df {err:?}")
+            }
+        }
+    }
+
+    log::debug!("transform_lazy before collect");
+    match df.collect() {
+        Ok(df) => {
+            log::debug!("transform_lazy collected {:?}", df);
+            Ok(df)
+        }
+        Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
+    }
+}
+
+pub fn db_path(
+    repo: &LocalRepository,
+    commit: &Commit,
+    // directory: impl AsRef<Path>
+) -> PathBuf {
+    util::fs::oxen_hidden_dir(&repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id)
+        .join(CACHE_DIR)
+        .join("metadata")
+        // .join(directory)
+        .join("metadata.duckdb")
+}
+
+pub fn r_transform_lazy(
+    mut df: LazyFrame,
+    height: usize,
+    opts: DFOpts,
+    repo: &LocalRepository,
+) -> Result<DataFrame, OxenError> {
+    log::debug!("transform_lazy Got transform ops {:?}", opts);
+    if let Some(vstack) = &opts.vstack {
+        log::debug!("transform_lazy Got files to stack {:?}", vstack);
+        for path in vstack.iter() {
+            let opts = DFOpts::empty();
+            let new_df = read_df(path, opts).expect(READ_ERROR);
+            df = df
+                .collect()
+                .expect(COLLECT_ERROR)
+                .vstack(&new_df)
+                .unwrap()
+                .lazy();
+        }
+    }
+
+    if let Some(data) = &opts.add_row {
+        df = add_row(df, data.to_owned())?;
+    }
+
+    if let Some(col_vals) = opts.add_col_vals() {
+        df = add_col_lazy(
+            df,
+            &col_vals.name,
+            &col_vals.value,
+            &col_vals.dtype,
+            opts.at,
+        )?;
+    }
+
+    if opts.should_randomize {
+        let mut rand_indices: Vec<u32> = (0..height as u32).collect();
+        rand_indices.shuffle(&mut thread_rng());
+        df = take(df, rand_indices)?.lazy();
+    }
+
+    match opts.get_filter() {
+        Ok(filter) => {
+            if let Some(filter) = filter {
+                df = filter_df(df, &filter)?;
+            }
+        }
+        Err(err) => {
+            log::error!("Could not parse filter: {err}");
+        }
+    }
+
+    if let Some(sql) = opts.sql.clone() {
+
+        let commit_reader = CommitReader::new(&repo)?; 
+        let commit = commit_reader.head_commit()?;
+        let path = db_path(repo, &commit);
+        let mut conn = df_db::get_connection(path)?;
+
+        df = sql::query_df(sql, &mut conn)?.lazy();
     }
 
     if let Some(columns) = opts.unique_columns() {
@@ -734,6 +870,40 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     }
 }
 
+pub fn r_read_df(path: impl AsRef<Path>, opts: DFOpts, repo: &LocalRepository) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    if !path.exists() {
+        return Err(OxenError::entry_does_not_exist(path));
+    }
+
+    let extension = path.extension().and_then(OsStr::to_str);
+    let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
+
+    let df = match extension {
+        Some(extension) => match extension {
+            "ndjson" => read_df_jsonl(path),
+            "jsonl" => read_df_jsonl(path),
+            "json" => read_df_json(path),
+            "csv" | "data" => {
+                let delimiter = sniff_db_csv_delimiter(path, &opts)?;
+                read_df_csv(path, delimiter)
+            }
+            "tsv" => read_df_csv(path, b'\t'),
+            "parquet" => read_df_parquet(path),
+            "arrow" => read_df_arrow(path),
+            _ => Err(OxenError::basic_str(err)),
+        },
+        None => Err(OxenError::basic_str(err)),
+    }?;
+
+    if opts.has_transform() {
+        let df = r_transform(df, opts, repo)?;
+        Ok(df)
+    } else {
+        Ok(df)
+    }
+}
+
 pub fn scan_df(
     path: impl AsRef<Path>,
     opts: &DFOpts,
@@ -928,6 +1098,29 @@ pub fn copy_df_add_row_num(
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
+    if opts.column_at().is_some() {
+        for val in df.get(0).unwrap() {
+            match val {
+                polars::prelude::AnyValue::List(vals) => {
+                    for val in vals.iter() {
+                        println!("{val}")
+                    }
+                }
+                _ => {
+                    println!("{val}")
+                }
+            }
+        }
+    } else {
+        let pretty_df = pretty_print::df_to_str(&df);
+        println!("{pretty_df}");
+    }
+    Ok(df)
+}
+
+pub fn r_show_path(input: impl AsRef<Path>, opts: DFOpts, repo: &LocalRepository) -> Result<DataFrame, OxenError> {
+    log::debug!("Got opts {:?}", opts);
+    let df = r_read_df(input, opts.clone(), repo)?;
     if opts.column_at().is_some() {
         for val in df.get(0).unwrap() {
             match val {
