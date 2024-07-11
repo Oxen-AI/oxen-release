@@ -2,9 +2,9 @@ use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
 use liboxen::command;
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::constants::DEFAULT_BRANCH_NAME;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "create";
