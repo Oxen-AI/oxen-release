@@ -5,6 +5,8 @@ use clap::{arg, Arg, ArgMatches, Command};
 
 use liboxen::command;
 use liboxen::error::OxenError;
+use liboxen::model::LocalRepository;
+use crate::cmd::df::command::df::r_df;
 
 use crate::cmd::RunCmd;
 
@@ -197,6 +199,7 @@ impl RunCmd for DFCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
+        let repo = LocalRepository::from_current_dir()?;
         let opts = DFCmd::parse_df_args(args);
         let Some(path) = args.get_one::<String>("DF_SPEC") else {
             return Err(OxenError::basic_str("Must supply a DataFrame to process."));
@@ -207,7 +210,7 @@ impl RunCmd for DFCmd {
             let result = command::df::schema(path, flatten, opts)?;
             println!("{result}");
         } else {
-            command::df(path, opts)?;
+            r_df(path, opts, &repo)?;
         }
 
         Ok(())
