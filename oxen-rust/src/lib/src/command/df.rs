@@ -8,28 +8,11 @@ use std::path::Path;
 use crate::core::df::tabular;
 use crate::error::OxenError;
 use crate::opts::DFOpts;
-use crate::model::LocalRepository;
 use crate::util;
 
 /// Interact with DataFrames
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
-
-    if let Some(write) = opts.write {
-        println!("Writing {write:?}");
-        tabular::write_df(&mut df, write)?;
-    }
-
-    if let Some(output) = opts.output {
-        println!("Writing {output:?}");
-        tabular::write_df(&mut df, output)?;
-    }
-
-    Ok(())
-}
-
-pub fn r_df<P: AsRef<Path>>(input: P, opts: DFOpts, repo: &LocalRepository) -> Result<(), OxenError> {
-    let mut df = tabular::r_show_path(input, opts.clone(), repo)?;
 
     if let Some(write) = opts.write {
         println!("Writing {write:?}");

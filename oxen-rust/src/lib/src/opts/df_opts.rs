@@ -7,7 +7,7 @@ use crate::constants::{DEFAULT_HOST, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, R
 use crate::core::df::filter::{self, DFFilterExp};
 use crate::error::OxenError;
 use crate::model::schema::Field;
-use crate::model::Schema;
+use crate::model::Schema; 
 
 #[derive(Debug)]
 pub struct AddColVals {
@@ -38,6 +38,7 @@ pub struct DFOpts {
     pub page: Option<usize>,
     pub row: Option<usize>,
     pub item: Option<String>,
+    pub repo_dir: Option<PathBuf>,
     pub should_randomize: bool,
     pub should_reverse: bool,
     pub slice: Option<String>,
@@ -78,6 +79,7 @@ impl DFOpts {
             page_size: None,
             page: None,
             row: None,
+            repo_dir: None,
             should_randomize: false,
             should_reverse: false,
             slice: None,
