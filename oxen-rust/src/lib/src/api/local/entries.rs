@@ -1480,7 +1480,7 @@ mod tests {
             // And write a file in the same dir that is not tabular
             let filename = "README.md";
             let filepath = dir_path.join(filename);
-            util::fs::write(&filepath, "readme....")?;
+            util::fs::write(filepath, "readme....")?;
 
             // Add and commit all
             command::add(&repo, &repo.path)?;
