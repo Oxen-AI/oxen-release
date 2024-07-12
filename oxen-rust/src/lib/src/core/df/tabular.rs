@@ -344,7 +344,7 @@ pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
 
 pub fn transform_lazy(
     mut df: LazyFrame,
-    height: usize,
+    mut height: usize,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     log::debug!("transform_lazy Got transform ops {:?}", opts);
@@ -376,6 +376,13 @@ pub fn transform_lazy(
         )?;
     }
 
+    if let Some(sql) = opts.sql.clone() {
+        let repo_dir = opts.repo_dir.as_ref().unwrap(); 
+        let repo = LocalRepository::from_dir(&repo_dir)?;
+        df = sql::query_df_from_repo(sql, &repo)?.lazy();
+        height = df.clone().collect()?.height();
+    }
+
     if opts.should_randomize {
         let mut rand_indices: Vec<u32> = (0..height as u32).collect();
         rand_indices.shuffle(&mut thread_rng());
@@ -386,17 +393,12 @@ pub fn transform_lazy(
         Ok(filter) => {
             if let Some(filter) = filter {
                 df = filter_df(df, &filter)?;
+                
             }
         }
         Err(err) => {
             log::error!("Could not parse filter: {err}");
         }
-    }
-    
-    if let Some(sql) = opts.sql.clone() {
-        let repo_dir = opts.repo_dir.as_ref().unwrap(); 
-        let repo = LocalRepository::from_dir(&repo_dir)?;
-        df = sql::query_df_from_repo(sql, &repo)?.lazy();
     }
 
     if let Some(columns) = opts.unique_columns() {
