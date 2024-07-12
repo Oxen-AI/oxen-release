@@ -7,7 +7,7 @@ use crate::constants::{DEFAULT_HOST, FILE_ROW_NUM_COL_NAME, ROW_HASH_COL_NAME, R
 use crate::core::df::filter::{self, DFFilterExp};
 use crate::error::OxenError;
 use crate::model::schema::Field;
-use crate::model::Schema; 
+use crate::model::Schema;
 
 #[derive(Debug)]
 pub struct AddColVals {
