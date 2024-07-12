@@ -1,29 +1,34 @@
 use polars::frame::DataFrame;
-use crate::model::CommitEntry;
-   
 use crate::{core::db::df_db, error::OxenError};
 use crate::model::LocalRepository;
-use crate::constants::{CACHE_DIR, DUCKDB_CACHE_DIR};
-use std::path::PathBuf;
+use crate::core::index::CommitReader;
+use crate::util::fs;
+use crate::constants::{HISTORY_DIR, CACHE_DIR};
 
-pub fn db_cache_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
-    let hash_prefix = &entry.hash[0..2];
-    let hash_suffix = &entry.hash[2..];
 
-    repo.path
-        .join(CACHE_DIR)
-        .join(DUCKDB_CACHE_DIR)
-        .join(hash_prefix)
-        .join(hash_suffix)
-}
-
-pub fn get_conn(
+pub fn query_df_from_repo(
+    sql: String,
     repo: &LocalRepository,
-    entry: &CommitEntry,
-) -> Result<duckdb::Connection, OxenError> {
-    let duckdb_path = db_cache_path(repo, entry);
-    let conn = df_db::get_connection(duckdb_path)?;
-    Ok(conn)
+    // directory: impl AsRef<Path>
+) -> Result<DataFrame, OxenError> {
+
+
+    let commit_reader = CommitReader::new(&repo)?;
+    let commit = commit_reader.head_commit()?;
+
+
+    let path = fs::oxen_hidden_dir(&repo.path)
+        .join(HISTORY_DIR)
+        .join(&commit.id)
+        .join(CACHE_DIR)
+        .join("metadata")
+        // .join(directory)
+        .join("metadata.duckdb");
+
+
+    let mut conn = df_db::get_connection(&path)?;
+    
+    Ok(query_df(sql, &mut conn)?)
 }
 
 pub fn query_df(sql: String, conn: &mut duckdb::Connection) -> Result<DataFrame, OxenError> {

@@ -5,11 +5,9 @@ use clap::{arg, Arg, ArgMatches, Command};
 
 use liboxen::command;
 use liboxen::error::OxenError;
-use liboxen::model::LocalRepository;
-use crate::cmd::df::command::df::r_df;
+use liboxen::util::fs;
 
 use crate::cmd::RunCmd;
-
 pub const NAME: &str = "df";
 pub struct DFCmd;
 
@@ -199,7 +197,6 @@ impl RunCmd for DFCmd {
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
-        let repo = LocalRepository::from_current_dir()?;
         let opts = DFCmd::parse_df_args(args);
         let Some(path) = args.get_one::<String>("DF_SPEC") else {
             return Err(OxenError::basic_str("Must supply a DataFrame to process."));
@@ -210,7 +207,7 @@ impl RunCmd for DFCmd {
             let result = command::df::schema(path, flatten, opts)?;
             println!("{result}");
         } else {
-            r_df(path, opts, &repo)?;
+            command::df(path, opts)?;
         }
 
         Ok(())
@@ -232,6 +229,12 @@ impl DFCmd {
         } else {
             None
         };
+
+        let repo_dir: Option<PathBuf> = if args.get_one::<String>("sql").is_some() || args.get_one::<String>("text2sql").is_some() {
+            fs::get_repo_root_from_current_dir()
+        } else {
+            None
+        }; 
 
         liboxen::opts::DFOpts {
             write: write_path,
@@ -273,6 +276,7 @@ impl DFCmd {
             unique: args.get_one::<String>("unique").map(String::from),
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
+            repo_dir: repo_dir,
         }
     }
 }
