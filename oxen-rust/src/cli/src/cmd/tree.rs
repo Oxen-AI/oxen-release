@@ -31,6 +31,13 @@ impl RunCmd for TreeCmd {
                     .action(clap::ArgAction::Set),
             )
             .arg(
+                Arg::new("node")
+                    .long("node")
+                    .short('n')
+                    .help("The node to print the tree of.")
+                    .action(clap::ArgAction::Set),
+            )
+            .arg(
                 Arg::new("path")
                     .long("path")
                     .short('p')
@@ -82,6 +89,8 @@ impl RunCmd for TreeCmd {
 
         if args.get_flag("old") {
             self.print_legacy(&repo, &commit, path)
+        } else if let Some(node) = args.get_one::<String>("node") {
+            self.print_node(&repo, node, depth)
         } else {
             self.print_tree(&repo, &commit, path, depth)
         }
@@ -89,6 +98,13 @@ impl RunCmd for TreeCmd {
 }
 
 impl TreeCmd {
+    fn print_node(&self, repo: &LocalRepository, node: &str, depth: i32) -> Result<(), OxenError> {
+        let tree = CommitMerkleTree::read_node(repo, node.to_string(), true)?;
+        CommitMerkleTree::print_depth(&tree, depth);
+
+        Ok(())
+    }
+
     fn print_tree(
         &self,
         repo: &LocalRepository,

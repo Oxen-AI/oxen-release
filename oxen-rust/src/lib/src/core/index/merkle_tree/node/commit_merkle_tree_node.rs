@@ -18,7 +18,7 @@ impl CommitMerkleTreeNode {
     /// Create an empty root node with a hash
     pub fn root(hash: &str) -> Self {
         let dir_node = DirNode {
-            path: "".to_string(),
+            path: hash.to_string(),
         };
         let mut buf = Vec::new();
         dir_node.serialize(&mut Serializer::new(&mut buf)).unwrap();
