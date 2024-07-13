@@ -60,12 +60,24 @@ impl CommitMerkleTree {
 
         let node_hash: Option<String> = str_val_db::get(&node_db, node_path_str)?;
         if let Some(node_hash) = node_hash {
-            // We are reading a directory
-            CommitMerkleTree::read_dir(repo, node_hash, true)
+            // We are reading a node with children
+            CommitMerkleTree::read_node(repo, node_hash, true)
         } else {
             // We are reading a file
             CommitMerkleTree::read_file(repo, &node_db, node_path)
         }
+    }
+
+    pub fn read_node(
+        repo: &LocalRepository,
+        node_hash: String,
+        recurse: bool,
+    ) -> Result<CommitMerkleTreeNode, OxenError> {
+        // Dir hashes are stored with extra quotes in the db, remove them
+        let node_hash = node_hash.replace('"', "");
+        let mut node = CommitMerkleTreeNode::root(&node_hash);
+        CommitMerkleTree::read_children_from_node(repo, &mut node, recurse)?;
+        Ok(node)
     }
 
     fn read_file(
@@ -89,7 +101,7 @@ impl CommitMerkleTree {
             )));
         };
 
-        let vnodes = CommitMerkleTree::read_dir(repo, node_hash, false)?;
+        let vnodes = CommitMerkleTree::read_node(repo, node_hash, false)?;
         for node in vnodes.children.into_iter() {
             let file_path_hash = util::hasher::hash_path(path);
             // println!("File: {:?} -> {}", path, file_path_hash);
@@ -101,7 +113,7 @@ impl CommitMerkleTree {
             // Check if first two chars of hashes match
             if file_path_hash.get(0..2).unwrap() == vnode.path {
                 // println!("Found file in VNode! {:?}", vnode);
-                let children = CommitMerkleTree::read_dir(repo, node.hash, false)?;
+                let children = CommitMerkleTree::read_node(repo, node.hash, false)?;
                 for child in children.children.into_iter() {
                     // TODO: More robust type matching
                     let file = child.file()?;
@@ -116,18 +128,6 @@ impl CommitMerkleTree {
             "Merkle tree hash not found for path: {}",
             node_path_str
         )))
-    }
-
-    fn read_dir(
-        repo: &LocalRepository,
-        node_hash: String,
-        recurse: bool,
-    ) -> Result<CommitMerkleTreeNode, OxenError> {
-        // Dir hashes are stored with extra quotes in the db, remove them
-        let node_hash = node_hash.replace('"', "");
-        let mut node = CommitMerkleTreeNode::root(&node_hash);
-        CommitMerkleTree::read_children_from_node(repo, &mut node, recurse)?;
-        Ok(node)
     }
 
     fn read_children_from_node(

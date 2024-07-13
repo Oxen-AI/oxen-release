@@ -335,11 +335,7 @@ fn migrate_file(
             last_modified_nanoseconds,
             ..
         } => (num_bytes, last_modified_seconds, last_modified_nanoseconds),
-        _ => {
-            return Err(OxenError::basic_str(
-                "file object is not a file",
-            ))
-        }
+        _ => return Err(OxenError::basic_str("file object is not a file")),
     };
 
     let file_name = path.file_name().unwrap().to_str().unwrap();
