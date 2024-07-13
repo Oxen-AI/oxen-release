@@ -1,9 +1,7 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use rmp_serde::Serializer;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
-use serde::Serialize;
 
 use crate::constants::TREE_DIR;
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
@@ -15,8 +13,6 @@ use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::LocalRepository;
 use crate::util;
-
-use super::node::DirNode;
 
 pub struct CommitMerkleTree {}
 
@@ -129,17 +125,7 @@ impl CommitMerkleTree {
     ) -> Result<CommitMerkleTreeNode, OxenError> {
         // Dir hashes are stored with extra quotes in the db, remove them
         let node_hash = node_hash.replace('"', "");
-        let dir_node = DirNode {
-            path: "".to_string(),
-        };
-        let mut buf = Vec::new();
-        dir_node.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        let mut node = CommitMerkleTreeNode {
-            hash: node_hash,
-            dtype: MerkleTreeNodeType::Dir,
-            data: buf,
-            children: HashSet::new(),
-        };
+        let mut node = CommitMerkleTreeNode::root(&node_hash);
         CommitMerkleTree::read_children_from_node(repo, &mut node, recurse)?;
         Ok(node)
     }
@@ -236,12 +222,13 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::File => {
                 let file = node.file().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} ({})",
+                    "{}[{:?}] {:?} -> {} ({}) {}",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     file.path,
                     node.hash,
-                    node.children.len()
+                    node.children.len(),
+                    bytesize::ByteSize::b(file.num_bytes)
                 )
             }
             MerkleTreeNodeType::Schema => {
