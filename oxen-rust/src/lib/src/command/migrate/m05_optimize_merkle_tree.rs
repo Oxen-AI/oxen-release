@@ -4,7 +4,7 @@ use std::path::Path;
 use super::Migrate;
 
 use crate::core::db::merkle_node_db::MerkleNodeDB;
-use crate::core::db::tree_db::TreeObjectChild;
+use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{self, str_val_db};
 use crate::core::index::merkle_tree::node::*;
 use crate::core::index::{CommitReader, ObjectDBReader};
@@ -287,7 +287,7 @@ fn migrate_dir(
                 }
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
-                    migrate_file(&mut tree_db, path, hash)?;
+                    migrate_file(reader, &mut tree_db, path, hash)?;
                 }
                 MerkleTreeNodeType::Dir => {
                     // Recurse if it's a directory
@@ -316,10 +316,38 @@ fn migrate_dir(
     Ok(())
 }
 
-fn migrate_file(tree_db: &mut MerkleNodeDB, path: &Path, hash: &str) -> Result<(), OxenError> {
+fn migrate_file(
+    reader: &ObjectDBReader,
+    tree_db: &mut MerkleNodeDB,
+    path: &Path,
+    hash: &str,
+) -> Result<(), OxenError> {
+    // read other meta data from file object
+    let file_obj = reader.get_file(hash)?.ok_or(OxenError::basic_str(format!(
+        "could not get file object for {}",
+        hash
+    )))?;
+
+    let (num_bytes, last_modified_seconds, last_modified_nanoseconds) = match file_obj {
+        TreeObject::File {
+            num_bytes,
+            last_modified_seconds,
+            last_modified_nanoseconds,
+            ..
+        } => (num_bytes, last_modified_seconds, last_modified_nanoseconds),
+        _ => {
+            return Err(OxenError::basic_str(
+                "file object is not a file",
+            ))
+        }
+    };
+
     let file_name = path.file_name().unwrap().to_str().unwrap();
     let val = FileNode {
         path: file_name.to_owned(),
+        num_bytes,
+        last_modified_seconds,
+        last_modified_nanoseconds,
     };
     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
     tree_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;

@@ -1,3 +1,5 @@
+use rmp_serde::Serializer;
+use serde::Serialize;
 use std::collections::HashSet;
 use std::hash::{Hash, Hasher};
 
@@ -13,6 +15,21 @@ pub struct CommitMerkleTreeNode {
 }
 
 impl CommitMerkleTreeNode {
+    /// Create an empty root node with a hash
+    pub fn root(hash: &str) -> Self {
+        let dir_node = DirNode {
+            path: "".to_string(),
+        };
+        let mut buf = Vec::new();
+        dir_node.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        CommitMerkleTreeNode {
+            hash: hash.to_string(),
+            dtype: MerkleTreeNodeType::Dir,
+            data: buf,
+            children: HashSet::new(),
+        }
+    }
+
     /// Constant time lookup by hash
     pub fn get_by_hash(&self, hash: &str) -> Option<&CommitMerkleTreeNode> {
         let lookup_node = CommitMerkleTreeNode {
