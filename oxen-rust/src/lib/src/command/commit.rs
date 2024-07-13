@@ -85,7 +85,8 @@ mod tests {
             // Track the file
             command::add(&repo, &hello_file)?;
             // Commit the file
-            command::commit(&repo, "My message")?;
+            let commit = command::commit(&repo, "My message")?;
+            assert_eq!(commit.message, "My message");
 
             // Get status and make sure it is removed from the untracked and added
             let repo_status = command::status(&repo)?;

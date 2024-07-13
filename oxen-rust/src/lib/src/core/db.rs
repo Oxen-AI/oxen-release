@@ -1,3 +1,6 @@
+//! Interacting with the oxen databases
+//!
+
 pub mod df_db;
 pub mod index_db;
 pub mod kv_db;

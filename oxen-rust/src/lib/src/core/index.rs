@@ -1,9 +1,10 @@
+//! Reading and writing to the commit and merkle tree databases
+//!
+
 pub mod commit_db_reader;
 pub mod commit_dir_entry_reader;
 pub mod commit_entry_reader;
 pub mod commit_entry_writer;
-pub mod commit_merkle_tree;
-pub mod commit_merkle_tree_node;
 pub mod commit_metadata_db;
 pub mod commit_reader;
 pub mod commit_sync_status;
@@ -17,6 +18,7 @@ pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;
 pub mod merge_conflict_writer;
 pub mod merger;
+pub mod merkle_tree;
 pub mod object_db_reader;
 pub mod oxenignore;
 pub mod puller;

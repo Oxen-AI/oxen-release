@@ -1,3 +1,6 @@
+//! Responsible for writing all the entries to the commit entry database
+//!
+
 use crate::constants::{
     self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
 };
@@ -222,10 +225,10 @@ impl CommitEntryWriter {
 
         let metadata = fs::metadata(&full_path)?;
 
-        // // Re-hash for issues w/ adding
+        // Re-hash in case the file has changed between add and commit
         let hash = util::hasher::hash_file_contents(&full_path)?;
 
-        // // Create entry object to as json
+        // Create entry object to as json
         let entry = CommitEntry {
             commit_id: new_commit.id.to_owned(),
             path: file_path.to_path_buf(),

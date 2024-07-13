@@ -119,15 +119,7 @@ impl CommitWriter {
         merge_head_path.exists()
     }
 
-    // Create a db in the history/ dir under the id
-    // We will have something like:
-    // history/
-    //   d7966d81ab35ffdf/
-    //     annotations.txt -> b"{entry_json}"
-    //     train/
-    //       image_1.png -> b"{entry_json}"
-    //       image_2.png -> b"{entry_json}"
-    //       image_2.png -> b"{entry_json}"
+    /// Commit the staged data with a message
     pub fn commit(&self, status: &StagedData, message: &str) -> Result<Commit, OxenError> {
         // Create a commit object, that either points to parent or not
         // must create this before anything else so that we know if it has parent or not.

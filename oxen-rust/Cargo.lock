@@ -2920,6 +2920,7 @@ dependencies = [
  "async-recursion",
  "async-std",
  "async-tar",
+ "bincode",
  "blocking",
  "bytecount",
  "bytes",

@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::api;
-use liboxen::core::index::commit_merkle_tree::CommitMerkleTree;
+use liboxen::core::index::merkle_tree::CommitMerkleTree;
 use liboxen::core::index::ObjectDBReader;
 use liboxen::error::OxenError;
-use liboxen::model::LocalRepository;
+use liboxen::model::{Commit, LocalRepository};
 use std::path::Path;
 use std::time::Instant;
 
@@ -81,45 +81,26 @@ impl RunCmd for TreeCmd {
         let path = args.get_one::<String>("path").expect("Must supply path");
 
         if args.get_flag("old") {
-            println!("Run old!");
-            let load_start = Instant::now(); // Start timing
-
-            // let page = 1;
-            // let page_size = 100;
-            // let (paginated_entries, _dir) = api::local::entries::list_directory(
-            //     &repo,
-            //     &commit,
-            //     &Path::new(path),
-            //     &commit.id,
-            //     page,
-            //     page_size,
-            // )?;
-            // println!("Got {:?} entries", paginated_entries.entries.len());
-
-            let path = Path::new(path);
-            let filename = path.file_name().unwrap().to_str().unwrap();
-            let parent = path.parent().unwrap();
-            let object_reader = ObjectDBReader::new(&repo)?;
-            let cder = liboxen::core::index::CommitDirEntryReader::new(
-                &repo,
-                &commit.id,
-                parent,
-                object_reader.clone(),
-            )?;
-            println!("looking up entry {}", filename);
-            let entry = cder.get_entry(filename)?;
-            println!("Got entry {:?}", entry);
-
-            let load_duration = load_start.elapsed(); // Calculate duration
-            println!("Time to load tree: {:?}", load_duration);
-
-            return Ok(());
+            self.print_legacy(&repo, &commit, path)
+        } else {
+            self.print_tree(&repo, &commit, path, depth)
         }
+    }
+}
 
+impl TreeCmd {
+    fn print_tree(
+        &self,
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: &str,
+        depth: i32,
+    ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
-        let root = CommitMerkleTree::read_path(&repo, &commit, path.as_str())?;
+        let tree = CommitMerkleTree::read_path(repo, commit, path)?;
 
         // List directories in the .oxen/tree dir
+        // This is to benchmark how fast we can open the individual nodes..
         /*type TreeNode = HashMap<u128, MerkleNode>;
         let mut data: Vec<TreeNode> = vec![];
         let path = Path::new(&repo.path).join(".oxen").join("tree");
@@ -152,10 +133,52 @@ impl RunCmd for TreeCmd {
 
         let load_duration = load_start.elapsed(); // Calculate duration
         let print_start = Instant::now(); // Start timing
-        CommitMerkleTree::print_depth(&root, depth);
+        CommitMerkleTree::print_depth(&tree, depth);
         let print_duration = print_start.elapsed(); // Calculate duration
         println!("Time to load tree: {:?}", load_duration);
         println!("Time to print tree: {:?}", print_duration);
+        Ok(())
+    }
+
+    fn print_legacy(
+        &self,
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: &str,
+    ) -> Result<(), OxenError> {
+        println!("Run legacy!");
+        let load_start = Instant::now(); // Start timing
+
+        // Read a full dir
+        // let page = 1;
+        // let page_size = 100;
+        // let (paginated_entries, _dir) = api::local::entries::list_directory(
+        //     &repo,
+        //     &commit,
+        //     &Path::new(path),
+        //     &commit.id,
+        //     page,
+        //     page_size,
+        // )?;
+        // println!("Got {:?} entries", paginated_entries.entries.len());
+
+        // Just get a single entry
+        let path = Path::new(path);
+        let filename = path.file_name().unwrap().to_str().unwrap();
+        let parent = path.parent().unwrap();
+        let object_reader = ObjectDBReader::new(repo)?;
+        let entry_reader = liboxen::core::index::CommitDirEntryReader::new(
+            repo,
+            &commit.id,
+            parent,
+            object_reader.clone(),
+        )?;
+        println!("looking up entry {}", filename);
+        let entry = entry_reader.get_entry(filename)?;
+        println!("Got entry {:?}", entry);
+
+        let load_duration = load_start.elapsed(); // Calculate duration
+        println!("Time to load tree: {:?}", load_duration);
 
         Ok(())
     }
