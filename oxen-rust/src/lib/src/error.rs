@@ -96,13 +96,14 @@ pub enum OxenError {
     IO(io::Error),
     Authentication(StringError),
     ArrowError(ArrowError),
+    BinCodeError(bincode::Error),
     TomlSer(toml::ser::Error),
     TomlDe(toml::de::Error),
     URI(http::uri::InvalidUri),
     URL(url::ParseError),
     JSON(serde_json::Error),
     HTTP(reqwest::Error),
-    Encoding(std::str::Utf8Error),
+    UTF8Error(std::str::Utf8Error),
     DB(rocksdb::Error),
     DUCKDB(duckdb::Error),
     ENV(std::env::VarError),
@@ -527,7 +528,13 @@ impl From<serde_json::Error> for OxenError {
 
 impl From<std::str::Utf8Error> for OxenError {
     fn from(error: std::str::Utf8Error) -> Self {
-        OxenError::Encoding(error)
+        OxenError::UTF8Error(error)
+    }
+}
+
+impl From<bincode::Error> for OxenError {
+    fn from(error: bincode::Error) -> Self {
+        OxenError::BinCodeError(error)
     }
 }
 

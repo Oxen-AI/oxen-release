@@ -3,7 +3,6 @@
 //! Print out values from a rocksdb key value database
 //!
 
-use crate::core::index::commit_merkle_tree::MerkleNode;
 use crate::error::OxenError;
 
 use rocksdb::{IteratorMode, LogLevel, Options, DB};
@@ -27,11 +26,10 @@ pub fn list(path: impl AsRef<Path>) -> Result<Vec<(String, String)>, OxenError> 
                     continue;
                 };
 
-                // try decode MerkleNode
-                if let Ok(val) = rmp_serde::from_slice::<MerkleNode>(&value) {
-                    result.push((key.to_string(), format!("{:?}", val)));
-                } else if let Ok(val) = str::from_utf8(&value) {
+                if let Ok(val) = str::from_utf8(&value) {
                     result.push((key.to_string(), val.to_string()));
+                } else {
+                    result.push((key.to_string(), "<binary data>".to_string()));
                 }
             }
             _ => {

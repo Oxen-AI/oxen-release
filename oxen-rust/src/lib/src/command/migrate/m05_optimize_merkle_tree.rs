@@ -6,7 +6,7 @@ use super::Migrate;
 use crate::core::db::merkle_node_db::MerkleNodeDB;
 use crate::core::db::tree_db::TreeObjectChild;
 use crate::core::db::{self, str_val_db};
-use crate::core::index::commit_merkle_tree::{MerkleNode, MerkleNodeType};
+use crate::core::index::merkle_tree::node::*;
 use crate::core::index::{CommitReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -144,7 +144,7 @@ fn migrate_dir(
     // to the proper .oxen/tree/{path} with their hash as the key and type
     // and metadata as the value
     //
-    println!("Getting dir for node: {:?}", dir_hash);
+    log::debug!("Getting dir for node: {:?}", dir_hash);
 
     /*
     The number of VNodes is dynamic depending on the number of children in
@@ -239,11 +239,8 @@ fn migrate_dir(
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         let shash = format!("{:x}", bhash);
         println!("Bucket [{}] for {:?}", i, shash);
-        let node = MerkleNode {
-            dtype: MerkleNodeType::VNode,
-            path: shash,
-        };
-        dir_db.write_one(*bhash, &node)?;
+        let node = VNode { path: shash };
+        dir_db.write_one(*bhash, MerkleTreeNodeType::VNode, &node)?;
     }
 
     // Re-Write the N vnodes
@@ -267,34 +264,73 @@ fn migrate_dir(
         println!("Writing vnodes to path: {:?}", tree_path);
 
         // Write the children of the VNodes
-        let mut tree_db = MerkleNodeDB::open(&tree_path, false)?;
+        let mut tree_db = MerkleNodeDB::open_read_write(&tree_path)?;
         let num_children = bucket.len();
         tree_db.write_size(num_children as u64)?;
         for (j, child) in bucket.iter().enumerate() {
             let (dtype, hash, path) = match child {
-                TreeObjectChild::VNode { path, hash } => (MerkleNodeType::VNode, hash, path),
-                TreeObjectChild::File { path, hash } => (MerkleNodeType::File, hash, path),
-                TreeObjectChild::Dir { path, hash } => (MerkleNodeType::Dir, hash, path),
-                TreeObjectChild::Schema { path, hash } => (MerkleNodeType::Schema, hash, path),
+                TreeObjectChild::VNode { path, hash } => (MerkleTreeNodeType::VNode, hash, path),
+                TreeObjectChild::File { path, hash } => (MerkleTreeNodeType::File, hash, path),
+                TreeObjectChild::Dir { path, hash } => (MerkleTreeNodeType::Dir, hash, path),
+                TreeObjectChild::Schema { path, hash } => (MerkleTreeNodeType::Schema, hash, path),
             };
+            log::debug!("writing child {} {:?} {}", j, dtype, path.display());
 
-            if MerkleNodeType::VNode != dtype {
-                let file_name = path.file_name().unwrap().to_str().unwrap();
-                let val = MerkleNode {
-                    dtype: dtype.clone(),
-                    path: file_name.to_owned(),
-                };
-                let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
-                tree_db.write_one(uhash, &val)?;
-            }
-
-            // Recurse if it's a directory
-            if MerkleNodeType::Dir == dtype {
-                migrate_dir(repo, reader, hash)?;
+            match dtype {
+                MerkleTreeNodeType::VNode => {
+                    // pass, we already wrote the vnode
+                    panic!("migrate_dir should not get to VNode");
+                }
+                MerkleTreeNodeType::FileChunk => {
+                    // pass, we do this in migrate_file
+                    panic!("migrate_dir should not get to FileChunk");
+                }
+                MerkleTreeNodeType::File => {
+                    // If it's a file, let's chunk it and make the chunk leaf nodes
+                    migrate_file(&mut tree_db, path, hash)?;
+                }
+                MerkleTreeNodeType::Dir => {
+                    // Recurse if it's a directory
+                    let file_name = path.file_name().unwrap().to_str().unwrap();
+                    let val = DirNode {
+                        path: file_name.to_owned(),
+                    };
+                    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+                    println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
+                    tree_db.write_one(uhash, MerkleTreeNodeType::Dir, &val)?;
+                    migrate_dir(repo, reader, hash)?;
+                }
+                MerkleTreeNodeType::Schema => {
+                    // Schema we can directly write
+                    let file_name = path.file_name().unwrap().to_str().unwrap();
+                    let val = SchemaNode {
+                        path: file_name.to_owned(),
+                    };
+                    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+                    println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
+                    tree_db.write_one(uhash, MerkleTreeNodeType::Schema, &val)?;
+                }
             }
         }
     }
+    Ok(())
+}
+
+fn migrate_file(tree_db: &mut MerkleNodeDB, path: &Path, hash: &str) -> Result<(), OxenError> {
+    let file_name = path.file_name().unwrap().to_str().unwrap();
+    let val = FileNode {
+        path: file_name.to_owned(),
+    };
+    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+    tree_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
+
+    // TODO
+    // * Look at the oxen pack command and abstract out this logic
+    // * Store the chunks in the .oxen/objects/chunks dir (next to .oxen/objects/schemas)
+    // * The file node object will need to be different than the other tree node objects
+    //     * file_idx -> chunk_hash
+    //     * we will want to store the enum of the type at the top of the node file, so we know what to deserialize
+    // * The chunk dir db (.oxen/objects/chunks) will need chunk_hash -> chunk
     Ok(())
 }
 
