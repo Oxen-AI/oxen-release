@@ -11,6 +11,7 @@ pub mod commit_sync_status;
 pub mod commit_validator;
 pub mod commit_writer;
 pub mod entry_indexer;
+pub mod file_chunker;
 pub mod legacy_commit_dir_entry_reader;
 pub mod legacy_commit_entry_reader;
 pub mod legacy_schema_reader;

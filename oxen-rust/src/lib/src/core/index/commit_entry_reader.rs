@@ -31,6 +31,14 @@ impl CommitEntryReader {
             .join(DIRS_DIR)
     }
 
+    pub fn get_obj_reader(&self) -> &Arc<ObjectDBReader> {
+        &self.object_reader
+    }
+
+    pub fn get_dir_db(&self) -> &DBWithThreadMode<MultiThreaded> {
+        &self.dir_db
+    }
+
     pub fn new(
         repository: &LocalRepository,
         commit: &Commit,

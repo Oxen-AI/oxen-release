@@ -17,10 +17,12 @@ use std::path::PathBuf;
 
 use crate::constants;
 use crate::constants::CACHE_DIR;
+use crate::constants::CHUNKS_DIR;
 use crate::constants::CONTENT_IS_VALID;
 use crate::constants::DATA_ARROW_FILE;
 use crate::constants::HISTORY_DIR;
 use crate::constants::OXEN_HIDDEN_DIR;
+use crate::constants::TREE_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
@@ -172,6 +174,15 @@ pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<
     let meta = util::fs::metadata(&version_path)?;
     Ok(meta.len())
     // }
+}
+
+pub fn chunk_path(repo: &LocalRepository, hash: &str) -> PathBuf {
+    
+    oxen_hidden_dir(&repo.path)
+        .join(TREE_DIR)
+        .join(CHUNKS_DIR)
+        .join(hash)
+        .join("data")
 }
 
 pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {

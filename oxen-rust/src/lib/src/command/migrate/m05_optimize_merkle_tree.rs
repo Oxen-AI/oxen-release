@@ -6,8 +6,9 @@ use super::Migrate;
 use crate::core::db::merkle_node_db::MerkleNodeDB;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{self, str_val_db};
+use crate::core::index::file_chunker::FileChunker;
 use crate::core::index::merkle_tree::node::*;
-use crate::core::index::{CommitReader, ObjectDBReader};
+use crate::core::index::{CommitEntryReader, CommitReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -42,7 +43,8 @@ impl Migrate for OptimizeMerkleTreesMigration {
         let objects_dir = repo
             .path
             .join(constants::OXEN_HIDDEN_DIR)
-            .join(constants::TREE_DIR);
+            .join(constants::TREE_DIR)
+            .join(constants::NODES_DIR);
         if !objects_dir.exists() {
             return Ok(true);
         }
@@ -117,8 +119,10 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
-    // Instantiate the object reader, most expensive operation
-    let object_reader = ObjectDBReader::new(repo)?;
+    // Instantiate the CommitEntryReader, most expensive operation
+    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
+
+    // let object_reader = ObjectDBReader::new(repo)?;
     // Get the root hash
     let dir_hashes_dir = repo
         .path
@@ -130,14 +134,15 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
         DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
 
-    migrate_dir(repo, &object_reader, &hash)?;
+    migrate_dir(repo, &commit_entry_reader, "", &hash)?;
 
     Ok(())
 }
 
 fn migrate_dir(
     repo: &LocalRepository,
-    reader: &ObjectDBReader,
+    reader: &CommitEntryReader,
+    dir_name: &str,
     dir_hash: &str,
 ) -> Result<(), OxenError> {
     // Read the values from the .oxen/objects/dirs db and write them
@@ -180,7 +185,8 @@ fn migrate_dir(
     */
 
     let dir_hash = &dir_hash.replace('"', "");
-    let dir_obj = reader.get_dir(dir_hash)?;
+    let obj_reader = reader.get_obj_reader();
+    let dir_obj = obj_reader.get_dir(dir_hash)?;
 
     let Some(dir_obj) = dir_obj else {
         return Err(OxenError::basic_str(format!(
@@ -193,7 +199,9 @@ fn migrate_dir(
     let mut children: Vec<TreeObjectChild> = Vec::new();
     for child in dir_obj.children() {
         if let TreeObjectChild::VNode { path: _, hash } = child {
-            let vnode_obj = reader.get_vnode(hash)?.expect("could not get vnode object");
+            let vnode_obj = obj_reader
+                .get_vnode(hash)?
+                .expect("could not get vnode object");
 
             for child in vnode_obj.children() {
                 children.push(child.clone());
@@ -232,10 +240,11 @@ fn migrate_dir(
         .path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
+        .join(constants::NODES_DIR)
         .join(dir_hash);
 
     let mut dir_db = MerkleNodeDB::open_read_write(tree_path)?;
-    dir_db.write_size(num_vnodes as u64)?;
+    dir_db.write_meta(dir_name, MerkleTreeNodeType::Dir, num_vnodes as u64)?;
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         let shash = format!("{:x}", bhash);
         println!("Bucket [{}] for {:?}", i, shash);
@@ -247,26 +256,28 @@ fn migrate_dir(
     for (i, bucket) in buckets.iter().enumerate() {
         let uhash = bucket_hashes[i];
         let shash = format!("{:x}", uhash);
-        let tree_path = repo
+
+        let node_path = repo
             .path
             .join(constants::OXEN_HIDDEN_DIR)
             .join(constants::TREE_DIR)
+            .join(constants::NODES_DIR)
             .join(&shash);
 
-        if tree_path.exists() {
+        if node_path.exists() {
             println!(
                 "vnode database already exists at tree_path: {:?}",
-                tree_path
+                node_path
             );
             return Ok(());
         }
 
-        println!("Writing vnodes to path: {:?}", tree_path);
+        println!("Writing vnodes to path: {:?}", node_path);
 
         // Write the children of the VNodes
-        let mut tree_db = MerkleNodeDB::open_read_write(&tree_path)?;
+        let mut tree_db = MerkleNodeDB::open_read_write(&node_path)?;
         let num_children = bucket.len();
-        tree_db.write_size(num_children as u64)?;
+        tree_db.write_meta(&shash, MerkleTreeNodeType::VNode, num_children as u64)?;
         for (j, child) in bucket.iter().enumerate() {
             let (dtype, hash, path) = match child {
                 TreeObjectChild::VNode { path, hash } => (MerkleTreeNodeType::VNode, hash, path),
@@ -287,7 +298,7 @@ fn migrate_dir(
                 }
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
-                    migrate_file(reader, &mut tree_db, path, hash)?;
+                    migrate_file(repo, reader, &mut tree_db, path, hash)?;
                 }
                 MerkleTreeNodeType::Dir => {
                     // Recurse if it's a directory
@@ -298,7 +309,7 @@ fn migrate_dir(
                     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
                     println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
                     tree_db.write_one(uhash, MerkleTreeNodeType::Dir, &val)?;
-                    migrate_dir(repo, reader, hash)?;
+                    migrate_dir(repo, reader, file_name, hash)?;
                 }
                 MerkleTreeNodeType::Schema => {
                     // Schema we can directly write
@@ -317,16 +328,20 @@ fn migrate_dir(
 }
 
 fn migrate_file(
-    reader: &ObjectDBReader,
-    tree_db: &mut MerkleNodeDB,
+    repo: &LocalRepository,
+    reader: &CommitEntryReader,
+    node_db: &mut MerkleNodeDB,
     path: &Path,
     hash: &str,
 ) -> Result<(), OxenError> {
+    let obj_reader = reader.get_obj_reader();
     // read other meta data from file object
-    let file_obj = reader.get_file(hash)?.ok_or(OxenError::basic_str(format!(
-        "could not get file object for {}",
-        hash
-    )))?;
+    let file_obj = obj_reader
+        .get_file(hash)?
+        .ok_or(OxenError::basic_str(format!(
+            "could not get file object for {}",
+            hash
+        )))?;
 
     let (num_bytes, last_modified_seconds, last_modified_nanoseconds) = match file_obj {
         TreeObject::File {
@@ -338,15 +353,26 @@ fn migrate_file(
         _ => return Err(OxenError::basic_str("file object is not a file")),
     };
 
+    // Chunk the file into 16kb chunks
+    let commit_entry = reader.get_entry(path)?.ok_or(OxenError::basic_str(format!(
+        "could not get file entry for {}",
+        path.display()
+    )))?;
+    let chunker = FileChunker::new(repo);
+    let chunks = chunker.save_chunks(&commit_entry)?;
+
+    // Then start refactoring the commands into a "legacy" module so we can still make the old
+    // dbs but start implementing them with the new merkle object
     let file_name = path.file_name().unwrap().to_str().unwrap();
     let val = FileNode {
-        path: file_name.to_owned(),
+        name: file_name.to_owned(),
         num_bytes,
         last_modified_seconds,
         last_modified_nanoseconds,
+        chunk_hashes: chunks,
     };
     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-    tree_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
+    node_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
 
     // TODO
     // * Look at the oxen pack command and abstract out this logic
