@@ -13,9 +13,40 @@ Reading, find by hash, listing is high throughput.
 
 On Disk Format:
 
-num_nodes
-data-type,hash-int,data-offset,data-length
-data
+All nodes are stored in .oxen/tree/{NODE_HASH} and contain two files:
+- index: the lookup table for all the children
+- data: the serialized nodes
+
+index file format:
+- dtype
+- num_children
+- data-type,hash-int,data-offset,data-length
+
+data file format:
+- data blobs
+
+
+For example, data for a vnode of hash 1234 with two children:
+
+.oxen/tree/1234/index
+    0 # dtype
+    4 # name length
+    oxen # name
+    2 # num_children
+
+    0 # file data type
+    1235 # hash
+    0 # data offset
+    100 # data length
+
+    1 # dir data type
+    1236 # hash
+    100 # data offset
+    100 # data length
+
+.oxen/tree/1234/data
+    {file data node}
+    {dir data node}
 */
 
 use rmp_serde::Serializer;
@@ -28,7 +59,7 @@ use std::io::Read;
 use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::index::merkle_tree::node::CommitMerkleTreeNode;
 use crate::core::index::merkle_tree::node::MerkleTreeNodeType;
@@ -36,7 +67,10 @@ use crate::error::OxenError;
 use crate::util;
 
 pub struct MerkleNodeLookup {
-    pub size: u64,
+    pub dtype: MerkleTreeNodeType,
+    pub name: String,
+    pub num_children: u64,
+    // hash -> (dtype, offset, length)
     pub offsets: HashMap<u128, (u8, u64, u64)>,
 }
 
@@ -46,18 +80,38 @@ impl MerkleNodeLookup {
         let mut file_data = Vec::new();
         lookup_table_file.read_to_end(&mut file_data)?;
 
-        // Read the size of the index
+        // Create a cursor to iterate over data
         let mut cursor = std::io::Cursor::new(file_data);
+
+        // Read the dtype of the node
+        let mut buffer = [0u8; 1]; // u8 is 1 byte
+        cursor.read_exact(&mut buffer)?;
+        let dtype = MerkleTreeNodeType::from_u8(buffer[0]);
+        log::debug!("MerkleNodeLookup.load() dtype: {:?}", dtype);
+
+        // Read the length of the name
         let mut buffer = [0u8; 8]; // u64 is 8 bytes
         cursor.read_exact(&mut buffer)?;
-        let size = u64::from_le_bytes(buffer); // Use from_le_bytes or from_be_bytes based on endianness
-        log::debug!("MerkleNodeLookup.load() size: {}", size);
+        let name_len = u64::from_le_bytes(buffer);
+        log::debug!("MerkleNodeLookup.load() name_len: {}", name_len);
+
+        // Read the name
+        let mut buffer = vec![0u8; name_len as usize];
+        cursor.read_exact(&mut buffer)?;
+        let name = String::from_utf8(buffer)?;
+        log::debug!("MerkleNodeLookup.load() name: {}", name);
+
+        // Read the number of children in the node
+        let mut buffer = [0u8; 8]; // u64 is 8 bytes
+        cursor.read_exact(&mut buffer)?;
+        let num_children = u64::from_le_bytes(buffer);
+        log::debug!("MerkleNodeLookup.load() num_children: {}", num_children);
 
         // Read the map of offsets
         let mut offsets: HashMap<u128, (u8, u64, u64)> = HashMap::new();
-        offsets.reserve(size as usize);
+        offsets.reserve(num_children as usize);
 
-        for i in 0..size {
+        for i in 0..num_children {
             log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
             let mut buffer = [0u8; 1]; // data-type u8 is 1 byte
             cursor.read_exact(&mut buffer)?;
@@ -85,26 +139,54 @@ impl MerkleNodeLookup {
             offsets.insert(hash, (data_type, data_offset, data_len));
         }
 
-        Ok(Self { size, offsets })
+        Ok(Self {
+            name,
+            num_children,
+            dtype,
+            offsets,
+        })
     }
 }
 
 pub struct MerkleNodeDB {
     read_only: bool,
+    path: PathBuf,
     data_file: Option<File>,
     lookup_file: Option<File>,
     lookup: Option<MerkleNodeLookup>,
-    size: u64,
+    name: String,
+    num_children: u64,
+    dtype: MerkleTreeNodeType,
     data_offset: u64,
 }
 
 impl MerkleNodeDB {
-    pub fn size(&self) -> u64 {
+    pub fn num_children(&self) -> u64 {
         if let Some(lookup) = &self.lookup {
-            return lookup.size;
+            return lookup.num_children;
         }
 
-        self.size
+        self.num_children
+    }
+
+    pub fn dtype(&self) -> MerkleTreeNodeType {
+        if let Some(lookup) = &self.lookup {
+            return lookup.dtype.to_owned();
+        }
+
+        self.dtype.to_owned()
+    }
+
+    pub fn name(&self) -> String {
+        if let Some(lookup) = &self.lookup {
+            return lookup.name.to_owned();
+        }
+
+        self.name.to_owned()
+    }
+
+    pub fn path(&self) -> PathBuf {
+        self.path.to_owned()
     }
 
     pub fn open_read_only(path: impl AsRef<Path>) -> Result<Self, OxenError> {
@@ -115,7 +197,7 @@ impl MerkleNodeDB {
         Self::open(path, false)
     }
 
-    pub fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
+    fn open(path: impl AsRef<Path>, read_only: bool) -> Result<Self, OxenError> {
         let path = path.as_ref();
 
         // mkdir if not exists
@@ -123,7 +205,7 @@ impl MerkleNodeDB {
             util::fs::create_dir_all(path)?;
         }
 
-        let lookup_path = path.join("lookup");
+        let index_path = path.join("index");
         let data_path = path.join("data");
 
         log::debug!("Opening merkle node db at {}", path.display());
@@ -132,7 +214,7 @@ impl MerkleNodeDB {
             Option<File>,
             Option<File>,
         ) = if read_only {
-            let mut lookup_file = File::open(lookup_path)?;
+            let mut lookup_file = File::open(index_path)?;
             let data_file = File::open(data_path)?;
             (
                 Some(MerkleNodeLookup::load(&mut lookup_file)?),
@@ -141,17 +223,20 @@ impl MerkleNodeDB {
             )
         } else {
             // self.lookup does not exist yet if we are writing (only write once)
-            let lookup_file = File::create(lookup_path)?;
+            let lookup_file = File::create(index_path)?;
             let data_file = File::create(data_path)?;
             (None, Some(lookup_file), Some(data_file))
         };
 
         Ok(Self {
             read_only,
+            path: path.to_path_buf(),
             data_file,
             lookup_file,
             lookup,
-            size: 0,
+            name: "".to_string(),
+            num_children: 0,
+            dtype: MerkleTreeNodeType::VNode,
             data_offset: 0,
         })
     }
@@ -177,12 +262,17 @@ impl MerkleNodeDB {
         Ok(())
     }
 
-    pub fn write_size(&mut self, size: u64) -> Result<(), OxenError> {
+    pub fn write_meta(
+        &mut self,
+        name: &str,
+        dtype: MerkleTreeNodeType,
+        num_children: u64,
+    ) -> Result<(), OxenError> {
         if self.read_only {
             return Err(OxenError::basic_str("Cannot write to read-only db"));
         }
 
-        if self.size > 0 {
+        if self.num_children > 0 {
             return Err(OxenError::basic_str("Cannot write size twice"));
         }
 
@@ -194,10 +284,20 @@ impl MerkleNodeDB {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
 
-        log::debug!("Writing size: {}", size);
-        let bytes = size.to_le_bytes();
-        lookup_file.write_all(&bytes)?;
-        self.size = size;
+        // Write node type
+        lookup_file.write_all(&dtype.to_u8().to_le_bytes())?;
+
+        // Write name length
+        lookup_file.write_all(&name.len().to_le_bytes())?;
+
+        // Write name
+        lookup_file.write_all(name.as_bytes())?;
+
+        // Write num_children
+        lookup_file.write_all(&num_children.to_le_bytes())?;
+
+        self.num_children = num_children;
+        self.dtype = dtype;
         Ok(())
     }
 
@@ -211,9 +311,9 @@ impl MerkleNodeDB {
             return Err(OxenError::basic_str("Cannot write to read-only db"));
         }
 
-        if self.size == 0 {
+        if self.num_children == 0 {
             return Err(OxenError::basic_str(
-                "Must call write_size() before writing",
+                "Must call write_meta() before writing",
             ));
         }
 
@@ -329,7 +429,7 @@ impl MerkleNodeDB {
         log::debug!("Loading merkle node db map got {} bytes", file_data.len());
 
         let mut ret: HashMap<u128, CommitMerkleTreeNode> = HashMap::new();
-        ret.reserve(lookup.size as usize);
+        ret.reserve(lookup.num_children as usize);
 
         let mut cursor = std::io::Cursor::new(file_data);
         // Iterate over offsets and read the data
@@ -365,7 +465,7 @@ mod tests {
     fn test_merkle_node_db() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             let mut writer_db = MerkleNodeDB::open_read_write(dir)?;
-            writer_db.write_size(2)?;
+            writer_db.write_meta(".", MerkleTreeNodeType::Dir, 2)?;
 
             let node_readme = VNode {
                 path: "README.md".to_string(),
@@ -380,7 +480,7 @@ mod tests {
 
             let reader_db = MerkleNodeDB::open_read_only(dir)?;
 
-            let size = reader_db.size();
+            let size = reader_db.num_children();
             assert_eq!(size, 2);
 
             let data: VNode = reader_db.get(1234)?;

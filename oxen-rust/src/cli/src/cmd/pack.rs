@@ -79,14 +79,6 @@ impl RunCmd for PackCmd {
 
         let path = &paths[0];
 
-        // The idea here is that if we split the file into chunks and hash the chunks
-        // Then we can store these at the bottom of the merkle tree
-        // The questions are:
-        //   1) How much storage space to we save?
-        //   2) How much time does it take to reconstruct the original file?
-        //   3) What does the performance look like loading this into duckdb to query?
-        //   4) Can we just upload the changed chunk in this case rather than whole new version?
-
         // Traverse back in file history, split file into chunks.
         let repo = LocalRepository::from_current_dir()?;
         let commits = api::local::commits::list(&repo)?;

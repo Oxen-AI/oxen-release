@@ -45,6 +45,8 @@ pub const DIRS_DIR: &str = "dirs";
 pub const DIR_HASHES_DIR: &str = "dir_hashes";
 /// prefix for the commit merkle tree db
 pub const TREE_DIR: &str = "tree";
+/// prefix for the commit merkle tree node dbs
+pub const NODES_DIR: &str = "nodes";
 /// prefix for the cached stats dirs
 pub const CACHE_DIR: &str = "cache";
 /// prefix for cached compare dfs
@@ -80,6 +82,8 @@ pub const INDICES_DIR: &str = "indices";
 pub const FIELDS_DIR: &str = "fields";
 /// versions/ is where all the versions are stored so that we can use to quickly swap between versions of the file
 pub const VERSIONS_DIR: &str = "versions";
+/// chunks/ is where individual file chunks are stored
+pub const CHUNKS_DIR: &str = "chunks";
 /// objects/ stores pointers to data files and sub-tree structures for efficient commit representations
 pub const OBJECTS_DIR: &str = "objects";
 /// Storage of file node representations in objects dir
