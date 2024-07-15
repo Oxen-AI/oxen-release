@@ -1,6 +1,7 @@
 use rmp_serde::Serializer;
 use serde::Serialize;
 use std::collections::HashSet;
+use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use super::*;
@@ -12,6 +13,18 @@ pub struct CommitMerkleTreeNode {
     pub dtype: MerkleTreeNodeType,
     pub data: Vec<u8>,
     pub children: HashSet<CommitMerkleTreeNode>,
+}
+
+impl fmt::Display for CommitMerkleTreeNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{} [{:?}] ({})",
+            self.hash,
+            self.dtype,
+            self.children.len()
+        )
+    }
 }
 
 impl CommitMerkleTreeNode {

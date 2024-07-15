@@ -6,13 +6,36 @@
 use std::path::Path;
 
 use crate::core::df::tabular;
+use crate::core::index::merkle_tree::CommitMerkleTree;
 use crate::error::OxenError;
+use crate::model::LocalRepository;
 use crate::opts::DFOpts;
-use crate::util;
+use crate::{api, util};
 
 /// Interact with DataFrames
-pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
+pub fn df(input: impl AsRef<Path>, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
+
+    if let Some(output) = opts.output {
+        println!("Writing {output:?}");
+        tabular::write_df(&mut df, output)?;
+    }
+
+    Ok(())
+}
+
+pub fn df_revision(
+    repo: &LocalRepository,
+    input: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    opts: DFOpts,
+) -> Result<(), OxenError> {
+    let commit = api::local::revisions::get(repo, &revision)?.ok_or(OxenError::basic_str(
+        format!("Revision {} not found", revision.as_ref()),
+    ))?;
+    let path = input.as_ref();
+    let node = CommitMerkleTree::read_path(repo, &commit, path)?;
+    let mut df = tabular::show_node(repo.clone(), node, opts.clone())?;
 
     if let Some(output) = opts.output {
         println!("Writing {output:?}");
