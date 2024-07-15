@@ -231,8 +231,18 @@ fn handle_sql_querying(
         let db_path = index::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
         let mut conn = df_db::get_connection(db_path)?;
 
-        let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
+        let mut db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
         let df = sql::query_df(sql, &mut conn)?;
+
+        let og_schema = if let Some(schema) =
+            api::local::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &resource.path)?
+        {
+            schema
+        } else {
+            Schema::from_polars(&df.schema())
+        };
+
+        db_schema.update_metadata_from_schema(&og_schema);
 
         let json_df = format_sql_df_response(
             df,
@@ -303,6 +313,8 @@ fn format_sql_df_response(
         og_df_height,
         opts,
     );
+
+    println!("view: {:?}", view);
 
     let response = JsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
