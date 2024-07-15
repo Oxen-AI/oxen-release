@@ -176,12 +176,11 @@ pub fn version_file_size(repo: &LocalRepository, entry: &CommitEntry) -> Result<
     // }
 }
 
-pub fn chunk_path(repo: &LocalRepository, hash: &str) -> PathBuf {
-    
+pub fn chunk_path(repo: &LocalRepository, hash: impl AsRef<str>) -> PathBuf {
     oxen_hidden_dir(&repo.path)
         .join(TREE_DIR)
         .join(CHUNKS_DIR)
-        .join(hash)
+        .join(hash.as_ref())
         .join("data")
 }
 

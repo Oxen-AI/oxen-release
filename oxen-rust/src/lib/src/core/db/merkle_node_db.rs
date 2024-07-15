@@ -416,7 +416,7 @@ impl MerkleNodeDB {
     }
 
     pub fn map(&mut self) -> Result<HashMap<u128, CommitMerkleTreeNode>, OxenError> {
-        log::debug!("Loading merkle node db map");
+        // log::debug!("Loading merkle node db map");
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
         };
@@ -426,7 +426,7 @@ impl MerkleNodeDB {
 
         let mut file_data = Vec::new();
         data_file.read_to_end(&mut file_data)?;
-        log::debug!("Loading merkle node db map got {} bytes", file_data.len());
+        // log::debug!("Loading merkle node db map got {} bytes", file_data.len());
 
         let mut ret: HashMap<u128, CommitMerkleTreeNode> = HashMap::new();
         ret.reserve(lookup.num_children as usize);
@@ -434,9 +434,9 @@ impl MerkleNodeDB {
         let mut cursor = std::io::Cursor::new(file_data);
         // Iterate over offsets and read the data
         for (hash, (dtype, offset, len)) in lookup.offsets.iter() {
-            log::debug!("Loading dtype {:?}", MerkleTreeNodeType::from_u8(*dtype));
-            log::debug!("Loading offset {}", offset);
-            log::debug!("Loading len {}", len);
+            // log::debug!("Loading dtype {:?}", MerkleTreeNodeType::from_u8(*dtype));
+            // log::debug!("Loading offset {}", offset);
+            // log::debug!("Loading len {}", len);
             cursor.seek(SeekFrom::Start(*offset))?;
             let mut data = vec![0; *len as usize];
             cursor.read_exact(&mut data)?;
@@ -447,7 +447,7 @@ impl MerkleNodeDB {
                 data,
                 children: HashSet::new(),
             };
-            log::debug!("Loaded node {:?}", node);
+            // log::debug!("Loaded node {:?}", node);
             ret.insert(*hash, node);
         }
 
@@ -467,15 +467,15 @@ mod tests {
             let mut writer_db = MerkleNodeDB::open_read_write(dir)?;
             writer_db.write_meta(".", MerkleTreeNodeType::Dir, 2)?;
 
-            let node_readme = VNode {
-                path: "README.md".to_string(),
+            let node_1 = DirNode {
+                path: "test".to_string(),
             };
-            writer_db.write_one(1234, MerkleTreeNodeType::VNode, &node_readme)?;
+            writer_db.write_one(1234, MerkleTreeNodeType::Dir, &node_1)?;
 
-            let node_license = VNode {
-                path: "LICENSE".to_string(),
+            let node_2 = DirNode {
+                path: "image".to_string(),
             };
-            writer_db.write_one(5678, MerkleTreeNodeType::VNode, &node_license)?;
+            writer_db.write_one(5678, MerkleTreeNodeType::Dir, &node_2)?;
             writer_db.close()?;
 
             let reader_db = MerkleNodeDB::open_read_only(dir)?;
@@ -483,11 +483,11 @@ mod tests {
             let size = reader_db.num_children();
             assert_eq!(size, 2);
 
-            let data: VNode = reader_db.get(1234)?;
-            assert_eq!(data, node_readme);
+            let data: DirNode = reader_db.get(1234)?;
+            assert_eq!(data, node_1);
 
-            let data: VNode = reader_db.get(5678)?;
-            assert_eq!(data, node_license);
+            let data: DirNode = reader_db.get(5678)?;
+            assert_eq!(data, node_2);
 
             Ok(())
         })

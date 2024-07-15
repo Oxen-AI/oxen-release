@@ -85,12 +85,15 @@ pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError
 }
 
 pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
+    println!("👋 Starting to migrate merkle trees for {:?}", repo.path);
+
     // Get all commits in repo, then construct merkle tree for each commit
     let reader = CommitReader::new(repo)?;
     let all_commits = reader.list_all()?;
     // sort these by timestamp from oldest to newest
     let mut all_commits = all_commits.clone();
     all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    println!("Migrate {} commits for {:?}", all_commits.len(), repo.path);
 
     // Clear tree dir if exists (in order to run migration many times)
     let tree_dir = repo
@@ -119,17 +122,24 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 }
 
 fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
-    // Instantiate the CommitEntryReader, most expensive operation
-    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
-
-    // let object_reader = ObjectDBReader::new(repo)?;
-    // Get the root hash
-    let dir_hashes_dir = repo
+    let commit_dir = repo
         .path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::HISTORY_DIR)
-        .join(&commit.id)
-        .join(constants::DIR_HASHES_DIR);
+        .join(&commit.id);
+
+    log::debug!("Checking if commit dir exists: {:?}", commit_dir);
+    if !commit_dir.exists() {
+        log::warn!("Skipping commit {:?}, not downloaded", commit.id);
+        return Ok(());
+    }
+
+    // Instantiate the CommitEntryReader, most expensive operation
+    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
+
+    // Get the root hash
+    let dir_hashes_dir = commit_dir.join(constants::DIR_HASHES_DIR);
+
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
@@ -248,7 +258,7 @@ fn migrate_dir(
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         let shash = format!("{:x}", bhash);
         println!("Bucket [{}] for {:?}", i, shash);
-        let node = VNode { path: shash };
+        let node = VNode { id: i as u32 };
         dir_db.write_one(*bhash, MerkleTreeNodeType::VNode, &node)?;
     }
 

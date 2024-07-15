@@ -6,9 +6,11 @@ use std::num::NonZeroUsize;
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
+use crate::core::index::merkle_tree::node::CommitMerkleTreeNode;
 use crate::error::OxenError;
+use crate::io::chunk_reader::ChunkReader;
 use crate::model::schema::DataType;
-use crate::model::DataFrameSize;
+use crate::model::{DataFrameSize, LocalRepository};
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::{fs, hasher};
 
@@ -923,6 +925,31 @@ pub fn copy_df_add_row_num(
         .expect("Could not add row count");
     write_df_arrow(&mut df, output)?;
     Ok(df)
+}
+
+pub fn show_node(
+    repo: LocalRepository,
+    node: CommitMerkleTreeNode,
+    opts: DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let file_node = node.file()?;
+    let chunk_reader = ChunkReader::new(repo, file_node);
+    let parquet_reader = ParquetReader::new(chunk_reader);
+
+    let df = match parquet_reader.finish() {
+        Ok(df) => Ok(df),
+        err => Err(OxenError::basic_str(format!(
+            "Could not read chunked parquet: {:?}",
+            err
+        ))),
+    }?;
+
+    if opts.has_transform() {
+        let df = transform(df, opts)?;
+        Ok(df)
+    } else {
+        Ok(df)
+    }
 }
 
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {

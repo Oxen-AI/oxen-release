@@ -1,12 +1,16 @@
 # Merkle Tree Refactor
 
 * File Chunk Deduplication
-  * File Chunks
-  * Can get rid of FileChunkNode type since it's just a file we store on disk now
+  * Biggest question is if we can reconstruct and render the large data frames efficiently...?
   * Can optionally unpack to full file on specific commits
     * Always use chunks
     * This helps us write to the merkle tree in parallel on upload
     * If !chunking turned on in branch, we unpack chunks into full files or write to duckdb or s3 or w/e
+  * File Chunks
+    * Can get rid of FileChunkNode type since it's just a file we store on disk now
+  * TODO L8R - Can you smartly chunk parquet files on the boundaries of columns?
+    * For example, I removed a column of a parquet file, and expected there to be many more shared chunks
+    * I think there were more generated just because 16kb is an arbitrary boundary
 
 
 * Make commit object another node in the merkle tree
