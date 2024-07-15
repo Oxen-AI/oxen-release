@@ -24,6 +24,13 @@ impl RunCmd for DFCmd {
         .arg(arg!(<DF_SPEC> ... "The DataFrame you want to process. If in the schema subcommand the schema ref."))
         .arg_required_else_help(true)
         .arg(
+            Arg::new("write")
+                .long("write")
+                .short('w')
+                .help("Write transformed data back to the file")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("output")
                 .long("output")
                 .short('o')
@@ -216,7 +223,15 @@ impl DFCmd {
             None
         };
 
+        let write_path: Option<PathBuf> = if args.get_flag("write") {
+            args.get_one::<String>("DF_SPEC")
+                .map(std::path::PathBuf::from)
+        } else {
+            None
+        };
+
         liboxen::opts::DFOpts {
+            write: write_path,
             output: args
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),

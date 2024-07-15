@@ -14,6 +14,11 @@ use crate::util;
 pub fn df<P: AsRef<Path>>(input: P, opts: DFOpts) -> Result<(), OxenError> {
     let mut df = tabular::show_path(input, opts.clone())?;
 
+    if let Some(write) = opts.write {
+        println!("Writing {write:?}");
+        tabular::write_df(&mut df, write)?;
+    }
+
     if let Some(output) = opts.output {
         println!("Writing {output:?}");
         tabular::write_df(&mut df, output)?;
