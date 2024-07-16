@@ -1,4 +1,5 @@
 use duckdb::ToSql;
+use polars::io::ArrowReader;
 use polars::prelude::*;
 use std::fs::File;
 use std::num::NonZeroUsize;
@@ -20,7 +21,7 @@ use indicatif::ProgressBar;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use std::ffi::OsStr;
-use std::io::Cursor;
+use std::io::{BufRead, BufReader, Cursor};
 use std::path::Path;
 
 use super::filter::{DFFilterExp, DFFilterOp, DFFilterVal};
@@ -933,23 +934,68 @@ pub fn show_node(
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let file_node = node.file()?;
-    let chunk_reader = ChunkReader::new(repo, file_node);
-    let parquet_reader = ParquetReader::new(chunk_reader);
+    log::debug!("Opening chunked reader");
 
-    let df = match parquet_reader.finish() {
-        Ok(df) => Ok(df),
-        err => Err(OxenError::basic_str(format!(
-            "Could not read chunked parquet: {:?}",
-            err
-        ))),
-    }?;
+    let df = if file_node.name.ends_with("parquet") {
+        let chunk_reader = ChunkReader::new(repo, file_node);
+        let parquet_reader = ParquetReader::new(chunk_reader);
+        log::debug!("Reading chunked parquet");
 
-    if opts.has_transform() {
+        let df = match parquet_reader.finish() {
+            Ok(df) => {
+                log::debug!("Finished reading chunked parquet");
+                Ok(df)
+            },
+            err => Err(OxenError::basic_str(format!(
+                "Could not read chunked parquet: {:?}",
+                err
+            ))),
+        }?;
+        df
+    } else if file_node.name.ends_with("arrow") {
+        let chunk_reader = ChunkReader::new(repo, file_node);
+        let parquet_reader = IpcReader::new(chunk_reader);
+        log::debug!("Reading chunked arrow");
+
+        let df = match parquet_reader.finish() {
+            Ok(df) => {
+                log::debug!("Finished reading chunked arrow");
+                Ok(df)
+            },
+            err => Err(OxenError::basic_str(format!(
+                "Could not read chunked arrow: {:?}",
+                err
+            ))),
+        }?;
+        df
+    } else {
+        let chunk_reader = ChunkReader::new(repo, file_node);
+        let json_reader = JsonLineReader::new(chunk_reader);
+        let df = match json_reader.finish() {
+            Ok(df) => {
+                log::debug!("Finished reading line delimited json");
+                Ok(df)
+            },
+            err => Err(OxenError::basic_str(format!(
+                "Could not read chunked json: {:?}",
+                err
+            ))),
+        }?;
+        df
+    };
+
+    let df: PolarsResult<DataFrame> = if opts.has_transform() {
         let df = transform(df, opts)?;
+        let pretty_df = pretty_print::df_to_str(&df);
+        println!("{pretty_df}");
         Ok(df)
     } else {
+        let pretty_df = pretty_print::df_to_str(&df);
+        println!("{pretty_df}");
         Ok(df)
-    }
+    };
+
+    Ok(df?)
 }
 
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
