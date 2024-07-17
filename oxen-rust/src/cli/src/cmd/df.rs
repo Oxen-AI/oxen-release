@@ -5,9 +5,9 @@ use clap::{arg, Arg, ArgMatches, Command};
 
 use liboxen::command;
 use liboxen::error::OxenError;
+use liboxen::util::fs;
 
 use crate::cmd::RunCmd;
-
 pub const NAME: &str = "df";
 pub struct DFCmd;
 
@@ -230,6 +230,14 @@ impl DFCmd {
             None
         };
 
+        let repo_dir: Option<PathBuf> = if args.get_one::<String>("sql").is_some()
+            || args.get_one::<String>("text2sql").is_some()
+        {
+            fs::get_repo_root_from_current_dir()
+        } else {
+            None
+        };
+
         liboxen::opts::DFOpts {
             write: write_path,
             output: args
@@ -270,6 +278,7 @@ impl DFCmd {
             unique: args.get_one::<String>("unique").map(String::from),
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
+            repo_dir,
         }
     }
 }

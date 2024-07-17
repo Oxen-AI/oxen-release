@@ -6,9 +6,11 @@ use std::num::NonZeroUsize;
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
+use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::DataFrameSize;
+use crate::model::LocalRepository;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::hasher;
 
@@ -413,6 +415,13 @@ pub fn transform_lazy(
         let mut rand_indices: Vec<u32> = (0..height as u32).collect();
         rand_indices.shuffle(&mut thread_rng());
         df = take(df, rand_indices)?.lazy();
+    }
+
+    if let Some(sql) = opts.sql.clone() {
+        if let Some(repo_dir) = opts.repo_dir.as_ref() {
+            let repo = LocalRepository::from_dir(repo_dir)?;
+            df = sql::query_df_from_repo(sql, &repo)?.lazy();
+        }
     }
 
     match opts.get_filter() {
