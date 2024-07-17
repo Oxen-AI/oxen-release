@@ -954,8 +954,12 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
             }
         }
     } else {
-        let pretty_df = pretty_print::df_to_str(&df);
-        println!("{pretty_df}");
+        let pretty_df: String = if opts.show_full {
+            pretty_print::df_to_str_full(&df)
+        } else {
+            pretty_print::df_to_str(&df)
+        };
+        println!("{pretty_df}"); 
     }
     Ok(df)
 }

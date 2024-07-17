@@ -23,29 +23,52 @@ use polars::prelude::*;
 use crate::core::df::tabular; 
 
 pub fn df_to_str(df: &DataFrame) -> String {
+    let default_fmt = format!("{:?}", df);
+
+    default_fmt
+        .replace(['┌', '└', '┬', '┴', '┐', '┘'], "+")
+        .replace('─', "-")
+        .replace('│', "|")
+        .replace(['╞', '╡'], "+")
+        .replace('═', "-")
+        .replace('╪', "+")
+        .replace('┆', "|")
+}
+
+pub fn df_to_str_full(df: &DataFrame) -> String {
 
     let mut height = df.height(); 
     let mut pos = 0; 
-    let mut ret_string = String::new(); 
+    let mut ret_string = String::from(format!("shape: {:?}", df.shape())); 
+    ret_string.push_str("\n");
 
     let first_slice = tabular::slice_df(df.clone(), pos, pos + 10);
     let first_fmt = format!("{:?}", first_slice);
+    let mut first_lines = first_fmt.lines();
+    first_lines.next();
 
-    ret_string.push_str(&first_fmt);  
-        
+    for _ in 0..15 {
+        ret_string.push_str(first_lines.next().unwrap());
+        ret_string.push_str("\n");  
+    }     
+
     pos += 10;
     height -= 10; 
 
     while height > 10 {
+
+        ret_string.push_str("+----------+---------------------------------+");
+        ret_string.push_str("\n");
+
         let mid_slice = tabular::slice_df(df.clone(), pos, pos + 10);
         let mid_fmt = format!("{:?}", mid_slice);
         let mut lines = mid_fmt.lines();
 
-        for _j in 0..6 {
+        for _ in 0..6 {
             lines.next(); 
         }
 
-        for _j in 0..10 {
+        for _ in 0..10 {
             ret_string.push_str(lines.next().unwrap());
             ret_string.push_str("\n");  
         }
@@ -54,11 +77,23 @@ pub fn df_to_str(df: &DataFrame) -> String {
         height -= 10; 
     }
 
-    let last_slice = tabular::slice_df(df.clone(), pos, pos + 10);
+    ret_string.push_str("+----------+---------------------------------+");
+    ret_string.push_str("\n");
+
+    let last_slice = tabular::slice_df(df.clone(), pos, pos + height);
     let last_fmt = format!("{:?}", last_slice);
-    ret_string.push_str(&last_fmt);  
+    let mut last_lines = last_fmt.lines();
 
+    for _ in 0..6 {
+        last_lines.next(); 
+    }
 
+    for _ in 0..height {
+        ret_string.push_str(last_lines.next().unwrap());
+        ret_string.push_str("\n");  
+    }
+    ret_string.push_str("+----------+---------------------------------+");
+    
     ret_string
         .replace(['┌', '└', '┬', '┴', '┐', '┘'], "+")
         .replace('─', "-")
