@@ -4,6 +4,7 @@ use actix_web::Scope;
 use crate::controllers;
 
 pub mod rows;
+pub mod columns;
 
 pub fn data_frames() -> Scope {
     web::scope("/data_frames")

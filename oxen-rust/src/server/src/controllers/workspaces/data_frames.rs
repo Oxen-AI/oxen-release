@@ -18,6 +18,7 @@ use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, constants, core::index};
 
+pub mod columns;
 pub mod rows;
 
 pub async fn get_by_resource(
