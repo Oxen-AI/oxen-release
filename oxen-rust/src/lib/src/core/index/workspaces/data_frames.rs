@@ -24,6 +24,7 @@ use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 pub mod rows;
+pub mod columns;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
     let commit_path = previous_commit_ref_path(workspace, path);
