@@ -959,7 +959,7 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
         } else {
             pretty_print::df_to_str(&df)
         };
-        println!("{pretty_df}"); 
+        println!("{pretty_df}");
     }
     Ok(df)
 }
