@@ -38,6 +38,13 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("full")
+                .long("full")
+                .short('l')
+                .help("Display non-truncated data frame")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("delimiter")
                 .long("delimiter")
                 .short('d')
@@ -243,6 +250,7 @@ impl DFCmd {
             output: args
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
+            show_full: args.get_flag("full"),
             delimiter: args.get_one::<String>("delimiter").map(String::from),
             filter: args.get_one::<String>("filter").map(String::from),
             slice: args.get_one::<String>("slice").map(String::from),
