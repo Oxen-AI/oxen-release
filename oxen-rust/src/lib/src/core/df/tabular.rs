@@ -6,11 +6,9 @@ use std::num::NonZeroUsize;
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
-use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::DataFrameSize;
-use crate::model::LocalRepository;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::hasher;
 
@@ -211,7 +209,7 @@ pub fn add_col(
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
-    let new_row = parse_str_to_df(data, df.schema())?;
+    let new_row = row_from_str_and_schema(data, df.schema())?;
     log::debug!("add_row og df: {:?}", df);
     log::debug!("add_row new_row: {:?}", new_row);
     let df = df.vstack(&new_row).unwrap().lazy();
@@ -223,40 +221,59 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     let n_dupes = dupe_mask.sum().unwrap() as u64; // Can unwrap - sum implemented for boolean
     Ok(n_dupes)
 }
-fn print_type_of<T>(_: &T) {
-    println!("{}", std::any::type_name::<T>())
+
+pub fn row_from_str_and_schema(
+    data: impl AsRef<str>,
+    schema: Schema,
+) -> Result<DataFrame, OxenError> {
+    let values: Vec<&str> = data.as_ref().split(',').collect();
+
+    if values.len() != schema.len() {
+        return Err(OxenError::basic_str(
+            "Error parsing json: row must have same # of columns as data frame",
+        ));
+    }
+
+    let mut vec: Vec<Series> = Vec::new();
+
+    for ((name, value), dtype) in schema
+        .iter_names()
+        .zip(values.into_iter())
+        .zip(schema.iter_dtypes())
+    {
+        let typed_val = val_from_str_and_dtype(value, dtype);
+        match Series::from_any_values_and_dtype(name, &[typed_val], dtype, false) {
+            Ok(series) => {
+                vec.push(series);
+            }
+            Err(err) => {
+                return Err(OxenError::basic_str(format!("Error parsing json: {err}")));
+            }
+        }
+    }
+
+    let df = DataFrame::new(vec)?;
+
+    Ok(df)
 }
 
-pub fn parse_str_to_df(data: impl AsRef<str>, schema: Schema) -> Result<DataFrame, OxenError> {
-
-    let values: Vec<&str> = data.as_ref().split(',').collect();
-    
-    let mut vec: Vec<Series> = Vec::new(); 
-
-    for ((name, value), dtype) in schema.iter_names().zip(values.into_iter()).zip(schema.iter_dtypes()) {
-        let typed_val = val_from_str_and_dtype(value, dtype);
-        vec.push(Series::from_any_values_and_dtype(&name, &[typed_val], &dtype, false)?);
+pub fn parse_str_to_df(data: impl AsRef<str>) -> Result<DataFrame, OxenError> {
+    let data = data.as_ref();
+    if data == "{}" {
+        return Ok(DataFrame::default());
     }
-    
-    let df = DataFrame::new(vec)?;
-    
-    Ok(df)
 
+    let cursor = Cursor::new(data.as_bytes());
+    match JsonLineReader::new(cursor).finish() {
+        Ok(df) => Ok(df),
+        Err(err) => Err(OxenError::basic_str(format!("Error parsing json: {err}"))),
+    }
 }
 
 pub fn parse_json_to_df(data: &serde_json::Value) -> Result<DataFrame, OxenError> {
     let data = serde_json::to_string(data)?;
-    let s0 = Series::new("days", [0, 1, 2].as_ref());
-let s1 = Series::new("temp", [22.1, 19.9, 7.].as_ref());
-
-let df = DataFrame::new(vec![s0, s1])?;
-    parse_str_to_df(data, df.schema())
-
-
-
+    parse_str_to_df(data)
 }
-
-
 
 fn val_from_str_and_dtype<'a>(s: &'a str, dtype: &polars::prelude::DataType) -> AnyValue<'a> {
     match dtype {
@@ -360,7 +377,7 @@ pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
 
 pub fn transform_lazy(
     mut df: LazyFrame,
-    mut height: usize,
+    height: usize,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     log::debug!("transform_lazy Got transform ops {:?}", opts);
