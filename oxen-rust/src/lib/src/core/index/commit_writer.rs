@@ -1,6 +1,6 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::core::db::path_db;
+use crate::core::db::key_val::path_db;
 
 use crate::core::db;
 use crate::core::index::{
@@ -40,7 +40,7 @@ impl CommitWriter {
             std::fs::create_dir_all(&db_path)?;
         }
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(CommitWriter {
             commits_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
             repository: repository.clone(),
@@ -367,7 +367,7 @@ impl CommitWriter {
 
         let dir_hashes_db =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
 
@@ -426,7 +426,7 @@ impl CommitWriter {
 
         let dir_hashes_db =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
 
@@ -463,7 +463,7 @@ impl CommitWriter {
 
         let mut commit = commit.clone();
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let dir_hashes_db_dir =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
@@ -548,7 +548,7 @@ impl CommitWriter {
         let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
         let commit_entries = commit_entry_reader.list_entries()?;
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let files_db = CommitEntryWriter::files_db_dir(&self.repository);
         let files_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;

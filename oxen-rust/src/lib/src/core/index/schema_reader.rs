@@ -1,6 +1,7 @@
 use crate::constants::{FILES_DIR, HISTORY_DIR, SCHEMAS_DIR, SCHEMAS_TREE_PREFIX};
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::{self, path_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 
 use crate::core::index::CommitEntryWriter;
 use crate::error::OxenError;
@@ -47,7 +48,7 @@ impl SchemaReader {
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaReader, OxenError> {
         let dir_hashes_db_path = CommitEntryWriter::commit_dir_hash_db(&repository.path, commit_id);
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
 
         if !dir_hashes_db_path.exists() {
             log::debug!("creating dir hashes db at path {:?}", dir_hashes_db_path);

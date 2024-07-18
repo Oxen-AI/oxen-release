@@ -735,7 +735,7 @@ impl EntryIndexer {
     ) -> Result<(), OxenError> {
         // TODO: Don't need to group anymore
         let dir_entries = api::local::entries::group_entries_to_parent_dirs(entries);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let files_db = CommitEntryWriter::files_db_dir(&self.repository);
         let files_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;

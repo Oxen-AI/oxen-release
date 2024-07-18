@@ -20,7 +20,7 @@ impl MergeConflictReader {
         let db_path = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR));
         log::debug!("MergeConflictReader::new() DB {:?}", db_path);
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it

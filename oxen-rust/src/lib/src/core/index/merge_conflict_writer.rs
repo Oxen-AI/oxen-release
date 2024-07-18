@@ -19,7 +19,7 @@ pub fn write_conflicts_to_db(
     conflicts: &[MergeConflict],
 ) -> Result<(), OxenError> {
     let db_path = merger::db_path(repo);
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let db = DB::open(&opts, dunce::simplified(&db_path))?;
 
     write_conflicts_to_disk(repo, &db, merge_commit, base_commit, conflicts)
