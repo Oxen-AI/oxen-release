@@ -21,6 +21,7 @@ use comfy_table::Table;
 use indicatif::ProgressBar;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
+use serde_json::Value;
 use std::ffi::OsStr;
 use std::io::Cursor;
 use std::path::Path;
@@ -228,6 +229,10 @@ pub fn row_from_str_and_schema(
     data: impl AsRef<str>,
     schema: Schema,
 ) -> Result<DataFrame, OxenError> {
+    if serde_json::from_str::<Value>(data.as_ref()).is_ok() {
+        return parse_str_to_df(data);
+    }
+
     let values: Vec<&str> = data.as_ref().split(',').collect();
 
     if values.len() != schema.len() {
