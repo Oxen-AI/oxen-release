@@ -49,7 +49,8 @@ pub fn df_to_str(df: &DataFrame) -> String {
 
 pub fn df_to_pager(df: &DataFrame, opts: &DFOpts) -> Result<Pager, OxenError> {
     let height = df.height();
-    env::set_var("POLARS_FMT_MAX_ROWS", "10000");
+    let max_rows = height + 10;
+    env::set_var("POLARS_FMT_MAX_ROWS", max_rows.to_string());
 
     let page_size: usize = if let Some(size) = opts.page_size {
         size
