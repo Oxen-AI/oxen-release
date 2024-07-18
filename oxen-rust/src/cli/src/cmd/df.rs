@@ -245,12 +245,14 @@ impl DFCmd {
             None
         };
 
+        let page_specified: bool = args.get_one::<String>("page").is_some()
+            | args.get_one::<String>("page-size").is_some();
+
         liboxen::opts::DFOpts {
             write: write_path,
             output: args
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
-            show_full: args.get_flag("full"),
             delimiter: args.get_one::<String>("delimiter").map(String::from),
             filter: args.get_one::<String>("filter").map(String::from),
             slice: args.get_one::<String>("slice").map(String::from),
@@ -286,6 +288,7 @@ impl DFCmd {
             unique: args.get_one::<String>("unique").map(String::from),
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
+            should_page: args.get_flag("full") || page_specified,
             repo_dir,
         }
     }
