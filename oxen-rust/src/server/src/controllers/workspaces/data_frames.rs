@@ -6,7 +6,7 @@ use crate::params::{app_data, df_opts_query, path_param, DFOptsQuery, PageNumQue
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::constants::TABLE_NAME;
-use liboxen::core::db::{df_db, workspace_df_db};
+use liboxen::core::db::data_frames::{df_db, workspace_df_db};
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
