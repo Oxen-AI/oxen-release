@@ -3,8 +3,8 @@ use actix_web::Scope;
 
 use crate::controllers;
 
-pub mod rows;
 pub mod columns;
+pub mod rows;
 
 pub fn data_frames() -> Scope {
     web::scope("/data_frames")

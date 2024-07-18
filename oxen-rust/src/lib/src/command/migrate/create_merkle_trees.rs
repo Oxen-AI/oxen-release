@@ -4,7 +4,8 @@ use super::Migrate;
 
 use std::path::{Path, PathBuf};
 
-use crate::core::db::{self, path_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
 use crate::core::index::{CommitEntryWriter, CommitReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
@@ -110,8 +111,11 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         // Then we need to associate the root hash of the merkle tree with the commit
         let mut commit_to_update = commit.clone();
         let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_db_dir, false)?;
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+            &db::key_val::opts::default(),
+            &dir_hashes_db_dir,
+            false,
+        )?;
 
         let root_hash: String = path_db::get_entry(&dir_hashes_db, &PathBuf::from(""))?.unwrap();
 
@@ -127,8 +131,11 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     for commit in updated_commits {
         let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_db_dir, false)?;
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+            &db::key_val::opts::default(),
+            &dir_hashes_db_dir,
+            false,
+        )?;
         let maybe_root_hash: Option<String> = path_db::get_entry(&dir_hashes_db, "")?;
         let Some(root_hash) = maybe_root_hash else {
             return Err(OxenError::basic_str(format!(

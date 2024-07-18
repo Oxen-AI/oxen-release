@@ -1,4 +1,4 @@
-use crate::core::db::str_json_db;
+use crate::core::db::key_val::str_json_db;
 use crate::core::db::{self};
 use crate::error::OxenError;
 use crate::model::Schema;
@@ -20,7 +20,7 @@ pub struct SchemaWriter {
 impl SchemaWriter {
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaWriter, OxenError> {
         let db_path = SchemaReader::schemas_db_dir(repository, commit_id);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
             // open it then lose scope to close it

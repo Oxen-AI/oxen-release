@@ -8,7 +8,7 @@ use sql_query_builder::Select;
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use crate::opts::DFOpts;
 
-use crate::core::db::{df_db, workspace_df_db};
+use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::df::tabular;
 use crate::core::index::workspaces;
 use crate::error::OxenError;

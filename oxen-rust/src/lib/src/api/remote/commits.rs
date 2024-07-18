@@ -285,7 +285,7 @@ pub async fn download_commits_db_to_repo(
     );
 
     // Merge with existing commits db
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let new_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, &new_path, false)?;
     let new_commits = CommitDBReader::list_all(&new_db)?;
@@ -1376,7 +1376,7 @@ mod tests {
                 assert_eq!(dst, db_dir);
                 assert!(db_dir.exists());
 
-                let opts = db::opts::default();
+                let opts = db::key_val::opts::default();
                 let db: DBWithThreadMode<MultiThreaded> =
                     DBWithThreadMode::open_for_read_only(&opts, &db_dir, false)?;
                 let commits = CommitDBReader::list_all(&db)?;

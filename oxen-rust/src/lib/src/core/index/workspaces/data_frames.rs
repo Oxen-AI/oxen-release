@@ -6,8 +6,8 @@ use sql_query_builder::{Delete, Select};
 use crate::api;
 use crate::constants::MODS_DIR;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
-use crate::core::db::workspace_df_db::select_cols_from_schema;
-use crate::core::db::{df_db, workspace_df_db};
+use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
+use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::df::tabular;
 use crate::core::index::CommitEntryReader;
 use crate::core::index::{self, workspaces};
@@ -23,8 +23,8 @@ use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
-pub mod rows;
 pub mod columns;
+pub mod rows;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
     let commit_path = previous_commit_ref_path(workspace, path);

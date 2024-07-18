@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::TreeObjectChild;
+use crate::core::db::key_val::tree_db::TreeObjectChild;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 use sha2::{Digest, Sha256};

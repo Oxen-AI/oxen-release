@@ -3,7 +3,8 @@
 
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
 use crate::core::cache::cacher_status::{CacherStatus, CacherStatusType};
-use crate::core::db::{self, str_json_db};
+use crate::core::db;
+use crate::core::db::key_val::str_json_db;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
@@ -71,7 +72,7 @@ pub fn get_failures(
     commit: &Commit,
 ) -> Result<Vec<CacherStatus>, OxenError> {
     let db_path = cached_status_db_path(repo, commit);
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
@@ -101,7 +102,7 @@ pub fn get_all_statuses(
     }
 
     log::warn!("get_all_statuses Opening db connection {:?}", db_path);
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let error_if_log_file_exist = false;
     let db = DBWithThreadMode::open_for_read_only(
         &opts,
@@ -127,7 +128,7 @@ fn get_db_connection(
     commit: &Commit,
 ) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
     let db_path = cached_status_db_path(repo, commit);
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let sleep_time = 100;
     let mut num_attempts = 5;
 

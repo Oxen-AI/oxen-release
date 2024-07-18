@@ -5,8 +5,8 @@
 
 use crate::constants::{self};
 use crate::core::db;
-use crate::core::db::path_db;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
@@ -60,7 +60,7 @@ impl CommitDirEntryReader {
             base_path.join(dir)
         );
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
@@ -240,7 +240,7 @@ impl CommitDirEntryReader {
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::Dir { path, hash } = entry {
-                    let dir = self.object_reader.get_dir(hash)?;
+                    let dir = self.object_reader.get_dir(&hash)?;
                     if let Some(dir) = dir {
                         if !dir.children().is_empty() {
                             dirs.push(path.to_owned());
@@ -260,7 +260,7 @@ impl CommitDirEntryReader {
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::Dir { path, hash } = entry {
-                    let dir = self.object_reader.get_dir(hash)?;
+                    let dir = self.object_reader.get_dir(&hash)?;
                     if let Some(dir) = dir {
                         if !dir.children().is_empty() {
                             dirs.insert(path.to_owned());

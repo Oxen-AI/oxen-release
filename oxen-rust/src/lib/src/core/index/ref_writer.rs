@@ -20,7 +20,7 @@ impl RefWriter {
         let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(Path::new(HEAD_FILE));
         log::debug!("RefWriter::new() refs_dir: {}", refs_dir.display());
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(RefWriter {
             refs_db: DB::open(&opts, dunce::simplified(&refs_dir))?,
             head_file: head_filename,
