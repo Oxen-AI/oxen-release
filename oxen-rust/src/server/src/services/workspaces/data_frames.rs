@@ -29,4 +29,5 @@ pub fn data_frames() -> Scope {
             web::delete().to(controllers::workspaces::data_frames::delete),
         )
         .service(rows::rows())
+        .service(columns::columns())
 }

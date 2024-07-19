@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 
 pub mod columns;
 pub mod rows;
+pub mod data_frame_column_changes_db;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
     let commit_path = previous_commit_ref_path(workspace, path);
@@ -42,7 +43,6 @@ pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -
         .join("COMMIT_ID")
 }
 
-// used to be duckdb_path
 pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
@@ -52,6 +52,17 @@ pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
         .join(path_hash)
         .join("db")
 }
+
+pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    workspace
+        .dir()
+        .join(MODS_DIR)
+        .join("duckdb")
+        .join(path_hash)
+        .join("column_changes")
+}
+
 
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {
     let db_path = duckdb_path(workspace, path);

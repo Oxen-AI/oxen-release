@@ -8,7 +8,7 @@ use sql_query_builder::Select;
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use crate::opts::DFOpts;
 
-use crate::core::db::data_frames::{df_db, workspace_df_db};
+use crate::core::db::data_frames::{df_db, workspace_df_db, rows};
 use crate::core::df::tabular;
 use crate::core::index::workspaces;
 use crate::error::OxenError;
@@ -80,7 +80,7 @@ pub fn add(
 
     let df = tabular::parse_json_to_df(data)?;
 
-    let result = workspace_df_db::append_row(&conn, &df)?;
+    let result = rows::append_row(&conn, &df)?;
     workspaces::stager::add(workspace, file_path)?;
 
     Ok(result)
@@ -129,14 +129,14 @@ pub fn restore_row_in_db(
         StagedRowStatus::Added => {
             // Row is added, just delete it
             log::debug!("restore_row() row is added, deleting");
-            workspace_df_db::delete_row(&conn, row_id)?
+            rows::delete_row(&conn, row_id)?
         }
         StagedRowStatus::Modified | StagedRowStatus::Removed => {
             // Row is modified, just delete it
             log::debug!("restore_row() row is modified, deleting");
             let mut insert_row =
                 prepare_modified_or_removed_row(&workspace.base_repo, entry, &row)?;
-            workspace_df_db::modify_row(&conn, &mut insert_row, row_id)?
+            rows::modify_row(&conn, &mut insert_row, row_id)?
         }
         StagedRowStatus::Unchanged => {
             // Row is unchanged, just return it
@@ -210,7 +210,7 @@ pub fn delete(
     let db_path = workspaces::data_frames::duckdb_path(workspace, path);
     let deleted_row = {
         let conn = df_db::get_connection(db_path)?;
-        workspace_df_db::delete_row(&conn, row_id)?
+        rows::delete_row(&conn, row_id)?
     };
 
     // We track that the file has been modified
@@ -242,7 +242,7 @@ pub fn update(
 
     let mut df = tabular::parse_json_to_df(data)?;
 
-    let result = workspace_df_db::modify_row(&conn, &mut df, row_id)?;
+    let result = rows::modify_row(&conn, &mut df, row_id)?;
 
     workspaces::stager::add(workspace, path)?;
 
