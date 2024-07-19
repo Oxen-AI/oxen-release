@@ -39,6 +39,8 @@ pub const ROWS_DIR: &str = "rows";
 pub const FILES_DIR: &str = "files";
 /// prefix for the cached dataframes
 pub const DATA_FRAMES_DIR: &str = "data_frames";
+/// prefix for the cached dataframes
+pub const DATA_FRAME_STATUS_DIR: &str = "data_frame_status";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for a commit dir => hash maping

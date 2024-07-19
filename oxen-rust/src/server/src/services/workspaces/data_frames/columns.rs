@@ -3,7 +3,7 @@ use actix_web::Scope;
 
 use crate::controllers;
 
-pub fn rows() -> Scope {
+pub fn columns() -> Scope {
     web::scope("/columns")
         // .route(
         //     "/{row_id}/restore/{path:.*}",

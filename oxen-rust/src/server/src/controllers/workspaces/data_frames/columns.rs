@@ -8,11 +8,12 @@ use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
+use liboxen::view::data_frames::columns::NewColumn;
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, core::index};
 
-pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
 
     let namespace = path_param(&req, "namespace")?;
@@ -21,23 +22,16 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let data = String::from_utf8(bytes.to_vec()).expect("Could not parse bytes as utf8");
-
-    // If the json has an outer property of "data", serialize the inner object
-    let json_value: serde_json::Value = serde_json::from_str(&data)?;
-    // TODO why do we support both?
-    let data = if let Some(data_obj) = json_value.get("data") {
-        data_obj
-    } else {
-        &json_value
-    };
+    let new_column: NewColumn = serde_json::from_str(&body).map_err(|_err| {
+        OxenHttpError::BadRequest("Failed to parse NewColumn from request body".into())
+    })?;
 
     log::info!(
         "create row {namespace}/{repo_name} for file {:?} on in workspace id {}",
         file_path,
         workspace_id
     );
-    log::debug!("create row with data {:?}", data);
+    log::debug!("create row with data {:?}", new_column);
 
     // Get the workspace
     let workspace = index::workspaces::get(&repo, &workspace_id)?;
@@ -49,7 +43,7 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let row_df = index::workspaces::data_frames::rows::add(&workspace, &file_path, data)?;
+    let row_df = index::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
     let row_id: Option<String> = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
     let row_index: Option<usize> = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
