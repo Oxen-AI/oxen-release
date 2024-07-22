@@ -8,6 +8,8 @@ use std::io::BufReader;
 use std::path::Path;
 use xxhash_rust::xxh3::{xxh3_128, Xxh3};
 
+use super::progress_bar::spinner_with_msg;
+
 pub fn hash_buffer(buffer: &[u8]) -> String {
     let val = xxh3_128(buffer);
     format!("{val:x}")
@@ -133,9 +135,12 @@ fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
         OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path, err))
     })?;
 
+    let progress = spinner_with_msg(format!("Hashing large file..."));
+
     let mut reader = BufReader::new(file);
     let mut hasher = Xxh3::new();
     let mut buffer = [0; 4096];
+    let mut total_bytes: u64 = 0;
 
     loop {
         let count = reader.read(&mut buffer).map_err(|_| {
@@ -148,6 +153,13 @@ fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
         }
 
         hasher.update(&buffer[..count]);
+        progress.inc(count as u64);
+        total_bytes += count as u64;
+        progress.set_message(format!(
+            "Hashing {:?} bytes {:?}",
+            bytesize::ByteSize::b(total_bytes),
+            path
+        ));
     }
 
     let result = hasher.digest128();

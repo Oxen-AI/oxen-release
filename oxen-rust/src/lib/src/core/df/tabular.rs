@@ -945,7 +945,7 @@ pub fn show_node(
             Ok(df) => {
                 log::debug!("Finished reading chunked parquet");
                 Ok(df)
-            },
+            }
             err => Err(OxenError::basic_str(format!(
                 "Could not read chunked parquet: {:?}",
                 err
@@ -961,7 +961,7 @@ pub fn show_node(
             Ok(df) => {
                 log::debug!("Finished reading chunked arrow");
                 Ok(df)
-            },
+            }
             err => Err(OxenError::basic_str(format!(
                 "Could not read chunked arrow: {:?}",
                 err
@@ -975,7 +975,7 @@ pub fn show_node(
             Ok(df) => {
                 log::debug!("Finished reading line delimited json");
                 Ok(df)
-            },
+            }
             err => Err(OxenError::basic_str(format!(
                 "Could not read chunked json: {:?}",
                 err

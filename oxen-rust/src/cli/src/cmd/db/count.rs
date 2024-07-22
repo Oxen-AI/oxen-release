@@ -7,12 +7,12 @@ use liboxen::command;
 use liboxen::error::OxenError;
 
 use crate::cmd::RunCmd;
-pub const NAME: &str = "list";
+pub const NAME: &str = "count";
 
-pub struct DbListCmd;
+pub struct DbCountCmd;
 
 #[async_trait]
-impl RunCmd for DbListCmd {
+impl RunCmd for DbCountCmd {
     fn name(&self) -> &str {
         NAME
     }
@@ -22,12 +22,6 @@ impl RunCmd for DbListCmd {
         Command::new(NAME)
             .about("List the full key value database.")
             .arg(Arg::new("PATH").help("The path of the database."))
-            .arg(
-                Arg::new("limit")
-                    .short('l')
-                    .long("limit")
-                    .help("The maximum number of entries to list"),
-            )
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
@@ -36,11 +30,9 @@ impl RunCmd for DbListCmd {
             return Err(OxenError::basic_str("Must supply path"));
         };
 
-        let limit = args
-            .get_one::<String>("limit")
-            .map(|x| x.parse::<usize>().expect("limit must be valid size"));
+        let count = command::db::count(PathBuf::from(path))?;
 
-        command::db::list(PathBuf::from(path), limit)?;
+        println!("There are {} entries in the database", count);
 
         Ok(())
     }

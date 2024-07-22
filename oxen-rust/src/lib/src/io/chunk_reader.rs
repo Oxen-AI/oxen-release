@@ -58,7 +58,7 @@ impl Read for ChunkReader {
         );
         if self.offset >= self.node.num_bytes {
             self.offset = 0;
-            return Ok(0)
+            return Ok(0);
         }
 
         // FileNode has a vector of chunks
@@ -85,7 +85,8 @@ impl Read for ChunkReader {
 
             // Find the hashed chunk file
             let chunk_hash = self.node.chunk_hashes[chunk_index as usize];
-            let hash_str = format!("{:x}", chunk_hash);
+            let hash_str = format!("{:x}", chunk_hash.0);
+            todo!("use chunk_hash.1 to find the shard file");
             let chunk_path = util::fs::chunk_path(&self.repo, &hash_str);
 
             log::debug!(
@@ -125,7 +126,6 @@ impl Read for ChunkReader {
             self.offset += bytes_to_copy;
             log::debug!("Total read {:?}/{}", total_read, buf.len());
             log::debug!("-end- Offset {:?} / {}", self.offset, self.node.num_bytes);
-
         }
 
         log::debug!("--END-- Total read {:?}", total_read);
