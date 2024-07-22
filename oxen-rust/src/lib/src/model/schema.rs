@@ -180,7 +180,6 @@ impl Schema {
         self.fields.iter().any(|f| f.name.to_lowercase() == name) // Compare lowercase versions
     }
 
-
     pub fn get_field(&self, name: impl AsRef<str>) -> Option<&Field> {
         let name = name.as_ref();
         self.fields.iter().find(|f| f.name == name)
