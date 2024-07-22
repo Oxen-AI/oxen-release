@@ -6,7 +6,7 @@ use super::Migrate;
 use crate::core::db::merkle_node_db::MerkleNodeDB;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{self, str_val_db};
-use crate::core::index::file_chunker::FileChunker;
+use crate::core::index::file_chunker::{ChunkShardManager, FileChunker};
 use crate::core::index::merkle_tree::node::*;
 use crate::core::index::{CommitEntryReader, CommitReader};
 use crate::error::OxenError;
@@ -317,7 +317,7 @@ fn migrate_dir(
                         path: file_name.to_owned(),
                     };
                     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                    println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
+                    // println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
                     tree_db.write_one(uhash, MerkleTreeNodeType::Dir, &val)?;
                     migrate_dir(repo, reader, file_name, hash)?;
                 }
@@ -328,7 +328,7 @@ fn migrate_dir(
                         path: file_name.to_owned(),
                     };
                     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                    println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
+                    // println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
                     tree_db.write_one(uhash, MerkleTreeNodeType::Schema, &val)?;
                 }
             }
@@ -369,7 +369,8 @@ fn migrate_file(
         path.display()
     )))?;
     let chunker = FileChunker::new(repo);
-    let chunks = chunker.save_chunks(&commit_entry)?;
+    let mut csm = ChunkShardManager::new(repo)?;
+    let chunks = chunker.save_chunks(&commit_entry, &mut csm)?;
 
     // Then start refactoring the commands into a "legacy" module so we can still make the old
     // dbs but start implementing them with the new merkle object

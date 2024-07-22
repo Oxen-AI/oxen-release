@@ -71,3 +71,13 @@ where
         }
     }
 }
+
+pub fn put_buf<T: ThreadMode>(
+    db: &DBWithThreadMode<T>,
+    key: u128,
+    entry: &[u8],
+) -> Result<(), OxenError> {
+    let key = key.to_be_bytes().to_vec();
+    db.put(key, entry)?;
+    Ok(())
+}

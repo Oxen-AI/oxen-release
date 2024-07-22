@@ -328,11 +328,11 @@ impl MerkleNodeDB {
         let mut buf = Vec::new();
         item.serialize(&mut Serializer::new(&mut buf)).unwrap();
         let data_len = buf.len() as u64;
-        log::debug!("--write_one-- dtype {:?}", dtype);
-        log::debug!("--write_one-- hash {:x}", hash);
-        log::debug!("--write_one-- data_offset {}", self.data_offset);
-        log::debug!("--write_one-- data_len {}", data_len);
-        log::debug!("--write_one-- item {:?}", item);
+        // log::debug!("--write_one-- dtype {:?}", dtype);
+        // log::debug!("--write_one-- hash {:x}", hash);
+        // log::debug!("--write_one-- data_offset {}", self.data_offset);
+        // log::debug!("--write_one-- data_len {}", data_len);
+        // log::debug!("--write_one-- item {:?}", item);
 
         lookup_file.write_all(&dtype.to_u8().to_le_bytes())?;
         lookup_file.write_all(&hash.to_le_bytes())?;
