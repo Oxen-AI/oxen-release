@@ -1,12 +1,13 @@
 use polars::io::mmap::MmapBytesReader;
 // use polars::io::mmap::ReaderBytes;
 
+use crate::core::index::file_chunker::ChunkShardManager;
 use crate::core::index::file_chunker::CHUNK_SIZE;
 use crate::core::index::merkle_tree::node::FileNode;
+use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util;
 
-use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
 
@@ -14,11 +15,12 @@ pub struct ChunkReader {
     repo: LocalRepository,
     node: FileNode,
     offset: u64,
+    csm: ChunkShardManager,
     // data: Vec<u8>,
 }
 
 impl ChunkReader {
-    pub fn new(repo: LocalRepository, node: FileNode) -> Self {
+    pub fn new(repo: LocalRepository, node: FileNode) -> Result<Self, OxenError> {
         let num_bytes = node.num_bytes as usize;
         // let mut data: Vec<u8> = vec![0; num_bytes];
 
@@ -39,12 +41,14 @@ impl ChunkReader {
         //     log::debug!("read data... {total_read}/{num_bytes}");
         // }
 
-        Self {
+        let csm = ChunkShardManager::new(&repo)?;
+        Ok(Self {
             repo,
             node,
             offset: 0,
+            csm,
             // data,
-        }
+        })
     }
 }
 
@@ -57,6 +61,11 @@ impl Read for ChunkReader {
             self.node.num_bytes
         );
         if self.offset >= self.node.num_bytes {
+            log::debug!(
+                "Reached end of file at offset: {} >= {}",
+                self.offset,
+                self.node.num_bytes
+            );
             self.offset = 0;
             return Ok(0);
         }
@@ -71,6 +80,7 @@ impl Read for ChunkReader {
         let mut chunk_offset = self.offset % CHUNK_SIZE as u64;
 
         log::debug!("Chunk index: {:?} offset {:?}", chunk_index, chunk_offset);
+        log::debug!("Chunk hashes len {:?}", self.node.chunk_hashes.len());
 
         // read chunks until we fill the buffer
         let mut total_read = 0;
@@ -85,25 +95,13 @@ impl Read for ChunkReader {
 
             // Find the hashed chunk file
             let chunk_hash = self.node.chunk_hashes[chunk_index as usize];
-            let hash_str = format!("{:x}", chunk_hash.0);
-            todo!("use chunk_hash.1 to find the shard file");
-            let chunk_path = util::fs::chunk_path(&self.repo, &hash_str);
+            let chunk_data = self.csm.read_chunk(chunk_hash).unwrap();
+            let chunk_data_len = chunk_data.len() as u64;
 
-            log::debug!(
-                "Opening chunk [{} / {}] file at {:?}",
-                chunk_index,
-                self.node.chunk_hashes.len(),
-                chunk_path
-            );
-            let mut file = std::fs::File::open(chunk_path).unwrap();
-            let mut file_data = Vec::new();
-            file.read_to_end(&mut file_data).unwrap();
-            let file_data_len = file_data.len() as u64;
-
-            log::debug!("Chunk file size {:?}", file_data_len);
+            log::debug!("Chunk file size {:?}", chunk_data_len);
 
             let bytes_to_copy =
-                std::cmp::min(buf.len() as u64 - total_read, file_data_len - chunk_offset);
+                std::cmp::min(buf.len() as u64 - total_read, chunk_data_len - chunk_offset);
 
             log::debug!("Bytes to copy {:?}", bytes_to_copy);
 
@@ -112,7 +110,7 @@ impl Read for ChunkReader {
             }
 
             buf[total_read as usize..(total_read + bytes_to_copy) as usize].copy_from_slice(
-                &file_data[chunk_offset as usize..(chunk_offset + bytes_to_copy) as usize],
+                &chunk_data[chunk_offset as usize..(chunk_offset + bytes_to_copy) as usize],
             );
 
             total_read += bytes_to_copy;

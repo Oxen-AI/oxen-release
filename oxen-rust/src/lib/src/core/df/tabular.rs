@@ -937,7 +937,7 @@ pub fn show_node(
     log::debug!("Opening chunked reader");
 
     let df = if file_node.name.ends_with("parquet") {
-        let chunk_reader = ChunkReader::new(repo, file_node);
+        let chunk_reader = ChunkReader::new(repo, file_node)?;
         let parquet_reader = ParquetReader::new(chunk_reader);
         log::debug!("Reading chunked parquet");
 
@@ -953,7 +953,7 @@ pub fn show_node(
         }?;
         df
     } else if file_node.name.ends_with("arrow") {
-        let chunk_reader = ChunkReader::new(repo, file_node);
+        let chunk_reader = ChunkReader::new(repo, file_node)?;
         let parquet_reader = IpcReader::new(chunk_reader);
         log::debug!("Reading chunked arrow");
 
@@ -969,7 +969,7 @@ pub fn show_node(
         }?;
         df
     } else {
-        let chunk_reader = ChunkReader::new(repo, file_node);
+        let chunk_reader = ChunkReader::new(repo, file_node)?;
         let json_reader = JsonLineReader::new(chunk_reader);
         let df = match json_reader.finish() {
             Ok(df) => {

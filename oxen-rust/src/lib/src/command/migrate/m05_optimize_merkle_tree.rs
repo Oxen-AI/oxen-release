@@ -370,6 +370,7 @@ fn migrate_file(
     )))?;
     let chunker = FileChunker::new(repo);
     let mut csm = ChunkShardManager::new(repo)?;
+    csm.open_for_write()?;
     let chunks = chunker.save_chunks(&commit_entry, &mut csm)?;
 
     // Then start refactoring the commands into a "legacy" module so we can still make the old
