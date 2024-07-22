@@ -992,6 +992,14 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
                 }
             }
         }
+    } else if opts.should_page {
+        let output = pretty_print::df_to_pager(&df, &opts)?;
+        match minus::page_all(output) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error while paging: {}", e);
+            }
+        }
     } else {
         let pretty_df = pretty_print::df_to_str(&df);
         println!("{pretty_df}");

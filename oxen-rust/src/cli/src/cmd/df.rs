@@ -38,6 +38,13 @@ impl RunCmd for DFCmd {
                 .action(clap::ArgAction::Set),
         )
         .arg(
+            Arg::new("full")
+                .long("full")
+                .short('l')
+                .help("Display non-truncated data frame")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("delimiter")
                 .long("delimiter")
                 .short('d')
@@ -238,6 +245,9 @@ impl DFCmd {
             None
         };
 
+        let page_specified: bool = args.get_one::<String>("page").is_some()
+            | args.get_one::<String>("page-size").is_some();
+
         liboxen::opts::DFOpts {
             write: write_path,
             output: args
@@ -278,6 +288,7 @@ impl DFCmd {
             unique: args.get_one::<String>("unique").map(String::from),
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
+            should_page: args.get_flag("full") || page_specified,
             repo_dir,
         }
     }
