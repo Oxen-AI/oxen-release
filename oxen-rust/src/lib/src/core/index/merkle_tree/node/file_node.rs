@@ -17,7 +17,7 @@ pub struct FileNode {
     pub last_modified_nanoseconds: u32,
 
     // File chunks
-    pub chunk_hashes: Vec<(u128, u32)>,
+    pub chunk_hashes: Vec<u128>,
     // TODO: We should look at the stat for other data to have here. Such as file permissions, etc.
     // https://man7.org/linux/man-pages/man1/stat.1.html
 

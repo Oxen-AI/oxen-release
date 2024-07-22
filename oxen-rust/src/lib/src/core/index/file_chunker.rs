@@ -17,6 +17,8 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::Read;
+use std::io::Seek;
+use std::io::SeekFrom;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
@@ -61,17 +63,17 @@ impl ChunkShardDB {
 
     pub fn new(repo: &LocalRepository) -> Result<Self, OxenError> {
         let path = Self::db_path(repo);
-        let mut opts = db::opts::default();
-
-        // let mut block_opts = BlockBasedOptions::default();
-        // block_opts.set_index_type(BlockBasedIndexType::HashSearch);
-        // opts.set_block_based_table_factory(&block_opts);
+        let opts = db::opts::default();
         let db = DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
         Ok(Self { db })
     }
 
     pub fn has_key(&self, hash: u128) -> bool {
         u128_kv_db::has_key(&self.db, hash)
+    }
+
+    pub fn get(&self, hash: u128) -> Result<Option<u32>, OxenError> {
+        u128_kv_db::get(&self.db, hash)
     }
 
     pub fn put(&self, hash: u128, shard_idx: u32) -> Result<(), OxenError> {
@@ -84,7 +86,8 @@ impl ChunkShardDB {
 /// ChunkShardIndex is the index at the top of the shard file
 #[derive(Serialize, Deserialize)]
 pub struct ChunkShardIndex {
-    pub hash_offsets: HashMap<u128, u16>,
+    // hash -> (offset, size)
+    pub hash_offsets: HashMap<u128, (u32, u32)>,
 }
 
 impl ChunkShardIndex {
@@ -99,8 +102,9 @@ pub struct ChunkShardFile {
     pub path: PathBuf,
     pub file: File,
     pub index: ChunkShardIndex,
-    pub buffer_offset: usize,
-    pub buffer: Vec<u8>,
+    pub data_start: usize,
+    pub offset: usize,
+    pub data: Vec<u8>,
 }
 
 impl ChunkShardFile {
@@ -116,23 +120,26 @@ impl ChunkShardFile {
         path.join(format!("shard_{}", file_idx))
     }
 
-    pub fn open_existing(
-        repo: &LocalRepository,
-        file_idx: u32,
-    ) -> Result<ChunkShardFile, OxenError> {
+    pub fn shard_idx(path: &Path) -> u32 {
+        let file_stem = path.file_stem().unwrap();
+        let file_stem_str = file_stem.to_str().unwrap();
+        let idx_str = file_stem_str.split('_').nth(1).unwrap();
+        idx_str.parse::<u32>().unwrap()
+    }
+
+    pub fn open(repo: &LocalRepository, file_idx: u32) -> Result<ChunkShardFile, OxenError> {
         log::debug!("Opening shard file: {:?}", Self::shard_path(repo, file_idx));
         let path = Self::shard_path(repo, file_idx);
         let file = File::open(&path)?;
         // allocate the data buffer
-        let mut shard_file = ChunkShardFile {
+        let shard_file = ChunkShardFile {
             path,
             file,
             index: ChunkShardIndex::new(),
-            buffer_offset: 0,
-            buffer: Vec::new(),
+            data_start: 0,
+            offset: 0,
+            data: Vec::new(),
         };
-        shard_file.read_index()?;
-        shard_file.read_data()?;
         Ok(shard_file)
     }
 
@@ -148,13 +155,14 @@ impl ChunkShardFile {
             path,
             file,
             index,
-            buffer_offset: 0,
-            buffer: vec![0; SHARD_CAPACITY],
+            data_start: 0,
+            offset: 0,
+            data: vec![0; SHARD_CAPACITY],
         })
     }
 
     pub fn has_capacity(&self, buffer_len: usize) -> bool {
-        (self.buffer_offset + buffer_len) < SHARD_CAPACITY
+        (self.offset + buffer_len) < SHARD_CAPACITY
     }
 
     pub fn add_buffer(&mut self, hash: u128, buffer: &[u8]) -> Result<(), OxenError> {
@@ -164,10 +172,27 @@ impl ChunkShardFile {
 
         self.index
             .hash_offsets
-            .insert(hash, self.buffer_offset as u16);
-        self.buffer[self.buffer_offset..self.buffer_offset + buffer.len()].copy_from_slice(buffer);
-        self.buffer_offset += buffer.len();
+            .insert(hash, (self.offset as u32, buffer.len() as u32));
+        self.data[self.offset..self.offset + buffer.len()].copy_from_slice(buffer);
+        self.offset += buffer.len();
         Ok(())
+    }
+
+    pub fn get_buffer(&mut self, hash: u128) -> Result<Vec<u8>, OxenError> {
+        let offset = self.index.hash_offsets[&hash];
+        let start = self.data_start + offset.0 as usize;
+        log::debug!(
+            "Reading chunk from shard: [{:?}] for hash: {} at start {} offset: {} size: {}",
+            self.path,
+            hash,
+            start,
+            offset.0,
+            offset.1
+        );
+        self.file.seek(SeekFrom::Start(start as u64))?;
+        let mut buffer = vec![0u8; offset.1 as usize];
+        self.file.read(&mut buffer)?;
+        Ok(buffer)
     }
 
     pub fn read_index(&mut self) -> Result<(), OxenError> {
@@ -179,6 +204,7 @@ impl ChunkShardFile {
         let mut index_bytes = vec![0u8; index_size];
         self.file.read(&mut index_bytes)?;
         self.index = bincode::deserialize(&index_bytes)?;
+        self.data_start = index_size + 8; // 4 for size of index and 4 for data size
 
         log::debug!(
             "Read index of size {} with {:?} hashes",
@@ -193,18 +219,18 @@ impl ChunkShardFile {
         // read the buffer size
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
         self.file.read(&mut buffer)?;
-        self.buffer_offset = u32::from_le_bytes(buffer) as usize;
+        self.offset = u32::from_le_bytes(buffer) as usize;
 
-        log::debug!("read data with {:?} bytes", self.buffer_offset);
+        log::debug!("read data with {:?} bytes", self.offset);
 
         // read the buffer
-        let mut buffer = vec![0u8; self.buffer_offset];
+        let mut buffer = vec![0u8; self.offset];
         self.file.read(&mut buffer)?;
 
         // Allocate the full size for the buffer
-        self.buffer = vec![0u8; SHARD_CAPACITY];
+        self.data = vec![0u8; SHARD_CAPACITY];
         // Copy the data into the buffer
-        self.buffer[..self.buffer_offset].copy_from_slice(&buffer);
+        self.data[..self.offset].copy_from_slice(&buffer);
         Ok(())
     }
 
@@ -221,10 +247,9 @@ impl ChunkShardFile {
         // write index to the file
         self.file.write_all(&index_bytes)?;
         // write the data size
-        self.file
-            .write_all(&(self.buffer_offset as u32).to_le_bytes())?;
+        self.file.write_all(&(self.offset as u32).to_le_bytes())?;
         // write only the data that has been written
-        let data = &self.buffer[..self.buffer_offset];
+        let data = &self.data[..self.offset];
         log::debug!("Saving shard data: {:?}", data.len());
         self.file.write_all(data)?;
         self.file.sync_all()?;
@@ -237,15 +262,25 @@ impl ChunkShardFile {
 pub struct ChunkShardManager {
     repo: LocalRepository,
     db: ChunkShardDB,
-    current_idx: u32,
-    current_file: ChunkShardFile,
+    current_idx: i32,
+    current_file: Option<ChunkShardFile>,
 }
 
 impl ChunkShardManager {
     pub fn new(repo: &LocalRepository) -> Result<Self, OxenError> {
+        let chunk_db = ChunkShardDB::new(repo)?;
+        Ok(Self {
+            repo: repo.clone(),
+            current_idx: -1,
+            current_file: None,
+            db: chunk_db,
+        })
+    }
+
+    pub fn open_for_write(&mut self) -> Result<(), OxenError> {
         log::debug!("Opening chunk shard manager");
         // find all the current shard files
-        let shard_dir = ChunkShardFile::db_path(repo);
+        let shard_dir = ChunkShardFile::db_path(&self.repo);
         if !shard_dir.exists() {
             util::fs::create_dir_all(&shard_dir)?;
         }
@@ -255,26 +290,8 @@ impl ChunkShardManager {
 
         // sort the shard paths by the file index
         shard_paths.sort_by(|a, b| {
-            let a_idx = a
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .split('_')
-                .nth(1)
-                .unwrap()
-                .parse::<u32>()
-                .unwrap();
-            let b_idx = b
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .split('_')
-                .nth(1)
-                .unwrap()
-                .parse::<u32>()
-                .unwrap();
+            let a_idx = ChunkShardFile::shard_idx(a);
+            let b_idx = ChunkShardFile::shard_idx(b);
             a_idx.cmp(&b_idx)
         });
 
@@ -282,72 +299,88 @@ impl ChunkShardManager {
         let mut current_file: Option<ChunkShardFile> = None;
         for path in shard_paths {
             log::debug!("Opening shard file: {:?}", path);
-            let file_idx = path
-                .file_stem()
-                .unwrap()
-                .to_str()
-                .unwrap()
-                .split('_')
-                .nth(1)
-                .unwrap()
-                .parse::<u32>()?;
-            if let Ok(shard_file) = ChunkShardFile::open_existing(repo, file_idx) {
+            let file_idx = ChunkShardFile::shard_idx(&path);
+            if let Ok(mut shard_file) = ChunkShardFile::open(&self.repo, file_idx) {
+                shard_file.read_index()?;
                 log::debug!("Opened shard file: {:?}", path);
                 if shard_file.has_capacity(CHUNK_SIZE) {
                     log::debug!("Shard [{}] has capacity, using it", file_idx);
+                    shard_file.read_data()?;
                     current_idx = file_idx;
                     current_file = Some(shard_file);
                 }
             }
-            //  else {
-            //     log::debug!("Failed to open shard file: {:?}", path);
-            //     current_idx = file_idx;
-            //     current_file = Some(ChunkShardFile::create(repo, file_idx)?);
-            // }
         }
 
         if current_file.is_none() {
             log::debug!(
                 "Creating new shard file: {:?}",
-                ChunkShardFile::shard_path(repo, current_idx)
+                ChunkShardFile::shard_path(&self.repo, current_idx)
             );
-            current_file = Some(ChunkShardFile::create(repo, current_idx)?);
+            current_file = Some(ChunkShardFile::create(&self.repo, current_idx)?);
         }
 
         log::debug!("Current shard index: {:?}", current_idx);
-
-        let chunk_db = ChunkShardDB::new(repo)?;
-        Ok(Self {
-            repo: repo.clone(),
-            current_idx,
-            current_file: current_file.unwrap(),
-            db: chunk_db,
-        })
+        self.current_idx = current_idx as i32; // can always cast u32 to i32
+        self.current_file = current_file;
+        Ok(())
     }
 
     pub fn has_chunk(&self, hash: u128) -> bool {
         self.db.has_key(hash)
     }
 
+    pub fn read_chunk(&mut self, hash: u128) -> Result<Vec<u8>, OxenError> {
+        let shard_idx = self
+            .db
+            .get(hash)?
+            .ok_or(OxenError::basic_str("Chunk not found"))?;
+        log::debug!(
+            "Reading chunk from shard: [{}] for hash: {}",
+            shard_idx,
+            hash
+        );
+        // Cache the current shard file for faster reads of the same shard
+        if shard_idx as i32 != self.current_idx {
+            self.current_file = Some(ChunkShardFile::open(&self.repo, shard_idx)?);
+            self.current_file.as_mut().unwrap().read_index()?;
+            self.current_idx = shard_idx as i32;
+        }
+        let buffer = self.current_file.as_mut().unwrap().get_buffer(hash)?;
+        Ok(buffer)
+    }
+
     pub fn write_chunk(&mut self, hash: u128, chunk: &[u8]) -> Result<u32, OxenError> {
+        let Some(current_file) = self.current_file.as_mut() else {
+            return Err(OxenError::basic_str("Not open for writing"));
+        };
+
         // log::debug!("Writing chunk {} -> {} to shard: [{}]", hash, chunk.len(), self.current_idx);
         // Save the lookup from hash to shard_idx
-        self.db.put(hash, self.current_idx)?;
+        self.db.put(hash, self.current_idx as u32)?;
         // Add the chunk to the current file
-        self.current_file.add_buffer(hash, chunk)?;
+        current_file.add_buffer(hash, chunk)?;
         // If the file is full, save it and start a new one
-        if !self.current_file.has_capacity(chunk.len()) {
-            log::debug!("Shard file is full, saving {}", self.current_idx);
-            self.current_file.save()?;
+        if !current_file.has_capacity(chunk.len()) {
+            log::debug!(
+                "Shard file is full with {} saving {}",
+                current_file.offset,
+                self.current_idx
+            );
+            current_file.save()?;
             self.current_idx += 1;
             log::debug!("Shard file is full, starting new one {}", self.current_idx);
-            self.current_file = ChunkShardFile::create(&self.repo, self.current_idx)?;
+            self.current_file = Some(ChunkShardFile::create(&self.repo, self.current_idx as u32)?);
         }
-        Ok(self.current_idx)
+        Ok(self.current_idx as u32)
     }
 
     pub fn save_all(&mut self) -> Result<(), OxenError> {
-        self.current_file.save()?;
+        let Some(current_file) = self.current_file.as_mut() else {
+            return Err(OxenError::basic_str("Not open for writing"));
+        };
+
+        current_file.save()?;
         Ok(())
     }
 }
@@ -365,7 +398,7 @@ impl FileChunker {
         &self,
         entry: &CommitEntry,
         csm: &mut ChunkShardManager,
-    ) -> Result<Vec<(u128, u32)>, OxenError> {
+    ) -> Result<Vec<u128>, OxenError> {
         let version_file = util::fs::version_path(&self.repo, entry);
         let mut read_file = File::open(&version_file)?;
 
@@ -375,7 +408,8 @@ impl FileChunker {
 
         // Read/Write chunks
         let mut buffer = vec![0; CHUNK_SIZE]; // 16KB buffer
-        let mut hashes: Vec<(u128, u32)> = Vec::new();
+        let mut hashes: Vec<u128> = Vec::new();
+        let mut num_new_chunks = 0;
         while let Ok(bytes_read) = read_file.read(&mut buffer) {
             if bytes_read == 0 {
                 break; // End of file
@@ -383,38 +417,21 @@ impl FileChunker {
             // Shrink buffer to size of bytes read
             buffer.truncate(bytes_read);
 
-            // Process the buffer here
-            // log::debug!("Read {} bytes from {:?}", bytes_read, version_file);
-            // let hash = hasher::hash_buffer_128bit(&buffer);
-            // let shash = format!("{:x}", hash);
-
-            // // Write the chunk to disk if it doesn't exist
-            // let output_path = util::fs::chunk_path(&self.repo, &shash);
-            // if let Some(parent) = output_path.parent() {
-            //     if !parent.exists() {
-            //         util::fs::create_dir_all(parent)?;
-            //     }
-            // }
-
-            // if !output_path.exists() {
-            //     let mut output_file = File::create(output_path)?;
-            //     let bytes_written = output_file.write(&buffer)?;
-            //     if bytes_written != bytes_read {
-            //         return Err(OxenError::basic_str("Failed to write all bytes to chunk"));
-            //     }
-            // }
-
-            // TODO: Where to check if the chunk already exists?
-
             // Save the chunk to the database
             let hash = hasher::hash_buffer_128bit(&buffer);
             if !csm.has_chunk(hash) {
-                let shard_idx = csm.write_chunk(hash, &buffer)?;
-                hashes.push((hash, shard_idx));
+                csm.write_chunk(hash, &buffer)?;
+                num_new_chunks += 1;
             }
+            hashes.push(hash);
             progress_bar.inc(bytes_read as u64);
         }
-        println!("Saved {} chunks for {:?}", hashes.len(), entry.path);
+        println!(
+            "Saved {} new chunks out of {} for {:?}",
+            num_new_chunks,
+            hashes.len(),
+            entry.path
+        );
 
         // Flush the progress to disk
         csm.save_all()?;
