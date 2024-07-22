@@ -24,8 +24,8 @@ use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 pub mod columns;
-pub mod rows;
 pub mod data_frame_column_changes_db;
+pub mod rows;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
     let commit_path = previous_commit_ref_path(workspace, path);
@@ -62,7 +62,6 @@ pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> Pat
         .join(path_hash)
         .join("column_changes")
 }
-
 
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {
     let db_path = duckdb_path(workspace, path);

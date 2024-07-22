@@ -1,7 +1,7 @@
 use polars::frame::DataFrame;
 use sql_query_builder as sql;
 
-use crate::constants::{ DIFF_STATUS_COL, OXEN_COLS, OXEN_ROW_ID_COL};
+use crate::constants::{DIFF_STATUS_COL, OXEN_COLS, OXEN_ROW_ID_COL};
 
 use crate::model::schema::Field;
 use crate::model::staged_row_status::StagedRowStatus;
