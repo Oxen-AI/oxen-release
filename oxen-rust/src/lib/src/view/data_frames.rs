@@ -11,5 +11,6 @@ pub struct DataFramePayload {
 pub struct DataFrameColumnChange {
     pub column_name: String,
     pub operation: String,
-    pub new_name: String,
+    pub new_name: Option<String>,
+    pub new_data_type: Option<String>,
 }
