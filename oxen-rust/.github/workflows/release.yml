@@ -44,8 +44,8 @@ jobs:
               {"Key": "Name", "Value": "ec2-github-runner"}
             ]
 
-  release_ubuntu_latest:
-    runs-on: ubuntu-latest
+  release_ubuntu_22_04:
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout
@@ -121,7 +121,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-server-ubuntu-latest.deb \
+            -p oxen-server-ubuntu-22.04.deb \
             -C target/release \
             --name oxen-server \
             --version ${{ env.RELEASE_VERSION }} \
@@ -135,7 +135,7 @@ jobs:
         run: |
           fpm \
             -s dir -t deb \
-            -p oxen-ubuntu-latest.deb \
+            -p oxen-ubuntu-22.04.deb \
             -C target/release \
             --name oxen \
             --version ${{ env.RELEASE_VERSION }} \
@@ -159,8 +159,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-ubuntu-latest.deb
-          asset_name: oxen-ubuntu-latest.deb
+          file: oxen-ubuntu-22.04.deb
+          asset_name: oxen-ubuntu-22.04.deb
           tag: ${{ github.ref }}
 
   release_ubuntu_20_04:
