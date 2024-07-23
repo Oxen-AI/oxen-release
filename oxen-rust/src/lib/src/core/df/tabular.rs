@@ -50,6 +50,7 @@ fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader 
 
 pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
+    println!("Read_df_csv start");
     log::debug!("read_df_csv path: {:?}", path);
     let reader = base_lazy_csv_reader(path, delimiter);
     let result = reader.finish()?.collect();
@@ -70,11 +71,10 @@ pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<DataFrame, O
 pub fn scan_df_csv(
     path: impl AsRef<Path>,
     delimiter: u8,
-    total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
+    println!("scan_df start");
     let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
     reader
-        .with_n_rows(Some(total_rows))
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
@@ -101,10 +101,9 @@ pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     Ok(df)
 }
 
-pub fn scan_df_jsonl(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_jsonl(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     LazyJsonLineReader::new(path.as_ref().to_str().expect("Invalid json path."))
         .with_infer_schema_length(Some(NonZeroUsize::new(10000).unwrap()))
-        .with_n_rows(Some(total_rows))
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
@@ -131,9 +130,9 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {
     }
 }
 
-pub fn scan_df_parquet(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
+pub fn scan_df_parquet(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
     let args = ScanArgsParquet {
-        n_rows: Some(total_rows),
+        n_rows: None,
         ..Default::default()
     };
     log::debug!(
@@ -236,9 +235,9 @@ pub fn row_from_str_and_schema(
     let values: Vec<&str> = data.as_ref().split(',').collect();
 
     if values.len() != schema.len() {
-        return Err(format!(
+        return Err(OxenError::basic_str(format!(
             "Error: Added row must have same number of columns as df\nRow columns: {}\ndf columns: {}", values.len(), schema.len())
-        );
+        ));
     }
 
     let mut vec: Vec<Series> = Vec::new();
@@ -377,16 +376,24 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
 }
 
 pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
-    let height = df.height();
-    let df = transform_lazy(df.lazy(), height, opts.clone())?;
-    transform_slice_lazy(df.lazy(), height, opts)
+//    let height = df.height();
+    println!("transform start");
+    let df = transform_lazy(df.lazy(), opts.clone())?;
+    println!("slice start");
+    Ok(transform_slice_lazy(df, opts)?.collect()?)
 }
 
+pub fn transform_new(df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, OxenError> {
+    //    let height = df.height();
+        let df = transform_lazy(df, opts.clone())?;
+        transform_slice_lazy(df, opts)
+    }
+use crate::core::df::filter;
 pub fn transform_lazy(
     mut df: LazyFrame,
-    height: usize,
+//    height: u32,
     opts: DFOpts,
-) -> Result<DataFrame, OxenError> {
+) -> Result<LazyFrame, OxenError> {
     log::debug!("transform_lazy Got transform ops {:?}", opts);
     if let Some(vstack) = &opts.vstack {
         log::debug!("transform_lazy Got files to stack {:?}", vstack);
@@ -416,27 +423,18 @@ pub fn transform_lazy(
         )?;
     }
 
+    /*
     if opts.should_randomize {
         let mut rand_indices: Vec<u32> = (0..height as u32).collect();
         rand_indices.shuffle(&mut thread_rng());
         df = take(df, rand_indices)?.lazy();
     }
+    */
 
     if let Some(sql) = opts.sql.clone() {
         if let Some(repo_dir) = opts.repo_dir.as_ref() {
             let repo = LocalRepository::from_dir(repo_dir)?;
             df = sql::query_df_from_repo(sql, &repo)?.lazy();
-        }
-    }
-
-    match opts.get_filter() {
-        Ok(filter) => {
-            if let Some(filter) = filter {
-                df = filter_df(df, &filter)?;
-            }
-        }
-        Err(err) => {
-            log::error!("Could not parse filter: {err}");
         }
     }
 
@@ -472,46 +470,46 @@ pub fn transform_lazy(
     }
 
     log::debug!("transform_lazy before collect");
-    match df.collect() {
-        Ok(df) => {
-            log::debug!("transform_lazy collected {:?}", df);
-            Ok(df)
+    match opts.get_filter() {
+        Ok(filter) => {
+            if let Some(filter) = filter {
+                filter_df(df, &filter)
+            } else {
+                let temp = filter::parse(Some("".to_string()))?;
+                filter_df(df, &temp.unwrap())
+            }
         }
-        Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
+        Err(err) => {
+            Err(OxenError::basic_str("Delimiter must be a single character"))
+        }
     }
 }
 
 pub fn transform_slice(df: DataFrame, height: usize, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("here's the slice that we got heading into this {:?}", df);
-    transform_slice_lazy(df.lazy(), height, opts)
+    Ok(transform_slice_lazy(df.lazy(), opts)?.collect()?)
 }
 
 // Separate out slice transform because it needs to be done after other transforms
 pub fn transform_slice_lazy(
     mut df: LazyFrame,
-    height: usize,
+//    height: usize,
     opts: DFOpts,
-) -> Result<DataFrame, OxenError> {
+) -> Result<LazyFrame, OxenError> {
     // Maybe slice it up
     df = slice(df, &opts);
     df = head(df, &opts);
-    df = tail(df, height, &opts);
+//    df = tail(df, height, &opts);
     if let Some(item) = opts.column_at() {
         let full_df = df.collect().unwrap();
         let value = full_df.column(&item.col).unwrap().get(item.index).unwrap();
         let s1 = Series::new("", &[value]);
         let df = DataFrame::new(vec![s1]).unwrap();
-        return Ok(df);
+        return Ok(df.lazy());
     }
 
     log::debug!("transform_slice_lazy before collect");
-    match df.collect() {
-        Ok(df) => {
-            log::debug!("transform_lazy collected {:?}", df);
-            Ok(df)
-        }
-        Err(err) => Err(OxenError::basic_str(format!("DataFrame Error: {}", err))),
-    }
+    Ok(df)
 }
 
 fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
@@ -756,26 +754,27 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
     }
+    println!("Read_df start");
 
     let extension = path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
 
     let df = match extension {
         Some(extension) => match extension {
-            "ndjson" => read_df_jsonl(path),
-            "jsonl" => read_df_jsonl(path),
-            "json" => read_df_json(path),
+            "ndjson" => scan_df_jsonl(path),
+            "jsonl" => scan_df_jsonl(path),
+            "json" => scan_df_json(path),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(path, &opts)?;
-                read_df_csv(path, delimiter)
+                scan_df_csv(path, delimiter)
             }
-            "tsv" => read_df_csv(path, b'\t'),
-            "parquet" => read_df_parquet(path),
+            "tsv" => scan_df_csv(path, b'\t'),
+            "parquet" => scan_df_parquet(path),
             "arrow" => {
                 if opts.sql.is_some() {
                     return Err(OxenError::basic_str("Error: SQL queries are not supported for .arrow files"));
                 }
-                read_df_arrow(path)
+                scan_df_arrow(path)
             }
             _ => Err(OxenError::basic_str(err)),
         },
@@ -783,10 +782,10 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     }?;
 
     if opts.has_transform() {
-        let df = transform(df, opts)?;
-        Ok(df)
+        let df = transform_new(df, opts)?;
+        Ok(df.collect()?)
     } else {
-        Ok(df)
+        Ok(df.collect()?)
     }
 }
 
@@ -801,15 +800,15 @@ pub fn scan_df(
 
     match extension {
         Some(extension) => match extension {
-            "ndjson" => scan_df_jsonl(path, total_rows),
-            "jsonl" => scan_df_jsonl(path, total_rows),
+            "ndjson" => scan_df_jsonl(path),
+            "jsonl" => scan_df_jsonl(path),
             "json" => scan_df_json(path),
             "csv" | "data" => {
                 let delimiter = sniff_db_csv_delimiter(&path, opts)?;
-                scan_df_csv(path, delimiter, total_rows)
+                scan_df_csv(path, delimiter)
             }
-            "tsv" => scan_df_csv(path, b'\t', total_rows),
-            "parquet" => scan_df_parquet(path, total_rows),
+            "tsv" => scan_df_csv(path, b'\t'),
+            "parquet" => scan_df_parquet(path),
             "arrow" => scan_df_arrow(path),
             _ => Err(OxenError::basic_str(err)),
         },

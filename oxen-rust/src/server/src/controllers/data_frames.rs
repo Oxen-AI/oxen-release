@@ -132,8 +132,11 @@ pub async fn get(
     );
     // Transformation and pagination logic...
 
-    match tabular::transform_lazy(df, data_frame_size.height, opts.clone()) {
-        Ok(df_view) => {
+    let temp = Ok(tabular::transform_lazy(df, opts.clone())?);
+
+    match temp {
+        Ok(df_view_1) => {
+            let df_view = df_view_1.collect()?;
             log::debug!("controllers::data_frames DF view {:?}", df_view);
 
             // Have to do the pagination after the transform
