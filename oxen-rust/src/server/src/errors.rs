@@ -325,7 +325,7 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::BadRequest().json(error_json)
                     }
                     OxenError::ColumnNameAlreadyExists(column_name) => {
-                        log::error!("Column Name Already Exists schemas: {}", column_name);
+                        log::error!("Column Name Already Exists: {}", column_name);
                         let error_json = json!({
                             "error": {
                                 "type": "column_error",
@@ -333,6 +333,21 @@ impl error::ResponseError for OxenHttpError {
                                     "Column Name Already Exists",
                                 "detail":
                                     format!("Column name '{}' already exists in schema", column_name)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_BAD_REQUEST,
+                        });
+                        HttpResponse::BadRequest().json(error_json)
+                    }
+                    OxenError::ColumnNameNotFound(column_name) => {
+                        log::error!("Column Name Not Found: {}", column_name);
+                        let error_json = json!({
+                            "error": {
+                                "type": "column_error",
+                                "title":
+                                    "Column Name Not Found",
+                                "detail":
+                                    format!("Column name '{}' not found in schema", column_name)
                             },
                             "status": STATUS_ERROR,
                             "status_message": MSG_BAD_REQUEST,

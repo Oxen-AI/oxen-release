@@ -9,7 +9,7 @@ use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
-use crate::view::data_frames::columns::NewColumn;
+use crate::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
 use crate::view::data_frames::DataFrameColumnChange;
 use crate::{constants::TABLE_NAME, error::OxenError};
 
@@ -25,20 +25,76 @@ pub fn add_column(
         return Err(OxenError::column_name_already_exists(&new_column.name));
     }
 
-    record_column_change(new_column, column_changes_path)?;
+    record_column_change(
+        column_changes_path,
+        new_column.name.to_owned(),
+        "added".to_owned(),
+        None,
+        None,
+    )?;
 
-    let inserted_df = insert_column(conn, TABLE_NAME, new_column)?;
+    let inserted_df = polar_insert_column(conn, TABLE_NAME, new_column)?;
+    Ok(inserted_df)
+}
+
+pub fn delete_column(
+    conn: &duckdb::Connection,
+    column_to_delete: &ColumnToDelete,
+    column_changes_path: &PathBuf,
+) -> Result<DataFrame, OxenError> {
+    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+
+    if !table_schema.has_column(&column_to_delete.name) {
+        return Err(OxenError::column_name_not_found(&column_to_delete.name));
+    }
+
+    record_column_change(
+        column_changes_path,
+        column_to_delete.name.to_owned(),
+        "deleted".to_owned(),
+        None,
+        None,
+    )?;
+
+    let inserted_df = polar_delete_column(conn, TABLE_NAME, column_to_delete)?;
+    Ok(inserted_df)
+}
+
+pub fn update_column(
+    conn: &duckdb::Connection,
+    column_to_update: &ColumnToUpdate,
+    column_changes_path: &PathBuf,
+) -> Result<DataFrame, OxenError> {
+    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
+
+    if !table_schema.has_column(&column_to_update.name) {
+        return Err(OxenError::column_name_not_found(&column_to_update.name));
+    }
+
+    record_column_change(
+        column_changes_path,
+        column_to_update.name.to_owned(),
+        "modified".to_owned(),
+        column_to_update.new_name.clone(),
+        column_to_update.new_data_type.clone(),
+    )?;
+
+    let inserted_df = polar_update_column(conn, TABLE_NAME, column_to_update)?;
     Ok(inserted_df)
 }
 
 fn record_column_change(
-    new_column: &NewColumn,
     column_changes_path: &PathBuf,
+    column_name: String,
+    operation: String,
+    new_name: Option<String>,
+    new_data_type: Option<String>,
 ) -> Result<(), OxenError> {
     let change = DataFrameColumnChange {
-        column_name: new_column.name.clone(),
-        operation: "added".to_string(),
-        new_name: "".to_string(),
+        column_name: column_name,
+        operation: operation,
+        new_name: new_name,
+        new_data_type: new_data_type,
     };
 
     let opts = db::key_val::opts::default();
@@ -47,7 +103,7 @@ fn record_column_change(
     data_frame_column_changes_db::write_data_frame_column_change(&change, &db)
 }
 
-pub fn insert_column(
+pub fn polar_insert_column(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
     new_column: &NewColumn,
@@ -58,6 +114,64 @@ pub fn insert_column(
         table_name, new_column.name, new_column.data_type
     );
     conn.execute(&sql, [])?;
+
+    let sql_query = format!("SELECT * FROM {}", table_name);
+    let result_set: Vec<RecordBatch> = conn.prepare(&sql_query)?.query_arrow([])?.collect();
+
+    let table_schema = full_staged_table_schema(conn)?;
+
+    df_db::record_batches_to_polars_df_explicit_nulls(result_set, &table_schema)
+}
+
+pub fn polar_delete_column(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    column_to_delete: &ColumnToDelete,
+) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
+
+    // Corrected to DROP COLUMN instead of ADD COLUMN
+    let sql = format!(
+        "ALTER TABLE {} DROP COLUMN {}",
+        table_name, column_to_delete.name
+    );
+    conn.execute(&sql, [])?;
+
+    let sql_query = format!("SELECT * FROM {}", table_name);
+    let result_set: Vec<RecordBatch> = conn.prepare(&sql_query)?.query_arrow([])?.collect();
+
+    let table_schema = full_staged_table_schema(conn)?;
+
+    df_db::record_batches_to_polars_df_explicit_nulls(result_set, &table_schema)
+}
+
+pub fn polar_update_column(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    column_to_update: &ColumnToUpdate,
+) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
+    let mut sql_commands = Vec::new();
+
+    if let Some(ref new_data_type) = column_to_update.new_data_type {
+        let update_type_sql = format!(
+            "ALTER TABLE {} ALTER COLUMN {} TYPE {}",
+            table_name, column_to_update.name, new_data_type
+        );
+        sql_commands.push(update_type_sql);
+    }
+
+    if let Some(ref new_name) = column_to_update.new_name {
+        let rename_sql = format!(
+            "ALTER TABLE {} RENAME COLUMN {} TO {}",
+            table_name, column_to_update.name, new_name
+        );
+        sql_commands.push(rename_sql);
+    }
+
+    for sql in sql_commands {
+        conn.execute(&sql, [])?;
+    }
 
     let sql_query = format!("SELECT * FROM {}", table_name);
     let result_set: Vec<RecordBatch> = conn.prepare(&sql_query)?.query_arrow([])?.collect();
