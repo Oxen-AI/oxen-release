@@ -236,9 +236,9 @@ pub fn row_from_str_and_schema(
     let values: Vec<&str> = data.as_ref().split(',').collect();
 
     if values.len() != schema.len() {
-        return Err(OxenError::basic_str(
-            "Error parsing json: row must have same # of columns as data frame",
-        ));
+        return Err(format!(
+            "Error: Added row must have same number of columns as df\nRow columns: {}\ndf columns: {}", values.len(), schema.len())
+        );
     }
 
     let mut vec: Vec<Series> = Vec::new();
@@ -771,7 +771,12 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
             }
             "tsv" => read_df_csv(path, b'\t'),
             "parquet" => read_df_parquet(path),
-            "arrow" => read_df_arrow(path),
+            "arrow" => {
+                if opts.sql.is_some() {
+                    return Err(OxenError::basic_str("Error: SQL queries are not supported for .arrow files"));
+                }
+                read_df_arrow(path)
+            }
             _ => Err(OxenError::basic_str(err)),
         },
         None => Err(OxenError::basic_str(err)),
