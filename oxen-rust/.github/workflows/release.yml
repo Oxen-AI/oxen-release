@@ -150,8 +150,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: oxen-server-ubuntu-latest.deb
-          asset_name: oxen-server-ubuntu-latest.deb
+          file: oxen-server-ubuntu-22.04.deb
+          asset_name: oxen-server-ubuntu-22.04.deb
           tag: ${{ github.ref }}
 
       - name: Upload Oxen CLI binary to release
