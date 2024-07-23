@@ -54,27 +54,10 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      # cache the build assets so they don't recompile every time.
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-cargo-
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
-          default: true
-          override: true
 
       - name: Install system dependencies
         run: |
@@ -173,27 +156,10 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      # cache the build assets so they don't recompile every time.
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-cargo-
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
-          default: true
-          override: true
 
       - name: Install system dependencies
         run: |
@@ -299,11 +265,9 @@ jobs:
           Add-Content $env:GITHUB_PATH "${pwd}\ffmpeg\bin`n"
 
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          default: true
-          override: true
 
       - name: Build
         run: cargo build --release --bins
@@ -387,38 +351,11 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      # - name: Install dependencies
-      #   run: brew install pkg-config imagemagick
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: x86_64-apple-darwin
-          default: true
-          profile: minimal
           toolchain: stable
-          override: true
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/bluewhalesystems/sold.git
-
-      #     mkdir sold/build
-      #     cd sold/build
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
+          target: x86_64-apple-darwin
 
       - name: Build oxen for mac
         run: cargo build --release
@@ -458,37 +395,13 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: brew install pkg-config ffmpeg imagemagick
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        run: brew install pkg-config ffmpeg
 
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: x86_64-apple-darwin
-          default: true
-          profile: minimal
           toolchain: stable
-          override: true
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/bluewhalesystems/sold.git
-
-      #     mkdir sold/build
-      #     cd sold/build
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
+          target: x86_64-apple-darwin
 
       - name: Build oxen for mac
         run: cargo build --release
@@ -530,35 +443,11 @@ jobs:
       - name: Install dependencies
         run: brew install pkg-config
 
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: x86_64-apple-darwin
-          default: true
-          profile: minimal
           toolchain: stable
-          override: true
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/bluewhalesystems/sold.git
-
-      #     mkdir sold/build
-      #     cd sold/build
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
+          target: x86_64-apple-darwin
 
       - name: Build oxen for mac
         run: cargo build --release
