@@ -134,21 +134,16 @@ pub async fn get(
     // Transformation and pagination logic...
     match tabular::transform_lazy(df, opts.clone()) {
         Ok(df_view) => {
-            //let df_view = df_view_1.collect()?;
-            //log::debug!("controllers::data_frames DF view {:?}", df_view);
-
             // Have to do the pagination after the transform
-            /*
+            let mut df = tabular::transform_slice_lazy(df_view, opts.clone())?.collect()?;
+
             let view_height = if opts.has_filter_transform() {
-                df_view.height()
+                df.height()
             } else {
                 data_frame_size.height
             };
 
             let total_pages = (view_height as f64 / page_opts.page_size as f64).ceil() as usize;
-            */
-            
-            let mut df = tabular::transform_slice_lazy(df_view, opts.clone())?;
             log::debug!("here's our post-slice df {:?}", df);
 
             let mut slice_schema = Schema::from_polars(&df.schema());
