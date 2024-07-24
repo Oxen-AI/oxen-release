@@ -50,9 +50,7 @@ pub fn read_df_csv(
     path: impl AsRef<Path>,
     delimiter: u8,
 ) -> Result<LazyFrame, OxenError> {
-    println!("scan_df start");
     let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
-    println!("After base lazy");
     reader
         .finish()
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
@@ -365,10 +363,7 @@ fn unique_df(df: LazyFrame, columns: Vec<String>) -> Result<LazyFrame, OxenError
 }
 
 pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
-//    let height = df.height();
-    println!("transform start");
     let df = transform_lazy(df.lazy(), opts.clone())?;
-    println!("slice start");
     Ok(transform_slice_lazy(df, opts)?.collect()?)
 }
 
@@ -380,10 +375,9 @@ pub fn transform_new(df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, OxenError
 
 pub fn transform_lazy(
     mut df: LazyFrame,
-//    height: u32,
     opts: DFOpts,
 ) -> Result<LazyFrame, OxenError> {
-    println!("transform_lazy Got transform ops {:?}", opts);
+    log::debug!("transform_lazy Got transform ops {:?}", opts);
     if let Some(vstack) = &opts.vstack {
         log::debug!("transform_lazy Got files to stack {:?}", vstack);
         for path in vstack.iter() {
@@ -460,14 +454,7 @@ pub fn transform_lazy(
             }
         }
     }
-
-    println!("CURRENTLY RANDOMIZE IS REMOVED");
     Ok(df)
-}
-
-pub fn transform_slice(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
-    log::debug!("here's the slice that we got heading into this {:?}", df);
-    Ok(transform_slice_lazy(df.lazy(), opts)?.collect()?)
 }
 
 // Separate out slice transform because it needs to be done after other transforms
@@ -732,7 +719,6 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     if !path.exists() {
         return Err(OxenError::entry_does_not_exist(path));
     }
-    println!("Read_df start");
 
     let extension = path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
@@ -759,10 +745,8 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
         None => Err(OxenError::basic_str(err)),
     }?;
 
-    println!("Transform start");
     if opts.has_transform() {
         let df = transform_new(df, opts)?;
-        println!("Transform over");
         Ok(df.collect()?)
     } else {
         Ok(df.collect()?)
@@ -963,7 +947,6 @@ pub fn copy_df_add_row_num(
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
-    println!("read_df height {}", df.height());
     if opts.column_at().is_some() {
         for val in df.get(0).unwrap() {
             match val {
@@ -986,7 +969,6 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
             }
         }
     } else {
-        println!("pre-process");
         let pretty_df = pretty_print::df_to_str(&df);
         println!("{pretty_df}");
     }
