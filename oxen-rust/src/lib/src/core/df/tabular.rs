@@ -12,13 +12,11 @@ use crate::model::schema::DataType;
 use crate::model::DataFrameSize;
 use crate::model::LocalRepository;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
-use crate::util::hasher;
 use crate::util::fs;
+use crate::util::hasher;
 
 use comfy_table::Table;
 use indicatif::ProgressBar;
-use rand::prelude::SliceRandom;
-use rand::thread_rng;
 use serde_json::Value;
 use std::ffi::OsStr;
 use std::io::Cursor;
@@ -45,10 +43,7 @@ fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader 
         .with_encoding(CsvEncoding::LossyUtf8)
 }
 
-pub fn read_df_csv(
-    path: impl AsRef<Path>,
-    delimiter: u8,
-) -> Result<LazyFrame, OxenError> {
+pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<LazyFrame, OxenError> {
     let reader = base_lazy_csv_reader(path.as_ref(), delimiter);
     reader
         .finish()
@@ -368,14 +363,11 @@ pub fn transform(df: DataFrame, opts: DFOpts) -> Result<DataFrame, OxenError> {
 
 pub fn transform_new(df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, OxenError> {
     //    let height = df.height();
-        let df = transform_lazy(df, opts.clone())?;
-        transform_slice_lazy(df, opts)
-    }
+    let df = transform_lazy(df, opts.clone())?;
+    transform_slice_lazy(df, opts)
+}
 
-pub fn transform_lazy(
-    mut df: LazyFrame,
-    opts: DFOpts,
-) -> Result<LazyFrame, OxenError> {
+pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, OxenError> {
     log::debug!("transform_lazy Got transform ops {:?}", opts);
     if let Some(vstack) = &opts.vstack {
         log::debug!("transform_lazy Got files to stack {:?}", vstack);
@@ -457,10 +449,7 @@ pub fn transform_lazy(
 }
 
 // Separate out slice transform because it needs to be done after other transforms
-pub fn transform_slice_lazy(
-    mut df: LazyFrame,
-    opts: DFOpts,
-) -> Result<LazyFrame, OxenError> {
+pub fn transform_slice_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, OxenError> {
     // Maybe slice it up
     df = slice(df, &opts);
     df = head(df, &opts);
@@ -488,7 +477,7 @@ fn head(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 
 fn tail(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
     if let Some(tail) = opts.tail {
-        df.slice(-1 * tail as i64, tail as u32)
+        df.slice(-(tail as i64), tail as u32)
     } else {
         df
     }
@@ -735,7 +724,9 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
             "parquet" => read_df_parquet(path),
             "arrow" => {
                 if opts.sql.is_some() {
-                    return Err(OxenError::basic_str("Error: SQL queries are not supported for .arrow files"));
+                    return Err(OxenError::basic_str(
+                        "Error: SQL queries are not supported for .arrow files",
+                    ));
                 }
                 read_df_arrow(path)
             }
@@ -744,6 +735,7 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
         None => Err(OxenError::basic_str(err)),
     }?;
 
+    println!("Read finished");
     if opts.has_transform() {
         let df = transform_new(df, opts)?;
         Ok(df.collect()?)
@@ -946,6 +938,7 @@ pub fn copy_df_add_row_num(
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
+    println!("Transform finished");
     if opts.column_at().is_some() {
         for val in df.get(0).unwrap() {
             match val {
@@ -1198,7 +1191,7 @@ mod tests {
 
     #[test]
     fn test_read_json() -> Result<(), OxenError> {
-        let df = tabular::read_df_json("data/test/text/test.json")?;
+        let df = tabular::read_df_json("data/test/text/test.json")?.collect()?;
 
         println!("{df}");
 
@@ -1220,7 +1213,7 @@ mod tests {
 
     #[test]
     fn test_read_jsonl() -> Result<(), OxenError> {
-        let df = tabular::read_df_jsonl("data/test/text/test.jsonl")?;
+        let df = tabular::read_df_jsonl("data/test/text/test.jsonl")?.collect()?;
 
         println!("{df}");
 
@@ -1269,9 +1262,8 @@ mod tests {
         let mut opts = DFOpts::empty();
         opts.slice = Some("329..333".to_string());
         let df = tabular::scan_df_parquet("data/test/parquet/wiki_1k.parquet", 333)?;
-        let height = 4;
-        let df = tabular::transform_lazy(df, height, opts.clone())?;
-        let mut df = tabular::transform_slice_lazy(df.lazy(), height, opts)?;
+        let df = tabular::transform_lazy(df, opts.clone())?;
+        let mut df = tabular::transform_slice_lazy(df.lazy(), opts)?.collect()?;
         println!("{df:?}");
 
         assert_eq!(df.width(), 3);
