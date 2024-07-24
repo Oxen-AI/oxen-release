@@ -32,7 +32,6 @@ const TAKE_ERROR: &str = "Could not take DataFrame";
 
 fn base_lazy_csv_reader(path: impl AsRef<Path>, delimiter: u8) -> LazyCsvReader {
     let path = path.as_ref();
-    println!("{:?}", path);
     let reader = LazyCsvReader::new(path);
     reader
         .with_infer_schema_length(Some(10000))
