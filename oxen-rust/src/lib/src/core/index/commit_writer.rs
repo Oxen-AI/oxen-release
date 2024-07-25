@@ -883,7 +883,7 @@ mod tests {
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             workspaces::data_frames::index(&workspace, &path)?;
             let json_data = json!({"NOT_REAL_COLUMN": "images/test.jpg"});
             let result = workspaces::data_frames::rows::add(&workspace, &path, &json_data);
@@ -910,7 +910,7 @@ mod tests {
             let commit = api::local::commits::head_commit(&repo)?;
             let user = UserConfig::get()?.to_user();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
 
             let json_data = json!({"file": "images/test.jpg", "label": "dog", "min_x": 2.0, "min_y": 3.0, "width": 100, "height": 120});
             workspaces::data_frames::index(&workspace, &path)?;

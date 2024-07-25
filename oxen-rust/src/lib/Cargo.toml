@@ -1,6 +1,6 @@
 [package]
 name = "liboxen"
-version = "0.18.2"
+version = "0.18.6"
 edition = "2021"
 license-file = "LICENSE"
 description = "Oxen is a fast, unstructured data version control, to help version datasets, written in Rust."
@@ -66,6 +66,7 @@ lazy_static = "1.4.0"
 lofty = "0.18.2"
 log = "0.4.17"
 # magick_rust = "0.18.0"
+minus = { version = "5.3.1", features = ["static_output", "search"] }
 mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"

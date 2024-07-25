@@ -54,7 +54,7 @@ pub async fn get_or_create(
     let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
     // Get or create the workspace
-    index::workspaces::create(&repo, &commit, &workspace_id)?;
+    index::workspaces::create(&repo, &commit, &workspace_id, true)?;
 
     Ok(HttpResponse::Ok().json(WorkspaceResponseView {
         status: StatusMessage::resource_created(),

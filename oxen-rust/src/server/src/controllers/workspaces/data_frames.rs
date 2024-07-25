@@ -53,19 +53,31 @@ pub async fn get_by_resource(
 
         return Ok(HttpResponse::Ok().json(response));
     }
+
     let count = index::workspaces::data_frames::count(&workspace, &file_path)?;
 
     let df = index::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
 
-    let df_schema = Schema::from_polars(&df.schema());
+    let mut df_schema = Schema::from_polars(&df.schema());
 
     let is_indexed = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
-    let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
     let resource = ResourceVersion {
         path: file_path.to_string_lossy().to_string(),
         version: workspace.commit.id.to_string(),
     };
+
+    let og_schema = if let Some(schema) =
+        api::local::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, &resource.path)?
+    {
+        schema
+    } else {
+        Schema::from_polars(&df.schema())
+    };
+
+    df_schema.update_metadata_from_schema(&og_schema);
+
+    let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
 
     let response = WorkspaceJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
@@ -147,9 +159,26 @@ pub async fn diff(
 
     let conn = df_db::get_connection(staged_db_path)?;
 
+    let df = index::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
+
     let diff_df = workspace_df_db::df_diff(&conn)?;
 
-    let df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
+    let mut df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
+
+    let resource = ResourceVersion {
+        path: file_path.to_string_lossy().to_string(),
+        version: workspace.commit.id.to_string(),
+    };
+
+    let og_schema = if let Some(schema) =
+        api::local::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, resource.path)?
+    {
+        schema
+    } else {
+        Schema::from_polars(&df.schema())
+    };
+
+    df_schema.update_metadata_from_schema(&og_schema);
 
     let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
 

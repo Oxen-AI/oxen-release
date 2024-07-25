@@ -11,8 +11,8 @@ use crate::core::db::tree_db::{self, TreeObject};
 use crate::core::db::{self, path_db};
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
-    self, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, RefReader, RefWriter,
-    Stager, TreeObjectReader,
+    self, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
+    ObjectDBReader, RefReader, RefWriter, Stager, TreeObjectReader,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -379,6 +379,98 @@ pub fn list_from_paginated(
     page_size: usize,
 ) -> Result<PaginatedCommits, OxenError> {
     let commits = list_from(repo, revision)?;
+    let (commits, pagination) = util::paginate(commits, page_number, page_size);
+    Ok(PaginatedCommits {
+        status: StatusMessage::resource_found(),
+        commits,
+        pagination,
+    })
+}
+
+// load all commit entry readers once
+fn get_commit_entry_readers(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: &Path,
+) -> Result<Vec<(Commit, CommitDirEntryReader)>, OxenError> {
+    let object_reader = ObjectDBReader::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    let commits = commit_reader.history_from_commit_id(&commit.id)?;
+    let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    for c in commits {
+        let reader = CommitDirEntryReader::new(repo, &c.id, path, object_reader.clone())?;
+        commit_entry_readers.push((c.clone(), reader));
+    }
+    Ok(commit_entry_readers)
+}
+
+pub fn list_by_resource_from_paginated(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+    page_number: usize,
+    page_size: usize,
+) -> Result<PaginatedCommits, OxenError> {
+    let object_reader = ObjectDBReader::new(repo)?;
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
+
+    let commits = if entry_reader.has_dir(path) {
+        list_by_directory(repo, path, commit)?
+    } else {
+        // load all commit entry readers once
+        let commit_entry_readers = get_commit_entry_readers(repo, commit, path)?;
+        list_by_file(path, &commit_entry_readers)?
+    };
+
+    paginate_and_format_results(commits, page_number, page_size)
+}
+
+fn list_by_directory(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+) -> Result<Vec<Commit>, OxenError> {
+    let object_reader = ObjectDBReader::new(repo)?;
+    let mut all_commits = Vec::new();
+    let mut seen_commit_ids = HashSet::new(); // To track seen commit IDs
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
+
+    // load all commit entry readers once
+    let commit_entry_readers = get_commit_entry_readers(repo, commit, path)?;
+
+    let files: Vec<PathBuf> = entry_reader.list_files()?;
+    for file_path in files {
+        // Ensure we're only looking at files within the specified directory
+        if file_path.starts_with(path) {
+            let commits_from_file = list_by_file(file_path.as_path(), &commit_entry_readers)?;
+            for commit in commits_from_file {
+                // Check if we've already seen this commit ID
+                if seen_commit_ids.insert(commit.id.clone()) {
+                    // If the insert was successful, the ID was not seen before, so we add the commit to our list
+                    all_commits.push(commit);
+                }
+            }
+        }
+    }
+    all_commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    Ok(all_commits)
+}
+
+fn list_by_file(
+    path: &Path,
+    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
+) -> Result<Vec<Commit>, OxenError> {
+    api::local::entries::get_commit_history_path(commit_entry_readers, path)
+}
+
+fn paginate_and_format_results(
+    commits: Vec<Commit>,
+    page_number: usize,
+    page_size: usize,
+) -> Result<PaginatedCommits, OxenError> {
     let (commits, pagination) = util::paginate(commits, page_number, page_size);
     Ok(PaginatedCommits {
         status: StatusMessage::resource_found(),

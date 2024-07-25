@@ -35,6 +35,7 @@ use os_path::OsPath;
 use crate::app_data::OxenAppData;
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
+use crate::params::parse_resource;
 use crate::params::PageNumQuery;
 use crate::params::{app_data, path_param};
 use crate::tasks;
@@ -76,23 +77,52 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     Ok(HttpResponse::Ok().json(ListCommitResponse::success(commits)))
 }
 
-// List history for a branch or commit
 pub async fn commit_history(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
-) -> actix_web::Result<HttpResponse, OxenHttpError> {
+) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
-    let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    let commits =
-        api::local::commits::list_from_paginated(&repo, &commit_or_branch, page, page_size)?;
-    Ok(HttpResponse::Ok().json(commits))
+    let resource_param = path_param(&req, "resource")?;
+
+    // This checks if the parameter received from the client is two commits split by "..", in this case we don't parse the resource
+    let (resource, revision, commit) = if resource_param.contains("..") {
+        (None, Some(resource_param), None)
+    } else {
+        let resource = parse_resource(&req, &repo)?;
+        let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
+        (Some(resource), None, Some(commit))
+    };
+
+    match &resource {
+        Some(resource) if resource.path != Path::new("") => {
+            let commits = api::local::commits::list_by_resource_from_paginated(
+                &repo,
+                &resource.path,
+                commit.as_ref().unwrap(), // Safe unwrap: `commit` is Some if `resource` is Some
+                page,
+                page_size,
+            )?;
+            Ok(HttpResponse::Ok().json(commits))
+        }
+        _ => {
+            // Handling the case where resource is None or its path is empty
+            let revision_id = revision.as_ref().or_else(|| commit.as_ref().map(|c| &c.id));
+            if let Some(revision_id) = revision_id {
+                let commits =
+                    api::local::commits::list_from_paginated(&repo, revision_id, page, page_size)?;
+                Ok(HttpResponse::Ok().json(commits))
+            } else {
+                Err(OxenHttpError::NotFound)
+            }
+        }
+    }
 }
 
 // List all commits in the rpeo
@@ -1362,14 +1392,14 @@ mod tests {
         command::add(&repo, path)?;
         command::commit(&repo, "second commit")?;
 
-        let uri = format!("/oxen/{namespace}/{repo_name}/commits/{branch_name}/history");
+        let uri = format!("/oxen/{namespace}/{repo_name}/commits/history/{branch_name}");
         let req = test::repo_request_with_param(
             &sync_dir,
             queue,
             &uri,
             namespace,
             repo_name,
-            "commit_or_branch",
+            "resource",
             branch_name,
         );
 
@@ -1413,7 +1443,7 @@ mod tests {
 
         // List commits from the first branch
         let uri = format!(
-            "/oxen/{}/{}/commits/{}/history",
+            "/oxen/{}/{}/commits/history/{}",
             namespace, repo_name, og_branch.name
         );
         let req = test::repo_request_with_param(
@@ -1422,7 +1452,7 @@ mod tests {
             &uri,
             namespace,
             repo_name,
-            "commit_or_branch",
+            "resource",
             og_branch.name,
         );
 

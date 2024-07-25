@@ -45,7 +45,7 @@ pub fn dir_latest_commit_path(repo: &LocalRepository, commit: &Commit, dir: &Pat
 // 3) Compute the latest commit that modified each directory
 pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
     log::debug!(
-        "Running compute_repo_size on {:?} for commit {}",
+        "REPO_SIZE {commit} Running compute_repo_size on {:?} for commit {}",
         repo.path,
         commit.id
     );
@@ -58,11 +58,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
     let dirs = reader.list_dirs()?;
-    log::debug!("Computing size of {} dirs", dirs.len());
+    log::debug!("REPO_SIZE {commit} Computing size of {} dirs", dirs.len());
     let object_reader = ObjectDBReader::new(repo)?;
 
     for dir in dirs {
-        // log::debug!("REPO_SIZE PROCESSING DIR {dir:?}");
+        log::debug!("REPO_SIZE {commit} PROCESSING DIR {dir:?}");
 
         // Start with the size of all the entries in this dir
         let entries = {
@@ -73,6 +73,10 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             dir_reader.list_entries()?
         };
         let mut total_size = api::local::entries::compute_entries_size(&entries)?;
+        log::debug!(
+            "REPO_SIZE {commit} PROCESSING DIR {dir:?} total_size: {}",
+            total_size
+        );
 
         let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
         for c in &commits {
@@ -82,6 +86,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // For each dir, find the latest commit that modified it
         let mut latest_commit: Option<Commit> = None;
+        log::debug!(
+            "REPO_SIZE {commit} PROCESSING DIR {dir:?} computing latest commit with {} readers and {} entries",
+            commit_entry_readers.len(),
+            entries.len()
+        );
 
         // TODO: do not copy pasta this code
         for entry in entries {
@@ -125,7 +134,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         let children = reader.list_dir_children(&dir)?;
 
         for child in children {
-            // log::debug!("REPO_SIZE PROCESSING CHILD {child:?}");
+            log::debug!("REPO_SIZE {commit} PROCESSING CHILD {child:?}");
 
             let entries = {
                 let dir_reader =
@@ -141,8 +150,17 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             }
 
             let size = api::local::entries::compute_entries_size(&entries)?;
+            log::debug!(
+                "REPO_SIZE {commit} PROCESSING CHILD {child:?} size: {}",
+                size
+            );
 
             total_size += size;
+
+            log::debug!(
+                "REPO_SIZE {commit} PROCESSING CHILD {child:?} computing latest commit for {} entries",
+                entries.len()
+            );
 
             for entry in entries {
                 let Some(commit) = api::local::entries::get_latest_commit_for_entry(
@@ -173,7 +191,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         let size_str = total_size.to_string();
         let size_path = dir_size_path(repo, commit, &dir);
-        log::debug!("Writing dir size {} to {:?}", size_str, size_path);
+        log::debug!(
+            "REPO_SIZE {commit} Writing dir size {} to {:?}",
+            size_str,
+            size_path
+        );
         // create parent directory if not exists
         if let Some(parent) = size_path.parent() {
             util::fs::create_dir_all(parent)?;
@@ -183,7 +205,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         let latest_commit_path = dir_latest_commit_path(repo, commit, &dir);
         if let Some(latest_commit) = latest_commit {
             log::debug!(
-                "Writing latest commit {} to {:?}",
+                "REPO_SIZE {commit} Writing latest commit {} to {:?}",
                 latest_commit.id,
                 latest_commit_path
             );
@@ -196,10 +218,14 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     }
 
     // Cache the full size of the repo
-    log::debug!("Computing size of repo {:?}", repo.path);
+    log::debug!("REPO_SIZE {commit} Computing size of repo {:?}", repo.path);
     match get_size(&repo.path) {
         Ok(size) => {
-            log::debug!("Repo size for {:?} is {}", repo.path, size);
+            log::debug!(
+                "REPO_SIZE {commit} Repo size for {:?} is {}",
+                repo.path,
+                size
+            );
             write_repo_size(repo, commit, &size.to_string())?;
         }
         Err(e) => {
@@ -215,7 +241,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
 fn write_repo_size(repo: &LocalRepository, commit: &Commit, val: &str) -> Result<(), OxenError> {
     let hash_file_path = repo_size_path(repo, commit);
-    log::debug!("Writing repo size {} to {:?}", val, hash_file_path);
+    log::debug!(
+        "REPO_SIZE {commit} Writing repo size {} to {:?}",
+        val,
+        hash_file_path
+    );
     util::fs::write_to_path(&hash_file_path, val)?;
     Ok(())
 }
