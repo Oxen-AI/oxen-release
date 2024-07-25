@@ -1,7 +1,6 @@
 //! Entries are the files and directories that are stored in a commit.
 //!
 
-use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -13,14 +12,14 @@ use crate::{api, util};
 use os_path::OsPath;
 use rayon::prelude::*;
 
-use crate::core;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::index::{ObjectDBReader, SchemaReader};
+use crate::core::{self, index};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -190,42 +189,68 @@ fn compute_dir_size(
     Ok(total_size)
 }
 
-pub fn get_latest_commit_for_entry(
+pub fn get_commit_history_path(
     commits: &[(Commit, CommitDirEntryReader)],
-    entry: &CommitEntry,
-) -> Result<Option<Commit>, OxenError> {
-    let mut result: Vec<Commit> = Vec::new();
-    let mut seen_hashes: HashSet<String> = HashSet::new();
+    path: impl AsRef<Path>,
+) -> Result<Vec<Commit>, OxenError> {
+    let os_path = OsPath::from(path.as_ref()).to_pathbuf();
 
-    // turn to native path
-    let os_path = OsPath::from(&entry.path).to_pathbuf();
-    log::debug!(
-        "get_latest_commit_for_entry got native filename {:?}",
-        os_path
-    );
-
-    let path = &os_path
+    let path = os_path
         .file_name()
-        .ok_or(OxenError::file_has_no_name(&entry.path))?;
+        .ok_or(OxenError::file_has_no_name(&path))?;
 
-    for (commit, entry_reader) in commits {
-        let old_entry = entry_reader.get_entry(path)?;
+    let mut latest_hash: Option<String> = None;
+    let mut history: Vec<Commit> = Vec::new();
 
-        if let Some(old_entry) = old_entry {
-            if !seen_hashes.contains(&old_entry.hash) {
-                seen_hashes.insert(old_entry.hash.clone());
-                result.push(commit.clone());
+    for (commit, entry_reader) in commits.iter().rev() {
+        if let Some(old_entry) = entry_reader.get_entry(path)? {
+            if latest_hash.is_none() {
+                // This is the first encountered entry; set it as the baseline for comparison.
+                latest_hash = Some(old_entry.hash.clone());
+                history.push(commit.clone()); // Include the first commit as the starting point of history
+            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
+                // A change in hash is detected, indicating an edit. Include this commit in history.
+                latest_hash = Some(old_entry.hash.clone());
+                history.push(commit.clone());
             }
         }
     }
 
-    result.reverse();
+    history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    if result.is_empty() {
-        return Ok(None);
+    Ok(history)
+}
+
+pub fn get_latest_commit_for_entry(
+    commits: &[(Commit, CommitDirEntryReader)],
+    entry: &CommitEntry,
+) -> Result<Option<Commit>, OxenError> {
+    let os_path = OsPath::from(&entry.path).to_pathbuf();
+    let path = os_path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(&entry.path))?;
+
+    let mut latest_hash: Option<String> = None;
+    // Store the commit from the previous iteration. Initialized as None.
+    let mut previous_commit: Option<Commit> = None;
+
+    for (commit, entry_reader) in commits.iter().rev() {
+        if let Some(old_entry) = entry_reader.get_entry(path)? {
+            if latest_hash.is_none() {
+                // This is the first encountered entry, setting it as the baseline for comparison.
+                latest_hash = Some(old_entry.hash.clone());
+            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
+                // A change is detected, return the previous commit which introduced the change.
+                return Ok(previous_commit);
+            }
+            // Update previous_commit after the check, so it holds the commit before the change was detected.
+            previous_commit = Some(commit.clone());
+        }
     }
 
-    Ok(Some(result.first().unwrap().clone()))
+    // If no change was detected (all entries have the same hash), or the entry was not found,
+    // return None or consider returning the oldest commit if previous_commit has been set.
+    Ok(previous_commit)
 }
 
 pub fn meta_entry_from_commit_entry(
@@ -254,7 +279,13 @@ pub fn meta_entry_from_commit_entry(
     let data_type = util::fs::file_data_type(&version_path);
 
     let is_indexed = if data_type == EntryDataType::Tabular {
-        Some(sql::df_is_indexed(repo, entry)?)
+        Some(
+            index::workspaces::data_frames::is_queryable_data_frame_indexed(
+                repo,
+                &entry.path,
+                &latest_commit,
+            )?,
+        )
     } else {
         None
     };
@@ -669,10 +700,12 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
+    use uuid::Uuid;
+
     use crate::api;
     use crate::command;
     use crate::core;
-    use crate::core::df::sql;
+    use crate::core::index;
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
@@ -1457,8 +1490,9 @@ mod tests {
             assert_eq!(meta2.is_queryable, Some(false));
 
             // Now index df2
-            let mut conn = sql::get_conn(&repo, &entry2)?;
-            sql::index_df(&repo, &entry2, &mut conn)?;
+            let workspace_id = Uuid::new_v4().to_string();
+            let workspace = index::workspaces::create(&repo, &commit, workspace_id, false)?;
+            index::workspaces::data_frames::index(&workspace, &entry2.path)?;
 
             // Now get the metadata entries for the two dataframes
             let meta1 = api::local::entries::get_meta_entry(&repo, &commit, &path_1)?;
