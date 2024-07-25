@@ -189,19 +189,15 @@ fn compute_dir_size(
     Ok(total_size)
 }
 
-pub fn get_commit_history_for_entry(
+pub fn get_commit_history_path(
     commits: &[(Commit, CommitDirEntryReader)],
-    entry: &CommitEntry,
+    path: impl AsRef<Path>,
 ) -> Result<Vec<Commit>, OxenError> {
-    let os_path = OsPath::from(&entry.path).to_pathbuf();
-    log::debug!(
-        "get_commit_history_for_entry got native filename {:?}",
-        os_path
-    );
+    let os_path = OsPath::from(path.as_ref()).to_pathbuf();
 
     let path = os_path
         .file_name()
-        .ok_or(OxenError::file_has_no_name(&entry.path))?;
+        .ok_or(OxenError::file_has_no_name(&path))?;
 
     let mut latest_hash: Option<String> = None;
     let mut history: Vec<Commit> = Vec::new();
@@ -220,6 +216,8 @@ pub fn get_commit_history_for_entry(
         }
     }
 
+    history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
     Ok(history)
 }
 
@@ -228,11 +226,6 @@ pub fn get_latest_commit_for_entry(
     entry: &CommitEntry,
 ) -> Result<Option<Commit>, OxenError> {
     let os_path = OsPath::from(&entry.path).to_pathbuf();
-    log::debug!(
-        "get_latest_commit_for_entry got native filename {:?}",
-        os_path
-    );
-
     let path = os_path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
