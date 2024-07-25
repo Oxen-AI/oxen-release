@@ -24,7 +24,7 @@ use rand::prelude::SliceRandom;
 use rand::thread_rng;
 use serde_json::Value;
 use std::ffi::OsStr;
-use std::io::{BufRead, Cursor};
+use std::io::Cursor;
 use std::path::Path;
 
 use super::filter::{DFFilterExp, DFFilterOp, DFFilterVal};
