@@ -12,7 +12,7 @@
 //! * Time to query the file
 //!
 
-use rand::Rng;
+use indicatif::ProgressBar;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::File;
@@ -21,14 +21,10 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
-use rocksdb::BlockBasedOptions;
-use rocksdb::DBCompactionStyle;
-use rocksdb::DBCompressionType;
 use rocksdb::DBWithThreadMode;
-use rocksdb::MultiThreaded;
 use rocksdb::SingleThreaded;
-use rocksdb::WaitForCompactOptions;
 
 use crate::constants::CHUNKS_DIR;
 use crate::constants::TREE_DIR;
@@ -402,9 +398,12 @@ impl FileChunker {
         let version_file = util::fs::version_path(&self.repo, entry);
         let mut read_file = File::open(&version_file)?;
 
-        // Create a progress bar
-        println!("Saving chunks for {:?}", entry.path);
-        let progress_bar = oxen_progress_bar(entry.num_bytes, ProgressBarType::Bytes);
+        // Create a progress bar for larger files
+        let mut progress_bar: Option<Arc<ProgressBar>> = if entry.num_bytes > (CHUNK_SIZE*10) as u64 {
+            Some(oxen_progress_bar(entry.num_bytes, ProgressBarType::Bytes))
+        } else {
+            None
+        };
 
         // Read/Write chunks
         let mut buffer = vec![0; CHUNK_SIZE]; // 16KB buffer
@@ -424,14 +423,18 @@ impl FileChunker {
                 num_new_chunks += 1;
             }
             hashes.push(hash);
-            progress_bar.inc(bytes_read as u64);
+            if let Some(progress_bar) = progress_bar.as_mut() {
+                progress_bar.inc(bytes_read as u64);
+            }
         }
-        println!(
-            "Saved {} new chunks out of {} for {:?}",
-            num_new_chunks,
-            hashes.len(),
-            entry.path
-        );
+        if entry.num_bytes > CHUNK_SIZE as u64 {
+            println!(
+                "Saved {} new chunks out of {} for {:?}",
+                num_new_chunks,
+                hashes.len(),
+                entry.path
+            );
+        }
 
         // Flush the progress to disk
         csm.save_all()?;

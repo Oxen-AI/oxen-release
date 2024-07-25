@@ -6,13 +6,12 @@ use crate::core::index::file_chunker::CHUNK_SIZE;
 use crate::core::index::merkle_tree::node::FileNode;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::util;
 
 use std::io::Read;
 use std::io::Seek;
 
 pub struct ChunkReader {
-    repo: LocalRepository,
+    pub repo: LocalRepository,
     node: FileNode,
     offset: u64,
     csm: ChunkShardManager,
@@ -21,7 +20,7 @@ pub struct ChunkReader {
 
 impl ChunkReader {
     pub fn new(repo: LocalRepository, node: FileNode) -> Result<Self, OxenError> {
-        let num_bytes = node.num_bytes as usize;
+        // let num_bytes = node.num_bytes as usize;
         // let mut data: Vec<u8> = vec![0; num_bytes];
 
         // log::debug!("reading all data... {num_bytes}");
