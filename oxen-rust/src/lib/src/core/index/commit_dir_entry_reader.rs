@@ -190,7 +190,7 @@ impl CommitDirEntryReader {
             .binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
 
         let Some(vnode_child) = maybe_vnode_child else {
-            log::debug!("could not find vnode child for path {:?}", path);
+            // log::debug!("could not find vnode child for path {:?}", path);
             return Ok(None);
         };
 

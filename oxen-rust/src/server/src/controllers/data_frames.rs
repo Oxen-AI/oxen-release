@@ -314,8 +314,6 @@ fn format_sql_df_response(
         opts,
     );
 
-    println!("view: {:?}", view);
-
     let response = JsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
         data_frame: JsonDataFrameViews {
