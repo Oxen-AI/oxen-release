@@ -28,6 +28,7 @@ pub fn add_column(
     record_column_change(
         column_changes_path,
         new_column.name.to_owned(),
+        None,
         "added".to_owned(),
         None,
         None,
@@ -51,6 +52,7 @@ pub fn delete_column(
     record_column_change(
         column_changes_path,
         column_to_delete.name.to_owned(),
+        None,
         "deleted".to_owned(),
         None,
         None,
@@ -71,9 +73,12 @@ pub fn update_column(
         return Err(OxenError::column_name_not_found(&column_to_update.name));
     }
 
+    let column_data_type = table_schema.get_field(&column_to_update.name).unwrap();
+
     record_column_change(
         column_changes_path,
         column_to_update.name.to_owned(),
+        Some(column_data_type.dtype.clone()),
         "modified".to_owned(),
         column_to_update.new_name.clone(),
         column_to_update.new_data_type.clone(),
@@ -86,12 +91,14 @@ pub fn update_column(
 fn record_column_change(
     column_changes_path: &PathBuf,
     column_name: String,
+    column_data_type: Option<String>,
     operation: String,
     new_name: Option<String>,
     new_data_type: Option<String>,
 ) -> Result<(), OxenError> {
     let change = DataFrameColumnChange {
         column_name: column_name,
+        column_data_type: column_data_type,
         operation: operation,
         new_name: new_name,
         new_data_type: new_data_type,
