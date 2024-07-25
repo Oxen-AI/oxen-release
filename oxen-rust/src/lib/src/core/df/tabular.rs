@@ -736,7 +736,7 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
         None => Err(OxenError::basic_str(err)),
     }?;
 
-    println!("Read finished");
+    log::debug!("Read finished");
     if opts.has_transform() {
         let df = transform_new(df, opts)?;
         Ok(df.collect()?)
@@ -1009,7 +1009,7 @@ pub fn show_node(
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
-    println!("Transform finished");
+    log::debug!("Transform finished");
     if opts.column_at().is_some() {
         for val in df.get(0).unwrap() {
             match val {
