@@ -50,3 +50,24 @@ pub fn get_all_data_frame_column_changes(db: &DB) -> Result<Vec<DataFrameColumnC
 
     Ok(changes)
 }
+
+pub fn get_data_frame_column_change(
+    db: &DB,
+    name: &str,
+) -> Result<Option<DataFrameColumnChange>, OxenError> {
+    let val = db.get(name)?;
+
+    match val {
+        Some(val) => {
+            let val_str = match std::str::from_utf8(&val) {
+                Ok(v) => v,
+                Err(_) => return Ok(None),
+            };
+            match serde_json::from_str::<DataFrameColumnChange>(val_str) {
+                Ok(change) => Ok(Some(change)),
+                Err(_) => Ok(None),
+            }
+        }
+        None => Ok(None),
+    }
+}

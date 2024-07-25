@@ -10,6 +10,7 @@ pub struct DataFramePayload {
 #[derive(Deserialize, Serialize, Debug)]
 pub struct DataFrameColumnChange {
     pub column_name: String,
+    pub column_data_type: Option<String>,
     pub operation: String,
     pub new_name: Option<String>,
     pub new_data_type: Option<String>,
