@@ -35,7 +35,7 @@ $ rustup target install x86_64-apple-darwin
 $ cargo build --target x86_64-apple-darwin
 ```
 
-If on Windows, you may need to build on a developer CLI and add the following directories to the 'INCLUDE' environment variable
+If on Windows, you may need to add the following directories to the 'INCLUDE' environment variable
 
 ```
 "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\VC\Tools\MSVC\14.29.30133\include"
