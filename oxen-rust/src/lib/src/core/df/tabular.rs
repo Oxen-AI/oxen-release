@@ -6,17 +6,22 @@ use std::num::NonZeroUsize;
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
+use crate::core::df::sql;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
 use crate::model::DataFrameSize;
+use crate::model::LocalRepository;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
-use crate::util::{fs, hasher};
+use crate::util::hasher;
+
+use crate::util::fs;
 
 use colored::Colorize;
 use comfy_table::Table;
 use indicatif::ProgressBar;
 use rand::prelude::SliceRandom;
 use rand::thread_rng;
+use serde_json::Value;
 use std::ffi::OsStr;
 use std::io::Cursor;
 use std::path::Path;
@@ -207,7 +212,7 @@ pub fn add_col(
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
     let df = df.collect().expect(COLLECT_ERROR);
-    let new_row = parse_str_to_df(data)?;
+    let new_row = row_from_str_and_schema(data, df.schema())?;
     log::debug!("add_row og df: {:?}", df);
     log::debug!("add_row new_row: {:?}", new_row);
     let df = df.vstack(&new_row).unwrap().lazy();
@@ -218,6 +223,45 @@ pub fn n_duped_rows(df: &DataFrame, cols: &[&str]) -> Result<u64, OxenError> {
     let dupe_mask = df.select(cols)?.is_duplicated()?;
     let n_dupes = dupe_mask.sum().unwrap() as u64; // Can unwrap - sum implemented for boolean
     Ok(n_dupes)
+}
+
+pub fn row_from_str_and_schema(
+    data: impl AsRef<str>,
+    schema: Schema,
+) -> Result<DataFrame, OxenError> {
+    if serde_json::from_str::<Value>(data.as_ref()).is_ok() {
+        return parse_str_to_df(data);
+    }
+
+    let values: Vec<&str> = data.as_ref().split(',').collect();
+
+    if values.len() != schema.len() {
+        return Err(OxenError::basic_str(
+            "Error parsing json: row must have same # of columns as data frame",
+        ));
+    }
+
+    let mut vec: Vec<Series> = Vec::new();
+
+    for ((name, value), dtype) in schema
+        .iter_names()
+        .zip(values.into_iter())
+        .zip(schema.iter_dtypes())
+    {
+        let typed_val = val_from_str_and_dtype(value, dtype);
+        match Series::from_any_values_and_dtype(name, &[typed_val], dtype, false) {
+            Ok(series) => {
+                vec.push(series);
+            }
+            Err(err) => {
+                return Err(OxenError::basic_str(format!("Error parsing json: {err}")));
+            }
+        }
+    }
+
+    let df = DataFrame::new(vec)?;
+
+    Ok(df)
 }
 
 pub fn parse_str_to_df(data: impl AsRef<str>) -> Result<DataFrame, OxenError> {
@@ -376,6 +420,13 @@ pub fn transform_lazy(
         let mut rand_indices: Vec<u32> = (0..height as u32).collect();
         rand_indices.shuffle(&mut thread_rng());
         df = take(df, rand_indices)?.lazy();
+    }
+
+    if let Some(sql) = opts.sql.clone() {
+        if let Some(repo_dir) = opts.repo_dir.as_ref() {
+            let repo = LocalRepository::from_dir(repo_dir)?;
+            df = sql::query_df_from_repo(sql, &repo)?.lazy();
+        }
     }
 
     match opts.get_filter() {
@@ -939,6 +990,14 @@ pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, Oxe
                 _ => {
                     println!("{val}")
                 }
+            }
+        }
+    } else if opts.should_page {
+        let output = pretty_print::df_to_pager(&df, &opts)?;
+        match minus::page_all(output) {
+            Ok(_) => {}
+            Err(e) => {
+                eprintln!("Error while paging: {}", e);
             }
         }
     } else {

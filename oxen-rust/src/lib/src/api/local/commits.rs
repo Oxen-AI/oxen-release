@@ -388,6 +388,23 @@ pub fn list_from_paginated(
     })
 }
 
+// load all commit entry readers once
+fn get_commit_entry_readers(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: &Path,
+) -> Result<Vec<(Commit, CommitDirEntryReader)>, OxenError> {
+    let object_reader = ObjectDBReader::new(repo)?;
+    let commit_reader = CommitReader::new(repo)?;
+    let commits = commit_reader.history_from_commit_id(&commit.id)?;
+    let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    for c in commits {
+        let reader = CommitDirEntryReader::new(repo, &c.id, path, object_reader.clone())?;
+        commit_entry_readers.push((c.clone(), reader));
+    }
+    Ok(commit_entry_readers)
+}
+
 pub fn list_by_resource_from_paginated(
     repo: &LocalRepository,
     path: &Path,
@@ -402,7 +419,9 @@ pub fn list_by_resource_from_paginated(
     let commits = if entry_reader.has_dir(path) {
         list_by_directory(repo, path, commit)?
     } else {
-        list_by_file(repo, path, commit)?
+        // load all commit entry readers once
+        let commit_entry_readers = get_commit_entry_readers(repo, commit, path)?;
+        list_by_file(path, &commit_entry_readers)?
     };
 
     paginate_and_format_results(commits, page_number, page_size)
@@ -419,11 +438,14 @@ fn list_by_directory(
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
 
+    // load all commit entry readers once
+    let commit_entry_readers = get_commit_entry_readers(repo, commit, path)?;
+
     let files: Vec<PathBuf> = entry_reader.list_files()?;
     for file_path in files {
         // Ensure we're only looking at files within the specified directory
         if file_path.starts_with(path) {
-            let commits_from_file = list_by_file(repo, file_path.as_path(), commit)?;
+            let commits_from_file = list_by_file(file_path.as_path(), &commit_entry_readers)?;
             for commit in commits_from_file {
                 // Check if we've already seen this commit ID
                 if seen_commit_ids.insert(commit.id.clone()) {
@@ -439,34 +461,10 @@ fn list_by_directory(
 }
 
 fn list_by_file(
-    repo: &LocalRepository,
     path: &Path,
-    commit: &Commit,
+    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
 ) -> Result<Vec<Commit>, OxenError> {
-    let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
-
-    let object_reader = ObjectDBReader::new(repo)?;
-
-    let dir_entry_reader =
-        CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
-
-    let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-
-    let entry = dir_entry_reader
-        .get_entry(base_name)?
-        .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
-
-    // load all commit entry readers once
-    let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-    let commit_reader = CommitReader::new(repo)?;
-    let commits = commit_reader.history_from_commit_id(&commit.id)?;
-
-    for c in commits {
-        let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
-        commit_entry_readers.push((c.clone(), reader));
-    }
-
-    api::local::entries::get_commit_history_for_entry(&commit_entry_readers, &entry)
+    api::local::entries::get_commit_history_path(commit_entry_readers, path)
 }
 
 fn paginate_and_format_results(
