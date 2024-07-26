@@ -398,8 +398,10 @@ fn get_commit_entry_readers(
     let commit_reader = CommitReader::new(repo)?;
     let commits = commit_reader.history_from_commit_id(&commit.id)?;
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    let parent = path.parent().unwrap_or(Path::new(""));
+
     for c in commits {
-        let reader = CommitDirEntryReader::new(repo, &c.id, path, object_reader.clone())?;
+        let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
         commit_entry_readers.push((c.clone(), reader));
     }
     Ok(commit_entry_readers)
