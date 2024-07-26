@@ -12,15 +12,10 @@ pub async fn commit(
 ) -> Result<Commit, OxenError> {
     let uri = format!("/workspaces/{identifier}/commit/{branch_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
-    let body = serde_json::to_string(&commit).unwrap();
-    log::debug!("commit_staged {}\n{}", url, body);
+    log::debug!("commit_staged {}\n{:?}", url, commit);
 
     let client = client::new_for_url(&url)?;
-    let res = client
-        .post(&url)
-        .body(reqwest::Body::from(body))
-        .send()
-        .await?;
+    let res = client.post(&url).json(&commit).send().await?;
 
     let body = client::parse_json_body(&url, res).await?;
     log::debug!("commit_staged got body: {}", body);
