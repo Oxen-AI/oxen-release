@@ -82,6 +82,7 @@ pub enum OxenError {
     InvalidFileType(StringError),
     ColumnNameAlreadyExists(StringError),
     ColumnNameNotFound(StringError),
+    UnsupportedOperation(StringError),
 
     // Metadata
     ImageMetadataParseError(StringError),

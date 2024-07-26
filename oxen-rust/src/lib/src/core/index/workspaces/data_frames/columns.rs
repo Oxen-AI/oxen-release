@@ -1,10 +1,15 @@
 use polars::frame::DataFrame;
+use rocksdb::DB;
 
+use crate::constants::TABLE_NAME;
+use crate::core::db;
+use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::core::db::data_frames::{columns, df_db};
 use crate::core::df::tabular;
 use crate::core::index::workspaces;
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
 use crate::error::OxenError;
+use crate::model::schema::DataType;
 use crate::model::{CommitEntry, Workspace};
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
@@ -23,7 +28,17 @@ pub fn add(
     log::debug!("add_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
 
-    let result = columns::add_column(&conn, &new_column, &column_changes_path)?;
+    let result = columns::add_column(&conn, &new_column)?;
+
+    columns::record_column_change(
+        &column_changes_path,
+        new_column.name.to_owned(),
+        None,
+        "added".to_owned(),
+        None,
+        None,
+    )?;
+
     workspaces::stager::add(workspace, file_path)?;
 
     Ok(result)
@@ -40,7 +55,20 @@ pub fn delete(
     log::debug!("delete_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
 
-    let result = columns::delete_column(&conn, &column_to_delete, &column_changes_path)?;
+    let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
+    let column_data_type = table_schema.get_field(&column_to_delete.name).unwrap();
+
+    let result = columns::delete_column(&conn, &column_to_delete)?;
+
+    columns::record_column_change(
+        &column_changes_path,
+        column_to_delete.name.to_owned(),
+        Some(column_data_type.dtype.clone()),
+        "deleted".to_owned(),
+        None,
+        None,
+    )?;
+
     workspaces::stager::add(workspace, file_path)?;
 
     Ok(result)
@@ -57,99 +85,98 @@ pub fn update(
     log::debug!("update_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
 
-    let result = columns::update_column(&conn, &column_to_update, &column_changes_path)?;
+    let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
+
+    let result = columns::update_column(&conn, &column_to_update, &table_schema)?;
+
+    let column_data_type = table_schema.get_field(&column_to_update.name).unwrap();
+
+    columns::record_column_change(
+        &column_changes_path,
+        column_to_update.name.to_owned(),
+        Some(column_data_type.dtype.clone()),
+        "modified".to_owned(),
+        column_to_update.new_name.clone(),
+        column_to_update.new_data_type.clone(),
+    )?;
+
     workspaces::stager::add(workspace, file_path)?;
 
     Ok(result)
 }
 
-// pub fn restore(
-//     workspace: &Workspace,
-//     entry: &CommitEntry,
-//     column_to_restore: &ColumnToRestore,
-// ) -> Result<DataFrame, OxenError> {
-//     let file_path = file_path.as_ref();
-//     let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
-//     let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
-//     log::debug!("update_column() got db_path: {:?}", db_path);
-//     let conn = df_db::get_connection(&db_path)?;
+pub fn restore(
+    workspace: &Workspace,
+    file_path: impl AsRef<Path>,
+    column_to_restore: &ColumnToRestore,
+) -> Result<DataFrame, OxenError> {
+    let file_path = file_path.as_ref();
+    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
+    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
 
-//     let column_changes = data_frame_column_changes_db::get_data_frame_column_change(&conn, )?;
+    let opts = db::key_val::opts::default();
+    let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
 
-//     let restored_row = restore_row_in_db(workspace, entry, row_id)?;
-//     let diff = workspaces::data_frames::diff(workspace, &entry.path)?;
+    log::debug!("restore_column() got db_path: {:?}", db_path);
+    let conn = df_db::get_connection(&db_path)?;
 
-//     if let DiffResult::Tabular(diff) = diff {
-//         if !diff.has_changes() {
-//             log::debug!("no changes, deleting file from staged db");
-//             // Restored to original state == delete file from staged db
-//             workspaces::stager::rm(workspace, &entry.path)?;
-//         }
-//     }
-
-//     Ok(restored_row)
-// }
-
-// pub fn restore_row_in_db(
-//     workspace: &Workspace,
-//     entry: &CommitEntry,
-//     row_id: impl AsRef<str>,
-// ) -> Result<DataFrame, OxenError> {
-//     let row_id = row_id.as_ref();
-//     let db_path = workspaces::data_frames::duckdb_path(workspace, &entry.path);
-//     let conn = df_db::get_connection(db_path)?;
-
-//     // Get the row by id
-//     let row = get_by_id(workspace, &entry.path, row_id)?;
-
-//     if row.height() == 0 {
-//         return Err(OxenError::resource_not_found(row_id));
-//     };
-
-//     let row_status =
-//         get_row_status(&row)?.ok_or_else(|| OxenError::basic_str("Row status not found"))?;
-
-//     let result_row = match row_status {
-//         StagedRowStatus::Added => {
-//             // Row is added, just delete it
-//             log::debug!("restore_row() row is added, deleting");
-//             rows::delete_row(&conn, row_id)?
-//         }
-//         StagedRowStatus::Modified | StagedRowStatus::Removed => {
-//             // Row is modified, just delete it
-//             log::debug!("restore_row() row is modified, deleting");
-//             let mut insert_row =
-//                 prepare_modified_or_removed_row(&workspace.base_repo, entry, &row)?;
-//             rows::modify_row(&conn, &mut insert_row, row_id)?
-//         }
-//         StagedRowStatus::Unchanged => {
-//             // Row is unchanged, just return it
-//             row
-//         }
-//     };
-
-//     log::debug!("we're returning this row: {:?}", result_row);
-
-//     Ok(result_row)
-// }
-
-// pub fn get_by_name(
-//     workspace: &Workspace,
-//     path: impl AsRef<Path>,
-//     name: impl AsRef<str>,
-// ) -> Result<DataFrame, OxenError> {
-//     let path = path.as_ref();
-//     let db_path = workspaces::data_frames::duckdb_path(workspace, path);
-//     log::debug!("get_row_by_id() got db_path: {:?}", db_path);
-//     let conn = df_db::get_connection(db_path)?;
-
-//     let schema = workspace_df_db::full_staged_table_schema(&conn)?;
-
-//     let query = Select::new()
-//         .select("*")
-//         .from(TABLE_NAME)
-//         .where_clause(&format!("{} = '{}'", OXEN_ID_COL, row_id));
-//     let data = df_db::select(&conn, &query, true, Some(&schema), None)?;
-//     log::debug!("get_row_by_id() got data: {:?}", data);
-//     Ok(data)
-// }
+    if let Some(change) =
+        data_frame_column_changes_db::get_data_frame_column_change(&db, &column_to_restore.name)?
+    {
+        match change.operation.as_str() {
+            "added" => {
+                log::debug!("restore_column() column is added, deleting");
+                let column_to_delete = ColumnToDelete {
+                    name: change.column_name.clone(),
+                };
+                let result = columns::delete_column(&conn, &column_to_delete)?;
+                columns::revert_column_changes(db, change.column_name.clone())?;
+                workspaces::stager::add(workspace, file_path)?;
+                Ok(result)
+            }
+            "deleted" => {
+                log::debug!("restore_column() column was removed, adding it back");
+                let new_column = NewColumn {
+                    name: change.column_name.clone(),
+                    data_type: change
+                        .column_data_type
+                        .clone()
+                        .expect("Column data type is required but was None"),
+                };
+                let result = columns::add_column(&conn, &new_column)?;
+                columns::revert_column_changes(db, change.column_name.clone())?;
+                workspaces::stager::add(workspace, file_path)?;
+                Ok(result)
+            }
+            "modified" => {
+                log::debug!("restore_column() column was modified, reverting changes");
+                let new_data_type = DataType::from_string(
+                    &change
+                        .column_data_type
+                        .expect("column_data_type is None, cannot unwrap"),
+                )
+                .to_sql();
+                let column_to_update = ColumnToUpdate {
+                    name: change
+                        .new_name
+                        .clone()
+                        .expect("New name is required but was None"),
+                    new_data_type: Some(new_data_type.to_owned()),
+                    new_name: Some(change.column_name.clone()),
+                };
+                let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
+                let result = columns::update_column(&conn, &column_to_update, &table_schema)?;
+                columns::revert_column_changes(db, change.column_name.clone())?;
+                workspaces::stager::add(workspace, file_path)?;
+                Ok(result)
+            }
+            _ => Err(OxenError::UnsupportedOperation(
+                change.operation.clone().into(),
+            )),
+        }
+    } else {
+        Err(OxenError::ColumnNameNotFound(
+            column_to_restore.name.clone().into(),
+        ))
+    }
+}

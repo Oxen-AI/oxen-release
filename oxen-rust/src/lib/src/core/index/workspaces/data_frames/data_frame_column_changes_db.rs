@@ -26,6 +26,17 @@ pub fn save_data_frame_column_changes(
     Ok(())
 }
 
+pub fn delete_data_frame_column_changes(db: &DB, column_name: &str) -> Result<(), OxenError> {
+    db.delete(column_name)?;
+
+    log::debug!(
+        "delete_data_frame_column_changes() deleted change in: {:?}",
+        column_name
+    );
+
+    Ok(())
+}
+
 pub fn get_all_data_frame_column_changes(db: &DB) -> Result<Vec<DataFrameColumnChange>, OxenError> {
     let mut changes = Vec::new();
 

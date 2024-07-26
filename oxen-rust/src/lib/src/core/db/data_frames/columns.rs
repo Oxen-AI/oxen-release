@@ -2,13 +2,14 @@ use std::path::PathBuf;
 
 use duckdb::arrow::array::RecordBatch;
 use polars::frame::DataFrame;
-use rocksdb::DB;
+use rocksdb::{DBCommon, DBWithThreadMode, SingleThreaded, DB};
 
 use crate::core::db;
 use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
+use crate::model::Schema;
 use crate::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
 use crate::view::data_frames::DataFrameColumnChange;
 use crate::{constants::TABLE_NAME, error::OxenError};
@@ -17,22 +18,12 @@ use super::df_db;
 pub fn add_column(
     conn: &duckdb::Connection,
     new_column: &NewColumn,
-    column_changes_path: &PathBuf,
 ) -> Result<DataFrame, OxenError> {
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
 
     if table_schema.has_column(&new_column.name) {
         return Err(OxenError::column_name_already_exists(&new_column.name));
     }
-
-    record_column_change(
-        column_changes_path,
-        new_column.name.to_owned(),
-        None,
-        "added".to_owned(),
-        None,
-        None,
-    )?;
 
     let inserted_df = polar_insert_column(conn, TABLE_NAME, new_column)?;
     Ok(inserted_df)
@@ -41,22 +32,12 @@ pub fn add_column(
 pub fn delete_column(
     conn: &duckdb::Connection,
     column_to_delete: &ColumnToDelete,
-    column_changes_path: &PathBuf,
 ) -> Result<DataFrame, OxenError> {
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
 
     if !table_schema.has_column(&column_to_delete.name) {
         return Err(OxenError::column_name_not_found(&column_to_delete.name));
     }
-
-    record_column_change(
-        column_changes_path,
-        column_to_delete.name.to_owned(),
-        None,
-        "deleted".to_owned(),
-        None,
-        None,
-    )?;
 
     let inserted_df = polar_delete_column(conn, TABLE_NAME, column_to_delete)?;
     Ok(inserted_df)
@@ -65,30 +46,17 @@ pub fn delete_column(
 pub fn update_column(
     conn: &duckdb::Connection,
     column_to_update: &ColumnToUpdate,
-    column_changes_path: &PathBuf,
+    table_schema: &Schema,
 ) -> Result<DataFrame, OxenError> {
-    let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-
     if !table_schema.has_column(&column_to_update.name) {
         return Err(OxenError::column_name_not_found(&column_to_update.name));
     }
-
-    let column_data_type = table_schema.get_field(&column_to_update.name).unwrap();
-
-    record_column_change(
-        column_changes_path,
-        column_to_update.name.to_owned(),
-        Some(column_data_type.dtype.clone()),
-        "modified".to_owned(),
-        column_to_update.new_name.clone(),
-        column_to_update.new_data_type.clone(),
-    )?;
 
     let inserted_df = polar_update_column(conn, TABLE_NAME, column_to_update)?;
     Ok(inserted_df)
 }
 
-fn record_column_change(
+pub fn record_column_change(
     column_changes_path: &PathBuf,
     column_name: String,
     column_data_type: Option<String>,
@@ -108,6 +76,10 @@ fn record_column_change(
     let db = DB::open(&opts, dunce::simplified(column_changes_path))?;
 
     data_frame_column_changes_db::write_data_frame_column_change(&change, &db)
+}
+
+pub fn revert_column_changes(db: DB, column_name: String) -> Result<(), OxenError> {
+    data_frame_column_changes_db::delete_data_frame_column_changes(&db, &column_name)
 }
 
 pub fn polar_insert_column(

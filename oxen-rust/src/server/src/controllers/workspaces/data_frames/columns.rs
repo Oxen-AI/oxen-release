@@ -199,50 +199,50 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     Ok(HttpResponse::Ok().json(response))
 }
 
-// pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
-//     let app_data = app_data(&req)?;
+pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
 
-//     let namespace = path_param(&req, "namespace")?;
-//     let repo_name = path_param(&req, "repo_name")?;
-//     let workspace_id = path_param(&req, "workspace_id")?;
-//     let file_path: PathBuf = PathBuf::from(path_param(&req, "path")?);
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+    let file_path: PathBuf = PathBuf::from(path_param(&req, "path")?);
 
-//     let row_id = path_param(&req, "row_id")?;
-//     let column_name = path_param(&req, "column_name")
-//         .map_err(|_| OxenHttpError::BadRequest("Column name missing in path parameters".into()))?;
+    let column_name = path_param(&req, "column_name")
+        .map_err(|_| OxenHttpError::BadRequest("Column name missing in path parameters".into()))?;
 
-//     let column_to_restore: ColumnToRestore = ColumnToRestore { name: column_name };
+    let column_to_restore: ColumnToRestore = ColumnToRestore { name: column_name };
 
-//     let repo = get_repo(&app_data.path, namespace, repo_name)?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-//     let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
 
-//     let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+    let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
-//     if !is_editable {
-//         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
-//     }
+    if !is_editable {
+        return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
+    }
 
-//     let entry = api::local::entries::get_commit_entry(&repo, &workspace.commit, &file_path)?
-//         .ok_or(OxenError::entry_does_not_exist(file_path.clone()))?;
+    let restored_row = index::workspaces::data_frames::columns::restore(
+        &workspace,
+        &file_path,
+        &column_to_restore,
+    )?;
 
-//     let restored_row = index::workspaces::data_frames::columns::restore(&workspace, &entry, row_id)?;
+    let row_index = index::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
+    let row_id = index::workspaces::data_frames::rows::get_row_id(&restored_row)?;
 
-//     let row_index = index::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
-//     let row_id = index::workspaces::data_frames::rows::get_row_id(&restored_row)?;
-
-//     log::debug!("Restored row in controller is {:?}", restored_row);
-//     let schema = Schema::from_polars(&restored_row.schema());
-//     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
-//         data_frame: JsonDataFrameViews {
-//             source: JsonDataFrameSource::from_df(&restored_row, &schema),
-//             view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
-//         },
-//         commit: None,
-//         derived_resource: None,
-//         status: StatusMessage::resource_updated(),
-//         resource: None,
-//         row_id,
-//         row_index,
-//     }))
-// }
+    log::debug!("Restored row in controller is {:?}", restored_row);
+    let schema = Schema::from_polars(&restored_row.schema());
+    Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
+        data_frame: JsonDataFrameViews {
+            source: JsonDataFrameSource::from_df(&restored_row, &schema),
+            view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
+        },
+        commit: None,
+        derived_resource: None,
+        status: StatusMessage::resource_updated(),
+        resource: None,
+        row_id,
+        row_index,
+    }))
+}
