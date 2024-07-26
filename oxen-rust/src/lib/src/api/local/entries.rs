@@ -194,10 +194,11 @@ pub fn get_commit_history_path(
     path: impl AsRef<Path>,
 ) -> Result<Vec<Commit>, OxenError> {
     let os_path = OsPath::from(path.as_ref()).to_pathbuf();
-
     let path = os_path
         .file_name()
         .ok_or(OxenError::file_has_no_name(&path))?;
+
+    // log::debug!("get_commit_history_path: checking path {:?}", path);
 
     let mut latest_hash: Option<String> = None;
     let mut history: Vec<Commit> = Vec::new();
@@ -206,13 +207,23 @@ pub fn get_commit_history_path(
         if let Some(old_entry) = entry_reader.get_entry(path)? {
             if latest_hash.is_none() {
                 // This is the first encountered entry; set it as the baseline for comparison.
+                // log::debug!("get_commit_history_path: first entry {:?}", commit);
                 latest_hash = Some(old_entry.hash.clone());
                 history.push(commit.clone()); // Include the first commit as the starting point of history
             } else if latest_hash.as_ref() != Some(&old_entry.hash) {
                 // A change in hash is detected, indicating an edit. Include this commit in history.
+                // log::debug!("get_commit_history_path: new entry {:?}", commit);
                 latest_hash = Some(old_entry.hash.clone());
                 history.push(commit.clone());
+            } else {
+                log::debug!(
+                    "get_commit_history_path: fall through {:?} -> {}",
+                    path,
+                    commit
+                );
             }
+        } else {
+            log::debug!("get_commit_history_path: no entry {:?} in {}", path, commit);
         }
     }
 
