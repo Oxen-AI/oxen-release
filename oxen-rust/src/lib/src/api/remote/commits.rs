@@ -1422,7 +1422,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_list_commit_history_for_sub_dir_path() -> Result<(), OxenError> {
+    async fn test_list_commit_history_for_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
             let mut local_repo = local_repo;
             // Set the proper remote
@@ -1455,7 +1455,7 @@ mod tests {
             let file_2 = sub_dir.join("file_2.txt");
             util::fs::write_to_path(&file_2, "file_2")?;
             command::add(&local_repo, &file_2)?;
-            let _commit_1_file_2 = command::commit(&local_repo, "Adding file_2")?;
+            let commit_1_file_2 = command::commit(&local_repo, "Adding file_2")?;
 
             // Push it
             command::push(&local_repo).await?;
@@ -1464,21 +1464,23 @@ mod tests {
             let remote_commits = api::remote::commits::list_commits_for_path(
                 &remote_repo,
                 DEFAULT_BRANCH_NAME,
-                &sub_dir_name.join("file_1.txt"),
+                &sub_dir_name,
                 &PaginateOpts::default(),
             )
             .await?;
 
-            // Make sure there are only two for file_1
-            assert_eq!(remote_commits.commits.len(), 2);
-            assert_eq!(remote_commits.pagination.total_entries, 2);
+            // Make sure there are 3 for the dir
+            assert_eq!(remote_commits.commits.len(), 3);
+            assert_eq!(remote_commits.pagination.total_entries, 3);
             assert_eq!(remote_commits.pagination.total_pages, 1);
             assert_eq!(remote_commits.pagination.page_number, 1);
             assert_eq!(remote_commits.pagination.page_size, DEFAULT_PAGE_SIZE);
 
             // Ensure they come in reverse chronological order
-            assert_eq!(remote_commits.commits[0].id, commit_2_file_1.id);
-            assert_eq!(remote_commits.commits[1].id, commit_1_file_1.id);
+
+            assert_eq!(remote_commits.commits[0].id, commit_1_file_2.id);
+            assert_eq!(remote_commits.commits[1].id, commit_2_file_1.id);
+            assert_eq!(remote_commits.commits[2].id, commit_1_file_1.id);
 
             api::remote::repositories::delete(&remote_repo).await?;
 
