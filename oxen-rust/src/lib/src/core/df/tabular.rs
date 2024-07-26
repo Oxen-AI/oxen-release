@@ -145,8 +145,13 @@ pub fn scan_df_parquet(path: impl AsRef<Path>, total_rows: usize) -> Result<Lazy
     })
 }
 
-fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
-    LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
+fn scan_df_arrow(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
+    let args = ScanArgsIpc {
+        n_rows: Some(total_rows),
+        ..Default::default()
+    };
+
+    LazyFrame::scan_ipc(&path, args)
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
@@ -486,6 +491,7 @@ fn tail(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, OxenError> {
     let mut opts = DFOpts::empty();
     opts.slice = Some(format!("{}..{}", start, end));
+    log::debug!("slice_df with opts: {:?}", opts);
     let df = df.lazy();
     let df = slice(df, &opts);
     Ok(df.collect().expect(COLLECT_ERROR))
@@ -735,7 +741,7 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
         None => Err(OxenError::basic_str(err)),
     }?;
 
-    println!("Read finished");
+    log::debug!("Read finished");
     if opts.has_transform() {
         let df = transform_new(df, opts)?;
         Ok(df.collect()?)
@@ -749,6 +755,7 @@ pub fn scan_df(
     opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
+    log::debug!("Scanning df with total_rows: {}", total_rows);
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
@@ -764,7 +771,7 @@ pub fn scan_df(
             }
             "tsv" => scan_df_csv(path, b'\t', total_rows),
             "parquet" => scan_df_parquet(path, total_rows),
-            "arrow" => scan_df_arrow(path),
+            "arrow" => scan_df_arrow(path, total_rows),
             _ => Err(OxenError::basic_str(err)),
         },
         None => Err(OxenError::basic_str(err)),
@@ -938,7 +945,7 @@ pub fn copy_df_add_row_num(
 pub fn show_path(input: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     log::debug!("Got opts {:?}", opts);
     let df = read_df(input, opts.clone())?;
-    println!("Transform finished");
+    log::debug!("Transform finished");
     if opts.column_at().is_some() {
         for val in df.get(0).unwrap() {
             match val {
