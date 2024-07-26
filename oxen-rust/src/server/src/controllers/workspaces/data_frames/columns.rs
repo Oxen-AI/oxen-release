@@ -4,16 +4,15 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
-use actix_web::{web::Bytes, HttpRequest, HttpResponse};
-use liboxen::error::OxenError;
+use actix_web::{HttpRequest, HttpResponse};
+use liboxen::core::index;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
 use liboxen::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
-use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
+use liboxen::view::json_data_frame_view::{JsonDataFrameColumnResponse, JsonDataFrameSource};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
-use liboxen::{api, core::index};
 use serde_json::{json, Value};
 
 pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
@@ -46,26 +45,25 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let row_df = index::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
-    let row_id: Option<String> = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
-    let row_index: Option<usize> = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
+    let column_df =
+        index::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
 
     let opts = DFOpts::empty();
-    let row_schema = Schema::from_polars(&row_df.schema().clone());
-    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
-    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
+    let column_schema = Schema::from_polars(&column_df.schema().clone());
+    let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
+    let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
+    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
-    let response = JsonDataFrameRowResponse {
+    let response = JsonDataFrameColumnResponse {
         data_frame: JsonDataFrameViews {
-            source: row_df_source,
-            view: row_df_view,
+            source: column_df_source,
+            view: column_df_view,
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
         resource: None,
-        row_id,
-        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -101,27 +99,26 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let row_df =
+    let column_df =
         index::workspaces::data_frames::columns::delete(&workspace, &file_path, &column_to_delete)?;
-    let row_id: Option<String> = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
-    let row_index: Option<usize> = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
-    let row_schema = Schema::from_polars(&row_df.schema().clone());
-    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
-    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
+    let column_schema = Schema::from_polars(&column_df.schema().clone());
+    let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
+    let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
 
-    let response = JsonDataFrameRowResponse {
+    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+
+    let response = JsonDataFrameColumnResponse {
         data_frame: JsonDataFrameViews {
-            source: row_df_source,
-            view: row_df_view,
+            source: column_df_source,
+            view: column_df_view,
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
         resource: None,
-        row_id,
-        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -173,27 +170,26 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let row_df =
+    let column_df =
         index::workspaces::data_frames::columns::update(&workspace, &file_path, &column_to_update)?;
-    let row_id: Option<String> = index::workspaces::data_frames::rows::get_row_id(&row_df)?;
-    let row_index: Option<usize> = index::workspaces::data_frames::rows::get_row_idx(&row_df)?;
 
     let opts = DFOpts::empty();
-    let row_schema = Schema::from_polars(&row_df.schema().clone());
-    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
-    let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
+    let column_schema = Schema::from_polars(&column_df.schema().clone());
+    let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
+    let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
 
-    let response = JsonDataFrameRowResponse {
+    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+
+    let response = JsonDataFrameColumnResponse {
         data_frame: JsonDataFrameViews {
-            source: row_df_source,
-            view: row_df_view,
+            source: column_df_source,
+            view: column_df_view,
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
         resource: None,
-        row_id,
-        row_index,
     };
 
     Ok(HttpResponse::Ok().json(response))
@@ -222,27 +218,25 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let restored_row = index::workspaces::data_frames::columns::restore(
+    let restored_column = index::workspaces::data_frames::columns::restore(
         &workspace,
         &file_path,
         &column_to_restore,
     )?;
 
-    let row_index = index::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
-    let row_id = index::workspaces::data_frames::rows::get_row_id(&restored_row)?;
+    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
-    log::debug!("Restored row in controller is {:?}", restored_row);
-    let schema = Schema::from_polars(&restored_row.schema());
-    Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
+    log::debug!("Restored column in controller is {:?}", restored_column);
+    let schema = Schema::from_polars(&restored_column.schema());
+    Ok(HttpResponse::Ok().json(JsonDataFrameColumnResponse {
         data_frame: JsonDataFrameViews {
-            source: JsonDataFrameSource::from_df(&restored_row, &schema),
-            view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
+            source: JsonDataFrameSource::from_df(&restored_column, &schema),
+            view: JsonDataFrameView::from_df_opts(restored_column, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_updated(),
         resource: None,
-        row_id,
-        row_index,
     }))
 }

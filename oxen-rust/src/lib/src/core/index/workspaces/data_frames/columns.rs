@@ -14,8 +14,11 @@ use crate::model::{CommitEntry, Workspace};
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
+use crate::view::data_frames::DataFrameColumnChange;
 
 use std::path::Path;
+
+use super::data_frame_column_changes_db::get_all_data_frame_column_changes;
 
 pub fn add(
     workspace: &Workspace,
@@ -179,4 +182,14 @@ pub fn restore(
             column_to_restore.name.clone().into(),
         ))
     }
+}
+
+pub fn get_column_diff(
+    workspace: &Workspace,
+    file_path: impl AsRef<Path>,
+) -> Result<Vec<DataFrameColumnChange>, OxenError> {
+    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
+    let opts = db::key_val::opts::default();
+    let db = DB::open_for_read_only(&opts, dunce::simplified(&column_changes_path), false)?;
+    get_all_data_frame_column_changes(&db)
 }

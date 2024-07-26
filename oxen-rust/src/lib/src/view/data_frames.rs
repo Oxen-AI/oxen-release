@@ -7,7 +7,7 @@ pub struct DataFramePayload {
     pub is_indexed: bool,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataFrameColumnChange {
     pub column_name: String,
     pub column_data_type: Option<String>,
