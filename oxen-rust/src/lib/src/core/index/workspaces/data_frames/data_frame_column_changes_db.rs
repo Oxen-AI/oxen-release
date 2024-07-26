@@ -6,7 +6,7 @@ pub fn write_data_frame_column_change(
     data_frame_column_change: &DataFrameColumnChange,
     db: &DB,
 ) -> Result<(), OxenError> {
-    save_data_frame_column_changes(&db, data_frame_column_change)
+    save_data_frame_column_changes(db, data_frame_column_change)
 }
 
 pub fn save_data_frame_column_changes(
