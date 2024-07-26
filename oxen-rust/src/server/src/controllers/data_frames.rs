@@ -105,7 +105,7 @@ pub async fn get(
         log::debug!("Scanning df with slice: {:?}", opts.slice);
         let slice = opts.slice.as_ref().unwrap();
         let (_, end) = slice.split_once("..").unwrap();
-        
+
         end.parse::<usize>().unwrap()
     } else {
         data_frame_size.height
