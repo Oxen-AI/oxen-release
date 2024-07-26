@@ -240,7 +240,7 @@ impl CommitDirEntryReader {
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::Dir { path, hash } = entry {
-                    let dir = self.object_reader.get_dir(&hash)?;
+                    let dir = self.object_reader.get_dir(hash)?;
                     if let Some(dir) = dir {
                         if !dir.children().is_empty() {
                             dirs.push(path.to_owned());
@@ -260,7 +260,7 @@ impl CommitDirEntryReader {
             let vnode = self.object_reader.get_vnode(vnode_child.hash())?.unwrap();
             for entry in vnode.children() {
                 if let TreeObjectChild::Dir { path, hash } = entry {
-                    let dir = self.object_reader.get_dir(&hash)?;
+                    let dir = self.object_reader.get_dir(hash)?;
                     if let Some(dir) = dir {
                         if !dir.children().is_empty() {
                             dirs.insert(path.to_owned());

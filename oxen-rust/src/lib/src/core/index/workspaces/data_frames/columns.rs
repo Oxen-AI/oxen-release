@@ -5,12 +5,11 @@ use crate::constants::TABLE_NAME;
 use crate::core::db;
 use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::core::db::data_frames::{columns, df_db};
-use crate::core::df::tabular;
 use crate::core::index::workspaces;
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
 use crate::error::OxenError;
 use crate::model::schema::DataType;
-use crate::model::{CommitEntry, Workspace};
+use crate::model::Workspace;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
@@ -31,7 +30,7 @@ pub fn add(
     log::debug!("add_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
 
-    let result = columns::add_column(&conn, &new_column)?;
+    let result = columns::add_column(&conn, new_column)?;
 
     columns::record_column_change(
         &column_changes_path,
@@ -61,7 +60,7 @@ pub fn delete(
     let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
     let column_data_type = table_schema.get_field(&column_to_delete.name).unwrap();
 
-    let result = columns::delete_column(&conn, &column_to_delete)?;
+    let result = columns::delete_column(&conn, column_to_delete)?;
 
     columns::record_column_change(
         &column_changes_path,
@@ -90,7 +89,7 @@ pub fn update(
 
     let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
 
-    let result = columns::update_column(&conn, &column_to_update, &table_schema)?;
+    let result = columns::update_column(&conn, column_to_update, &table_schema)?;
 
     let column_data_type = table_schema.get_field(&column_to_update.name).unwrap();
 
@@ -154,7 +153,7 @@ pub fn restore(
             "modified" => {
                 log::debug!("restore_column() column was modified, reverting changes");
                 let new_data_type = DataType::from_string(
-                    &change
+                    change
                         .column_data_type
                         .expect("column_data_type is None, cannot unwrap"),
                 )

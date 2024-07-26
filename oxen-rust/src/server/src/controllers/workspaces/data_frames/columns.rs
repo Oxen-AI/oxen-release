@@ -210,7 +210,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    let workspace = index::workspaces::get(&repo, workspace_id)?;
 
     let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 

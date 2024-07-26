@@ -1,8 +1,8 @@
-use std::path::PathBuf;
+use std::path::Path;
 
 use duckdb::arrow::array::RecordBatch;
 use polars::frame::DataFrame;
-use rocksdb::{DBCommon, DBWithThreadMode, SingleThreaded, DB};
+use rocksdb::DB;
 
 use crate::core::db;
 use crate::core::db::data_frames::workspace_df_db::{
@@ -57,7 +57,7 @@ pub fn update_column(
 }
 
 pub fn record_column_change(
-    column_changes_path: &PathBuf,
+    column_changes_path: &Path,
     column_name: String,
     column_data_type: Option<String>,
     operation: String,
@@ -65,11 +65,11 @@ pub fn record_column_change(
     new_data_type: Option<String>,
 ) -> Result<(), OxenError> {
     let change = DataFrameColumnChange {
-        column_name: column_name,
-        column_data_type: column_data_type,
-        operation: operation,
-        new_name: new_name,
-        new_data_type: new_data_type,
+        column_name,
+        column_data_type,
+        operation,
+        new_name,
+        new_data_type,
     };
 
     let opts = db::key_val::opts::default();
