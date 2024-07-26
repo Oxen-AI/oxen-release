@@ -397,8 +397,9 @@ fn get_commit_entry_readers(
     let commit_reader = CommitReader::new(repo)?;
     let commits = commit_reader.history_from_commit_id(&commit.id)?;
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    let parent = path.parent().unwrap_or(Path::new(""));
     for c in commits {
-        let reader = CommitDirEntryReader::new(repo, &c.id, path, object_reader.clone())?;
+        let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
         commit_entry_readers.push((c.clone(), reader));
     }
     Ok(commit_entry_readers)
@@ -416,10 +417,16 @@ pub fn list_by_resource_from_paginated(
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
 
     let commits = if entry_reader.has_dir(path) {
+        // log::debug!("list_by_resource_from_paginated: has dir {:?}", path);
         list_by_directory(repo, path, commit)?
     } else {
+        // log::debug!("list_by_resource_from_paginated: checking file {:?}", path);
         // load all commit entry readers once
         let commit_entry_readers = get_commit_entry_readers(repo, commit, path)?;
+        // log::debug!(
+        //     "list_by_resource_from_paginated got {} entry readers",
+        //     commit_entry_readers.len()
+        // );
         list_by_file(path, &commit_entry_readers)?
     };
 
