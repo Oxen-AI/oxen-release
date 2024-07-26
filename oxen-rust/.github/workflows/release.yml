@@ -44,6 +44,87 @@ jobs:
               {"Key": "Name", "Value": "ec2-github-runner"}
             ]
 
+  release_ubuntu_latest:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Install latest rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          ruby ruby-dev rubygems build-essential \
+          && sudo gem install fpm
+
+      - name: Build oxen
+        run: cargo build --release
+
+      - name: Upload to crates.io
+        run: |
+          cd src/lib
+          cargo login ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish
+
+      - name: Package Oxen Server
+        run: |
+          fpm \
+            -s dir -t deb \
+            -p oxen-server-ubuntu-latest.deb \
+            -C target/release \
+            --name oxen-server \
+            --version ${{ env.RELEASE_VERSION }} \
+            --architecture all \
+            --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen-server=/usr/bin/oxen-server
+
+      - name: Package Oxen CLI
+        run: |
+          fpm \
+            -s dir -t deb \
+            -p oxen-ubuntu-latest.deb \
+            -C target/release \
+            --name oxen \
+            --version ${{ env.RELEASE_VERSION }} \
+            --architecture all \
+            --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen=/usr/bin/oxen
+
+      - name: Upload Oxen Server binary to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-server-ubuntu-latest.deb
+          asset_name: oxen-server-ubuntu-latest.deb
+          tag: ${{ github.ref }}
+
+      - name: Upload Oxen CLI binary to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-ubuntu-latest.deb
+          asset_name: oxen-ubuntu-latest.deb
+          tag: ${{ github.ref }}
+
+
   release_ubuntu_22_04:
     runs-on: ubuntu-22.04
 
@@ -68,28 +149,6 @@ jobs:
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/rui314/mold.git
-      #     mkdir mold/build
-      #     cd mold/build
-      #     git checkout v2.0.0
-      #     ../install-build-deps.sh
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
-
-      # - name: Install imagemagick
-      #   run: |
-      #     export MAGICK_VERSION=7.1 \
-      #     && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
-      #     && cd ImageMagick-${MAGICK_VERSION}* \
-      #     && ./configure --with-magick-plus-plus=no --with-perl=no \
-      #     && make \
-      #     && sudo make install \
-      #     && cd .. \
-      #     && rm -r ImageMagick-${MAGICK_VERSION}*
 
       - name: Build oxen
         run: cargo build --release
