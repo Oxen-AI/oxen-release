@@ -956,7 +956,7 @@ impl Stager {
                     if let Some(is_added) = &dir_entry.client_state {
                         if !*is_added {
                             let path = util::fs::path_relative_to_dir(
-                                &dir_entry.path(),
+                                dir_entry.path(),
                                 &self.repository.path,
                             )
                             .unwrap();
