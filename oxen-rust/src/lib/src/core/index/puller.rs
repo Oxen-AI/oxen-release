@@ -338,7 +338,7 @@ fn working_dir_paths_from_small_entries(entries: &[Entry], dst: &Path) -> Vec<(S
 fn working_dir_paths_from_large_entries(entries: &[Entry], dst: &Path) -> Vec<PathBuf> {
     let mut paths: Vec<PathBuf> = vec![];
     for entry in entries.iter() {
-        let working_path = dst.join(&entry.path());
+        let working_path = dst.join(entry.path());
         paths.push(working_path);
     }
     paths

@@ -117,7 +117,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
             false,
         )?;
 
-        let root_hash: String = path_db::get_entry(&dir_hashes_db, &PathBuf::from(""))?.unwrap();
+        let root_hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
 
         commit_to_update.update_root_hash(root_hash);
 
