@@ -1,7 +1,8 @@
 use crate::constants::{self};
-use crate::core::db::path_db;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::{self, tree_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::tree_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 
 use crate::error::OxenError;
 
@@ -83,7 +84,7 @@ impl TreeObjectReader {
             }
         }
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
 
         Ok(TreeObjectReader {
             files_db: DBWithThreadMode::open_for_read_only(

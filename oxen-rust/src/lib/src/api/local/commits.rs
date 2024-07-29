@@ -7,8 +7,9 @@ use crate::constants::{
     HISTORY_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, TREE_DIR,
 };
 use crate::core::cache::cachers::content_validator;
-use crate::core::db::tree_db::{self, TreeObject};
-use crate::core::db::{self, path_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::tree_db::{self, TreeObject};
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
@@ -562,7 +563,7 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
     let new_vnodes_dir = tmp_objects_dir.join(OBJECT_VNODES_DIR);
 
     log::debug!("opening tmp dirs");
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let new_dirs_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, new_dirs_dir, false)?;
     let new_files_db: DBWithThreadMode<MultiThreaded> =

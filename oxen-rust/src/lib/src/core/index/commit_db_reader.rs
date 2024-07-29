@@ -1,4 +1,4 @@
-use crate::core::db::str_json_db;
+use crate::core::db::key_val::str_json_db;
 use crate::core::index::RefReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};

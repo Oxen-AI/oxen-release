@@ -20,10 +20,12 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     let path = opts.path;
     let commit = resource::get_commit_or_head(repo, opts.source_ref)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
-    let _opts = db::opts::default();
+    let _opts = db::key_val::opts::default();
     let files_db_dir = CommitEntryWriter::files_db_dir(repo);
-    let files_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&db::opts::default(), dunce::simplified(&files_db_dir))?;
+    let files_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(
+        &db::key_val::opts::default(),
+        dunce::simplified(&files_db_dir),
+    )?;
 
     // Check if is directory, need to recursively restore
     if reader.has_dir(&path) {

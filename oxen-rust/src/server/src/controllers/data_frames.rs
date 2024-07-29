@@ -7,7 +7,7 @@ use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
 use liboxen::core::cache::cachers;
-use liboxen::core::db::df_db;
+use liboxen::core::db::data_frames::df_db;
 use liboxen::core::index::CommitEntryReader;
 use liboxen::error::{OxenError, PathBufError};
 use liboxen::model::{

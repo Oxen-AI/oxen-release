@@ -1,4 +1,5 @@
-use crate::core::db::tree_db::{self, TreeObject, TreeObjectChild};
+use crate::core::db::key_val::tree_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 use crate::core::db::{self};
 use crate::error::OxenError;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -45,7 +46,7 @@ impl TreeDBMerger {
         server_reader: TreeObjectReader,
         lca_reader: TreeObjectReader,
     ) -> TreeDBMerger {
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let client_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, client_db_path).unwrap();
 
