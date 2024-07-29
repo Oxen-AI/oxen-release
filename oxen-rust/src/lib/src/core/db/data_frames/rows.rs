@@ -1,21 +1,22 @@
+use duckdb::arrow::array::RecordBatch;
+use duckdb::ToSql;
 use polars::frame::DataFrame;
 use sql::Select;
 // use sql::Select;
 use sql_query_builder as sql;
 
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL, OXEN_ROW_ID_COL};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL};
 
+use crate::core::db::data_frames::workspace_df_db::{
+    full_staged_table_schema, schema_without_oxen_cols,
+};
 use crate::core::df::tabular;
-use crate::model::schema::Field;
+use crate::model::schema::Schema;
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::Schema;
 use crate::{constants::TABLE_NAME, error::OxenError};
 use polars::prelude::*; // or use polars::lazy::*; if you're working in a lazy context
 
 use super::df_db;
-
-/// Builds on df_db, but for specific use cases involving remote staging -
-/// i.e., handling additional virtual columns beyond the formal schema, table names, etc.
 
 pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame, OxenError> {
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
@@ -40,7 +41,7 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     };
 
     let schema = full_staged_table_schema(conn)?;
-    let inserted_df = df_db::insert_polars_df(conn, TABLE_NAME, &df, &schema)?;
+    let inserted_df = insert_polars_df(conn, TABLE_NAME, &df, &schema)?;
 
     log::debug!("staged_df_db::append_row() inserted_df: {:?}", inserted_df);
 
@@ -155,74 +156,6 @@ pub fn delete_row(conn: &duckdb::Connection, uuid: &str) -> Result<DataFrame, Ox
     Ok(row_to_delete)
 }
 
-pub fn select_cols_from_schema(schema: &Schema) -> Result<String, OxenError> {
-    let all_col_names = OXEN_COLS
-        .iter()
-        .map(|col| format!("\"{}\"", col))
-        .chain(schema.fields.iter().map(|col| format!("\"{}\"", col.name)))
-        .collect::<Vec<String>>()
-        .join(", ");
-
-    Ok(all_col_names)
-}
-
-// Returns the schema of the underlying table with the oxen cols prepended in a predictable
-// order expected by the UI / API
-pub fn full_staged_table_schema(conn: &duckdb::Connection) -> Result<Schema, OxenError> {
-    let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
-    enhance_schema_with_oxen_cols(&schema)
-}
-
-pub fn schema_without_oxen_cols(
-    conn: &duckdb::Connection,
-    table_name: impl AsRef<str>,
-) -> Result<Schema, OxenError> {
-    let table_schema = df_db::get_schema_excluding_cols(conn, table_name, &OXEN_COLS)?;
-    Ok(table_schema)
-}
-
-pub fn enhance_schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenError> {
-    let mut schema = schema.clone();
-
-    let oxen_fields: Vec<Field> = OXEN_COLS
-        .iter()
-        .map(|col| Field {
-            name: col.to_string(),
-            dtype: if col == &OXEN_ROW_ID_COL {
-                DataType::Int32.to_string()
-            } else {
-                DataType::String.to_string()
-            },
-            metadata: None,
-        })
-        .collect();
-
-    schema.fields = oxen_fields
-        .iter()
-        .chain(schema.fields.iter())
-        .cloned()
-        .collect();
-
-    Ok(schema)
-}
-
-pub fn df_diff(conn: &duckdb::Connection) -> Result<DataFrame, OxenError> {
-    let select = sql::Select::new()
-        .select("*")
-        .from(TABLE_NAME)
-        .where_clause(&format!(
-            "\"{}\" != '{}'",
-            DIFF_STATUS_COL,
-            StagedRowStatus::Unchanged
-        ));
-
-    let schema = full_staged_table_schema(conn)?;
-
-    let res = df_db::select(conn, &select, true, Some(&schema), None)?;
-
-    Ok(res)
-}
-
 fn get_hash_and_status_for_modification(
     conn: &duckdb::Connection,
     old_row: &DataFrame,
@@ -282,4 +215,62 @@ fn get_hash_and_status_for_modification(
     };
 
     Ok((insert_hash.to_string(), new_status))
+}
+
+/// Insert a row from a polars dataframe into a duckdb table.
+pub fn insert_polars_df(
+    conn: &duckdb::Connection,
+    table_name: impl AsRef<str>,
+    df: &DataFrame,
+    out_schema: &Schema,
+) -> Result<DataFrame, OxenError> {
+    let table_name = table_name.as_ref();
+
+    let schema = df.schema();
+    let column_names: Vec<String> = schema
+        .iter_fields()
+        .map(|f| format!("\"{}\"", f.name()))
+        .collect();
+
+    let placeholders: String = column_names
+        .iter()
+        .map(|_| "?".to_string())
+        .collect::<Vec<_>>()
+        .join(", ");
+    let sql = format!(
+        "INSERT INTO {} ({}) VALUES ({}) RETURNING *",
+        table_name,
+        column_names.join(", "),
+        placeholders,
+    );
+
+    let mut stmt = conn.prepare(&sql)?;
+
+    // TODO: is there a way to bulk insert this?
+    let mut result_df = DataFrame::default();
+    for idx in 0..df.height() {
+        let row = df.get(idx).unwrap();
+        let boxed_values: Vec<Box<dyn ToSql>> = row
+            .iter()
+            .map(|v| tabular::value_to_tosql(v.to_owned()))
+            .collect();
+
+        let params: Vec<&dyn ToSql> = boxed_values
+            .iter()
+            .map(|boxed_value| &**boxed_value as &dyn ToSql)
+            .collect();
+
+        // Convert to Vec<&RecordBatch>
+        let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
+
+        let df = df_db::record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
+
+        result_df = if df.height() == 0 {
+            df
+        } else {
+            result_df.vstack(&df).unwrap()
+        };
+    }
+
+    Ok(result_df)
 }

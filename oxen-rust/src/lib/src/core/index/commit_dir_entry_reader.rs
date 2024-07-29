@@ -5,8 +5,8 @@
 
 use crate::constants::{self};
 use crate::core::db;
-use crate::core::db::path_db;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
@@ -60,7 +60,7 @@ impl CommitDirEntryReader {
             base_path.join(dir)
         );
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
@@ -190,7 +190,7 @@ impl CommitDirEntryReader {
             .binary_search_on_path(&PathBuf::from(path_hash_prefix.clone()))?;
 
         let Some(vnode_child) = maybe_vnode_child else {
-            log::debug!("could not find vnode child for path {:?}", path);
+            // log::debug!("could not find vnode child for path {:?}", path);
             return Ok(None);
         };
 

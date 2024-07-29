@@ -11,7 +11,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use crate::core::db::path_db;
+use crate::core::db::key_val::path_db;
 use crate::model::LocalRepository;
 
 use super::ObjectDBReader;
@@ -62,7 +62,7 @@ impl CommitEntryReader {
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitEntryReader, OxenError> {
         let path = Self::db_path(&base_path, commit_id);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         log::debug!(
             "CommitEntryReader::new_from_path() commit_id: {} path: {:?}",
             commit_id,

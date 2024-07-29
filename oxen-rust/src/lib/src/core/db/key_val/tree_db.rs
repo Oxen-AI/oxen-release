@@ -34,7 +34,7 @@ impl<T: ThreadMode> TreeDB<T> {
         if !db_path.exists() {
             std::fs::create_dir_all(db_path)?;
         }
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let db = if read_only {
             if !db_path.join("CURRENT").exists() {
                 if let Err(err) = std::fs::create_dir_all(db_path) {

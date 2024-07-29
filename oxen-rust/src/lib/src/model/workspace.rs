@@ -3,17 +3,25 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 use crate::constants;
-use crate::constants::WORKSPACE_NAME;
-use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_COMMIT_ID};
+use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_CONFIG};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util;
+use toml;
 
 fn workspace_dir(repo: &LocalRepository, workspace_id_hash: &str) -> PathBuf {
     repo.path
         .join(OXEN_HIDDEN_DIR)
         .join(WORKSPACES_DIR)
         .join(workspace_id_hash)
+}
+
+// Define a struct for the workspace config to make it easier to serialize
+#[derive(Serialize, Deserialize)]
+struct WorkspaceConfig {
+    workspace_commit_id: String,
+    is_editable: bool,
+    workspace_name: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -24,7 +32,8 @@ pub struct Workspace {
     // And a sub repository that is just to make changes in
     // .oxen/workspaces/<workspace_id>/.oxen/
     pub workspace_repo: LocalRepository,
-    // .oxen/workspaces/<workspace_id>/.oxen/WORKSPACE_COMMIT_ID
+    // .oxen/workspaces/<workspace_ id>/.oxen/WORKSPACE_CONFIG
+    pub is_editable: bool,
     pub commit: Commit,
 }
 
@@ -34,34 +43,37 @@ impl Workspace {
     /// Returns an error if the workspace does not exist
     pub fn new(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Self, OxenError> {
         let workspace_id = workspace_id.as_ref();
-        // They may pass in a string that is not a valid directory name, so we hash it
-        // We keep workspace_name as the original string for display purposes
         let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
         log::debug!(
             "workspace::new got workspace_id: {workspace_id:?} hash: {workspace_id_hash:?}"
         );
 
         let workspace_dir = workspace_dir(repo, &workspace_id_hash);
-        let commit_id_path = workspace_dir
-            .join(OXEN_HIDDEN_DIR)
-            .join(WORKSPACE_COMMIT_ID);
+        let config_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
 
-        if !commit_id_path.exists() {
+        if !config_path.exists() {
             return Err(OxenError::workspace_not_found(workspace_id.into()));
         }
 
-        let commit_id = util::fs::read_from_path(commit_id_path)?;
-        let Some(commit) = api::local::commits::get_by_id(repo, &commit_id)? else {
+        let config_contents = util::fs::read_from_path(&config_path)?;
+        let config: WorkspaceConfig = toml::from_str(&config_contents).map_err(|e| {
+            OxenError::basic_str(format!("Failed to parse workspace config: {}", e))
+        })?;
+
+        let Some(commit) = api::local::commits::get_by_id(repo, &config.workspace_commit_id)?
+        else {
             return Err(OxenError::basic_str(format!(
                 "Workspace {} has invalid commit_id {}",
-                workspace_id, commit_id
+                workspace_id, config.workspace_commit_id
             )));
         };
+
         Ok(Workspace {
             id: workspace_id.to_owned(),
             base_repo: repo.clone(),
             workspace_repo: LocalRepository::new(&workspace_dir)?,
             commit,
+            is_editable: config.is_editable,
         })
     }
 
@@ -70,14 +82,14 @@ impl Workspace {
         base_repo: &LocalRepository,
         commit: &Commit,
         workspace_id: impl AsRef<str>,
+        is_editable: bool,
     ) -> Result<Self, OxenError> {
         let workspace_id = workspace_id.as_ref();
         let workspace_name = workspace_id.to_owned();
-        // They may pass in a string that is not a valid directory name, so we hash it
-        // We keep workspace_name as the original string for display purposes
         let workspace_id_hash = util::hasher::hash_str_sha256(workspace_id);
         let workspace_dir = workspace_dir(base_repo, &workspace_id_hash);
         let oxen_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
+
         log::debug!("index::workspaces::create called! {:?}", oxen_dir);
 
         if oxen_dir.exists() {
@@ -91,56 +103,114 @@ impl Workspace {
             )));
         }
 
+        // Check for existing non-editable workspaces on the same commit
+        if !is_editable {
+            let workspaces = Workspace::list(base_repo)?;
+            for workspace in workspaces {
+                if workspace.commit.id == commit.id && !workspace.is_editable {
+                    // Found another non-editable workspace with the same commit
+                    return Err(OxenError::basic_str(format!(
+                        "A non-editable workspace already exists for commit {}",
+                        commit.id
+                    )));
+                }
+            }
+        }
+
         log::debug!("index::workspaces::create Initializing oxen repo! 🐂");
 
         let workspace_repo = Self::init_workspace_repo(base_repo, &workspace_dir)?;
-        // write the commit_id to the workspace dir
+
+        // Serialize the workspace config to TOML
+        let workspace_config = WorkspaceConfig {
+            workspace_commit_id: commit.id.clone(),
+            is_editable,
+            workspace_name: workspace_name.clone(),
+        };
+
+        let toml_string = match toml::to_string(&workspace_config) {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(OxenError::basic_str(format!(
+                    "Failed to serialize workspace config to TOML: {}",
+                    e
+                )));
+            }
+        };
+
+        // Write the TOML string to WORKSPACE_CONFIG
         let commit_id_path = workspace_repo
             .path
             .join(OXEN_HIDDEN_DIR)
-            .join(WORKSPACE_COMMIT_ID);
+            .join(WORKSPACE_CONFIG);
         log::debug!(
-            "index::workspaces::create writing commit_id to workspace_dir: {commit_id_path:?}"
+            "index::workspaces::create writing workspace config to: {:?}",
+            commit_id_path
         );
-        util::fs::write_to_path(&commit_id_path, &commit.id)?;
-
-        // write the workspace name to the workspace dir
-        let workspace_name_path = workspace_dir.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
-        util::fs::write_to_path(workspace_name_path, workspace_name)?;
+        util::fs::write_to_path(&commit_id_path, toml_string)?;
 
         Ok(Workspace {
             id: workspace_id.to_owned(),
             base_repo: base_repo.clone(),
             workspace_repo,
             commit: commit.clone(),
+            is_editable,
         })
     }
 
     pub fn list(repo: &LocalRepository) -> Result<Vec<Self>, OxenError> {
         let workspaces_dir = repo.path.join(OXEN_HIDDEN_DIR).join(WORKSPACES_DIR);
-        log::debug!("workspace::list got workspaces_dir: {workspaces_dir:?}");
+        log::debug!("workspace::list got workspaces_dir: {:?}", workspaces_dir);
         if !workspaces_dir.exists() {
+            // Return early if the workspaces directory does not exist
             return Ok(vec![]);
         }
 
-        let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir)?;
-        log::debug!("workspace::list got workspaces_hashes: {workspaces_hashes:?}");
+        let workspaces_hashes = util::fs::list_dirs_in_dir(&workspaces_dir).map_err(|e| {
+            OxenError::basic_str(format!("Error listing workspace directories: {}", e))
+        })?;
+        log::debug!(
+            "workspace::list got workspaces_hashes: {:?}",
+            workspaces_hashes
+        );
 
-        let workspaces = workspaces_hashes
-            .iter()
-            .filter(|workspace_hash| {
-                workspace_hash
-                    .join(OXEN_HIDDEN_DIR)
-                    .join(WORKSPACE_NAME)
-                    .exists()
-            })
-            .map(|workspace_hash| {
-                // read the workspace name from the workspace dir
-                let workspace_name_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_NAME);
-                let workspace_name = util::fs::read_from_path(workspace_name_path)?;
-                Workspace::new(repo, workspace_name)
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut workspaces = Vec::new();
+        for workspace_hash in workspaces_hashes {
+            let workspace_config_path = workspace_hash.join(OXEN_HIDDEN_DIR).join(WORKSPACE_CONFIG);
+
+            if !workspace_config_path.exists() {
+                log::warn!("Workspace config not found at: {:?}", workspace_config_path);
+                continue;
+            }
+
+            // Read the workspace config file
+            let config_toml = match util::fs::read_from_path(&workspace_config_path) {
+                Ok(content) => content,
+                Err(e) => {
+                    log::error!("Failed to read workspace config: {}", e);
+                    continue;
+                }
+            };
+
+            // Deserialize the TOML content
+            let workspace_config: WorkspaceConfig = match toml::from_str(&config_toml) {
+                Ok(config) => config,
+                Err(e) => {
+                    log::error!("Failed to deserialize workspace config: {}", e);
+                    continue;
+                }
+            };
+
+            // Construct the Workspace and add it to the list
+            match Workspace::new(repo, workspace_config.workspace_name) {
+                Ok(workspace) => workspaces.push(workspace),
+                Err(e) => {
+                    log::error!("Failed to create workspace: {}", e);
+                    continue;
+                }
+            }
+        }
+
         Ok(workspaces)
     }
 

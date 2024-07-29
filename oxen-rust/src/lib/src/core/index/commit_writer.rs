@@ -1,6 +1,6 @@
 use crate::config::UserConfig;
 use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
-use crate::core::db::path_db;
+use crate::core::db::key_val::path_db;
 
 use crate::core::db;
 use crate::core::index::{
@@ -40,7 +40,7 @@ impl CommitWriter {
             std::fs::create_dir_all(&db_path)?;
         }
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(CommitWriter {
             commits_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
             repository: repository.clone(),
@@ -359,7 +359,7 @@ impl CommitWriter {
 
         let dir_hashes_db =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
 
@@ -418,7 +418,7 @@ impl CommitWriter {
 
         let dir_hashes_db =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open_for_read_only(&opts, dir_hashes_db, false)?;
 
@@ -455,7 +455,7 @@ impl CommitWriter {
 
         let mut commit = commit.clone();
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let dir_hashes_db_dir =
             CommitEntryWriter::commit_dir_hash_db(&self.repository.path, &commit.id);
         let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
@@ -540,7 +540,7 @@ impl CommitWriter {
         let commit_entry_reader = CommitEntryReader::new(&self.repository, commit)?;
         let commit_entries = commit_entry_reader.list_entries()?;
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let files_db = CommitEntryWriter::files_db_dir(&self.repository);
         let files_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
@@ -883,7 +883,7 @@ mod tests {
             let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
             workspaces::data_frames::index(&workspace, &path)?;
             let json_data = json!({"NOT_REAL_COLUMN": "images/test.jpg"});
             let result = workspaces::data_frames::rows::add(&workspace, &path, &json_data);
@@ -910,7 +910,7 @@ mod tests {
             let commit = api::local::commits::head_commit(&repo)?;
             let user = UserConfig::get()?.to_user();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id)?;
+            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
 
             let json_data = json!({"file": "images/test.jpg", "label": "dog", "min_x": 2.0, "min_y": 3.0, "width": 100, "height": 120});
             workspaces::data_frames::index(&workspace, &path)?;

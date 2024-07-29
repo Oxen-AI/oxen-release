@@ -54,27 +54,10 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      # cache the build assets so they don't recompile every time.
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-cargo-
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
-          default: true
-          override: true
 
       - name: Install system dependencies
         run: |
@@ -85,28 +68,6 @@ jobs:
           libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
           ruby ruby-dev rubygems build-essential \
           && sudo gem install fpm
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/rui314/mold.git
-      #     mkdir mold/build
-      #     cd mold/build
-      #     git checkout v2.0.0
-      #     ../install-build-deps.sh
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
-
-      # - name: Install imagemagick
-      #   run: |
-      #     export MAGICK_VERSION=7.1 \
-      #     && curl https://imagemagick.org/archive/ImageMagick.tar.gz | tar xz \
-      #     && cd ImageMagick-${MAGICK_VERSION}* \
-      #     && ./configure --with-magick-plus-plus=no --with-perl=no \
-      #     && make \
-      #     && sudo make install \
-      #     && cd .. \
-      #     && rm -r ImageMagick-${MAGICK_VERSION}*
 
       - name: Build oxen
         run: cargo build --release
@@ -163,6 +124,87 @@ jobs:
           asset_name: oxen-ubuntu-latest.deb
           tag: ${{ github.ref }}
 
+
+  release_ubuntu_22_04:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set env
+        run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
+
+      - name: Install latest rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update \
+          && sudo apt-get install -y \
+          libdbus-1-dev \
+          libavutil-dev libavformat-dev libavdevice-dev libavfilter-dev \
+          libswscale-dev libswresample-dev libpostproc-dev libssl-dev pkg-config \
+          ruby ruby-dev rubygems build-essential \
+          && sudo gem install fpm
+
+      - name: Build oxen
+        run: cargo build --release
+
+      - name: Upload to crates.io
+        run: |
+          cd src/lib
+          cargo login ${{ secrets.CRATES_IO_TOKEN }}
+          cargo publish
+
+      - name: Package Oxen Server
+        run: |
+          fpm \
+            -s dir -t deb \
+            -p oxen-server-ubuntu-22.04.deb \
+            -C target/release \
+            --name oxen-server \
+            --version ${{ env.RELEASE_VERSION }} \
+            --architecture all \
+            --description "oxen-server is the server for oxen to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen-server=/usr/bin/oxen-server
+
+      - name: Package Oxen CLI
+        run: |
+          fpm \
+            -s dir -t deb \
+            -p oxen-ubuntu-22.04.deb \
+            -C target/release \
+            --name oxen \
+            --version ${{ env.RELEASE_VERSION }} \
+            --architecture all \
+            --description "Oxen is a command line tool to version and manage large machine learning datasets" \
+            --url "https://oxen.ai" \
+            --maintainer "OxenAI hello@oxen.ai" \
+            oxen=/usr/bin/oxen
+
+      - name: Upload Oxen Server binary to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-server-ubuntu-22.04.deb
+          asset_name: oxen-server-ubuntu-22.04.deb
+          tag: ${{ github.ref }}
+
+      - name: Upload Oxen CLI binary to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          release_name: "🐂 Release ${{ github.ref }}"
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: oxen-ubuntu-22.04.deb
+          asset_name: oxen-ubuntu-22.04.deb
+          tag: ${{ github.ref }}
+
   release_ubuntu_20_04:
     runs-on: ubuntu-20.04
 
@@ -173,27 +215,10 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      # cache the build assets so they don't recompile every time.
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.OS }}-cargo-
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          profile: minimal
-          default: true
-          override: true
 
       - name: Install system dependencies
         run: |
@@ -299,11 +324,9 @@ jobs:
           Add-Content $env:GITHUB_PATH "${pwd}\ffmpeg\bin`n"
 
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
-          default: true
-          override: true
 
       - name: Build
         run: cargo build --release --bins
@@ -387,38 +410,11 @@ jobs:
       - name: Set env
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
-      # - name: Install dependencies
-      #   run: brew install pkg-config imagemagick
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: x86_64-apple-darwin
-          default: true
-          profile: minimal
           toolchain: stable
-          override: true
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/bluewhalesystems/sold.git
-
-      #     mkdir sold/build
-      #     cd sold/build
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
+          target: x86_64-apple-darwin
 
       - name: Build oxen for mac
         run: cargo build --release
@@ -458,37 +454,13 @@ jobs:
         run: echo "RELEASE_VERSION=${GITHUB_REF#refs/*/v}" >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: brew install pkg-config ffmpeg imagemagick
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        run: brew install pkg-config ffmpeg
 
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: x86_64-apple-darwin
-          default: true
-          profile: minimal
           toolchain: stable
-          override: true
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/bluewhalesystems/sold.git
-
-      #     mkdir sold/build
-      #     cd sold/build
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
+          target: x86_64-apple-darwin
 
       - name: Build oxen for mac
         run: cargo build --release
@@ -517,8 +489,8 @@ jobs:
           asset_name: oxen-server-mac-12.0.tar.gz
           tag: ${{ github.ref }}
 
-  release_mac_11:
-    runs-on: macos-11
+  release_mac_14:
+    runs-on: macos-14
 
     steps:
       - name: Checkout
@@ -530,52 +502,28 @@ jobs:
       - name: Install dependencies
         run: brew install pkg-config
 
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-
       - name: Install latest rust toolchain
-        uses: actions-rs/toolchain@v1
+        uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          target: x86_64-apple-darwin
-          default: true
-          profile: minimal
           toolchain: stable
-          override: true
-
-      # - name: Install mold linker
-      #   run: |
-      #     git clone https://github.com/bluewhalesystems/sold.git
-
-      #     mkdir sold/build
-      #     cd sold/build
-      #     cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=c++ ..
-      #     cmake --build . -j $(nproc)
-      #     sudo cmake --install .
+          target: x86_64-apple-darwin
 
       - name: Build oxen for mac
         run: cargo build --release
 
       - name: Tar.gz oxen for mac
-        run: cd target/release && tar -czf oxen-mac-11.0.tar.gz oxen && cd -
+        run: cd target/release && tar -czf oxen-mac-14.0.tar.gz oxen && cd -
 
       - name: Tar.gz oxen-server for mac
-        run: cd target/release && tar -czf oxen-server-mac-11.0.tar.gz oxen-server && cd -
+        run: cd target/release && tar -czf oxen-server-mac-14.0.tar.gz oxen-server && cd -
 
       - name: Upload oxen to release
         uses: svenstaro/upload-release-action@v2
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-mac-11.0.tar.gz
-          asset_name: oxen-mac-11.0.tar.gz
+          file: target/release/oxen-mac-14.0.tar.gz
+          asset_name: oxen-mac-14.0.tar.gz
           tag: ${{ github.ref }}
 
       - name: Upload oxen-server to release
@@ -583,8 +531,8 @@ jobs:
         with:
           release_name: "🐂 Release ${{ github.ref }}"
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: target/release/oxen-server-mac-11.0.tar.gz
-          asset_name: oxen-server-mac-11.0.tar.gz
+          file: target/release/oxen-server-mac-14.0.tar.gz
+          asset_name: oxen-server-mac-14.0.tar.gz
           tag: ${{ github.ref }}
 
   stop-self-hosted-runner:

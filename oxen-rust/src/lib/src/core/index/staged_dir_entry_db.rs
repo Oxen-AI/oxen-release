@@ -7,7 +7,7 @@
 
 use crate::constants::STAGED_DIR;
 use crate::core::db;
-use crate::core::db::path_db;
+use crate::core::db::key_val::path_db;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository, StagedEntry, StagedEntryStatus};
 use crate::util;
@@ -62,7 +62,7 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
         }
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let db = if read_only {
             // Before opening for read only, we need to make sure the db is instantiated on disk
             if !db_path.join("CURRENT").exists() {

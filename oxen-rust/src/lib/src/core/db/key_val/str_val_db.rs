@@ -1,9 +1,9 @@
-use crate::core::db::kv_db;
+use crate::core::db::key_val::kv_db;
 use crate::error::OxenError;
-use serde::{de, Serialize};
 
-use rocksdb::{DBWithThreadMode, IteratorMode, ThreadMode};
-use std::{collections::HashMap, str};
+use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, ThreadMode};
+use std::collections::HashMap;
+use std::str;
 
 /// More efficient than get since it does not actual deserialize the entry
 pub fn has_key<T: ThreadMode, S: AsRef<str>>(db: &DBWithThreadMode<T>, key: S) -> bool {
@@ -34,19 +34,20 @@ pub fn get<T: ThreadMode, S: AsRef<str>, D>(
     key: S,
 ) -> Result<Option<D>, OxenError>
 where
-    D: de::DeserializeOwned,
+    D: bytevec::ByteDecodable,
 {
     let key = key.as_ref();
-    // log::debug!("str_json_db::get({:?}) from db {:?}", key, db.path());
+    log::debug!("str_val_db::get({:?}) from db {:?}", key, db.path());
 
-    let bytes = key.as_bytes();
-    match db.get(bytes) {
+    let key_bytes = key.as_bytes();
+    match db.get(key_bytes) {
         Ok(Some(value)) => {
             // found it
-            let str_val = str::from_utf8(&value)?;
-            let entry = serde_json::from_str(str_val)?;
-            // log::debug!("str_json_db::get({:?}) got entry {:?}", key, str_val);
-            Ok(Some(entry))
+            if let Ok(entry) = D::decode::<u8>(&value) {
+                Ok(Some(entry))
+            } else {
+                Err(OxenError::could_not_decode_value_for_key_error(key))
+            }
         }
         Ok(None) => {
             // did not get val
@@ -72,46 +73,43 @@ pub fn put<T: ThreadMode, S: AsRef<str>, D>(
     entry: &D,
 ) -> Result<(), OxenError>
 where
-    D: Serialize,
+    D: bytevec::ByteEncodable + std::fmt::Debug,
 {
     let key = key.as_ref();
-    let json_val = serde_json::to_string(entry)?;
 
-    // log::debug!(
-    //     "str_json_db::put {:?} -> {:?} -> db: {:?}",
-    //     key,
-    //     json_val,
-    //     db.path()
-    // );
+    log::debug!("str_val_db::put {:?} -> db: {:?}", key, db.path());
 
-    db.put(key, json_val.as_bytes())?;
-    Ok(())
+    match entry.encode::<u8>() {
+        Ok(val) => {
+            db.put(key, val)?;
+            Ok(())
+        }
+        Err(err) => {
+            log::error!("Err: Could not encode value {}", err);
+            Err(OxenError::basic_str("Could not encode value..."))
+        }
+    }
 }
 
 /// List Values
 pub fn list_vals<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<D>, OxenError>
 where
-    D: de::DeserializeOwned,
+    D: bytevec::ByteDecodable,
 {
     let iter = db.iterator(IteratorMode::Start);
     let mut values: Vec<D> = vec![];
     for item in iter {
         match item {
-            Ok((_, value)) => {
-                let value = str::from_utf8(&value)?;
+            Ok((key, value)) => {
                 // Full path given the dir it is in
-                let entry: Result<D, serde_json::error::Error> = serde_json::from_str(value);
-                match entry {
-                    Ok(entry) => {
-                        values.push(entry);
-                    }
-                    Err(err) => {
-                        log::error!("Could not decode value: {}", err);
-                    }
+                if let Ok(entry) = D::decode::<u8>(&value) {
+                    values.push(entry);
+                } else {
+                    let key = str::from_utf8(&key).unwrap();
+                    return Err(OxenError::could_not_decode_value_for_key_error(key));
                 }
             }
-            Err(err) => {
-                log::error!("error iterating over db values is: {}", err);
+            _ => {
                 return Err(OxenError::basic_str(
                     "Could not read iterate over db values",
                 ));
@@ -122,35 +120,27 @@ where
 }
 
 /// # List keys and attached values
-pub fn list<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<Vec<(String, D)>, OxenError>
+pub fn list<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<(String, T)>, OxenError>
 where
-    D: de::DeserializeOwned,
+    T: bytevec::ByteDecodable + std::fmt::Debug,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut results: Vec<(String, D)> = vec![];
+    let mut results: Vec<(String, T)> = vec![];
     for item in iter {
         match item {
-            Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
+            Ok((key, value)) => match (str::from_utf8(&key), T::decode::<u8>(&value)) {
                 (Ok(key), Ok(value)) => {
                     let key = String::from(key);
-                    let entry: Result<D, serde_json::error::Error> = serde_json::from_str(value);
-                    match entry {
-                        Ok(entry) => {
-                            results.push((key, entry));
-                        }
-                        Err(err) => {
-                            log::warn!("str_json_db::list() Could not deserialize entry '{}' -> '{}'\n{:?}", key, value, err);
-                        }
-                    }
+                    results.push((key, value));
                 }
                 (Ok(key), _) => {
-                    log::error!("str_json_db::list() Could not values for key {}.", key)
+                    log::error!("str_val_db::list() Could not values for key {}.", key)
                 }
                 (_, Ok(val)) => {
-                    log::error!("str_json_db::list() Could not key for value {}.", val)
+                    log::error!("str_val_db::list() Could not key for value {:?}.", val)
                 }
                 _ => {
-                    log::error!("str_json_db::list() Could not decoded keys and values.")
+                    log::error!("str_val_db::list() Could not decoded keys and values.")
                 }
             },
             _ => {
@@ -163,32 +153,28 @@ where
     Ok(results)
 }
 
-/// List keys and values in a hash map
-pub fn hash_map<T: ThreadMode, D>(db: &DBWithThreadMode<T>) -> Result<HashMap<String, D>, OxenError>
+/// # List keys and attached values
+pub fn hash_map<T>(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashMap<String, T>, OxenError>
 where
-    D: de::DeserializeOwned,
+    T: bytevec::ByteDecodable + std::fmt::Debug,
 {
     let iter = db.iterator(IteratorMode::Start);
-    let mut results: HashMap<String, D> = HashMap::new();
+    let mut results: HashMap<String, T> = HashMap::new();
     for item in iter {
-        // log::debug!("str_json_db::hash_map() got item {:?}", item);
         match item {
-            Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
+            Ok((key, value)) => match (str::from_utf8(&key), T::decode::<u8>(&value)) {
                 (Ok(key), Ok(value)) => {
                     let key = String::from(key);
-                    let entry: Result<D, serde_json::error::Error> = serde_json::from_str(value);
-                    if let Ok(entry) = entry {
-                        results.insert(key, entry);
-                    }
+                    results.insert(key, value);
                 }
                 (Ok(key), _) => {
-                    log::error!("str_json_db::hash_map() Could not values for key {}.", key)
+                    log::error!("str_val_db::list() Could not values for key {}.", key)
                 }
                 (_, Ok(val)) => {
-                    log::error!("str_json_db::hash_map() Could not key for value {}.", val)
+                    log::error!("str_val_db::list() Could not key for value {:?}.", val)
                 }
                 _ => {
-                    log::error!("str_json_db::hash_map() Could not decoded keys and values.")
+                    log::error!("str_val_db::list() Could not decoded keys and values.")
                 }
             },
             _ => {
@@ -198,6 +184,5 @@ where
             }
         }
     }
-    log::debug!("done iterating");
     Ok(results)
 }

@@ -6,9 +6,9 @@ use clap::{arg, Arg, ArgMatches, Command};
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::util::fs;
 
 use crate::cmd::RunCmd;
-
 pub const NAME: &str = "df";
 pub struct DFCmd;
 
@@ -25,11 +25,25 @@ impl RunCmd for DFCmd {
         .arg(arg!(<PATH> ... "The DataFrame you want to process. If in the schema subcommand the schema ref."))
         .arg_required_else_help(true)
         .arg(
+            Arg::new("write")
+                .long("write")
+                .short('w')
+                .help("Write transformed data back to the file")
+                .action(clap::ArgAction::SetTrue),
+        )
+        .arg(
             Arg::new("output")
                 .long("output")
                 .short('o')
                 .help("Output file to store the transformed data")
                 .action(clap::ArgAction::Set),
+        )
+        .arg(
+            Arg::new("full")
+                .long("full")
+                .short('l')
+                .help("Display non-truncated data frame")
+                .action(clap::ArgAction::SetTrue),
         )
         .arg(
             Arg::new("delimiter")
@@ -226,7 +240,26 @@ impl DFCmd {
             None
         };
 
+        let write_path: Option<PathBuf> = if args.get_flag("write") {
+            args.get_one::<String>("DF_SPEC")
+                .map(std::path::PathBuf::from)
+        } else {
+            None
+        };
+
+        let repo_dir: Option<PathBuf> = if args.get_one::<String>("sql").is_some()
+            || args.get_one::<String>("text2sql").is_some()
+        {
+            fs::get_repo_root_from_current_dir()
+        } else {
+            None
+        };
+
+        let page_specified: bool = args.get_one::<String>("page").is_some()
+            | args.get_one::<String>("page-size").is_some();
+
         liboxen::opts::DFOpts {
+            write: write_path,
             output: args
                 .get_one::<String>("output")
                 .map(std::path::PathBuf::from),
@@ -265,6 +298,8 @@ impl DFCmd {
             unique: args.get_one::<String>("unique").map(String::from),
             should_randomize: args.get_flag("randomize"),
             should_reverse: args.get_flag("reverse"),
+            should_page: args.get_flag("full") || page_specified,
+            repo_dir,
         }
     }
 }

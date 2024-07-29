@@ -38,8 +38,10 @@ pub struct DFOpts {
     pub page: Option<usize>,
     pub row: Option<usize>,
     pub item: Option<String>,
+    pub repo_dir: Option<PathBuf>,
     pub should_randomize: bool,
     pub should_reverse: bool,
+    pub should_page: bool,
     pub slice: Option<String>,
     pub sort_by: Option<String>,
     pub sql: Option<String>,
@@ -48,6 +50,7 @@ pub struct DFOpts {
     pub take: Option<String>,
     pub unique: Option<String>,
     pub vstack: Option<Vec<PathBuf>>,
+    pub write: Option<PathBuf>,
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DFOptsView {
@@ -77,8 +80,10 @@ impl DFOpts {
             page_size: None,
             page: None,
             row: None,
+            repo_dir: None,
             should_randomize: false,
             should_reverse: false,
+            should_page: false,
             slice: None,
             sort_by: None,
             sql: None,
@@ -87,6 +92,7 @@ impl DFOpts {
             take: None,
             unique: None,
             vstack: None,
+            write: None,
         }
     }
 
@@ -137,6 +143,7 @@ impl DFOpts {
             || self.add_row.is_some()
             || self.item.is_some()
             || self.columns.is_some()
+            || self.filter.is_some()
             || self.head.is_some()
             || self.page_size.is_some()
             || self.page.is_some()

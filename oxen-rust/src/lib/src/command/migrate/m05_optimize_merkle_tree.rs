@@ -3,9 +3,10 @@ use std::path::Path;
 
 use super::Migrate;
 
-use crate::core::db::merkle_node_db::MerkleNodeDB;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::{self, str_val_db};
+use crate::core::db;
+use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::key_val::{self, str_val_db};
 use crate::core::index::file_chunker::{ChunkShardManager, FileChunker};
 use crate::core::index::merkle_tree::node::*;
 use crate::core::index::{CommitEntryReader, CommitReader};
@@ -141,7 +142,7 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
     let dir_hashes_dir = commit_dir.join(constants::DIR_HASHES_DIR);
 
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&db::key_val::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
 
     migrate_dir(repo, &commit_entry_reader, "", &hash)?;
