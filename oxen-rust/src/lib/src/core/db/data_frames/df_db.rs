@@ -212,17 +212,9 @@ pub fn select_str(
     let empty_opts = DFOpts::empty();
     let opts = opts.unwrap_or(&empty_opts);
 
-    if opts.sort_by.is_some() | opts.should_randomize {
-        let mut sort_by: String = opts.sort_by.clone().unwrap_or_default();
-
-        if opts.should_randomize {
-            sort_by.clear();
-            sort_by.push_str("random()");
-        }
+    if opts.sort_by.is_some() {
+        let sort_by: String = opts.sort_by.clone().unwrap_or_default();
         sql.push_str(&format!(" ORDER BY \"{}\"", sort_by));
-        if opts.should_reverse {
-            sql.push_str(" DESC");
-        }
     }
 
     let pagination_clause = if let Some(page) = opts.page {

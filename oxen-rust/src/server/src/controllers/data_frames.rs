@@ -101,7 +101,19 @@ pub async fn get(
         version: resource.version.to_string_lossy().into(),
     };
 
-    let mut df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
+    let height = if opts.slice.is_some() {
+        log::debug!("Scanning df with slice: {:?}", opts.slice);
+        let slice = opts.slice.as_ref().unwrap();
+        let (_, end) = slice.split_once("..").unwrap();
+
+        end.parse::<usize>().unwrap()
+    } else {
+        data_frame_size.height
+    };
+
+    log::debug!("Scanning df with height: {}", height);
+
+    let mut df = tabular::scan_df(&version_path, &opts, height)?;
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
@@ -130,22 +142,22 @@ pub async fn get(
         "controllers::data_frames BEFORE TRANSFORM LAZY {}",
         data_frame_size.height
     );
+
     // Transformation and pagination logic...
-
-    match tabular::transform_lazy(df, data_frame_size.height, opts.clone()) {
+    match tabular::transform_lazy(df, opts.clone()) {
         Ok(df_view) => {
-            log::debug!("controllers::data_frames DF view {:?}", df_view);
-
             // Have to do the pagination after the transform
+            let lf = tabular::transform_slice_lazy(df_view, opts.clone())?;
+            log::debug!("done transform_slice_lazy: {:?}", lf.describe_plan());
+            let mut df = lf.collect()?;
+
             let view_height = if opts.has_filter_transform() {
-                df_view.height()
+                df.height()
             } else {
                 data_frame_size.height
             };
 
             let total_pages = (view_height as f64 / page_opts.page_size as f64).ceil() as usize;
-
-            let mut df = tabular::transform_slice(df_view, data_frame_size.height, opts.clone())?;
             log::debug!("here's our post-slice df {:?}", df);
 
             let mut slice_schema = Schema::from_polars(&df.schema());
