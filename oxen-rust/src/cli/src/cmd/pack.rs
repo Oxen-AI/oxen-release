@@ -167,7 +167,7 @@ impl RunCmd for PackCmd {
             std::fs::create_dir_all(output_dir)?;
         }
 
-        let opts = liboxen::core::db::opts::default();
+        let opts = liboxen::core::db::key_val::opts::default();
         let db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, chunks_db)?;
         for (hash, chunk) in &chunks {
             // liboxen::core::db::u128_kv_db::put(&db, *hash, chunk)?;

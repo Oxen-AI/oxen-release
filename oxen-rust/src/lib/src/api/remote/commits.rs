@@ -69,6 +69,33 @@ pub async fn get_by_id(
     }
 }
 
+/// List commits for a file
+pub async fn list_commits_for_path(
+    remote_repo: &RemoteRepository,
+    revision: impl AsRef<str>,
+    path: impl AsRef<Path>,
+    page_opts: &PaginateOpts,
+) -> Result<PaginatedCommits, OxenError> {
+    let revision = revision.as_ref();
+    let path = path.as_ref();
+    let path_str = path.to_string_lossy();
+    let uri = format!(
+        "/commits/history/{revision}/{path_str}?page={}&page_size={}",
+        page_opts.page_num, page_opts.page_size
+    );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<PaginatedCommits, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(j_res) => Ok(j_res),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "list_commits_for_file() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
 pub async fn list_all(remote_repo: &RemoteRepository) -> Result<Vec<Commit>, OxenError> {
     let mut all_commits: Vec<Commit> = Vec::new();
     let mut page_num = DEFAULT_PAGE_NUM;
@@ -155,7 +182,7 @@ async fn list_commit_history_paginated(
 ) -> Result<PaginatedCommits, OxenError> {
     let page_num = page_opts.page_num;
     let page_size = page_opts.page_size;
-    let uri = format!("/commits/{revision}/history?page={page_num}&page_size={page_size}");
+    let uri = format!("/commits/history/{revision}?page={page_num}&page_size={page_size}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
@@ -285,7 +312,7 @@ pub async fn download_commits_db_to_repo(
     );
 
     // Merge with existing commits db
-    let opts = db::opts::default();
+    let opts = db::key_val::opts::default();
     let new_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, &new_path, false)?;
     let new_commits = CommitDBReader::list_all(&new_db)?;
@@ -1159,18 +1186,23 @@ async fn upload_data_chunk_to_server(
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
+
     use crate::api;
     use crate::command;
     use crate::constants;
     use crate::constants::COMMITS_DIR;
     use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::DEFAULT_PAGE_SIZE;
     use crate::core::db;
     use crate::core::index::pusher::UnsyncedCommitEntries;
     use crate::core::index::CommitDBReader;
     use crate::error::OxenError;
 
     use crate::model::entry::commit_entry::Entry;
+    use crate::opts::PaginateOpts;
     use crate::test;
+    use crate::util;
     use rocksdb::{DBWithThreadMode, MultiThreaded};
 
     #[tokio::test]
@@ -1331,6 +1363,133 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_list_commit_history_for_path() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
+            let mut local_repo = local_repo;
+            // Set the proper remote
+            let name = local_repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Write, add, and commit file_1
+            let file_1 = local_repo.path.join("file_1.txt");
+            util::fs::write_to_path(&file_1, "file_1")?;
+            command::add(&local_repo, &file_1)?;
+            let commit_1_file_1 = command::commit(&local_repo, "Adding file_1")?;
+
+            // Add a new commit to file_1
+            util::fs::write_to_path(&file_1, "file_1_2")?;
+            command::add(&local_repo, &file_1)?;
+            let commit_2_file_1 = command::commit(&local_repo, "Adding file_1_2")?;
+
+            // Add a new file_2 and a single commit
+            let file_2 = local_repo.path.join("file_2.txt");
+            util::fs::write_to_path(&file_2, "file_2")?;
+            command::add(&local_repo, &file_2)?;
+            let _commit_1_file_2 = command::commit(&local_repo, "Adding file_2")?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // List the remote commits
+            let remote_commits = api::remote::commits::list_commits_for_path(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                "file_1.txt",
+                &PaginateOpts::default(),
+            )
+            .await?;
+
+            // Make sure there are only two for file_1
+            assert_eq!(remote_commits.commits.len(), 2);
+            assert_eq!(remote_commits.pagination.total_entries, 2);
+            assert_eq!(remote_commits.pagination.total_pages, 1);
+            assert_eq!(remote_commits.pagination.page_number, 1);
+            assert_eq!(remote_commits.pagination.page_size, DEFAULT_PAGE_SIZE);
+
+            // Ensure they come in reverse chronological order
+            assert_eq!(remote_commits.commits[0].id, commit_2_file_1.id);
+            assert_eq!(remote_commits.commits[1].id, commit_1_file_1.id);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_list_commit_history_for_dir() -> Result<(), OxenError> {
+        test::run_training_data_repo_test_fully_committed_async(|local_repo| async move {
+            let mut local_repo = local_repo;
+            // Set the proper remote
+            let name = local_repo.dirname();
+            let remote = test::repo_remote_url_from(&name);
+            command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&local_repo).await?;
+
+            // Write, add, and commit file_1
+            // create the file within a subdirectory
+            let sub_dir_name = Path::new("sub_dir");
+            let sub_dir = local_repo.path.join(sub_dir_name);
+
+            // create subdir
+            util::fs::create_dir_all(&sub_dir)?;
+
+            let file_1 = sub_dir.join("file_1.txt");
+            util::fs::write_to_path(&file_1, "file_1")?;
+            command::add(&local_repo, &file_1)?;
+            let commit_1_file_1 = command::commit(&local_repo, "Adding file_1")?;
+
+            // Add a new commit to file_1
+            util::fs::write_to_path(&file_1, "file_1_2")?;
+            command::add(&local_repo, &file_1)?;
+            let commit_2_file_1 = command::commit(&local_repo, "Adding file_1_2")?;
+
+            // Add a new file_2 and a single commit
+            let file_2 = sub_dir.join("file_2.txt");
+            util::fs::write_to_path(&file_2, "file_2")?;
+            command::add(&local_repo, &file_2)?;
+            let commit_1_file_2 = command::commit(&local_repo, "Adding file_2")?;
+
+            // Push it
+            command::push(&local_repo).await?;
+
+            // List the remote commits
+            let remote_commits = api::remote::commits::list_commits_for_path(
+                &remote_repo,
+                DEFAULT_BRANCH_NAME,
+                &sub_dir_name,
+                &PaginateOpts::default(),
+            )
+            .await?;
+
+            // Make sure there are 3 for the dir
+            assert_eq!(remote_commits.commits.len(), 3);
+            assert_eq!(remote_commits.pagination.total_entries, 3);
+            assert_eq!(remote_commits.pagination.total_pages, 1);
+            assert_eq!(remote_commits.pagination.page_number, 1);
+            assert_eq!(remote_commits.pagination.page_size, DEFAULT_PAGE_SIZE);
+
+            // Ensure they come in reverse chronological order
+
+            assert_eq!(remote_commits.commits[0].id, commit_1_file_2.id);
+            assert_eq!(remote_commits.commits[1].id, commit_2_file_1.id);
+            assert_eq!(remote_commits.commits[2].id, commit_1_file_1.id);
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_list_remote_commits_base_head() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             // There should be >= 7 commits here
@@ -1376,7 +1535,7 @@ mod tests {
                 assert_eq!(dst, db_dir);
                 assert!(db_dir.exists());
 
-                let opts = db::opts::default();
+                let opts = db::key_val::opts::default();
                 let db: DBWithThreadMode<MultiThreaded> =
                     DBWithThreadMode::open_for_read_only(&opts, &db_dir, false)?;
                 let commits = CommitDBReader::list_all(&db)?;

@@ -5,8 +5,9 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
 use crate::constants::{NODES_DIR, TREE_DIR};
-use crate::core::db::merkle_node_db::MerkleNodeDB;
-use crate::core::db::{self, str_val_db};
+use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
+use crate::core::db::key_val::str_val_db;
+use crate::core::db;
 
 use crate::core::index::merkle_tree::node::{CommitMerkleTreeNode, MerkleTreeNodeType};
 use crate::error::OxenError;
@@ -51,8 +52,9 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let node_db_dir = CommitMerkleTree::commit_db_dir(repo, commit);
+        let opts = db::key_val::opts::default();
         let node_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), node_db_dir, false)?;
+            DBWithThreadMode::open_for_read_only(&opts, node_db_dir, false)?;
         let mut node_path_str = node_path.to_str().unwrap();
 
         // If it ends with a /, remove it

@@ -8,7 +8,7 @@ use std::hash::Hash;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use crate::core::db::str_json_db;
+use crate::core::db::key_val::str_json_db;
 
 /// # Checks if the file exists in this directory
 /// More efficient than get_entry since it does not actual deserialize the entry

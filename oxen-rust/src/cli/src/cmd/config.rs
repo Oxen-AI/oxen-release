@@ -66,6 +66,7 @@ impl RunCmd for ConfigCmd {
                     .help("Sets the default host used to check version numbers. If empty, the CLI will not do a version check.")
                     .action(clap::ArgAction::Set),
             )
+            .arg_required_else_help(true)
     }
 
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {

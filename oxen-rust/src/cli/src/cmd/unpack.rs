@@ -102,7 +102,7 @@ impl RunCmd for UnpackCmd {
         let start = std::time::Instant::now();
         println!("Reading indices from disk...");
 
-        let opts = liboxen::core::db::opts::default();
+        let opts = liboxen::core::db::key_val::opts::default();
         let output_dir = Path::new("chunks");
         let chunks_idx = output_dir.join("idx");
         let ids_db_path = chunks_idx.join(file_hash);

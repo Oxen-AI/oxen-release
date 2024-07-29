@@ -39,6 +39,8 @@ pub const ROWS_DIR: &str = "rows";
 pub const FILES_DIR: &str = "files";
 /// prefix for the cached dataframes
 pub const DATA_FRAMES_DIR: &str = "data_frames";
+/// prefix for the cached dataframes
+pub const DATA_FRAME_STATUS_DIR: &str = "data_frame_status";
 /// prefix for the commit entry dirs
 pub const DIRS_DIR: &str = "dirs";
 /// prefix for a commit dir => hash maping
@@ -103,9 +105,7 @@ pub const MODS_DIR: &str = "mods";
 /// workspaces/ is where we can make remote changes without having to clone locally
 pub const WORKSPACES_DIR: &str = "workspaces";
 /// workspace commit id
-pub const WORKSPACE_COMMIT_ID: &str = "WORKSPACE_COMMIT_ID";
-/// workspace commit id
-pub const WORKSPACE_NAME: &str = "WORKSPACE_NAME";
+pub const WORKSPACE_CONFIG: &str = "WORKSPACE_CONFIG";
 /// data.arrow
 pub const DATA_ARROW_FILE: &str = "data.arrow";
 

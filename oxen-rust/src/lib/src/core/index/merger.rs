@@ -45,7 +45,7 @@ impl Merger {
     pub fn new(repo: &LocalRepository) -> Result<Merger, OxenError> {
         let db_path = db_path(repo);
         log::debug!("Merger::new() DB {:?}", db_path);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(Merger {
             repository: repo.to_owned(),
             merge_db: DB::open(&opts, dunce::simplified(&db_path))?,
@@ -515,7 +515,7 @@ impl Merger {
 
         // Make sure files_db is dropped before the merge commit is written
         {
-            let opts = db::opts::default();
+            let opts = db::key_val::opts::default();
             let files_db = CommitEntryWriter::files_db_dir(&self.repository);
             let files_db = DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
             // Can just copy over all new versions since it is fast forward
@@ -655,7 +655,7 @@ impl Merger {
         log::debug!("base_entries.len() {}", base_entries.len());
         log::debug!("merge_entries.len() {}", merge_entries.len());
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let files_db = CommitEntryWriter::files_db_dir(&self.repository);
         let files_db = DBWithThreadMode::open(&opts, dunce::simplified(&files_db))?;
 

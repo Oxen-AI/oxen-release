@@ -33,7 +33,7 @@ use rocksdb::WaitForCompactOptions;
 use crate::constants::CHUNKS_DIR;
 use crate::constants::TREE_DIR;
 use crate::core::db;
-use crate::core::db::u128_kv_db;
+use crate::core::db::key_val::u128_kv_db;
 use crate::error::OxenError;
 use crate::model::CommitEntry;
 use crate::model::LocalRepository;
@@ -63,7 +63,7 @@ impl ChunkShardDB {
 
     pub fn new(repo: &LocalRepository) -> Result<Self, OxenError> {
         let path = Self::db_path(repo);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let db = DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
         Ok(Self { db })
     }

@@ -7,10 +7,12 @@ use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
 use liboxen::core::cache::cachers;
-use liboxen::core::db::df_db;
+use liboxen::core::db::data_frames::df_db;
 use liboxen::core::index::CommitEntryReader;
-use liboxen::error::OxenError;
-use liboxen::model::{Commit, DataFrameSize, ParsedResource, Schema};
+use liboxen::error::{OxenError, PathBufError};
+use liboxen::model::{
+    Commit, CommitEntry, DataFrameSize, LocalRepository, ParsedResource, Schema, Workspace,
+};
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
@@ -25,7 +27,9 @@ use liboxen::view::{
 use liboxen::util;
 use polars::frame::DataFrame;
 
-// TODO: This is getting long...condense and factor out whatever possible here
+use liboxen::core::index;
+use uuid::Uuid;
+
 pub async fn get(
     req: HttpRequest,
     query: web::Query<DFOptsQuery>,
@@ -41,49 +45,26 @@ pub async fn get(
         .get_entry(&resource.path)?
         .ok_or(OxenHttpError::NotFound)?;
 
-    // Get the path to the versioned file on disk
     let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
     log::debug!(
         "controllers::data_frames Reading version file {:?}",
         version_path
     );
 
-    // Get the cached size of the data frame
     let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
-
     log::debug!(
         "controllers::data_frames got data frame size {:?}",
         data_frame_size
     );
 
-    // Parse the query params
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
-    log::debug!("controllers::data_frames got opts {:?}", opts);
 
-    // Paginate or slice, after we do the original transform
     let mut page_opts = PaginateOpts {
         page_num: constants::DEFAULT_PAGE_NUM,
         page_size: constants::DEFAULT_PAGE_SIZE,
     };
 
-    // Block big big dfs
-    if opts.sql.is_some() || opts.text2sql.is_some() {
-        if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
-            return Err(OxenHttpError::NotQueryable);
-        }
-
-        if !sql::df_is_indexed(&repo, &entry)? {
-            return Err(OxenHttpError::DatasetNotIndexed(resource.path.into()));
-        }
-    }
-
-    let resource_version = ResourceVersion {
-        path: resource.path.to_string_lossy().into(),
-        version: resource.version.to_string_lossy().into(),
-    };
-
-    // If we have slice params, use them
     if let Some((start, end)) = opts.slice_indices() {
         log::debug!(
             "controllers::data_frames Got slice params {}..{}",
@@ -91,62 +72,48 @@ pub async fn get(
             end
         );
     } else {
-        // Otherwise use the query params for pagination
         let page = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
         let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
         page_opts.page_num = page;
         page_opts.page_size = page_size;
 
-        // Must translate page params to slice params
         let start = if page == 0 { 0 } else { page_size * (page - 1) };
         let end = page_size * page;
         opts.slice = Some(format!("{}..{}", start, end));
-        log::debug!("imputed slice params {:?}", opts.slice);
     }
 
-    if let Some(sql) = opts.sql.clone() {
-        let mut conn = sql::get_conn(&repo, &entry)?;
-        let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
-        let df = sql::query_df(&repo, &entry, sql, &mut conn)?;
-
-        let json_df = format_sql_df_response(
-            df,
-            &commit,
-            &opts,
-            &page_opts,
-            &resource,
-            &db_schema,
-            &data_frame_size,
-        )?;
-        return Ok(HttpResponse::Ok().json(json_df));
+    let handle_sql_result = handle_sql_querying(
+        &repo,
+        &commit,
+        &resource,
+        &opts,
+        &page_opts,
+        &data_frame_size,
+        &entry,
+    );
+    if let Ok(response) = handle_sql_result {
+        return Ok(response);
     }
 
-    let mut df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
+    let resource_version = ResourceVersion {
+        path: resource.path.to_string_lossy().into(),
+        version: resource.version.to_string_lossy().into(),
+    };
 
-    if let Some(text2sql) = opts.text2sql.clone() {
-        let mut conn = sql::get_conn(&repo, &entry)?;
-        let db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
+    let height = if opts.slice.is_some() {
+        log::debug!("Scanning df with slice: {:?}", opts.slice);
+        let slice = opts.slice.as_ref().unwrap();
+        let (_, end) = slice.split_once("..").unwrap();
 
-        let df = sql::text2sql_df(
-            &repo,
-            &entry,
-            &db_schema,
-            text2sql,
-            &mut conn,
-            opts.get_host(),
-        )?;
-        let json_df = format_sql_df_response(
-            df,
-            &commit,
-            &opts,
-            &page_opts,
-            &resource,
-            &db_schema,
-            &data_frame_size,
-        )?;
-        return Ok(HttpResponse::Ok().json(json_df));
-    }
+        end.parse::<usize>().unwrap()
+    } else {
+        data_frame_size.height
+    };
+
+    log::debug!("Scanning df with height: {}", height);
+
+    let mut df = tabular::scan_df(&version_path, &opts, height)?;
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
@@ -176,20 +143,21 @@ pub async fn get(
         data_frame_size.height
     );
 
-    match tabular::transform_lazy(df, data_frame_size.height, opts.clone()) {
+    // Transformation and pagination logic...
+    match tabular::transform_lazy(df, opts.clone()) {
         Ok(df_view) => {
-            log::debug!("controllers::data_frames DF view {:?}", df_view);
-
             // Have to do the pagination after the transform
+            let lf = tabular::transform_slice_lazy(df_view, opts.clone())?;
+            log::debug!("done transform_slice_lazy: {:?}", lf.describe_plan());
+            let mut df = lf.collect()?;
+
             let view_height = if opts.has_filter_transform() {
-                df_view.height()
+                df.height()
             } else {
                 data_frame_size.height
             };
 
             let total_pages = (view_height as f64 / page_opts.page_size as f64).ceil() as usize;
-
-            let mut df = tabular::transform_slice(df_view, data_frame_size.height, opts.clone())?;
             log::debug!("here's our post-slice df {:?}", df);
 
             let mut slice_schema = Schema::from_polars(&df.schema());
@@ -236,6 +204,73 @@ pub async fn get(
     }
 }
 
+fn handle_sql_querying(
+    repo: &LocalRepository,
+    commit: &Commit,
+    resource: &ParsedResource,
+    opts: &DFOpts,
+    page_opts: &PaginateOpts,
+    data_frame_size: &DataFrameSize,
+    entry: &CommitEntry,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let mut workspace: Option<Workspace> = None;
+
+    if opts.sql.is_some() {
+        if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
+            return Err(OxenHttpError::NotQueryable);
+        }
+
+        match index::workspaces::data_frames::get_queryable_data_frame_workspace(
+            repo,
+            &resource.path,
+            commit,
+        ) {
+            Ok(found_workspace) => {
+                // Assign the found workspace to the workspace variable
+                workspace = Some(found_workspace);
+            }
+            Err(e) => match e {
+                OxenError::QueryableWorkspaceNotFound() => {
+                    let resource_path = resource.clone().path;
+                    return Err(OxenHttpError::DatasetNotIndexed(resource_path.into()));
+                }
+                _ => return Err(OxenHttpError::from(e)),
+            },
+        }
+    }
+
+    if let (Some(sql), Some(workspace)) = (opts.sql.clone(), workspace) {
+        let db_path = index::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
+        let mut conn = df_db::get_connection(db_path)?;
+
+        let mut db_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
+        let df = sql::query_df(sql, &mut conn)?;
+
+        let og_schema = if let Some(schema) =
+            api::local::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &resource.path)?
+        {
+            schema
+        } else {
+            Schema::from_polars(&df.schema())
+        };
+
+        db_schema.update_metadata_from_schema(&og_schema);
+
+        let json_df = format_sql_df_response(
+            df,
+            commit,
+            opts,
+            page_opts,
+            resource,
+            &db_schema,
+            data_frame_size,
+        )?;
+        return Ok(HttpResponse::Ok().json(json_df));
+    }
+
+    Err(OxenHttpError::InternalServerError)
+}
+
 pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -243,24 +278,25 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource = parse_resource(&req, &repo)?;
     let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
-    let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-    let entry = entry_reader
-        .get_entry(&resource.path)?
-        .ok_or(OxenHttpError::NotFound)?;
 
-    let mut conn = sql::get_conn(&repo, &entry)?;
+    let path = resource.clone().path;
 
-    log::debug!("data_frames controller index()");
-
-    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &resource.path)?;
-    let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
-
-    if data_frame_size.height > constants::MAX_QUERYABLE_ROWS {
-        return Err(OxenHttpError::NotQueryable);
+    // Check if the data frame is already indexed.
+    if index::workspaces::data_frames::is_queryable_data_frame_indexed(
+        &repo,
+        &resource.path,
+        &commit,
+    )? {
+        // If the data frame is already indexed, return the appropriate error.
+        return Err(OxenHttpError::DatasetAlreadyIndexed(PathBufError::from(
+            path,
+        )));
+    } else {
+        // If not, proceed to create a new workspace and index the data frame.
+        let workspace_id = Uuid::new_v4().to_string();
+        let workspace = index::workspaces::create(&repo, &commit, workspace_id, false)?;
+        index::workspaces::data_frames::index(&workspace, &path)?;
     }
-
-    sql::index_df(&repo, &entry, &mut conn)?;
-    log::debug!("successfully indexed");
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_updated()))
 }

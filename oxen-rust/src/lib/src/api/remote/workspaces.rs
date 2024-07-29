@@ -50,20 +50,16 @@ pub async fn create_with_path(
     let url = api::endpoint::url_from_repo(remote_repo, "/workspaces")?;
     log::debug!("create workspace {}\n", url);
 
-    let body = serde_json::to_string(&NewWorkspace {
+    let body = NewWorkspace {
         branch_name: branch_name.to_string(),
         workspace_id: workspace_id.to_string(),
         // These two are needed for the oxen hub right now, ignored by the server
         resource_path: Some(path.to_str().unwrap().to_string()),
         entity_type: Some("user".to_string()),
-    })?;
+    };
 
     let client = client::new_for_url(&url)?;
-    let res = client
-        .put(&url)
-        .body(reqwest::Body::from(body))
-        .send()
-        .await?;
+    let res = client.put(&url).json(&body).send().await?;
 
     let body = client::parse_json_body(&url, res).await?;
     log::debug!("create workspace got body: {}", body);

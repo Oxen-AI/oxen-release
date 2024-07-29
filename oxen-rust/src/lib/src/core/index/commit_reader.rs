@@ -25,7 +25,7 @@ impl CommitReader {
     /// Create a new reader that can find commits, list history, etc
     pub fn new(repository: &LocalRepository) -> Result<CommitReader, OxenError> {
         let path = Self::db_path(repository);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
 
         log::debug!("CommitReader::new path: {:?}", path);
 

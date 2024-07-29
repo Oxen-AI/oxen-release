@@ -6,8 +6,9 @@
 
 use crate::api;
 use crate::constants;
-use crate::core::db::path_db;
-use crate::core::db::{self, str_json_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
 use crate::core::index::oxenignore;
 use crate::core::index::ObjectDBReader;
@@ -93,7 +94,7 @@ impl Stager {
         let dir_db_path = Stager::dirs_db_path(&repository.path)?;
         let schemas_db_path = Stager::schemas_db_path(&repository.path)?;
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(Stager {
             dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_db_path))?,
             schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
@@ -106,7 +107,7 @@ impl Stager {
         let dir_db_path = Stager::dirs_db_path(&repository.path)?;
         let schemas_db_path = Stager::schemas_db_path(&repository.path)?;
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(Stager {
             dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&dir_db_path))?,
             schemas_db: DBWithThreadMode::open(&opts, dunce::simplified(&schemas_db_path))?,
@@ -967,7 +968,7 @@ impl Stager {
                     if let Some(is_added) = &dir_entry.client_state {
                         if !*is_added {
                             let path = util::fs::path_relative_to_dir(
-                                &dir_entry.path(),
+                                dir_entry.path(),
                                 &self.repository.path,
                             )
                             .unwrap();
