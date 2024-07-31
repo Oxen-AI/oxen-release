@@ -365,6 +365,7 @@ fn migrate_file(
     };
 
     // Chunk the file into 16kb chunks
+    /* TODO: This is hard / inefficient to read into Polars for now, ignore
     let commit_entry = reader.get_entry(path)?.ok_or(OxenError::basic_str(format!(
         "could not get file entry for {}",
         path.display()
@@ -373,6 +374,11 @@ fn migrate_file(
     let mut csm = ChunkShardManager::new(repo)?;
     csm.open_for_write()?;
     let chunks = chunker.save_chunks(&commit_entry, &mut csm)?;
+     */
+
+    // For now, we just have one chunk per file
+    let uhash: u128 = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+    let chunks: Vec<u128> = vec![uhash];
 
     // Then start refactoring the commands into a "legacy" module so we can still make the old
     // dbs but start implementing them with the new merkle object
@@ -384,7 +390,6 @@ fn migrate_file(
         last_modified_nanoseconds,
         chunk_hashes: chunks,
     };
-    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
     node_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
 
     // TODO
