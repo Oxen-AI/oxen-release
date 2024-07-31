@@ -4,15 +4,12 @@
 // use std::time::Instant;
 
 use crate::constants::{self};
-use crate::core::db;
-use crate::core::db::path_db;
 use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
 use os_path::OsPath;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -54,27 +51,12 @@ impl CommitDirEntryReader {
         dir: &Path,
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitDirEntryReader, OxenError> {
-        let db_path = CommitDirEntryReader::dir_hash_db(base_path, commit_id);
-        log::debug!(
-            "Creating new CommitDirEntryReader for path: {:?}",
-            base_path.join(dir)
-        );
+        // log::debug!(
+        //     "Creating new CommitDirEntryReader for path: {:?}",
+        //     base_path.join(dir)
+        // );
 
-        let opts = db::opts::default();
-        if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
-            if let Err(err) = std::fs::create_dir_all(&db_path) {
-                log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
-            }
-
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-        }
-
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
-
-        let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
-
+        let dir_hash: Option<String> = object_reader.get_dir_hash(dir)?;
         let dir_object: TreeObject = match dir_hash {
             Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
                 Some(dir) => dir,

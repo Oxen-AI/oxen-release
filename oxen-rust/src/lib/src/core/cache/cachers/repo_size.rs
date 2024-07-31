@@ -50,6 +50,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         commit.id
     );
 
+    // A few ways to optimize...
+    // 1) *Let's do this sans block level dedup, but with same schema of file* Compute on commit of client...seems like the best but might require migration
+    // 2) Read whole merkle tree into memory from object reader to make the rest of the logic faster
+    // 3) Can we only look at the parent commit and not full history? Would have to make sure they are processed in order.
+
     // List directories in the repo, and cache all of their entry sizes
     let reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
@@ -59,7 +64,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     let dirs = reader.list_dirs()?;
     log::debug!("REPO_SIZE {commit} Computing size of {} dirs", dirs.len());
-    let object_reader = ObjectDBReader::new(repo)?;
+    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
 
     for dir in dirs {
         log::debug!("REPO_SIZE {commit} PROCESSING DIR {dir:?}");
@@ -67,6 +72,10 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         // Start with the size of all the entries in this dir
         let entries = {
             // let dir_reader go out of scope
+            // *************
+            // TODO: we should open the dir db once in the object reader instead of the commit dir entry reader
+            // ALSO - add that little progress bar on reading the files before add
+            // *************
             let dir_reader =
                 CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
 
@@ -150,15 +159,12 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             }
 
             let size = api::local::entries::compute_entries_size(&entries)?;
-            log::debug!(
-                "REPO_SIZE {commit} PROCESSING CHILD {child:?} size: {}",
-                size
-            );
+            log::debug!("REPO_SIZE {commit} CHILD {child:?} size: {}", size);
 
             total_size += size;
 
             log::debug!(
-                "REPO_SIZE {commit} PROCESSING CHILD {child:?} computing latest commit for {} entries",
+                "REPO_SIZE {commit} CHILD {child:?} computing latest commit for {} entries",
                 entries.len()
             );
 

@@ -183,7 +183,7 @@ impl CommitWriter {
         };
 
         let entries = workspaces::stager::list_files(workspace)?;
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let object_reader = ObjectDBReader::new(&self.repository, &branch.commit_id)?;
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(
             &self.repository,
             &branch.commit_id,
@@ -701,7 +701,7 @@ impl CommitWriter {
 
         let dirs_to_paths = self.group_paths_to_dirs(paths);
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let object_reader = ObjectDBReader::new(&self.repository, commit_id)?;
 
         for (dir, paths) in dirs_to_paths.iter() {
             let entry_reader =

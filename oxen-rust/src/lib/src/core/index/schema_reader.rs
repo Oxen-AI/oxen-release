@@ -59,7 +59,7 @@ impl SchemaReader {
             log::debug!("dir hashes db exists at path {:?}", dir_hashes_db_path)
         }
 
-        let object_reader = ObjectDBReader::new(repository)?;
+        let object_reader = ObjectDBReader::new(repository, commit_id)?;
 
         Ok(SchemaReader {
             dir_hashes_db: DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_db_path, false)?,

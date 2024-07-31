@@ -63,7 +63,7 @@ fn restore_dir(
     files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
     let dirs = dir_reader.list_dirs()?;
-    let object_reader = ObjectDBReader::new(repo)?;
+    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
     for dir in dirs {
         if dir.starts_with(path) {
             let reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
