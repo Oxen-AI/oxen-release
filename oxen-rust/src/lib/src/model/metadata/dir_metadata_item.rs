@@ -18,8 +18,8 @@ pub struct DirMetadataItem {
     num_bytes: u64,
     commit_id: String,
     timestamp: String,
-    data_type: String,
-    mime_type: String,
+    pub data_type: String,
+    pub mime_type: String,
     extension: String,
     is_dir: bool,
 }
