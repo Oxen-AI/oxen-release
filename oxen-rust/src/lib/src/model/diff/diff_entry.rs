@@ -309,8 +309,6 @@ impl DiffEntry {
         log::debug!("diff_summary_from_dir base_dir: {:?}", base_dir);
         log::debug!("diff_summary_from_dir head_dir: {:?}", head_dir);
 
-        let object_reader = ObjectDBReader::new(repo)?;
-
         // if both base_dir and head_dir are none, then there is no diff summary
         if base_dir.is_none() && head_dir.is_none() {
             return Ok(None);
@@ -321,7 +319,7 @@ impl DiffEntry {
             return DiffEntry::r_compute_removed_files(
                 repo,
                 base_dir.as_ref().unwrap(),
-                object_reader,
+                ObjectDBReader::new(repo, &base_commit.id)?,
             );
         }
 
@@ -330,7 +328,7 @@ impl DiffEntry {
             return DiffEntry::r_compute_added_files(
                 repo,
                 head_dir.as_ref().unwrap(),
-                object_reader,
+                ObjectDBReader::new(repo, &head_commit.id)?,
             );
         }
 
@@ -357,15 +355,22 @@ impl DiffEntry {
         let mut num_added = 0;
         let mut num_modified = 0;
 
-        let object_reader = ObjectDBReader::new(repo)?;
+        let base_object_reader = ObjectDBReader::new(repo, base_commit_id)?;
+        let head_object_reader = ObjectDBReader::new(repo, head_commit_id)?;
 
         // Find all the children of the dir and sum up their counts
-        let commit_entry_reader =
-            CommitEntryReader::new_from_commit_id(repo, base_commit_id, object_reader.clone())?;
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(
+            repo,
+            base_commit_id,
+            base_object_reader.clone(),
+        )?;
         let mut dirs = commit_entry_reader.list_dir_children(&path)?;
 
-        let commit_entry_reader =
-            CommitEntryReader::new_from_commit_id(repo, head_commit_id, object_reader.clone())?;
+        let commit_entry_reader = CommitEntryReader::new_from_commit_id(
+            repo,
+            head_commit_id,
+            head_object_reader.clone(),
+        )?;
         let mut other = commit_entry_reader.list_dir_children(&path)?;
         dirs.append(&mut other);
         dirs.push(path.clone());
@@ -375,9 +380,9 @@ impl DiffEntry {
 
         for dir in dirs {
             let base_dir_reader =
-                CommitDirEntryReader::new(repo, base_commit_id, &dir, object_reader.clone())?;
+                CommitDirEntryReader::new(repo, base_commit_id, &dir, base_object_reader.clone())?;
             let head_dir_reader =
-                CommitDirEntryReader::new(repo, head_commit_id, &dir, object_reader.clone())?;
+                CommitDirEntryReader::new(repo, head_commit_id, &dir, head_object_reader.clone())?;
 
             // List the entries in hash sets
             let head_entries = head_dir_reader.list_entries_set()?;

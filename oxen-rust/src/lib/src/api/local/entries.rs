@@ -30,7 +30,7 @@ pub fn get_meta_entry(
     commit: &Commit,
     path: &Path,
 ) -> Result<MetadataEntry, OxenError> {
-    let object_reader = ObjectDBReader::new(repo)?;
+    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let commit_reader = CommitReader::new(repo)?;
@@ -175,7 +175,7 @@ fn compute_dir_size(
     let mut total_size: u64 = 0;
     // This lists all the committed dirs
     let dirs = entry_reader.list_dirs()?;
-    let object_reader = ObjectDBReader::new(repo)?;
+    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
     for dir in dirs {
         // Have to make sure we are in a subset of the dir (not really a tree structure)
         if dir.starts_with(path) {
@@ -368,7 +368,7 @@ pub fn list_directory(
     });
 
     // Instantiate these readers once so they can be efficiently passed down through and databases not re-opened
-    let object_reader = ObjectDBReader::new(repo)?;
+    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
     let commit_reader = CommitReader::new(repo)?;
@@ -592,7 +592,7 @@ pub fn read_unsynced_entries(
         grouped.len()
     );
 
-    let object_reader = ObjectDBReader::new(local_repo)?;
+    let object_reader = ObjectDBReader::new(local_repo, &last_commit.id)?;
 
     let mut entries_to_sync: Vec<CommitEntry> = vec![];
     for (dir, dir_entries) in grouped.iter() {
@@ -680,7 +680,7 @@ pub fn list_tabular_files_in_repo(
         if entry.is_some() {
             let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
             let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-            let object_reader = ObjectDBReader::new(local_repo)?;
+            let object_reader = ObjectDBReader::new(local_repo, &commit.id)?;
             for commit in &commits {
                 let reader = CommitDirEntryReader::new(
                     local_repo,

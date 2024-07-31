@@ -1188,7 +1188,8 @@ impl CommitEntryWriter {
             );
         }
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let commit = api::local::commits::head_commit(&self.repository)?;
+        let object_reader = ObjectDBReader::new(&self.repository, &commit.id)?;
         // Track dirs in commit
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {

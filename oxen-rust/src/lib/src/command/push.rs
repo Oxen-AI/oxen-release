@@ -348,6 +348,117 @@ mod tests {
         .await
     }
 
+    #[tokio::test]
+    async fn test_latest_commit_is_computed_properly() -> Result<(), OxenError> {
+        test::run_empty_local_repo_test_async(|repo| async {
+            // Make mutable copy so we can set remote
+            let mut repo = repo;
+
+            /*
+            Create a directory structure with one file per nested dir
+              (This was really slow in post commit actions, want to optimize)
+
+            README.md
+            data/
+              file.txt
+              1/
+                file.txt
+              2/
+                file.txt
+              3/
+                file.txt
+              4/
+                file.txt
+              5/
+                file.txt
+            */
+
+            // Create README
+            let readme_path = repo.path.join("README.md");
+            let readme_path = test::write_txt_file_to_path(readme_path, "README")?;
+            command::add(&repo, &readme_path)?;
+            let first_commit_id = command::commit(&repo, "Adding README")?;
+
+            // Create the data dir
+            let data_dir = repo.path.join("data");
+            util::fs::create_dir_all(&data_dir)?;
+
+            // Create subdirs with files
+            let num_dirs = 5;
+            for i in 0..num_dirs {
+                let dir_path = data_dir.join(format!("{}", i));
+                util::fs::create_dir_all(&dir_path)?;
+                let file_path = dir_path.join("file.txt");
+                let file_path = test::write_txt_file_to_path(file_path, &format!("file -> {}", i))?;
+                command::add(&repo, &file_path)?;
+                command::commit(&repo, &format!("Adding file -> data/{}/file.txt", i))?;
+            }
+
+            // modify the 3rd file
+            let file_path = data_dir.join("2").join("file.txt");
+            let file_path = test::write_txt_file_to_path(file_path, "modified file")?;
+            command::add(&repo, &file_path)?;
+            let last_commit = command::commit(&repo, "Modifying file again")?;
+
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&repo.dirname());
+            command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
+            // Push the files
+            command::push(&repo).await?;
+
+            // Make sure we get the correct latest commit messages
+            let page_num = 1;
+            let entries =
+                api::remote::dir::list(&remote_repo, &last_commit.id, ".", page_num, 10).await?;
+            assert_eq!(entries.total_entries, 2);
+            assert_eq!(entries.entries.len(), 2);
+
+            // find the data entry, and make sure the latest_commit matches the last commit
+            let data_entry = entries.entries.iter().find(|e| e.filename == "data");
+            assert!(data_entry.is_some());
+            let data_entry = data_entry.unwrap();
+            assert_eq!(data_entry.filename, "data");
+            assert_eq!(
+                data_entry.latest_commit.as_ref().unwrap().id,
+                last_commit.id
+            );
+
+            // find the README entry, and make sure latest_commit matches the first commit
+            let readme_entry = entries.entries.iter().find(|e| e.filename == "README.md");
+            assert!(readme_entry.is_some());
+            let readme_entry = readme_entry.unwrap();
+            assert_eq!(readme_entry.filename, "README.md");
+            assert_eq!(
+                readme_entry.latest_commit.as_ref().unwrap().id,
+                first_commit_id.id
+            );
+
+            // Check the latest commit in a subdir
+            let page_num = 1;
+            let entries =
+                api::remote::dir::list(&remote_repo, &last_commit.id, "data/3", page_num, 10)
+                    .await?;
+            assert_eq!(entries.total_entries, 1);
+            assert_eq!(entries.entries.len(), 1);
+
+            let entry = entries.entries.first().unwrap();
+            assert_eq!(entry.filename, "file.txt");
+            assert_eq!(
+                entry.latest_commit.as_ref().unwrap().message,
+                "Adding file -> data/3/file.txt"
+            );
+
+            api::remote::repositories::delete(&remote_repo).await?;
+
+            future::ok::<(), OxenError>(()).await
+        })
+        .await
+    }
+
     // This broke when you tried to add the "." directory to add everything, after already committing the train directory.
     #[tokio::test]
     async fn test_command_push_after_two_commits_adding_dot() -> Result<(), OxenError> {
@@ -953,126 +1064,127 @@ mod tests {
     // * User B makes commit modifying `README.md` pushes and fails
     // * User B pulls user A's changes and there is a conflict
     // * User B fixes the conflict and pushes and succeeds
-    // #[tokio::test]
-    // async fn test_tree_cannot_push_when_remote_repo_is_2_commits_ahead_same_file(
-    // ) -> Result<(), OxenError> {
-    //     // Create Repo for User A
-    //     test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-    //         let mut user_a_repo = command::init(&user_a_repo_dir)?;
+    #[tokio::test]
+    async fn test_tree_cannot_push_when_remote_repo_is_2_commits_ahead_same_file(
+    ) -> Result<(), OxenError> {
+        // Create Repo for User A
+        test::run_empty_dir_test_async(|user_a_repo_dir| async move {
+            let mut user_a_repo = command::init(&user_a_repo_dir)?;
 
-    //         // Add data for User A
-    //         let mod_file = "README.md";
-    //         let a_mod_file_path = user_a_repo.path.join(mod_file);
-    //         let a_mod_file_path =
-    //             test::write_txt_file_to_path(a_mod_file_path, "I am the original README")?;
+            // Add data for User A
+            let mod_file = "README.md";
+            let a_mod_file_path = user_a_repo.path.join(mod_file);
+            let a_mod_file_path =
+                test::write_txt_file_to_path(a_mod_file_path, "I am the original README")?;
 
-    //         // Make a directory for the of random data
-    //         let random_data_dir = user_a_repo.path.join("random_data");
-    //         util::fs::create_dir_all(&random_data_dir)?;
-    //         // add 10 text files to the random data directory
-    //         for i in 0..10 {
-    //             let file_name = format!("random_file_{}.txt", i);
-    //             let file_path = random_data_dir.join(file_name);
-    //             let file_path = test::write_txt_file_to_path(file_path, "random data")?;
-    //             command::add(&user_a_repo, &file_path)?;
-    //         }
+            // Make a directory for the of random data
+            let random_data_dir = user_a_repo.path.join("random_data");
+            util::fs::create_dir_all(&random_data_dir)?;
+            // add 10 text files to the random data directory
+            for i in 0..10 {
+                let file_name = format!("random_file_{}.txt", i);
+                let file_path = random_data_dir.join(file_name);
+                let file_path = test::write_txt_file_to_path(file_path, "random data")?;
+                command::add(&user_a_repo, &file_path)?;
+            }
 
-    //         command::add(&user_a_repo, &a_mod_file_path)?;
-    //         command::commit(&user_a_repo, "User A adding the README.")?;
+            command::add(&user_a_repo, &a_mod_file_path)?;
+            command::commit(&user_a_repo, "User A adding the README.")?;
 
-    //         // Set the proper remote
-    //         let remote = test::repo_remote_url_from(&user_a_repo.dirname());
-    //         command::config::set_remote(&mut user_a_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
+            // Set the proper remote
+            let remote = test::repo_remote_url_from(&user_a_repo.dirname());
+            command::config::set_remote(&mut user_a_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
-    //         // Create the remote repo
-    //         let remote_repo = test::create_remote_repo(&user_a_repo).await?;
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&user_a_repo).await?;
 
-    //         // Push data for User A
-    //         println!("Pushing README.md for user A...");
-    //         command::push(&user_a_repo).await?;
+            // Push data for User A
+            println!("Pushing README.md for user A...");
+            command::push(&user_a_repo).await?;
 
-    //         // Clone Repo to User B
-    //         test::run_empty_dir_test_async(|user_b_repo_dir| async move {
-    //             let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
+            // Clone Repo to User B
+            test::run_empty_dir_test_async(|user_b_repo_dir| async move {
+                let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-    //             let user_b_repo = command::clone_url(
-    //                 &remote_repo.remote.url,
-    //                 &user_b_repo_dir_copy.join("New_repo"),
-    //             )
-    //             .await?;
+                let user_b_repo = command::clone_url(
+                    &remote_repo.remote.url,
+                    &user_b_repo_dir_copy.join("New_repo"),
+                )
+                .await?;
 
-    //             // User A modifies the bounding_box.csv and pushes
-    //             let mod_file = PathBuf::from("bounding_box.csv");
-    //             let a_mod_file_path = user_a_repo.path.join(mod_file);
-    //             let a_mod_file_path =
-    //                 test::write_txt_file_to_path(a_mod_file_path, "path,annotation")?;
-    //             command::add(&user_a_repo, &a_mod_file_path)?;
-    //             command::commit(&user_a_repo, "User A adds bounding_box.csv.")?;
-    //             println!("Pushing bounding_box.csv for user A...");
-    //             command::push(&user_a_repo).await?;
+                // User A modifies the bounding_box.csv and pushes
+                let mod_file = PathBuf::from("bounding_box.csv");
+                let a_mod_file_path = user_a_repo.path.join(mod_file);
+                let a_mod_file_path =
+                    test::write_txt_file_to_path(a_mod_file_path, "path,annotation")?;
+                command::add(&user_a_repo, &a_mod_file_path)?;
+                command::commit(&user_a_repo, "User A adds bounding_box.csv.")?;
+                println!("Pushing bounding_box.csv for user A...");
+                command::push(&user_a_repo).await?;
 
-    //             // User B modifies the README.md and pushes
-    //             let mod_file = "README.md";
-    //             let b_mod_file_path = user_b_repo.path.join(mod_file);
-    //             let b_mod_file_path =
-    //                 test::write_txt_file_to_path(b_mod_file_path, "I be the README now.")?;
-    //             command::add(&user_b_repo, &b_mod_file_path)?;
-    //             println!("Pushing README.md for user B...");
-    //             command::commit(&user_b_repo, "User B modifying the README.")?;
+                // User B modifies the README.md and pushes
+                let mod_file = "README.md";
+                let b_mod_file_path = user_b_repo.path.join(mod_file);
+                let b_mod_file_path =
+                    test::write_txt_file_to_path(b_mod_file_path, "I be the README now.")?;
+                command::add(&user_b_repo, &b_mod_file_path)?;
+                println!("Pushing README.md for user B...");
+                command::commit(&user_b_repo, "User B modifying the README.")?;
 
-    //             // Push from B should succeed!
-    //             let first_push_result = command::push(&user_b_repo).await;
-    //             assert!(first_push_result.is_ok());
+                // Push from B should succeed!
+                let first_push_result = command::push(&user_b_repo).await;
+                assert!(first_push_result.is_ok());
 
-    //             // User A modifies tries to modify the same README.md and pushes
-    //             let a_mod_file_path = user_a_repo.path.join(mod_file);
-    //             let a_mod_file_path =
-    //                 test::write_txt_file_to_path(a_mod_file_path, "I am the README now")?;
-    //             command::add(&user_a_repo, &a_mod_file_path)?;
-    //             command::commit(&user_a_repo, "User A modifying the README.")?;
+                // User A modifies tries to modify the same README.md and pushes
+                let a_mod_file_path = user_a_repo.path.join(mod_file);
+                let a_mod_file_path =
+                    test::write_txt_file_to_path(a_mod_file_path, "I am the README now")?;
+                command::add(&user_a_repo, &a_mod_file_path)?;
+                command::commit(&user_a_repo, "User A modifying the README.")?;
 
-    //             // Push should fail! Remote is ahead
-    //             println!("Pushing README.md for user A...");
-    //             let second_push_a = command::push(&user_a_repo).await;
-    //             assert!(second_push_a.is_err());
+                // Push should fail! Remote is ahead
+                println!("Pushing README.md for user A...");
+                let second_push_a = command::push(&user_a_repo).await;
+                assert!(second_push_a.is_err());
 
-    //             // Try it again - I don't know why this is succeeding the second time
-    //             let second_push_again = command::push(&user_a_repo).await;
-    //             assert!(second_push_again.is_err());
+                // Try it again - I don't know why this is succeeding the second time
+                let second_push_again = command::push(&user_a_repo).await;
+                assert!(second_push_again.is_err());
 
-    //             // Pull A should succeed
-    //             let pull_a = command::pull(&user_a_repo).await;
-    //             assert!(pull_a.is_ok());
+                // Pull A should succeed
+                let pull_a = command::pull(&user_a_repo).await;
+                assert!(pull_a.is_ok());
 
-    //             // There should be conflicts in A
-    //             let status = command::status(&user_a_repo)?;
-    //             assert!(status.has_merge_conflicts());
+                // There should be conflicts in A
+                let status = command::status(&user_a_repo)?;
+                assert!(status.has_merge_conflicts());
 
-    //             // User A resolves conflicts
-    //             let a_mod_file_path = user_a_repo.path.join(mod_file);
-    //             let a_mod_file_path = test::write_txt_file_to_path(
-    //                 a_mod_file_path,
-    //                 "No for real. I am the README now.",
-    //             )?;
-    //             command::add(&user_a_repo, &a_mod_file_path)?;
-    //             command::commit(&user_a_repo, "User A resolving conflicts.")?;
+                // User A resolves conflicts
+                let a_mod_file_path = user_a_repo.path.join(mod_file);
+                let a_mod_file_path = test::write_txt_file_to_path(
+                    a_mod_file_path,
+                    "No for real. I am the README now.",
+                )?;
+                command::add(&user_a_repo, &a_mod_file_path)?;
+                command::commit(&user_a_repo, "User A resolving conflicts.")?;
 
-    //             // Push should now succeed
-    //             println!("Final pushing README.md for user A...");
-    //             let third_push_result = command::push(&user_a_repo).await;
-    //             assert!(third_push_result.is_ok());
+                // Push should now succeed
+                println!("Final pushing README.md for user A...");
+                let third_push_result = command::push(&user_a_repo).await;
+                assert!(third_push_result.is_ok());
 
-    //             // Return repo B because that is the closure we are in
-    //             Ok(user_b_repo_dir_copy)
-    //         })
-    //         .await?;
+                // Return repo B because that is the closure we are in
+                Ok(user_b_repo_dir_copy)
+            })
+            .await?;
 
-    //         Ok(user_a_repo_dir)
-    //     })
-    //     .await?;
+            Ok(user_a_repo_dir)
+        })
+        .await?;
 
-    //     Ok(())
-    // }
+        Ok(())
+    }
+
     #[tokio::test]
     async fn test_tree_can_push_when_remote_repo_is_many_commits_ahead_new_file(
     ) -> Result<(), OxenError> {
