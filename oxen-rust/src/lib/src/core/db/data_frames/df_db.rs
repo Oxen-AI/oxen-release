@@ -260,64 +260,6 @@ pub fn select_raw(
     Ok(df)
 }
 
-/// Insert a row from a polars dataframe into a duckdb table.
-pub fn insert_polars_df(
-    conn: &duckdb::Connection,
-    table_name: impl AsRef<str>,
-    df: &DataFrame,
-    out_schema: &Schema,
-) -> Result<DataFrame, OxenError> {
-    let table_name = table_name.as_ref();
-
-    let schema = df.schema();
-    let column_names: Vec<String> = schema
-        .iter_fields()
-        .map(|f| format!("\"{}\"", f.name()))
-        .collect();
-
-    let placeholders: String = column_names
-        .iter()
-        .map(|_| "?".to_string())
-        .collect::<Vec<_>>()
-        .join(", ");
-    let sql = format!(
-        "INSERT INTO {} ({}) VALUES ({}) RETURNING *",
-        table_name,
-        column_names.join(", "),
-        placeholders,
-    );
-
-    let mut stmt = conn.prepare(&sql)?;
-
-    // TODO: is there a way to bulk insert this?
-    let mut result_df = DataFrame::default();
-    for idx in 0..df.height() {
-        let row = df.get(idx).unwrap();
-        let boxed_values: Vec<Box<dyn ToSql>> = row
-            .iter()
-            .map(|v| tabular::value_to_tosql(v.to_owned()))
-            .collect();
-
-        let params: Vec<&dyn ToSql> = boxed_values
-            .iter()
-            .map(|boxed_value| &**boxed_value as &dyn ToSql)
-            .collect();
-
-        // Convert to Vec<&RecordBatch>
-        let result_set: Vec<RecordBatch> = stmt.query_arrow(params.as_slice())?.collect();
-
-        let df = record_batches_to_polars_df_explicit_nulls(result_set, out_schema)?;
-
-        result_df = if df.height() == 0 {
-            df
-        } else {
-            result_df.vstack(&df).unwrap()
-        };
-    }
-
-    Ok(result_df)
-}
-
 pub fn modify_row_with_polars_df(
     conn: &duckdb::Connection,
     table_name: impl AsRef<str>,
@@ -526,7 +468,7 @@ fn record_batches_to_polars_df(records: Vec<RecordBatch>) -> Result<DataFrame, O
     Ok(df)
 }
 
-fn record_batches_to_polars_df_explicit_nulls(
+pub fn record_batches_to_polars_df_explicit_nulls(
     records: Vec<RecordBatch>,
     schema: &Schema,
 ) -> Result<DataFrame, OxenError> {

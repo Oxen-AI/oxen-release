@@ -6,7 +6,7 @@ use sql_query_builder as sql;
 use std::path::{Path, PathBuf};
 
 use crate::constants::{CACHE_DIR, HISTORY_DIR};
-use crate::core::db::df_db;
+use crate::core::db::data_frames::df_db;
 use crate::error::OxenError;
 use crate::model::{Commit, DirMetadataItem, LocalRepository};
 use crate::util;

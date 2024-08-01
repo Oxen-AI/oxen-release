@@ -6,8 +6,8 @@ use sql_query_builder::{Delete, Select};
 use crate::api;
 use crate::constants::MODS_DIR;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
-use crate::core::db::workspace_df_db::select_cols_from_schema;
-use crate::core::db::{df_db, workspace_df_db};
+use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
+use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::df::tabular;
 use crate::core::index::CommitEntryReader;
 use crate::core::index::{self, workspaces};
@@ -23,6 +23,8 @@ use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
+pub mod columns;
+pub mod data_frame_column_changes_db;
 pub mod rows;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
@@ -41,7 +43,6 @@ pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -
         .join("COMMIT_ID")
 }
 
-// used to be duckdb_path
 pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
@@ -50,6 +51,16 @@ pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
         .join("duckdb")
         .join(path_hash)
         .join("db")
+}
+
+pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    workspace
+        .dir()
+        .join(MODS_DIR)
+        .join("duckdb")
+        .join(path_hash)
+        .join("column_changes")
 }
 
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {

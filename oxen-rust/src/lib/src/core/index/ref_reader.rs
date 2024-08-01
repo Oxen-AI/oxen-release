@@ -20,7 +20,7 @@ impl RefReader {
         let refs_dir = util::fs::oxen_hidden_dir(&repository.path).join(REFS_DIR);
         let head_filename = util::fs::oxen_hidden_dir(&repository.path).join(HEAD_FILE);
         let error_if_log_file_exist = false;
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
 
         if !refs_dir.exists() {
             std::fs::create_dir_all(&refs_dir)?;

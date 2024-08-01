@@ -4,7 +4,8 @@
 //!
 
 use crate::constants::{CACHE_DIR, COMPARES_DIR, LEFT_COMPARE_COMMIT, RIGHT_COMPARE_COMMIT};
-use crate::core::db::{self, path_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
 use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
@@ -808,13 +809,13 @@ pub fn get_dir_diff_entry(
     let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
 
     let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::opts::default(),
+        &db::key_val::opts::default(),
         dunce::simplified(&base_dir_hashes_db_path),
         false,
     )?;
 
     let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::opts::default(),
+        &db::key_val::opts::default(),
         dunce::simplified(&head_dir_hashes_db_path),
         false,
     )?;
@@ -961,13 +962,13 @@ pub fn get_dir_diff_entry_with_summary(
     let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
 
     let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::opts::default(),
+        &db::key_val::opts::default(),
         dunce::simplified(&base_dir_hashes_db_path),
         false,
     )?;
 
     let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::opts::default(),
+        &db::key_val::opts::default(),
         dunce::simplified(&head_dir_hashes_db_path),
         false,
     )?;

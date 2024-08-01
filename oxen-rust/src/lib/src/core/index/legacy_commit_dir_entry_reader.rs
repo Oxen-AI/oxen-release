@@ -1,6 +1,6 @@
 use crate::constants::{FILES_DIR, HISTORY_DIR};
 use crate::core::db;
-use crate::core::db::path_db;
+use crate::core::db::key_val::path_db;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
@@ -60,7 +60,7 @@ impl LegacyCommitDirEntryReader {
             db_path
         );
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         if !LegacyCommitDirEntryReader::db_exists(base_path, commit_id, dir) {
             if let Err(err) = std::fs::create_dir_all(&db_path) {
                 log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");

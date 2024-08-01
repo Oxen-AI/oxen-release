@@ -4,7 +4,7 @@
 // use std::time::Instant;
 
 use crate::constants::{self};
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;

@@ -1,6 +1,6 @@
 use crate::constants::{FILES_DIR, HISTORY_DIR, SCHEMAS_DIR};
 use crate::core::db;
-use crate::core::db::{str_json_db, str_val_db};
+use crate::core::db::key_val::{str_json_db, str_val_db};
 use crate::error::OxenError;
 use crate::model::Schema;
 use crate::util;
@@ -44,7 +44,7 @@ impl LegacySchemaReader {
         log::debug!("LegacySchemaReader db {:?}", schema_db_path);
         let schema_files_db_path = LegacySchemaReader::schema_files_db_dir(repository, commit_id);
         log::debug!("LegacySchemaReader files db {:?}", schema_files_db_path);
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         if !schema_db_path.exists() {
             std::fs::create_dir_all(&schema_db_path)?;
             // open it then lose scope to close it
