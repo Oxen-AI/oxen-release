@@ -153,12 +153,6 @@ jobs:
       - name: Build oxen
         run: cargo build --release
 
-      - name: Upload to crates.io
-        run: |
-          cd src/lib
-          cargo login ${{ secrets.CRATES_IO_TOKEN }}
-          cargo publish
-
       - name: Package Oxen Server
         run: |
           fpm \
