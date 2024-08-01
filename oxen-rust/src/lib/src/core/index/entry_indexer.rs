@@ -817,7 +817,7 @@ impl EntryIndexer {
         let commit = commit.clone();
         let commit_reader = CommitEntryReader::new(&repository, &commit)?;
 
-        let object_reader = ObjectDBReader::new(&repository)?;
+        let object_reader = ObjectDBReader::new(&repository, &commit.id)?;
 
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)

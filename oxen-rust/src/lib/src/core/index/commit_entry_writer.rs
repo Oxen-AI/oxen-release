@@ -1189,7 +1189,11 @@ impl CommitEntryWriter {
             );
         }
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        log::debug!(
+            "commit_staged_entries_with_prog instantiating ObjectDBReader for commit id: {:?}",
+            self.commit.id
+        );
+        let object_reader = ObjectDBReader::new(&self.repository, &self.commit.id)?;
         // Track dirs in commit
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {

@@ -569,11 +569,16 @@ pub fn list_diff_entries_in_dir_top_level(
         head_commit
     );
 
-    let object_reader = ObjectDBReader::new(repo)?;
-    let base_reader =
-        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
-    let head_reader =
-        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader.clone())?;
+    let base_reader = CommitEntryReader::new_from_commit_id(
+        repo,
+        &base_commit.id,
+        ObjectDBReader::new(repo, &base_commit.id)?,
+    )?;
+    let head_reader = CommitEntryReader::new_from_commit_id(
+        repo,
+        &head_commit.id,
+        ObjectDBReader::new(repo, &head_commit.id)?,
+    )?;
 
     let head_entries = head_reader.list_directory_set(&dir)?;
     let base_entries = base_reader.list_directory_set(&dir)?;
@@ -677,29 +682,20 @@ pub fn list_changed_dirs(
     head_commit: &Commit,
 ) -> Result<Vec<(PathBuf, DiffEntryStatus)>, OxenError> {
     let mut changed_dirs: Vec<(PathBuf, DiffEntryStatus)> = vec![];
-    let object_reader = ObjectDBReader::new(repo)?;
 
-    let base_entry_reader =
-        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
-    let head_entry_reader =
-        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader)?;
+    let base_entry_reader = CommitEntryReader::new_from_commit_id(
+        repo,
+        &base_commit.id,
+        ObjectDBReader::new(repo, &base_commit.id)?,
+    )?;
+    let head_entry_reader = CommitEntryReader::new_from_commit_id(
+        repo,
+        &head_commit.id,
+        ObjectDBReader::new(repo, &head_commit.id)?,
+    )?;
 
     let base_dirs = base_entry_reader.list_dirs_set()?;
     let head_dirs = head_entry_reader.list_dirs_set()?;
-
-    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
-    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
-
-    let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::key_val::opts::default(),
-        dunce::simplified(&base_dir_hashes_db_path),
-        false,
-    )?;
-    let head_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
-        &db::key_val::opts::default(),
-        dunce::simplified(&head_dir_hashes_db_path),
-        false,
-    )?;
 
     let added_dirs = head_dirs.difference(&base_dirs).collect::<HashSet<_>>();
     let removed_dirs = base_dirs.difference(&head_dirs).collect::<HashSet<_>>();
@@ -714,8 +710,8 @@ pub fn list_changed_dirs(
     }
 
     for dir in modified_or_unchanged_dirs.iter() {
-        let base_dir_hash: Option<String> = path_db::get_entry(&base_dir_hashes_db, dir)?;
-        let head_dir_hash: Option<String> = path_db::get_entry(&head_dir_hashes_db, dir)?;
+        let base_dir_hash: Option<String> = base_entry_reader.get_dir_hash(dir)?;
+        let head_dir_hash: Option<String> = head_entry_reader.get_dir_hash(dir)?;
 
         let base_dir_hash = match base_dir_hash {
             Some(base_dir_hash) => base_dir_hash,
@@ -809,8 +805,8 @@ pub fn get_dir_diff_entry(
     head_commit: &Commit,
 ) -> Result<Option<DiffEntry>, OxenError> {
     // Dir hashes db is cheaper to open than objects reader
-    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
-    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+    let base_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
 
     let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
         &db::key_val::opts::default(),
@@ -962,8 +958,8 @@ pub fn get_dir_diff_entry_with_summary(
     summary: GenericDiffSummary,
 ) -> Result<Option<DiffEntry>, OxenError> {
     // Dir hashes db is cheaper to open than objects reader
-    let base_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &base_commit.id);
-    let head_dir_hashes_db_path = ObjectDBReader::commit_dir_hash_db(&repo.path, &head_commit.id);
+    let base_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &base_commit.id);
+    let head_dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&repo.path, &head_commit.id);
 
     let base_dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
         &db::key_val::opts::default(),
@@ -1046,12 +1042,17 @@ pub fn list_diff_entries(
         head_commit.id,
         head_commit.message
     );
-    let object_reader = ObjectDBReader::new(repo)?;
 
-    let base_reader =
-        CommitEntryReader::new_from_commit_id(repo, &base_commit.id, object_reader.clone())?;
-    let head_reader =
-        CommitEntryReader::new_from_commit_id(repo, &head_commit.id, object_reader.clone())?;
+    let base_reader = CommitEntryReader::new_from_commit_id(
+        repo,
+        &base_commit.id,
+        ObjectDBReader::new(repo, &base_commit.id)?,
+    )?;
+    let head_reader = CommitEntryReader::new_from_commit_id(
+        repo,
+        &head_commit.id,
+        ObjectDBReader::new(repo, &head_commit.id)?,
+    )?;
 
     let head_entries = head_reader.list_directory_set(&dir)?;
     let base_entries = base_reader.list_directory_set(&dir)?;

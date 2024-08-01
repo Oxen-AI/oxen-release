@@ -61,7 +61,9 @@ pub fn init_test_env() {
         log::debug!("Logger initialized");
     }
 
-    std::env::set_var("TEST", "true");
+    unsafe {
+        std::env::set_var("TEST", "true");
+    }
 }
 
 fn create_prefixed_dir(
@@ -1517,11 +1519,12 @@ pub fn add_csv_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
     add_file_to_dir(dir, contents, "csv")
 }
 
-pub fn write_txt_file_to_path<P: AsRef<Path>>(
-    path: P,
-    contents: &str,
+pub fn write_txt_file_to_path(
+    path: impl AsRef<Path>,
+    contents: impl AsRef<str>,
 ) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
+    let contents = contents.as_ref();
     let mut file = File::create(path)?;
     file.write_all(contents.as_bytes())?;
     Ok(path.to_path_buf())

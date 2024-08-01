@@ -38,7 +38,7 @@ pub async fn get(
 
     // Try to get the parent of the file path, if it exists
     let mut entry: Option<CommitEntry> = None;
-    let object_reader = ObjectDBReader::new(&repo)?;
+    let object_reader = ObjectDBReader::new(&repo, &commit.id)?;
     let path = &resource.path;
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
         let key = format!(
