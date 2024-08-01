@@ -109,7 +109,7 @@ impl CommitDirEntryReader {
     pub fn num_entries(&self) -> usize {
         let mut count = 0;
         let children = self.dir_object.children();
-        log::debug!("num_entries children: {:?}", children);
+        // log::debug!("num_entries children: {:?}", children.len());
         for vnode_child in children {
             let vnode = self
                 .object_reader
@@ -122,7 +122,7 @@ impl CommitDirEntryReader {
                 }
             }
         }
-        log::debug!("num_entries in dir '{:?}' == {}", self.dir, count);
+        // log::debug!("num_entries in dir '{:?}' == {}", self.dir, count);
         count
     }
 
