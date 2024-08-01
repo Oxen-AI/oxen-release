@@ -128,6 +128,11 @@ mod tests {
                 api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 2);
 
+            for entry in &root_entries.entries {
+                println!("entry: {:?}", entry);
+            }
+            println!("----------------------");
+
             // Make sure the commit hashes are correct
             assert_eq!(
                 root_entries.entries[0].latest_commit.as_ref().unwrap().id,
@@ -162,6 +167,10 @@ mod tests {
             let root_entries =
                 api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, root_path, 1, 10).await?;
             assert_eq!(root_entries.entries.len(), 3);
+
+            for entry in &root_entries.entries {
+                println!("entry: {:?}", entry);
+            }
 
             // Make sure the commit hashes are correct
             assert_eq!(

@@ -316,19 +316,23 @@ impl DiffEntry {
 
         // if base_dir is some and head_dir is none, then we deleted all the files
         if base_dir.is_some() && head_dir.is_none() {
+            let dir_entry = base_dir.as_ref().unwrap();
+            let commit_id = &dir_entry.latest_commit.as_ref().unwrap().id;
             return DiffEntry::r_compute_removed_files(
                 repo,
-                base_dir.as_ref().unwrap(),
-                ObjectDBReader::new(repo, &base_commit.id)?,
+                dir_entry,
+                ObjectDBReader::new(repo, commit_id)?,
             );
         }
 
         // if head_dir is some and base_dir is none, then we added all the files
         if head_dir.is_some() && base_dir.is_none() {
+            let dir_entry = head_dir.as_ref().unwrap();
+            let commit_id = &dir_entry.latest_commit.as_ref().unwrap().id;
             return DiffEntry::r_compute_added_files(
                 repo,
-                head_dir.as_ref().unwrap(),
-                ObjectDBReader::new(repo, &head_commit.id)?,
+                dir_entry,
+                ObjectDBReader::new(repo, commit_id)?,
             );
         }
 
@@ -473,7 +477,7 @@ impl DiffEntry {
     ) -> Result<Option<GenericDiffSummary>, OxenError> {
         let commit_id = &head_dir.latest_commit.as_ref().unwrap().id;
         let path = PathBuf::from(&head_dir.resource.clone().unwrap().path);
-        log::debug!("r_compute_added_files base_dir: {:?}", path);
+        log::debug!("r_compute_added_files head_dir: {:?}", path);
 
         // Count all removals in the directory and its children
         let commit_entry_reader =

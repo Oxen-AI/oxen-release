@@ -15,6 +15,7 @@ use std::sync::Arc;
 use super::CommitEntryWriter;
 
 pub struct ObjectDBReader {
+    pub commit_id: String,
     files_db: DBWithThreadMode<MultiThreaded>,
     schemas_db: DBWithThreadMode<MultiThreaded>,
     dirs_db: DBWithThreadMode<MultiThreaded>,
@@ -63,25 +64,29 @@ impl ObjectDBReader {
         let files_db_path = ObjectDBReader::files_db_dir(&path);
         let schemas_db_path = ObjectDBReader::schemas_db_dir(&path);
         let dirs_db_path = ObjectDBReader::dirs_db_dir(&path);
-        let dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&path, commit_id);
+        let dir_hashes_db_path = ObjectDBReader::dir_hashes_db_dir(&path, &commit_id);
         let vnodes_db_path = ObjectDBReader::vnodes_db_dir(path.clone());
 
         log::debug!("ObjectDBReader::new_from_path: {:?}", path);
 
+        let opts = db::opts::default();
         for path in &[
             &files_db_path,
             &schemas_db_path,
             &dirs_db_path,
+            &dir_hashes_db_path,
             &vnodes_db_path,
         ] {
             if !path.exists() {
+                // Create the db
                 util::fs::create_dir_all(path)?;
+                let _db: DBWithThreadMode<MultiThreaded> =
+                    DBWithThreadMode::open(&opts, dunce::simplified(path))?;
             }
         }
 
-        let opts = db::opts::default();
-
         Ok(Arc::new(ObjectDBReader {
+            commit_id: commit_id.as_ref().to_string(),
             files_db: DBWithThreadMode::open_for_read_only(
                 &opts,
                 dunce::simplified(&files_db_path),
@@ -132,8 +137,12 @@ impl ObjectDBReader {
     }
 
     pub fn get_dir_hash(&self, path: impl AsRef<Path>) -> Result<Option<String>, OxenError> {
-        let path = path.as_ref().to_path_buf();
-        let dir_hash = path_db::get_entry(&self.dir_hashes_db, &path)?;
+        log::debug!(
+            "get_dir_hash path: {:?} in db: {:?}",
+            path.as_ref(),
+            self.dir_hashes_db.path()
+        );
+        let dir_hash = path_db::get_entry(&self.dir_hashes_db, path)?;
         Ok(dir_hash)
     }
 

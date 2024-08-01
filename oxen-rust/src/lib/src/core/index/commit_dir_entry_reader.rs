@@ -56,7 +56,18 @@ impl CommitDirEntryReader {
         //     base_path.join(dir)
         // );
 
+        if object_reader.commit_id != commit_id {
+            return Err(OxenError::basic_str(
+                "ObjectDBReader commit_id does not match commit_id",
+            ));
+        }
+
         let dir_hash: Option<String> = object_reader.get_dir_hash(dir)?;
+        log::debug!(
+            "CommitDirEntryReader::new_from_path dir: {:?} dir_hash: {:?}",
+            dir,
+            dir_hash
+        );
         let dir_object: TreeObject = match dir_hash {
             Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
                 Some(dir) => dir,
@@ -91,9 +102,15 @@ impl CommitDirEntryReader {
         })
     }
 
+    pub fn set_dir(&mut self, dir: &Path) {
+        self.dir = dir.to_path_buf();
+    }
+
     pub fn num_entries(&self) -> usize {
         let mut count = 0;
-        for vnode_child in self.dir_object.children() {
+        let children = self.dir_object.children();
+        log::debug!("num_entries children: {:?}", children);
+        for vnode_child in children {
             let vnode = self
                 .object_reader
                 .get_vnode(vnode_child.hash())
