@@ -1,9 +1,10 @@
 use crate::constants::{
     self, DEFAULT_BRANCH_NAME, HISTORY_DIR, SCHEMAS_TREE_PREFIX, TMP_DIR, VERSIONS_DIR,
 };
-use crate::core::db::path_db;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
-use crate::core::db::{self, tree_db};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::tree_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
 use crate::core::index::{LegacyCommitDirEntryReader, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
@@ -116,7 +117,7 @@ impl CommitEntryWriter {
             &objects_vnodes_dir,
         ] {
             let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&db::opts::default(), dunce::simplified(path))?;
+                DBWithThreadMode::open(&db::key_val::opts::default(), dunce::simplified(path))?;
         }
 
         Ok(())
@@ -151,7 +152,7 @@ impl CommitEntryWriter {
             }
         }
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         Ok(CommitEntryWriter {
             repository: repository.clone(),
             dir_db: DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?,
@@ -978,7 +979,7 @@ impl CommitEntryWriter {
             std::fs::metadata(&temp_db_path).is_ok()
         );
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         let temp_tree_db: DBWithThreadMode<MultiThreaded> =
             DBWithThreadMode::open(&opts, dunce::simplified(&temp_db_path))?;
         let commit_hash: &String = &self.commit.root_hash.clone().unwrap();

@@ -2,7 +2,7 @@ use crate::constants::{CACHE_DIR, HISTORY_DIR};
 use crate::core::index::CommitReader;
 use crate::model::LocalRepository;
 use crate::util::fs;
-use crate::{core::db::df_db, error::OxenError};
+use crate::{core::db::data_frames::df_db, error::OxenError};
 use polars::frame::DataFrame;
 
 pub fn query_df_from_repo(

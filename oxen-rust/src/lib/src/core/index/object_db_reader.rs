@@ -1,6 +1,6 @@
 use crate::constants::{self};
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::{self, path_db, tree_db};
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::{self, key_val::path_db, key_val::tree_db};
 
 use crate::error::OxenError;
 
@@ -69,7 +69,7 @@ impl ObjectDBReader {
 
         log::debug!("ObjectDBReader::new_from_path: {:?}", path);
 
-        let opts = db::opts::default();
+        let opts = db::key_val::opts::default();
         for path in &[
             &files_db_path,
             &schemas_db_path,

@@ -1,5 +1,5 @@
 use crate::constants::{self, HASH_FILE};
-use crate::core::db::tree_db::TreeObjectChild;
+use crate::core::db::key_val::tree_db::TreeObjectChild;
 use crate::core::index::CommitEntryReader;
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, ContentHashable, LocalRepository, NewCommit};
