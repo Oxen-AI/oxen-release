@@ -55,10 +55,14 @@ impl<T: ThreadMode> StagedDirEntryDB<T> {
         dir: &Path,
         read_only: bool,
     ) -> Result<StagedDirEntryDB<T>, OxenError> {
-        // log::debug!("StagedDirEntryDB got dir {:?}", dir);
+        log::debug!(
+            "StagedDirEntryDB p_new {:?} read_only: {:?}",
+            dir,
+            read_only
+        );
         let db_path = staging_dir(repository, dir);
 
-        // log::debug!("StagedDirEntryDB db_path {:?}", db_path);
+        log::debug!("StagedDirEntryDB db_path {:?}", db_path);
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
         }

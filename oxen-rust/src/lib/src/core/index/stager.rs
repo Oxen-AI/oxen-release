@@ -235,7 +235,7 @@ impl Stager {
             candidate_dirs.insert(self.repository.path.join(dir));
         }
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let object_reader = ObjectDBReader::new(&self.repository, &entry_reader.commit_id)?;
         log::debug!(
             "about to call process_dir untracked on dirs {:?}",
             candidate_dirs
@@ -249,6 +249,8 @@ impl Stager {
                 object_reader.clone(),
             )?;
         }
+
+        log::debug!("About to list schemas");
 
         let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
@@ -322,11 +324,10 @@ impl Stager {
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
         candidate_dirs.insert(dir.to_path_buf());
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
-
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
 
+        let object_reader = ObjectDBReader::new(&self.repository, &commit.id)?;
         let entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
 
         let bar = oxen_progress_bar(0, ProgressBarType::Counter);
@@ -424,12 +425,12 @@ impl Stager {
 
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
         let staged_dir_db: StagedDirEntryDB<MultiThreaded> =
-            StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+            StagedDirEntryDB::new_read_only(&self.repository, &relative_dir)?;
         let dir_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
 
         // List the staged entries in this dir
-        let staged_entries = self.list_staged_files_in_dir(&relative_dir)?;
+        let staged_entries = staged_dir_db.list_added_paths()?;
 
         for relative_path in &staged_entries {
             if self.should_ignore_path(ignore, relative_path) {
@@ -899,6 +900,15 @@ impl Stager {
         let mut total: usize = 0;
         let repository = self.repository.to_owned();
 
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap(),
+        );
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        pb.set_message("🐂 Looking for untracked files...".to_string());
+
         // TODO:
         // * Fix to be more readable
         let walk_dir = WalkDirGeneric::<((), Option<bool>)>::new(&dir)
@@ -974,6 +984,7 @@ impl Stager {
 
                                 files.entry(parent.to_path_buf()).or_default().push(path);
                                 total += 1;
+                                pb.set_message(format!("🐂 found {} files", total));
                             }
                         }
                     }
@@ -1010,7 +1021,7 @@ impl Stager {
         let size: u64 = unsafe { std::mem::transmute(total) };
         let msg = format!("Adding directory {short_path:?}");
         let bar = oxen_progress_bar_with_msg(size, msg);
-        let object_reader = match ObjectDBReader::new(&self.repository) {
+        let object_reader = match ObjectDBReader::new(&self.repository, &entry_reader.commit_id) {
             Ok(reader) => reader,
             Err(err) => {
                 log::error!("Could not create ObjectDBReader: {}", err);
@@ -1179,7 +1190,7 @@ impl Stager {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, &relative_parent)?;
-            let object_reader = ObjectDBReader::new(&self.repository)?;
+            let object_reader = ObjectDBReader::new(&self.repository, &entry_reader.commit_id)?;
             let entry_reader = CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,

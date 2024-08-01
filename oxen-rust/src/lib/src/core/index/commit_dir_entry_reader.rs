@@ -4,15 +4,12 @@
 // use std::time::Instant;
 
 use crate::constants::{self};
-use crate::core::db;
-use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 use crate::error::OxenError;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
 
 use os_path::OsPath;
-use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -54,27 +51,23 @@ impl CommitDirEntryReader {
         dir: &Path,
         object_reader: Arc<ObjectDBReader>,
     ) -> Result<CommitDirEntryReader, OxenError> {
-        let db_path = CommitDirEntryReader::dir_hash_db(base_path, commit_id);
-        log::debug!(
-            "Creating new CommitDirEntryReader for path: {:?}",
-            base_path.join(dir)
-        );
+        // log::debug!(
+        //     "Creating new CommitDirEntryReader for path: {:?}",
+        //     base_path.join(dir)
+        // );
 
-        let opts = db::key_val::opts::default();
-        if !CommitDirEntryReader::dir_hashes_db_exists(base_path, commit_id) {
-            if let Err(err) = std::fs::create_dir_all(&db_path) {
-                log::error!("CommitDirEntryReader could not create dir {db_path:?}\nErr: {err:?}");
-            }
-
-            let _db: DBWithThreadMode<MultiThreaded> =
-                DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+        if object_reader.commit_id != commit_id {
+            return Err(OxenError::basic_str(
+                "ObjectDBReader commit_id does not match commit_id",
+            ));
         }
 
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
-
-        let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
-
+        let dir_hash: Option<String> = object_reader.get_dir_hash(dir)?;
+        log::debug!(
+            "CommitDirEntryReader::new_from_path dir: {:?} dir_hash: {:?}",
+            dir,
+            dir_hash
+        );
         let dir_object: TreeObject = match dir_hash {
             Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
                 Some(dir) => dir,
@@ -109,9 +102,15 @@ impl CommitDirEntryReader {
         })
     }
 
+    pub fn set_dir(&mut self, dir: &Path) {
+        self.dir = dir.to_path_buf();
+    }
+
     pub fn num_entries(&self) -> usize {
         let mut count = 0;
-        for vnode_child in self.dir_object.children() {
+        let children = self.dir_object.children();
+        // log::debug!("num_entries children: {:?}", children.len());
+        for vnode_child in children {
             let vnode = self
                 .object_reader
                 .get_vnode(vnode_child.hash())
@@ -123,7 +122,7 @@ impl CommitDirEntryReader {
                 }
             }
         }
-        log::debug!("num_entries in dir '{:?}' == {}", self.dir, count);
+        // log::debug!("num_entries in dir '{:?}' == {}", self.dir, count);
         count
     }
 

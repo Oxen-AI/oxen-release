@@ -93,7 +93,7 @@ fn validate_complete_merkle_tree(
     repository: &LocalRepository,
     commit: &Commit,
 ) -> Result<bool, OxenError> {
-    let object_reader = ObjectDBReader::new(repository)?;
+    let object_reader = ObjectDBReader::new(repository, &commit.id)?;
     let root_hash = commit.root_hash.clone().unwrap();
     log::debug!("got root_hash {:?}", root_hash);
     let root_node = object_reader.get_dir(&root_hash)?.unwrap();
@@ -221,7 +221,7 @@ fn validate_changed_parts_of_merkle_tree(
     log::debug!("commit.root_hash {:?}", commit.root_hash);
     log::debug!("parent.root_hash {:?}", parent.root_hash);
 
-    let object_reader = ObjectDBReader::new(repository)?;
+    let object_reader = ObjectDBReader::new(repository, &commit.id)?;
     let root_hash = commit
         .root_hash
         .clone()
