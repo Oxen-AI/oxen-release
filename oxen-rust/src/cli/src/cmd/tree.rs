@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::api;
+use liboxen::core::db;
 use liboxen::core::index::merkle_tree::CommitMerkleTree;
 use liboxen::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use liboxen::error::OxenError;
@@ -8,6 +9,7 @@ use liboxen::model::{Commit, LocalRepository};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "tree";
@@ -98,6 +100,7 @@ impl RunCmd for TreeCmd {
         } else {
             self.print_tree(&repo, &commit, path, depth)?;
         }
+
         Ok(())
     }
 }
@@ -171,9 +174,6 @@ impl TreeCmd {
         path: &str,
         single_entry: bool
     ) -> Result<(), OxenError> {
-        println!("Run legacy!");
-        let full_start = Instant::now(); // Start timing
-
         // Read a full dir
         if single_entry {
             // Just get a single entry
@@ -212,6 +212,11 @@ impl TreeCmd {
             let load_obj_duration = start_load_obj.elapsed();
             println!("Time to load object reader: {:?}", load_obj_duration);
 
+            let db_path = CommitDirEntryReader::dir_hash_db(&repo.path, &commit.id);
+            let opts = db::key_val::opts::default();
+            let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
+
             let start_load_entry_reader = Instant::now();
             let reader = CommitEntryReader::new(repo, commit)?;
             let mut dirs = reader.list_dirs()?;
@@ -232,7 +237,7 @@ impl TreeCmd {
             let mut files_per_dir: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
             for (_, path) in &tree {
                 files_per_dir.insert(path.clone(), Vec::new());
-                let entry_reader = CommitDirEntryReader::new(repo, &commit.id, &path, object_reader.clone())?;
+                let entry_reader = CommitDirEntryReader::new_from_hash_db(&repo.path, &commit.id, &dir_hashes_db, &path, object_reader.clone())?;
                 let entries = entry_reader.list_entries()?;
                 for entry in entries {
                     files_per_dir.entry(path.clone()).or_insert(Vec::new()).push(entry.path);
@@ -254,9 +259,6 @@ impl TreeCmd {
             println!("Time to load: {:?}", load_duration);
             println!("Time to print: {:?}", print_duration);
         }
-
-        let full_duration = full_start.elapsed(); // Calculate duration
-        println!("Time to process: {:?}", full_duration);
 
         Ok(())
     }

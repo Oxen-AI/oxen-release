@@ -48,6 +48,49 @@ impl CommitDirEntryReader {
         CommitDirEntryReader::new_from_path(&repository.path, commit_id, dir, object_reader)
     }
 
+    pub fn new_from_hash_db(
+        base_path: &Path,
+        commit_id: &str,
+        dir_hashes_db: &DBWithThreadMode<MultiThreaded>,
+        dir: &Path,
+        object_reader: Arc<ObjectDBReader>,
+    ) -> Result<CommitDirEntryReader, OxenError> {
+        let dir_hash: Option<String> = path_db::get_entry(&dir_hashes_db, dir)?;
+
+        let dir_object: TreeObject = match dir_hash {
+            Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
+                Some(dir) => dir,
+                None => {
+                    log::error!(
+                        "Could not get dir by hash: {} for path {:?} and commit_id {}",
+                        dir_hash,
+                        base_path,
+                        commit_id
+                    );
+                    // Creating dummy dir object
+                    TreeObject::Dir {
+                        children: Vec::new(),
+                        hash: "".to_string(),
+                    }
+                }
+            },
+            None => {
+                // Creating dummy dir object
+                TreeObject::Dir {
+                    children: Vec::new(),
+                    hash: "".to_string(),
+                }
+            }
+        };
+
+        Ok(CommitDirEntryReader {
+            dir: dir.to_path_buf(),
+            dir_object,
+            commit_id: commit_id.to_string(),
+            object_reader,
+        })
+    }
+
     pub fn new_from_path(
         base_path: &Path,
         commit_id: &str,
