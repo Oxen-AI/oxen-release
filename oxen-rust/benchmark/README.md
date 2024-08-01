@@ -132,6 +132,15 @@ Merkle Tree
 
 TODO
 
+## 100k Files
+
+100k files 10k folders
+
+oxen add - 290.11 secs
+oxen commit - 547.43 secs
+
+
+
 ## 200k Files
 
 oxen add - 14.21 sec
@@ -161,9 +170,22 @@ Disk Usage
 
 ### Many Sub Directories
 
+1m files 1000 folders
+
+oxen add - 140.30 secs
+oxen commit - 63.55 mins
+
+Load Tree Legacy
+----
+Time to load: 223.039642208s
+Time to print: 3.051239563s
+
+Load Tree New
+----
+Time to load tree: 5.17906844s
+Time to print tree: 6.319524273s
+
 ## 10 Million Files
-
-
 
 ## 100 Million Files
 
