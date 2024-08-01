@@ -131,8 +131,8 @@ pub fn aggregate_stats(
 
     log::debug!("aggregating dirs {:?}", dirs);
     // Aggregate and count the data_type field in the items
-    let mut data_type_counts: HashMap<String, u64> = HashMap::new();
-    let mut mime_type_counts: HashMap<String, u64> = HashMap::new();
+    let mut data_type_counts: HashMap<String, i64> = HashMap::new();
+    let mut mime_type_counts: HashMap<String, i64> = HashMap::new();
     for item in items {
         *data_type_counts.entry(item.data_type.clone()).or_insert(0) += 1;
         *mime_type_counts.entry(item.mime_type.clone()).or_insert(0) += 1;
@@ -148,7 +148,7 @@ pub fn aggregate_stats(
 
     // Create polars DataFrame of data_type,count from the HashMap
     let data_type_vec: Vec<String> = data_type_counts.iter().map(|(k, _)| k.clone()).collect();
-    let count_vec: Vec<u64> = data_type_counts.iter().map(|(_, v)| *v).collect();
+    let count_vec: Vec<i64> = data_type_counts.iter().map(|(_, v)| *v).collect();
 
     let data_type_df = DataFrame::new(vec![
         Series::new("data_type", data_type_vec),
@@ -157,7 +157,7 @@ pub fn aggregate_stats(
 
     // Create polars DataFrame of mime_type,count from the HashMap
     let mime_type_vec: Vec<String> = mime_type_counts.iter().map(|(k, _)| k.clone()).collect();
-    let count_vec: Vec<u64> = mime_type_counts.iter().map(|(_, v)| *v).collect();
+    let count_vec: Vec<i64> = mime_type_counts.iter().map(|(_, v)| *v).collect();
 
     let mime_type_df = DataFrame::new(vec![
         Series::new("mime_type", mime_type_vec),
@@ -201,7 +201,7 @@ mod tests {
 ┌───────────┬───────┐
 │ data_type ┆ count │
 │ ---       ┆ ---   │
-│ str       ┆ u64   │
+│ str       ┆ i64   │
 ╞═══════════╪═══════╡
 │ directory ┆ 9     │
 │ image     ┆ 7     │
@@ -248,7 +248,7 @@ mod tests {
 ┌───────────┬───────┐
 │ data_type ┆ count │
 │ ---       ┆ ---   │
-│ str       ┆ u64   │
+│ str       ┆ i64   │
 ╞═══════════╪═══════╡
 │ text      ┆ 10    │
 │ directory ┆ 1     │

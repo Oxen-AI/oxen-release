@@ -506,10 +506,10 @@ pub fn get_dir_entry_metadata(
             .unwrap()
             .into_no_null_iter()
             .collect();
-        let count_series: Vec<u64> = data_type_df
+        let count_series: Vec<i64> = data_type_df
             .column("count")
             .unwrap()
-            .u64()
+            .i64()
             .unwrap()
             .into_no_null_iter()
             .collect();
