@@ -60,6 +60,7 @@ pub fn get_meta_entry(
         let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
 
         for c in commits {
+            let object_reader = ObjectDBReader::new(repo, &c.id)?;
             let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
             commit_entry_readers.push((c.clone(), reader));
         }
@@ -84,10 +85,19 @@ pub fn meta_entry_from_dir(
     // We cache the latest commit and size for each file in the directory after commit
     let latest_commit_path =
         core::cache::cachers::repo_size::dir_latest_commit_path(repo, commit, path);
+    log::debug!(
+        "meta_entry_from_dir {:?} latest_commit_path: {:?}",
+        path,
+        latest_commit_path
+    );
 
     let latest_commit = match util::fs::read_from_path(latest_commit_path) {
-        Ok(id) => commit_reader.get_commit_by_id(id)?,
+        Ok(id) => {
+            log::debug!("meta_entry_from_dir found latest_commit on disk: {:?}", id);
+            commit_reader.get_commit_by_id(id)?
+        }
         Err(_) => {
+            log::debug!("meta_entry_from_dir computing latest_commit");
             compute_latest_commit_for_dir(repo, object_reader.clone(), commit, path, commit_reader)?
         }
     };
@@ -241,12 +251,15 @@ pub fn get_latest_commit_for_entry(
         .file_name()
         .ok_or(OxenError::file_has_no_name(&entry.path))?;
 
+    log::debug!("get_latest_commit_for_entry: {:?}", path);
+
     let mut latest_hash: Option<String> = None;
     // Store the commit from the previous iteration. Initialized as None.
     let mut previous_commit: Option<Commit> = None;
 
     for (commit, entry_reader) in commits.iter().rev() {
         if let Some(old_entry) = entry_reader.get_entry(path)? {
+            log::debug!("get_latest_commit_for_entry: {:?} {:?}", path, old_entry);
             if latest_hash.is_none() {
                 // This is the first encountered entry, setting it as the baseline for comparison.
                 latest_hash = Some(old_entry.hash.clone());
@@ -256,6 +269,12 @@ pub fn get_latest_commit_for_entry(
             }
             // Update previous_commit after the check, so it holds the commit before the change was detected.
             previous_commit = Some(commit.clone());
+        } else {
+            log::debug!(
+                "get_latest_commit_for_entry: no entry {:?} in {}",
+                path,
+                commit
+            );
         }
     }
 
@@ -381,7 +400,8 @@ pub fn list_directory(
 
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
     for c in commits {
-        let reader = CommitDirEntryReader::new(repo, &c.id, directory, object_reader.clone())?;
+        let or = ObjectDBReader::new(repo, &c.id)?;
+        let reader = CommitDirEntryReader::new(repo, &c.id, directory, or.clone())?;
         commit_entry_readers.push((c.clone(), reader));
     }
 
@@ -486,10 +506,10 @@ pub fn get_dir_entry_metadata(
             .unwrap()
             .into_no_null_iter()
             .collect();
-        let count_series: Vec<i64> = data_type_df
+        let count_series: Vec<u64> = data_type_df
             .column("count")
             .unwrap()
-            .i64()
+            .u64()
             .unwrap()
             .into_no_null_iter()
             .collect();
@@ -680,8 +700,8 @@ pub fn list_tabular_files_in_repo(
         if entry.is_some() {
             let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
             let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-            let object_reader = ObjectDBReader::new(local_repo, &commit.id)?;
             for commit in &commits {
+                let object_reader = ObjectDBReader::new(local_repo, &commit.id)?;
                 let reader = CommitDirEntryReader::new(
                     local_repo,
                     &commit.id,

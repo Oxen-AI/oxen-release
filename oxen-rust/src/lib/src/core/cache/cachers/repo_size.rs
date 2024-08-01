@@ -2,6 +2,7 @@
 
 use fs_extra::dir::get_size;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use crate::api;
 use crate::constants::{CACHE_DIR, DIRS_DIR, HISTORY_DIR};
@@ -64,7 +65,13 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
     let dirs = reader.list_dirs()?;
     log::debug!("REPO_SIZE {commit} Computing size of {} dirs", dirs.len());
+
     let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+
+    let mut object_readers: Vec<Arc<ObjectDBReader>> = Vec::new();
+    for commit in &commits {
+        object_readers.push(ObjectDBReader::new(repo, &commit.id)?);
+    }
 
     for dir in dirs {
         log::debug!("REPO_SIZE {commit} PROCESSING DIR {dir:?}");
@@ -72,10 +79,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         // Start with the size of all the entries in this dir
         let entries = {
             // let dir_reader go out of scope
-            // *************
-            // TODO: we should open the dir db once in the object reader instead of the commit dir entry reader
-            // ALSO - add that little progress bar on reading the files before add
-            // *************
             let dir_reader =
                 CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
 
@@ -88,8 +91,8 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         );
 
         let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-        for c in &commits {
-            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_reader.clone())?;
+        for (i, c) in commits.iter().enumerate() {
+            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
             commit_entry_readers.push((c.clone(), reader));
         }
 
@@ -103,7 +106,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
         // TODO: do not copy pasta this code
         for entry in entries {
-            let Some(commit) =
+            let Some(entry_commit) =
                 api::local::entries::get_latest_commit_for_entry(&commit_entry_readers, &entry)?
             else {
                 log::debug!(
@@ -120,7 +123,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 //     entry.path,
                 //     commit
                 // );
-                latest_commit = Some(commit.clone());
+                latest_commit = Some(entry_commit.clone());
             } else {
                 // log::debug!(
                 //     "CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}",
@@ -134,7 +137,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                     //     entry.path,
                     //     commit
                     // );
-                    latest_commit = Some(commit.clone());
+                    latest_commit = Some(entry_commit.clone());
                 }
             }
         }
@@ -153,8 +156,9 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             };
 
             let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-            for c in &commits {
-                let reader = CommitDirEntryReader::new(repo, &c.id, &child, object_reader.clone())?;
+            for (i, c) in commits.iter().enumerate() {
+                let reader =
+                    CommitDirEntryReader::new(repo, &c.id, &child, object_readers[i].clone())?;
                 commit_entry_readers.push((c.clone(), reader));
             }
 
@@ -169,7 +173,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             );
 
             for entry in entries {
-                let Some(commit) = api::local::entries::get_latest_commit_for_entry(
+                let Some(entry_commit) = api::local::entries::get_latest_commit_for_entry(
                     &commit_entry_readers,
                     &entry,
                 )?
@@ -184,12 +188,12 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
 
                 if latest_commit.is_none() {
                     // log::debug!("FOUND LATEST COMMIT CHILD EMPTY {:?} -> {:?}", entry.path, commit);
-                    latest_commit = Some(commit.clone());
+                    latest_commit = Some(entry_commit.clone());
                 } else {
                     // log::debug!("CONSIDERING COMMIT PARENT TIMESTAMP {:?} {:?} < {:?}", entry.path, latest_commit.as_ref().unwrap().timestamp, commit.as_ref().unwrap().timestamp);
-                    if latest_commit.as_ref().unwrap().timestamp < commit.timestamp {
+                    if latest_commit.as_ref().unwrap().timestamp < entry_commit.timestamp {
                         // log::debug!("FOUND LATEST COMMIT PARENT TIMESTAMP {:?} -> {:?}", entry.path, commit);
-                        latest_commit = Some(commit.clone());
+                        latest_commit = Some(entry_commit.clone());
                     }
                 }
             }

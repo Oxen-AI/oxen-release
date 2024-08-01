@@ -249,6 +249,8 @@ impl Stager {
             )?;
         }
 
+        log::debug!("About to list schemas");
+
         let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
             schemas.insert(path, schema);
@@ -321,11 +323,10 @@ impl Stager {
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
         candidate_dirs.insert(dir.to_path_buf());
 
-        let object_reader = ObjectDBReader::new(&self.repository, &entry_reader.commit_id)?;
-
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
 
+        let object_reader = ObjectDBReader::new(&self.repository, &commit.id)?;
         let entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
 
         let bar = oxen_progress_bar(0, ProgressBarType::Counter);
@@ -423,12 +424,12 @@ impl Stager {
 
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
         let staged_dir_db: StagedDirEntryDB<MultiThreaded> =
-            StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+            StagedDirEntryDB::new_read_only(&self.repository, &relative_dir)?;
         let dir_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
 
         // List the staged entries in this dir
-        let staged_entries = self.list_staged_files_in_dir(&relative_dir)?;
+        let staged_entries = staged_dir_db.list_added_paths()?;
 
         for relative_path in &staged_entries {
             if self.should_ignore_path(ignore, relative_path) {
