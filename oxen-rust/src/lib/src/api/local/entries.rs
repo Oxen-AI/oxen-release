@@ -225,15 +225,7 @@ pub fn get_commit_history_path(
                 // log::debug!("get_commit_history_path: new entry {:?}", commit);
                 latest_hash = Some(old_entry.hash.clone());
                 history.push(commit.clone());
-            } else {
-                log::debug!(
-                    "get_commit_history_path: fall through {:?} -> {}",
-                    path,
-                    commit
-                );
             }
-        } else {
-            log::debug!("get_commit_history_path: no entry {:?} in {}", path, commit);
         }
     }
 
@@ -246,20 +238,23 @@ pub fn get_latest_commit_for_entry(
     commits: &[(Commit, CommitDirEntryReader)],
     entry: &CommitEntry,
 ) -> Result<Option<Commit>, OxenError> {
-    let os_path = OsPath::from(&entry.path).to_pathbuf();
+    get_latest_commit_for_path(commits, &entry.path)
+}
+
+pub fn get_latest_commit_for_path(
+    commits: &[(Commit, CommitDirEntryReader)],
+    path: &Path,
+) -> Result<Option<Commit>, OxenError> {
+    let os_path = OsPath::from(path).to_pathbuf();
     let path = os_path
         .file_name()
-        .ok_or(OxenError::file_has_no_name(&entry.path))?;
-
-    log::debug!("get_latest_commit_for_entry: {:?}", path);
-
+        .ok_or(OxenError::file_has_no_name(path))?;
     let mut latest_hash: Option<String> = None;
     // Store the commit from the previous iteration. Initialized as None.
     let mut previous_commit: Option<Commit> = None;
 
     for (commit, entry_reader) in commits.iter().rev() {
         if let Some(old_entry) = entry_reader.get_entry(path)? {
-            log::debug!("get_latest_commit_for_entry: {:?} {:?}", path, old_entry);
             if latest_hash.is_none() {
                 // This is the first encountered entry, setting it as the baseline for comparison.
                 latest_hash = Some(old_entry.hash.clone());
@@ -269,12 +264,6 @@ pub fn get_latest_commit_for_entry(
             }
             // Update previous_commit after the check, so it holds the commit before the change was detected.
             previous_commit = Some(commit.clone());
-        } else {
-            log::debug!(
-                "get_latest_commit_for_entry: no entry {:?} in {}",
-                path,
-                commit
-            );
         }
     }
 

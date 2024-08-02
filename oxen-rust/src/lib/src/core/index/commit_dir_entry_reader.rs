@@ -63,11 +63,11 @@ impl CommitDirEntryReader {
         }
 
         let dir_hash: Option<String> = object_reader.get_dir_hash(dir)?;
-        log::debug!(
-            "CommitDirEntryReader::new_from_path dir: {:?} dir_hash: {:?}",
-            dir,
-            dir_hash
-        );
+        // log::debug!(
+        //     "CommitDirEntryReader::new_from_path dir: {:?} dir_hash: {:?}",
+        //     dir,
+        //     dir_hash
+        // );
         let dir_object: TreeObject = match dir_hash {
             Some(dir_hash) => match object_reader.get_dir(&dir_hash)? {
                 Some(dir) => dir,
@@ -201,7 +201,7 @@ impl CommitDirEntryReader {
         let maybe_file = vnode.binary_search_on_path(&full_path)?;
 
         let Some(file) = maybe_file else {
-            log::debug!("could not find file for path {:?}", path);
+            // log::debug!("could not find file for path {:?}", path);
             return Ok(None);
         };
 

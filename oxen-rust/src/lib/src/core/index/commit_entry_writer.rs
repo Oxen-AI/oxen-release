@@ -722,8 +722,8 @@ impl CommitEntryWriter {
             };
 
             log::debug!(
-                "putting vnode {:#?} into vnodes_db write gather",
-                vnode_object
+                "putting vnode {} into vnodes_db write gather",
+                vnode_object.hash()
             );
             tree_db::put_tree_object(&self.vnodes_db, vnode_object.hash(), &vnode_object)?;
 
@@ -771,7 +771,7 @@ impl CommitEntryWriter {
         for dir in dirs {
             log::debug!("new merkle constructor processing dir {:?}", dir);
             let file_child_objs = self.write_file_objects_for_dir(dir.to_path_buf())?;
-            log::debug!("got file_child_objs {:?}", file_child_objs);
+            log::debug!("got file_child_objs {}", file_child_objs.len());
             let schema_child_objs =
                 self.write_schema_objects_for_dir(dir.to_path_buf(), &schema_map)?;
             log::debug!("got schema_child_objs {:?}", schema_child_objs);
