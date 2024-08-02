@@ -221,18 +221,16 @@ impl Stager {
         let ignore = oxenignore::create(&self.repository);
 
         let mut staged_dirs = self.list_staged_dirs()?;
-
         if dir.is_relative() && dir != self.repository.path {
             staged_dirs.retain(|(path, _)| path.starts_with(dir))
         }
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
-
         for (dir, status) in &staged_dirs {
             let full_path = self.repository.path.join(dir);
             let stats = self.compute_staged_dir_stats(&full_path, status)?;
             staged_data.staged_dirs.add_stats(&stats);
-            candidate_dirs.insert(self.repository.path.join(dir));
+            candidate_dirs.insert(full_path);
         }
 
         let object_reader = ObjectDBReader::new(&self.repository, &entry_reader.commit_id)?;
@@ -1505,11 +1503,12 @@ impl Stager {
         Ok(())
     }
 
-    fn list_staged_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
+    fn count_staged_files_in_dir(&self, dir: &Path) -> Result<usize, OxenError> {
+        log::debug!("Counting staged files in dir {:?}", dir);
         let relative = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
         let staged_dir = StagedDirEntryReader::new(&self.repository, &relative)?;
-        let paths = staged_dir.list_added_paths()?;
-        Ok(paths)
+        let progress_bar = true;
+        staged_dir.count_added_files(progress_bar)
     }
 
     pub fn list_staged_dirs(&self) -> Result<Vec<(PathBuf, StagedEntryStatus)>, OxenError> {
@@ -1537,7 +1536,7 @@ impl Stager {
         }
 
         // Count in db from relative path
-        let num_files_staged = self.list_staged_files_in_dir(&relative_path)?.len();
+        let num_files_staged = self.count_staged_files_in_dir(&relative_path)?;
 
         // Make sure we have some files added
         if num_files_staged == 0 {
@@ -1546,7 +1545,7 @@ impl Stager {
         }
 
         // Count in fs from full path
-        stats.total_files = util::fs::count_files_in_dir(path);
+        stats.total_files = util::fs::count_files_in_dir_w_progress(path);
         stats.num_files_staged = num_files_staged;
 
         Ok(stats)

@@ -339,7 +339,7 @@ impl EntryIndexer {
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
 
         // Download full commits db
-        let spinner = spinner_with_msg("🐂 Downloading commits db from remote...".to_string());
+        let spinner = spinner_with_msg("🐂 Downloading commits db from remote...");
 
         api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
 

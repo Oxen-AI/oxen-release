@@ -1,4 +1,5 @@
 use crate::error::OxenError;
+use indicatif::ProgressBar;
 use serde::{de, Serialize};
 
 use os_path::OsPath;
@@ -75,6 +76,31 @@ pub fn delete<T: ThreadMode, P: AsRef<Path>>(
     } else {
         Err(OxenError::could_not_convert_path_to_str(path))
     }
+}
+
+/// # Count the number of entries in the db
+pub fn count<T: ThreadMode>(
+    db: &DBWithThreadMode<T>,
+    progress: Option<ProgressBar>,
+) -> Result<usize, OxenError> {
+    let iter = db.iterator(IteratorMode::Start);
+    let mut count = 0;
+    for item in iter {
+        if let Some(progress) = progress.as_ref() {
+            progress.set_message(format!("🐂 found {:?} staged files", count));
+        }
+        match item {
+            Ok((_, _)) => {
+                count += 1;
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
+    }
+    Ok(count)
 }
 
 /// # List the file paths in the staged dir

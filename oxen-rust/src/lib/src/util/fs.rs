@@ -2,6 +2,8 @@
 //! and eventually abstract away the fs implementation
 //!
 
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
 use jwalk::WalkDir;
 
 use simdutf8::compat::from_utf8;
@@ -1021,6 +1023,22 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 pub fn count_files_in_dir(dir: &Path) -> usize {
+    p_count_files_in_dir_w_progress(dir, None)
+}
+
+pub fn count_files_in_dir_w_progress(dir: &Path) -> usize {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+    pb.set_message("🐂 Counting files...".to_string());
+    p_count_files_in_dir_w_progress(dir, Some(pb))
+}
+
+pub fn p_count_files_in_dir_w_progress(dir: &Path, pb: Option<ProgressBar>) -> usize {
     let mut count: usize = 0;
     if dir.is_dir() {
         match std::fs::read_dir(dir) {
@@ -1031,6 +1049,9 @@ pub fn count_files_in_dir(dir: &Path) -> usize {
                             let path = entry.path();
                             if !is_in_oxen_hidden_dir(&path) && path.is_file() {
                                 count += 1;
+                                if let Some(ref pb) = pb {
+                                    pb.set_message(format!("🐂 Found {:?} files", count));
+                                }
                             }
                         }
                         Err(err) => log::warn!("error reading dir entry: {}", err),

@@ -9,9 +9,9 @@ pub enum ProgressBarType {
     None,
 }
 
-pub fn spinner_with_msg(msg: String) -> ProgressBar {
+pub fn spinner_with_msg(msg: impl AsRef<str>) -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
-    spinner.set_message(msg);
+    spinner.set_message(msg.as_ref().to_owned());
     spinner.set_style(ProgressStyle::default_spinner());
     spinner.enable_steady_tick(Duration::from_millis(100));
     spinner
