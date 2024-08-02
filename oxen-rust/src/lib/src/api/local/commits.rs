@@ -496,10 +496,6 @@ fn latest_commit_in_files(
                 }
             }
         }
-
-        // if latest_file_commit.is_some() {
-        //     *latest_commit = latest_file_commit;
-        // }
     }
     Ok(())
 }
