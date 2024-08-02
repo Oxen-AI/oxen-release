@@ -137,11 +137,11 @@ impl ObjectDBReader {
     }
 
     pub fn get_dir_hash(&self, path: impl AsRef<Path>) -> Result<Option<String>, OxenError> {
-        log::debug!(
-            "get_dir_hash path: {:?} in db: {:?}",
-            path.as_ref(),
-            self.dir_hashes_db.path()
-        );
+        // log::debug!(
+        //     "get_dir_hash path: {:?} in db: {:?}",
+        //     path.as_ref(),
+        //     self.dir_hashes_db.path()
+        // );
         let dir_hash = path_db::get_entry(&self.dir_hashes_db, path)?;
         Ok(dir_hash)
     }
