@@ -2953,6 +2953,7 @@ dependencies = [
  "lazy_static",
  "lofty",
  "log",
+ "lru",
  "minus",
  "mockito",
  "mp4",

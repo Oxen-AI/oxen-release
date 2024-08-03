@@ -10,10 +10,11 @@ use crate::core::cache::cachers::content_validator;
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{self, TreeObject};
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
-    ObjectDBReader, RefReader, RefWriter, Stager, TreeObjectReader,
+    RefReader, RefWriter, Stager, TreeObjectReader,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -398,7 +399,7 @@ fn get_commit_entry_readers(
     let commits = commit_reader.history_from_commit_id(&commit.id)?;
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
     for c in commits {
-        let object_reader = ObjectDBReader::new(repo, &c.id)?;
+        let object_reader = get_object_reader(repo, &c.id)?;
         let reader = CommitDirEntryReader::new(repo, &c.id, path, object_reader.clone())?;
         commit_entry_readers.push((c.clone(), reader));
     }
@@ -412,7 +413,7 @@ pub fn list_by_resource_from_paginated(
     page_number: usize,
     page_size: usize,
 ) -> Result<PaginatedCommits, OxenError> {
-    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+    let object_reader = get_object_reader(repo, &commit.id)?;
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
 
@@ -512,7 +513,7 @@ fn list_by_directory(
     );
     // List all the commits
     let commit_reader = CommitReader::new(repo)?;
-    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+    let object_reader = get_object_reader(repo, &commit.id)?;
 
     let dir_entry_reader =
         CommitDirEntryReader::new(repo, &commit.id, path, object_reader.clone())?;

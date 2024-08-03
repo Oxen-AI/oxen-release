@@ -79,11 +79,11 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
         n_rows: None,
         ..Default::default()
     };
-    log::debug!(
-        "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
-        path.as_ref(),
-        args.n_rows
-    );
+    // log::debug!(
+    //     "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
+    //     path.as_ref(),
+    //     args.n_rows
+    // );
     LazyFrame::scan_parquet(&path, args).map_err(|_| {
         OxenError::basic_str(format!(
             "Error scanning parquet file {}: {:?}",
@@ -131,11 +131,11 @@ pub fn scan_df_parquet(path: impl AsRef<Path>, total_rows: usize) -> Result<Lazy
         n_rows: Some(total_rows),
         ..Default::default()
     };
-    log::debug!(
-        "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
-        path.as_ref(),
-        args.n_rows
-    );
+    // log::debug!(
+    //     "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
+    //     path.as_ref(),
+    //     args.n_rows
+    // );
     LazyFrame::scan_parquet(&path, args).map_err(|_| {
         OxenError::basic_str(format!(
             "Error scanning parquet file {}: {:?}",
@@ -741,7 +741,7 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
         None => Err(OxenError::basic_str(err)),
     }?;
 
-    log::debug!("Read finished");
+    // log::debug!("Read finished");
     if opts.has_transform() {
         let df = transform_new(df, opts)?;
         Ok(df.collect()?)

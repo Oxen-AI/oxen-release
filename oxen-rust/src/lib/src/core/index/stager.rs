@@ -10,6 +10,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::oxenignore;
 use crate::core::index::ObjectDBReader;
 use crate::core::index::SchemaReader;
@@ -233,7 +234,7 @@ impl Stager {
             candidate_dirs.insert(full_path);
         }
 
-        let object_reader = ObjectDBReader::new(&self.repository, &entry_reader.commit_id)?;
+        let object_reader = get_object_reader(&self.repository, &entry_reader.commit_id)?;
         log::debug!(
             "about to call process_dir untracked on dirs {:?}",
             candidate_dirs
@@ -325,7 +326,7 @@ impl Stager {
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
 
-        let object_reader = ObjectDBReader::new(&self.repository, &commit.id)?;
+        let object_reader = get_object_reader(&self.repository, &commit.id)?;
         let entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
 
         let bar = oxen_progress_bar(0, ProgressBarType::Counter);
@@ -1019,7 +1020,7 @@ impl Stager {
         let size: u64 = unsafe { std::mem::transmute(total) };
         let msg = format!("Adding directory {short_path:?}");
         let bar = oxen_progress_bar_with_msg(size, msg);
-        let object_reader = match ObjectDBReader::new(&self.repository, &entry_reader.commit_id) {
+        let object_reader = match get_object_reader(&self.repository, &entry_reader.commit_id) {
             Ok(reader) => reader,
             Err(err) => {
                 log::error!("Could not create ObjectDBReader: {}", err);
@@ -1188,7 +1189,7 @@ impl Stager {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, &relative_parent)?;
-            let object_reader = ObjectDBReader::new(&self.repository, &entry_reader.commit_id)?;
+            let object_reader = get_object_reader(&self.repository, &entry_reader.commit_id)?;
             let entry_reader = CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,

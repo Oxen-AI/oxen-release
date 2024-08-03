@@ -10,7 +10,7 @@ use crate::model::diff::generic_diff_summary::GenericDiffSummary;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core::df::tabular;
-use crate::core::index::object_db_reader::ObjectDBReader;
+use crate::core::index::object_db_reader::{get_object_reader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
@@ -572,12 +572,12 @@ pub fn list_diff_entries_in_dir_top_level(
     let base_reader = CommitEntryReader::new_from_commit_id(
         repo,
         &base_commit.id,
-        ObjectDBReader::new(repo, &base_commit.id)?,
+        get_object_reader(repo, &base_commit.id)?,
     )?;
     let head_reader = CommitEntryReader::new_from_commit_id(
         repo,
         &head_commit.id,
-        ObjectDBReader::new(repo, &head_commit.id)?,
+        get_object_reader(repo, &head_commit.id)?,
     )?;
 
     let head_entries = head_reader.list_directory_set(&dir)?;
@@ -686,12 +686,12 @@ pub fn list_changed_dirs(
     let base_entry_reader = CommitEntryReader::new_from_commit_id(
         repo,
         &base_commit.id,
-        ObjectDBReader::new(repo, &base_commit.id)?,
+        get_object_reader(repo, &base_commit.id)?,
     )?;
     let head_entry_reader = CommitEntryReader::new_from_commit_id(
         repo,
         &head_commit.id,
-        ObjectDBReader::new(repo, &head_commit.id)?,
+        get_object_reader(repo, &head_commit.id)?,
     )?;
 
     let base_dirs = base_entry_reader.list_dirs_set()?;
@@ -1046,12 +1046,12 @@ pub fn list_diff_entries(
     let base_reader = CommitEntryReader::new_from_commit_id(
         repo,
         &base_commit.id,
-        ObjectDBReader::new(repo, &base_commit.id)?,
+        get_object_reader(repo, &base_commit.id)?,
     )?;
     let head_reader = CommitEntryReader::new_from_commit_id(
         repo,
         &head_commit.id,
-        ObjectDBReader::new(repo, &head_commit.id)?,
+        get_object_reader(repo, &head_commit.id)?,
     )?;
 
     let head_entries = head_reader.list_directory_set(&dir)?;
