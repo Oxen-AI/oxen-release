@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
@@ -321,7 +322,7 @@ impl DiffEntry {
             return DiffEntry::r_compute_removed_files(
                 repo,
                 dir_entry,
-                ObjectDBReader::new(repo, commit_id)?,
+                get_object_reader(repo, commit_id)?,
             );
         }
 
@@ -332,7 +333,7 @@ impl DiffEntry {
             return DiffEntry::r_compute_added_files(
                 repo,
                 dir_entry,
-                ObjectDBReader::new(repo, commit_id)?,
+                get_object_reader(repo, commit_id)?,
             );
         }
 
@@ -359,8 +360,8 @@ impl DiffEntry {
         let mut num_added = 0;
         let mut num_modified = 0;
 
-        let base_object_reader = ObjectDBReader::new(repo, base_commit_id)?;
-        let head_object_reader = ObjectDBReader::new(repo, head_commit_id)?;
+        let base_object_reader = get_object_reader(repo, base_commit_id)?;
+        let head_object_reader = get_object_reader(repo, head_commit_id)?;
 
         // Find all the children of the dir and sum up their counts
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(

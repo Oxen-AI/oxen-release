@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use crate::model::LocalRepository;
 
+use super::object_db_reader::get_object_reader;
 use super::{CommitReader, ObjectDBReader};
 
 pub struct SchemaReader {
@@ -60,7 +61,7 @@ impl SchemaReader {
             log::debug!("dir hashes db exists at path {:?}", dir_hashes_db_path)
         }
 
-        let object_reader = ObjectDBReader::new(repository, commit_id)?;
+        let object_reader = get_object_reader(repository, commit_id)?;
 
         Ok(SchemaReader {
             dir_hashes_db: DBWithThreadMode::open_for_read_only(&opts, &dir_hashes_db_path, false)?,

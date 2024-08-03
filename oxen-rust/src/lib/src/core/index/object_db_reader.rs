@@ -9,10 +9,41 @@ use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
+use lazy_static::lazy_static;
+use lru::LruCache;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 use super::CommitEntryWriter;
+
+lazy_static! {
+    pub static ref OBJECT_READER_LRU: Arc<RwLock<LruCache<String, Arc<ObjectDBReader>>>> = Arc::new(
+        RwLock::new(LruCache::new(std::num::NonZeroUsize::new(128).unwrap()),)
+    );
+}
+
+pub fn get_object_reader(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Arc<ObjectDBReader>, OxenError> {
+    let key = format!("{:?}_{}", repo.path, commit_id,);
+    log::debug!("get_object_reader LRU key {}", key);
+
+    let mut cache = OBJECT_READER_LRU.write().unwrap();
+
+    log::debug!("get_object_reader LRU cache size {:?}", cache.len());
+
+    if let Some(cder) = cache.get(&key) {
+        log::debug!("get_object_reader found in LRU {}", key);
+        Ok(cder.clone())
+    } else {
+        log::debug!("get_object_reader not found in LRU {}", key);
+        let cder = ObjectDBReader::p_new(repo, commit_id)?;
+        log::debug!("get_object_reader looking up entry {}", key);
+        cache.put(key, cder.clone());
+        Ok(cder)
+    }
+}
 
 pub struct ObjectDBReader {
     pub commit_id: String,
@@ -115,7 +146,7 @@ impl ObjectDBReader {
         }))
     }
 
-    pub fn new(
+    pub fn p_new(
         repo: &LocalRepository,
         commit_id: impl AsRef<str>,
     ) -> Result<Arc<ObjectDBReader>, OxenError> {

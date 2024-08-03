@@ -12,8 +12,9 @@ use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::db;
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader, Stager};
+use crate::core::index::{self, puller, versioner, Merger, Stager};
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
@@ -817,7 +818,7 @@ impl EntryIndexer {
         let commit = commit.clone();
         let commit_reader = CommitEntryReader::new(&repository, &commit)?;
 
-        let object_reader = ObjectDBReader::new(&repository, &commit.id)?;
+        let object_reader = get_object_reader(&repository, &commit.id)?;
 
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)

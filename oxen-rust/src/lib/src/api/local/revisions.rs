@@ -2,7 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::index::{CommitDirEntryReader, ObjectDBReader};
+use crate::core::index::object_db_reader::get_object_reader;
+use crate::core::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::{api, util};
@@ -49,7 +50,7 @@ pub fn get_version_file_from_commit_id(
         None => return Err(OxenError::file_has_no_parent(path)),
     };
 
-    let object_reader = ObjectDBReader::new(repo, commit_id)?;
+    let object_reader = get_object_reader(repo, commit_id)?;
 
     // Instantiate CommitDirEntryReader to fetch entry
     let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;

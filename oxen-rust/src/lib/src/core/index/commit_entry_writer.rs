@@ -5,6 +5,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::{LegacyCommitDirEntryReader, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
@@ -23,9 +24,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{
-    versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader,
-};
+use super::{versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader};
 
 pub struct CommitEntryWriter {
     pub repository: LocalRepository,
@@ -1193,7 +1192,7 @@ impl CommitEntryWriter {
             "commit_staged_entries_with_prog instantiating ObjectDBReader for commit id: {:?}",
             self.commit.id
         );
-        let object_reader = ObjectDBReader::new(&self.repository, &self.commit.id)?;
+        let object_reader = get_object_reader(&self.repository, &self.commit.id)?;
         // Track dirs in commit
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {

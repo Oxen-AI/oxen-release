@@ -10,7 +10,8 @@ use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::opts::RestoreOpts;
 use crate::util;
 
-use super::{CommitDirEntryReader, CommitEntryWriter, ObjectDBReader};
+use super::object_db_reader::get_object_reader;
+use super::{CommitDirEntryReader, CommitEntryWriter};
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     if opts.staged {
@@ -65,7 +66,7 @@ fn restore_dir(
     files_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
     let dirs = dir_reader.list_dirs()?;
-    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+    let object_reader = get_object_reader(repo, &commit.id)?;
     for dir in dirs {
         if dir.starts_with(path) {
             let reader = CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;

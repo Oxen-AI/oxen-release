@@ -709,8 +709,8 @@ async fn push_missing_commit_entries(
         .collect();
 
     log::debug!(
-        "pushing and we've collected these entries: {:#?}",
-        unsynced_entries
+        "pushing and we've collected these entries: {}",
+        unsynced_entries.len()
     );
 
     spinner.finish_and_clear();

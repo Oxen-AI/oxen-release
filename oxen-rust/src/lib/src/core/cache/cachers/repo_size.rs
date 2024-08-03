@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use crate::api;
 use crate::constants::{CACHE_DIR, DIRS_DIR, HISTORY_DIR};
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -66,11 +67,11 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let dirs = reader.list_dirs()?;
     log::debug!("REPO_SIZE {commit} Computing size of {} dirs", dirs.len());
 
-    let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+    let object_reader = get_object_reader(repo, &commit.id)?;
 
     let mut object_readers: Vec<Arc<ObjectDBReader>> = Vec::new();
     for commit in &commits {
-        object_readers.push(ObjectDBReader::new(repo, &commit.id)?);
+        object_readers.push(get_object_reader(repo, &commit.id)?);
     }
 
     for dir in dirs {
