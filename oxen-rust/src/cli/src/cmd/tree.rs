@@ -180,7 +180,7 @@ impl TreeCmd {
             let path = Path::new(path);
             let filename = path.file_name().unwrap().to_str().unwrap();
             let parent = path.parent().unwrap();
-            let object_reader = ObjectDBReader::new(repo)?;
+            let object_reader = ObjectDBReader::new(repo, &commit.id)?;
             let entry_reader = liboxen::core::index::CommitDirEntryReader::new(
                 repo,
                 &commit.id,
@@ -208,7 +208,7 @@ impl TreeCmd {
 
             let start_load = Instant::now();
             let start_load_obj = Instant::now();
-            let object_reader = ObjectDBReader::new(repo)?;
+            let object_reader = ObjectDBReader::new(repo, &commit.id)?;
             let load_obj_duration = start_load_obj.elapsed();
             println!("Time to load object reader: {:?}", load_obj_duration);
 

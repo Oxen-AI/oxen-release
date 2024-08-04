@@ -10,10 +10,11 @@ use crate::core::cache::cachers::content_validator;
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{self, TreeObject};
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::tree_db_reader::TreeDBMerger;
 use crate::core::index::{
     self, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
-    ObjectDBReader, RefReader, RefWriter, Stager, TreeObjectReader,
+    RefReader, RefWriter, Stager, TreeObjectReader,
 };
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry, LocalRepository, StagedData};
@@ -394,11 +395,11 @@ fn get_commit_entry_readers(
     commit: &Commit,
     path: &Path,
 ) -> Result<Vec<(Commit, CommitDirEntryReader)>, OxenError> {
-    let object_reader = ObjectDBReader::new(repo)?;
     let commit_reader = CommitReader::new(repo)?;
     let commits = commit_reader.history_from_commit_id(&commit.id)?;
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
     for c in commits {
+        let object_reader = get_object_reader(repo, &c.id)?;
         let reader = CommitDirEntryReader::new(repo, &c.id, path, object_reader.clone())?;
         commit_entry_readers.push((c.clone(), reader));
     }
@@ -412,7 +413,7 @@ pub fn list_by_resource_from_paginated(
     page_number: usize,
     page_size: usize,
 ) -> Result<PaginatedCommits, OxenError> {
-    let object_reader = ObjectDBReader::new(repo)?;
+    let object_reader = get_object_reader(repo, &commit.id)?;
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
 
@@ -434,37 +435,127 @@ pub fn list_by_resource_from_paginated(
     paginate_and_format_results(commits, page_number, page_size)
 }
 
+fn latest_commit_in_files(
+    latest_commit: &mut Option<Commit>,
+    entry_reader: &CommitDirEntryReader,
+    readers: &[(Commit, CommitDirEntryReader)],
+) -> Result<(), OxenError> {
+    // We're trying to find the latest commit
+    for file in entry_reader.list_files()? {
+        let file_name = file.file_name().unwrap().to_str().unwrap();
+        // log::debug!("api::local::commits::list_by_directory: file {:?} file_name {:?}", file, file_name);
+
+        let mut latest_file_commit: Option<Commit> = None;
+        let mut latest_file_hash: Option<String> = None;
+
+        for (commit, cer) in readers {
+            if let Some(lc) = latest_commit.as_ref() {
+                // If the commit is older than the latest commit, we can skip it
+                // log::debug!("api::local::commits::list_by_directory: comparing commit: {} with latest commit: {} and timestamp: {} with latest timestamp: {}", commit, lc, commit.timestamp, lc.timestamp);
+                if commit.timestamp <= lc.timestamp {
+                    continue;
+                }
+            } else {
+                log::debug!(
+                    "api::local::commits::list_by_directory: setting initial commit: {}",
+                    commit
+                );
+                *latest_commit = Some(commit.clone());
+            }
+            log::debug!(
+                "api::local::commits::list_by_directory: considering file: {:?} in commit: {}",
+                file_name,
+                commit
+            );
+
+            if let Some(entry) = cer.get_entry(file_name)? {
+                log::debug!(
+                    "api::local::commits::list_by_directory: found file in commit: {}",
+                    commit
+                );
+                if latest_file_hash.is_none() {
+                    log::debug!("api::local::commits::list_by_directory: setting initial file {} latest commit: {}", file_name, commit);
+
+                    latest_file_hash = Some(entry.hash.clone());
+                    latest_file_commit = Some(commit.clone());
+                    *latest_commit = latest_file_commit.clone();
+                }
+
+                let lc = latest_file_commit.as_mut().unwrap();
+                // If the commit is newer than the latest commit, we update the latest commit
+                log::debug!("api::local::commits::list_by_directory: comparing commit: {} with latest commit: {} and hash: {} with latest hash: {}", commit.timestamp, lc.timestamp, entry.hash, latest_file_hash.as_ref().unwrap());
+                if commit.timestamp >= lc.timestamp
+                    && &entry.hash != latest_file_hash.as_ref().unwrap()
+                {
+                    log::debug!(
+                        "api::local::commits::list_by_directory: updating latest commit: {}",
+                        commit
+                    );
+                    latest_file_commit = Some(commit.clone());
+                    latest_file_hash = Some(entry.hash);
+                    *latest_commit = latest_file_commit.clone();
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 fn list_by_directory(
     repo: &LocalRepository,
     path: &Path,
     commit: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
-    let object_reader = ObjectDBReader::new(repo)?;
-    let mut all_commits = Vec::new();
-    let mut seen_commit_ids = HashSet::new(); // To track seen commit IDs
-    let entry_reader =
-        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
+    log::debug!(
+        "api::local::commits::list_by_directory: path {:?} for commit {}",
+        path,
+        commit
+    );
+    // List all the commits
+    let commit_reader = CommitReader::new(repo)?;
+    let object_reader = get_object_reader(repo, &commit.id)?;
 
-    // load all commit entry readers once
-    let commit_entry_readers = get_commit_entry_readers(repo, commit, path)?;
+    let dir_entry_reader =
+        CommitDirEntryReader::new(repo, &commit.id, path, object_reader.clone())?;
+    let mut readers = get_commit_entry_readers(repo, commit, path)?;
+    readers.reverse();
 
-    let files: Vec<PathBuf> = entry_reader.list_files()?;
-    for file_path in files {
-        // Ensure we're only looking at files within the specified directory
-        if file_path.starts_with(path) {
-            let commits_from_file = list_by_file(file_path.as_path(), &commit_entry_readers)?;
-            for commit in commits_from_file {
-                // Check if we've already seen this commit ID
-                if seen_commit_ids.insert(commit.id.clone()) {
-                    // If the insert was successful, the ID was not seen before, so we add the commit to our list
-                    all_commits.push(commit);
-                }
-            }
+    // Loop over all commits and check if this dir is present
+    let mut valid_commit_ids: HashSet<String> = HashSet::new();
+    for (c, _) in &readers {
+        let entry_reader =
+            CommitEntryReader::new_from_commit_id(repo, &c.id, object_reader.clone())?;
+        if entry_reader.has_dir(path) {
+            valid_commit_ids.insert(c.id.clone());
         }
     }
-    all_commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
 
-    Ok(all_commits)
+    // Filter out commits that don't contain this dir
+    readers.retain(|(commit, _)| valid_commit_ids.contains(&commit.id));
+
+    // We're trying to find the latest commit
+    let mut latest_commit: Option<Commit> = None;
+    latest_commit_in_files(&mut latest_commit, &dir_entry_reader, &readers)?;
+
+    let dirs = dir_entry_reader.list_dirs()?;
+    for dir in dirs {
+        // log::debug!("api::local::commits::list_by_directory: dir {:?}", dir);
+        let dir_entry_reader =
+            CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
+        latest_commit_in_files(&mut latest_commit, &dir_entry_reader, &readers)?;
+    }
+
+    // Just return the history from the latest commit
+    if let Some(latest_commit) = latest_commit {
+        let commits = commit_reader.history_from_commit_id(&latest_commit.id)?;
+        let commits = commits
+            .into_iter()
+            .filter(|c| valid_commit_ids.contains(&c.id))
+            .collect();
+        return Ok(commits);
+    }
+
+    Ok(vec![])
 }
 
 fn list_by_file(

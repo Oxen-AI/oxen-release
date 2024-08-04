@@ -26,8 +26,6 @@ lazy_static! {
         (String::from("DF_SIZE"), df_size::compute as CommitCacher),
         // (String::from("ARROW_CONVERSION"), convert_to_arrow::convert_to_arrow as CommitCacher),
     ];
-
-
 }
 
 fn cached_status_db_path(repo: &LocalRepository, commit: &Commit) -> PathBuf {

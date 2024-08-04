@@ -1,5 +1,6 @@
 use crate::constants::{DIRS_DIR, HISTORY_DIR};
 use crate::core::db;
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::{CommitDirEntryReader, CommitReader};
 use crate::error::OxenError;
 use crate::model::{Commit, CommitEntry};
@@ -44,7 +45,7 @@ impl CommitEntryReader {
         commit: &Commit,
     ) -> Result<CommitEntryReader, OxenError> {
         log::debug!("CommitEntryReader::new() commit_id: {}", commit.id);
-        let object_reader = ObjectDBReader::new(repository)?;
+        let object_reader = get_object_reader(repository, &commit.id)?;
         CommitEntryReader::new_from_commit_id(repository, &commit.id, object_reader)
     }
 
@@ -92,6 +93,10 @@ impl CommitEntryReader {
             commit.id
         );
         CommitEntryReader::new(repository, &commit)
+    }
+
+    pub fn get_dir_hash(&self, path: impl AsRef<Path>) -> Result<Option<String>, OxenError> {
+        self.object_reader.get_dir_hash(path)
     }
 
     pub fn list_dirs(&self) -> Result<Vec<PathBuf>, OxenError> {

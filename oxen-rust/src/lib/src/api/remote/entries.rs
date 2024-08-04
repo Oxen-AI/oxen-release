@@ -149,7 +149,7 @@ pub async fn download_dir(
     local_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // Download the commit db for the given commit id or branch
-    let revision = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
+    let commit_id = &entry.resource.as_ref().unwrap().commit.as_ref().unwrap().id;
     let home_dir = util::fs::oxen_tmp_dir()?;
     let repo_dir = home_dir
         .join(&remote_repo.namespace)
@@ -157,7 +157,7 @@ pub async fn download_dir(
     let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
     api::remote::commits::download_commit_entries_db_to_path(
         remote_repo,
-        revision,
+        commit_id,
         &repo_cache_dir,
     )
     .await?;
@@ -174,9 +174,9 @@ pub async fn download_dir(
 
     // Merge it in with the (probably not already extant) local objects db
 
-    let object_reader = ObjectDBReader::new_from_path(repo_dir.clone())?;
+    let object_reader = ObjectDBReader::new_from_path(repo_dir.clone(), commit_id)?;
 
-    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, revision, object_reader)?;
+    let commit_reader = CommitEntryReader::new_from_path(&repo_dir, commit_id, object_reader)?;
     let entries =
         commit_reader.list_directory(Path::new(&entry.resource.as_ref().unwrap().path))?;
 
