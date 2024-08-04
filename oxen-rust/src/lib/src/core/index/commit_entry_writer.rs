@@ -5,8 +5,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
-use crate::core::index::object_db_reader::get_object_reader;
-use crate::core::index::{LegacyCommitDirEntryReader, RefWriter, SchemaWriter};
+use crate::core::index::{LegacyCommitDirEntryReader, ObjectDBReader, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,
@@ -1192,7 +1191,7 @@ impl CommitEntryWriter {
             "commit_staged_entries_with_prog instantiating ObjectDBReader for commit id: {:?}",
             self.commit.id
         );
-        let object_reader = get_object_reader(&self.repository, &self.commit.id)?;
+        let object_reader = ObjectDBReader::new(&self.repository, &self.commit.id)?;
         // Track dirs in commit
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {
@@ -1367,7 +1366,7 @@ impl CommitEntryWriter {
                 .or_default()
                 .push(schema_child_with_status);
         }
-        log::debug!("...giving us schema staged map {:#?}", staged_map);
+        // log::debug!("...giving us schema staged map {:#?}", staged_map);
         Ok(staged_map)
     }
 
