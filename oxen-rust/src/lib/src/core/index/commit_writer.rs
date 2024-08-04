@@ -3,6 +3,7 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::key_val::path_db;
 
 use crate::core::db;
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::{
     self, workspaces, CommitDBReader, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter,
     CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
@@ -175,7 +176,7 @@ impl CommitWriter {
         };
 
         let entries = workspaces::stager::list_files(workspace)?;
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let object_reader = get_object_reader(&self.repository, &branch.commit_id)?;
         let commit_entry_reader = CommitEntryReader::new_from_commit_id(
             &self.repository,
             &branch.commit_id,
@@ -693,8 +694,7 @@ impl CommitWriter {
 
         let dirs_to_paths = self.group_paths_to_dirs(paths);
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
-
+        let object_reader = ObjectDBReader::new(&self.repository, commit_id)?;
         for (dir, paths) in dirs_to_paths.iter() {
             let entry_reader =
                 CommitDirEntryReader::new(&self.repository, commit_id, dir, object_reader.clone())?;

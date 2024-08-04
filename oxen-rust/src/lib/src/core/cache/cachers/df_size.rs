@@ -41,14 +41,6 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
                 COL_HEIGHT => [data_frame_size.height.to_string()])?;
 
             df = df.vstack(&new_df)?;
-            // log::debug!("df tail now is {:?}", df.tail(Some(1)));
-        } else {
-            log::debug!(
-                "skipping entry {:?} at path {:?} exists? {}",
-                entry,
-                path,
-                path.exists()
-            );
         }
     }
 

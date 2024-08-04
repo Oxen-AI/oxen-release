@@ -10,6 +10,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::oxenignore;
 use crate::core::index::ObjectDBReader;
 use crate::core::index::SchemaReader;
@@ -223,21 +224,19 @@ impl Stager {
         let ignore = oxenignore::create(&self.repository);
 
         let mut staged_dirs = self.list_staged_dirs()?;
-
         if dir.is_relative() && dir != self.repository.path {
             staged_dirs.retain(|(path, _)| path.starts_with(dir))
         }
 
         let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
-
         for (dir, status) in &staged_dirs {
             let full_path = self.repository.path.join(dir);
             let stats = self.compute_staged_dir_stats(&full_path, status)?;
             staged_data.staged_dirs.add_stats(&stats);
-            candidate_dirs.insert(self.repository.path.join(dir));
+            candidate_dirs.insert(full_path);
         }
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        let object_reader = get_object_reader(&self.repository, &entry_reader.commit_id)?;
         log::debug!(
             "about to call process_dir untracked on dirs {:?}",
             candidate_dirs
@@ -251,6 +250,8 @@ impl Stager {
                 object_reader.clone(),
             )?;
         }
+
+        log::debug!("About to list schemas");
 
         let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
         for (path, schema) in path_db::list_path_entries(&self.schemas_db, Path::new(""))? {
@@ -324,11 +325,10 @@ impl Stager {
         log::debug!("compute_staged_data Considering <current> dir: {:?}", dir);
         candidate_dirs.insert(dir.to_path_buf());
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
-
         let committer = CommitReader::new(&self.repository)?;
         let commit = committer.head_commit()?;
 
+        let object_reader = get_object_reader(&self.repository, &commit.id)?;
         let entry_reader = CommitEntryReader::new(&self.repository, &commit)?;
 
         let bar = oxen_progress_bar(0, ProgressBarType::Counter);
@@ -426,12 +426,12 @@ impl Stager {
 
         let relative_dir = util::fs::path_relative_to_dir(full_dir, &self.repository.path)?;
         let staged_dir_db: StagedDirEntryDB<MultiThreaded> =
-            StagedDirEntryDB::new(&self.repository, &relative_dir)?;
+            StagedDirEntryDB::new_read_only(&self.repository, &relative_dir)?;
         let dir_reader =
             CommitDirEntryReader::new(&self.repository, &commit.id, &relative_dir, object_reader)?;
 
         // List the staged entries in this dir
-        let staged_entries = self.list_staged_files_in_dir(&relative_dir)?;
+        let staged_entries = staged_dir_db.list_added_paths()?;
 
         for relative_path in &staged_entries {
             if self.should_ignore_path(ignore, relative_path) {
@@ -1024,7 +1024,7 @@ impl Stager {
         let size: u64 = unsafe { std::mem::transmute(total) };
         let msg = format!("Adding directory {short_path:?}");
         let bar = oxen_progress_bar_with_msg(size, msg);
-        let object_reader = match ObjectDBReader::new(&self.repository) {
+        let object_reader = match get_object_reader(&self.repository, &entry_reader.commit_id) {
             Ok(reader) => reader,
             Err(err) => {
                 log::error!("Could not create ObjectDBReader: {}", err);
@@ -1193,7 +1193,7 @@ impl Stager {
             let relative_parent = util::fs::path_relative_to_dir(parent, &self.repository.path)?;
             let staged_db: StagedDirEntryDB<MultiThreaded> =
                 StagedDirEntryDB::new(&self.repository, &relative_parent)?;
-            let object_reader = ObjectDBReader::new(&self.repository)?;
+            let object_reader = get_object_reader(&self.repository, &entry_reader.commit_id)?;
             let entry_reader = CommitDirEntryReader::new(
                 &self.repository,
                 &entry_reader.commit_id,
@@ -1508,51 +1508,12 @@ impl Stager {
         Ok(())
     }
 
-    fn list_staged_files_in_dir(&self, dir: &Path) -> Result<Vec<PathBuf>, OxenError> {
-        let pb = ProgressBar::new_spinner();
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                // .tick_strings(&["-", "\\", "|", "/"]) // Customize the spinner's appearance
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
-        pb.enable_steady_tick(std::time::Duration::from_millis(100)); // Update the spinner every 100ms
-        pb.set_message("🐂 Reading staged files...".to_string());
-
-        let base_dir = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
-        let staged_dir = StagedDirEntryReader::new(&self.repository, &base_dir)?;
-
-        // We pulled this out to show progress over db
-        // TODO: have verbose flag to pass in function
-        // let paths = staged_dir.list_added_paths()?;
-        let db = staged_dir.db.db;
-        let iter = db.iterator(IteratorMode::Start);
-        let mut paths: Vec<PathBuf> = vec![];
-        for item in iter {
-            match item {
-                Ok((key, _value)) => {
-                    match str::from_utf8(&key) {
-                        Ok(key) => {
-                            // return path with native slashes
-                            let os_path = OsPath::from(key);
-                            let new_path = os_path.to_pathbuf();
-                            paths.push(base_dir.join(new_path));
-                            pb.set_message(format!("🐂 Found staged {} files... ", paths.len()));
-                        }
-                        _ => {
-                            log::error!("list_added_paths() Could not decode key {:?}", key)
-                        }
-                    }
-                }
-                _ => {
-                    return Err(OxenError::basic_str(
-                        "Could not read iterate over db values",
-                    ));
-                }
-            }
-        }
-
-        Ok(paths)
+    fn count_staged_files_in_dir(&self, dir: &Path) -> Result<usize, OxenError> {
+        log::debug!("Counting staged files in dir {:?}", dir);
+        let relative = util::fs::path_relative_to_dir(dir, &self.repository.path)?;
+        let staged_dir = StagedDirEntryReader::new(&self.repository, &relative)?;
+        let progress_bar = true;
+        staged_dir.count_added_files(progress_bar)
     }
 
     pub fn list_staged_dirs(&self) -> Result<Vec<(PathBuf, StagedEntryStatus)>, OxenError> {
@@ -1580,7 +1541,7 @@ impl Stager {
         }
 
         // Count in db from relative path
-        let num_files_staged = self.list_staged_files_in_dir(&relative_path)?.len();
+        let num_files_staged = self.count_staged_files_in_dir(&relative_path)?;
 
         // Make sure we have some files added
         if num_files_staged == 0 {
@@ -1589,7 +1550,7 @@ impl Stager {
         }
 
         // Count in fs from full path
-        stats.total_files = util::fs::count_files_in_dir_with_progress(path);
+        stats.total_files = util::fs::count_files_in_dir_w_progress(path);
         stats.num_files_staged = num_files_staged;
 
         Ok(stats)

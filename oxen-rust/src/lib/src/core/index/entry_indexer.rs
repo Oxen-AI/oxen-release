@@ -12,8 +12,9 @@ use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::db;
+use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::pusher::UnsyncedCommitEntries;
-use crate::core::index::{self, puller, versioner, Merger, ObjectDBReader, Stager};
+use crate::core::index::{self, puller, versioner, Merger, Stager};
 use crate::core::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
@@ -339,7 +340,7 @@ impl EntryIndexer {
             .ok_or_else(|| OxenError::basic_str(&remote_branch_err))?;
 
         // Download full commits db
-        let spinner = spinner_with_msg("🐂 Downloading commits db from remote...".to_string());
+        let spinner = spinner_with_msg("🐂 Downloading commits db from remote...");
 
         api::remote::commits::download_commits_db_to_repo(&self.repository, remote_repo).await?;
 
@@ -817,7 +818,7 @@ impl EntryIndexer {
         let commit = commit.clone();
         let commit_reader = CommitEntryReader::new(&repository, &commit)?;
 
-        let object_reader = ObjectDBReader::new(&repository)?;
+        let object_reader = get_object_reader(&repository, &commit.id)?;
 
         for dir_entry_result in WalkDirGeneric::<((), Option<bool>)>::new(&self.repository.path)
             .skip_hidden(true)

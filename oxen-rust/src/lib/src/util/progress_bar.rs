@@ -9,9 +9,9 @@ pub enum ProgressBarType {
     None,
 }
 
-pub fn spinner_with_msg(msg: String) -> ProgressBar {
+pub fn spinner_with_msg(msg: impl AsRef<str>) -> ProgressBar {
     let spinner = ProgressBar::new_spinner();
-    spinner.set_message(msg);
+    spinner.set_message(msg.as_ref().to_owned());
     spinner.set_style(ProgressStyle::default_spinner());
     spinner.enable_steady_tick(Duration::from_millis(100));
     spinner
@@ -68,12 +68,10 @@ pub fn oxify_bar(bar: Arc<ProgressBar>, progress_type: ProgressBarType) -> Arc<P
 pub fn progress_type_to_template(progress_type: ProgressBarType) -> String {
     match progress_type {
         ProgressBarType::Counter => {
-            "{spinner:.green} {msg} [{elapsed_precise}] [{wide_bar}] {pos}/{len} ({eta})"
-                .to_string()
+            "{spinner:.green} {msg} [{elapsed_precise}] [{wide_bar}] {pos}/{len}".to_string()
         }
         ProgressBarType::Bytes => {
-            "{spinner:.green} [{elapsed_precise}] [{wide_bar}] {bytes}/{total_bytes} ({eta})"
-                .to_string()
+            "{spinner:.green} [{elapsed_precise}] [{wide_bar}] {bytes}/{total_bytes}".to_string()
         }
         ProgressBarType::None => "{spinner:.green} [{elapsed_precise}] [{wide_bar}]".to_string(),
     }

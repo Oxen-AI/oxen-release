@@ -183,8 +183,8 @@ pub async fn try_push_remote_repo(
     }
 
     log::debug!(
-        "push_remote_repo commit order after get_commit_objects_to_sync {:?}",
-        commits_to_push
+        "push_remote_repo commit order after get_commit_objects_to_sync {}",
+        commits_to_push.len()
     );
 
     let maybe_remote_branch = api::remote::branches::get_by_name(remote_repo, &branch.name).await?;
@@ -709,8 +709,8 @@ async fn push_missing_commit_entries(
         .collect();
 
     log::debug!(
-        "pushing and we've collected these entries: {:#?}",
-        unsynced_entries
+        "pushing and we've collected these entries: {}",
+        unsynced_entries.len()
     );
 
     spinner.finish_and_clear();

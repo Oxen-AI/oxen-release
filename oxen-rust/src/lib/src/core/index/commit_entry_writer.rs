@@ -8,7 +8,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
-use crate::core::index::{LegacyCommitDirEntryReader, RefWriter, SchemaWriter};
+use crate::core::index::{LegacyCommitDirEntryReader, ObjectDBReader, RefWriter, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,
@@ -26,9 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use super::{
-    versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader, ObjectDBReader,
-};
+use super::{versioner, CommitDirEntryReader, CommitEntryReader, LegacySchemaReader};
 
 pub struct CommitEntryWriter {
     pub repository: LocalRepository,
@@ -726,8 +724,8 @@ impl CommitEntryWriter {
             };
 
             log::debug!(
-                "putting vnode {:#?} into vnodes_db write gather",
-                vnode_object
+                "putting vnode {} into vnodes_db write gather",
+                vnode_object.hash()
             );
             tree_db::put_tree_object(&self.vnodes_db, vnode_object.hash(), &vnode_object)?;
 
@@ -775,7 +773,7 @@ impl CommitEntryWriter {
         for dir in dirs {
             log::debug!("new merkle constructor processing dir {:?}", dir);
             let file_child_objs = self.write_file_objects_for_dir(dir.to_path_buf())?;
-            log::debug!("got file_child_objs {:?}", file_child_objs);
+            log::debug!("got file_child_objs {}", file_child_objs.len());
             let schema_child_objs =
                 self.write_schema_objects_for_dir(dir.to_path_buf(), &schema_map)?;
             log::debug!("got schema_child_objs {:?}", schema_child_objs);
@@ -1193,7 +1191,11 @@ impl CommitEntryWriter {
             );
         }
 
-        let object_reader = ObjectDBReader::new(&self.repository)?;
+        log::debug!(
+            "commit_staged_entries_with_prog instantiating ObjectDBReader for commit id: {:?}",
+            self.commit.id
+        );
+        let object_reader = ObjectDBReader::new(&self.repository, &self.commit.id)?;
         // Track dirs in commit
         for (_path, staged_dirs) in staged_data.staged_dirs.paths.iter() {
             for staged_dir in staged_dirs.iter() {
@@ -1368,7 +1370,7 @@ impl CommitEntryWriter {
                 .or_default()
                 .push(schema_child_with_status);
         }
-        log::debug!("...giving us schema staged map {:#?}", staged_map);
+        // log::debug!("...giving us schema staged map {:#?}", staged_map);
         Ok(staged_map)
     }
 
