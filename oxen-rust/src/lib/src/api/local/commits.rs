@@ -456,25 +456,25 @@ fn latest_commit_in_files(
                     continue;
                 }
             } else {
-                log::debug!(
-                    "api::local::commits::list_by_directory: setting initial commit: {}",
-                    commit
-                );
+                // log::debug!(
+                //     "api::local::commits::list_by_directory: setting initial commit: {}",
+                //     commit
+                // );
                 *latest_commit = Some(commit.clone());
             }
-            log::debug!(
-                "api::local::commits::list_by_directory: considering file: {:?} in commit: {}",
-                file_name,
-                commit
-            );
+            // log::debug!(
+            //     "api::local::commits::list_by_directory: considering file: {:?} in commit: {}",
+            //     file_name,
+            //     commit
+            // );
 
             if let Some(entry) = cer.get_entry(file_name)? {
-                log::debug!(
-                    "api::local::commits::list_by_directory: found file in commit: {}",
-                    commit
-                );
+                // log::debug!(
+                //     "api::local::commits::list_by_directory: found file in commit: {}",
+                //     commit
+                // );
                 if latest_file_hash.is_none() {
-                    log::debug!("api::local::commits::list_by_directory: setting initial file {} latest commit: {}", file_name, commit);
+                    // log::debug!("api::local::commits::list_by_directory: setting initial file {} latest commit: {}", file_name, commit);
 
                     latest_file_hash = Some(entry.hash.clone());
                     latest_file_commit = Some(commit.clone());
@@ -483,14 +483,14 @@ fn latest_commit_in_files(
 
                 let lc = latest_file_commit.as_mut().unwrap();
                 // If the commit is newer than the latest commit, we update the latest commit
-                log::debug!("api::local::commits::list_by_directory: comparing commit: {} with latest commit: {} and hash: {} with latest hash: {}", commit.timestamp, lc.timestamp, entry.hash, latest_file_hash.as_ref().unwrap());
+                // log::debug!("api::local::commits::list_by_directory: comparing commit: {} with latest commit: {} and hash: {} with latest hash: {}", commit.timestamp, lc.timestamp, entry.hash, latest_file_hash.as_ref().unwrap());
                 if commit.timestamp >= lc.timestamp
                     && &entry.hash != latest_file_hash.as_ref().unwrap()
                 {
-                    log::debug!(
-                        "api::local::commits::list_by_directory: updating latest commit: {}",
-                        commit
-                    );
+                    // log::debug!(
+                    //     "api::local::commits::list_by_directory: updating latest commit: {}",
+                    //     commit
+                    // );
                     latest_file_commit = Some(commit.clone());
                     latest_file_hash = Some(entry.hash);
                     *latest_commit = latest_file_commit.clone();

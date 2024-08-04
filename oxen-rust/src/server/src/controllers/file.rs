@@ -41,34 +41,13 @@ pub async fn get(
     let object_reader = get_object_reader(&repo, &commit.id)?;
     let path = &resource.path;
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-        let key = format!(
-            "{}_{}_{}_{}",
-            namespace,
-            repo_name,
-            commit.id,
-            parent.display()
-        );
-        log::debug!("LRU key {}", key);
-
-        let mut cache = app_data.cder_lru.write().unwrap();
-
-        if let Some(cder) = cache.get(&key) {
-            log::debug!("found in LRU");
-            entry = cder.get_entry(file_name)?;
-            log::debug!("got entry {} -> {:?}", key, entry);
-        } else {
-            log::debug!("not found in LRU");
-            let cder = liboxen::core::index::CommitDirEntryReader::new(
-                &repo,
-                &commit.id,
-                parent,
-                object_reader.clone(),
-            )?;
-            log::debug!("looking up entry {}", key);
-            entry = cder.get_entry(file_name)?;
-            log::debug!("got entry {} -> {:?}", key, entry);
-            cache.put(key, cder);
-        }
+        let cder = liboxen::core::index::CommitDirEntryReader::new(
+            &repo,
+            &commit.id,
+            parent,
+            object_reader.clone(),
+        )?;
+        entry = cder.get_entry(file_name)?;
     }
 
     let entry = entry.ok_or(OxenError::path_does_not_exist(path))?;
