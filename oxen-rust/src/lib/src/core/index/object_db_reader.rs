@@ -38,7 +38,7 @@ pub fn get_object_reader(
         Ok(cder.clone())
     } else {
         log::debug!("get_object_reader not found in LRU {}", key);
-        let cder = ObjectDBReader::p_new(repo, commit_id)?;
+        let cder = ObjectDBReader::new(repo, commit_id)?;
         log::debug!("get_object_reader looking up entry {}", key);
         cache.put(key, cder.clone());
         Ok(cder)
@@ -146,7 +146,7 @@ impl ObjectDBReader {
         }))
     }
 
-    pub fn p_new(
+    pub fn new(
         repo: &LocalRepository,
         commit_id: impl AsRef<str>,
     ) -> Result<Arc<ObjectDBReader>, OxenError> {

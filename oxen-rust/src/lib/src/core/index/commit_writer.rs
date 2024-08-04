@@ -6,7 +6,7 @@ use crate::core::db;
 use crate::core::index::object_db_reader::get_object_reader;
 use crate::core::index::{
     self, workspaces, CommitDBReader, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter,
-    CommitReader, EntryIndexer, RefReader, RefWriter,
+    CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
 };
 use crate::error::OxenError;
 use crate::model::{
@@ -702,7 +702,7 @@ impl CommitWriter {
 
         let dirs_to_paths = self.group_paths_to_dirs(paths);
 
-        let object_reader = get_object_reader(&self.repository, commit_id)?;
+        let object_reader = ObjectDBReader::new(&self.repository, commit_id)?;
         for (dir, paths) in dirs_to_paths.iter() {
             let entry_reader =
                 CommitDirEntryReader::new(&self.repository, commit_id, dir, object_reader.clone())?;
