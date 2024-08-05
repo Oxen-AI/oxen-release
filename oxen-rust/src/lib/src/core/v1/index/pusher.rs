@@ -3,6 +3,7 @@
 
 use crate::api::client::commits::ChunkParams;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::repositories;
 use crate::repositories::entries::compute_generic_entries_size;
 use crate::util::concurrency;
@@ -27,12 +28,6 @@ use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteReposito
 
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
-
-#[derive(Debug)]
-pub struct UnsyncedCommitEntries {
-    pub commit: Commit,
-    pub entries: Vec<Entry>,
-}
 
 pub async fn push(
     repo: &LocalRepository,

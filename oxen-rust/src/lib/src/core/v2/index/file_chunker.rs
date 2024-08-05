@@ -109,7 +109,6 @@ pub struct ChunkShardFile {
 
 impl ChunkShardFile {
     pub fn db_path(repo: &LocalRepository) -> PathBuf {
-        
         util::fs::oxen_hidden_dir(&repo.path)
             .join(TREE_DIR)
             .join("shards")

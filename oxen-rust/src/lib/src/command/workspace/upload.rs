@@ -24,6 +24,7 @@ mod tests {
     use super::*;
     use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 

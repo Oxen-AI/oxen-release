@@ -13,11 +13,12 @@ use std::sync::Arc;
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::db;
 use crate::core::v1::index::object_db_reader::get_object_reader;
-use crate::core::v1::index::pusher::UnsyncedCommitEntries;
+
 use crate::core::v1::index::{self, puller, versioner, Merger, Stager};
 use crate::core::v1::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{
     Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };

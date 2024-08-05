@@ -78,7 +78,6 @@ mod tests {
 
     use std::path::Path;
 
-    
     use crate::command;
     use crate::error::OxenError;
     use crate::repositories;

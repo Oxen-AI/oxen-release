@@ -82,7 +82,8 @@ impl CommitMerkleTree {
     ) -> Result<CommitMerkleTreeNode, OxenError> {
         // Dir hashes are stored with extra quotes in the db, remove them
         let node_hash = node_hash.replace('"', "");
-        let mut node = CommitMerkleTreeNode::root(&node_hash);
+        let hash = u128::from_str_radix(&node_hash, 16).unwrap();
+        let mut node = CommitMerkleTreeNode::root(hash);
         let mut node_db = CommitMerkleTree::open_node_db(repo, node_hash)?;
         CommitMerkleTree::read_children_from_node(repo, &mut node_db, &mut node, recurse)?;
         Ok(node)
@@ -262,24 +263,26 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::Dir => {
                 let dir = node.dir().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} ({})",
+                    "{}[{:?}] {:?} -> {} {} ({} nodes) ({} files)",
                     "  ".repeat(indent as usize),
                     node.dtype,
-                    dir.path,
+                    dir.name,
                     node.hash,
-                    node.children.len()
+                    bytesize::ByteSize::b(dir.num_bytes),
+                    node.children.len(),
+                    dir.num_files()
                 )
             }
             MerkleTreeNodeType::File => {
                 let file = node.file().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} ({} chunks) {}",
+                    "{}[{:?}] {:?} -> {} {} [{}]",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     file.name,
                     node.hash,
-                    file.chunk_hashes.len(),
-                    bytesize::ByteSize::b(file.num_bytes)
+                    bytesize::ByteSize::b(file.num_bytes),
+                    format!("{:x}", file.last_commit_id)
                 )
             }
             MerkleTreeNodeType::Schema => {
@@ -288,7 +291,7 @@ impl CommitMerkleTree {
                     "{}[{:?}] {:?} -> {} ({})",
                     "  ".repeat(indent as usize),
                     node.dtype,
-                    schema.path,
+                    schema.name,
                     node.hash,
                     node.children.len()
                 )

@@ -63,3 +63,10 @@ pub use crate::core::v1::index::staged_dir_entry_db::StagedDirEntryDB;
 pub use crate::core::v1::index::staged_dir_entry_reader::StagedDirEntryReader;
 pub use crate::core::v1::index::stager::Stager;
 pub use crate::core::v1::index::tree_object_reader::TreeObjectReader;
+
+use crate::model::LocalRepository;
+
+pub fn is_v1(repo: &LocalRepository) -> bool {
+    // We added the tree db in v2, so if it doesn't exist, we are in v1
+    !repo.path.join(".oxen").join("tree").exists()
+}

@@ -1,6 +1,5 @@
 use rocksdb::{
-    BlockBasedIndexType, BlockBasedOptions, DBCompactionStyle, DBCompressionType, LogLevel,
-    Options,
+    BlockBasedIndexType, BlockBasedOptions, DBCompactionStyle, DBCompressionType, LogLevel, Options,
 };
 
 pub fn default() -> Options {

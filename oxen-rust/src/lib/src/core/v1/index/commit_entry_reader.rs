@@ -261,6 +261,8 @@ impl CommitEntryReader {
         let mut dirs = self.list_dirs()?;
         dirs.sort();
 
+        log::debug!("CommitEntryReader::list_directory() dirs: {}", dirs.len());
+
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
             // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
@@ -273,6 +275,13 @@ impl CommitEntryReader {
                 )?;
                 let mut dir_entries = entry_reader.list_entries()?;
                 entries.append(&mut dir_entries);
+
+                if entries.len() % 10000 == 0 {
+                    log::debug!(
+                        "CommitEntryReader::list_directory() entries: {}",
+                        entries.len()
+                    );
+                }
             }
         }
         Ok(entries)

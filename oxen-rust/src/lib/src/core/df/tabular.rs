@@ -956,7 +956,6 @@ pub fn show_node(
         let parquet_reader = ParquetReader::new(chunk_reader);
         log::debug!("Reading chunked parquet");
 
-        
         match parquet_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading chunked parquet");
@@ -972,7 +971,6 @@ pub fn show_node(
         let parquet_reader = IpcReader::new(chunk_reader);
         log::debug!("Reading chunked arrow");
 
-        
         match parquet_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading chunked arrow");
@@ -986,7 +984,7 @@ pub fn show_node(
     } else {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let json_reader = JsonLineReader::new(chunk_reader);
-        
+
         match json_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading line delimited json");

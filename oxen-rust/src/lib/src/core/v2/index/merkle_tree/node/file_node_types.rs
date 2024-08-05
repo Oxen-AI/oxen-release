@@ -8,12 +8,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum FileChunkType {
-    None,
+    SingleFile,
     Chunked,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum FileStorageType {
-    Local,
+    Disk,
     S3,
 }
