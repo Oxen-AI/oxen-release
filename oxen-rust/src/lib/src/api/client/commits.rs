@@ -4,12 +4,12 @@ use crate::constants::{
 };
 
 use crate::core::db::{self};
-use crate::core::v1::index::pusher::UnsyncedCommitEntries;
 use crate::core::v1::index::{
     CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger,
 };
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::fs::oxen_hidden_dir;
@@ -1196,12 +1196,14 @@ mod tests {
     use crate::constants::COMMITS_DIR;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_PAGE_SIZE;
+    use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::db;
-    use crate::core::v1::index::pusher::UnsyncedCommitEntries;
+
     use crate::core::v1::index::CommitDBReader;
     use crate::error::OxenError;
 
     use crate::model::entry::commit_entry::Entry;
+    use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
     use crate::opts::PaginateOpts;
     use crate::repositories;
     use crate::test;
@@ -1534,7 +1536,7 @@ mod tests {
                 let dst = api::client::commits::download_commits_db_to_path(&remote_repo, &new_dir)
                     .await?;
 
-                let db_dir = new_dir.join(COMMITS_DIR);
+                let db_dir = new_dir.join(OXEN_HIDDEN_DIR).join(COMMITS_DIR);
                 assert_eq!(dst, db_dir);
                 assert!(db_dir.exists());
 

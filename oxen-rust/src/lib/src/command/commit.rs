@@ -67,7 +67,6 @@ Stage a file or directory with `oxen add <file>`"
 mod tests {
     use std::path::Path;
 
-    
     use crate::command;
     use crate::core::v1::index::CommitEntryReader;
     use crate::error::OxenError;

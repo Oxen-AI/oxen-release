@@ -42,7 +42,7 @@ pub fn merge<S: AsRef<str>>(
 
 #[cfg(test)]
 mod tests {
-    
+
     use crate::command;
     use crate::core::df::tabular;
     use crate::error::OxenError;

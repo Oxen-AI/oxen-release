@@ -839,6 +839,50 @@ pub fn is_utf8(path: &Path) -> bool {
     }
 }
 
+pub fn data_type_from_extension(path: &Path) -> EntryDataType {
+    let ext = path.extension().unwrap_or_default().to_string_lossy();
+    match ext.as_ref() {
+        "json" => EntryDataType::Tabular,
+        "csv" => EntryDataType::Tabular,
+        "tsv" => EntryDataType::Tabular,
+        "parquet" => EntryDataType::Tabular,
+        "arrow" => EntryDataType::Tabular,
+        "ndjson" => EntryDataType::Tabular,
+        "jsonl" => EntryDataType::Tabular,
+
+        "md" => EntryDataType::Text,
+        "txt" => EntryDataType::Text,
+        "html" => EntryDataType::Text,
+        "xml" => EntryDataType::Text,
+        "yaml" => EntryDataType::Text,
+        "yml" => EntryDataType::Text,
+        "toml" => EntryDataType::Text,
+
+        "png" => EntryDataType::Image,
+        "jpg" => EntryDataType::Image,
+        "jpeg" => EntryDataType::Image,
+        "gif" => EntryDataType::Image,
+        "bmp" => EntryDataType::Image,
+        "tiff" => EntryDataType::Image,
+        "heic" => EntryDataType::Image,
+        "heif" => EntryDataType::Image,
+        "webp" => EntryDataType::Image,
+
+        "mp4" => EntryDataType::Video,
+        "avi" => EntryDataType::Video,
+        "mov" => EntryDataType::Video,
+
+        "mp3" => EntryDataType::Audio,
+        "wav" => EntryDataType::Audio,
+        "aac" => EntryDataType::Audio,
+        "ogg" => EntryDataType::Audio,
+        "flac" => EntryDataType::Audio,
+        "opus" => EntryDataType::Audio,
+
+        _ => EntryDataType::Binary,
+    }
+}
+
 pub fn file_mime_type(path: &Path) -> String {
     match infer::get_from_path(path) {
         Ok(Some(kind)) => String::from(kind.mime_type()),
