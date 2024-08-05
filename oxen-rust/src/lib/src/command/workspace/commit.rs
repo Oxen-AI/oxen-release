@@ -7,6 +7,7 @@ use crate::api;
 use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, NewCommitBody};
+use crate::repositories;
 
 /// Commit changes that are staged on the remote repository on the current
 /// checked out local branch
@@ -15,13 +16,13 @@ pub async fn commit(
     workspace_id: &str,
     message: &str,
 ) -> Result<Option<Commit>, OxenError> {
-    let branch = api::local::branches::current_branch(repo)?;
+    let branch = repositories::branches::current_branch(repo)?;
     if branch.is_none() {
         return Err(OxenError::must_be_on_valid_branch());
     }
     let branch = branch.unwrap();
 
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let remote_repo = api::client::repositories::get_default_remote(repo).await?;
     let cfg = UserConfig::get()?;
     let body = NewCommitBody {
         message: message.to_string(),
@@ -29,7 +30,7 @@ pub async fn commit(
         email: cfg.email,
     };
     let commit =
-        api::remote::workspaces::commit(&remote_repo, &branch.name, workspace_id, &body).await?;
+        api::client::workspaces::commit(&remote_repo, &branch.name, workspace_id, &body).await?;
     Ok(Some(commit))
 }
 
@@ -66,7 +67,7 @@ mod tests {
 
                 // Create workspace
                 let workspace_id = "my_workspace";
-                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
                     .await?;
 
                 // Index the dataset
@@ -99,7 +100,7 @@ mod tests {
                 assert!(result.is_err());
 
                 // Now status should be empty
-                // let branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
+                // let branch = repositories::branches::current_branch(&cloned_repo)?.unwrap();
                 // let directory = Path::new("");
                 // let opts = StagedDataOpts {
                 //     is_remote: true,
@@ -127,13 +128,13 @@ mod tests {
     //         let main_path = "images/folder";
     //         let identifier = UserConfig::identifier()?;
 
-    //         api::remote::branches::create_from_or_get(&remote_repo, new_branch, main_branch)
+    //         api::client::branches::create_from_or_get(&remote_repo, new_branch, main_branch)
     //             .await?;
     //         // assert_eq!(branch.name, branch_name);
 
     //         // Advance head on main branch, leave behind-main behind
     //         let path = test::test_img_file();
-    //         let result = api::remote::staging::add_file(
+    //         let result = api::client::staging::add_file(
     //             &remote_repo,
     //             main_branch,
     //             &identifier,
@@ -148,7 +149,7 @@ mod tests {
     //             author: "Test User".to_string(),
     //             email: "test@oxen.ai".to_string(),
     //         };
-    //         api::remote::staging::commit(&remote_repo, main_branch, &identifier, &body).await?;
+    //         api::client::staging::commit(&remote_repo, main_branch, &identifier, &body).await?;
 
     //         // Make an EMPTY commit to behind-main
     //         let body = NewCommitBody {
@@ -156,11 +157,11 @@ mod tests {
     //             author: "Test User".to_string(),
     //             email: "test@oxen.ai".to_string(),
     //         };
-    //         api::remote::staging::commit(&remote_repo, new_branch, &identifier, &body).await?;
+    //         api::client::staging::commit(&remote_repo, new_branch, &identifier, &body).await?;
 
     //         // Add file at images/folder to behind-main, committed to main
     //         let image_path = test::test_img_file();
-    //         let result = api::remote::staging::add_file(
+    //         let result = api::client::staging::add_file(
     //             &remote_repo,
     //             new_branch,
     //             &identifier,
@@ -174,7 +175,7 @@ mod tests {
     //         let page_num = constants::DEFAULT_PAGE_NUM;
     //         let page_size = constants::DEFAULT_PAGE_SIZE;
     //         let path = Path::new("");
-    //         let entries = api::remote::staging::status(
+    //         let entries = api::client::staging::status(
     //             &remote_repo,
     //             new_branch,
     //             &identifier,

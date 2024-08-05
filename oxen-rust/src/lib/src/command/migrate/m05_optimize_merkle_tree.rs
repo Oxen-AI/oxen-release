@@ -4,16 +4,16 @@ use std::path::Path;
 use super::Migrate;
 
 use crate::core::db;
-use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
+use crate::core::db::key_val::str_val_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::key_val::{self, str_val_db};
-use crate::core::index::file_chunker::{ChunkShardManager, FileChunker};
-use crate::core::index::merkle_tree::node::*;
-use crate::core::index::{CommitEntryReader, CommitReader};
+use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
+use crate::core::v1::index::{CommitEntryReader, CommitReader};
+// use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
+use crate::core::v2::index::merkle_tree::node::*;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, constants, util};
+use crate::{constants, repositories, util};
 
 pub struct OptimizeMerkleTreesMigration;
 impl Migrate for OptimizeMerkleTreesMigration {
@@ -57,7 +57,7 @@ impl Migrate for OptimizeMerkleTreesMigration {
 
 pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
     println!("🐂 Collecting namespaces to migrate...");
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
@@ -67,7 +67,7 @@ pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError
             "This is the namespace path we're walking: {:?}",
             namespace_path.canonicalize()?
         );
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match create_merkle_trees_up(&repo) {
                 Ok(_) => {}

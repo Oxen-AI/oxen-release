@@ -1,4 +1,3 @@
-use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::COMMITS_DIR;
 use liboxen::constants::DIRS_DIR;
@@ -8,17 +7,18 @@ use liboxen::constants::HISTORY_DIR;
 use liboxen::constants::OBJECTS_DIR;
 use liboxen::constants::TREE_DIR;
 use liboxen::constants::VERSION_FILE_NAME;
-use liboxen::core::cache::cacher_status::CacherStatusType;
-use liboxen::core::cache::cachers::content_validator;
-use liboxen::core::cache::commit_cacher;
-use liboxen::core::index::CommitReader;
-use liboxen::core::index::CommitWriter;
+use liboxen::core::v1::cache::cacher_status::CacherStatusType;
+use liboxen::core::v1::cache::cachers::content_validator;
+use liboxen::core::v1::cache::commit_cacher;
+use liboxen::core::v1::index::CommitReader;
+use liboxen::core::v1::index::CommitWriter;
 
-use liboxen::core::index::RefWriter;
+use liboxen::core::v1::index::RefWriter;
 use liboxen::error::OxenError;
 use liboxen::model::commit::CommitWithBranchName;
 use liboxen::model::RepoNew;
 use liboxen::model::{Commit, LocalRepository};
+use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::branch::BranchName;
 use liboxen::view::commit::CommitSyncStatusResponse;
@@ -73,7 +73,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let commits = api::local::commits::list(&repo).unwrap_or_default();
+    let commits = repositories::commits::list(&repo).unwrap_or_default();
     Ok(HttpResponse::Ok().json(ListCommitResponse::success(commits)))
 }
 
@@ -102,7 +102,7 @@ pub async fn commit_history(
 
     match &resource {
         Some(resource) if resource.path != Path::new("") => {
-            let commits = api::local::commits::list_by_resource_from_paginated(
+            let commits = repositories::commits::list_by_resource_from_paginated(
                 &repo,
                 &resource.path,
                 commit.as_ref().unwrap(), // Safe unwrap: `commit` is Some if `resource` is Some
@@ -115,8 +115,12 @@ pub async fn commit_history(
             // Handling the case where resource is None or its path is empty
             let revision_id = revision.as_ref().or_else(|| commit.as_ref().map(|c| &c.id));
             if let Some(revision_id) = revision_id {
-                let commits =
-                    api::local::commits::list_from_paginated(&repo, revision_id, page, page_size)?;
+                let commits = repositories::commits::list_from_paginated(
+                    &repo,
+                    revision_id,
+                    page,
+                    page_size,
+                )?;
                 Ok(HttpResponse::Ok().json(commits))
             } else {
                 Err(OxenHttpError::NotFound)
@@ -138,7 +142,7 @@ pub async fn list_all(
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
-    let paginated_commits = api::local::commits::list_all_paginated(&repo, page, page_size)?;
+    let paginated_commits = repositories::commits::list_all_paginated(&repo, page, page_size)?;
 
     Ok(HttpResponse::Ok().json(paginated_commits))
 }
@@ -149,7 +153,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let repo_name = path_param(&req, "repo_name")?;
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let commit = api::local::commits::get_by_id(&repo, &commit_id)?
+    let commit = repositories::commits::get_by_id(&repo, &commit_id)?
         .ok_or(OxenError::revision_not_found(commit_id.into()))?;
 
     Ok(HttpResponse::Ok().json(CommitResponse {
@@ -165,7 +169,7 @@ pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpRespon
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let commits_to_sync = api::local::commits::list_with_missing_dbs(&repo, &commit_id)?;
+    let commits_to_sync = repositories::commits::list_with_missing_dbs(&repo, &commit_id)?;
 
     log::debug!(
         "About to respond with {} commits to sync",
@@ -185,7 +189,7 @@ pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse,
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let commits_to_sync = api::local::commits::list_with_missing_entries(&repo, &commit_id)?;
+    let commits_to_sync = repositories::commits::list_with_missing_entries(&repo, &commit_id)?;
 
     Ok(HttpResponse::Ok().json(ListCommitResponse {
         status: StatusMessage::resource_found(),
@@ -200,7 +204,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let repository = get_repo(&app_data.path, namespace, repo_name)?;
     let commit_id = path_param(&req, "commit_id")?;
 
-    let commits = api::local::commits::list_from(&repository, &commit_id)?;
+    let commits = repositories::commits::list_from(&repository, &commit_id)?;
     // // sort commits by timestamp
     // let mut commits = commits.into_iter().collect::<Vec<_>>();
     // commits.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
@@ -294,7 +298,7 @@ pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
     let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repository = get_repo(&app_data.path, namespace, &repo_name)?;
 
-    let commit = api::local::revisions::get(&repository, &commit_or_branch)?.ok_or(
+    let commit = repositories::revisions::get(&repository, &commit_or_branch)?.ok_or(
         OxenError::revision_not_found(commit_or_branch.clone().into()),
     )?;
 
@@ -397,8 +401,8 @@ fn p_get_parents(
     repository: &LocalRepository,
     commit_or_branch: &str,
 ) -> Result<Vec<Commit>, OxenError> {
-    match api::local::revisions::get(repository, commit_or_branch)? {
-        Some(commit) => api::local::commits::get_parents(repository, &commit),
+    match repositories::revisions::get(repository, commit_or_branch)? {
+        Some(commit) => repositories::commits::get_parents(repository, &commit),
         None => Ok(vec![]),
     }
 }
@@ -478,7 +482,7 @@ pub async fn download_commit_entries_db(
     let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
 
-    let commit = api::local::revisions::get(&repository, &commit_or_branch)?
+    let commit = repositories::revisions::get(&repository, &commit_or_branch)?
         .ok_or(OxenError::revision_not_found(commit_or_branch.into()))?;
 
     let buffer = compress_commit(&repository, &commit)?;
@@ -551,7 +555,7 @@ pub async fn create(
         };
 
     // Create Commit from uri params
-    match api::local::commits::create_commit_object(&repository.path, bn.branch_name, &commit) {
+    match repositories::commits::create_commit_object(&repository.path, bn.branch_name, &commit) {
         Ok(_) => Ok(HttpResponse::Ok().json(CommitResponse {
             status: StatusMessage::resource_created(),
             commit: commit.to_owned(),
@@ -595,7 +599,7 @@ pub async fn create_bulk(
         // Get commit from commit_with_branch
         let commit = Commit::from_with_branch_name(commit_with_branch);
 
-        if let Err(err) = api::local::commits::create_commit_object_with_committers(
+        if let Err(err) = repositories::commits::create_commit_object_with_committers(
             &repository.path,
             bn,
             &commit,
@@ -640,7 +644,7 @@ pub async fn upload_chunk(
 
     let commit = match commit_reader.get_commit_by_id(&commit_id)? {
         Some(commit) => commit,
-        None => api::local::commits::head_commit(&repo)?,
+        None => repositories::commits::head_commit(&repo)?,
     };
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
@@ -844,7 +848,7 @@ pub async fn upload_tree(
     let client_head_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
     // Get head commit on sever repo
-    let server_head_commit = api::local::commits::head_commit(&repo)?;
+    let server_head_commit = repositories::commits::head_commit(&repo)?;
 
     // Unpack in tmp/tree/commit_id
     let tmp_dir = util::fs::oxen_hidden_dir(&repo.path).join("tmp");
@@ -888,13 +892,13 @@ pub async fn can_push(
     log::debug!("in the new_can_push endpoint");
 
     // Ensuring these commits exist on server
-    let _server_head_commit = api::local::commits::get_by_id(&repo, server_head_id)?.ok_or(
+    let _server_head_commit = repositories::commits::get_by_id(&repo, server_head_id)?.ok_or(
         OxenError::revision_not_found(server_head_id.to_owned().into()),
     )?;
-    let _lca_commit = api::local::commits::get_by_id(&repo, lca_id)?
+    let _lca_commit = repositories::commits::get_by_id(&repo, lca_id)?
         .ok_or(OxenError::revision_not_found(lca_id.to_owned().into()))?;
 
-    let can_merge = !api::local::commits::head_commits_have_conflicts(
+    let can_merge = !repositories::commits::head_commits_have_conflicts(
         &repo,
         &client_head_id,
         server_head_id,
@@ -930,7 +934,7 @@ pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     let name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
-    let root = api::local::commits::root_commit(&repo)?;
+    let root = repositories::commits::root_commit(&repo)?;
 
     Ok(HttpResponse::Ok().json(CommitResponse {
         status: StatusMessage::resource_found(),
@@ -1014,9 +1018,9 @@ pub async fn upload(
 
     // Match commit as either the provided commit id if it exists, or the head commit of the repo otherwise.
 
-    let commit = match api::local::commits::get_by_id(&repo, &commit_id)? {
+    let commit = match repositories::commits::get_by_id(&repo, &commit_id)? {
         Some(commit) => commit,
-        None => api::local::commits::head_commit(&repo)?,
+        None => repositories::commits::head_commit(&repo)?,
     };
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
@@ -1058,10 +1062,9 @@ pub async fn complete(req: HttpRequest) -> Result<HttpResponse, Error> {
     let repo_name: &str = req.match_info().get("repo_name").unwrap();
     let commit_id: &str = req.match_info().get("commit_id").unwrap();
 
-    match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)
-    {
+    match repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name) {
         Ok(Some(repo)) => {
-            match api::local::commits::get_by_id(&repo, commit_id) {
+            match repositories::commits::get_by_id(&repo, commit_id) {
                 Ok(Some(commit)) => {
                     // Kick off processing in background thread because could take awhile
                     std::thread::spawn(move || {
@@ -1126,14 +1129,13 @@ pub async fn complete_bulk(req: HttpRequest, body: String) -> Result<HttpRespons
     };
 
     // Get repo by name
-    let repo =
-        api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
-            .ok_or(OxenError::repo_not_found(RepoNew::from_namespace_name(
-                namespace, repo_name,
-            )))?;
+    let repo = repositories::get_by_namespace_and_name(&app_data.path, namespace, repo_name)?
+        .ok_or(OxenError::repo_not_found(RepoNew::from_namespace_name(
+            namespace, repo_name,
+        )))?;
 
     // List commits for this repo
-    let all_commits = api::local::commits::list(&repo)?;
+    let all_commits = repositories::commits::list(&repo)?;
 
     // Read through existing commits and find any with pending status stuck from previous pushes.
     // This shouldn't be a super common case, but can freeze the repo on commits from old versions
@@ -1284,7 +1286,7 @@ fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]
         log::debug!("tmp objects dir exists, let's do some stuff");
 
         // merge_objects_dbs(hidden_dir.to_path_buf()).unwrap();
-        api::local::commits::merge_objects_dbs(&hidden_dir.join(OBJECTS_DIR), &tmp_objects_dir)
+        repositories::commits::merge_objects_dbs(&hidden_dir.join(OBJECTS_DIR), &tmp_objects_dir)
             .unwrap();
 
         std::fs::remove_dir_all(tmp_objects_dir.clone()).unwrap();
@@ -1303,10 +1305,10 @@ mod tests {
     use std::path::Path;
     use std::thread;
 
-    use liboxen::api;
     use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
+    use liboxen::repositories;
     use liboxen::util;
     use liboxen::view::{CommitResponse, ListCommitResponse};
 
@@ -1386,7 +1388,7 @@ mod tests {
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
-        api::local::branches::create_checkout(&repo, branch_name)?;
+        repositories::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::add(&repo, path)?;
@@ -1428,14 +1430,14 @@ mod tests {
         let namespace = "Testing-Namespace";
         let repo_name = "Testing-Name";
         let repo = test::create_local_repo(&sync_dir, namespace, repo_name)?;
-        let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+        let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         command::add(&repo, path)?;
         command::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
-        api::local::branches::create_checkout(&repo, branch_name)?;
+        repositories::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         command::add(&repo, path)?;

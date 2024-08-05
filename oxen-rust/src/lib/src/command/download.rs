@@ -16,8 +16,8 @@ pub async fn download(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     // Ping server telling it we are about to download
-    api::remote::repositories::pre_download(repo).await?;
-    api::remote::entries::download_entry(
+    api::client::repositories::pre_download(repo).await?;
+    api::client::entries::download_entry(
         repo,
         remote_path.as_ref(),
         local_path.as_ref(),
@@ -25,7 +25,7 @@ pub async fn download(
     )
     .await?;
     // Ping server telling it we finished downloading
-    api::remote::repositories::post_download(repo).await?;
+    api::client::repositories::post_download(repo).await?;
     Ok(())
 }
 
@@ -35,6 +35,7 @@ mod tests {
     use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_REMOTE_NAME;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -65,7 +66,7 @@ mod tests {
             command::push(&repo).await?;
 
             // Now list the remote
-            let branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
             let dir = Path::new("train");
 
             // Download the directory
@@ -109,7 +110,7 @@ mod tests {
             command::push(&repo).await?;
 
             // Now list the remote
-            let branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
             let dir = Path::new("train");
 
             // Download the directory

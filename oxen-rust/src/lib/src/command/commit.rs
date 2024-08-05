@@ -3,12 +3,12 @@
 //! Commit the staged data
 //!
 
-use crate::api;
 use crate::command;
-use crate::core::index::CommitEntryWriter;
+use crate::core::v1::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
+use crate::repositories;
 
 /// # Commit the staged files in the repo
 ///
@@ -51,7 +51,7 @@ Stage a file or directory with `oxen add <file>`"
         ));
     }
 
-    let commit = api::local::commits::commit(repo, &status, message)?;
+    let commit = repositories::commits::commit(repo, &status, message)?;
     // Open then close commit entry writer to force indexing on rocksbds
     {
         // Get time here
@@ -67,11 +67,12 @@ Stage a file or directory with `oxen add <file>`"
 mod tests {
     use std::path::Path;
 
-    use crate::api;
+    
     use crate::command;
-    use crate::core::index::CommitEntryReader;
+    use crate::core::v1::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -95,7 +96,7 @@ mod tests {
             assert_eq!(repo_status.untracked_files.len(), 0);
             assert_eq!(repo_status.untracked_dirs.len(), 0);
 
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 2);
 
             Ok(())
@@ -119,7 +120,7 @@ mod tests {
             command::commit(&repo, "My message")?;
 
             // Get status and make sure the file was not committed
-            let head = api::local::commits::head_commit(&repo)?;
+            let head = repositories::commits::head_commit(&repo)?;
             let commit_reader = CommitEntryReader::new(&repo, &head)?;
             let commit_list = commit_reader.list_files()?;
             assert_eq!(commit_list.len(), 0);
@@ -154,7 +155,7 @@ mod tests {
             assert_eq!(repo_status.untracked_files.len(), 2);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 2);
 
             Ok(())
@@ -177,7 +178,7 @@ mod tests {
             assert_eq!(repo_status.untracked_files.len(), 2);
             assert_eq!(repo_status.untracked_dirs.len(), 4);
 
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 2);
 
             Ok(())
@@ -188,11 +189,11 @@ mod tests {
     async fn test_command_commit_top_level_dir_then_revert() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Create a branch to make the changes
             let branch_name = "feature/adding-train";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Track & commit (train dir already created in helper)
             let train_path = repo.path.join("train");
@@ -228,11 +229,11 @@ mod tests {
     async fn test_command_commit_second_level_dir_then_revert() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Create a branch to make the changes
             let branch_name = "feature/adding-annotations";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Track & commit (dir already created in helper)
             let new_dir_path = repo.path.join("annotations").join("train");
@@ -293,11 +294,11 @@ mod tests {
             command::add(&repo, &labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Add a "none" category on a branch
             let branch_name = "change-labels";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
             command::add(&repo, &labels_path)?;
@@ -331,7 +332,7 @@ mod tests {
             //  3) change-labels branch modification
             //  4) main branch modification
             //  5) merge commit
-            let history = api::local::commits::list(&repo)?;
+            let history = repositories::commits::list(&repo)?;
             assert_eq!(history.len(), 5);
 
             Ok(())
@@ -360,7 +361,7 @@ mod tests {
             command::commit(&repo, "My message")?;
 
             // Get the most recent commit - the new head commit
-            let head = api::local::commits::head_commit(&repo)?;
+            let head = repositories::commits::head_commit(&repo)?;
 
             // Initialize a commit entry reader here
             let commit_reader = CommitEntryReader::new(&repo, &head)?;

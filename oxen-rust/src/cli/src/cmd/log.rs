@@ -5,10 +5,10 @@ use minus::Pager;
 use std::fmt::Write;
 use time::format_description;
 
-use liboxen::api;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::LogOpts;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "log";
@@ -74,7 +74,7 @@ impl LogCmd {
         opts: &LogOpts,
         num_commits: usize,
     ) -> Result<(), OxenError> {
-        let commits = api::local::commits::list_with_opts(repo, opts).await?;
+        let commits = repositories::commits::list_with_opts(repo, opts).await?;
         let commits = commits.iter().take(num_commits);
 
         // Fri, 21 Oct 2022 16:08:39 -0700

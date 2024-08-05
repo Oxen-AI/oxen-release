@@ -4,9 +4,10 @@
 //!
 
 use crate::api;
-use crate::core::index::EntryIndexer;
+use crate::core::v1::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch};
+use crate::repositories;
 
 /// # Fetch the remote branches and objects
 pub async fn fetch(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
@@ -24,12 +25,12 @@ pub async fn fetch_remote(
     let remote = repo
         .get_remote(remote_name)
         .ok_or(OxenError::remote_not_set(remote_name))?;
-    let remote_repo = api::remote::repositories::get_by_remote(&remote)
+    let remote_repo = api::client::repositories::get_by_remote(&remote)
         .await?
         .ok_or(OxenError::remote_not_found(remote.clone()))?;
 
-    let remote_branches = api::remote::branches::list(&remote_repo).await?;
-    let local_branches = api::local::branches::list(repo)?;
+    let remote_branches = api::client::branches::list(&remote_repo).await?;
+    let local_branches = repositories::branches::list(repo)?;
 
     // Find branches that are on the remote but not on the local
     let mut branches_to_create = vec![];
@@ -65,6 +66,7 @@ mod tests {
     use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
 
     #[tokio::test]
@@ -93,19 +95,19 @@ mod tests {
                 let cloned_repo =
                     command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
-                let branches = api::local::branches::list(&cloned_repo)?;
+                let branches = repositories::branches::list(&cloned_repo)?;
 
                 assert_eq!(1, branches.len());
 
                 command::fetch(&cloned_repo).await?;
 
-                let branches = api::local::branches::list(&cloned_repo)?;
+                let branches = repositories::branches::list(&cloned_repo)?;
                 assert_eq!(3, branches.len());
 
-                let current_branch = api::local::branches::current_branch(&cloned_repo)?.unwrap();
+                let current_branch = repositories::branches::current_branch(&cloned_repo)?.unwrap();
                 assert_eq!(current_branch.name, DEFAULT_BRANCH_NAME);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })

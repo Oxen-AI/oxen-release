@@ -8,8 +8,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use super::helpers;
-use crate::core::index::{oxenignore, CommitEntryReader, SchemaReader, Stager};
-use crate::{api, error::OxenError, model::LocalRepository};
+use crate::core::v1::index::{oxenignore, CommitEntryReader, SchemaReader, Stager};
+use crate::{error::OxenError, model::LocalRepository, repositories};
 /// # Stage files into repository
 ///
 /// ```
@@ -39,7 +39,7 @@ use crate::{api, error::OxenError, model::LocalRepository};
 /// ```
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
     let stager = Stager::new_with_merge(repo)?;
-    let commit = api::local::commits::head_commit(repo)?;
+    let commit = repositories::commits::head_commit(repo)?;
     let reader = CommitEntryReader::new(repo, &commit)?;
     let schema_reader = SchemaReader::new(repo, &commit.id)?;
     let ignore = oxenignore::create(repo);
@@ -56,7 +56,7 @@ pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenEr
                 paths.insert(entry?);
             }
 
-            let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
+            let pattern_entries = repositories::commits::glob_entry_paths(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
             // Non-glob path
@@ -78,9 +78,10 @@ mod tests {
 
     use std::path::Path;
 
-    use crate::api;
+    
     use crate::command;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -172,11 +173,11 @@ mod tests {
             command::add(&repo, &labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Add a "none" category on a branch
             let branch_name = "change-labels";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
             command::add(&repo, &labels_path)?;

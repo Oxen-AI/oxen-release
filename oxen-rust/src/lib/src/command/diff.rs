@@ -10,12 +10,12 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::index::MergeConflictReader;
+use crate::core::v1::index::MergeConflictReader;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
 use crate::model::entry::commit_entry::CommitPath;
 use crate::model::LocalRepository;
-use crate::{api, util};
+use crate::{repositories, util};
 
 pub fn diff(
     path_1: impl AsRef<Path>,
@@ -35,7 +35,8 @@ pub fn diff(
     // If the user specifies two files without revisions, we will compare the files on disk
     if revision_1.is_none() && revision_2.is_none() && path_2.is_some() {
         // If we do not have revisions set, just compare the files on disk
-        let result = api::local::diff::diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
+        let result =
+            repositories::diffs::diff_files(path_1, path_2.unwrap(), keys, targets, vec![])?;
 
         return Ok(result);
     }
@@ -52,7 +53,7 @@ pub fn diff(
     // TODO: might be able to clean this logic up - pull out into function so we can early return and be less confusing
     let (cpath_1, cpath_2) = if let Some(path_2) = path_2 {
         let cpath_1 = if let Some(revison) = revision_1 {
-            let commit_1 = api::local::revisions::get(&repository, revison)?;
+            let commit_1 = repositories::revisions::get(&repository, revison)?;
             CommitPath {
                 commit: commit_1,
                 path: path_1.as_ref().to_path_buf(),
@@ -65,7 +66,7 @@ pub fn diff(
         };
 
         let cpath_2 = if let Some(revison) = revision_2 {
-            let commit = api::local::revisions::get(&repository, revison)?;
+            let commit = repositories::revisions::get(&repository, revison)?;
 
             CommitPath {
                 commit,
@@ -81,7 +82,7 @@ pub fn diff(
         (cpath_1, cpath_2)
     } else {
         // If no file2, compare with file1 at head.
-        let commit = Some(api::local::commits::head_commit(&repository)?);
+        let commit = Some(repositories::commits::head_commit(&repository)?);
 
         (
             CommitPath {
@@ -119,7 +120,7 @@ pub fn diff_commits(
     let mut path_2 = cpath_2.path.clone();
 
     if let Some(commit_1) = cpath_1.commit {
-        let entry_1 = api::local::entries::get_commit_entry(repo, &commit_1, &cpath_1.path)?
+        let entry_1 = repositories::entries::get_commit_entry(repo, &commit_1, &cpath_1.path)?
             .ok_or_else(|| {
                 OxenError::ResourceNotFound(
                     format!("{}@{}", cpath_1.path.display(), commit_1.id).into(),
@@ -137,7 +138,7 @@ pub fn diff_commits(
             commit_2 = merger.get_conflict_commit()?.unwrap();
         }
 
-        let entry_2 = api::local::entries::get_commit_entry(repo, &commit_2, &cpath_2.path)?
+        let entry_2 = repositories::entries::get_commit_entry(repo, &commit_2, &cpath_2.path)?
             .ok_or_else(|| {
                 OxenError::ResourceNotFound(
                     format!("{}@{}", cpath_2.path.display(), commit_2.id).into(),
@@ -147,7 +148,7 @@ pub fn diff_commits(
         path_2 = util::fs::version_path(repo, &entry_2);
     };
 
-    let compare_result = api::local::diff::diff_files(path_1, path_2, keys, targets, display)?;
+    let compare_result = repositories::diffs::diff_files(path_1, path_2, keys, targets, display)?;
 
     log::debug!("compare result: {:?}", compare_result);
 

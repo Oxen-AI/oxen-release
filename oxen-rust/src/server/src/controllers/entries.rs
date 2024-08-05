@@ -8,8 +8,7 @@ use liboxen::util::fs::replace_file_name_keep_extension;
 use liboxen::util::paginate;
 use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::StatusMessage;
-use liboxen::{api, util};
-use liboxen::{constants, current_function};
+use liboxen::{constants, current_function, repositories, util};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use flate2::read::GzDecoder;
@@ -131,7 +130,7 @@ pub async fn list_tabular(
     let repo_name = path_param(&req, "repo_name")?;
     let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
-    let commit = api::local::revisions::get(&repo, &commit_or_branch)?.ok_or_else(|| {
+    let commit = repositories::revisions::get(&repo, &commit_or_branch)?.ok_or_else(|| {
         OxenError::revision_not_found(format!("Commit {} not found", commit_or_branch).into())
     })?;
 
@@ -145,7 +144,7 @@ pub async fn list_tabular(
         page_size,
     );
 
-    let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
+    let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
     let (paginated_entries, pagination) = paginate(entries, page, page_size);
 
     Ok(HttpResponse::Ok().json(PaginatedMetadataEntriesResponse {

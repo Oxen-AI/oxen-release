@@ -3,17 +3,17 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
-use liboxen::core::cache::cachers;
 use liboxen::core::db::data_frames::df_db;
-use liboxen::core::index::CommitEntryReader;
+use liboxen::core::v1::cache::cachers;
+use liboxen::core::v1::index::CommitEntryReader;
 use liboxen::error::{OxenError, PathBufError};
 use liboxen::model::{
     Commit, CommitEntry, DataFrameSize, LocalRepository, ParsedResource, Schema, Workspace,
 };
 use liboxen::opts::df_opts::DFOptsView;
+use liboxen::repositories;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 
@@ -27,7 +27,7 @@ use liboxen::view::{
 use liboxen::util;
 use polars::frame::DataFrame;
 
-use liboxen::core::index;
+use liboxen::core::v1::index;
 use uuid::Uuid;
 
 pub async fn get(
@@ -117,7 +117,7 @@ pub async fn get(
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
-        api::local::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
+        repositories::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
     {
         schema
     } else {
@@ -247,7 +247,7 @@ fn handle_sql_querying(
         let df = sql::query_df(sql, &mut conn)?;
 
         let og_schema = if let Some(schema) =
-            api::local::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &resource.path)?
+            repositories::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &resource.path)?
         {
             schema
         } else {

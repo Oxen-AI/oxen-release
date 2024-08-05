@@ -97,7 +97,7 @@ impl RunCmd for WorkspaceStatusCmd {
 
         let directory = directory.unwrap_or(PathBuf::from("."));
 
-        let remote_repo = api::remote::repositories::get_default_remote(&repository).await?;
+        let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
         let repo_status =
             command::workspace::status(&remote_repo, workspace_id, &directory, &opts).await?;
         repo_status.print_stdout_with_params(&opts);

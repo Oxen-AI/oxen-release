@@ -1,10 +1,10 @@
 use std::path::Path;
 
-use crate::api;
-use crate::core::cache;
-use crate::core::index::CommitReader;
+use crate::core::v1::cache;
+use crate::core::v1::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
+use crate::repositories;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use super::Migrate;
@@ -50,8 +50,8 @@ impl Migrate for AddDirectoriesToCacheMigration {
 
 pub fn add_directories_to_cache_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Lock repo, releases when goes out of scope at the end of this
-    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
-    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+    let mut lock_file = repositories::get_lock_file(repo)?;
+    let _mutex = repositories::get_exclusive_lock(&mut lock_file)?;
 
     let reader = CommitReader::new(repo)?;
 
@@ -78,7 +78,7 @@ pub fn add_directories_to_cache_for_all_repos_down(_path: &Path) -> Result<(), O
 
 pub fn add_directories_to_cache_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
     println!("🐂 Collecting namespaces to migrate...");
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
@@ -88,7 +88,7 @@ pub fn add_directories_to_cache_for_all_repos_up(path: &Path) -> Result<(), Oxen
             "This is the namespace path we're walking: {:?}",
             namespace_path.canonicalize()?
         );
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         log::debug!("🐂 Migrating {} repos", repos.len());
         for repo in repos {
             log::debug!("Migrating repo {:?}", repo.path);

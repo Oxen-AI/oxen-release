@@ -3,10 +3,10 @@
 //! Merge a branch into the current branch
 //!
 
-use crate::api;
-use crate::core::index::Merger;
+use crate::core::v1::index::Merger;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
+use crate::repositories;
 
 /// # Merge a branch into the current branch
 /// Checks for simple fast forward merge, or if current branch has diverged from the merge branch
@@ -17,13 +17,13 @@ pub fn merge<S: AsRef<str>>(
     merge_branch_name: S,
 ) -> Result<Option<Commit>, OxenError> {
     let merge_branch_name = merge_branch_name.as_ref();
-    if !api::local::branches::exists(repo, merge_branch_name)? {
+    if !repositories::branches::exists(repo, merge_branch_name)? {
         return Err(OxenError::local_branch_not_found(merge_branch_name));
     }
 
     let base_branch =
-        api::local::branches::current_branch(repo)?.ok_or(OxenError::must_be_on_valid_branch())?;
-    let merge_branch = api::local::branches::get_by_name(repo, merge_branch_name)?
+        repositories::branches::current_branch(repo)?.ok_or(OxenError::must_be_on_valid_branch())?;
+    let merge_branch = repositories::branches::get_by_name(repo, merge_branch_name)?
         .ok_or(OxenError::local_branch_not_found(merge_branch_name))?;
 
     let merger = Merger::new(repo)?;
@@ -42,11 +42,12 @@ pub fn merge<S: AsRef<str>>(
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
+    
     use crate::command;
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::opts::DFOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -56,11 +57,11 @@ mod tests {
     async fn test_command_merge_dataframe_conflict_both_added_rows_checkout_theirs(
     ) -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Add a more rows on this branch
             let branch_name = "ox-add-rows";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -109,7 +110,7 @@ mod tests {
     async fn test_command_merge_dataframe_conflict_both_added_rows_combine_uniq(
     ) -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -118,7 +119,7 @@ mod tests {
 
             // Add a more rows on this branch
             let branch_name = "ox-add-rows";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add in a line in this branch
             let row_from_branch = "train/cat_3.jpg,cat,41.0,31.5,410,427";
@@ -159,7 +160,7 @@ mod tests {
     #[tokio::test]
     async fn test_command_merge_dataframe_conflict_error_added_col() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed_async(|repo| async move {
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -168,7 +169,7 @@ mod tests {
 
             // Add a more columns on this branch
             let branch_name = "ox-add-column";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add in a column in this branch
             let mut opts = DFOpts::empty();

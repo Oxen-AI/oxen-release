@@ -6,11 +6,11 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::core::index::CommitEntryReader;
+use liboxen::core::v1::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::{CommitEntry, LocalRepository};
 use liboxen::util::hasher;
-use liboxen::{api, util};
+use liboxen::{repositories, util};
 use rocksdb::DBWithThreadMode;
 use rocksdb::MultiThreaded;
 
@@ -81,7 +81,7 @@ impl RunCmd for PackCmd {
 
         // Traverse back in file history, split file into chunks.
         let repo = LocalRepository::from_current_dir()?;
-        let commits = api::local::commits::list(&repo)?;
+        let commits = repositories::commits::list(&repo)?;
 
         // Take first n commits
         let commits = commits.into_iter().take(n);

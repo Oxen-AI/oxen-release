@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use crate::core::index::{CommitEntryReader, Stager};
+use crate::core::v1::index::{CommitEntryReader, Stager};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedData};
 
@@ -118,12 +118,12 @@ pub fn status_without_untracked(repository: &LocalRepository) -> Result<StagedDa
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
     use crate::command;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -227,11 +227,11 @@ mod tests {
     #[test]
     fn test_command_commit_nothing_staged() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             let initial_len = commits.len();
             let result = command::commit(&repo, "Should not work");
             assert!(result.is_err());
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             // We should not have added any commits
             assert_eq!(commits.len(), initial_len);
             Ok(())
@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn test_command_commit_nothing_staged_but_file_modified() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             let initial_len = commits.len();
 
             let labels_path = repo.path.join("labels.txt");
@@ -249,7 +249,7 @@ mod tests {
 
             let result = command::commit(&repo, "Should not work");
             assert!(result.is_err());
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             // We should not have added any commits
             assert_eq!(commits.len(), initial_len);
             Ok(())
@@ -281,11 +281,11 @@ mod tests {
             command::add(&repo, &labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Add a "none" category on a branch
             let branch_name = "change-labels";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
             command::add(&repo, &labels_path)?;

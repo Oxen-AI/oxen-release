@@ -34,7 +34,8 @@ use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
 use image::ImageFormat;
 
-use crate::{api, util};
+use crate::repositories;
+use crate::util;
 
 // Deprecated
 pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
@@ -81,8 +82,8 @@ pub fn version_path_for_commit_id(
     commit_id: &str,
     filepath: &Path,
 ) -> Result<PathBuf, OxenError> {
-    match api::local::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
+    match repositories::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match repositories::entries::get_commit_entry(repo, &commit, filepath)? {
             Some(entry) => {
                 let path = version_path(repo, &entry);
                 let arrow_path = path.parent().unwrap().join(DATA_ARROW_FILE);
@@ -105,8 +106,8 @@ pub fn resized_path_for_commit_id(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    match api::local::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
+    match repositories::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match repositories::entries::get_commit_entry(repo, &commit, filepath)? {
             Some(entry) => resized_path_for_commit_entry(repo, &entry, width, height),
             None => Err(OxenError::path_does_not_exist(filepath)),
         },

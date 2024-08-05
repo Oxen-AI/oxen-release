@@ -6,17 +6,17 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::api;
-use crate::core::index::Stager;
+use crate::core::v1::index::Stager;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema};
+use crate::repositories;
 
 /// List the saved off schemas for a commit id
 pub fn list(
     repo: &LocalRepository,
     commit_id: Option<&str>,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    api::local::schemas::list(repo, commit_id)
+    repositories::schemas::list(repo, commit_id)
 }
 
 /// Get a staged schema
@@ -39,8 +39,8 @@ pub fn get_from_head(
     repo: &LocalRepository,
     schema_ref: &str,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    let commit = api::local::commits::head_commit(repo)?;
-    api::local::schemas::list_from_ref(repo, commit.id, schema_ref)
+    let commit = repositories::commits::head_commit(repo)?;
+    repositories::schemas::list_from_ref(repo, commit.id, schema_ref)
 }
 
 /// Get a string representation of the schema given a schema ref
@@ -53,8 +53,8 @@ pub fn show(
     let schemas = if staged {
         get_staged(repo, schema_ref)?
     } else {
-        let commit = api::local::commits::head_commit(repo)?;
-        api::local::schemas::list_from_ref(repo, commit.id, schema_ref)?
+        let commit = repositories::commits::head_commit(repo)?;
+        repositories::schemas::list_from_ref(repo, commit.id, schema_ref)?
     };
 
     if schemas.is_empty() {
@@ -116,11 +116,12 @@ pub fn add_schema_metadata(
     schema_ref: impl AsRef<str>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    let head_commit = api::local::commits::head_commit(repo)?;
+    let head_commit = repositories::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
     let stager = Stager::new(repo)?;
-    let committed_schemas = api::local::schemas::list_from_ref(repo, head_commit.id, &schema_ref)?;
+    let committed_schemas =
+        repositories::schemas::list_from_ref(repo, head_commit.id, &schema_ref)?;
     log::debug!(
         "add_schema_metadata committed_schemas.len(): {:?}",
         committed_schemas.len()
@@ -155,10 +156,10 @@ pub fn add_column_metadata(
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     let column = column.as_ref();
-    let head_commit = api::local::commits::head_commit(repo)?;
+    let head_commit = repositories::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
-    let mut all_schemas = api::local::schemas::list_from_ref(repo, head_commit.id, &schema_ref)?;
+    let mut all_schemas = repositories::schemas::list_from_ref(repo, head_commit.id, &schema_ref)?;
 
     log::debug!(
         "add_schema_metadata column {} metadata: {}",
@@ -196,7 +197,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::test;
     use crate::util;
-    use crate::{api, command};
+    use crate::{command, repositories};
 
     use serde_json::json;
     use std::path::Path;
@@ -329,7 +330,7 @@ mod tests {
 
             // Fetch schema from HEAD commit, it should still be there in all it's glory
             let maybe_schema =
-                api::local::schemas::get_by_path_from_ref(&repo, commit.id, &bbox_filename)?;
+                repositories::schemas::get_by_path_from_ref(&repo, commit.id, &bbox_filename)?;
             assert!(maybe_schema.is_some());
 
             let schema = maybe_schema.unwrap();
@@ -587,7 +588,7 @@ mod tests {
             command::add(&repo, &bbox_path)?;
             let commit = command::commit(&repo, "Adding bounding box file")?;
 
-            let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+            let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
             for (path, schema) in schemas.iter() {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }
@@ -616,7 +617,7 @@ mod tests {
             let commit = command::commit(&repo, "Adding metadata to file column")?;
 
             // List the committed schemas
-            let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+            let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
             assert_eq!(schemas.len(), 1);
             // assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
             let schema = schemas.values().next().unwrap();
@@ -645,7 +646,7 @@ mod tests {
             command::add(&repo, &bbox_path)?;
             let commit = command::commit(&repo, "Adding bounding box file")?;
 
-            let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+            let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
             for (path, schema) in schemas.iter() {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }

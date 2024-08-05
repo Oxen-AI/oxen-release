@@ -3,11 +3,11 @@
 //! Push data from your local machine to a remote.
 //!
 
-use crate::api;
 use crate::constants::DEFAULT_BRANCH_NAME;
-use crate::core::index::{pusher, EntryIndexer};
+use crate::core::v1::index::{pusher, EntryIndexer};
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
+use crate::repositories;
 
 /// # Get a log of all the commits
 ///
@@ -38,13 +38,13 @@ use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 /// // Set the remote server
 /// command::config::set_remote(&mut repo, "origin", "http://localhost:3000/repositories/hello");
 ///
-/// let remote_repo = api::remote::repositories::create(&repo, "repositories", "hello", "localhost:3000").await?;
+/// let remote_repo = api::client::repositories::create(&repo, "repositories", "hello", "localhost:3000").await?;
 ///
 /// // Push the file
 /// command::push(&repo).await;
 ///
 /// # util::fs::remove_dir_all(base_dir)?;
-/// # api::remote::repositories::delete(&remote_repo).await?;
+/// # api::client::repositories::delete(&remote_repo).await?;
 /// # Ok(())
 /// # }
 /// ```
@@ -53,7 +53,7 @@ pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let mut remote_branch = RemoteBranch::default();
 
     // Push the currently checked out branch
-    let Some(local_branch) = api::local::branches::current_branch(repo)? else {
+    let Some(local_branch) = repositories::branches::current_branch(repo)? else {
         return Err(OxenError::local_branch_not_found(DEFAULT_BRANCH_NAME));
     };
 
@@ -69,7 +69,7 @@ pub async fn push_remote_branch(
     remote: &str,
     branch_name: &str,
 ) -> Result<Branch, OxenError> {
-    let Some(local_branch) = api::local::branches::get_by_name(repo, branch_name)? else {
+    let Some(local_branch) = repositories::branches::get_by_name(repo, branch_name)? else {
         return Err(OxenError::local_branch_not_found(branch_name));
     };
 
@@ -97,7 +97,7 @@ pub async fn push_remote_repo_branch_name(
     remote_repo: RemoteRepository,
     branch_name: &str,
 ) -> Result<RemoteRepository, OxenError> {
-    let branch = api::local::branches::get_by_name(&local_repo, branch_name)?
+    let branch = repositories::branches::get_by_name(&local_repo, branch_name)?
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
     push_remote_repo_branch(local_repo, remote_repo, branch).await
 }
@@ -111,9 +111,10 @@ mod tests {
     use crate::constants;
 
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::index::CommitEntryReader;
+    use crate::core::v1::index::CommitEntryReader;
 
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use crate::util;
     use futures::future;
@@ -143,12 +144,12 @@ mod tests {
             let page_num = 1;
             let page_size = num_files + 10;
             let entries =
-                api::remote::dir::list(&remote_repo, &commit.id, "train", page_num, page_size)
+                api::client::dir::list(&remote_repo, &commit.id, "train", page_num, page_size)
                     .await?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -182,12 +183,12 @@ mod tests {
             // Sleep so it can unpack...
             std::thread::sleep(std::time::Duration::from_secs(2));
 
-            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?
                 .unwrap();
             assert!(is_synced.is_valid);
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -234,12 +235,12 @@ mod tests {
             // Push again
             command::push(&repo).await?;
 
-            let is_synced = api::remote::commits::commit_is_synced(&remote_repo, &commit.id)
+            let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?
                 .unwrap();
             assert!(is_synced.is_valid);
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -279,10 +280,10 @@ mod tests {
             let page_num = 1;
             let page_size = num_train_files + num_test_files + 5;
             let train_entries =
-                api::remote::dir::list(&remote_repo, &commit.id, "/train", page_num, page_size)
+                api::client::dir::list(&remote_repo, &commit.id, "/train", page_num, page_size)
                     .await?;
             let test_entries =
-                api::remote::dir::list(&remote_repo, &commit.id, "/test", page_num, page_size)
+                api::client::dir::list(&remote_repo, &commit.id, "/test", page_num, page_size)
                     .await?;
             assert_eq!(
                 train_entries.total_entries + test_entries.total_entries,
@@ -293,7 +294,7 @@ mod tests {
                 num_train_files + num_test_files
             );
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -330,18 +331,18 @@ mod tests {
 
             let page_num = 1;
             let entries =
-                api::remote::dir::list(&remote_repo, &commit.id, ".", page_num, 10).await?;
+                api::client::dir::list(&remote_repo, &commit.id, ".", page_num, 10).await?;
             assert_eq!(entries.total_entries, 2);
             assert_eq!(entries.entries.len(), 2);
 
             let page_size = num_test_files + 10;
             let entries =
-                api::remote::dir::list(&remote_repo, &commit.id, "test", page_num, page_size)
+                api::client::dir::list(&remote_repo, &commit.id, "test", page_num, page_size)
                     .await?;
             assert_eq!(entries.total_entries, num_test_files);
             assert_eq!(entries.entries.len(), num_test_files);
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -413,7 +414,7 @@ mod tests {
             // Make sure we get the correct latest commit messages
             let page_num = 1;
             let entries =
-                api::remote::dir::list(&remote_repo, &last_commit.id, ".", page_num, 10).await?;
+                api::client::dir::list(&remote_repo, &last_commit.id, ".", page_num, 10).await?;
             assert_eq!(entries.total_entries, 2);
             assert_eq!(entries.entries.len(), 2);
 
@@ -440,7 +441,7 @@ mod tests {
             // Check the latest commit in a subdir
             let page_num = 1;
             let entries =
-                api::remote::dir::list(&remote_repo, &last_commit.id, "data/3", page_num, 10)
+                api::client::dir::list(&remote_repo, &last_commit.id, "data/3", page_num, 10)
                     .await?;
             assert_eq!(entries.total_entries, 1);
             assert_eq!(entries.entries.len(), 1);
@@ -452,7 +453,7 @@ mod tests {
                 "Adding file -> data/3/file.txt"
             );
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -492,11 +493,11 @@ mod tests {
             let page_num = 1;
             let page_size = num_files + 10;
             let entries =
-                api::remote::dir::list(&remote_repo, &commit.id, ".", page_num, page_size).await?;
+                api::client::dir::list(&remote_repo, &commit.id, ".", page_num, page_size).await?;
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
         })
@@ -540,16 +541,16 @@ mod tests {
             command::push(&repo).await?;
 
             let new_branch_name = "my-branch";
-            api::local::branches::create_checkout(&repo, new_branch_name)?;
+            repositories::branches::create_checkout(&repo, new_branch_name)?;
 
             // Push new branch, without any new commits, should still create the branch
             command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)
                 .await?;
 
-            let remote_branches = api::remote::branches::list(&remote_repo).await?;
+            let remote_branches = api::client::branches::list(&remote_repo).await?;
             assert_eq!(2, remote_branches.len());
 
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
 
             Ok(())
         })
@@ -668,13 +669,13 @@ mod tests {
     async fn test_push_many_commits_default_branch() -> Result<(), OxenError> {
         test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
             // Current local head
-            let local_head = api::local::commits::head_commit(&local_repo)?;
+            let local_head = repositories::commits::head_commit(&local_repo)?;
 
             // Branch name
 
             // Nothing should be synced on remote and no commit objects created except root
             let history =
-                api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history.len(), 1);
 
@@ -683,13 +684,13 @@ mod tests {
 
             // Should now have 25 commits on remote
             let history =
-                api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history.len(), 25);
 
             // Latest commit synced should be == local head, with no unsynced commits
             let sync_response =
-                api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
+                api::client::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
             assert_eq!(sync_response.num_unsynced, 0);
 
             Ok(remote_repo)
@@ -701,17 +702,17 @@ mod tests {
     async fn test_push_many_commits_new_branch() -> Result<(), OxenError> {
         test::run_many_local_commits_empty_sync_remote_test(|local_repo, remote_repo| async move {
             // Current local head
-            let local_head = api::local::commits::head_commit(&local_repo)?;
+            let local_head = repositories::commits::head_commit(&local_repo)?;
 
             // Nothing should be synced on remote and no commit objects created except root
             let history =
-                api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history.len(), 1);
 
             // Create new local branch
             let new_branch_name = "my-branch";
-            api::local::branches::create_checkout(&local_repo, new_branch_name)?;
+            repositories::branches::create_checkout(&local_repo, new_branch_name)?;
 
             // New commit
             let new_file = "new_file.txt";
@@ -730,9 +731,9 @@ mod tests {
 
             // Should now have 26 commits on remote on new branch, 1 on main
             let history_new =
-                api::remote::commits::list_commit_history(&remote_repo, new_branch_name).await?;
+                api::client::commits::list_commit_history(&remote_repo, new_branch_name).await?;
             let history_main =
-                api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
 
             assert_eq!(history_new.len(), 26);
@@ -746,13 +747,13 @@ mod tests {
 
             // 25 on main
             let history_main =
-                api::remote::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
+                api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
             assert_eq!(history_main.len(), 25);
 
             // 0 unsynced on main
             let sync_response =
-                api::remote::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
+                api::client::commits::latest_commit_synced(&remote_repo, &local_head.id).await?;
             assert_eq!(sync_response.num_unsynced, 0);
 
             Ok(remote_repo)
@@ -1572,7 +1573,7 @@ mod tests {
                     // Before this commit, init a reader at b's head
                     let pre_b = CommitEntryReader::new_from_head(&user_b_repo)?;
                     // get head commit
-                    let head = api::local::commits::head_commit(&user_b_repo)?;
+                    let head = repositories::commits::head_commit(&user_b_repo)?;
                     log::debug!("b head before is {:?}", head);
 
                     let maybe_b_entry = pre_b.get_entry(
@@ -1598,9 +1599,9 @@ mod tests {
                     log::debug!("commit_b is {:?}", commit_b);
 
                     let commit_a =
-                        api::local::commits::get_by_id(&user_a_repo, &commit_a.id)?.unwrap();
+                        repositories::commits::get_by_id(&user_a_repo, &commit_a.id)?.unwrap();
                     let commit_b =
-                        api::local::commits::get_by_id(&user_b_repo, &commit_b.id)?.unwrap();
+                        repositories::commits::get_by_id(&user_b_repo, &commit_b.id)?.unwrap();
 
                     log::debug!("commit_a pre is {:?}", commit_a);
                     log::debug!("commit_b pre is {:?}", commit_b);
@@ -1709,7 +1710,7 @@ mod tests {
                 .await?;
 
                 // Save the current head of main
-                let main_head = api::local::commits::head_commit(&user_a_repo)?;
+                let main_head = repositories::commits::head_commit(&user_a_repo)?;
 
                 // User a checkout a branch
                 command::create_checkout(&user_a_repo, new_branch)?;
@@ -1754,10 +1755,10 @@ mod tests {
 
                     // Get the new branch head
                     let new_main =
-                        api::remote::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
+                        api::client::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
                             .await?
                             .unwrap();
-                    let new_branch = api::remote::branches::get_by_name(&remote_repo, new_branch)
+                    let new_branch = api::client::branches::get_by_name(&remote_repo, new_branch)
                         .await?
                         .unwrap();
 
@@ -1766,7 +1767,7 @@ mod tests {
 
                     // Head at new_branch should be a merge commit
                     let new_branch_head =
-                        api::remote::commits::get_by_id(&remote_repo, &new_branch.commit_id)
+                        api::client::commits::get_by_id(&remote_repo, &new_branch.commit_id)
                             .await?
                             .unwrap();
 

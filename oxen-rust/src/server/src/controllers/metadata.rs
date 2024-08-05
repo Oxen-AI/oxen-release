@@ -13,7 +13,7 @@ use liboxen::view::{
     JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,
     MetadataEntryResponse, Pagination, StatusMessage,
 };
-use liboxen::{api, current_function};
+use liboxen::{current_function, repositories};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -32,7 +32,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         resource
     );
 
-    let latest_commit = api::local::commits::get_by_id(&repo, &commit.id)?
+    let latest_commit = repositories::commits::get_by_id(&repo, &commit.id)?
         .ok_or(OxenError::revision_not_found(commit.id.clone().into()))?;
 
     log::debug!(
@@ -42,7 +42,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         latest_commit.message
     );
 
-    let mut entry = api::local::entries::get_meta_entry(&repo, &commit, &resource.path)?;
+    let mut entry = repositories::entries::get_meta_entry(&repo, &commit, &resource.path)?;
     entry.resource = Some(resource.clone());
     let meta = MetadataEntryResponse {
         status: StatusMessage::resource_found(),
@@ -66,7 +66,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         resource
     );
 
-    let latest_commit = api::local::commits::get_by_id(&repo, &commit.id)?
+    let latest_commit = repositories::commits::get_by_id(&repo, &commit.id)?
         .ok_or(OxenError::revision_not_found(commit.id.clone().into()))?;
 
     log::debug!(
@@ -84,10 +84,15 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     let directory = resource.path;
     let offset = 0;
     let limit = 100;
-    let mut sliced_df =
-        core::index::commit_metadata_db::select(&repo, &latest_commit, &directory, offset, limit)?;
+    let mut sliced_df = core::v1::index::commit_metadata_db::select(
+        &repo,
+        &latest_commit,
+        &directory,
+        offset,
+        limit,
+    )?;
     let (num_rows, num_cols) =
-        core::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
+        core::v1::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
 
     let full_size = DataFrameSize {
         width: num_cols,
@@ -151,7 +156,7 @@ pub async fn agg_dir(
         resource
     );
 
-    let latest_commit = api::local::commits::get_by_id(&repo, &commit.id)?
+    let latest_commit = repositories::commits::get_by_id(&repo, &commit.id)?
         .ok_or(OxenError::revision_not_found(commit.id.clone().into()))?;
 
     log::debug!(
@@ -163,7 +168,7 @@ pub async fn agg_dir(
 
     let directory = &resource.path;
 
-    let cached_path = core::cache::cachers::content_stats::dir_column_path(
+    let cached_path = core::v1::cache::cachers::content_stats::dir_column_path(
         &repo,
         &latest_commit,
         directory,

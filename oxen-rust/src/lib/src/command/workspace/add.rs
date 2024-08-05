@@ -7,10 +7,11 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::index::oxenignore;
+use crate::core::v1::index::oxenignore;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::opts::AddOpts;
+use crate::repositories;
 use crate::util;
 
 pub async fn add(
@@ -22,7 +23,7 @@ pub async fn add(
     let workspace_id = workspace_id.as_ref();
     let path = path.as_ref();
     // * make sure we are on a branch
-    let branch = api::local::branches::current_branch(repo)?;
+    let branch = repositories::branches::current_branch(repo)?;
     if branch.is_none() {
         return Err(OxenError::must_be_on_valid_branch());
     }
@@ -47,7 +48,7 @@ pub async fn add(
 
     log::debug!("Pushing to remote {:?}", remote);
     // Repo should be created before this step
-    let remote_repo = match api::remote::repositories::get_by_remote(&remote).await {
+    let remote_repo = match api::client::repositories::get_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
         Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
         Err(err) => return Err(err),
@@ -66,7 +67,7 @@ pub async fn add(
         directory_name
     );
 
-    let result = api::remote::workspaces::files::add(
+    let result = api::client::workspaces::files::add(
         &remote_repo,
         workspace_id,
         &directory_name,
@@ -140,9 +141,9 @@ mod tests {
 
                 // Index dataset
                 let workspace_id = "my_workspace";
-                api::remote::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
                     .await?;
-                api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
+                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
                     .await?;
 
                 let mut opts = DFOpts::empty();

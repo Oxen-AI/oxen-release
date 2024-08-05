@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::config::RemoteConfig;
 use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME, REPO_CONFIG_FILENAME};
-use crate::core::index::EntryIndexer;
+use crate::core::v1::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::{CloneOpts, PullOpts};
@@ -78,7 +78,7 @@ async fn clone_remote(opts: &CloneOpts) -> Result<Option<LocalRepository>, OxenE
         name: String::from(DEFAULT_REMOTE_NAME),
         url: opts.url.to_owned(),
     };
-    let remote_repo = api::remote::repositories::get_by_remote(&remote)
+    let remote_repo = api::client::repositories::get_by_remote(&remote)
         .await?
         .ok_or_else(|| OxenError::remote_repo_not_found(&opts.url))?;
     let repo = clone_repo(remote_repo, opts).await?;
@@ -89,7 +89,7 @@ async fn clone_repo(
     remote_repo: RemoteRepository,
     opts: &CloneOpts,
 ) -> Result<LocalRepository, OxenError> {
-    api::remote::repositories::pre_clone(&remote_repo).await?;
+    api::client::repositories::pre_clone(&remote_repo).await?;
 
     // if directory already exists -> return Err
     let repo_path = &opts.dst;
@@ -127,7 +127,7 @@ async fn clone_repo(
 
     if opts.all {
         log::debug!("pulling all entries");
-        let remote_branches = api::remote::branches::list(&remote_repo).await?;
+        let remote_branches = api::client::branches::list(&remote_repo).await?;
         if remote_branches.len() > 1 {
             println!(
                 "🐂 Pre-fetching {} additional remote branches...",
@@ -162,7 +162,7 @@ async fn clone_repo(
         "\n🎉 cloned {} to {}/\n",
         remote_repo.remote.url, remote_repo.name
     );
-    api::remote::repositories::post_clone(&remote_repo).await?;
+    api::client::repositories::post_clone(&remote_repo).await?;
 
     Ok(local_repo)
 }
@@ -204,6 +204,7 @@ mod tests {
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
     use crate::model::RepoNew;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -235,7 +236,7 @@ mod tests {
                 assert!(status.is_clean());
 
                 // Cleanup
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(dir)
             })
@@ -254,7 +255,7 @@ mod tests {
                 let opts = CloneOpts::new(remote_repo.remote.url.to_owned(), dir.join("new_repo"));
                 let local_repo = clone_remote(&opts).await?.unwrap();
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 command::status(&local_repo)?;
 
@@ -279,7 +280,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             // Create additional branch on remote repo before clone
             let branch_name = "test-branch";
-            api::remote::branches::create_from_or_get(
+            api::client::branches::create_from_or_get(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -287,8 +288,8 @@ mod tests {
             .await?;
 
             let cloned_remote = remote_repo.clone();
-            let og_commits = api::local::commits::list_all(&local_repo)?;
-            let og_branches = api::remote::branches::list(&remote_repo).await?;
+            let og_commits = repositories::commits::list_all(&local_repo)?;
+            let og_branches = api::client::branches::list(&remote_repo).await?;
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -299,22 +300,22 @@ mod tests {
                 .await?;
 
                 // Make sure we have all the commit objects
-                let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
+                let cloned_commits = repositories::commits::list_all(&cloned_repo)?;
                 assert_eq!(og_commits.len(), cloned_commits.len());
 
                 // Make sure we have all branches
-                let cloned_branches = api::local::branches::list(&cloned_repo)?;
+                let cloned_branches = repositories::branches::list(&cloned_repo)?;
                 assert_eq!(og_branches.len(), cloned_branches.len());
 
                 // Make sure we set the HEAD file
-                let head_commit = api::local::commits::head_commit(&cloned_repo);
+                let head_commit = repositories::commits::head_commit(&cloned_repo);
                 assert!(head_commit.is_ok());
 
                 // We remove the test/ directory in one of the commits, so make sure we can go
                 // back in the history to that commit
                 let test_dir_path = cloned_repo.path.join("test");
                 println!("test_clone_dash_all test_dir_path: {:?}", test_dir_path);
-                let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+                let commit = repositories::commits::first_by_message(&cloned_repo, "Adding test/")?;
                 assert!(commit.is_some());
                 assert!(!test_dir_path.exists());
 
@@ -365,7 +366,7 @@ mod tests {
                     repo_name,
                     test::test_host(),
                 );
-                api::remote::repositories::create_from_local(&cloned_repo, repo_new).await?;
+                api::client::repositories::create_from_local(&cloned_repo, repo_new).await?;
 
                 command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
@@ -433,7 +434,7 @@ mod tests {
                     repo_name,
                     test::test_host(),
                 );
-                api::remote::repositories::create_empty(repo_new).await?;
+                api::client::repositories::create_empty(repo_new).await?;
 
                 command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
@@ -470,7 +471,7 @@ mod tests {
                     repo_name,
                     test::test_host(),
                 );
-                api::remote::repositories::create_from_local(&cloned_repo, repo_new).await?;
+                api::client::repositories::create_from_local(&cloned_repo, repo_new).await?;
 
                 command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
@@ -524,7 +525,7 @@ mod tests {
                 // 2 test, 5 train, 1 labels
                 assert_eq!(8, cloned_num_files);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })

@@ -10,13 +10,14 @@ use liboxen::core::db::data_frames::{df_db, workspace_df_db};
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
+use liboxen::repositories;
 use liboxen::util::paginate;
 use liboxen::view::data_frames::DataFramePayload;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
-use liboxen::{api, constants, core::index};
+use liboxen::{constants, core::v1::index};
 
 pub mod columns;
 pub mod rows;
@@ -69,7 +70,7 @@ pub async fn get_by_resource(
     };
 
     let og_schema = if let Some(schema) =
-        api::local::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, &resource.path)?
+        repositories::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, &resource.path)?
     {
         schema
     } else {
@@ -109,13 +110,13 @@ pub async fn get_by_branch(
     let page_size = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
 
     // Staged dataframes must be on a branch.
-    let branch = api::local::branches::get_by_name(&repo, branch_name)?
+    let branch = repositories::branches::get_by_name(&repo, branch_name)?
         .ok_or(OxenError::remote_branch_not_found(branch_name))?;
 
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?
+    let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?
         .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
 
-    let entries = api::local::entries::list_tabular_files_in_repo(&repo, &commit)?;
+    let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
 
     let mut editable_entries = vec![];
     for entry in entries {
@@ -156,7 +157,7 @@ pub async fn diff(
 
     // TODO: Let's not expose dbs right in the controller
     let staged_db_path =
-        liboxen::core::index::workspaces::data_frames::duckdb_path(&workspace, &file_path);
+        liboxen::core::v1::index::workspaces::data_frames::duckdb_path(&workspace, &file_path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 
@@ -172,7 +173,7 @@ pub async fn diff(
     };
 
     let og_schema = if let Some(schema) =
-        api::local::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, resource.path)?
+        repositories::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, resource.path)?
     {
         schema
     } else {

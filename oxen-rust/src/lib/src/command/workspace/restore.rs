@@ -11,8 +11,8 @@ use crate::opts::RestoreOpts;
 
 /// Remove all staged changes from file on remote
 pub async fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let remote_repo = api::client::repositories::get_default_remote(repo).await?;
     let workspace_id = UserConfig::identifier()?;
-    api::remote::workspaces::data_frames::restore(&remote_repo, &workspace_id, opts.path.to_owned())
+    api::client::workspaces::data_frames::restore(&remote_repo, &workspace_id, opts.path.to_owned())
         .await
 }

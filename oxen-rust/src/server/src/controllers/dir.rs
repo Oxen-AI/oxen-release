@@ -3,7 +3,7 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
 
 use liboxen::view::PaginatedDirEntriesResponse;
-use liboxen::{api, constants};
+use liboxen::{constants, repositories};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
@@ -26,7 +26,7 @@ pub async fn get(
         liboxen::current_function!()
     );
 
-    let (paginated_entries, dir) = api::local::entries::list_directory(
+    let (paginated_entries, dir) = repositories::entries::list_directory(
         &repo,
         &commit,
         &resource.path,
@@ -35,7 +35,7 @@ pub async fn get(
         page_size,
     )?;
 
-    // let dir = api::local::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
+    // let dir = repositories::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
     let view = PaginatedDirEntriesResponse::ok_from(dir, paginated_entries);
     Ok(HttpResponse::Ok().json(view))
 }

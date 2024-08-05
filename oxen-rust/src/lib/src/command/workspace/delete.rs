@@ -12,9 +12,9 @@ pub async fn delete(
     workspace_id: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     let workspace_id = workspace_id.as_ref();
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let remote_repo = api::client::repositories::get_default_remote(repo).await?;
 
-    api::remote::workspaces::delete(&remote_repo, &workspace_id).await?;
+    api::client::workspaces::delete(&remote_repo, &workspace_id).await?;
 
     Ok(())
 }

@@ -5,7 +5,7 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{HttpRequest, HttpResponse};
-use liboxen::core::index;
+use liboxen::core::v1::index;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
 use liboxen::view::data_frames::columns::{

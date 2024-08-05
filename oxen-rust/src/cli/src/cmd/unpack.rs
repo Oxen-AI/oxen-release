@@ -5,10 +5,10 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::api;
-use liboxen::core::index::CommitEntryReader;
+use liboxen::core::v1::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 use rocksdb::DBWithThreadMode;
 use rocksdb::IteratorMode;
 use rocksdb::MultiThreaded;
@@ -85,7 +85,7 @@ impl RunCmd for UnpackCmd {
 
         // Traverse back in file history, split file into chunks.
         let repo = LocalRepository::from_current_dir()?;
-        let commits = api::local::commits::list(&repo)?;
+        let commits = repositories::commits::list(&repo)?;
 
         // Take the nth commit as the file to reconstruct
         let commit = &commits[n - 1];

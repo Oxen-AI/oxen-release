@@ -6,8 +6,8 @@ use std::num::NonZeroUsize;
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::pretty_print;
-use crate::core::index::merkle_tree::node::CommitMerkleTreeNode;
 use crate::core::df::sql;
+use crate::core::v2::index::merkle_tree::node::CommitMerkleTreeNode;
 use crate::error::OxenError;
 use crate::io::chunk_reader::ChunkReader;
 use crate::model::schema::DataType;
@@ -956,7 +956,8 @@ pub fn show_node(
         let parquet_reader = ParquetReader::new(chunk_reader);
         log::debug!("Reading chunked parquet");
 
-        let df = match parquet_reader.finish() {
+        
+        match parquet_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading chunked parquet");
                 Ok(df)
@@ -965,14 +966,14 @@ pub fn show_node(
                 "Could not read chunked parquet: {:?}",
                 err
             ))),
-        }?;
-        df
+        }?
     } else if file_node.name.ends_with("arrow") {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let parquet_reader = IpcReader::new(chunk_reader);
         log::debug!("Reading chunked arrow");
 
-        let df = match parquet_reader.finish() {
+        
+        match parquet_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading chunked arrow");
                 Ok(df)
@@ -981,12 +982,12 @@ pub fn show_node(
                 "Could not read chunked arrow: {:?}",
                 err
             ))),
-        }?;
-        df
+        }?
     } else {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let json_reader = JsonLineReader::new(chunk_reader);
-        let df = match json_reader.finish() {
+        
+        match json_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading line delimited json");
                 Ok(df)
@@ -995,8 +996,7 @@ pub fn show_node(
                 "Could not read chunked json: {:?}",
                 err
             ))),
-        }?;
-        df
+        }?
     };
 
     let df: PolarsResult<DataFrame> = if opts.has_transform() {

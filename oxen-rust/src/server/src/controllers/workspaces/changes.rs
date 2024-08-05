@@ -5,7 +5,7 @@ use crate::params::{app_data, path_param, PageNumQuery};
 use liboxen::util;
 use liboxen::view::remote_staged_status::RemoteStagedStatus;
 use liboxen::view::{RemoteStagedStatusResponse, StatusMessage};
-use liboxen::{constants, core::index};
+use liboxen::{constants, core::v1::index};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 

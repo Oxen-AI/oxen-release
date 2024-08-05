@@ -11,13 +11,13 @@ use crate::constants::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::{api, core::index};
+use crate::{core::v1::index, repositories};
 
 use glob::glob;
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    let commit = api::local::commits::head_commit(repo)?;
+    let commit = repositories::commits::head_commit(repo)?;
     let path = &opts.path;
 
     let mut paths: HashSet<PathBuf> = HashSet::new();
@@ -30,7 +30,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
                     paths.insert(entry);
                 }
             }
-            let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
+            let pattern_entries = repositories::commits::glob_entry_paths(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
             paths.insert(path.to_owned());
