@@ -4,7 +4,7 @@ use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
 use super::{Branch, User};
-use crate::core::index::CommitReader;
+use crate::core::v1::index::CommitReader;
 use crate::error::OxenError;
 use crate::view::workspaces::WorkspaceCommit;
 use core::convert::Into;

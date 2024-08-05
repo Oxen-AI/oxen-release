@@ -4,7 +4,7 @@ use crate::params::{app_data, path_param};
 
 use actix_files::NamedFile;
 
-use liboxen::core::index;
+use liboxen::core::v1::index;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::util;

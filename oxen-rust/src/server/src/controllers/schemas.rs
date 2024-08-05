@@ -8,7 +8,7 @@ use liboxen::core::df::tabular;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
 use liboxen::view::schema::{SchemaResponse, SchemaWithPath};
-use liboxen::{api, util};
+use liboxen::{repositories, util};
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::error::OxenError;
@@ -33,7 +33,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
                 commit
             );
 
-            let schemas = api::local::schemas::list_from_ref(
+            let schemas = repositories::schemas::list_from_ref(
                 &repo,
                 &commit.id,
                 resource.path.to_string_lossy(),
@@ -54,7 +54,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             // If none found, try to get the schema from the file
             // TODO: Do we need this?
             if schema_w_paths.is_empty() {
-                if let Some(entry) = api::local::entries::get_commit_entry(
+                if let Some(entry) = repositories::entries::get_commit_entry(
                     &repo,
                     &resource.commit.unwrap(),
                     &resource.path,
@@ -92,7 +92,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
     // Otherwise, list all schemas
     let revision = path_param(&req, "resource")?;
 
-    let commit = api::local::revisions::get(&repo, &revision)?
+    let commit = repositories::revisions::get(&repo, &revision)?
         .ok_or(OxenError::revision_not_found(revision.to_owned().into()))?;
 
     log::debug!(
@@ -101,7 +101,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
         commit
     );
 
-    let schemas = api::local::schemas::list(&repo, Some(&commit.id))?;
+    let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
     let mut schema_w_paths: Vec<SchemaWithPath> = schemas
         .into_iter()
         .map(|(path, schema)| SchemaWithPath::new(path.to_string_lossy().into(), schema))
@@ -126,7 +126,7 @@ pub async fn get_by_hash(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
 
     let hash = path_param(&req, "hash")?;
 
-    let maybe_schema = api::local::schemas::get_by_hash(&repo, hash)?;
+    let maybe_schema = repositories::schemas::get_by_hash(&repo, hash)?;
 
     if let Some(schema) = maybe_schema {
         let response = SchemaResponse {

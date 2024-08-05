@@ -1,5 +1,5 @@
 use liboxen::{
-    core::cache::commit_cacher,
+    core::v1::cache::commit_cacher,
     model::{Commit, LocalRepository},
 };
 use serde::{Deserialize, Serialize};

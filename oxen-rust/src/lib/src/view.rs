@@ -15,6 +15,7 @@ pub mod http;
 pub mod json_data_frame;
 pub mod json_data_frame_view;
 pub mod merge;
+pub mod message;
 pub mod mime_type_count;
 pub mod namespace;
 pub mod oxen_response;

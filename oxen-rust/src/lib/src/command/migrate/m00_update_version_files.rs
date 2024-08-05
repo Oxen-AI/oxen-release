@@ -7,12 +7,12 @@ use jwalk::WalkDir;
 use crate::constants;
 use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
 
-use crate::core::index::{CommitEntryReader, CommitReader};
+use crate::core::v1::index::{CommitEntryReader, CommitReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util::fs::version_dir_from_hash;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, util};
+use crate::{repositories, util};
 
 use super::Migrate;
 
@@ -81,8 +81,8 @@ impl Migrate for UpdateVersionFilesMigration {
 }
 
 pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> {
-    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
-    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+    let mut lock_file = repositories::get_lock_file(repo)?;
+    let _mutex = repositories::get_exclusive_lock(&mut lock_file)?;
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let versions_dir = hidden_dir.join(VERSIONS_DIR);
@@ -116,8 +116,8 @@ pub fn update_version_files_up(repo: &LocalRepository) -> Result<(), OxenError> 
 
 pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError> {
     // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
-    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
-    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+    let mut lock_file = repositories::get_lock_file(repo)?;
+    let _mutex = repositories::get_exclusive_lock(&mut lock_file)?;
 
     // Hash map of entry hash (string) to path to write (commit id + extension)
     // (hash, extension) -> Vec<CommitId>
@@ -195,12 +195,12 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
 }
 
 pub fn update_version_files_for_all_repos_down(path: &Path) -> Result<(), OxenError> {
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
         let namespace_path = path.join(namespace);
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match update_version_files_down(&repo) {
                 Ok(_) => {}
@@ -221,7 +221,7 @@ pub fn update_version_files_for_all_repos_down(path: &Path) -> Result<(), OxenEr
 
 pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
     println!("🐂 Collecting namespaces to migrate...");
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
@@ -231,7 +231,7 @@ pub fn update_version_files_for_all_repos_up(path: &Path) -> Result<(), OxenErro
             "This is the namespace path we're walking: {:?}",
             namespace_path.canonicalize()?
         );
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match update_version_files_up(&repo) {
                 Ok(_) => {}

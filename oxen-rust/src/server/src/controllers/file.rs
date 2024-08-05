@@ -2,7 +2,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::core::index::ObjectDBReader;
+use liboxen::core::v1::index::object_db_reader::get_object_reader;
 use liboxen::error::OxenError;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::CommitEntry;
@@ -38,7 +38,7 @@ pub async fn get(
 
     // Try to get the parent of the file path, if it exists
     let mut entry: Option<CommitEntry> = None;
-    let object_reader = ObjectDBReader::new(&repo)?;
+    let object_reader = get_object_reader(&repo, &commit.id)?;
     let path = &resource.path;
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
         let key = format!(
@@ -58,7 +58,7 @@ pub async fn get(
             log::debug!("got entry {} -> {:?}", key, entry);
         } else {
             log::debug!("not found in LRU");
-            let cder = liboxen::core::index::CommitDirEntryReader::new(
+            let cder = liboxen::core::v1::index::CommitDirEntryReader::new(
                 &repo,
                 &commit.id,
                 parent,

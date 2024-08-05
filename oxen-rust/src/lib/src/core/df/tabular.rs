@@ -5,9 +5,9 @@ use std::num::NonZeroUsize;
 
 use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
-use crate::core::df::pretty_print;
-use crate::core::index::merkle_tree::node::CommitMerkleTreeNode;
-use crate::core::df::sql;
+use crate::core::df::{pretty_print, sql};
+
+use crate::core::v2::index::merkle_tree::node::CommitMerkleTreeNode;
 use crate::error::OxenError;
 use crate::io::chunk_reader::ChunkReader;
 use crate::model::schema::DataType;
@@ -80,11 +80,11 @@ pub fn read_df_parquet(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
         n_rows: None,
         ..Default::default()
     };
-    log::debug!(
-        "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
-        path.as_ref(),
-        args.n_rows
-    );
+    // log::debug!(
+    //     "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
+    //     path.as_ref(),
+    //     args.n_rows
+    // );
     LazyFrame::scan_parquet(&path, args).map_err(|_| {
         OxenError::basic_str(format!(
             "Error scanning parquet file {}: {:?}",
@@ -132,11 +132,11 @@ pub fn scan_df_parquet(path: impl AsRef<Path>, total_rows: usize) -> Result<Lazy
         n_rows: Some(total_rows),
         ..Default::default()
     };
-    log::debug!(
-        "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
-        path.as_ref(),
-        args.n_rows
-    );
+    // log::debug!(
+    //     "scan_df_parquet_n_rows path: {:?} n_rows: {:?}",
+    //     path.as_ref(),
+    //     args.n_rows
+    // );
     LazyFrame::scan_parquet(&path, args).map_err(|_| {
         OxenError::basic_str(format!(
             "Error scanning parquet file {}: {:?}",
@@ -146,8 +146,13 @@ pub fn scan_df_parquet(path: impl AsRef<Path>, total_rows: usize) -> Result<Lazy
     })
 }
 
-fn scan_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
-    LazyFrame::scan_ipc(&path, ScanArgsIpc::default())
+fn scan_df_arrow(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
+    let args = ScanArgsIpc {
+        n_rows: Some(total_rows),
+        ..Default::default()
+    };
+
+    LazyFrame::scan_ipc(&path, args)
         .map_err(|_| OxenError::basic_str(format!("{}: {:?}", READ_ERROR, path.as_ref())))
 }
 
@@ -487,6 +492,7 @@ fn tail(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, OxenError> {
     let mut opts = DFOpts::empty();
     opts.slice = Some(format!("{}..{}", start, end));
+    log::debug!("slice_df with opts: {:?}", opts);
     let df = df.lazy();
     let df = slice(df, &opts);
     Ok(df.collect().expect(COLLECT_ERROR))
@@ -736,7 +742,7 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
         None => Err(OxenError::basic_str(err)),
     }?;
 
-    log::debug!("Read finished");
+    // log::debug!("Read finished");
     if opts.has_transform() {
         let df = transform_new(df, opts)?;
         Ok(df.collect()?)
@@ -750,6 +756,7 @@ pub fn scan_df(
     opts: &DFOpts,
     total_rows: usize,
 ) -> Result<LazyFrame, OxenError> {
+    log::debug!("Scanning df with total_rows: {}", total_rows);
     let input_path = path.as_ref();
     let extension = input_path.extension().and_then(OsStr::to_str);
     let err = format!("Unknown file type scan_df {input_path:?} {extension:?}");
@@ -765,7 +772,7 @@ pub fn scan_df(
             }
             "tsv" => scan_df_csv(path, b'\t', total_rows),
             "parquet" => scan_df_parquet(path, total_rows),
-            "arrow" => scan_df_arrow(path),
+            "arrow" => scan_df_arrow(path, total_rows),
             _ => Err(OxenError::basic_str(err)),
         },
         None => Err(OxenError::basic_str(err)),
@@ -949,7 +956,7 @@ pub fn show_node(
         let parquet_reader = ParquetReader::new(chunk_reader);
         log::debug!("Reading chunked parquet");
 
-        let df = match parquet_reader.finish() {
+        match parquet_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading chunked parquet");
                 Ok(df)
@@ -958,14 +965,13 @@ pub fn show_node(
                 "Could not read chunked parquet: {:?}",
                 err
             ))),
-        }?;
-        df
+        }?
     } else if file_node.name.ends_with("arrow") {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let parquet_reader = IpcReader::new(chunk_reader);
         log::debug!("Reading chunked arrow");
 
-        let df = match parquet_reader.finish() {
+        match parquet_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading chunked arrow");
                 Ok(df)
@@ -974,12 +980,12 @@ pub fn show_node(
                 "Could not read chunked arrow: {:?}",
                 err
             ))),
-        }?;
-        df
+        }?
     } else {
         let chunk_reader = ChunkReader::new(repo, file_node)?;
         let json_reader = JsonLineReader::new(chunk_reader);
-        let df = match json_reader.finish() {
+
+        match json_reader.finish() {
             Ok(df) => {
                 log::debug!("Finished reading line delimited json");
                 Ok(df)
@@ -988,8 +994,7 @@ pub fn show_node(
                 "Could not read chunked json: {:?}",
                 err
             ))),
-        }?;
-        df
+        }?
     };
 
     let df: PolarsResult<DataFrame> = if opts.has_transform() {

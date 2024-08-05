@@ -10,7 +10,7 @@ use crate::constants::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::{api, core::index};
+use crate::{core::v1::index, repositories};
 
 use glob::glob;
 
@@ -18,7 +18,7 @@ use super::helpers;
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    let commit = api::local::commits::head_commit(repo)?;
+    let commit = repositories::commits::head_commit(repo)?;
     let path = &opts.path;
 
     let mut paths: HashSet<PathBuf> = HashSet::new();
@@ -31,7 +31,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
                     paths.insert(entry);
                 }
             }
-            let pattern_entries = api::local::commits::glob_entry_paths(repo, &commit, path_str)?;
+            let pattern_entries = repositories::commits::glob_entry_paths(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
             paths.insert(path.to_owned());
@@ -51,13 +51,13 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use crate::api;
     use crate::command;
-    use crate::core::index::CommitEntryReader;
+    use crate::core::v1::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
     use image::imageops;
@@ -155,7 +155,7 @@ mod tests {
                 assert!(!repo_filepath.exists())
             }
 
-            let entries = api::local::entries::list_all(&repo, &commit)?;
+            let entries = repositories::entries::list_all(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
             let dir_reader = CommitEntryReader::new(&repo, &commit)?;
@@ -236,7 +236,7 @@ mod tests {
             let commit = command::commit(&repo, "Adding dwight and vince")?;
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
-            let entries = api::local::entries::list_all(&repo, &commit)?;
+            let entries = repositories::entries::list_all(&repo, &commit)?;
 
             for entry in entries.iter() {
                 println!("entry: {:?}", entry.path);

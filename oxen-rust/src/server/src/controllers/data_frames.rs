@@ -3,17 +3,17 @@ use crate::helpers::get_repo;
 use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::api;
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
-use liboxen::core::cache::cachers;
-use liboxen::core::db::df_db;
-use liboxen::core::index::CommitEntryReader;
+use liboxen::core::db::data_frames::df_db;
+use liboxen::core::v1::cache::cachers;
+use liboxen::core::v1::index::CommitEntryReader;
 use liboxen::error::{OxenError, PathBufError};
 use liboxen::model::{
     Commit, CommitEntry, DataFrameSize, LocalRepository, ParsedResource, Schema, Workspace,
 };
 use liboxen::opts::df_opts::DFOptsView;
+use liboxen::repositories;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 
@@ -27,7 +27,7 @@ use liboxen::view::{
 use liboxen::util;
 use polars::frame::DataFrame;
 
-use liboxen::core::index;
+use liboxen::core::v1::index;
 use uuid::Uuid;
 
 pub async fn get(
@@ -101,11 +101,23 @@ pub async fn get(
         version: resource.version.to_string_lossy().into(),
     };
 
-    let mut df = tabular::scan_df(&version_path, &opts, data_frame_size.height)?;
+    let height = if opts.slice.is_some() {
+        log::debug!("Scanning df with slice: {:?}", opts.slice);
+        let slice = opts.slice.as_ref().unwrap();
+        let (_, end) = slice.split_once("..").unwrap();
+
+        end.parse::<usize>().unwrap()
+    } else {
+        data_frame_size.height
+    };
+
+    log::debug!("Scanning df with height: {}", height);
+
+    let mut df = tabular::scan_df(&version_path, &opts, height)?;
 
     // Try to get the schema from disk
     let og_schema = if let Some(schema) =
-        api::local::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
+        repositories::schemas::get_by_path_from_ref(&repo, &commit.id, &resource.path)?
     {
         schema
     } else {
@@ -135,7 +147,9 @@ pub async fn get(
     match tabular::transform_lazy(df, opts.clone()) {
         Ok(df_view) => {
             // Have to do the pagination after the transform
-            let mut df = tabular::transform_slice_lazy(df_view, opts.clone())?.collect()?;
+            let lf = tabular::transform_slice_lazy(df_view, opts.clone())?;
+            log::debug!("done transform_slice_lazy: {:?}", lf.describe_plan());
+            let mut df = lf.collect()?;
 
             let view_height = if opts.has_filter_transform() {
                 df.height()
@@ -233,7 +247,7 @@ fn handle_sql_querying(
         let df = sql::query_df(sql, &mut conn)?;
 
         let og_schema = if let Some(schema) =
-            api::local::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &resource.path)?
+            repositories::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &resource.path)?
         {
             schema
         } else {

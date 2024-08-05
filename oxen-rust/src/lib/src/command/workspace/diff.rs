@@ -18,8 +18,8 @@ pub async fn diff(
     workspace_id: &str,
     path: &Path,
 ) -> Result<DataFrame, OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
-    let diff = api::remote::workspaces::data_frames::diff(
+    let remote_repo = api::client::repositories::get_default_remote(repo).await?;
+    let diff = api::client::workspaces::data_frames::diff(
         &remote_repo,
         workspace_id,
         path,

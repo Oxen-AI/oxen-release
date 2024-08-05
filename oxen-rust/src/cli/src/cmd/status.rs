@@ -1,12 +1,12 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use liboxen::api;
 use liboxen::command;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 use liboxen::util;
 use std::path::PathBuf;
 
@@ -82,13 +82,13 @@ impl RunCmd for StatusCmd {
         let directory = directory.unwrap_or(repository.path.clone());
         let repo_status = command::status_from_dir(&repository, &directory)?;
 
-        if let Some(current_branch) = api::local::branches::current_branch(&repository)? {
+        if let Some(current_branch) = repositories::branches::current_branch(&repository)? {
             println!(
                 "On branch {} -> {}\n",
                 current_branch.name, current_branch.commit_id
             );
         } else {
-            let head = api::local::commits::head_commit(&repository)?;
+            let head = repositories::commits::head_commit(&repository)?;
             println!(
                 "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
                 head.id, head.message

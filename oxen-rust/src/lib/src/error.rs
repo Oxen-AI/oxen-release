@@ -80,6 +80,9 @@ pub enum OxenError {
     InvalidSchema(Box<Schema>),
     IncompatibleSchemas(Box<Schema>),
     InvalidFileType(StringError),
+    ColumnNameAlreadyExists(StringError),
+    ColumnNameNotFound(StringError),
+    UnsupportedOperation(StringError),
 
     // Metadata
     ImageMetadataParseError(StringError),
@@ -455,6 +458,16 @@ impl OxenError {
     pub fn invalid_file_type(file_type: impl AsRef<str>) -> OxenError {
         let err = format!("Invalid file type: {:?}", file_type.as_ref());
         OxenError::InvalidFileType(StringError::from(err))
+    }
+
+    pub fn column_name_already_exists(column_name: &str) -> OxenError {
+        let err = format!("Column name already exists: {:?}", column_name);
+        OxenError::ColumnNameAlreadyExists(StringError::from(err))
+    }
+
+    pub fn column_name_not_found(column_name: &str) -> OxenError {
+        let err = format!("Column name not found: {:?}", column_name);
+        OxenError::ColumnNameNotFound(StringError::from(err))
     }
 
     pub fn incompatible_schemas(schema: Schema) -> OxenError {

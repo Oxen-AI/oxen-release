@@ -22,7 +22,7 @@ pub async fn status(
     let page_size = opts.limit;
     let page_num = opts.skip / page_size;
 
-    let remote_status = api::remote::workspaces::changes::list(
+    let remote_status = api::client::workspaces::changes::list(
         remote_repo,
         workspace_id,
         directory,

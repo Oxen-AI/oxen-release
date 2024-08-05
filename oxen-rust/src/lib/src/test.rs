@@ -6,7 +6,7 @@ use crate::command;
 use crate::constants;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::index::{RefWriter, Stager};
+use crate::core::v1::index::{RefWriter, Stager};
 use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::RepoNew;
@@ -61,7 +61,9 @@ pub fn init_test_env() {
         log::debug!("Logger initialized");
     }
 
-    std::env::set_var("TEST", "true");
+    unsafe {
+        std::env::set_var("TEST", "true");
+    }
 }
 
 fn create_prefixed_dir(
@@ -92,7 +94,7 @@ pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteReposito
         repo.dirname(),
         test_host(),
     );
-    api::remote::repositories::create_from_local(repo, repo_new).await
+    api::client::repositories::create_from_local(repo, repo_new).await
 }
 
 /// # Run a unit test on a test repo directory
@@ -224,7 +226,7 @@ where
     let result = match test(&local_repo, remote_repo).await {
         Ok(remote_repo) => {
             // Cleanup remote repo
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
             true
         }
         Err(err) => {
@@ -274,7 +276,7 @@ where
     let result = match test(local_repo, remote_repo).await {
         Ok(remote_repo) => {
             // Cleanup remote repo
-            api::remote::repositories::delete(&remote_repo).await?;
+            api::client::repositories::delete(&remote_repo).await?;
             true
         }
         Err(err) => {
@@ -469,13 +471,13 @@ where
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let namespace = constants::DEFAULT_NAMESPACE;
     let repo_new = RepoNew::from_namespace_name_host(namespace, name, test_host());
-    let repo = api::remote::repositories::create_empty(repo_new).await?;
+    let repo = api::client::repositories::create_empty(repo_new).await?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
         Ok(repo) => {
             // Cleanup remote repo
-            api::remote::repositories::delete(&repo).await?;
+            api::client::repositories::delete(&repo).await?;
             true
         }
         Err(err) => {
@@ -508,7 +510,7 @@ where
     let result = match test(local_repo, remote_repo).await {
         Ok(repo) => {
             // Cleanup remote repo
-            api::remote::repositories::delete(&repo).await?;
+            api::client::repositories::delete(&repo).await?;
             true
         }
         Err(err) => {
@@ -1517,11 +1519,12 @@ pub fn add_csv_file_to_dir(dir: &Path, contents: &str) -> Result<PathBuf, OxenEr
     add_file_to_dir(dir, contents, "csv")
 }
 
-pub fn write_txt_file_to_path<P: AsRef<Path>>(
-    path: P,
-    contents: &str,
+pub fn write_txt_file_to_path(
+    path: impl AsRef<Path>,
+    contents: impl AsRef<str>,
 ) -> Result<PathBuf, OxenError> {
     let path = path.as_ref();
+    let contents = contents.as_ref();
     let mut file = File::create(path)?;
     file.write_all(contents.as_bytes())?;
     Ok(path.to_path_buf())

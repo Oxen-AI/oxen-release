@@ -2,13 +2,13 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
-use liboxen::core::cache::commit_cacher;
+use liboxen::core::v1::cache::commit_cacher;
 
 use liboxen::error::OxenError;
 use liboxen::model::NewCommitBody;
 use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
 use liboxen::view::{CommitResponse, StatusMessage, WorkspaceResponseView};
-use liboxen::{api, core::index};
+use liboxen::{core::v1::index, repositories};
 
 use actix_web::{HttpRequest, HttpResponse};
 
@@ -34,7 +34,7 @@ pub async fn get_or_create(
         }
     };
 
-    let Some(branch) = api::local::branches::get_by_name(&repo, &data.branch_name)? else {
+    let Some(branch) = repositories::branches::get_by_name(&repo, &data.branch_name)? else {
         return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Branch not found")));
     };
 
@@ -51,7 +51,7 @@ pub async fn get_or_create(
         }));
     }
 
-    let commit = api::local::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
+    let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
 
     // Get or create the workspace
     index::workspaces::create(&repo, &commit, &workspace_id, true)?;

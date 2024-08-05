@@ -1,18 +1,26 @@
 use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::HashMap;
 use std::path::Path;
+use std::path::PathBuf;
+use std::sync::Arc;
+use time::OffsetDateTime;
 
 use super::Migrate;
 
-use crate::core::db::merkle_node_db::MerkleNodeDB;
-use crate::core::db::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::{self, str_val_db};
-use crate::core::index::file_chunker::{ChunkShardManager, FileChunker};
-use crate::core::index::merkle_tree::node::*;
-use crate::core::index::{CommitEntryReader, CommitReader};
+use crate::core::db;
+use crate::core::db::key_val::str_val_db;
+use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
+use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
+use crate::core::v1::index::object_db_reader::get_object_reader;
+use crate::core::v1::index::{
+    CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
+};
+// use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
+use crate::core::v2::index::merkle_tree::node::*;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, constants, util};
+use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
+use crate::{constants, repositories, util};
 
 pub struct OptimizeMerkleTreesMigration;
 impl Migrate for OptimizeMerkleTreesMigration {
@@ -56,7 +64,7 @@ impl Migrate for OptimizeMerkleTreesMigration {
 
 pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
     println!("🐂 Collecting namespaces to migrate...");
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
@@ -66,7 +74,7 @@ pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError
             "This is the namespace path we're walking: {:?}",
             namespace_path.canonicalize()?
         );
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match create_merkle_trees_up(&repo) {
                 Ok(_) => {}
@@ -88,12 +96,18 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     println!("👋 Starting to migrate merkle trees for {:?}", repo.path);
 
     // Get all commits in repo, then construct merkle tree for each commit
-    let reader = CommitReader::new(repo)?;
-    let all_commits = reader.list_all()?;
+    let commit_reader = CommitReader::new(repo)?;
+    let all_commits = commit_reader.list_all()?;
     // sort these by timestamp from oldest to newest
     let mut all_commits = all_commits.clone();
     all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
     println!("Migrate {} commits for {:?}", all_commits.len(), repo.path);
+
+    // Setup these object readers and entry readers to help pre-compute of latest commit for each file
+    let mut object_readers: Vec<Arc<ObjectDBReader>> = Vec::new();
+    for commit in &all_commits {
+        object_readers.push(get_object_reader(repo, &commit.id)?);
+    }
 
     // Clear tree dir if exists (in order to run migration many times)
     let tree_dir = repo
@@ -111,9 +125,15 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     let bar = oxen_progress_bar(all_commits.len() as u64, ProgressBarType::Counter);
     // let commit_writer = CommitWriter::new(repo)?;
-    for commit in all_commits {
+    for (commit_idx, _) in all_commits.iter().enumerate() {
         // Populate the global merkle tree from the old objects dir
-        migrate_merkle_tree(repo, &commit)?;
+        migrate_merkle_tree(
+            repo,
+            &commit_reader,
+            &all_commits,
+            commit_idx,
+            &object_readers,
+        )?;
 
         bar.inc(1);
     }
@@ -121,7 +141,14 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     Ok(())
 }
 
-fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError> {
+fn migrate_merkle_tree(
+    repo: &LocalRepository,
+    commit_reader: &CommitReader,
+    commits: &Vec<Commit>,
+    commit_idx: usize,
+    object_readers: &Vec<Arc<ObjectDBReader>>,
+) -> Result<(), OxenError> {
+    let commit = &commits[commit_idx];
     let commit_dir = repo
         .path
         .join(constants::OXEN_HIDDEN_DIR)
@@ -134,32 +161,48 @@ fn migrate_merkle_tree(repo: &LocalRepository, commit: &Commit) -> Result<(), Ox
         return Ok(());
     }
 
-    // Instantiate the CommitEntryReader, most expensive operation
-    let commit_entry_reader = CommitEntryReader::new(repo, commit)?;
-
     // Get the root hash
     let dir_hashes_dir = commit_dir.join(constants::DIR_HASHES_DIR);
 
     let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open_for_read_only(&db::opts::default(), dir_hashes_dir, false)?;
+        DBWithThreadMode::open_for_read_only(&db::key_val::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
 
-    migrate_dir(repo, &commit_entry_reader, "", &hash)?;
+    let dir_path = Path::new("");
+    migrate_dir(
+        repo,
+        commits,
+        commit_idx,
+        commit_reader,
+        object_readers,
+        dir_path,
+        "",
+        &hash,
+    )?;
 
     Ok(())
 }
 
 fn migrate_dir(
     repo: &LocalRepository,
-    reader: &CommitEntryReader,
-    dir_name: &str,
+    commits: &Vec<Commit>,
+    commit_idx: usize,
+    commit_reader: &CommitReader,
+    object_readers: &Vec<Arc<ObjectDBReader>>,
+    dir_path: &Path, // full path to dir (/path/to/dir)
+    dir_name: &str,  // base name of dir (dir)
     dir_hash: &str,
 ) -> Result<(), OxenError> {
     // Read the values from the .oxen/objects/dirs db and write them
     // to the proper .oxen/tree/{path} with their hash as the key and type
     // and metadata as the value
     //
-    log::debug!("Getting dir for node: {:?}", dir_hash);
+    println!(
+        "Processing dir: {} {} for commit {}",
+        dir_hash,
+        dir_path.display(),
+        commits[commit_idx]
+    );
 
     /*
     The number of VNodes is dynamic depending on the number of children in
@@ -194,9 +237,17 @@ fn migrate_dir(
             * 12,5000 Children Per VNode
     */
 
+    let commit = &commits[commit_idx];
+    let entry_reader = CommitEntryReader::new(repo, commit)?;
     let dir_hash = &dir_hash.replace('"', "");
-    let obj_reader = reader.get_obj_reader();
+    let obj_reader = &object_readers[commit_idx];
     let dir_obj = obj_reader.get_dir(dir_hash)?;
+
+    let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+    for (i, c) in commits.iter().enumerate() {
+        let reader = CommitDirEntryReader::new(repo, &c.id, dir_path, object_readers[i].clone())?;
+        commit_entry_readers.push((c.clone(), reader));
+    }
 
     let Some(dir_obj) = dir_obj else {
         return Err(OxenError::basic_str(format!(
@@ -253,6 +304,7 @@ fn migrate_dir(
         .join(constants::NODES_DIR)
         .join(dir_hash);
 
+    // Create a directory of vnodes
     let mut dir_db = MerkleNodeDB::open_read_write(tree_path)?;
     dir_db.write_meta(dir_name, MerkleTreeNodeType::Dir, num_vnodes as u64)?;
     for (i, bhash) in bucket_hashes.iter().enumerate() {
@@ -285,9 +337,9 @@ fn migrate_dir(
         println!("Writing vnodes to path: {:?}", node_path);
 
         // Write the children of the VNodes
-        let mut tree_db = MerkleNodeDB::open_read_write(&node_path)?;
+        let mut node_db = MerkleNodeDB::open_read_write(&node_path)?;
         let num_children = bucket.len();
-        tree_db.write_meta(&shash, MerkleTreeNodeType::VNode, num_children as u64)?;
+        node_db.write_meta(&shash, MerkleTreeNodeType::VNode, num_children as u64)?;
         for (j, child) in bucket.iter().enumerate() {
             let (dtype, hash, path) = match child {
                 TreeObjectChild::VNode { path, hash } => (MerkleTreeNodeType::VNode, hash, path),
@@ -295,7 +347,10 @@ fn migrate_dir(
                 TreeObjectChild::Dir { path, hash } => (MerkleTreeNodeType::Dir, hash, path),
                 TreeObjectChild::Schema { path, hash } => (MerkleTreeNodeType::Schema, hash, path),
             };
-            log::debug!("writing child {} {:?} {}", j, dtype, path.display());
+
+            if j % 1000 == 0 {
+                log::debug!("writing child {} {:?} {}", j, dtype, path.display());
+            }
 
             match dtype {
                 MerkleTreeNodeType::VNode => {
@@ -308,28 +363,48 @@ fn migrate_dir(
                 }
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
-                    migrate_file(repo, reader, &mut tree_db, path, hash)?;
+                    write_file_node(
+                        &entry_reader,
+                        &commit_entry_readers,
+                        &mut node_db,
+                        path,
+                        hash,
+                    )?;
                 }
                 MerkleTreeNodeType::Dir => {
+                    write_dir_node(
+                        repo,
+                        commit,
+                        commit_idx,
+                        &entry_reader,
+                        object_readers,
+                        &commit_entry_readers,
+                        &mut node_db,
+                        path,
+                        hash,
+                    )?;
                     // Recurse if it's a directory
                     let file_name = path.file_name().unwrap().to_str().unwrap();
-                    let val = DirNode {
-                        path: file_name.to_owned(),
-                    };
-                    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                    // println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
-                    tree_db.write_one(uhash, MerkleTreeNodeType::Dir, &val)?;
-                    migrate_dir(repo, reader, file_name, hash)?;
+                    migrate_dir(
+                        repo,
+                        commits,
+                        commit_idx,
+                        commit_reader,
+                        object_readers,
+                        path,
+                        file_name,
+                        hash,
+                    )?;
                 }
                 MerkleTreeNodeType::Schema => {
                     // Schema we can directly write
                     let file_name = path.file_name().unwrap().to_str().unwrap();
                     let val = SchemaNode {
-                        path: file_name.to_owned(),
+                        name: file_name.to_owned(),
                     };
                     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
                     // println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
-                    tree_db.write_one(uhash, MerkleTreeNodeType::Schema, &val)?;
+                    node_db.write_one(uhash, MerkleTreeNodeType::Schema, &val)?;
                 }
             }
         }
@@ -337,14 +412,162 @@ fn migrate_dir(
     Ok(())
 }
 
-fn migrate_file(
+fn write_dir_node(
     repo: &LocalRepository,
-    reader: &CommitEntryReader,
+    commit: &Commit,
+    commit_idx: usize,
+    entry_reader: &CommitEntryReader,
+    object_readers: &Vec<Arc<ObjectDBReader>>,
+    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
     node_db: &mut MerkleNodeDB,
     path: &Path,
     hash: &str,
 ) -> Result<(), OxenError> {
-    let obj_reader = reader.get_obj_reader();
+    let file_name = path.file_name().unwrap().to_str().unwrap();
+    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+
+    // TODO Compute num_bytes, last_commit_id, last_modified_seconds, last_modified_nanoseconds
+    let mut num_bytes = 0;
+    let mut last_commit_id = 0;
+    let mut last_commit_timestamp: OffsetDateTime = OffsetDateTime::from_unix_timestamp(0).unwrap();
+    let mut last_modified_seconds = 0;
+    let mut last_modified_nanoseconds = 0;
+    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+
+    let mut entries_processed = 0;
+
+    // List dir children
+    let dirs = entry_reader.list_dirs()?;
+
+    let dirs: Vec<PathBuf> = dirs
+        .iter()
+        .filter(|dir| dir.starts_with(path))
+        .map(|dir| dir.to_path_buf())
+        .collect();
+
+    let progress_bar = spinner_with_msg("Processing dir children");
+
+    for dir in dirs {
+        log::debug!("processing dir: {:?}", dir);
+        let dir_entry_reader =
+            CommitDirEntryReader::new(repo, &commit.id, &dir, object_readers[commit_idx].clone())?;
+
+        let mut readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+        for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
+            if c.timestamp > last_commit_timestamp {
+                let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
+                readers.push((c.clone(), reader));
+            }
+        }
+
+        let entries = dir_entry_reader.list_entries()?;
+        for entry in entries {
+            num_bytes += entry.num_bytes;
+
+            // If we have less than 2 readers, we know the latest commit is the one we're processing
+            if readers.len() > 1 {
+                log::debug!("checking latest commit on {:?} readers: {:?}", entry.path, readers.len());
+                let Some(latest_commit) =
+                    repositories::entries::get_latest_commit_for_entry(&readers, &entry)?
+                else {
+                    log::error!(
+                        "Skipping entry {:?}, could not get latest commit",
+                        entry.path
+                    );
+                    continue;
+                };
+                if latest_commit.timestamp > last_commit_timestamp {
+                    last_commit_timestamp = latest_commit.timestamp;
+                    let commit_id = &latest_commit.id;
+                    // convert string hash to u128
+                    last_commit_id =
+                        u128::from_str_radix(&commit_id, 16).expect("Failed to parse hex string");
+                    last_modified_seconds = entry.last_modified_seconds;
+                    last_modified_nanoseconds = entry.last_modified_nanoseconds;
+                    log::debug!(
+                        "Setting latest commit: {} for {:?} {} {} {}",
+                        latest_commit,
+                        entry.path,
+                        entry.num_bytes,
+                        commit_id,
+                        last_commit_timestamp
+                    );
+
+                    // filter readers that are older than the latest commit
+                    log::debug!("Filter readers... {:?}", readers.len());
+                    readers = Vec::new();
+                    for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
+                        if c.timestamp > last_commit_timestamp {
+                            let reader = CommitDirEntryReader::new(
+                                repo,
+                                &c.id,
+                                &dir,
+                                object_readers[i].clone(),
+                            )?;
+                            readers.push((c.clone(), reader));
+                        }
+                    }
+                    log::debug!("Filtered readers: {:?}", readers.len());
+                }
+            }
+
+            entries_processed += 1;
+            // if entries_processed % 1000 == 0 {
+            //     log::debug!(
+            //         "added entry: {:?} from dir {:?} bytes: {} / {}",
+            //         entry.path,
+            //         dir,
+            //         bytesize::ByteSize::b(entry.num_bytes),
+            //         bytesize::ByteSize::b(num_bytes)
+            //     );
+            //     log::debug!(
+            //         "Processed {} entries in dir {:?} total bytes: {}",
+            //         entries_processed,
+            //         path,
+            //         bytesize::ByteSize::b(num_bytes)
+            //     );
+
+            // }
+
+            let data_type = util::fs::data_type_from_extension(&entry.path);
+            let data_type_str = format!("{}", data_type);
+            data_type_counts
+                .entry(data_type_str)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
+
+            progress_bar.set_message(format!(
+                "Processing {:?} children: {} ({})",
+                path,
+                entries_processed,
+                bytesize::ByteSize::b(num_bytes)
+            ));
+        }
+    }
+
+    let val = DirNode {
+        name: file_name.to_owned(),
+        hash: uhash,
+        num_bytes,
+        last_commit_id,
+        last_modified_seconds,
+        last_modified_nanoseconds,
+        data_type_counts,
+    };
+    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+    // println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
+    node_db.write_one(uhash, MerkleTreeNodeType::Dir, &val)?;
+    Ok(())
+}
+
+fn write_file_node(
+    entry_reader: &CommitEntryReader,
+    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
+    node_db: &mut MerkleNodeDB,
+    path: &Path,
+    hash: &str,
+) -> Result<(), OxenError> {
+    let obj_reader = entry_reader.get_obj_reader();
     // read other meta data from file object
     let file_obj = obj_reader
         .get_file(hash)?
@@ -363,7 +586,14 @@ fn migrate_file(
         _ => return Err(OxenError::basic_str("file object is not a file")),
     };
 
+    // TODO: Find the last commit id for the file
+    let latest_commit =
+        repositories::entries::get_latest_commit_for_path(commit_entry_readers, path)?.unwrap();
+    let last_commit_id =
+        u128::from_str_radix(&latest_commit.id, 16).expect("Failed to parse hex string");
+
     // Chunk the file into 16kb chunks
+    /* TODO: This is hard / inefficient to read into Polars for now, ignore
     let commit_entry = reader.get_entry(path)?.ok_or(OxenError::basic_str(format!(
         "could not get file entry for {}",
         path.display()
@@ -372,18 +602,26 @@ fn migrate_file(
     let mut csm = ChunkShardManager::new(repo)?;
     csm.open_for_write()?;
     let chunks = chunker.save_chunks(&commit_entry, &mut csm)?;
+     */
+
+    // For now, we just have one chunk per file
+    let uhash: u128 = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
+    let chunks: Vec<u128> = vec![uhash];
 
     // Then start refactoring the commands into a "legacy" module so we can still make the old
     // dbs but start implementing them with the new merkle object
     let file_name = path.file_name().unwrap().to_str().unwrap();
     let val = FileNode {
         name: file_name.to_owned(),
+        hash: uhash,
         num_bytes,
+        chunk_type: FileChunkType::SingleFile,
+        storage_backend: FileStorageType::Disk,
+        last_commit_id,
         last_modified_seconds,
         last_modified_nanoseconds,
         chunk_hashes: chunks,
     };
-    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
     node_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
 
     // TODO

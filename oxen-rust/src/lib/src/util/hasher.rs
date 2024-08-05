@@ -1,4 +1,4 @@
-use crate::core::db::tree_db::TreeObjectChild;
+use crate::core::db::key_val::tree_db::TreeObjectChild;
 use crate::error::OxenError;
 use crate::model::{ContentHashable, NewCommit};
 use sha2::{Digest, Sha256};
@@ -135,7 +135,7 @@ fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
         OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path, err))
     })?;
 
-    let progress = spinner_with_msg(format!("Hashing large file..."));
+    let progress = spinner_with_msg("Hashing large file...");
 
     let mut reader = BufReader::new(file);
     let mut hasher = Xxh3::new();
