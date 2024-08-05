@@ -1,9 +1,9 @@
 use std::path::Path;
 
-use liboxen::api;
 use liboxen::constants::DEFAULT_REDIS_URL;
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, RepoNew};
+use liboxen::repositories;
 
 use crate::errors::OxenHttpError;
 
@@ -13,7 +13,7 @@ pub fn get_repo(
     name: impl AsRef<str>,
 ) -> Result<LocalRepository, OxenHttpError> {
     Ok(
-        api::local::repositories::get_by_namespace_and_name(path, &namespace, &name)?.ok_or(
+        repositories::get_by_namespace_and_name(path, &namespace, &name)?.ok_or(
             OxenError::repo_not_found(RepoNew::from_namespace_name(&namespace, &name)),
         )?,
     )

@@ -7,19 +7,19 @@ use crate::error::OxenError;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
 use crate::model::LocalRepository;
 use crate::opts::InfoOpts;
-use crate::{api, util};
+use crate::{repositories, util};
 
 /// # Get info about a file or directory
 pub fn info(repository: &LocalRepository, opts: InfoOpts) -> Result<CLIMetadataEntry, OxenError> {
     let path = opts.path;
 
     if let Some(revision) = opts.revision {
-        let commit = api::local::revisions::get(repository, &revision)?
+        let commit = repositories::revisions::get(repository, &revision)?
             .ok_or(OxenError::revision_not_found(revision.to_owned().into()))?;
 
-        if let Some(entry) = api::local::entries::get_commit_entry(repository, &commit, &path)? {
+        if let Some(entry) = repositories::entries::get_commit_entry(repository, &commit, &path)? {
             let version_path = util::fs::version_path(repository, &entry);
-            return api::local::metadata::get_cli(repository, path, version_path);
+            return repositories::metadata::get_cli(repository, path, version_path);
         } else {
             eprintln!(
                 "Path does not exist in revision: {}:{}",
@@ -37,5 +37,5 @@ pub fn info(repository: &LocalRepository, opts: InfoOpts) -> Result<CLIMetadataE
     }
 
     // get file metadata
-    api::local::metadata::get_cli(repository, &path, &path)
+    repositories::metadata::get_cli(repository, &path, &path)
 }

@@ -70,7 +70,7 @@ impl RunCmd for CloneCmd {
             branch: branch.to_string(),
         };
 
-        let host = api::remote::client::get_host_from_url(&opts.url)?;
+        let host = api::client::get_host_from_url(&opts.url)?;
         check_remote_version_blocking(host.clone()).await?;
         check_remote_version(host).await?;
 

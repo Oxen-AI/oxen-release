@@ -1,7 +1,8 @@
 //! Core functionality for Oxen
 //!
 
-pub mod cache;
 pub mod db;
 pub mod df;
-pub mod index;
+
+pub mod v1;
+pub mod v2;

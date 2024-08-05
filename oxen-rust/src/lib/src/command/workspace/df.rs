@@ -29,11 +29,11 @@ pub async fn df(
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, workspace_id, input, uuid).await
     } else {
-        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let remote_repo = api::client::repositories::get_default_remote(repo).await?;
         let output = opts.output.clone();
         let workspace_id = UserConfig::identifier()?;
         let val =
-            api::remote::workspaces::data_frames::get(&remote_repo, workspace_id, input, opts)
+            api::client::workspaces::data_frames::get(&remote_repo, workspace_id, input, opts)
                 .await;
 
         match val {
@@ -81,10 +81,10 @@ pub async fn staged_df<P: AsRef<Path>>(
     } else if let Some(uuid) = &opts.delete_row {
         delete_row(repo, workspace_id, input, uuid).await
     } else {
-        let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+        let remote_repo = api::client::repositories::get_default_remote(repo).await?;
         let output = opts.output.clone();
         let val =
-            api::remote::workspaces::data_frames::get(&remote_repo, &workspace_id, input, opts)
+            api::client::workspaces::data_frames::get(&remote_repo, &workspace_id, input, opts)
                 .await;
 
         if let Ok(val) = val {
@@ -117,12 +117,12 @@ pub async fn add_row(
     path: &Path,
     data: &str,
 ) -> Result<DataFrame, OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repo).await?;
+    let remote_repo = api::client::repositories::get_default_remote(repo).await?;
 
     // let data = format!(r#"{{"data": {}}}"#, data);
     let data = data.to_string();
     let (df, row_id) =
-        api::remote::workspaces::data_frames::rows::add(&remote_repo, workspace_id, path, data)
+        api::client::workspaces::data_frames::rows::add(&remote_repo, workspace_id, path, data)
             .await?;
 
     if let Some(row_id) = row_id {
@@ -139,8 +139,8 @@ pub async fn delete_row(
     path: impl AsRef<Path>,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    let df = api::remote::workspaces::data_frames::rows::delete(
+    let remote_repo = api::client::repositories::get_default_remote(repository).await?;
+    let df = api::client::workspaces::data_frames::rows::delete(
         &remote_repo,
         workspace_id,
         path.as_ref(),
@@ -156,8 +156,8 @@ pub async fn get_row(
     path: impl AsRef<Path>,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    let df_json = api::remote::workspaces::data_frames::rows::get(
+    let remote_repo = api::client::repositories::get_default_remote(repository).await?;
+    let df_json = api::client::workspaces::data_frames::rows::get(
         &remote_repo,
         workspace_id,
         path.as_ref(),
@@ -174,6 +174,6 @@ pub async fn index(
     workspace_id: &str,
     path: impl AsRef<Path>,
 ) -> Result<StatusMessage, OxenError> {
-    let remote_repo = api::remote::repositories::get_default_remote(repository).await?;
-    api::remote::workspaces::data_frames::index(&remote_repo, workspace_id, path.as_ref()).await
+    let remote_repo = api::client::repositories::get_default_remote(repository).await?;
+    api::client::workspaces::data_frames::index(&remote_repo, workspace_id, path.as_ref()).await
 }

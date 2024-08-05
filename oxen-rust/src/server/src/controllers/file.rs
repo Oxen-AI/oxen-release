@@ -2,7 +2,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::core::index::object_db_reader::get_object_reader;
+use liboxen::core::v1::index::object_db_reader::get_object_reader;
 use liboxen::error::OxenError;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::CommitEntry;
@@ -58,7 +58,7 @@ pub async fn get(
             log::debug!("got entry {} -> {:?}", key, entry);
         } else {
             log::debug!("not found in LRU");
-            let cder = liboxen::core::index::CommitDirEntryReader::new(
+            let cder = liboxen::core::v1::index::CommitDirEntryReader::new(
                 &repo,
                 &commit.id,
                 parent,

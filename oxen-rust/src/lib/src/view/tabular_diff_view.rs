@@ -2,9 +2,9 @@ use polars::prelude::*;
 
 use serde::{Deserialize, Serialize};
 
-use crate::api;
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::opts::DFOpts;
+use crate::repositories;
 use crate::view::{JsonDataFrame, JsonDataFrameView};
 
 use crate::model::diff::tabular_diff_summary::{
@@ -56,7 +56,7 @@ impl TabularDiffView {
 
             if schema_has_changed {
                 // compute new columns
-                let df_diff = api::local::diff::compute_new_columns_from_dfs(
+                let df_diff = repositories::diffs::compute_new_columns_from_dfs(
                     base_df.clone(),
                     head_df.clone(),
                     &base_schema,
@@ -101,7 +101,7 @@ impl TabularDiffView {
                     log::debug!("common_base_df: {:?}", common_base_df);
                     log::debug!("common_head_df: {:?}", common_head_df);
 
-                    let df_diff = api::local::diff::compute_new_rows_proj(
+                    let df_diff = repositories::diffs::compute_new_rows_proj(
                         &common_base_df,
                         &common_head_df,
                         &base_df,
@@ -166,7 +166,8 @@ impl TabularDiffView {
                 // schema has not changed
                 // compute new rows
                 let df_diff =
-                    api::local::diff::compute_new_rows(&base_df, &head_df, &base_schema).unwrap();
+                    repositories::diffs::compute_new_rows(&base_df, &head_df, &base_schema)
+                        .unwrap();
 
                 let added_rows = df_diff
                     .added_rows

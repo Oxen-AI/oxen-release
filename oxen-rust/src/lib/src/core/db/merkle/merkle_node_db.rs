@@ -61,8 +61,8 @@ use std::io::SeekFrom;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::core::index::merkle_tree::node::CommitMerkleTreeNode;
-use crate::core::index::merkle_tree::node::MerkleTreeNodeType;
+use crate::core::v2::index::merkle_tree::node::CommitMerkleTreeNode;
+use crate::core::v2::index::merkle_tree::node::MerkleTreeNodeType;
 use crate::error::OxenError;
 use crate::util;
 
@@ -458,7 +458,7 @@ impl MerkleNodeDB {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::index::merkle_tree::node::*;
+    use crate::core::v2::index::merkle_tree::node::*;
     use crate::test;
 
     #[test]

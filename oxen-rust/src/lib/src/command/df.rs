@@ -6,11 +6,11 @@
 use std::path::Path;
 
 use crate::core::df::tabular;
-use crate::core::index::merkle_tree::CommitMerkleTree;
+use crate::core::v2::index::merkle_tree::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
-use crate::{api, util};
+use crate::{repositories, util};
 
 /// Interact with DataFrames
 pub fn df(input: impl AsRef<Path>, opts: DFOpts) -> Result<(), OxenError> {
@@ -35,7 +35,7 @@ pub fn df_revision(
     revision: impl AsRef<str>,
     opts: DFOpts,
 ) -> Result<(), OxenError> {
-    let commit = api::local::revisions::get(repo, &revision)?.ok_or(OxenError::basic_str(
+    let commit = repositories::revisions::get(repo, &revision)?.ok_or(OxenError::basic_str(
         format!("Revision {} not found", revision.as_ref()),
     ))?;
     let path = input.as_ref();

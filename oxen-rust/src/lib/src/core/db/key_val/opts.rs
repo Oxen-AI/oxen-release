@@ -1,6 +1,6 @@
 use rocksdb::{
-    BlockBasedIndexType, BlockBasedOptions, Cache, DBCompactionStyle, DBCompressionType, LogLevel,
-    Options, SliceTransform,
+    BlockBasedIndexType, BlockBasedOptions, DBCompactionStyle, DBCompressionType, LogLevel,
+    Options,
 };
 
 pub fn default() -> Options {

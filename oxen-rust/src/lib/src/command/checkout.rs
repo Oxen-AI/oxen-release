@@ -6,11 +6,11 @@
 use std::path::Path;
 
 use crate::core::df::tabular;
-use crate::core::index::MergeConflictReader;
+use crate::core::v1::index::MergeConflictReader;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::opts::{DFOpts, RestoreOpts};
-use crate::{api, command, util};
+use crate::{command, repositories, util};
 
 /// # Checkout a branch or commit id
 /// This switches HEAD to point to the branch name or commit id,
@@ -21,25 +21,25 @@ pub async fn checkout(
 ) -> Result<Option<Branch>, OxenError> {
     let value = value.as_ref();
     log::debug!("--- CHECKOUT START {} ----", value);
-    if api::local::branches::exists(repo, value)? {
-        if api::local::branches::is_checked_out(repo, value) {
+    if repositories::branches::exists(repo, value)? {
+        if repositories::branches::is_checked_out(repo, value) {
             println!("Already on branch {value}");
-            return api::local::branches::get_by_name(repo, value);
+            return repositories::branches::get_by_name(repo, value);
         }
 
         println!("Checkout branch: {value}");
-        api::local::branches::set_working_branch(repo, value).await?;
-        api::local::branches::set_head(repo, value)?;
-        api::local::branches::get_by_name(repo, value)
+        repositories::branches::set_working_branch(repo, value).await?;
+        repositories::branches::set_head(repo, value)?;
+        repositories::branches::get_by_name(repo, value)
     } else {
         // If we are already on the commit, do nothing
-        if api::local::branches::is_checked_out(repo, value) {
+        if repositories::branches::is_checked_out(repo, value) {
             eprintln!("Commit already checked out {value}");
             return Ok(None);
         }
 
-        api::local::branches::set_working_commit_id(repo, value).await?;
-        api::local::branches::set_head(repo, value)?;
+        repositories::branches::set_working_commit_id(repo, value).await?;
+        repositories::branches::set_head(repo, value)?;
         Ok(None)
     }
 }
@@ -49,7 +49,7 @@ pub fn create_checkout<S: AsRef<str>>(
     repo: &LocalRepository,
     value: S,
 ) -> Result<Branch, OxenError> {
-    api::local::branches::create_checkout(repo, value.as_ref())
+    repositories::branches::create_checkout(repo, value.as_ref())
 }
 
 /// # Checkout a file and take their changes
@@ -160,6 +160,7 @@ mod tests {
     use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -228,7 +229,7 @@ mod tests {
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
             command::checkout(&repo, branch_name).await?;
 
             Ok(())
@@ -249,7 +250,7 @@ mod tests {
 
             // Create and checkout branch
             let branch_name = "test..ing";
-            let result = api::local::branches::create_checkout(&repo, branch_name);
+            let result = repositories::branches::create_checkout(&repo, branch_name);
             assert!(result.is_err());
 
             Ok(())
@@ -269,11 +270,11 @@ mod tests {
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Write a second file
             let world_file = repo.path.join("world.txt");
@@ -284,10 +285,10 @@ mod tests {
             command::commit(&repo, "Added world.txt")?;
 
             // Make sure we have both commits after the initial
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 3);
 
-            let branches = api::local::branches::list(&repo)?;
+            let branches = repositories::branches::list(&repo)?;
             assert_eq!(branches.len(), 2);
 
             // Make sure we have both files on disk in our repo dir
@@ -327,11 +328,11 @@ mod tests {
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Write a second file
             let world_file = repo.path.join("world.txt");
@@ -342,10 +343,10 @@ mod tests {
             command::commit(&repo, "Added world.txt")?;
 
             // Make sure we have both commits after the initial
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             assert_eq!(commits.len(), 3);
 
-            let branches = api::local::branches::list(&repo)?;
+            let branches = repositories::branches::list(&repo)?;
             assert_eq!(branches.len(), 2);
 
             // Make sure we have all files on disk in our repo dir
@@ -384,11 +385,11 @@ mod tests {
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Create and checkout branch
             let branch_name = "feature/world-explorer";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify the file
             let hello_file = test::modify_txt_file(hello_file, "World")?;
@@ -419,7 +420,7 @@ mod tests {
     async fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Track & commit the file
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
@@ -430,7 +431,7 @@ mod tests {
             let og_content = util::fs::read_from_path(&one_shot_path)?;
 
             let branch_name = "feature/change-the-shot";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
             let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
@@ -462,7 +463,7 @@ mod tests {
     {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Track & commit all the data
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
@@ -473,7 +474,7 @@ mod tests {
             let og_content = util::fs::read_from_path(&one_shot_path)?;
 
             let branch_name = "feature/modify-data";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
             let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
@@ -507,7 +508,7 @@ mod tests {
     async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Get the original branch name
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // (dir already created in helper)
             let dir_to_remove = repo.path.join("train");
@@ -519,7 +520,7 @@ mod tests {
 
             // Create a branch to make the changes
             let branch_name = "feature/removing-train";
-            api::local::branches::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Delete the directory from disk
             util::fs::remove_dir_all(&dir_to_remove)?;
@@ -547,7 +548,7 @@ mod tests {
     async fn test_checkout_deleted_after_clone() -> Result<(), OxenError> {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             let cloned_remote = remote_repo.clone();
-            let og_commits = api::local::commits::list_all(&local_repo)?;
+            let og_commits = repositories::commits::list_all(&local_repo)?;
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -556,17 +557,17 @@ mod tests {
                         .await?;
 
                 // Make sure we have all the commit objects
-                let cloned_commits = api::local::commits::list_all(&cloned_repo)?;
+                let cloned_commits = repositories::commits::list_all(&cloned_repo)?;
                 assert_eq!(og_commits.len(), cloned_commits.len());
 
                 // Make sure we set the HEAD file
-                let head_commit = api::local::commits::head_commit(&cloned_repo);
+                let head_commit = repositories::commits::head_commit(&cloned_repo);
                 assert!(head_commit.is_ok());
 
                 // We remove the test/ directory in one of the commits, so make sure we can go
                 // back in the history to that commit
                 let test_dir_path = cloned_repo.path.join("test");
-                let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+                let commit = repositories::commits::first_by_message(&cloned_repo, "Adding test/")?;
                 assert!(commit.is_some());
                 assert!(!test_dir_path.exists());
 
@@ -617,7 +618,7 @@ mod tests {
                 let cloned_repo =
                     command::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
 
-                let commits = api::local::commits::list(&cloned_repo)?;
+                let commits = repositories::commits::list(&cloned_repo)?;
                 // iterate over commits in reverse order and checkout each one
                 for commit in commits.iter().rev() {
                     println!(
@@ -650,7 +651,7 @@ mod tests {
 
                 // Create a new branch
                 let branch_name = "test-branch";
-                api::local::branches::create_checkout(&user_a_repo, branch_name)?;
+                repositories::branches::create_checkout(&user_a_repo, branch_name)?;
 
                 // Back to main
                 command::checkout(&user_a_repo, DEFAULT_BRANCH_NAME).await?;
@@ -727,7 +728,7 @@ mod tests {
                 // Create a new branch after cloning (so we have to fetch the new commit from the remote)
 
                 let branch_name = "test-branch";
-                api::remote::branches::create_from_or_get(
+                api::client::branches::create_from_or_get(
                     &remote_repo,
                     branch_name,
                     DEFAULT_BRANCH_NAME,
@@ -759,7 +760,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             // Create additional branch on remote repo before clone
             let branch_name = "test-branch";
-            api::remote::branches::create_from_or_get(
+            api::client::branches::create_from_or_get(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -777,7 +778,7 @@ mod tests {
                 .await?;
 
                 let test_dir_path = cloned_repo.path.join("test");
-                let commit = api::local::commits::first_by_message(&cloned_repo, "Adding test/")?;
+                let commit = repositories::commits::first_by_message(&cloned_repo, "Adding test/")?;
 
                 // Create untracked files
                 let file_1 = cloned_repo.path.join("file_1.txt");

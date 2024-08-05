@@ -5,9 +5,8 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::core::index::{CommitEntryReader, CommitReader, Merger};
+use liboxen::core::v1::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
-use liboxen::message::OxenMessage;
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
 use liboxen::model::diff::dir_diff_summary::{DirDiffSummary, DirDiffSummaryImpl};
 use liboxen::model::diff::generic_diff_summary::GenericDiffSummary;
@@ -22,11 +21,12 @@ use liboxen::view::compare::{
 use liboxen::view::compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::view::diff::{DirDiffStatus, DirDiffTreeSummary, DirTreeDiffResponse};
 use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
+use liboxen::view::message::OxenMessage;
 use liboxen::view::{
     CompareEntriesResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
     JsonDataFrameViews, Pagination, StatusMessage,
 };
-use liboxen::{api, constants, util};
+use liboxen::{constants, repositories, util};
 
 use crate::helpers::get_repo;
 use crate::params::{
@@ -104,7 +104,7 @@ pub async fn entries(
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
-    let entries_diff = api::local::diff::list_diff_entries(
+    let entries_diff = repositories::diffs::list_diff_entries(
         &repository,
         &base_commit,
         &head_commit,
@@ -147,7 +147,8 @@ pub async fn dir_tree(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenH
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
-    let dir_diffs = api::local::diff::list_changed_dirs(&repository, &base_commit, &head_commit)?;
+    let dir_diffs =
+        repositories::diffs::list_changed_dirs(&repository, &base_commit, &head_commit)?;
 
     let dir_diff_tree = group_dir_diffs_by_dir(dir_diffs);
 
@@ -184,7 +185,7 @@ pub async fn dir_entries(
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let dir = PathBuf::from(dir);
 
-    let entries_diff = api::local::diff::list_diff_entries_in_dir_top_level(
+    let entries_diff = repositories::diffs::list_diff_entries_in_dir_top_level(
         &repository,
         dir.clone(),
         &base_commit,
@@ -202,7 +203,7 @@ pub async fn dir_entries(
 
     // let filtered_diff = subset_diff_to_direct_children(entries_diff, dir.clone())?;
 
-    let self_entry = api::local::diff::get_dir_diff_entry_with_summary(
+    let self_entry = repositories::diffs::get_dir_diff_entry_with_summary(
         &repository,
         dir,
         &base_commit,
@@ -265,7 +266,7 @@ pub async fn file(
     let end = page_size * page;
     opts.slice = Some(format!("{}..{}", start, end));
 
-    let diff = api::local::diff::diff_entries(
+    let diff = repositories::diffs::diff_entries(
         &repository,
         base_entry,
         &base_commit,
@@ -318,16 +319,16 @@ pub async fn create_df_diff(
 
     let compare_id = data.compare_id;
 
-    let commit_1 = api::local::revisions::get(&repository, &data.left.version)?
+    let commit_1 = repositories::revisions::get(&repository, &data.left.version)?
         .ok_or_else(|| OxenError::revision_not_found(data.left.version.into()))?;
-    let commit_2 = api::local::revisions::get(&repository, &data.right.version)?
+    let commit_2 = repositories::revisions::get(&repository, &data.right.version)?
         .ok_or_else(|| OxenError::revision_not_found(data.right.version.into()))?;
 
-    let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
+    let entry_1 = repositories::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
         })?;
-    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_2, &resource_2)?
+    let entry_2 = repositories::entries::get_commit_entry(&repository, &commit_2, &resource_2)?
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
@@ -337,17 +338,17 @@ pub async fn create_df_diff(
     let keys = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
-    let file_1 = api::local::revisions::get_version_file_from_commit_id(
+    let file_1 = repositories::revisions::get_version_file_from_commit_id(
         &repository,
         &commit_1.id,
         &resource_1,
     )?;
-    let file_2 = api::local::revisions::get_version_file_from_commit_id(
+    let file_2 = repositories::revisions::get_version_file_from_commit_id(
         &repository,
         &commit_2.id,
         &resource_2,
     )?;
-    let diff_result = api::local::diff::diff_files(
+    let diff_result = repositories::diffs::diff_files(
         file_1,
         file_2,
         keys,
@@ -358,7 +359,7 @@ pub async fn create_df_diff(
     let view = match diff_result {
         DiffResult::Tabular(diff) => {
             // Cache the diff on the server
-            api::local::diff::cache_tabular_diff(
+            repositories::diffs::cache_tabular_diff(
                 &repository,
                 &compare_id,
                 entry_1,
@@ -420,16 +421,16 @@ pub async fn update_df_diff(
 
     log::debug!("display by col is {:?}", display_by_column);
 
-    let commit_1 = api::local::revisions::get(&repository, &data.left.version)?
+    let commit_1 = repositories::revisions::get(&repository, &data.left.version)?
         .ok_or_else(|| OxenError::revision_not_found(data.left.version.into()))?;
-    let commit_2 = api::local::revisions::get(&repository, &data.right.version)?
+    let commit_2 = repositories::revisions::get(&repository, &data.right.version)?
         .ok_or_else(|| OxenError::revision_not_found(data.right.version.into()))?;
 
-    let entry_1 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
+    let entry_1 = repositories::entries::get_commit_entry(&repository, &commit_1, &resource_1)?
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_1.display(), commit_1).into())
         })?;
-    let entry_2 = api::local::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
+    let entry_2 = repositories::entries::get_commit_entry(&repository, &commit_1, &resource_2)?
         .ok_or_else(|| {
             OxenError::ResourceNotFound(format!("{}@{}", resource_2.display(), commit_2).into())
         })?;
@@ -439,17 +440,17 @@ pub async fn update_df_diff(
     let keys = keys.iter().map(|k| k.left.clone()).collect();
     let targets = get_targets_from_req(targets);
 
-    let file_1 = api::local::revisions::get_version_file_from_commit_id(
+    let file_1 = repositories::revisions::get_version_file_from_commit_id(
         &repository,
         &commit_1.id,
         &resource_1,
     )?;
-    let file_2 = api::local::revisions::get_version_file_from_commit_id(
+    let file_2 = repositories::revisions::get_version_file_from_commit_id(
         &repository,
         &commit_2.id,
         &resource_2,
     )?;
-    let diff_result = api::local::diff::diff_files(
+    let diff_result = repositories::diffs::diff_files(
         file_1,
         file_2,
         keys,
@@ -460,7 +461,7 @@ pub async fn update_df_diff(
     let view = match diff_result {
         DiffResult::Tabular(diff) => {
             // Cache the diff on the server
-            api::local::diff::cache_tabular_diff(
+            repositories::diffs::cache_tabular_diff(
                 &repository,
                 &compare_id,
                 entry_1,
@@ -507,7 +508,7 @@ pub async fn get_df_diff(
     let left_commit = left_commit.ok_or(OxenError::revision_not_found(left.into()))?;
     let right_commit = right_commit.ok_or(OxenError::revision_not_found(right.into()))?;
 
-    let left_entry = api::local::entries::get_commit_entry(
+    let left_entry = repositories::entries::get_commit_entry(
         &repository,
         &left_commit,
         &PathBuf::from(data.left.path.clone()),
@@ -515,7 +516,7 @@ pub async fn get_df_diff(
     .ok_or_else(|| {
         OxenError::ResourceNotFound(format!("{}@{}", data.left.path, left_commit).into())
     })?;
-    let right_entry = api::local::entries::get_commit_entry(
+    let right_entry = repositories::entries::get_commit_entry(
         &repository,
         &right_commit,
         &PathBuf::from(data.right.path.clone()),
@@ -524,7 +525,7 @@ pub async fn get_df_diff(
         OxenError::ResourceNotFound(format!("{}@{}", data.right.path, right_commit).into())
     })?;
 
-    let maybe_cached_diff = api::local::diff::get_cached_diff(
+    let maybe_cached_diff = repositories::diffs::get_cached_diff(
         &repository,
         &compare_id,
         Some(left_entry.clone()),
@@ -562,7 +563,7 @@ pub async fn delete_df_diff(req: HttpRequest) -> Result<HttpResponse, OxenHttpEr
     let compare_id = path_param(&req, "compare_id")?;
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    api::local::diff::delete_df_diff(&repo, &compare_id)?;
+    repositories::diffs::delete_df_diff(&repo, &compare_id)?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
@@ -578,7 +579,7 @@ pub async fn get_derived_df(
     let compare_id = path_param(&req, "compare_id")?;
     // let base_head = path_param(&req, "base_head")?;
 
-    let compare_dir = api::local::diff::get_diff_dir(&repo, &compare_id);
+    let compare_dir = repositories::diffs::get_diff_dir(&repo, &compare_id);
 
     let derived_df_path = compare_dir.join("diff.parquet");
 
@@ -707,7 +708,7 @@ fn parse_base_head_resource(
         .next()
         .ok_or(OxenError::resource_not_found(base_head))?;
 
-    let base_commit = api::local::revisions::get(repo, base)?
+    let base_commit = repositories::revisions::get(repo, base)?
         .ok_or(OxenError::revision_not_found(base.into()))?;
 
     // Split on / and find longest branch name
@@ -719,7 +720,7 @@ fn parse_base_head_resource(
     for s in split_head {
         let maybe_revision = format!("{}{}", longest_str, s);
         log::debug!("Checking maybe head revision: {}", maybe_revision);
-        let commit = api::local::revisions::get(repo, &maybe_revision)?;
+        let commit = repositories::revisions::get(repo, &maybe_revision)?;
         if commit.is_some() {
             head_commit = commit;
             let mut r_str = head.replace(&maybe_revision, "");

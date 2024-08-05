@@ -65,7 +65,7 @@ impl RunCmd for PushCmd {
             let host = get_host_from_repo(&repository)?;
             check_remote_version(host).await?;
 
-            api::remote::branches::delete_remote(&repository, remote, branch).await?;
+            api::client::branches::delete_remote(&repository, remote, branch).await?;
             Ok(())
         } else {
             let repo_dir = env::current_dir().unwrap();

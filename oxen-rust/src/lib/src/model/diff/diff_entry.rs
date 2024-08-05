@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::index::object_db_reader::get_object_reader;
-use crate::core::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
+use crate::core::v1::index::object_db_reader::get_object_reader;
+use crate::core::v1::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::diff::AddRemoveModifyCounts;
@@ -13,9 +13,8 @@ use crate::model::{Commit, EntryDataType, MetadataEntry, ParsedResource};
 use crate::opts::DFOpts;
 use crate::view::TabularDiffView;
 use crate::{
-    api,
     model::{CommitEntry, LocalRepository},
-    util,
+    repositories, util,
 };
 
 use super::diff_entry_status::DiffEntryStatus;
@@ -291,7 +290,7 @@ impl DiffEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         if let Some(dir) = dir {
-            match api::local::entries::get_meta_entry(repo, commit, dir) {
+            match repositories::entries::get_meta_entry(repo, commit, dir) {
                 Ok(entry) => Some(entry),
                 Err(_) => None,
             }

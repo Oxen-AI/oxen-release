@@ -1,8 +1,8 @@
 use serde::{Deserialize, Serialize};
 
-use crate::api;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource};
+use crate::repositories;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct CLIMetadataEntry {
@@ -47,7 +47,7 @@ impl MetadataEntry {
         commit: &Commit,
     ) -> Option<MetadataEntry> {
         entry.as_ref()?;
-        match api::local::metadata::from_commit_entry(repo, &entry.unwrap(), commit) {
+        match repositories::metadata::from_commit_entry(repo, &entry.unwrap(), commit) {
             Ok(metadata) => Some(metadata),
             Err(_) => None,
         }

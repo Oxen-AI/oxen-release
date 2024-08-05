@@ -6,11 +6,11 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use crate::api;
-use crate::core::index::{self, CommitEntryReader};
+use crate::core::v1::index::{self, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
+use crate::repositories;
 
 use glob::Pattern;
 
@@ -54,7 +54,7 @@ use super::helpers;
 /// # }
 /// ```
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
-    let commit = api::local::commits::head_commit(repo)?;
+    let commit = repositories::commits::head_commit(repo)?;
     let path = &opts.path;
     let mut paths: HashSet<PathBuf> = HashSet::new();
 
@@ -107,13 +107,13 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use crate::api;
     use crate::command;
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::opts::DFOpts;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -189,7 +189,7 @@ mod tests {
             // (file already created in helper)
             let file_to_remove = repo.path.join("labels.txt");
 
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Commit the file
             command::add(&repo, &file_to_remove)?;
@@ -229,7 +229,7 @@ mod tests {
     #[test]
     fn test_restore_directory() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = api::local::commits::list(&repo)?;
+            let history = repositories::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
 
             let annotations_dir = Path::new("annotations");
@@ -269,7 +269,7 @@ mod tests {
     #[test]
     fn test_restore_removed_tabular_data() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = api::local::commits::list(&repo)?;
+            let history = repositories::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
 
             let bbox_file = Path::new("annotations")
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn test_restore_modified_tabular_data() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = api::local::commits::list(&repo)?;
+            let history = repositories::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
 
             let bbox_file = Path::new("annotations")
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn test_restore_modified_text_data() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let history = api::local::commits::list(&repo)?;
+            let history = repositories::commits::list(&repo)?;
             let last_commit = history.first().unwrap();
 
             let bbox_file = Path::new("annotations")

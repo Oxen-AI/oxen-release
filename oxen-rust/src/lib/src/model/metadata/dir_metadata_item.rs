@@ -1,10 +1,10 @@
-use crate::api;
-use crate::core::index::CommitReader;
+use crate::core::v1::index::CommitReader;
 use crate::model::metadata::to_duckdb_sql::ToDuckDBSql;
 use crate::model::schema::{DataType, Field};
 use crate::model::LocalRepository;
 use crate::model::Schema;
 use crate::model::{Commit, CommitEntry};
+use crate::repositories;
 use crate::util;
 
 use duckdb::types::ToSql;
@@ -82,7 +82,7 @@ impl DirMetadataItem {
         let data_type = util::fs::datatype_from_mimetype(&path, &mime_type);
 
         // TODO: Handle unwraps more gracefully
-        let size = api::local::metadata::get_file_size(&path).unwrap_or(0);
+        let size = repositories::metadata::get_file_size(&path).unwrap_or(0);
         let dir = entry
             .path
             .parent()

@@ -34,7 +34,7 @@
 //! let namespace = "ox";
 //! let repo_name = "test_repo";
 //! let host = "0.0.0.0:3000";
-//! let remote_repo = api::remote::repositories::create(
+//! let remote_repo = api::client::repositories::create(
 //!     repo, namespace, repo_name, host
 //! ).await?;
 //! let remote_url = remote_repo.url();
@@ -70,9 +70,12 @@ pub mod constants;
 pub mod core;
 pub mod error;
 pub mod io;
-pub mod message;
+pub mod migrations;
 pub mod model;
+pub mod namespaces;
 pub mod opts;
+pub mod repositories;
+pub mod resource;
 pub mod test;
 pub mod util;
 pub mod view;

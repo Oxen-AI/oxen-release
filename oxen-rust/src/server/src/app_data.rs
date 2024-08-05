@@ -1,4 +1,4 @@
-use liboxen::core::index::CommitDirEntryReader;
+use liboxen::core::v1::index::CommitDirEntryReader;
 
 use std::path::PathBuf;
 

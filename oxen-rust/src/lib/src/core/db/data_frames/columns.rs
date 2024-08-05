@@ -8,7 +8,7 @@ use crate::core::db;
 use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
-use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
+use crate::core::v1::index::workspaces::data_frames::column_changes_db;
 use crate::model::Schema;
 use crate::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
 use crate::view::data_frames::DataFrameColumnChange;
@@ -75,11 +75,11 @@ pub fn record_column_change(
     let opts = db::key_val::opts::default();
     let db = DB::open(&opts, dunce::simplified(column_changes_path))?;
 
-    data_frame_column_changes_db::write_data_frame_column_change(&change, &db)
+    column_changes_db::write_data_frame_column_change(&change, &db)
 }
 
 pub fn revert_column_changes(db: DB, column_name: String) -> Result<(), OxenError> {
-    data_frame_column_changes_db::delete_data_frame_column_changes(&db, &column_name)
+    column_changes_db::delete_data_frame_column_changes(&db, &column_name)
 }
 
 pub fn polar_insert_column(

@@ -10,10 +10,10 @@ use crate::opts::UploadOpts;
 
 pub async fn upload(repo: &RemoteRepository, opts: &UploadOpts) -> Result<(), OxenError> {
     // Ping server telling it we are about to upload, todo: make configurable
-    api::remote::repositories::pre_upload(repo).await?;
-    api::remote::entries::upload_entries(repo, opts).await?;
+    api::client::repositories::pre_upload(repo).await?;
+    api::client::entries::upload_entries(repo, opts).await?;
     // Ping server telling it we finished uploading, todo: make configurable
-    api::remote::repositories::post_upload(repo).await?;
+    api::client::repositories::post_upload(repo).await?;
     Ok(())
 }
 
@@ -54,11 +54,11 @@ mod tests {
             command::push(&repo).await?;
 
             // Now list the remote
-            let branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // List the contents of the remote
             let entries =
-                api::remote::dir::list(&remote_repo, &branch.name, Path::new(""), 1, 10).await?;
+                api::client::dir::list(&remote_repo, &branch.name, Path::new(""), 1, 10).await?;
 
             // Create a new file
             let file = dir.join("new_file.txt");
@@ -77,7 +77,7 @@ mod tests {
 
             // List the contents of the remote
             let new_entries =
-                api::remote::dir::list(&remote_repo, &branch.name, Path::new(""), 1, 10).await?;
+                api::client::dir::list(&remote_repo, &branch.name, Path::new(""), 1, 10).await?;
 
             // Check that the new file is there
             assert_eq!(entries.entries.len() + 1, new_entries.entries.len());
@@ -116,7 +116,7 @@ mod tests {
 
             // List the contents of the remote
             let entries =
-                api::remote::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10)
+                api::client::dir::list(&remote_repo, DEFAULT_BRANCH_NAME, Path::new(""), 1, 10)
                     .await?;
 
             // Create a new file
@@ -136,7 +136,7 @@ mod tests {
 
             // List the contents of the remote
             let new_entries =
-                api::remote::dir::list(&remote_repo, &branch_name, Path::new(""), 1, 10).await?;
+                api::client::dir::list(&remote_repo, &branch_name, Path::new(""), 1, 10).await?;
 
             // Check that the new file is there
             assert_eq!(entries.entries.len() + 1, new_entries.entries.len());
