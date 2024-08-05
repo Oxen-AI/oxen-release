@@ -10,7 +10,7 @@ use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
-use liboxen::{api, core::index};
+use liboxen::{core::v1::index, repositories};
 
 pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
@@ -213,7 +213,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = index::workspaces::get(&repo, workspace_id)?;
 
-    let entry = api::local::entries::get_commit_entry(&repo, &workspace.commit, &file_path)?
+    let entry = repositories::entries::get_commit_entry(&repo, &workspace.commit, &file_path)?
         .ok_or(OxenError::entry_does_not_exist(file_path.clone()))?;
 
     let restored_row = index::workspaces::data_frames::rows::restore(&workspace, &entry, row_id)?;

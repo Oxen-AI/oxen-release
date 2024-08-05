@@ -1,9 +1,9 @@
 use polars::prelude::DataFrame;
 use serde::{Deserialize, Serialize};
 
-use crate::core::cache::cachers;
 use crate::core::df::tabular;
-use crate::core::index::CommitReader;
+use crate::core::v1::cache::cachers;
+use crate::core::v1::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::{CommitEntry, DataFrameSize, LocalRepository};
 use crate::opts::DFOpts;

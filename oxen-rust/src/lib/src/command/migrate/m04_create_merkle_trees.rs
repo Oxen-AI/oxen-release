@@ -4,12 +4,13 @@ use super::Migrate;
 
 use std::path::{Path, PathBuf};
 
-use crate::core::db::{self, path_db};
-use crate::core::index::{CommitEntryWriter, CommitReader, CommitWriter};
+use crate::core::db;
+use crate::core::db::key_val::path_db;
+use crate::core::v1::index::{CommitEntryWriter, CommitReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, constants};
+use crate::{constants, repositories};
 
 pub struct CreateMerkleTreesMigration;
 impl Migrate for CreateMerkleTreesMigration {
@@ -57,7 +58,7 @@ impl Migrate for CreateMerkleTreesMigration {
 
 pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
     println!("🐂 Collecting namespaces to migrate...");
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
@@ -67,7 +68,7 @@ pub fn create_merkle_trees_for_all_repos_up(path: &Path) -> Result<(), OxenError
             "This is the namespace path we're walking: {:?}",
             namespace_path.canonicalize()?
         );
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match create_merkle_trees_up(&repo) {
                 Ok(_) => {}
@@ -115,10 +116,13 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
         // Then we need to associate the root hash of the merkle tree with the commit
         let mut commit_to_update = commit.clone();
         let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_db_dir, false)?;
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+            &db::key_val::opts::default(),
+            &dir_hashes_db_dir,
+            false,
+        )?;
 
-        let root_hash: String = path_db::get_entry(&dir_hashes_db, &PathBuf::from(""))?.unwrap();
+        let root_hash: String = path_db::get_entry(&dir_hashes_db, PathBuf::from(""))?.unwrap();
 
         commit_to_update.update_root_hash(root_hash);
 
@@ -132,8 +136,11 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     for commit in updated_commits {
         let dir_hashes_db_dir = CommitEntryWriter::commit_dir_hash_db(&repo.path, &commit.id);
-        let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
-            DBWithThreadMode::open_for_read_only(&db::opts::default(), &dir_hashes_db_dir, false)?;
+        let dir_hashes_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open_for_read_only(
+            &db::key_val::opts::default(),
+            &dir_hashes_db_dir,
+            false,
+        )?;
         let maybe_root_hash: Option<String> = path_db::get_entry(&dir_hashes_db, "")?;
         let Some(root_hash) = maybe_root_hash else {
             return Err(OxenError::basic_str(format!(

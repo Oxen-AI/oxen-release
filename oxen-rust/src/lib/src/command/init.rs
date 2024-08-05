@@ -7,7 +7,7 @@ use std::path::Path;
 
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::{api, constants, util};
+use crate::{constants, repositories, util};
 
 /// # Initialize an Empty Oxen Repository
 /// ```
@@ -49,18 +49,18 @@ fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
     let repo = LocalRepository::new(path)?;
     repo.save(&config_path)?;
 
-    api::local::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
+    repositories::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
 
     Ok(repo)
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::api;
     use crate::command;
     use crate::constants;
-    use crate::core::index::CommitEntryReader;
+    use crate::core::v1::index::CommitEntryReader;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -78,7 +78,7 @@ mod tests {
 
             // We make an initial parent commit and branch called "main"
             // just to make our lives easier down the line
-            let orig_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
             assert_eq!(orig_branch.name, constants::DEFAULT_BRANCH_NAME);
             assert!(!orig_branch.commit_id.is_empty());
 
@@ -92,7 +92,7 @@ mod tests {
             test::populate_dir_with_training_data(dir)?;
 
             let repo = command::init(dir)?;
-            let commits = api::local::commits::list(&repo)?;
+            let commits = repositories::commits::list(&repo)?;
             let commit = commits.last().unwrap();
             let reader = CommitEntryReader::new(&repo, commit)?;
             let num_entries = reader.num_entries()?;

@@ -17,7 +17,7 @@ pub async fn ls(
     directory: &Path,
     opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    api::remote::dir::list(
+    api::client::dir::list(
         remote_repo,
         &branch.name,
         directory,
@@ -76,7 +76,7 @@ mod tests {
             command::push(&repo).await?;
 
             // Now list the remote
-            let branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
             let dir = Path::new(".");
             let opts = PaginateOpts {
                 page_num: 1,
@@ -119,7 +119,7 @@ mod tests {
             command::push(&repo).await?;
 
             // Now list the remote
-            let branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
             let dir = Path::new("");
             let opts = PaginateOpts {
                 page_num: 1,
@@ -195,7 +195,7 @@ mod tests {
             command::push(&repo).await?;
 
             // Now list the remote
-            let branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let branch = repositories::branches::current_branch(&repo)?.unwrap();
             let dir = Path::new("");
             let opts = PaginateOpts {
                 page_num: 1,

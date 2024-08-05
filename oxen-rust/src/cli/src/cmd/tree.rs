@@ -1,11 +1,14 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::api;
-use liboxen::core::index::merkle_tree::CommitMerkleTree;
-use liboxen::core::index::ObjectDBReader;
+use liboxen::core::db;
+use liboxen::core::v1::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
+use liboxen::core::v2::index::merkle_tree::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
-use std::path::Path;
+use liboxen::repositories;
+use rocksdb::{DBWithThreadMode, MultiThreaded};
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::cmd::RunCmd;
@@ -54,9 +57,9 @@ impl RunCmd for TreeCmd {
                     .action(clap::ArgAction::Set),
             )
             .arg(
-                Arg::new("old")
-                    .long("old")
-                    .help("To use the old lookup method")
+                Arg::new("legacy")
+                    .long("legacy")
+                    .help("To use the legacy lookup method")
                     .action(clap::ArgAction::SetTrue),
             )
     }
@@ -74,9 +77,9 @@ impl RunCmd for TreeCmd {
         let repo = LocalRepository::from_current_dir()?;
 
         let commit = if commit_id == "HEAD" {
-            api::local::commits::head_commit(&repo)?
+            repositories::commits::head_commit(&repo)?
         } else {
-            let Some(commit) = api::local::commits::get_by_id(&repo, commit_id)? else {
+            let Some(commit) = repositories::commits::get_by_id(&repo, commit_id)? else {
                 return Err(OxenError::basic_str(format!(
                     "Commit {} not found",
                     commit_id
@@ -86,14 +89,19 @@ impl RunCmd for TreeCmd {
         };
 
         let path = args.get_one::<String>("path").expect("Must supply path");
-
-        if args.get_flag("old") {
-            self.print_legacy(&repo, &commit, path)
+        if args.get_flag("legacy") {
+            if let Some(_node) = args.get_one::<String>("node") {
+                self.print_legacy(&repo, &commit, path, true)?;
+            } else {
+                self.print_legacy(&repo, &commit, path, false)?;
+            }
         } else if let Some(node) = args.get_one::<String>("node") {
-            self.print_node(&repo, node, depth)
+            self.print_node(&repo, node, depth)?;
         } else {
-            self.print_tree(&repo, &commit, path, depth)
+            self.print_tree(&repo, &commit, path, depth)?;
         }
+
+        Ok(())
     }
 }
 
@@ -113,7 +121,9 @@ impl TreeCmd {
         depth: i32,
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
+
         let tree = CommitMerkleTree::read_path(repo, commit, path)?;
+        let load_duration = load_start.elapsed(); // Calculate duration
 
         // List directories in the .oxen/tree dir
         // This is to benchmark how fast we can open the individual nodes..
@@ -147,8 +157,8 @@ impl TreeCmd {
         println!("Avg map time: {:?}", total_map_duration.as_millis() as f32 / data.len() as f32);
         */
 
-        let load_duration = load_start.elapsed(); // Calculate duration
         let print_start = Instant::now(); // Start timing
+
         CommitMerkleTree::print_depth(&tree, depth);
         let print_duration = print_start.elapsed(); // Calculate duration
         println!("Time to load tree: {:?}", load_duration);
@@ -161,40 +171,105 @@ impl TreeCmd {
         repo: &LocalRepository,
         commit: &Commit,
         path: &str,
+        single_entry: bool,
     ) -> Result<(), OxenError> {
-        println!("Run legacy!");
-        let load_start = Instant::now(); // Start timing
-
         // Read a full dir
-        // let page = 1;
-        // let page_size = 100;
-        // let (paginated_entries, _dir) = api::local::entries::list_directory(
-        //     &repo,
-        //     &commit,
-        //     &Path::new(path),
-        //     &commit.id,
-        //     page,
-        //     page_size,
-        // )?;
-        // println!("Got {:?} entries", paginated_entries.entries.len());
+        if single_entry {
+            // Just get a single entry
+            let path = Path::new(path);
+            let filename = path.file_name().unwrap().to_str().unwrap();
+            let parent = path.parent().unwrap();
+            let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+            let entry_reader = liboxen::core::v1::index::CommitDirEntryReader::new(
+                repo,
+                &commit.id,
+                parent,
+                object_reader.clone(),
+            )?;
+            println!("looking up entry {}", filename);
+            let entry = entry_reader.get_entry(filename)?;
+            println!("Got entry {:?}", entry);
+        } else {
+            // Get a paginated list of entries
+            /*
+            let page = 1;
+            let page_size = 100;
+            let (paginated_entries, _dir) = repositories::entries::list_directory(
+                &repo,
+                &commit,
+                &Path::new(path),
+                &commit.id,
+                page,
+                page_size,
+            )?;
+            println!("Got {:?} entries", paginated_entries.entries.len());
+            */
 
-        // Just get a single entry
-        let path = Path::new(path);
-        let filename = path.file_name().unwrap().to_str().unwrap();
-        let parent = path.parent().unwrap();
-        let object_reader = ObjectDBReader::new(repo)?;
-        let entry_reader = liboxen::core::index::CommitDirEntryReader::new(
-            repo,
-            &commit.id,
-            parent,
-            object_reader.clone(),
-        )?;
-        println!("looking up entry {}", filename);
-        let entry = entry_reader.get_entry(filename)?;
-        println!("Got entry {:?}", entry);
+            let start_load = Instant::now();
+            let start_load_obj = Instant::now();
+            let object_reader = ObjectDBReader::new(repo, &commit.id)?;
+            let load_obj_duration = start_load_obj.elapsed();
+            println!("Time to load object reader: {:?}", load_obj_duration);
 
-        let load_duration = load_start.elapsed(); // Calculate duration
-        println!("Time to load tree: {:?}", load_duration);
+            let db_path = CommitDirEntryReader::dir_hash_db(&repo.path, &commit.id);
+            let opts = db::key_val::opts::default();
+            let dir_hashes_db: DBWithThreadMode<MultiThreaded> =
+                DBWithThreadMode::open_for_read_only(&opts, db_path, false)?;
+
+            let start_load_entry_reader = Instant::now();
+            let reader = CommitEntryReader::new(repo, commit)?;
+            let mut dirs = reader.list_dirs()?;
+            dirs.sort();
+            let load_entry_reader_duration = start_load_entry_reader.elapsed();
+            println!(
+                "Time to load entry reader: {:?}",
+                load_entry_reader_duration
+            );
+            println!("Got {:?} dirs", dirs.len());
+
+            // Create a nested structure to represent the tree
+            let mut tree: Vec<(usize, PathBuf)> = Vec::new();
+
+            for dir in dirs {
+                let depth = dir.components().count();
+                tree.push((depth + 1, dir));
+            }
+
+            // Iterate and print the tree structure
+            let mut files_per_dir: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
+            for (_, path) in &tree {
+                files_per_dir.insert(path.clone(), Vec::new());
+                let entry_reader = CommitDirEntryReader::new_from_hash_db(
+                    &repo.path,
+                    &commit.id,
+                    &dir_hashes_db,
+                    path,
+                    object_reader.clone(),
+                )?;
+                let entries = entry_reader.list_entries()?;
+                for entry in entries {
+                    files_per_dir
+                        .entry(path.clone())
+                        .or_default()
+                        .push(entry.path);
+                }
+            }
+            let load_duration = start_load.elapsed();
+
+            let start_print = Instant::now();
+            for (depth, dir) in tree {
+                let indent = "  ".repeat(depth - 1);
+                println!("{}├─ {:?}", indent, dir);
+                let files = files_per_dir.get(&dir).unwrap();
+                for file in files {
+                    let indent = "  ".repeat(depth);
+                    println!("{}├─ {:?}", indent, file);
+                }
+            }
+            let print_duration = start_print.elapsed();
+            println!("Time to load: {:?}", load_duration);
+            println!("Time to print: {:?}", print_duration);
+        }
 
         Ok(())
     }

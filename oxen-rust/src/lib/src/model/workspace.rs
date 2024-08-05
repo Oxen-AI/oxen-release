@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use crate::api;
 use crate::constants;
 use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_CONFIG};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
+use crate::repositories;
 use crate::util;
 use toml;
 
@@ -60,7 +60,7 @@ impl Workspace {
             OxenError::basic_str(format!("Failed to parse workspace config: {}", e))
         })?;
 
-        let Some(commit) = api::local::commits::get_by_id(repo, &config.workspace_commit_id)?
+        let Some(commit) = repositories::commits::get_by_id(repo, &config.workspace_commit_id)?
         else {
             return Err(OxenError::basic_str(format!(
                 "Workspace {} has invalid commit_id {}",

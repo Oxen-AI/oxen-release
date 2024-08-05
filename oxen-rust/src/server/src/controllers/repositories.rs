@@ -2,8 +2,8 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
-use liboxen::api;
 use liboxen::error::OxenError;
+use liboxen::repositories;
 use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
 use liboxen::view::repository::{
@@ -26,14 +26,13 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
     let namespace_path = &app_data.path.join(&namespace);
 
-    let repos: Vec<RepositoryView> =
-        api::local::repositories::list_repos_in_namespace(namespace_path)
-            .iter()
-            .map(|repo| RepositoryView {
-                name: repo.dirname(),
-                namespace: namespace.to_string(),
-            })
-            .collect();
+    let repos: Vec<RepositoryView> = repositories::list_repos_in_namespace(namespace_path)
+        .iter()
+        .map(|repo| RepositoryView {
+            name: repo.dirname(),
+            namespace: namespace.to_string(),
+        })
+        .collect();
     let view = ListRepositoryResponse {
         status: StatusMessage::resource_found(),
         repositories: repos,
@@ -71,9 +70,9 @@ pub async fn stats(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     if let (Some(name), Some(namespace)) = (name, namespace) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+        match repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(repo)) => {
-                let stats = api::local::repositories::get_repo_stats(&repo);
+                let stats = repositories::get_repo_stats(&repo);
                 let data_types: Vec<DataTypeView> = stats
                     .data_types
                     .values()
@@ -117,8 +116,8 @@ pub async fn create(
     println!("controllers::repositories::create body:\n{}", body);
     let data: Result<RepoNew, serde_json::Error> = serde_json::from_str(&body);
     match data {
-        Ok(data) => match api::local::repositories::create(&app_data.path, data.to_owned()) {
-            Ok(repo) => match api::local::commits::latest_commit(&repo) {
+        Ok(data) => match repositories::create(&app_data.path, data.to_owned()) {
+            Ok(repo) => match repositories::commits::latest_commit(&repo) {
                 Ok(latest_commit) => Ok(HttpResponse::Ok().json(RepositoryCreationResponse {
                     status: STATUS_SUCCESS.to_string(),
                     status_message: MSG_RESOURCE_FOUND.to_string(),
@@ -140,7 +139,7 @@ pub async fn create(
                     }))
                 }
                 Err(err) => {
-                    log::error!("Err api::local::commits::latest_commit: {:?}", err);
+                    log::error!("Err repositories::commits::latest_commit: {:?}", err);
                     Ok(HttpResponse::InternalServerError()
                         .json(StatusMessage::error("Failed to get latest commit.")))
                 }
@@ -150,16 +149,13 @@ pub async fn create(
                 Ok(HttpResponse::Conflict().json(StatusMessage::error("Repo already exists.")))
             }
             Err(err) => {
-                println!("Err api::local::repositories::create: {err:?}");
-                log::error!("Err api::local::repositories::create: {:?}", err);
+                println!("Err repositories::create: {err:?}");
+                log::error!("Err repositories::create: {:?}", err);
                 Ok(HttpResponse::InternalServerError().json(StatusMessage::error("Invalid body.")))
             }
         },
         Err(err) => {
-            log::error!(
-                "Err api::local::repositories::create parse error: {:?}",
-                err
-            );
+            log::error!("Err repositories::create parse error: {:?}", err);
             Ok(HttpResponse::BadRequest().json(StatusMessage::error("Invalid body.")))
         }
     }
@@ -175,7 +171,7 @@ pub async fn delete(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHtt
     };
 
     // Delete in a background thread because it could take awhile
-    std::thread::spawn(move || match api::local::repositories::delete(repository) {
+    std::thread::spawn(move || match repositories::delete(repository) {
         Ok(_) => log::info!("Deleted repo: {}/{}", namespace, name),
         Err(err) => log::error!("Err deleting repo: {}", err),
     });
@@ -193,12 +189,7 @@ pub async fn transfer_namespace(
     let name = path_param(&req, "repo_name")?;
     let data: NamespaceView = serde_json::from_str(&body)?;
     let to_namespace = data.namespace;
-    api::local::repositories::transfer_namespace(
-        &app_data.path,
-        &name,
-        &from_namespace,
-        &to_namespace,
-    )?;
+    repositories::transfer_namespace(&app_data.path, &name, &from_namespace, &to_namespace)?;
 
     // Return repository view under new namespace
     Ok(HttpResponse::Ok().json(RepositoryResponse {
@@ -219,7 +210,7 @@ pub async fn get_file_for_branch(req: HttpRequest) -> Result<NamedFile, OxenHttp
     let filepath: PathBuf = req.match_info().query("filename").parse().unwrap();
     let branch_name: &str = req.match_info().get("branch_name").unwrap();
 
-    let branch = api::local::branches::get_by_name(&repo, branch_name)?
+    let branch = repositories::branches::get_by_name(&repo, branch_name)?
         .ok_or(OxenError::remote_branch_not_found(branch_name))?;
     let version_path = util::fs::version_path_for_commit_id(&repo, &branch.commit_id, &filepath)?;
     log::debug!(

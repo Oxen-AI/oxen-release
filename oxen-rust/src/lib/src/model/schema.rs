@@ -175,6 +175,11 @@ impl Schema {
         self.fields.iter().any(|f| f.name == name)
     }
 
+    pub fn has_column(&self, name: impl AsRef<str>) -> bool {
+        let name = name.as_ref().to_lowercase(); // Convert the parameter to lowercase
+        self.fields.iter().any(|f| f.name.to_lowercase() == name) // Compare lowercase versions
+    }
+
     pub fn get_field(&self, name: impl AsRef<str>) -> Option<&Field> {
         let name = name.as_ref();
         self.fields.iter().find(|f| f.name == name)

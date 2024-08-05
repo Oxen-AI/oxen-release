@@ -1,10 +1,10 @@
 use std::path::PathBuf;
 use std::str::FromStr;
 
-use liboxen::api::local::resource::parse_resource_from_path;
 use liboxen::error::OxenError;
 use liboxen::model::{Branch, Commit, LocalRepository, ParsedResource};
-use liboxen::{api, constants};
+use liboxen::resource::parse_resource_from_path;
+use liboxen::{constants, repositories};
 
 use actix_web::HttpRequest;
 use liboxen::util::oxen_version::OxenVersion;
@@ -124,12 +124,12 @@ pub fn resolve_revision(
     revision: &str,
 ) -> Result<Option<Commit>, OxenError> {
     // Lookup commit by id or branch name
-    api::local::revisions::get(repo, revision)
+    repositories::revisions::get(repo, revision)
 }
 
 pub fn resolve_branch(repo: &LocalRepository, name: &str) -> Result<Option<Branch>, OxenError> {
     // Lookup branch name
-    api::local::branches::get_by_name(repo, name)
+    repositories::branches::get_by_name(repo, name)
 }
 
 fn user_cli_is_out_of_date(user_agent: &str) -> bool {

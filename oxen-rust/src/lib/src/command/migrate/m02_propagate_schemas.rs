@@ -2,11 +2,11 @@ use super::Migrate;
 
 use std::path::Path;
 
-use crate::core::index::{CommitReader, SchemaWriter};
+use crate::core::v1::index::{CommitReader, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 
-use crate::api;
+use crate::repositories;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 pub struct PropagateSchemasMigration;
@@ -48,7 +48,7 @@ impl Migrate for PropagateSchemasMigration {
 
 pub fn propagate_schemas_for_all_repos_up(path: &Path) -> Result<(), OxenError> {
     println!("🐂 Collecting namespaces to migrate...");
-    let namespaces = api::local::repositories::list_namespaces(path)?;
+    let namespaces = repositories::list_namespaces(path)?;
     let bar = oxen_progress_bar(namespaces.len() as u64, ProgressBarType::Counter);
     println!("🐂 Migrating {} namespaces", namespaces.len());
     for namespace in namespaces {
@@ -58,7 +58,7 @@ pub fn propagate_schemas_for_all_repos_up(path: &Path) -> Result<(), OxenError> 
             "This is the namespace path we're walking: {:?}",
             namespace_path.canonicalize()?
         );
-        let repos = api::local::repositories::list_repos_in_namespace(&namespace_path);
+        let repos = repositories::list_repos_in_namespace(&namespace_path);
         for repo in repos {
             match propagate_schemas_up(&repo) {
                 Ok(_) => {}
@@ -84,8 +84,8 @@ pub fn propagate_schemas_for_all_repos_down(_path: &Path) -> Result<(), OxenErro
 
 pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Traverses commits from BASE to HEAD and write all schemas for all history leading up to HEAD.
-    let mut lock_file = api::local::repositories::get_lock_file(repo)?;
-    let _mutex = api::local::repositories::get_exclusive_lock(&mut lock_file)?;
+    let mut lock_file = repositories::get_lock_file(repo)?;
+    let _mutex = repositories::get_exclusive_lock(&mut lock_file)?;
 
     let reader = CommitReader::new(repo)?;
     let mut all_commits = reader.list_all()?;
@@ -94,7 +94,7 @@ pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     for current_commit in &all_commits {
         for parent_commit_id in &current_commit.parent_ids {
-            let schemas = api::local::schemas::list(repo, Some(parent_commit_id))?;
+            let schemas = repositories::schemas::list(repo, Some(parent_commit_id))?;
             let schema_writer = SchemaWriter::new(repo, &current_commit.id)?;
 
             for (path, schema) in schemas {

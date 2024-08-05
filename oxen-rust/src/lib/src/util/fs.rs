@@ -34,7 +34,8 @@ use crate::opts::CountLinesOpts;
 use crate::view::health::DiskUsage;
 use image::ImageFormat;
 
-use crate::{api, util};
+use crate::repositories;
+use crate::util;
 
 // Deprecated
 pub fn oxen_hidden_dir(repo_path: impl AsRef<Path>) -> PathBuf {
@@ -81,8 +82,8 @@ pub fn version_path_for_commit_id(
     commit_id: &str,
     filepath: &Path,
 ) -> Result<PathBuf, OxenError> {
-    match api::local::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
+    match repositories::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match repositories::entries::get_commit_entry(repo, &commit, filepath)? {
             Some(entry) => {
                 let path = version_path(repo, &entry);
                 let arrow_path = path.parent().unwrap().join(DATA_ARROW_FILE);
@@ -105,8 +106,8 @@ pub fn resized_path_for_commit_id(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    match api::local::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match api::local::entries::get_commit_entry(repo, &commit, filepath)? {
+    match repositories::commits::get_by_id(repo, commit_id)? {
+        Some(commit) => match repositories::entries::get_commit_entry(repo, &commit, filepath)? {
             Some(entry) => resized_path_for_commit_entry(repo, &entry, width, height),
             None => Err(OxenError::path_does_not_exist(filepath)),
         },
@@ -838,6 +839,50 @@ pub fn is_utf8(path: &Path) -> bool {
     }
 }
 
+pub fn data_type_from_extension(path: &Path) -> EntryDataType {
+    let ext = path.extension().unwrap_or_default().to_string_lossy();
+    match ext.as_ref() {
+        "json" => EntryDataType::Tabular,
+        "csv" => EntryDataType::Tabular,
+        "tsv" => EntryDataType::Tabular,
+        "parquet" => EntryDataType::Tabular,
+        "arrow" => EntryDataType::Tabular,
+        "ndjson" => EntryDataType::Tabular,
+        "jsonl" => EntryDataType::Tabular,
+
+        "md" => EntryDataType::Text,
+        "txt" => EntryDataType::Text,
+        "html" => EntryDataType::Text,
+        "xml" => EntryDataType::Text,
+        "yaml" => EntryDataType::Text,
+        "yml" => EntryDataType::Text,
+        "toml" => EntryDataType::Text,
+
+        "png" => EntryDataType::Image,
+        "jpg" => EntryDataType::Image,
+        "jpeg" => EntryDataType::Image,
+        "gif" => EntryDataType::Image,
+        "bmp" => EntryDataType::Image,
+        "tiff" => EntryDataType::Image,
+        "heic" => EntryDataType::Image,
+        "heif" => EntryDataType::Image,
+        "webp" => EntryDataType::Image,
+
+        "mp4" => EntryDataType::Video,
+        "avi" => EntryDataType::Video,
+        "mov" => EntryDataType::Video,
+
+        "mp3" => EntryDataType::Audio,
+        "wav" => EntryDataType::Audio,
+        "aac" => EntryDataType::Audio,
+        "ogg" => EntryDataType::Audio,
+        "flac" => EntryDataType::Audio,
+        "opus" => EntryDataType::Audio,
+
+        _ => EntryDataType::Binary,
+    }
+}
+
 pub fn file_mime_type(path: &Path) -> String {
     match infer::get_from_path(path) {
         Ok(Some(kind)) => String::from(kind.mime_type()),
@@ -1033,6 +1078,22 @@ pub fn recursive_eligible_files(dir: &Path) -> Vec<PathBuf> {
 }
 
 pub fn count_files_in_dir(dir: &Path) -> usize {
+    p_count_files_in_dir_w_progress(dir, None)
+}
+
+pub fn count_files_in_dir_w_progress(dir: &Path) -> usize {
+    let pb = ProgressBar::new_spinner();
+    pb.set_style(
+        ProgressStyle::default_spinner()
+            .template("{spinner:.green} {msg}")
+            .unwrap(),
+    );
+    pb.enable_steady_tick(std::time::Duration::from_millis(100));
+    pb.set_message("🐂 Counting files...".to_string());
+    p_count_files_in_dir_w_progress(dir, Some(pb))
+}
+
+pub fn p_count_files_in_dir_w_progress(dir: &Path, pb: Option<ProgressBar>) -> usize {
     let mut count: usize = 0;
     if dir.is_dir() {
         match std::fs::read_dir(dir) {
@@ -1043,6 +1104,9 @@ pub fn count_files_in_dir(dir: &Path) -> usize {
                             let path = entry.path();
                             if !is_in_oxen_hidden_dir(&path) && path.is_file() {
                                 count += 1;
+                                if let Some(ref pb) = pb {
+                                    pb.set_message(format!("🐂 Found {:?} files", count));
+                                }
                             }
                         }
                         Err(err) => log::warn!("error reading dir entry: {}", err),

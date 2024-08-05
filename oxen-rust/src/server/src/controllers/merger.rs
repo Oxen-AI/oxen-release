@@ -4,7 +4,7 @@ use crate::params::{app_data, parse_base_head, path_param, resolve_base_head_bra
 
 use actix_web::{HttpRequest, HttpResponse};
 
-use liboxen::core::index::{CommitReader, Merger};
+use liboxen::core::v1::index::{CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::view::merge::{MergeConflictFile, MergeSuccessResponse, Mergeable, MergeableResponse};
 use liboxen::view::StatusMessage;

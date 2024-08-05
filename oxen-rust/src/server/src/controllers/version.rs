@@ -1,7 +1,7 @@
 use crate::params::app_data;
 use actix_web::{HttpRequest, HttpResponse};
-use liboxen::api;
 use liboxen::constants::MIN_CLI_VERSION;
+use liboxen::repositories;
 use liboxen::view::version::VersionResponse;
 use liboxen::view::StatusMessage;
 use serde::Serialize;
@@ -32,7 +32,7 @@ pub async fn resolve(req: HttpRequest) -> HttpResponse {
     let namespace: Option<&str> = req.match_info().get("namespace");
     let name: Option<&str> = req.match_info().get("repo_name");
     if let (Some(name), Some(namespace)) = (name, namespace) {
-        match api::local::repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
+        match repositories::get_by_namespace_and_name(&app_data.path, namespace, name) {
             Ok(Some(_)) => match req.url_for("repo_root", [namespace, name]) {
                 Ok(url) => {
                     log::debug!("resolved repo URL: {}", url);

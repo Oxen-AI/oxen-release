@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::api;
 use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "checkout";
@@ -93,7 +93,7 @@ impl CheckoutCmd {
         repo: &LocalRepository,
         name: &str,
     ) -> Result<(), OxenError> {
-        api::local::branches::create_checkout(repo, name)?;
+        repositories::branches::create_checkout(repo, name)?;
         Ok(())
     }
 }

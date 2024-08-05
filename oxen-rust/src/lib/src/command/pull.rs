@@ -3,7 +3,7 @@
 //! Pull data from a remote branch
 //!
 
-use crate::core::index::EntryIndexer;
+use crate::core::v1::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::opts::PullOpts;
@@ -86,12 +86,13 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::df::tabular;
-    use crate::core::index;
-    use crate::core::index::CommitEntryReader;
-    use crate::core::index::CommitReader;
+    use crate::core::v1::index;
+    use crate::core::v1::index::CommitEntryReader;
+    use crate::core::v1::index::CommitReader;
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -148,12 +149,12 @@ mod tests {
                 assert_eq!(cloned_contents, party_ppl_contents);
 
                 // Make sure that pull updates local HEAD to be correct
-                let head = api::local::commits::head_commit(&cloned_repo)?;
+                let head = repositories::commits::head_commit(&cloned_repo)?;
                 assert_eq!(head.id, latest_commit.id);
 
                 // Make sure we synced all the commits
-                let repo_commits = api::local::commits::list(&repo)?;
-                let cloned_commits = api::local::commits::list(&cloned_repo)?;
+                let repo_commits = repositories::commits::list(&repo)?;
+                let cloned_commits = repositories::commits::list(&cloned_repo)?;
                 assert_eq!(repo_commits.len(), cloned_commits.len());
 
                 // Make sure we updated the dbs properly
@@ -208,7 +209,7 @@ mod tests {
                 let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
                 assert!(!pulled_send_it_back_path.exists());
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -280,7 +281,7 @@ mod tests {
                 command::pull(&cloned_repo).await?;
                 assert!(!cloned_filepath.exists());
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -322,13 +323,13 @@ mod tests {
                 command::pull_all(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(6, cloned_num_files);
-                let og_commits = api::local::commits::list(&repo)?;
-                let cloned_commits = api::local::commits::list(&cloned_repo)?;
+                let og_commits = repositories::commits::list(&repo)?;
+                let cloned_commits = repositories::commits::list(&cloned_repo)?;
                 assert_eq!(og_commits.len(), cloned_commits.len());
 
                 // Create a branch to collab on
                 let branch_name = "adding-training-data";
-                api::local::branches::create_checkout(&cloned_repo, branch_name)?;
+                repositories::branches::create_checkout(&cloned_repo, branch_name)?;
 
                 // Track some more data in the cloned repo
                 let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
@@ -378,7 +379,7 @@ mod tests {
                 // Now there should be 7 train/ files and 1 in large_files/
                 assert_eq!(8, cloned_num_files);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -408,7 +409,7 @@ mod tests {
             command::add(&repo, &train_dir)?;
             command::commit(&repo, "Adding train dir")?;
 
-            let og_branch = api::local::branches::current_branch(&repo)?.unwrap();
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -432,7 +433,7 @@ mod tests {
 
                 // Create a branch to collaborate on
                 let branch_name = "adding-training-data";
-                api::local::branches::create_checkout(&cloned_repo, branch_name)?;
+                repositories::branches::create_checkout(&cloned_repo, branch_name)?;
 
                 // Track some more data in the cloned repo
                 let hotdog_path = Path::new("data/test/images/hotdog_1.jpg");
@@ -461,7 +462,7 @@ mod tests {
                 // Now there should be still be the original train files, not the new file
                 assert_eq!(train_paths.len(), og_num_files);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -504,7 +505,7 @@ mod tests {
                 let content = util::fs::read_from_path(&filepath)?;
                 assert_eq!(og_content, content);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -604,7 +605,7 @@ mod tests {
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(cloned_num_files, 2);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -683,7 +684,7 @@ mod tests {
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(cloned_num_files, 5);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -780,7 +781,7 @@ mod tests {
                 assert!(push_result.is_ok());
 
                 // Get the remote branch
-                let remote_branch = api::remote::branches::get_by_name(&remote_repo, branch_name)
+                let remote_branch = api::client::branches::get_by_name(&remote_repo, branch_name)
                     .await?
                     .unwrap();
 
@@ -913,7 +914,7 @@ mod tests {
                     command::pull(&user_b_repo).await?;
 
                     // Get new  head commit of the pulled repo
-                    api::local::commits::head_commit(&user_b_repo)?;
+                    repositories::commits::head_commit(&user_b_repo)?;
 
                     // Make sure we now have all three files
                     assert!(user_b_repo.path.join(file_1).exists());
@@ -1081,7 +1082,7 @@ mod tests {
                 // 2 test, 5 train, 1 labels
                 assert_eq!(8, cloned_num_files);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -1135,7 +1136,7 @@ mod tests {
                 let schemas = command::schemas::list(&repo, None)?;
                 assert!(!schemas.is_empty());
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -1197,7 +1198,7 @@ mod tests {
                 let pulled_schemas = command::schemas::list(&repo, None)?;
                 assert_eq!(pulled_schemas.len(), num_schemas);
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
@@ -1233,7 +1234,7 @@ mod tests {
             command::commit(&repo, "Adding test dir")?;
 
             // Get local history
-            let local_history = api::local::commits::list(&repo)?;
+            let local_history = repositories::commits::list(&repo)?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1253,7 +1254,7 @@ mod tests {
                 command::pull_all(&cloned_repo).await?;
 
                 // Get cloned history, which should fall back to API if not found locally
-                let cloned_history = api::local::commits::list(&cloned_repo)?;
+                let cloned_history = repositories::commits::list(&cloned_repo)?;
 
                 // Make sure the histories match
                 assert_eq!(local_history.len(), cloned_history.len());
@@ -1271,7 +1272,7 @@ mod tests {
                     assert!(entries.is_ok());
                 }
 
-                api::remote::repositories::delete(&remote_repo).await?;
+                api::client::repositories::delete(&remote_repo).await?;
 
                 Ok(new_repo_dir)
             })
