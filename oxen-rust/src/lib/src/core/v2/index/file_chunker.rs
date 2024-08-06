@@ -404,11 +404,12 @@ impl FileChunker {
         let mut read_file = File::open(&version_file)?;
 
         // Create a progress bar for larger files
-        let mut progress_bar: Option<Arc<ProgressBar>> = if entry.num_bytes > (CHUNK_SIZE*10) as u64 {
-            Some(oxen_progress_bar(entry.num_bytes, ProgressBarType::Bytes))
-        } else {
-            None
-        };
+        let mut progress_bar: Option<Arc<ProgressBar>> =
+            if entry.num_bytes > (CHUNK_SIZE * 10) as u64 {
+                Some(oxen_progress_bar(entry.num_bytes, ProgressBarType::Bytes))
+            } else {
+                None
+            };
 
         // Read/Write chunks
         let mut buffer = vec![0; CHUNK_SIZE]; // 16KB buffer

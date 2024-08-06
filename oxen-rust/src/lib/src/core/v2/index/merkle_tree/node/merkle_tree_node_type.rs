@@ -17,7 +17,6 @@ pub enum MerkleTreeNodeType {
     VNode,
     Schema,
     FileChunk,
-
     //       Fun realization - this fixes our push protocol of having to
     //       "chunk" large files before sending and reconstruct on the other side
     //       because we already chunked, and we can write them directly to the merkle tree

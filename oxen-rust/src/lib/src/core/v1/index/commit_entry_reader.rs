@@ -143,7 +143,9 @@ impl CommitEntryReader {
             .into_iter()
             .filter(|dir| {
                 (path == Path::new("") && dir != Path::new(""))
-                    || (dir.starts_with(path) && dir != path)
+                    || (dir.starts_with(path)
+                        && dir != path
+                        && dir.components().count() > path.components().count())
             })
             .collect();
         Ok(children)
@@ -159,7 +161,9 @@ impl CommitEntryReader {
             .into_iter()
             .filter(|dir| {
                 (path == Path::new("") && dir != Path::new(""))
-                    || (dir.starts_with(path) && dir != path)
+                    || (dir.starts_with(path)
+                        && dir != path
+                        && dir.components().count() > path.components().count())
             })
             .collect::<HashSet<PathBuf>>();
         Ok(children)
@@ -266,7 +270,9 @@ impl CommitEntryReader {
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
             // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
-            if committed_dir.starts_with(dir) {
+            if committed_dir.starts_with(dir)
+                && committed_dir.components().count() > dir.components().count()
+            {
                 let entry_reader = CommitDirEntryReader::new_from_path(
                     &self.base_path,
                     &self.commit_id,
@@ -305,7 +311,9 @@ impl CommitEntryReader {
         for committed_dir in dirs {
             // Have to make sure we are in a subset of the dir (not really a tree structure)
             // log::debug!("CommitEntryReader::list_directory() checking committed_dir: {:?}", committed_dir);
-            if committed_dir.starts_with(dir) {
+            if committed_dir.starts_with(dir)
+                && committed_dir.components().count() > dir.components().count()
+            {
                 let entry_reader = CommitDirEntryReader::new_from_path(
                     &self.base_path,
                     &self.commit_id,

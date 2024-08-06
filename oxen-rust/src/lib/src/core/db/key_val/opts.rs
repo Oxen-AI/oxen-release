@@ -1,4 +1,3 @@
-
 use rocksdb::{LogLevel, Options};
 
 pub fn default() -> Options {

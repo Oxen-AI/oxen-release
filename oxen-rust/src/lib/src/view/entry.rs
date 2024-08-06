@@ -71,8 +71,6 @@ pub struct PaginatedDirEntries {
     pub total_entries: usize,
 }
 
-
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct PaginatedDirEntriesResponse {
     #[serde(flatten)]

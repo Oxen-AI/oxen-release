@@ -483,7 +483,7 @@ fn latest_commit_in_files(
 
                 let lc = latest_file_commit.as_mut().unwrap();
                 // If the commit is newer than the latest commit, we update the latest commit
-                log::debug!("repositories::commits::list_by_directory: comparing commit: {} with latest commit: {} and hash: {} with latest hash: {}", commit.timestamp, lc.timestamp, entry.hash, latest_file_hash.as_ref().unwrap());
+                log::debug!("repositories::commits::list_by_directory: comparing commit: {} with latest commit: {} and hash: {} with latest hash: {}", commit, lc, entry.hash, latest_file_hash.as_ref().unwrap());
                 if commit.timestamp >= lc.timestamp
                     && &entry.hash != latest_file_hash.as_ref().unwrap()
                 {
@@ -498,21 +498,24 @@ fn latest_commit_in_files(
             }
         }
     }
+    log::debug!(
+        "repositories::commits::list_by_directory: returning latest commit: {:?}",
+        latest_commit
+    );
     Ok(())
 }
 
-fn list_by_directory(
+pub fn latest_commit_by_directory(
     repo: &LocalRepository,
     path: &Path,
     commit: &Commit,
-) -> Result<Vec<Commit>, OxenError> {
+) -> Result<(Option<Commit>, HashSet<String>), OxenError> {
     log::debug!(
         "repositories::commits::list_by_directory: path {:?} for commit {}",
         path,
         commit
     );
     // List all the commits
-    let commit_reader = CommitReader::new(repo)?;
     let object_reader = get_object_reader(repo, &commit.id)?;
 
     let dir_entry_reader =
@@ -535,18 +538,48 @@ fn list_by_directory(
 
     // We're trying to find the latest commit
     let mut latest_commit: Option<Commit> = None;
+    // Set latest commit to be the earliest valid commit to start with
+    let mut earliest_commit: Option<Commit> = None;
+    let commit_reader = CommitReader::new(repo)?;
+    for valid_commit_id in &valid_commit_ids {
+        if let Some(commit) = commit_reader.get_commit_by_id(valid_commit_id)? {
+            if earliest_commit.is_none()
+                || commit.timestamp < earliest_commit.as_ref().unwrap().timestamp
+            {
+                earliest_commit = Some(commit);
+            }
+        }
+    }
+
+    if earliest_commit.is_some() {
+        latest_commit = earliest_commit;
+    }
+
     latest_commit_in_files(&mut latest_commit, &dir_entry_reader, &readers)?;
 
     let dirs = dir_entry_reader.list_dirs()?;
     for dir in dirs {
-        // log::debug!("repositories::commits::list_by_directory: dir {:?}", dir);
-        let dir_entry_reader =
-            CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
-        latest_commit_in_files(&mut latest_commit, &dir_entry_reader, &readers)?;
+        if path.starts_with(&dir) && dir.components().count() > path.components().count() {
+            log::debug!("repositories::commits::list_by_directory: dir {:?}", dir);
+            let dir_entry_reader =
+                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
+            latest_commit_in_files(&mut latest_commit, &dir_entry_reader, &readers)?;
+        }
     }
+
+    Ok((latest_commit, valid_commit_ids))
+}
+
+fn list_by_directory(
+    repo: &LocalRepository,
+    path: &Path,
+    commit: &Commit,
+) -> Result<Vec<Commit>, OxenError> {
+    let (latest_commit, valid_commit_ids) = latest_commit_by_directory(repo, path, commit)?;
 
     // Just return the history from the latest commit
     if let Some(latest_commit) = latest_commit {
+        let commit_reader = CommitReader::new(repo)?;
         let commits = commit_reader.history_from_commit_id(&latest_commit.id)?;
         let commits = commits
             .into_iter()

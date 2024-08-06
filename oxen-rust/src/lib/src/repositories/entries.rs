@@ -93,16 +93,8 @@ pub fn meta_entry_from_dir(
     //     latest_commit_path
     // );
 
-    let latest_commit = match util::fs::read_from_path(latest_commit_path) {
-        Ok(id) => {
-            // log::debug!("meta_entry_from_dir found latest_commit on disk: {:?}", id);
-            commit_reader.get_commit_by_id(id)?
-        }
-        Err(_) => {
-            // log::debug!("meta_entry_from_dir computing latest_commit");
-            compute_latest_commit_for_dir(repo, object_reader.clone(), commit, path, commit_reader)?
-        }
-    };
+    let latest_commit_id = util::fs::read_from_path(latest_commit_path)?;
+    let latest_commit = commit_reader.get_commit_by_id(&latest_commit_id)?;
 
     let total_size_path = cachers::repo_size::dir_size_path(repo, commit, path);
     let total_size = match util::fs::read_from_path(total_size_path) {
@@ -136,44 +128,6 @@ pub fn meta_entry_from_dir(
         metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
         is_queryable: None,
     });
-}
-
-fn compute_latest_commit_for_dir(
-    repo: &LocalRepository,
-    object_reader: Arc<ObjectDBReader>,
-    commit: &Commit,
-    path: &Path,
-    commit_reader: &CommitReader,
-) -> Result<Option<Commit>, OxenError> {
-    let entry_reader =
-        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
-    let commits: HashMap<String, Commit> = HashMap::new();
-    let mut latest_commit = Some(commit.to_owned());
-    // This lists all the committed dirs
-    let dirs = entry_reader.list_dirs()?;
-    for dir in dirs {
-        // Have to make sure we are in a subset of the dir (not really a tree structure)
-        if dir.starts_with(path) {
-            let entry_reader =
-                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
-            for entry in entry_reader.list_entries()? {
-                let commit = if commits.contains_key(&entry.commit_id) {
-                    Some(commits[&entry.commit_id].clone())
-                } else {
-                    commit_reader.get_commit_by_id(&entry.commit_id)?
-                };
-
-                if latest_commit.is_none() {
-                    latest_commit.clone_from(&commit);
-                }
-
-                if latest_commit.as_ref().unwrap().timestamp < commit.as_ref().unwrap().timestamp {
-                    latest_commit.clone_from(&commit);
-                }
-            }
-        }
-    }
-    Ok(latest_commit)
 }
 
 fn compute_dir_size(
