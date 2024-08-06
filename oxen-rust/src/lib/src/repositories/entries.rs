@@ -34,9 +34,34 @@ pub fn list_directory(
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
     if core::is_v1(repo) {
+        log::debug!("list_directory is v1");
         core::v1::entries::list_directory(repo, directory, revision, paginate_opts)
     } else {
+        log::debug!("list_directory is v2");
         core::v2::entries::list_directory(repo, directory, revision, paginate_opts)
+    }
+}
+
+pub fn list_directory_w_version(
+    repo: &LocalRepository,
+    directory: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    paginate_opts: &PaginateOpts,
+    version: Option<String>,
+) -> Result<PaginatedDirEntries, OxenError> {
+    if let Some(version) = version {
+        if "v1" == version {
+            core::v1::entries::list_directory(repo, directory, revision, paginate_opts)
+        } else if "v2" == version {
+            core::v2::entries::list_directory(repo, directory, revision, paginate_opts)
+        } else {
+            Err(OxenError::basic_str(format!(
+                "Unsupported version: {}",
+                version
+            )))
+        }
+    } else {
+        list_directory(repo, directory, revision, paginate_opts)
     }
 }
 
@@ -701,7 +726,7 @@ mod tests {
             let commits = repositories::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
@@ -738,7 +763,7 @@ mod tests {
             let commits = repositories::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new("train"),
                 &commit.id,
@@ -763,7 +788,7 @@ mod tests {
             let commits = repositories::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new("annotations/train"),
                 &commit.id,
@@ -788,7 +813,7 @@ mod tests {
             let commits = repositories::commits::list(&repo)?;
             let commit = commits.first().unwrap();
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new("train"),
                 &commit.id,
@@ -844,7 +869,7 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
@@ -885,13 +910,13 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
 
@@ -934,13 +959,13 @@ mod tests {
             let page_number = 11;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
 
@@ -991,13 +1016,13 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
             assert_eq!(paginated.total_entries, 10);
@@ -1040,13 +1065,13 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
             assert_eq!(paginated.total_entries, 9);
@@ -1089,13 +1114,13 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
             assert_eq!(paginated.total_entries, 11);
@@ -1139,13 +1164,13 @@ mod tests {
             let page_number = 1;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
             assert_eq!(paginated.total_entries, num_dirs + num_files);
@@ -1185,13 +1210,13 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
 
@@ -1236,13 +1261,13 @@ mod tests {
             let page_number = 2;
             let page_size = 10;
 
-            let (paginated, _dir) = repositories::entries::list_directory(
+            let paginated = repositories::entries::list_directory(
                 &repo,
                 Path::new(""),
                 &commit.id,
                 &PaginateOpts {
                     page_num: page_number,
-                    page_size: page_size,
+                    page_size,
                 },
             )?;
 

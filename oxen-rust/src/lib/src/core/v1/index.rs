@@ -63,5 +63,3 @@ pub use crate::core::v1::index::staged_dir_entry_db::StagedDirEntryDB;
 pub use crate::core::v1::index::staged_dir_entry_reader::StagedDirEntryReader;
 pub use crate::core::v1::index::stager::Stager;
 pub use crate::core::v1::index::tree_object_reader::TreeObjectReader;
-
-use crate::model::LocalRepository;

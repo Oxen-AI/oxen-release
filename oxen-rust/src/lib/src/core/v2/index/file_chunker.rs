@@ -192,18 +192,21 @@ impl ChunkShardFile {
         );
         self.file.seek(SeekFrom::Start(start as u64))?;
         let mut buffer = vec![0u8; offset.1 as usize];
-        self.file.read(&mut buffer)?;
+        let bytes_read = self.file.read(&mut buffer)?;
+        log::debug!("read {} bytes", bytes_read);
         Ok(buffer)
     }
 
     pub fn read_index(&mut self) -> Result<(), OxenError> {
         // read the index size
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
-        self.file.read(&mut buffer)?;
+        let bytes_read = self.file.read(&mut buffer)?;
+        log::debug!("read {} bytes", bytes_read);
         let index_size = u32::from_le_bytes(buffer) as usize;
 
         let mut index_bytes = vec![0u8; index_size];
-        self.file.read(&mut index_bytes)?;
+        let bytes_read = self.file.read(&mut index_bytes)?;
+        log::debug!("read {} bytes", bytes_read);
         self.index = bincode::deserialize(&index_bytes)?;
         self.data_start = index_size + 8; // 4 for size of index and 4 for data size
 
@@ -219,14 +222,16 @@ impl ChunkShardFile {
     pub fn read_data(&mut self) -> Result<(), OxenError> {
         // read the buffer size
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
-        self.file.read(&mut buffer)?;
+        let bytes_read = self.file.read(&mut buffer)?;
+        log::debug!("read {} bytes", bytes_read);
         self.offset = u32::from_le_bytes(buffer) as usize;
 
         log::debug!("read data with {:?} bytes", self.offset);
 
         // read the buffer
         let mut buffer = vec![0u8; self.offset];
-        self.file.read(&mut buffer)?;
+        let bytes_read = self.file.read(&mut buffer)?;
+        log::debug!("read {} bytes", bytes_read);
 
         // Allocate the full size for the buffer
         self.data = vec![0u8; SHARD_CAPACITY];

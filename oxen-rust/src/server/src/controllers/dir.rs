@@ -1,6 +1,6 @@
 use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
-use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
+use crate::params::{app_data, parse_resource, path_param, PageNumVersionQuery};
 
 use liboxen::opts::PaginateOpts;
 use liboxen::view::PaginatedDirEntriesResponse;
@@ -10,7 +10,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 
 pub async fn get(
     req: HttpRequest,
-    query: web::Query<PageNumQuery>,
+    query: web::Query<PageNumVersionQuery>,
 ) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -20,20 +20,22 @@ pub async fn get(
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
+    let api_version = query.api_version.clone();
 
     log::debug!(
         "{} resource {namespace}/{repo_name}/{resource}",
         liboxen::current_function!()
     );
 
-    let paginated_entries = repositories::entries::list_directory(
+    let paginated_entries = repositories::entries::list_directory_w_version(
         &repo,
         &resource.path,
         resource.version.to_str().unwrap_or_default(),
         &PaginateOpts {
             page_num: page,
-            page_size: page_size,
+            page_size,
         },
+        api_version,
     )?;
 
     let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
