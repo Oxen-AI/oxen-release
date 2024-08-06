@@ -45,7 +45,6 @@ impl RunCmd for TreeCmd {
                     .long("path")
                     .short('p')
                     .help("The path to print the tree of.")
-                    .default_value("")
                     .action(clap::ArgAction::Set),
             )
             .arg(
@@ -88,7 +87,7 @@ impl RunCmd for TreeCmd {
             commit
         };
 
-        let path = args.get_one::<String>("path").expect("Must supply path");
+        let path = args.get_one::<String>("path");
         if args.get_flag("legacy") {
             if let Some(_node) = args.get_one::<String>("node") {
                 self.print_legacy(&repo, &commit, path, true)?;
@@ -117,12 +116,16 @@ impl TreeCmd {
         &self,
         repo: &LocalRepository,
         commit: &Commit,
-        path: &str,
+        path: Option<&String>,
         depth: i32,
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
 
-        let tree = CommitMerkleTree::read_path(repo, commit, path)?;
+        let tree = if let Some(path) = path {
+            CommitMerkleTree::read_path(repo, commit, path)?
+        } else {
+            CommitMerkleTree::read_root(repo, commit)?
+        };
         let load_duration = load_start.elapsed(); // Calculate duration
 
         // List directories in the .oxen/tree dir
@@ -170,9 +173,10 @@ impl TreeCmd {
         &self,
         repo: &LocalRepository,
         commit: &Commit,
-        path: &str,
+        path: Option<&String>,
         single_entry: bool,
     ) -> Result<(), OxenError> {
+        let path = path.unwrap_or(&commit.id);
         // Read a full dir
         if single_entry {
             // Just get a single entry

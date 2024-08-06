@@ -7,6 +7,7 @@ pub mod file_node_types;
 pub mod merkle_tree_node_type;
 pub mod schema_node;
 pub mod vnode;
+pub mod root_node;
 
 pub use commit_merkle_tree_node::CommitMerkleTreeNode;
 pub use deserialized_node::DeserializedMerkleTreeNode;
@@ -17,3 +18,4 @@ pub use file_node_types::{FileChunkType, FileStorageType};
 pub use merkle_tree_node_type::MerkleTreeNodeType;
 pub use schema_node::SchemaNode;
 pub use vnode::VNode;
+pub use root_node::RootNode;

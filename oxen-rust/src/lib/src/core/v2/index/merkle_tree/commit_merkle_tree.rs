@@ -44,6 +44,11 @@ impl CommitMerkleTree {
         CommitMerkleTree::read_path(repo, commit, root_path)
     }
 
+    pub fn read_root(repo: &LocalRepository, commit: &Commit) -> Result<CommitMerkleTreeNode, OxenError> {
+        let node_hash = commit.id.clone();
+        CommitMerkleTree::read_node(repo, node_hash, true)
+    }
+
     pub fn read_path(
         repo: &LocalRepository,
         commit: &Commit,
@@ -83,6 +88,7 @@ impl CommitMerkleTree {
         // Dir hashes are stored with extra quotes in the db, remove them
         let node_hash = node_hash.replace('"', "");
         let hash = u128::from_str_radix(&node_hash, 16).unwrap();
+        println!("Read node root hash [{}]", node_hash);
         let mut node = CommitMerkleTreeNode::root(hash);
         let mut node_db = CommitMerkleTree::open_node_db(repo, node_hash)?;
         CommitMerkleTree::read_children_from_node(repo, &mut node_db, &mut node, recurse)?;
@@ -190,7 +196,7 @@ impl CommitMerkleTree {
         log::debug!("read_children_from_node tree_db_dir: {:?}", node_db.path());
         let dtype = node_db.dtype();
 
-        if dtype != MerkleTreeNodeType::Dir && dtype != MerkleTreeNodeType::VNode {
+        if dtype != MerkleTreeNodeType::Root && dtype != MerkleTreeNodeType::Dir && dtype != MerkleTreeNodeType::VNode {
             return Ok(());
         }
 
@@ -202,7 +208,7 @@ impl CommitMerkleTree {
             log::debug!("read_children_from_node child: {:?} -> {}", key, child);
             match &child.dtype {
                 // Directories, VNodes, and Files have children
-                MerkleTreeNodeType::Dir | MerkleTreeNodeType::VNode => {
+                MerkleTreeNodeType::Root | MerkleTreeNodeType::Dir | MerkleTreeNodeType::VNode => {
                     if recurse {
                         let mut node_db = CommitMerkleTree::open_node_db(repo, &child.hash)?;
                         CommitMerkleTree::read_children_from_node(
@@ -249,6 +255,9 @@ impl CommitMerkleTree {
         }
 
         match node.dtype {
+            MerkleTreeNodeType::Root => {
+                println!("[Root]")
+            }
             MerkleTreeNodeType::VNode => {
                 let vnode = node.vnode().unwrap();
                 println!(
@@ -263,14 +272,15 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::Dir => {
                 let dir = node.dir().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} {} ({} nodes) ({} files)",
+                    "{}[{:?}] {:?} -> {} {} ({} nodes) ({} files) [{}]",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     dir.name,
                     node.hash,
                     bytesize::ByteSize::b(dir.num_bytes),
                     node.children.len(),
-                    dir.num_files()
+                    dir.num_files(),
+                    format!("{:x}", dir.last_commit_id)
                 )
             }
             MerkleTreeNodeType::File => {

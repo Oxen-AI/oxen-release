@@ -11,12 +11,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub enum MerkleTreeNodeType {
+    Root,
     File,
     Dir,
     VNode,
     Schema,
     FileChunk,
-    // TODO: Add FileChunk
 
     //       Fun realization - this fixes our push protocol of having to
     //       "chunk" large files before sending and reconstruct on the other side
@@ -27,21 +27,23 @@ pub enum MerkleTreeNodeType {
 impl MerkleTreeNodeType {
     pub fn to_u8(&self) -> u8 {
         match self {
-            MerkleTreeNodeType::Dir => 0u8,
-            MerkleTreeNodeType::VNode => 1u8,
-            MerkleTreeNodeType::File => 2u8,
-            MerkleTreeNodeType::Schema => 3u8,
-            MerkleTreeNodeType::FileChunk => 4u8,
+            MerkleTreeNodeType::Root => 0u8,
+            MerkleTreeNodeType::Dir => 1u8,
+            MerkleTreeNodeType::VNode => 2u8,
+            MerkleTreeNodeType::File => 3u8,
+            MerkleTreeNodeType::Schema => 4u8,
+            MerkleTreeNodeType::FileChunk => 5u8,
         }
     }
 
     pub fn from_u8(val: u8) -> MerkleTreeNodeType {
         match val {
-            0u8 => MerkleTreeNodeType::Dir,
-            1u8 => MerkleTreeNodeType::VNode,
-            2u8 => MerkleTreeNodeType::File,
-            3u8 => MerkleTreeNodeType::Schema,
-            4u8 => MerkleTreeNodeType::FileChunk,
+            0u8 => MerkleTreeNodeType::Root,
+            1u8 => MerkleTreeNodeType::Dir,
+            2u8 => MerkleTreeNodeType::VNode,
+            3u8 => MerkleTreeNodeType::File,
+            4u8 => MerkleTreeNodeType::Schema,
+            5u8 => MerkleTreeNodeType::FileChunk,
             _ => panic!("Invalid MerkleTreeNodeType"),
         }
     }
