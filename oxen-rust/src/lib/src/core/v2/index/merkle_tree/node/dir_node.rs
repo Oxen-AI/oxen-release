@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::view::DataTypeCount;
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct DirNode {
     // The name of the directory
@@ -28,5 +30,15 @@ impl DirNode {
     pub fn num_files(&self) -> usize {
         // sum up the data type counts
         self.data_type_counts.values().sum()
+    }
+
+    pub fn data_types(&self) -> Vec<DataTypeCount> {
+        self.data_type_counts
+            .iter()
+            .map(|(k, v)| DataTypeCount {
+                data_type: k.clone(),
+                count: *v,
+            })
+            .collect()
     }
 }

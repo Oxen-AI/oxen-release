@@ -219,6 +219,8 @@ fn migrate_merkle_tree(
     Ok(())
 }
 
+#[allow(clippy::only_used_in_recursion)]
+#[allow(clippy::too_many_arguments)]
 fn migrate_dir(
     repo: &LocalRepository,
     commits: &Vec<Commit>,
@@ -401,6 +403,7 @@ fn migrate_dir(
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
                     write_file_node(
+                        repo,
                         entry_reader,
                         &commit_entry_readers,
                         &mut node_db,
@@ -449,11 +452,12 @@ fn migrate_dir(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn write_dir_node(
     repo: &LocalRepository,
     commit_idx: usize,
     entry_reader: &CommitEntryReader,
-    object_readers: &Vec<Arc<ObjectDBReader>>,
+    object_readers: &[Arc<ObjectDBReader>],
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
     node_db: &mut MerkleNodeDB,
     path: &Path,
@@ -523,7 +527,9 @@ fn write_dir_node(
             }
 
             entries_processed += 1;
-            let data_type = util::fs::data_type_from_extension(&entry.path);
+            let version_path = util::fs::version_path(repo, &entry);
+            let mime_type = util::fs::file_mime_type(&version_path);
+            let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
             let data_type_str = format!("{}", data_type);
             data_type_counts
                 .entry(data_type_str)
@@ -563,6 +569,7 @@ fn write_dir_node(
 }
 
 fn write_file_node(
+    repo: &LocalRepository,
     entry_reader: &CommitEntryReader,
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
     node_db: &mut MerkleNodeDB,
@@ -594,12 +601,16 @@ fn write_file_node(
     let last_commit_id =
         u128::from_str_radix(&latest_commit.id, 16).expect("Failed to parse hex string");
 
+    let commit_entry = entry_reader
+        .get_entry(path)?
+        .ok_or(OxenError::basic_str(format!(
+            "could not get file entry for {}",
+            path.display()
+        )))?;
+
     // Chunk the file into 16kb chunks
     /* TODO: This is hard / inefficient to read into Polars for now, ignore
-    let commit_entry = reader.get_entry(path)?.ok_or(OxenError::basic_str(format!(
-        "could not get file entry for {}",
-        path.display()
-    )))?;
+
     let chunker = FileChunker::new(repo);
     let mut csm = ChunkShardManager::new(repo)?;
     csm.open_for_write()?;
@@ -613,6 +624,12 @@ fn write_file_node(
     // Then start refactoring the commands into a "legacy" module so we can still make the old
     // dbs but start implementing them with the new merkle object
     let file_name = path.file_name().unwrap().to_str().unwrap();
+
+    let version_path = util::fs::version_path(repo, &commit_entry);
+    let mime_type = util::fs::file_mime_type(&version_path);
+    let extension = file_name.split('.').last().unwrap_or_default().to_string();
+    let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
+
     let val = FileNode {
         name: file_name.to_owned(),
         hash: uhash,
@@ -623,6 +640,9 @@ fn write_file_node(
         last_modified_seconds,
         last_modified_nanoseconds,
         chunk_hashes: chunks,
+        data_type,
+        mime_type,
+        extension,
     };
     node_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
 

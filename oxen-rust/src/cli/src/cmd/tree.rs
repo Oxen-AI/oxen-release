@@ -120,7 +120,6 @@ impl TreeCmd {
         depth: i32,
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
-
         let tree = if let Some(path) = path {
             CommitMerkleTree::read_path(repo, commit, path)?
         } else {

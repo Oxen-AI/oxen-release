@@ -5,6 +5,7 @@
 use serde::{Deserialize, Serialize};
 
 use super::file_node_types::{FileChunkType, FileStorageType};
+use crate::model::EntryDataType;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct FileNode {
@@ -20,6 +21,13 @@ pub struct FileNode {
     // Last modified timestamp
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
+
+    // Data Type
+    pub data_type: EntryDataType,
+    // Mime Type
+    pub mime_type: String,
+    // Extension
+    pub extension: String,
 
     // File chunks, for single chunk files, this will be empty (and we can just use the hash)
     pub chunk_hashes: Vec<u128>,

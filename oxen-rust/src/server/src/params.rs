@@ -17,6 +17,7 @@ pub use aggregate_query::AggregateQuery;
 
 pub mod page_num_query;
 pub use page_num_query::PageNumQuery;
+pub use page_num_query::PageNumVersionQuery;
 
 pub mod df_opts_query;
 pub use df_opts_query::DFOptsQuery;

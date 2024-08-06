@@ -62,7 +62,7 @@ pub struct PaginatedMetadataEntriesResponse {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PaginatedDirEntries {
-    pub dir: MetadataEntry,
+    pub dir: Option<MetadataEntry>,
     pub entries: Vec<MetadataEntry>,
     pub resource: Option<ResourceVersion>,
     pub metadata: Option<MetadataDir>,

@@ -87,54 +87,54 @@ impl MerkleNodeLookup {
         let mut buffer = [0u8; 1]; // u8 is 1 byte
         cursor.read_exact(&mut buffer)?;
         let dtype = MerkleTreeNodeType::from_u8(buffer[0]);
-        log::debug!("MerkleNodeLookup.load() dtype: {:?}", dtype);
+        // log::debug!("MerkleNodeLookup.load() dtype: {:?}", dtype);
 
         // Read the length of the name
         let mut buffer = [0u8; 8]; // u64 is 8 bytes
         cursor.read_exact(&mut buffer)?;
         let name_len = u64::from_le_bytes(buffer);
-        log::debug!("MerkleNodeLookup.load() name_len: {}", name_len);
+        // log::debug!("MerkleNodeLookup.load() name_len: {}", name_len);
 
         // Read the name
         let mut buffer = vec![0u8; name_len as usize];
         cursor.read_exact(&mut buffer)?;
         let name = String::from_utf8(buffer)?;
-        log::debug!("MerkleNodeLookup.load() name: {}", name);
+        // log::debug!("MerkleNodeLookup.load() name: {}", name);
 
         // Read the number of children in the node
         let mut buffer = [0u8; 8]; // u64 is 8 bytes
         cursor.read_exact(&mut buffer)?;
         let num_children = u64::from_le_bytes(buffer);
-        log::debug!("MerkleNodeLookup.load() num_children: {}", num_children);
+        // log::debug!("MerkleNodeLookup.load() num_children: {}", num_children);
 
         // Read the map of offsets
         let mut offsets: HashMap<u128, (u8, u64, u64)> = HashMap::new();
         offsets.reserve(num_children as usize);
 
-        for i in 0..num_children {
-            log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
+        for _ in 0..num_children {
+            // log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
             let mut buffer = [0u8; 1]; // data-type u8 is 1 byte
             cursor.read_exact(&mut buffer)?;
             let data_type = u8::from_le_bytes(buffer);
-            log::debug!(
-                "MerkleNodeLookup.load() got data_type {:?}",
-                MerkleTreeNodeType::from_u8(data_type)
-            );
+            // log::debug!(
+            //     "MerkleNodeLookup.load() got data_type {:?}",
+            //     MerkleTreeNodeType::from_u8(data_type)
+            // );
 
             let mut buffer = [0u8; 16]; // hash u128 is 16 bytes
             cursor.read_exact(&mut buffer)?;
             let hash = u128::from_le_bytes(buffer);
-            log::debug!("MerkleNodeLookup.load() got hash {}", hash);
+            // log::debug!("MerkleNodeLookup.load() got hash {}", hash);
 
             let mut buffer = [0u8; 8]; // data-offset u64 is 8 bytes
             cursor.read_exact(&mut buffer)?;
             let data_offset = u64::from_le_bytes(buffer);
-            log::debug!("MerkleNodeLookup.load() got data_offset {}", data_offset);
+            // log::debug!("MerkleNodeLookup.load() got data_offset {}", data_offset);
 
             let mut buffer = [0u8; 8]; // data-length u64 is 8 bytes
             cursor.read_exact(&mut buffer)?;
             let data_len = u64::from_le_bytes(buffer);
-            log::debug!("MerkleNodeLookup.load() got data_len {}", data_len);
+            // log::debug!("MerkleNodeLookup.load() got data_len {}", data_len);
 
             offsets.insert(hash, (data_type, data_offset, data_len));
         }
@@ -463,7 +463,7 @@ mod tests {
 
     #[test]
     fn test_merkle_node_db() -> Result<(), OxenError> {
-        test::run_empty_dir_test(|dir| {
+        test::run_empty_dir_test(|_dir| {
             /*
             let mut writer_db = MerkleNodeDB::open_read_write(dir)?;
             writer_db.write_meta(".", MerkleTreeNodeType::Dir, 2)?;
