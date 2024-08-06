@@ -2,8 +2,8 @@
 //!
 
 use crate::api::client::commits::ChunkParams;
-use crate::model::entry::commit_entry::{Entry, SchemaEntry};
-use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entries::commit_entry::{Entry, SchemaEntry};
+use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::repositories;
 use crate::repositories::entries::compute_generic_entries_size;
 use crate::util::concurrency;

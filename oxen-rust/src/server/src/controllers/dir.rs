@@ -2,6 +2,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param, PageNumQuery};
 
+use liboxen::opts::PaginateOpts;
 use liboxen::view::PaginatedDirEntriesResponse;
 use liboxen::{constants, repositories};
 
@@ -16,7 +17,6 @@ pub async fn get(
     let repo_name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
     let resource = parse_resource(&req, &repo)?;
-    let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
@@ -26,17 +26,17 @@ pub async fn get(
         liboxen::current_function!()
     );
 
-    let (paginated_entries, dir) = repositories::entries::list_directory(
+    let paginated_entries = repositories::entries::list_directory(
         &repo,
-        &commit,
         &resource.path,
         resource.version.to_str().unwrap_or_default(),
-        page,
-        page_size,
+        &PaginateOpts {
+            page_num: page,
+            page_size: page_size,
+        },
     )?;
 
-    // let dir = repositories::entries::get_meta_entry(&repo, &resource.commit, &resource.file_path)?;
-    let view = PaginatedDirEntriesResponse::ok_from(dir, paginated_entries);
+    let view = PaginatedDirEntriesResponse::ok_from(paginated_entries);
     Ok(HttpResponse::Ok().json(view))
 }
 

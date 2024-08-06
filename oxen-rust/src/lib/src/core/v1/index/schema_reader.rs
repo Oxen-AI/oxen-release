@@ -5,7 +5,7 @@ use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
 
 use crate::core::v1::index::CommitEntryWriter;
 use crate::error::OxenError;
-use crate::model::entry::commit_entry::SchemaEntry;
+use crate::model::entries::commit_entry::SchemaEntry;
 use crate::model::Schema;
 use crate::util;
 

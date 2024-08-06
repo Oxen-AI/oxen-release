@@ -11,7 +11,7 @@ use crate::{
 };
 
 use super::{
-    entry::ResourceVersion, json_data_frame_view::DerivedDFResource, JsonDataFrame,
+    entries::ResourceVersion, json_data_frame_view::DerivedDFResource, JsonDataFrame,
     JsonDataFrameViews, PaginatedDirEntries, StatusMessage,
 };
 
@@ -152,6 +152,7 @@ impl RemoteStagedStatus {
         let (paginated, pagination) = util::paginate(entries, page_number, page_size);
 
         PaginatedDirEntries {
+            dir: MetadataEntry::default(),
             entries: paginated,
             page_number: pagination.page_number,
             page_size: pagination.page_size,

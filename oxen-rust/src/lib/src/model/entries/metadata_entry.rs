@@ -41,6 +41,21 @@ pub struct MetadataEntry {
 }
 
 impl MetadataEntry {
+    pub fn default() -> Self {
+        Self {
+            filename: String::new(),
+            is_dir: false,
+            latest_commit: None,
+            resource: None,
+            size: 0,
+            data_type: EntryDataType::Binary,
+            mime_type: String::new(),
+            extension: String::new(),
+            metadata: None,
+            is_queryable: None,
+        }
+    }
+
     pub fn from_commit_entry(
         repo: &LocalRepository,
         entry: Option<CommitEntry>,

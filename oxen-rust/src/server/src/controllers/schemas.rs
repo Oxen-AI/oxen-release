@@ -12,7 +12,7 @@ use liboxen::{repositories, util};
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::error::OxenError;
-use liboxen::view::entry::ResourceVersion;
+use liboxen::view::entries::ResourceVersion;
 use liboxen::view::{ListSchemaResponse, StatusMessage};
 
 pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {

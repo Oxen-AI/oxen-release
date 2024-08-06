@@ -16,7 +16,7 @@ use crate::model::Commit;
 use crate::model::DataFrameSize;
 use crate::opts::df_opts::DFOptsView;
 
-use crate::view::entry::ResourceVersion;
+use crate::view::entries::ResourceVersion;
 use crate::view::Pagination;
 use crate::{model::Schema, opts::DFOpts};
 

@@ -25,7 +25,7 @@ use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::TREE_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
-use crate::model::entry::commit_entry::Entry;
+use crate::model::entries::commit_entry::Entry;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
 use crate::model::Schema;

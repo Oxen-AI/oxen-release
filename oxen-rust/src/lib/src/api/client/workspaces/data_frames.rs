@@ -4,7 +4,7 @@ use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
 use crate::opts::DFOpts;
-use crate::view::entry::PaginatedMetadataEntriesResponse;
+use crate::view::entries::PaginatedMetadataEntriesResponse;
 use crate::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use std::path::Path;
 

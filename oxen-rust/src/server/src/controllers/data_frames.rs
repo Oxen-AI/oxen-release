@@ -14,7 +14,7 @@ use liboxen::model::{
 };
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::repositories;
-use liboxen::view::entry::ResourceVersion;
+use liboxen::view::entries::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 
 use actix_web::{web, HttpRequest, HttpResponse};
