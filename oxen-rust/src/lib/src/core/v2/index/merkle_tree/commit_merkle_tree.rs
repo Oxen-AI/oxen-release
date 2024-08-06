@@ -44,7 +44,10 @@ impl CommitMerkleTree {
         CommitMerkleTree::read_path(repo, commit, root_path)
     }
 
-    pub fn read_root(repo: &LocalRepository, commit: &Commit) -> Result<CommitMerkleTreeNode, OxenError> {
+    pub fn read_root(
+        repo: &LocalRepository,
+        commit: &Commit,
+    ) -> Result<CommitMerkleTreeNode, OxenError> {
         let node_hash = commit.id.clone();
         CommitMerkleTree::read_node(repo, node_hash, true)
     }
@@ -196,7 +199,10 @@ impl CommitMerkleTree {
         log::debug!("read_children_from_node tree_db_dir: {:?}", node_db.path());
         let dtype = node_db.dtype();
 
-        if dtype != MerkleTreeNodeType::Root && dtype != MerkleTreeNodeType::Dir && dtype != MerkleTreeNodeType::VNode {
+        if dtype != MerkleTreeNodeType::Root
+            && dtype != MerkleTreeNodeType::Dir
+            && dtype != MerkleTreeNodeType::VNode
+        {
             return Ok(());
         }
 

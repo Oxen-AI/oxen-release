@@ -14,8 +14,8 @@ use os_path::OsPath;
 use crate::core::df;
 use crate::core::v1::cache::cachers;
 use crate::core::v1::index;
-use crate::core::v1::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::v1::index::ObjectDBReader;
+use crate::core::v1::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };

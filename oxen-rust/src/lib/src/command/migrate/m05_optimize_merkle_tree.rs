@@ -195,13 +195,12 @@ fn migrate_merkle_tree(
 
     write_dir_node(
         repo,
-        commit,
         commit_idx,
         &entry_reader,
         object_readers,
         &commit_entry_readers,
         &mut dir_db,
-        &dir_path,
+        dir_path,
         &hash,
     )?;
 
@@ -237,9 +236,7 @@ fn migrate_dir(
     //
     println!(
         "Processing dir path [{:?}] hash [{}] for commit {}",
-        dir_path,
-        dir_hash,
-        commits[commit_idx]
+        dir_path, dir_hash, commits[commit_idx]
     );
 
     /*
@@ -275,7 +272,6 @@ fn migrate_dir(
             * 12,5000 Children Per VNode
     */
 
-    let commit = &commits[commit_idx];
     let dir_hash = &dir_hash.replace('"', "");
     let obj_reader = &object_readers[commit_idx];
     let dir_obj = obj_reader.get_dir(dir_hash)?;
@@ -339,7 +335,7 @@ fn migrate_dir(
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
         .join(constants::NODES_DIR)
-        .join(&dir_hash);
+        .join(dir_hash);
 
     // Create a directory of vnodes
     let mut dir_db = MerkleNodeDB::open_read_write(tree_path)?;
@@ -405,7 +401,7 @@ fn migrate_dir(
                 MerkleTreeNodeType::File => {
                     // If it's a file, let's chunk it and make the chunk leaf nodes
                     write_file_node(
-                        &entry_reader,
+                        entry_reader,
                         &commit_entry_readers,
                         &mut node_db,
                         path,
@@ -415,9 +411,8 @@ fn migrate_dir(
                 MerkleTreeNodeType::Dir => {
                     write_dir_node(
                         repo,
-                        commit,
                         commit_idx,
-                        &entry_reader,
+                        entry_reader,
                         object_readers,
                         &commit_entry_readers,
                         &mut node_db,
@@ -431,7 +426,7 @@ fn migrate_dir(
                         commits,
                         commit_idx,
                         commit_reader,
-                        &entry_reader,
+                        entry_reader,
                         object_readers,
                         path,
                         file_name,
@@ -456,7 +451,6 @@ fn migrate_dir(
 
 fn write_dir_node(
     repo: &LocalRepository,
-    commit: &Commit,
     commit_idx: usize,
     entry_reader: &CommitEntryReader,
     object_readers: &Vec<Arc<ObjectDBReader>>,
@@ -469,7 +463,8 @@ fn write_dir_node(
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
     let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
 
-    // TODO Compute num_bytes, last_commit_id, last_modified_seconds, last_modified_nanoseconds
+    let commit = &commit_entry_readers[commit_idx].0;
+
     let mut num_bytes = 0;
     let mut last_commit_id = 0;
     let mut last_commit_timestamp: OffsetDateTime = OffsetDateTime::from_unix_timestamp(0).unwrap();
@@ -488,65 +483,60 @@ fn write_dir_node(
         .map(|dir| dir.to_path_buf())
         .collect();
 
+    // Compute total size and data type counts
     let progress_bar = spinner_with_msg("Processing dir children");
-    println!("Processing subdirs for path [{:?}] children [{}]", path, dirs.len());
+    println!(
+        "Processing subdirs for path [{:?}] children {:?}",
+        path, dirs
+    );
 
     for dir in dirs {
-        log::debug!("processing dir: {:?}", dir);
+        log::debug!("processing path [{:?}] sub dir: {:?}", path, dir);
         let dir_entry_reader =
             CommitDirEntryReader::new(repo, &commit.id, &dir, object_readers[commit_idx].clone())?;
 
         let mut readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
         for (i, (c, _)) in commit_entry_readers.iter().enumerate() {
-            if c.timestamp > last_commit_timestamp {
-                let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
-                readers.push((c.clone(), reader));
-            }
+            let reader = CommitDirEntryReader::new(repo, &c.id, &dir, object_readers[i].clone())?;
+            readers.push((c.clone(), reader));
+            log::debug!("Reader for commit: {}", c);
         }
 
         let entries = dir_entry_reader.list_entries()?;
         for entry in entries {
             num_bytes += entry.num_bytes;
 
-            // If we have less than 2 readers, we know the latest commit is the one we're processing
-            if readers.len() > 1 {
-                log::debug!("checking latest commit on {:?} readers: {:?}", entry.path, readers.len());
-                let Some(latest_commit) =
-                    repositories::entries::get_latest_commit_for_entry(&readers, &entry)?
-                else {
-                    log::error!(
-                        "Skipping entry {:?}, could not get latest commit",
-                        entry.path
-                    );
-                    continue;
-                };
-                if latest_commit.timestamp > last_commit_timestamp {
-                    last_commit_timestamp = latest_commit.timestamp;
-                    let commit_id = &latest_commit.id;
-                    // convert string hash to u128
-                    last_commit_id =
-                        u128::from_str_radix(&commit_id, 16).expect("Failed to parse hex string");
-                    last_modified_seconds = entry.last_modified_seconds;
-                    last_modified_nanoseconds = entry.last_modified_nanoseconds;
-                    log::debug!(
-                        "Setting latest commit: {} for {:?} {} {} {}",
-                        latest_commit,
-                        entry.path,
-                        entry.num_bytes,
-                        commit_id,
-                        last_commit_timestamp
-                    );
+            let mut last_hash = "".to_string();
+            for (commit, commit_entry_reader) in &readers {
+                let file_name = entry.path.file_name().unwrap().to_str().unwrap();
+
+                if let Some(ce) = commit_entry_reader.get_entry(file_name)? {
+                    // log::debug!("Got entry for {:?} in subdir {:?} of {:?} for commit {}", entry.path, dir, path, commit);
+                    if commit.timestamp > last_commit_timestamp && ce.hash != last_hash {
+                        log::debug!("Updating last commit id for {:?} in subdir {:?} of {:?} to {} because it changed from {} to {}", entry.path, dir, path, commit.id, last_hash, ce.hash);
+                        last_commit_id = u128::from_str_radix(&commit.id, 16)
+                            .expect("Failed to parse hex string");
+                        last_commit_timestamp = commit.timestamp;
+                    }
+                    last_hash = ce.hash.clone();
                 }
             }
 
             entries_processed += 1;
-
             let data_type = util::fs::data_type_from_extension(&entry.path);
             let data_type_str = format!("{}", data_type);
             data_type_counts
                 .entry(data_type_str)
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
+
+            if last_modified_seconds < entry.last_modified_seconds {
+                last_modified_seconds = entry.last_modified_seconds;
+            }
+
+            if last_modified_nanoseconds < entry.last_modified_nanoseconds {
+                last_modified_nanoseconds = entry.last_modified_nanoseconds;
+            }
 
             progress_bar.set_message(format!(
                 "Processing {:?} children: {} ({})",
