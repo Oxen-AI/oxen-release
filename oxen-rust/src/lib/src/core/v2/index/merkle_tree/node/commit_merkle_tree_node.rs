@@ -1,6 +1,6 @@
 use rmp_serde::Serializer;
 use serde::Serialize;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 
@@ -30,20 +30,12 @@ impl fmt::Display for CommitMerkleTreeNode {
 impl CommitMerkleTreeNode {
     /// Create an empty root node with a hash
     pub fn root(hash: u128) -> Self {
-        let dir_node = DirNode {
-            name: "".to_string(),
-            hash,
-            num_bytes: 0,
-            last_commit_id: 0,
-            last_modified_seconds: 0,
-            last_modified_nanoseconds: 0,
-            data_type_counts: HashMap::new(),
-        };
+        let dir_node = RootNode {};
         let mut buf = Vec::new();
         dir_node.serialize(&mut Serializer::new(&mut buf)).unwrap();
         CommitMerkleTreeNode {
             hash: hash.to_string(),
-            dtype: MerkleTreeNodeType::Dir,
+            dtype: MerkleTreeNodeType::Root,
             data: buf,
             children: HashSet::new(),
         }
