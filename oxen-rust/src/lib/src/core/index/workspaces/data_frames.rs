@@ -18,7 +18,7 @@ use crate::model::diff::tabular_diff::{
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Commit, CommitEntry, LocalRepository, Workspace};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
@@ -76,7 +76,16 @@ pub fn get_queryable_data_frame_workspace(
     path: &PathBuf,
     commit: &Commit,
 ) -> Result<Workspace, OxenError> {
-    if !util::fs::is_tabular(path) {
+    let entry_reader = CommitEntryReader::new(repo, commit)?;
+
+    let entry = entry_reader.get_entry(path)?
+    .ok_or_else(|| OxenError::basic_str("Entry not found"))?;
+
+    let version_path = util::fs::version_path(repo, &entry);
+
+    let data_type = util::fs::file_data_type(&version_path);
+
+    if data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
