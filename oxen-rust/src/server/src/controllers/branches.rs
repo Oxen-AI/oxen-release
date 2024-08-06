@@ -9,7 +9,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::v1::index::{Merger, SchemaReader};
 use liboxen::error::OxenError;
 use liboxen::util::{self, paginate};
-use liboxen::view::entry::ResourceVersion;
+use liboxen::view::entries::ResourceVersion;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
     CommitEntryVersion, CommitResponse, ListBranchesResponse, PaginatedEntryVersions,

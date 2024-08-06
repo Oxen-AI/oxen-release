@@ -6,9 +6,11 @@ use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::DFOpts;
-use crate::view::entry::ResourceVersion;
+use crate::opts::PaginateOpts;
+use crate::view::entries::ResourceVersion;
 use crate::view::DataTypeCount;
 use crate::{repositories, util};
+
 use os_path::OsPath;
 
 use crate::core::df;
@@ -299,16 +301,22 @@ pub fn meta_entry_from_dir(
 // This is wayyyy more complicated that it needs to be because we have these two separate dbs....
 pub fn list_directory(
     repo: &LocalRepository,
-    commit: &Commit,
-    directory: &Path,
-    revision: &str,
-    page: usize,
-    page_size: usize,
-) -> Result<(PaginatedDirEntries, MetadataEntry), OxenError> {
+    directory: impl AsRef<Path>,
+    revision: impl AsRef<str>,
+    paginate_opts: &PaginateOpts,
+) -> Result<PaginatedDirEntries, OxenError> {
+    let directory = directory.as_ref();
+    let revision = revision.as_ref();
+    let page = paginate_opts.page_num;
+    let page_size = paginate_opts.page_size;
+
     let resource = Some(ResourceVersion {
         path: directory.to_str().unwrap().to_string(),
         version: revision.to_string(),
     });
+
+    let commit = repositories::revisions::get(repo, &revision)?
+        .ok_or(OxenError::revision_not_found(revision.into()))?;
 
     // Instantiate these readers once so they can be efficiently passed down through and databases not re-opened
     let object_reader = get_object_reader(repo, &commit.id)?;
@@ -337,7 +345,7 @@ pub fn list_directory(
                 dir_paths.push(meta_entry_from_dir(
                     repo,
                     object_reader.clone(),
-                    commit,
+                    &commit,
                     &dir,
                     &commit_reader,
                     revision,
@@ -382,26 +390,24 @@ pub fn list_directory(
         entries = entries[start_idx..end_idx].to_vec();
     }
 
-    let metadata = get_dir_entry_metadata(repo, commit, directory)?;
+    let metadata = get_dir_entry_metadata(repo, &commit, directory)?;
     let dir = meta_entry_from_dir(
         repo,
         object_reader,
-        commit,
+        &commit,
         directory,
         &commit_reader,
         revision,
     )?;
 
-    Ok((
-        PaginatedDirEntries {
-            entries,
-            resource,
-            metadata: Some(metadata),
-            page_size,
-            page_number: page,
-            total_pages,
-            total_entries: total,
-        },
+    Ok(PaginatedDirEntries {
         dir,
-    ))
+        entries,
+        resource,
+        metadata: Some(metadata),
+        page_size,
+        page_number: page,
+        total_pages,
+        total_entries: total,
+    })
 }

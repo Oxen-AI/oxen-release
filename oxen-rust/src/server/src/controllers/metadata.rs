@@ -7,7 +7,7 @@ use liboxen::error::OxenError;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
-use liboxen::view::entry::ResourceVersion;
+use liboxen::view::entries::ResourceVersion;
 use liboxen::view::json_data_frame_view::JsonDataFrameSource;
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,

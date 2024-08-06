@@ -7,7 +7,7 @@ pub mod compare;
 pub mod data_frames;
 pub mod data_type_count;
 pub mod diff;
-pub mod entry;
+pub mod entries;
 pub mod entry_metadata;
 pub mod file_metadata;
 pub mod health;
@@ -50,7 +50,7 @@ pub use crate::view::repository::{
     ListRepositoryResponse, RepositoryResolveResponse, RepositoryResponse, RepositoryView,
 };
 
-pub use crate::view::entry::{
+pub use crate::view::entries::{
     CommitEntryVersion, EntryResponse, PaginatedDirEntries, PaginatedDirEntriesResponse,
     PaginatedEntries, PaginatedEntryVersions, PaginatedEntryVersionsResponse, RemoteEntryResponse,
 };

@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 use crate::core::v1::index::MergeConflictReader;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
-use crate::model::entry::commit_entry::CommitPath;
+use crate::model::entries::commit_entry::CommitPath;
 use crate::model::LocalRepository;
 use crate::{repositories, util};
 
@@ -167,7 +167,7 @@ mod tests {
     use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
     use crate::model::diff::{ChangeType, DiffResult};
-    use crate::model::entry::commit_entry::CommitPath;
+    use crate::model::entries::commit_entry::CommitPath;
     use crate::test;
     use crate::util;
 

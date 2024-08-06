@@ -4,8 +4,8 @@
 use crate::core::v1::index::CommitEntryReader;
 use crate::core::v1::index::CommitReader;
 use crate::error::OxenError;
-use crate::model::entry::entry_data_type::EntryDataType;
-use crate::model::entry::metadata_entry::CLIMetadataEntry;
+use crate::model::entries::entry_data_type::EntryDataType;
+use crate::model::entries::metadata_entry::CLIMetadataEntry;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};

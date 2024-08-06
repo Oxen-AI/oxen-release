@@ -6,7 +6,7 @@ use liboxen::constants::AVG_CHUNK_SIZE;
 use liboxen::error::OxenError;
 use liboxen::util::fs::replace_file_name_keep_extension;
 use liboxen::util::paginate;
-use liboxen::view::entry::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
+use liboxen::view::entries::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::StatusMessage;
 use liboxen::{constants, current_function, repositories, util};
 
