@@ -43,7 +43,7 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
             }
         }
         Err(err) => {
-            eprintln!("Err checking remote version: {err}")
+            eprintln!("Err checking remote version:\n{err}")
         }
     }
     Ok(())
