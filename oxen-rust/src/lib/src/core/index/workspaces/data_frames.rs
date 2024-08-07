@@ -78,8 +78,9 @@ pub fn get_queryable_data_frame_workspace(
 ) -> Result<Workspace, OxenError> {
     let entry_reader = CommitEntryReader::new(repo, commit)?;
 
-    let entry = entry_reader.get_entry(path)?
-    .ok_or_else(|| OxenError::basic_str("Entry not found"))?;
+    let entry = entry_reader
+        .get_entry(path)?
+        .ok_or_else(|| OxenError::basic_str("Entry not found"))?;
 
     let version_path = util::fs::version_path(repo, &entry);
 
