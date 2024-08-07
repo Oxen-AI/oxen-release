@@ -2,8 +2,8 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::v1::index::object_db_reader::get_object_reader;
-use crate::core::v1::index::CommitDirEntryReader;
+use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_10_0::index::CommitDirEntryReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::repositories;

@@ -4,7 +4,7 @@ use crate::params::{app_data, path_param};
 
 use actix_files::NamedFile;
 
-use liboxen::core::v1::index;
+use liboxen::core::v0_10_0::index;
 use liboxen::model::metadata::metadata_image::ImgResize;
 use liboxen::model::Workspace;
 use liboxen::util;
@@ -111,7 +111,9 @@ async fn save_parts(
     // iterate over multipart stream
     while let Some(mut field) = payload.try_next().await? {
         // A multipart/form-data stream has to contain `content_disposition`
-        let content_disposition = field.content_disposition();
+        let Some(content_disposition) = field.content_disposition() else {
+            continue;
+        };
 
         log::debug!(
             "workspace::files::save_parts content_disposition.get_name() {:?}",

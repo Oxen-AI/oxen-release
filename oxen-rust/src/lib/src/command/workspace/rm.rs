@@ -6,12 +6,12 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use crate::command::helpers;
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::{core::v1::index, repositories};
+use crate::util;
+use crate::{core::v0_10_0::index, repositories};
 
 use glob::glob;
 
@@ -22,7 +22,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.to_str() {
-        if helpers::is_glob_path(path_str) {
+        if util::fs::is_glob_path(path_str) {
             // Match against any entries in the current dir, excluding .oxen
             for entry in glob(path_str)? {
                 let entry = entry?;

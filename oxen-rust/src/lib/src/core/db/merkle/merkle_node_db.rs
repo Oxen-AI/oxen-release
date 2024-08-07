@@ -61,8 +61,8 @@ use std::io::SeekFrom;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use crate::core::v2::index::merkle_tree::node::CommitMerkleTreeNode;
-use crate::core::v2::index::merkle_tree::node::MerkleTreeNodeType;
+use crate::core::v0_19_0::index::merkle_tree::node::CommitMerkleTreeNode;
+use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeType;
 use crate::error::OxenError;
 use crate::util;
 

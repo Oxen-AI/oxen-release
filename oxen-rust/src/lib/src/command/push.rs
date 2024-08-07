@@ -4,7 +4,7 @@
 //!
 
 use crate::constants::DEFAULT_BRANCH_NAME;
-use crate::core::v1::index::{pusher, EntryIndexer};
+use crate::core::v0_10_0::index::{pusher, EntryIndexer};
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::repositories;
@@ -111,7 +111,7 @@ mod tests {
     use crate::constants;
 
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::v1::index::CommitEntryReader;
+    use crate::core::v0_10_0::index::CommitEntryReader;
 
     use crate::error::OxenError;
     use crate::repositories;

@@ -112,7 +112,7 @@ impl BranchCmd {
     pub async fn list_all_branches(&self, repo: &LocalRepository) -> Result<(), OxenError> {
         self.list_branches(repo)?;
 
-        for remote in repo.remotes.iter() {
+        for remote in repo.remotes().iter() {
             self.list_remote_branches(repo, &remote.name).await?;
         }
 

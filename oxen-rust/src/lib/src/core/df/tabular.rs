@@ -7,7 +7,7 @@ use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::{pretty_print, sql};
 
-use crate::core::v2::index::merkle_tree::node::CommitMerkleTreeNode;
+use crate::core::v0_19_0::index::merkle_tree::node::CommitMerkleTreeNode;
 use crate::error::OxenError;
 use crate::io::chunk_reader::ChunkReader;
 use crate::model::schema::DataType;

@@ -41,7 +41,7 @@ pub fn app_data(req: &HttpRequest) -> Result<&OxenAppData, OxenHttpError> {
 
     if user_cli_is_out_of_date(user_agent_str) {
         return Err(OxenHttpError::UpdateRequired(
-            constants::MIN_CLI_VERSION.into(),
+            constants::MIN_OXEN_VERSION.as_str().into(),
         ));
     }
 
@@ -157,12 +157,12 @@ fn user_cli_is_out_of_date(user_agent: &str) -> bool {
         Err(_) => return true,
     };
 
-    let min_cli_version = match OxenVersion::from_str(constants::MIN_CLI_VERSION) {
+    let min_oxen_version = match OxenVersion::from_str(constants::MIN_OXEN_VERSION.as_str()) {
         Ok(v) => v,
         Err(_) => return true,
     };
 
-    if min_cli_version > user_cli_version {
+    if min_oxen_version > user_cli_version {
         return true;
     }
     false

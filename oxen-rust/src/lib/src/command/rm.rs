@@ -10,11 +10,11 @@ use crate::constants::OXEN_HIDDEN_DIR;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::{core::v1::index, repositories};
+use crate::{core::v0_10_0::index, repositories};
 
 use glob::glob;
 
-use super::helpers;
+use crate::util;
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
@@ -23,7 +23,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 
     let mut paths: HashSet<PathBuf> = HashSet::new();
     if let Some(path_str) = path.to_str() {
-        if helpers::is_glob_path(path_str) {
+        if util::fs::is_glob_path(path_str) {
             // Match against any entries in the current dir, excluding .oxen
             for entry in glob(path_str)? {
                 let entry = entry?;
@@ -52,7 +52,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::command;
-    use crate::core::v1::index::CommitEntryReader;
+    use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;

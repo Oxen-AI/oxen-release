@@ -3,13 +3,12 @@
 //! Stage data for commit
 //!
 
-use glob::glob;
-use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use crate::core;
+use crate::core::versions::MinOxenVersion;
+use crate::error::OxenError;
+use crate::model::LocalRepository;
+use std::path::Path;
 
-use super::helpers;
-use crate::core::v1::index::{oxenignore, CommitEntryReader, SchemaReader, Stager};
-use crate::{error::OxenError, model::LocalRepository, repositories};
 /// # Stage files into repository
 ///
 /// ```
@@ -38,39 +37,10 @@ use crate::{error::OxenError, model::LocalRepository, repositories};
 /// # }
 /// ```
 pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    let stager = Stager::new_with_merge(repo)?;
-    let commit = repositories::commits::head_commit(repo)?;
-    let reader = CommitEntryReader::new(repo, &commit)?;
-    let schema_reader = SchemaReader::new(repo, &commit.id)?;
-    let ignore = oxenignore::create(repo);
-    log::debug!("---START--- oxen add: {:?}", path.as_ref());
-
-    // Collect paths that match the glob pattern either:
-    // 1. In the repo working directory (untracked or modified files)
-    // 2. In the commit entry db (removed files)
-    let mut paths: HashSet<PathBuf> = HashSet::new();
-    if let Some(path_str) = path.as_ref().to_str() {
-        if helpers::is_glob_path(path_str) {
-            // Match against any untracked entries in the current dir
-            for entry in glob(path_str)? {
-                paths.insert(entry?);
-            }
-
-            let pattern_entries = repositories::commits::glob_entry_paths(repo, &commit, path_str)?;
-            paths.extend(pattern_entries);
-        } else {
-            // Non-glob path
-            paths.insert(path.as_ref().to_owned());
-        }
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::add::add(repo, path),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::add::add(repo, path),
     }
-
-    // Get all entries in the head commit
-    for path in paths {
-        stager.add(path.as_ref(), &reader, &schema_reader, &ignore)?;
-    }
-
-    log::debug!("---END--- oxen add: {:?}", path.as_ref());
-    Ok(())
 }
 
 #[cfg(test)]

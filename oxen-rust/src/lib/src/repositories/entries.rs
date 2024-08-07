@@ -2,7 +2,8 @@
 //!
 
 use crate::core;
-use crate::core::v1::index::object_db_reader::get_object_reader;
+use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entries::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
@@ -14,10 +15,10 @@ use os_path::OsPath;
 use rayon::prelude::*;
 
 use crate::core::df;
-use crate::core::v1::cache::cachers;
-use crate::core::v1::index;
-use crate::core::v1::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
-use crate::core::v1::index::{ObjectDBReader, SchemaReader};
+use crate::core::v0_10_0::cache::cachers;
+use crate::core::v0_10_0::index;
+use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
+use crate::core::v0_10_0::index::{ObjectDBReader, SchemaReader};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
@@ -33,35 +34,24 @@ pub fn list_directory(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    if core::is_v1(repo) {
-        log::debug!("list_directory is v1");
-        core::v1::entries::list_directory(repo, directory, revision, paginate_opts)
-    } else {
-        log::debug!("list_directory is v2");
-        core::v2::entries::list_directory(repo, directory, revision, paginate_opts)
-    }
+    list_directory_w_version(repo, directory, revision, paginate_opts, repo.version())
 }
 
+/// Force a version when listing a repo
 pub fn list_directory_w_version(
     repo: &LocalRepository,
     directory: impl AsRef<Path>,
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
-    version: Option<String>,
+    version: MinOxenVersion,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    if let Some(version) = version {
-        if "v1" == version {
-            core::v1::entries::list_directory(repo, directory, revision, paginate_opts)
-        } else if "v2" == version {
-            core::v2::entries::list_directory(repo, directory, revision, paginate_opts)
-        } else {
-            Err(OxenError::basic_str(format!(
-                "Unsupported version: {}",
-                version
-            )))
+    match version {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
-    } else {
-        list_directory(repo, directory, revision, paginate_opts)
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
+        }
     }
 }
 
@@ -607,8 +597,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::command;
-    use crate::core::v1::cache;
-    use crate::core::v1::index;
+    use crate::core::v0_10_0::cache;
+    use crate::core::v0_10_0::index;
     use crate::error::OxenError;
     use crate::opts::PaginateOpts;
     use crate::repositories;

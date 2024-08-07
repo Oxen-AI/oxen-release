@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use crate::core::v1::index::{self, CommitEntryReader};
+use crate::core::v0_10_0::index::{self, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
@@ -14,7 +14,7 @@ use crate::repositories;
 
 use glob::Pattern;
 
-use super::helpers;
+use crate::util;
 
 /// # Restore a removed file that was committed
 ///
@@ -60,7 +60,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
 
     // Quoted wildcard path strings, expand to include present and removed files
     if let Some(path_str) = path.to_str() {
-        if helpers::is_glob_path(path_str) {
+        if util::fs::is_glob_path(path_str) {
             let pattern = Pattern::new(path_str)?;
             let stager = index::Stager::new(repo)?;
             let commit_reader = CommitEntryReader::new(repo, &commit)?;

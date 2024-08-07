@@ -6,7 +6,7 @@ use crate::params::{app_data, path_param, PageNumQuery};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
-use liboxen::core::v1::index::{Merger, SchemaReader};
+use liboxen::core::v0_10_0::index::{Merger, SchemaReader};
 use liboxen::error::OxenError;
 use liboxen::util::{self, paginate};
 use liboxen::view::entries::ResourceVersion;

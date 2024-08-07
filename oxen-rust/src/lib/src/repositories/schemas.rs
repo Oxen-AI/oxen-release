@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use crate::repositories;
 use crate::util;
 
-use crate::core::v1::index::SchemaReader;
+use crate::core::v0_10_0::index::SchemaReader;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema};
 

@@ -4,7 +4,7 @@ use crate::constants::{
 };
 
 use crate::core::db::{self};
-use crate::core::v1::index::{
+use crate::core::v0_10_0::index::{
     CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger,
 };
 use crate::error::OxenError;
@@ -1199,7 +1199,7 @@ mod tests {
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::db;
 
-    use crate::core::v1::index::CommitDBReader;
+    use crate::core::v0_10_0::index::CommitDBReader;
     use crate::error::OxenError;
 
     use crate::model::entries::commit_entry::Entry;

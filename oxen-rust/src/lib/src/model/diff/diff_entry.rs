@@ -4,8 +4,8 @@ use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
-use crate::core::v1::index::object_db_reader::get_object_reader;
-use crate::core::v1::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
+use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::diff::AddRemoveModifyCounts;

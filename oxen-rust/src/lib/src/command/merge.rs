@@ -3,7 +3,7 @@
 //! Merge a branch into the current branch
 //!
 
-use crate::core::v1::index::Merger;
+use crate::core::v0_10_0::index::Merger;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::repositories;

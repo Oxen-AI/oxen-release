@@ -1,8 +1,8 @@
 //! Helper functions to get metadata from the local filesystem.
 //!
 
-use crate::core::v1::index::CommitEntryReader;
-use crate::core::v1::index::CommitReader;
+use crate::core::v0_10_0::index::CommitEntryReader;
+use crate::core::v0_10_0::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::entries::entry_data_type::EntryDataType;
 use crate::model::entries::metadata_entry::CLIMetadataEntry;

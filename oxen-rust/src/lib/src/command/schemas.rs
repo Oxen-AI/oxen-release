@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-use crate::core::v1::index::Stager;
+use crate::core::v0_10_0::index::Stager;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema};
 use crate::repositories;

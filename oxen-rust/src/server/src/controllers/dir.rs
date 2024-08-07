@@ -2,6 +2,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param, PageNumVersionQuery};
 
+use liboxen::core::versions::MinOxenVersion;
 use liboxen::opts::PaginateOpts;
 use liboxen::view::PaginatedDirEntriesResponse;
 use liboxen::{constants, repositories};
@@ -20,7 +21,7 @@ pub async fn get(
 
     let page: usize = query.page.unwrap_or(constants::DEFAULT_PAGE_NUM);
     let page_size: usize = query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE);
-    let api_version = query.api_version.clone();
+    let api_version = MinOxenVersion::or_latest(query.api_version.clone())?;
 
     log::debug!(
         "{} resource {namespace}/{repo_name}/{resource}",

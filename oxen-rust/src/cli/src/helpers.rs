@@ -50,7 +50,7 @@ pub async fn check_remote_version(host: impl AsRef<str>) -> Result<(), OxenError
 }
 
 pub async fn check_remote_version_blocking(host: impl AsRef<str>) -> Result<(), OxenError> {
-    match api::client::version::get_min_cli_version(host.as_ref()).await {
+    match api::client::version::get_min_oxen_version(host.as_ref()).await {
         Ok(remote_version) => {
             let local_version: &str = constants::OXEN_VERSION;
             let min_oxen_version = OxenVersion::from_str(&remote_version)?;
