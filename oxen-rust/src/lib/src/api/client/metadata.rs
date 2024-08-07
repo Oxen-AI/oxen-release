@@ -30,7 +30,7 @@ pub async fn get_file(
 mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::v1::index::CommitEntryReader;
+    use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::EntryDataType;
     use crate::test;

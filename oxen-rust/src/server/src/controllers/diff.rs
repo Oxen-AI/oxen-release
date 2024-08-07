@@ -5,7 +5,7 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::core::v1::index::{CommitEntryReader, CommitReader, Merger};
+use liboxen::core::v0_10_0::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
 use liboxen::model::diff::dir_diff_summary::{DirDiffSummary, DirDiffSummaryImpl};

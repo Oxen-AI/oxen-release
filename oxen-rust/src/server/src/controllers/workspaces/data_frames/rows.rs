@@ -10,7 +10,7 @@ use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
 use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
-use liboxen::{core::v1::index, repositories};
+use liboxen::{core::v0_10_0::index, repositories};
 
 pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;

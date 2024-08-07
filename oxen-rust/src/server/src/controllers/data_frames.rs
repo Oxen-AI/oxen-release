@@ -6,8 +6,8 @@ use crate::params::{app_data, parse_resource, path_param};
 use liboxen::constants;
 use liboxen::constants::DUCKDB_DF_TABLE_NAME;
 use liboxen::core::db::data_frames::df_db;
-use liboxen::core::v1::cache::cachers;
-use liboxen::core::v1::index::CommitEntryReader;
+use liboxen::core::v0_10_0::cache::cachers;
+use liboxen::core::v0_10_0::index::CommitEntryReader;
 use liboxen::error::{OxenError, PathBufError};
 use liboxen::model::{
     Commit, CommitEntry, DataFrameSize, LocalRepository, ParsedResource, Schema, Workspace,
@@ -27,7 +27,7 @@ use liboxen::view::{
 use liboxen::util;
 use polars::frame::DataFrame;
 
-use liboxen::core::v1::index;
+use liboxen::core::v0_10_0::index;
 use uuid::Uuid;
 
 pub async fn get(

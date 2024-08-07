@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
-use crate::core::v1::index::{
+use crate::core::v0_10_0::index::{
     CommitEntryReader, CommitReader, CommitWriter, EntryIndexer, RefReader, RefWriter,
 };
 use crate::error::OxenError;
@@ -584,7 +584,7 @@ mod tests {
 
             // Back to main - hacky to avoid async checkout
             {
-                let ref_writer = core::v1::index::RefWriter::new(&repo)?;
+                let ref_writer = core::v0_10_0::index::RefWriter::new(&repo)?;
                 ref_writer.set_head(DEFAULT_BRANCH_NAME);
             }
 

@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::core::df::tabular;
-use crate::core::v1::index::MergeConflictReader;
+use crate::core::v0_10_0::index::MergeConflictReader;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
 use crate::opts::{DFOpts, RestoreOpts};

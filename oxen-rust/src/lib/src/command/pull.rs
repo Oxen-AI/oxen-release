@@ -3,7 +3,7 @@
 //! Pull data from a remote branch
 //!
 
-use crate::core::v1::index::EntryIndexer;
+use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::opts::PullOpts;
@@ -86,9 +86,9 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::df::tabular;
-    use crate::core::v1::index;
-    use crate::core::v1::index::CommitEntryReader;
-    use crate::core::v1::index::CommitReader;
+    use crate::core::v0_10_0::index;
+    use crate::core::v0_10_0::index::CommitEntryReader;
+    use crate::core::v0_10_0::index::CommitReader;
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;

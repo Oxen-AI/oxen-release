@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use crate::core::db;
 use crate::core::db::key_val::path_db;
-use crate::core::v1::index::{CommitEntryWriter, CommitReader, CommitWriter};
+use crate::core::v0_10_0::index::{CommitEntryWriter, CommitReader, CommitWriter};
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};

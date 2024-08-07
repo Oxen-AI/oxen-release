@@ -17,7 +17,7 @@ use liboxen::view::entries::ResourceVersion;
 use liboxen::view::entries::{PaginatedMetadataEntries, PaginatedMetadataEntriesResponse};
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
-use liboxen::{constants, core::v1::index};
+use liboxen::{constants, core::v0_10_0::index};
 
 pub mod columns;
 pub mod rows;
@@ -157,7 +157,7 @@ pub async fn diff(
 
     // TODO: Let's not expose dbs right in the controller
     let staged_db_path =
-        liboxen::core::v1::index::workspaces::data_frames::duckdb_path(&workspace, &file_path);
+        liboxen::core::v0_10_0::index::workspaces::data_frames::duckdb_path(&workspace, &file_path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 

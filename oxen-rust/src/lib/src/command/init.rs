@@ -5,9 +5,11 @@
 
 use std::path::Path;
 
+use crate::constants::MIN_OXEN_VERSION;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::{constants, repositories, util};
 
 /// # Initialize an Empty Oxen Repository
 /// ```
@@ -24,41 +26,26 @@ use crate::{constants, repositories, util};
 /// # Ok(())
 /// # }
 /// ```
-pub fn init(path: &Path) -> Result<LocalRepository, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(path);
-    if hidden_dir.exists() {
-        let err = format!("Oxen repository already exists: {path:?}");
-        return Err(OxenError::basic_str(err));
-    }
-
-    // Cleanup the .oxen dir if init fails
-    match p_init(path) {
-        Ok(result) => Ok(result),
-        Err(error) => {
-            util::fs::remove_dir_all(hidden_dir)?;
-            Err(error)
-        }
-    }
+pub fn init(path: impl AsRef<Path>) -> Result<LocalRepository, OxenError> {
+    init_with_version(path, MIN_OXEN_VERSION)
 }
 
-fn p_init(path: &Path) -> Result<LocalRepository, OxenError> {
-    let hidden_dir = util::fs::oxen_hidden_dir(path);
-
-    std::fs::create_dir_all(hidden_dir)?;
-    let config_path = util::fs::config_filepath(path);
-    let repo = LocalRepository::new(path)?;
-    repo.save(&config_path)?;
-
-    repositories::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
-
-    Ok(repo)
+pub fn init_with_version(
+    path: impl AsRef<Path>,
+    version: MinOxenVersion,
+) -> Result<LocalRepository, OxenError> {
+    let path = path.as_ref();
+    match version {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::init(path),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::init(path),
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::command;
     use crate::constants;
-    use crate::core::v1::index::CommitEntryReader;
+    use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;

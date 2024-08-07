@@ -4,14 +4,14 @@
 //!
 
 use crate::api;
-use crate::core::v1::index::EntryIndexer;
+use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch};
 use crate::repositories;
 
 /// # Fetch the remote branches and objects
 pub async fn fetch(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
-    for remote in repo.remotes.iter() {
+    for remote in repo.remotes().iter() {
         fetch_remote(repo, &remote.name).await?;
     }
 

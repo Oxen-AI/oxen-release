@@ -66,7 +66,7 @@ fn get_storage_for_repo(repo: &LocalRepository) -> Result<u64, OxenError> {
         }
     };
 
-    let cache_path = core::v1::cache::cachers::repo_size::repo_size_path(repo, &latest_commit);
+    let cache_path = core::v0_10_0::cache::cachers::repo_size::repo_size_path(repo, &latest_commit);
     log::debug!(
         "repositories::namespaces::get_storage_for_repo cache path {:?}",
         cache_path

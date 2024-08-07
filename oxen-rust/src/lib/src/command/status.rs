@@ -6,7 +6,7 @@
 
 use std::path::Path;
 
-use crate::core::v1::index::{CommitEntryReader, Stager};
+use crate::core::v0_10_0::index::{CommitEntryReader, Stager};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedData};
 

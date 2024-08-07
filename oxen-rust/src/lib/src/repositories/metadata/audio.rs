@@ -3,7 +3,7 @@
 
 use crate::{error::OxenError, model::metadata::MetadataAudio};
 
-use lofty::{AudioFile, Probe};
+use lofty::{file::AudioFile, probe::Probe};
 use std::path::Path;
 
 /// Detects the audio metadata for the given file.

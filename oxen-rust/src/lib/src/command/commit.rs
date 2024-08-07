@@ -4,7 +4,7 @@
 //!
 
 use crate::command;
-use crate::core::v1::index::CommitEntryWriter;
+use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
@@ -68,7 +68,7 @@ mod tests {
     use std::path::Path;
 
     use crate::command;
-    use crate::core::v1::index::CommitEntryReader;
+    use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::repositories;

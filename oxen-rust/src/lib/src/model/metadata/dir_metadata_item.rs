@@ -1,4 +1,4 @@
-use crate::core::v1::index::CommitReader;
+use crate::core::v0_10_0::index::CommitReader;
 use crate::model::metadata::to_duckdb_sql::ToDuckDBSql;
 use crate::model::schema::{DataType, Field};
 use crate::model::LocalRepository;

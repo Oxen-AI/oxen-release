@@ -5,9 +5,11 @@
 
 use std::path::Path;
 
-use crate::config::RemoteConfig;
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME, REPO_CONFIG_FILENAME};
-use crate::core::v1::index::EntryIndexer;
+use crate::config::repository_config::RepositoryConfig;
+use crate::constants::{
+    DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME, MIN_OXEN_VERSION, REPO_CONFIG_FILENAME,
+};
+use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteBranch, RemoteRepository};
 use crate::opts::{CloneOpts, PullOpts};
@@ -112,9 +114,10 @@ async fn clone_repo(
     local_repo.set_remote(DEFAULT_REMOTE_NAME, &remote_repo.remote.url);
 
     // Save remote config in .oxen/config.toml
-    let remote_cfg = RemoteConfig {
+    let remote_cfg = RepositoryConfig {
         remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
         remotes: vec![remote_repo.remote.clone()],
+        min_version: Some(MIN_OXEN_VERSION.to_string()),
     };
 
     let toml = toml::to_string(&remote_cfg)?;

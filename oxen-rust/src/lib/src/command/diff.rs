@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::v1::index::MergeConflictReader;
+use crate::core::v0_10_0::index::MergeConflictReader;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
 use crate::model::entries::commit_entry::CommitPath;
@@ -48,7 +48,7 @@ pub fn diff(
         ));
     };
 
-    let repository = LocalRepository::new(repo_dir.as_ref())?;
+    let repository = LocalRepository::new(&repo_dir)?;
 
     // TODO: might be able to clean this logic up - pull out into function so we can early return and be less confusing
     let (cpath_1, cpath_2) = if let Some(path_2) = path_2 {

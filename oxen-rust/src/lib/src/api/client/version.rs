@@ -27,7 +27,7 @@ pub async fn get_remote_version(host: &str) -> Result<String, OxenError> {
     }
 }
 
-pub async fn get_min_cli_version(host: &str) -> Result<String, OxenError> {
+pub async fn get_min_oxen_version(host: &str) -> Result<String, OxenError> {
     let scheme = endpoint::get_scheme(host);
     let url = format!("{scheme}://{host}/api/min_version");
     log::debug!("Checking min cli version at url {}", url);
@@ -41,11 +41,11 @@ pub async fn get_min_cli_version(host: &str) -> Result<String, OxenError> {
         match response {
             Ok(val) => Ok(val.version),
             Err(_) => Err(OxenError::basic_str(format!(
-                "api::version::get_min_cli_version {url} Err parsing response \n\n{body}"
+                "api::version::get_min_oxen_version {url} Err parsing response \n\n{body}"
             ))),
         }
     } else {
-        let err = format!("api::version::get_min_cli_version Err request failed: {url}");
+        let err = format!("api::version::get_min_oxen_version Err request failed: {url}");
         Err(OxenError::basic_str(err))
     }
 }

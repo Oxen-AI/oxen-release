@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::core::df::tabular;
-use crate::core::v2::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;

@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::api;
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::v1::index::oxenignore;
+use crate::core::v0_10_0::index::oxenignore;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch};
 use crate::opts::AddOpts;

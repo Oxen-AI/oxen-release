@@ -9,10 +9,10 @@ use crate::constants::{
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{self, TreeObject};
-use crate::core::v1::cache::cachers::content_validator;
-use crate::core::v1::index::object_db_reader::get_object_reader;
-use crate::core::v1::index::tree_db_reader::TreeDBMerger;
-use crate::core::v1::index::{
+use crate::core::v0_10_0::cache::cachers::content_validator;
+use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_10_0::index::tree_db_reader::TreeDBMerger;
+use crate::core::v0_10_0::index::{
     self, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
     RefReader, RefWriter, Stager, TreeObjectReader,
 };

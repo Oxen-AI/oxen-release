@@ -6,7 +6,7 @@ use crate::command;
 use crate::constants;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::v1::index::{RefWriter, Stager};
+use crate::core::v0_10_0::index::{RefWriter, Stager};
 use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::RepoNew;

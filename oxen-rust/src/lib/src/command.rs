@@ -15,7 +15,6 @@ pub mod df;
 pub mod diff;
 pub mod download;
 pub mod fetch;
-pub mod helpers;
 pub mod info;
 pub mod init;
 pub mod load;

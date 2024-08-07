@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::core::db;
-use liboxen::core::v1::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
-use liboxen::core::v2::index::merkle_tree::CommitMerkleTree;
+use liboxen::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
+use liboxen::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository};
 use liboxen::repositories;
@@ -183,7 +183,7 @@ impl TreeCmd {
             let filename = path.file_name().unwrap().to_str().unwrap();
             let parent = path.parent().unwrap();
             let object_reader = ObjectDBReader::new(repo, &commit.id)?;
-            let entry_reader = liboxen::core::v1::index::CommitDirEntryReader::new(
+            let entry_reader = liboxen::core::v0_10_0::index::CommitDirEntryReader::new(
                 repo,
                 &commit.id,
                 parent,

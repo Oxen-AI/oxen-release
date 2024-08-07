@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 use async_trait::async_trait;
 use clap::{Arg, Command};
-use liboxen::core::v1::index::CommitEntryReader;
+use liboxen::core::v0_10_0::index::CommitEntryReader;
 use liboxen::error::OxenError;
 use liboxen::model::{CommitEntry, LocalRepository};
 use liboxen::util::hasher;

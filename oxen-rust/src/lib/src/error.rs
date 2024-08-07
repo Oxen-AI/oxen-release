@@ -72,6 +72,7 @@ pub enum OxenError {
     // Versioning
     MigrationRequired(StringError),
     OxenUpdateRequired(StringError),
+    InvalidVersion(StringError),
 
     // Entry
     CommitEntryNotFound(StringError),
@@ -135,6 +136,10 @@ impl OxenError {
 
     pub fn migration_required(s: impl AsRef<str>) -> Self {
         OxenError::MigrationRequired(StringError::from(s.as_ref()))
+    }
+
+    pub fn invalid_version(s: impl AsRef<str>) -> Self {
+        OxenError::InvalidVersion(StringError::from(s.as_ref()))
     }
 
     pub fn oxen_update_required(s: impl AsRef<str>) -> Self {

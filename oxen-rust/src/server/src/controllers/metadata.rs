@@ -84,7 +84,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     let directory = resource.path;
     let offset = 0;
     let limit = 100;
-    let mut sliced_df = core::v1::index::commit_metadata_db::select(
+    let mut sliced_df = core::v0_10_0::index::commit_metadata_db::select(
         &repo,
         &latest_commit,
         &directory,
@@ -92,7 +92,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
         limit,
     )?;
     let (num_rows, num_cols) =
-        core::v1::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
+        core::v0_10_0::index::commit_metadata_db::full_size(&repo, &latest_commit, &directory)?;
 
     let full_size = DataFrameSize {
         width: num_cols,
@@ -168,7 +168,7 @@ pub async fn agg_dir(
 
     let directory = &resource.path;
 
-    let cached_path = core::v1::cache::cachers::content_stats::dir_column_path(
+    let cached_path = core::v0_10_0::cache::cachers::content_stats::dir_column_path(
         &repo,
         &latest_commit,
         directory,

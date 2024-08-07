@@ -2,13 +2,13 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
-use liboxen::core::v1::cache::commit_cacher;
+use liboxen::core::v0_10_0::cache::commit_cacher;
 
 use liboxen::error::OxenError;
 use liboxen::model::NewCommitBody;
 use liboxen::view::workspaces::{ListWorkspaceResponseView, NewWorkspace, WorkspaceResponse};
 use liboxen::view::{CommitResponse, StatusMessage, WorkspaceResponseView};
-use liboxen::{core::v1::index, repositories};
+use liboxen::{core::v0_10_0::index, repositories};
 
 use actix_web::{HttpRequest, HttpResponse};
 

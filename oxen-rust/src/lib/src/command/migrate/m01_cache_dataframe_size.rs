@@ -2,8 +2,8 @@ use std::path::Path;
 
 use super::Migrate;
 
-use crate::core::v1::cache::cachers;
-use crate::core::v1::index::CommitReader;
+use crate::core::v0_10_0::cache::cachers;
+use crate::core::v0_10_0::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 

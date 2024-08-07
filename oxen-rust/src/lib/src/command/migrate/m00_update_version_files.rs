@@ -7,7 +7,7 @@ use jwalk::WalkDir;
 use crate::constants;
 use crate::constants::{HASH_FILE, VERSIONS_DIR, VERSION_FILE_NAME};
 
-use crate::core::v1::index::{CommitEntryReader, CommitReader};
+use crate::core::v0_10_0::index::{CommitEntryReader, CommitReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util::fs::version_dir_from_hash;

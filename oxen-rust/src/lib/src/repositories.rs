@@ -5,10 +5,10 @@
 
 use crate::command;
 use crate::constants;
-use crate::core::v1::cache::commit_cacher;
-use crate::core::v1::index::CommitEntryWriter;
-use crate::core::v1::index::Stager;
-use crate::core::v1::index::{CommitEntryReader, CommitWriter, RefWriter};
+use crate::core::v0_10_0::cache::commit_cacher;
+use crate::core::v0_10_0::index::CommitEntryWriter;
+use crate::core::v0_10_0::index::Stager;
+use crate::core::v0_10_0::index::{CommitEntryReader, CommitWriter, RefWriter};
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::CommitEntry;
@@ -494,9 +494,9 @@ mod tests {
             let namespace_3 = "my-namespace-3";
             let _ = sync_dir.join(namespace_3);
 
-            let _ = command::init(&namespace_1_dir.join("testing1"))?;
-            let _ = command::init(&namespace_1_dir.join("testing2"))?;
-            let _ = command::init(&namespace_2_dir.join("testing3"))?;
+            let _ = command::init(namespace_1_dir.join("testing1"))?;
+            let _ = command::init(namespace_1_dir.join("testing2"))?;
+            let _ = command::init(namespace_2_dir.join("testing3"))?;
 
             let repos = repositories::list_namespaces(sync_dir)?;
             assert_eq!(repos.len(), 2);
@@ -511,9 +511,9 @@ mod tests {
             let namespace = "my-namespace";
             let namespace_dir = sync_dir.join(namespace);
 
-            let _ = command::init(&namespace_dir.join("testing1"))?;
-            let _ = command::init(&namespace_dir.join("testing2"))?;
-            let _ = command::init(&namespace_dir.join("testing3"))?;
+            let _ = command::init(namespace_dir.join("testing1"))?;
+            let _ = command::init(namespace_dir.join("testing2"))?;
+            let _ = command::init(namespace_dir.join("testing3"))?;
 
             let repos = repositories::list_repos_in_namespace(&namespace_dir);
             assert_eq!(repos.len(), 3);

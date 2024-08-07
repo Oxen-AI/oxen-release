@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use crate::core::v1::cache;
-use crate::core::v1::index::CommitReader;
+use crate::core::v0_10_0::cache;
+use crate::core::v0_10_0::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::repositories;

@@ -1371,6 +1371,13 @@ pub fn to_unix_str(path: impl AsRef<Path>) -> String {
         .replace('\\', "/")
 }
 
+pub fn is_glob_path(path: impl AsRef<Path>) -> bool {
+    let glob_chars = ['*', '?', '[', ']'];
+    glob_chars
+        .iter()
+        .any(|c| path.as_ref().to_str().unwrap_or_default().contains(*c))
+}
+
 #[cfg(test)]
 mod tests {
     use crate::constants::{self, VERSION_FILE_NAME};
