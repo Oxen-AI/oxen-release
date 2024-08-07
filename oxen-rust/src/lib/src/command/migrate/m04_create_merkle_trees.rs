@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::v0_10_0::index::{CommitEntryWriter, CommitReader, CommitWriter};
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
@@ -42,12 +43,13 @@ impl Migrate for CreateMerkleTreesMigration {
         }
         Ok(())
     }
+
     fn is_needed(&self, repo: &LocalRepository) -> Result<bool, OxenError> {
         let objects_dir = repo
             .path
             .join(constants::OXEN_HIDDEN_DIR)
             .join(constants::OBJECTS_DIR);
-        if !objects_dir.exists() {
+        if !objects_dir.exists() && repo.version() <= MinOxenVersion::V0_10_0 {
             return Ok(true);
         }
         // This may need a more elaborate check for migrations that are aborted with a single repo...
