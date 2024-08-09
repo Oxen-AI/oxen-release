@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use crate::{error::OxenError, util::oxen_version::OxenVersion};
 
+#[derive(Clone)]
 pub enum MinOxenVersion {
     V0_10_0,
     V0_19_0,
@@ -47,7 +48,7 @@ impl MinOxenVersion {
 
     pub fn to_oxen_version(&self) -> OxenVersion {
         let v = self.as_str();
-        OxenVersion::from_str(v).expect(&format!("Invalid version string: {}", v))
+        OxenVersion::from_str(v).unwrap_or_else(|_| panic!("Invalid version string: {}", v))
     }
 }
 

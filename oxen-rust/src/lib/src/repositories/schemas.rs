@@ -13,9 +13,7 @@ pub fn list(
     commit_id: Option<&str>,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     if let Some(commit_id) = commit_id {
-        if let Some(commit) =
-            repositories::commits::commit_from_branch_or_commit_id(repo, commit_id)?
-        {
+        if let Some(commit) = repositories::revisions::get(repo, commit_id)? {
             let schema_reader = SchemaReader::new(repo, &commit.id)?;
             schema_reader.list_schemas()
         } else {

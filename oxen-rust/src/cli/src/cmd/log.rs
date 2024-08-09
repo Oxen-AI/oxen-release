@@ -7,7 +7,6 @@ use time::format_description;
 
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::opts::LogOpts;
 use liboxen::repositories;
 
 use crate::cmd::RunCmd;
@@ -55,13 +54,7 @@ impl RunCmd for LogCmd {
             .parse::<usize>()
             .expect("number must be a valid integer.");
         let revision = args.get_one::<String>("revision").map(String::from);
-
-        let opts = LogOpts {
-            revision,
-            remote: false,
-        };
-
-        self.log_commits(&repo, &opts, num_commits).await?;
+        self.log_commits(&repo, revision, num_commits).await?;
 
         Ok(())
     }
@@ -71,10 +64,14 @@ impl LogCmd {
     pub async fn log_commits(
         &self,
         repo: &LocalRepository,
-        opts: &LogOpts,
+        revision: Option<String>,
         num_commits: usize,
     ) -> Result<(), OxenError> {
-        let commits = repositories::commits::list_with_opts(repo, opts).await?;
+        let revision = match revision {
+            Some(revision) => revision,
+            None => repositories::commits::head_commit(repo)?.id,
+        };
+        let commits = repositories::commits::list_from(repo, &revision).await?;
         let commits = commits.iter().take(num_commits);
 
         // Fri, 21 Oct 2022 16:08:39 -0700

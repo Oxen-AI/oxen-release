@@ -179,7 +179,7 @@ impl CommitDirEntryReader {
         // we have to make sure the full_path is `/` instead of `\\` to get the correct hashes
         let full_path_str = full_path.to_str().unwrap().replace('\\', "/");
 
-        let path_hash_prefix = util::hasher::hash_path(full_path_str)[0..2].to_string();
+        let path_hash_prefix = util::hasher::hash_path_name(full_path_str)[0..2].to_string();
         // log::debug!("CommitDirEntryReader.has_file({:?}) {:?} {}", path, full_path_str, path_hash_prefix);
 
         // Binary search for the appropriate vnode
@@ -226,7 +226,7 @@ impl CommitDirEntryReader {
         let full_path = self.dir.join(path);
         // we have to make sure the full_path is `/` instead of `\\` to get the correct hashes
         let full_path_str = full_path.to_str().unwrap().replace('\\', "/");
-        let path_hash_prefix = util::hasher::hash_path(full_path_str)[0..2].to_string();
+        let path_hash_prefix = util::hasher::hash_path_name(full_path_str)[0..2].to_string();
 
         // Binary search for the appropriate vnode
         let maybe_vnode_child = self

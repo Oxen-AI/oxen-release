@@ -4,10 +4,10 @@
 use crate::api::client::commits::ChunkParams;
 use crate::model::entries::commit_entry::{Entry, SchemaEntry};
 use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
-use crate::repositories;
 use crate::repositories::entries::compute_generic_entries_size;
 use crate::util::concurrency;
 use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
+use crate::{core, repositories};
 
 use flate2::write::GzEncoder;
 use flate2::Compression;
@@ -311,7 +311,7 @@ async fn get_commit_objects_to_sync(
 
         // Early return to avoid checking for remote commits: if full local history and no remote branch,
         // push full local branch history.
-        if repositories::commits::commit_history_is_complete(local_repo, local_commit) {
+        if core::v0_10_0::commit::commit_history_is_complete(local_repo, local_commit) {
             return repositories::commits::list_from(local_repo, &local_commit.id);
         }
 

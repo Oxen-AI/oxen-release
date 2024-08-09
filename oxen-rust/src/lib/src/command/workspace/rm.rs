@@ -30,7 +30,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
                     paths.insert(entry);
                 }
             }
-            let pattern_entries = repositories::commits::glob_entry_paths(repo, &commit, path_str)?;
+            let pattern_entries = repositories::commits::search_entries(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
             paths.insert(path.to_owned());

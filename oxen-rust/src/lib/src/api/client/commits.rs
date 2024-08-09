@@ -4,6 +4,7 @@ use crate::constants::{
 };
 
 use crate::core::db::{self};
+use crate::core::v0_10_0::commit::merge_objects_dbs;
 use crate::core::v0_10_0::index::{
     CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger,
 };
@@ -565,7 +566,7 @@ pub async fn download_objects_db_to_repo(
 
     log::debug!("merging objects db...");
     // Merge with existing objects db
-    repositories::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+    merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
     log::debug!("merged objects db");
 
     Ok(())

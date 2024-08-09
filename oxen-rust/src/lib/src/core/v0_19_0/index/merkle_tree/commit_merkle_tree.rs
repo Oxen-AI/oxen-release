@@ -149,7 +149,7 @@ impl CommitMerkleTree {
         let vnodes = CommitMerkleTree::read_node(repo, node_hash, false)?;
         log::debug!("read_file got {} vnodes children", vnodes.children.len());
         for node in vnodes.children.into_iter() {
-            let file_path_hash = util::hasher::hash_path(path);
+            let file_path_hash = util::hasher::hash_path_name(path);
             log::debug!("Node Hash: {:?} -> {}", path, file_path_hash);
             log::debug!("Is in VNode? {:?}", node.dtype);
 

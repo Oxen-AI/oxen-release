@@ -3,6 +3,7 @@
 //! Print out values from a rocksdb key value database
 //!
 
+use crate::core::v0_19_0::add::EntryMetaData;
 use crate::error::OxenError;
 use crate::util::progress_bar::spinner_with_msg;
 
@@ -45,10 +46,21 @@ pub fn list(path: impl AsRef<Path>, limit: Option<usize>) -> Result<(), OxenErro
                     }
                 };
 
-                if let Ok(val) = str::from_utf8(&value) {
-                    println!("{key}\t{val}");
-                } else {
-                    println!("{key}\t<binary data>");
+                // try deserialize as ComputedEntryFields
+                let val: Result<EntryMetaData, rmp_serde::decode::Error> =
+                    rmp_serde::from_slice(&value);
+                match val {
+                    Ok(val) => {
+                        println!("{key}\t{val:?}");
+                    }
+                    Err(e) => {
+                        eprintln!("{key}\t<error deserializing: {e}>");
+                        if let Ok(val) = str::from_utf8(&value) {
+                            println!("{key}\t{val}");
+                        } else {
+                            println!("{key}\t<binary data>");
+                        }
+                    }
                 }
             }
             _ => {
