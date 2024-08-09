@@ -2,7 +2,7 @@ use std::path::Path;
 
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::{constants, repositories, util};
+use crate::{constants, util};
 
 pub fn init(path: impl AsRef<Path>) -> Result<LocalRepository, OxenError> {
     let path = path.as_ref();
@@ -34,7 +34,7 @@ fn p_init(path: impl AsRef<Path>) -> Result<LocalRepository, OxenError> {
     repo.save(&config_path)?;
 
     // In older versions we make the initial commit for the users
-    repositories::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
+    super::commit::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
 
     Ok(repo)
 }

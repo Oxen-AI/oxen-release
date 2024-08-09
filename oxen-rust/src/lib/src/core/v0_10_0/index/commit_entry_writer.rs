@@ -1439,7 +1439,7 @@ impl CommitEntryWriter {
             };
 
             let cpath = child_object.path().to_str().unwrap().replace('\\', "/");
-            let path_hash = util::hasher::hash_path(cpath);
+            let path_hash = util::hasher::hash_path_name(cpath);
             let prefix = path_hash[0..2].to_string();
 
             let updated_child_with_status = TreeObjectChildWithStatus {

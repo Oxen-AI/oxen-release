@@ -93,7 +93,19 @@ pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
     }
 }
 
-pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
+pub fn get_hash_and_size(path: &Path) -> Result<(u128, u64), OxenError> {
+    // If file is < 1GB, one-shot hash for speed
+    // If file is > 1GB, stream hash to avoid memory overage issues
+    let file_size = std::fs::metadata(path)?.len();
+
+    if file_size < 1_000_000_000 {
+        Ok((hash_small_file_contents(path)?, file_size))
+    } else {
+        Ok((hash_large_file_contents(path)?, file_size))
+    }
+}
+
+pub fn u128_hash_file_contents(path: &Path) -> Result<u128, OxenError> {
     // If file is < 1GB, one-shot hash for speed
     // If file is > 1GB, stream hash to avoid memory overage issues
     let file_size = std::fs::metadata(path)?.len();
@@ -105,14 +117,26 @@ pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
     }
 }
 
-fn hash_small_file_contents(path: &Path) -> Result<String, OxenError> {
+pub fn hash_file_contents(path: &Path) -> Result<String, OxenError> {
+    // If file is < 1GB, one-shot hash for speed
+    // If file is > 1GB, stream hash to avoid memory overage issues
+    let file_size = std::fs::metadata(path)?.len();
+
+    if file_size < 1_000_000_000 {
+        Ok(format!("{:x}", hash_small_file_contents(path)?))
+    } else {
+        Ok(format!("{:x}", hash_large_file_contents(path)?))
+    }
+}
+
+fn hash_small_file_contents(path: &Path) -> Result<u128, OxenError> {
     match File::open(path) {
         Ok(file) => {
             let mut reader = BufReader::new(file);
             let mut buffer = Vec::new();
             match reader.read_to_end(&mut buffer) {
                 Ok(_) => {
-                    let result = hash_buffer(&buffer);
+                    let result = hash_buffer_128bit(&buffer);
                     Ok(result)
                 }
                 Err(_) => {
@@ -129,7 +153,7 @@ fn hash_small_file_contents(path: &Path) -> Result<String, OxenError> {
     }
 }
 
-fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
+fn hash_large_file_contents(path: &Path) -> Result<u128, OxenError> {
     let file = File::open(path).map_err(|err| {
         eprintln!("Could not open file {:?} due to {:?}", path, err);
         OxenError::basic_str(format!("Could not open file {:?} due to {:?}", path, err))
@@ -162,14 +186,9 @@ fn hash_large_file_contents(path: &Path) -> Result<String, OxenError> {
         ));
     }
 
-    let result = hasher.digest128();
-    Ok(format!("{result:x}"))
+    Ok(hasher.digest128())
 }
 
-pub fn hash_path<P: AsRef<Path>>(path: P) -> String {
+pub fn hash_path_name(path: impl AsRef<Path>) -> String {
     hash_str(path.as_ref().to_str().unwrap())
-}
-
-pub fn hash_pathbuf(path: &Path) -> String {
-    hash_str(path.to_str().unwrap())
 }

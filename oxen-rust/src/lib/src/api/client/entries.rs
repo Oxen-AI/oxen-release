@@ -1,13 +1,14 @@
 use crate::api::client;
 use crate::config::UserConfig;
 use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, OBJECTS_DIR, OXEN_HIDDEN_DIR};
+use crate::core::v0_10_0::commit::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::error::OxenError;
 use crate::model::entries::commit_entry::Entry;
 use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{api, constants, repositories};
+use crate::{api, constants};
 use crate::{current_function, util};
 
 use async_compression::futures::bufread::GzipDecoder;
@@ -170,7 +171,7 @@ pub async fn download_dir(
         tmp_objects_dir,
         local_objects_dir
     );
-    repositories::commits::merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
+    merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
 
     // Merge it in with the (probably not already extant) local objects db
 

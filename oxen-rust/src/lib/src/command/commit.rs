@@ -3,9 +3,6 @@
 //! Commit the staged data
 //!
 
-use crate::command;
-use crate::core::v0_10_0::index::CommitEntryWriter;
-use crate::error;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::repositories;
@@ -40,27 +37,7 @@ use crate::repositories;
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = command::status::status_without_untracked(repo)?;
-    if !status.has_added_entries() && status.staged_schemas.is_empty() {
-        return Err(OxenError::NothingToCommit(
-            error::string_error::StringError::new(
-                r"No files are staged, not committing.
-Stage a file or directory with `oxen add <file>`"
-                    .to_string(),
-            ),
-        ));
-    }
-
-    let commit = repositories::commits::commit(repo, &status, message)?;
-    // Open then close commit entry writer to force indexing on rocksbds
-    {
-        // Get time here
-        let start = std::time::Instant::now();
-        let _ = CommitEntryWriter::new(repo, &commit)?;
-        let _elapsed = start.elapsed();
-    }
-    log::info!("DONE COMMITTING in command::commit {}", commit);
-    Ok(commit)
+    repositories::commits::commit(repo, message)
 }
 
 #[cfg(test)]

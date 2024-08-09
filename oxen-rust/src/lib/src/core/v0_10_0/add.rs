@@ -26,7 +26,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
                 paths.insert(entry?);
             }
 
-            let pattern_entries = repositories::commits::glob_entry_paths(repo, &commit, path_str)?;
+            let pattern_entries = repositories::commits::search_entries(repo, &commit, path_str)?;
             paths.extend(pattern_entries);
         } else {
             // Non-glob path

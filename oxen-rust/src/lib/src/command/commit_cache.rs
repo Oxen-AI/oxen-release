@@ -9,7 +9,6 @@ use std::path::Path;
 use crate::core::v0_10_0::cache;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
-use crate::opts::LogOpts;
 use crate::repositories;
 
 /// Run the computation cache on all repositories within a directory
@@ -49,11 +48,7 @@ pub async fn compute_cache(
         repo.path
     );
     let commits = if let Some(revision) = revision {
-        let opts = LogOpts {
-            revision: Some(revision),
-            remote: false,
-        };
-        repositories::commits::list_with_opts(repo, &opts).await?
+        repositories::commits::list_from(repo, &revision)?
     } else {
         repositories::commits::list_all(repo)?
     };

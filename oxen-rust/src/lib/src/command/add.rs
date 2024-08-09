@@ -36,8 +36,16 @@ use std::path::Path;
 /// # Ok(())
 /// # }
 /// ```
-pub fn add<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Result<(), OxenError> {
-    match repo.version() {
+pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
+    add_with_version(repo, path, repo.version())
+}
+
+pub fn add_with_version(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    version: MinOxenVersion,
+) -> Result<(), OxenError> {
+    match version {
         MinOxenVersion::V0_10_0 => core::v0_10_0::add::add(repo, path),
         MinOxenVersion::V0_19_0 => core::v0_19_0::add::add(repo, path),
     }

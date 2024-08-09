@@ -3,6 +3,7 @@
 
 pub mod add;
 pub mod cache;
+pub mod commit;
 pub mod entries;
 pub mod index;
 pub mod init;

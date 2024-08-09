@@ -11,8 +11,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
-use crate::core::db;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::{self, db};
 
 use crate::core::v0_10_0::index::{self, puller, versioner, Merger, Stager};
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
@@ -102,7 +102,7 @@ impl EntryIndexer {
         // If our local branch is currently completely synced (from a clone or pull --all), we should
         // override the opts and pull all commits
         if let Some(ref commit) = head_commit {
-            if repositories::commits::commit_history_is_complete(&self.repository, commit) {
+            if core::v0_10_0::commit::commit_history_is_complete(&self.repository, commit) {
                 opts.should_pull_all = true;
             }
         }
@@ -186,7 +186,7 @@ impl EntryIndexer {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::error!("pull_all error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                repositories::commits::commit_with_no_files(
+                core::v0_10_0::commit::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )?
@@ -248,7 +248,7 @@ impl EntryIndexer {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::debug!("pull_one empty repo: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                repositories::commits::commit_with_no_files(
+                core::v0_10_0::commit::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )
@@ -354,7 +354,7 @@ impl EntryIndexer {
 
         let mut missing_commits = Vec::new();
         for remote_commit in remote_commits {
-            if !(repositories::commits::commit_history_db_exists(&self.repository, &remote_commit)?)
+            if !(core::v0_10_0::commit::commit_history_db_exists(&self.repository, &remote_commit)?)
             {
                 // log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);

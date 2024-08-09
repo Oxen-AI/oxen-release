@@ -358,7 +358,7 @@ impl CommitEntryReader {
         }
     }
 
-    pub fn glob_entry_paths(&self, pattern: &str) -> Result<HashSet<PathBuf>, OxenError> {
+    pub fn search_entries(&self, pattern: &str) -> Result<HashSet<PathBuf>, OxenError> {
         let pattern = Pattern::new(pattern)?;
         let entries = self.list_entries()?;
         let entry_paths: Vec<PathBuf> = entries.iter().map(|entry| entry.path.to_owned()).collect();
