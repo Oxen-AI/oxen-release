@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 
 use super::Migrate;
 
+use crate::core;
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
@@ -172,6 +173,7 @@ fn migrate_merkle_tree(
         DBWithThreadMode::open_for_read_only(&db::key_val::opts::default(), dir_hashes_dir, false)?;
     let hash: String = str_val_db::get(&dir_hashes_db, "")?.unwrap();
     let hash = hash.replace('"', "");
+    let hash = u128::from_str_radix(&hash, 16).unwrap();
 
     let dir_path = Path::new("");
 
@@ -181,29 +183,41 @@ fn migrate_merkle_tree(
         commit_entry_readers.push((c.clone(), reader));
     }
 
-    // Write the buckets to the dir db
-    let tree_path = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::TREE_DIR)
-        .join(constants::NODES_DIR)
-        .join(&commit.id);
+    // Write the initial commit db
+    let commit_id = u128::from_str_radix(&commit.id, 16).expect("Failed to parse hex string");
+    let parent_ids = commit
+        .parent_ids
+        .iter()
+        .map(|id| u128::from_str_radix(&id, 16).unwrap())
+        .collect();
 
-    // Create a directory of vnodes
-    let mut dir_db = MerkleNodeDB::open_read_write(tree_path)?;
-    dir_db.write_meta("", MerkleTreeNodeType::Root, 1)?;
+    // Create the root commit
+    let node = CommitNode {
+        id: commit_id,
+        parent_ids: parent_ids,
+        message: commit.message.clone(),
+        author: commit.author.clone(),
+        email: commit.email.clone(),
+        timestamp: commit.timestamp,
+        ..Default::default()
+    };
 
-    write_dir_node(
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
+
+    // Commit node has one child, the root dir
+    println!("Writing commit node {:?} to {:?}", node, commit_db.path());
+    let dir_node = write_dir_child(
         repo,
         commit_idx,
         &entry_reader,
         object_readers,
         &commit_entry_readers,
-        &mut dir_db,
+        &mut commit_db,
         dir_path,
-        &hash,
+        hash,
     )?;
 
+    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
     migrate_dir(
         repo,
         commits,
@@ -211,9 +225,9 @@ fn migrate_merkle_tree(
         commit_reader,
         &entry_reader,
         object_readers,
+        &mut dir_db,
         dir_path,
-        "",
-        &hash,
+        hash,
     )?;
 
     Ok(())
@@ -228,16 +242,16 @@ fn migrate_dir(
     commit_reader: &CommitReader,
     entry_reader: &CommitEntryReader,
     object_readers: &Vec<Arc<ObjectDBReader>>,
+    dir_db: &mut MerkleNodeDB,
     dir_path: &Path, // full path to dir (/path/to/dir)
-    dir_name: &str,  // base name of dir (dir)
-    dir_hash: &str,
+    dir_hash: u128,
 ) -> Result<(), OxenError> {
     // Read the values from the .oxen/objects/dirs db and write them
     // to the proper .oxen/tree/{path} with their hash as the key and type
     // and metadata as the value
     //
     println!(
-        "Processing dir path [{:?}] hash [{}] for commit {}",
+        "Processing dir path [{:?}] hash [{:x}] for commit {}",
         dir_path, dir_hash, commits[commit_idx]
     );
 
@@ -274,9 +288,8 @@ fn migrate_dir(
             * 12,5000 Children Per VNode
     */
 
-    let dir_hash = &dir_hash.replace('"', "");
     let obj_reader = &object_readers[commit_idx];
-    let dir_obj = obj_reader.get_dir(dir_hash)?;
+    let dir_obj = obj_reader.get_dir(&format!("{:x}", dir_hash))?;
 
     let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
     for (i, c) in commits.iter().enumerate() {
@@ -290,6 +303,8 @@ fn migrate_dir(
             dir_hash
         )));
     };
+
+    println!("MIGRATE_DIR: path {:?} dir_obj: {:?}", dir_path, dir_obj);
 
     // Write all the VNodes
     let mut children: Vec<TreeObjectChild> = Vec::new();
@@ -331,50 +346,23 @@ fn migrate_dir(
         bucket_hashes[i] = hasher.digest128();
     }
 
-    // Write the buckets to the dir db
-    let tree_path = repo
-        .path
-        .join(constants::OXEN_HIDDEN_DIR)
-        .join(constants::TREE_DIR)
-        .join(constants::NODES_DIR)
-        .join(dir_hash);
 
-    // Create a directory of vnodes
-    let mut dir_db = MerkleNodeDB::open_read_write(tree_path)?;
-    dir_db.write_meta(dir_name, MerkleTreeNodeType::Dir, num_vnodes as u64)?;
+    // Add all vnodes as children of the dir
+    let mut vnode_nodes: Vec<VNode> = Vec::new();
     for (i, bhash) in bucket_hashes.iter().enumerate() {
-        let shash = format!("{:x}", bhash);
-        println!("Bucket [{}] for {:?}", i, shash);
-        let node = VNode { id: i as u32 };
-        dir_db.write_one(*bhash, MerkleTreeNodeType::VNode, &node)?;
+        println!("Bucket [{}] for {:x}", i, bhash);
+        let node = VNode { id: *bhash, ..Default::default() };
+        dir_db.add_child(&node)?;
+        vnode_nodes.push(node);
     }
 
     // Re-Write the N vnodes
     for (i, bucket) in buckets.iter().enumerate() {
-        let uhash = bucket_hashes[i];
-        let shash = format!("{:x}", uhash);
-
-        let node_path = repo
-            .path
-            .join(constants::OXEN_HIDDEN_DIR)
-            .join(constants::TREE_DIR)
-            .join(constants::NODES_DIR)
-            .join(&shash);
-
-        if node_path.exists() {
-            println!(
-                "vnode database already exists at tree_path: {:?}",
-                node_path
-            );
-            return Ok(());
-        }
-
-        println!("Writing vnodes to path: {:?}", node_path);
+        let vnode = &vnode_nodes[i];
 
         // Write the children of the VNodes
-        let mut node_db = MerkleNodeDB::open_read_write(&node_path)?;
-        let num_children = bucket.len();
-        node_db.write_meta(&shash, MerkleTreeNodeType::VNode, num_children as u64)?;
+        let mut node_db = MerkleNodeDB::open_read_write(repo, vnode)?;
+        println!("Writing vnodes to path: {:?}", node_db.path());
         for (j, child) in bucket.iter().enumerate() {
             let (dtype, hash, path) = match child {
                 TreeObjectChild::VNode { path, hash } => (MerkleTreeNodeType::VNode, hash, path),
@@ -383,14 +371,16 @@ fn migrate_dir(
                 TreeObjectChild::Schema { path, hash } => (MerkleTreeNodeType::Schema, hash, path),
             };
 
-            if j % 1000 == 0 {
+            // if j % 1000 == 0 {
                 log::debug!("writing child {} {:?} {}", j, dtype, path.display());
-            }
+            // }
+
+            let child_hash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
 
             match dtype {
-                MerkleTreeNodeType::Root => {
-                    // pass, we never explicitly write the root
-                    panic!("migrate_dir should not get to Root");
+                MerkleTreeNodeType::Commit => {
+                    // pass, we only write the commit once at the top
+                    panic!("migrate_dir should not get to Commit");
                 }
                 MerkleTreeNodeType::VNode => {
                     // pass, we already wrote the vnode
@@ -408,11 +398,11 @@ fn migrate_dir(
                         &commit_entry_readers,
                         &mut node_db,
                         path,
-                        hash,
+                        child_hash,
                     )?;
                 }
                 MerkleTreeNodeType::Dir => {
-                    write_dir_node(
+                    let dir_node = write_dir_child(
                         repo,
                         commit_idx,
                         entry_reader,
@@ -420,10 +410,10 @@ fn migrate_dir(
                         &commit_entry_readers,
                         &mut node_db,
                         path,
-                        hash,
+                        child_hash,
                     )?;
                     // Recurse if it's a directory
-                    let file_name = path.file_name().unwrap().to_str().unwrap();
+                    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
                     migrate_dir(
                         repo,
                         commits,
@@ -431,9 +421,9 @@ fn migrate_dir(
                         commit_reader,
                         entry_reader,
                         object_readers,
+                        &mut dir_db,
                         path,
-                        file_name,
-                        hash,
+                        child_hash,
                     )?;
                 }
                 MerkleTreeNodeType::Schema => {
@@ -441,10 +431,10 @@ fn migrate_dir(
                     let file_name = path.file_name().unwrap().to_str().unwrap();
                     let val = SchemaNode {
                         name: file_name.to_owned(),
+                        hash: child_hash,
+                        ..Default::default()
                     };
-                    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-                    // println!("Bucket [{}] Val [{}] {} for {:?}", i, j, hash, val);
-                    node_db.write_one(uhash, MerkleTreeNodeType::Schema, &val)?;
+                    node_db.add_child(&val)?;
                 }
             }
         }
@@ -453,7 +443,7 @@ fn migrate_dir(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn write_dir_node(
+fn write_dir_child(
     repo: &LocalRepository,
     commit_idx: usize,
     entry_reader: &CommitEntryReader,
@@ -461,12 +451,10 @@ fn write_dir_node(
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
     node_db: &mut MerkleNodeDB,
     path: &Path,
-    hash: &str,
-) -> Result<(), OxenError> {
-    println!("Write dir node for path [{:?}] and hash [{}]", path, hash);
+    hash: u128,
+) -> Result<DirNode, OxenError> {
+    println!("Write dir node for path [{:?}] and hash [{:x}]", path, hash);
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
-    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-
     let commit = &commit_entry_readers[commit_idx].0;
 
     let mut num_bytes = 0;
@@ -553,19 +541,19 @@ fn write_dir_node(
         }
     }
 
-    let val = DirNode {
+    let node = DirNode {
+        dtype: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
-        hash: uhash,
+        hash,
         num_bytes,
         last_commit_id,
         last_modified_seconds,
         last_modified_nanoseconds,
         data_type_counts,
     };
-    let uhash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
-    println!("Writing dir node {:?} to {:?}", val, node_db.path());
-    node_db.write_one(uhash, MerkleTreeNodeType::Dir, &val)?;
-    Ok(())
+    println!("Writing dir node {:?} to {:?}", node, node_db.path());
+    node_db.add_child(&node)?;
+    Ok(node)
 }
 
 fn write_file_node(
@@ -574,12 +562,13 @@ fn write_file_node(
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
     node_db: &mut MerkleNodeDB,
     path: &Path,
-    hash: &str,
+    uhash: u128,
 ) -> Result<(), OxenError> {
+    let hash = format!("{:x}", uhash);
     let obj_reader = entry_reader.get_obj_reader();
     // read other meta data from file object
     let file_obj = obj_reader
-        .get_file(hash)?
+        .get_file(&hash)?
         .ok_or(OxenError::basic_str(format!(
             "could not get file object for {}",
             hash
@@ -595,9 +584,9 @@ fn write_file_node(
         _ => return Err(OxenError::basic_str("file object is not a file")),
     };
 
-    // TODO: Find the last commit id for the file
+    println!("Getting latest commit for path {:?} with {:?} readers", path, commit_entry_readers.len());
     let latest_commit =
-        repositories::entries::get_latest_commit_for_path(commit_entry_readers, path)?.unwrap();
+        core::v0_10_0::entries::get_latest_commit_for_path(commit_entry_readers, path)?.unwrap();
     let last_commit_id =
         u128::from_str_radix(&latest_commit.id, 16).expect("Failed to parse hex string");
 
@@ -618,7 +607,6 @@ fn write_file_node(
      */
 
     // For now, we just have one chunk per file
-    let uhash: u128 = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");
     let chunks: Vec<u128> = vec![uhash];
 
     // Then start refactoring the commands into a "legacy" module so we can still make the old
@@ -643,8 +631,9 @@ fn write_file_node(
         data_type,
         mime_type,
         extension,
+        dtype: MerkleTreeNodeType::File,
     };
-    node_db.write_one(uhash, MerkleTreeNodeType::File, &val)?;
+    node_db.add_child(&val)?;
 
     // TODO
     // * Look at the oxen pack command and abstract out this logic

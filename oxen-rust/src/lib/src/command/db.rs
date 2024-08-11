@@ -53,8 +53,7 @@ pub fn list(path: impl AsRef<Path>, limit: Option<usize>) -> Result<(), OxenErro
                     Ok(val) => {
                         println!("{key}\t{val:?}");
                     }
-                    Err(e) => {
-                        eprintln!("{key}\t<error deserializing: {e}>");
+                    Err(_) => {
                         if let Ok(val) = str::from_utf8(&value) {
                             println!("{key}\t{val}");
                         } else {

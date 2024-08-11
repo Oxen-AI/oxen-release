@@ -5,17 +5,19 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 
 use super::*;
+use crate::core::db::merkle::merkle_node_db;
 use crate::error::OxenError;
+use crate::model::LocalRepository;
 
 #[derive(Debug, Clone, Eq)]
-pub struct CommitMerkleTreeNode {
-    pub hash: String,
+pub struct MerkleTreeNodeData {
+    pub hash: u128,
     pub dtype: MerkleTreeNodeType,
     pub data: Vec<u8>,
-    pub children: HashSet<CommitMerkleTreeNode>,
+    pub children: HashSet<MerkleTreeNodeData>,
 }
 
-impl fmt::Display for CommitMerkleTreeNode {
+impl fmt::Display for MerkleTreeNodeData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -27,24 +29,22 @@ impl fmt::Display for CommitMerkleTreeNode {
     }
 }
 
-impl CommitMerkleTreeNode {
+impl MerkleTreeNodeData {
     /// Create an empty root node with a hash
-    pub fn root(hash: u128) -> Self {
-        let dir_node = RootNode {};
-        let mut buf = Vec::new();
-        dir_node.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        CommitMerkleTreeNode {
-            hash: hash.to_string(),
-            dtype: MerkleTreeNodeType::Root,
-            data: buf,
+    pub fn root_commit(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
+        let node_db = merkle_node_db::open_read_only(repo, hash)?;;
+        Ok(MerkleTreeNodeData {
+            hash,
+            dtype: MerkleTreeNodeType::Commit,
+            data: node_db.data(),
             children: HashSet::new(),
-        }
+        })
     }
 
     /// Constant time lookup by hash
-    pub fn get_by_hash(&self, hash: &str) -> Option<&CommitMerkleTreeNode> {
-        let lookup_node = CommitMerkleTreeNode {
-            hash: hash.to_string(),
+    pub fn get_by_hash(&self, hash: u128) -> Option<&MerkleTreeNodeData> {
+        let lookup_node = MerkleTreeNodeData {
+            hash,
             dtype: MerkleTreeNodeType::File, // Dummy value
             data: Vec::new(),                // Dummy value
             children: HashSet::new(),        // Dummy value
@@ -55,6 +55,11 @@ impl CommitMerkleTreeNode {
     /// Check if the node is a leaf node (i.e. it has no children)
     pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
+    }
+
+    pub fn commit(&self) -> Result<CommitNode, OxenError> {
+        rmp_serde::from_slice(&self.data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing commit: {e}")))
     }
 
     pub fn vnode(&self) -> Result<VNode, OxenError> {
@@ -83,13 +88,13 @@ impl CommitMerkleTreeNode {
     }
 }
 
-impl PartialEq for CommitMerkleTreeNode {
+impl PartialEq for MerkleTreeNodeData {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
 }
 
-impl Hash for CommitMerkleTreeNode {
+impl Hash for MerkleTreeNodeData {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.hash.hash(state);
     }
