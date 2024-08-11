@@ -394,7 +394,8 @@ pub async fn parents(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHt
     let name = path_param(&req, "repo_name")?;
     let commit_or_branch = path_param(&req, "commit_or_branch")?;
     let repository = get_repo(&app_data.path, namespace, name)?;
-
+    let commit = repositories::revisions::get(&repository, &commit_or_branch)?
+        .ok_or(OxenError::revision_not_found(commit_or_branch.into()))?;
     let parents = repositories::commits::list_from(&repository, &commit.id)?;
     Ok(HttpResponse::Ok().json(ListCommitResponse {
         status: StatusMessage::resource_found(),

@@ -8,8 +8,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::view::DataTypeCount;
 
+use super::{MerkleTreeNode, MerkleTreeNodeType};
+
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct DirNode {
+    // The type of the node
+    pub dtype: MerkleTreeNodeType,
+
     // The name of the directory
     pub name: String,
 
@@ -40,5 +45,30 @@ impl DirNode {
                 count: *v,
             })
             .collect()
+    }
+}
+
+impl Default for DirNode {
+    fn default() -> Self {
+        DirNode {
+            dtype: MerkleTreeNodeType::Dir,
+            name: "".to_string(),
+            hash: 0,
+            num_bytes: 0,
+            last_commit_id: 0,
+            last_modified_seconds: 0,
+            last_modified_nanoseconds: 0,
+            data_type_counts: HashMap::new(),
+        }
+    }
+}
+
+impl MerkleTreeNode for DirNode {
+    fn dtype(&self) -> MerkleTreeNodeType {
+        self.dtype
+    }
+
+    fn id(&self) -> u128 {
+        self.hash
     }
 }

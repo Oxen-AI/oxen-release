@@ -274,6 +274,8 @@ pub fn get_latest_commit_for_path(
 
     for (commit, entry_reader) in commits.iter().rev() {
         if let Some(old_entry) = entry_reader.get_entry(path)? {
+            log::debug!("Found entry! For path {:?} in commit {}", path, commit);
+
             if latest_hash.is_none() {
                 // This is the first encountered entry, setting it as the baseline for comparison.
                 latest_hash = Some(old_entry.hash.clone());
@@ -283,6 +285,8 @@ pub fn get_latest_commit_for_path(
             }
             // Update previous_commit after the check, so it holds the commit before the change was detected.
             previous_commit = Some(commit.clone());
+        } else {
+            log::debug!("No entry found for path {:?} in commit {}", path, commit);
         }
     }
 

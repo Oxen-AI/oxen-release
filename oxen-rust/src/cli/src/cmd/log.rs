@@ -71,7 +71,7 @@ impl LogCmd {
             Some(revision) => revision,
             None => repositories::commits::head_commit(repo)?.id,
         };
-        let commits = repositories::commits::list_from(repo, &revision).await?;
+        let commits = repositories::commits::list_from(repo, &revision)?;
         let commits = commits.iter().take(num_commits);
 
         // Fri, 21 Oct 2022 16:08:39 -0700

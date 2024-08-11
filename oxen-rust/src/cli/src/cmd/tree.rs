@@ -106,7 +106,8 @@ impl RunCmd for TreeCmd {
 
 impl TreeCmd {
     fn print_node(&self, repo: &LocalRepository, node: &str, depth: i32) -> Result<(), OxenError> {
-        let tree = CommitMerkleTree::read_node(repo, node.to_string(), true)?;
+        let node_hash = u128::from_str_radix(&node, 16).unwrap();
+        let tree = CommitMerkleTree::read_node(repo, node_hash, true)?;
         CommitMerkleTree::print_depth(&tree, depth);
 
         Ok(())

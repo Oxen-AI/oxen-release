@@ -161,8 +161,8 @@ pub fn list_from_paginated(
 /// List paginated commits by resource
 pub fn list_by_path_from_paginated(
     repo: &LocalRepository,
-    path: &Path,
     commit: &Commit,
+    path: &Path,
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
     match repo.version() {

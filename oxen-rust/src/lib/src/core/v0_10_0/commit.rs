@@ -103,6 +103,25 @@ pub fn first_by_message(
         .find(|commit| commit.message == msg.as_ref()))
 }
 
+pub fn list_with_missing_dbs(
+    repo: &LocalRepository,
+    commit_id: &str,
+) -> Result<Vec<Commit>, OxenError> {
+    let mut missing_db_commits: Vec<Commit> = vec![];
+
+    // Get full commit history for this repo to report any missing commits
+    let commits = repositories::commits::list_from(repo, commit_id)?;
+    for commit in commits {
+        if !commit_history_db_exists(repo, &commit)? {
+            missing_db_commits.push(commit);
+        }
+    }
+    // BASE->HEAD order
+    missing_db_commits.reverse();
+
+    Ok(missing_db_commits)
+}
+
 pub fn list_with_missing_entries(
     repo: &LocalRepository,
     commit_id: impl AsRef<str>,

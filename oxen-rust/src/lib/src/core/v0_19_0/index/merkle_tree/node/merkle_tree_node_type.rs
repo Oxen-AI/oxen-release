@@ -9,9 +9,9 @@
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Copy)]
 pub enum MerkleTreeNodeType {
-    Root,
+    Commit,
     File,
     Dir,
     VNode,
@@ -26,7 +26,7 @@ pub enum MerkleTreeNodeType {
 impl MerkleTreeNodeType {
     pub fn to_u8(&self) -> u8 {
         match self {
-            MerkleTreeNodeType::Root => 0u8,
+            MerkleTreeNodeType::Commit => 0u8,
             MerkleTreeNodeType::Dir => 1u8,
             MerkleTreeNodeType::VNode => 2u8,
             MerkleTreeNodeType::File => 3u8,
@@ -37,13 +37,13 @@ impl MerkleTreeNodeType {
 
     pub fn from_u8(val: u8) -> MerkleTreeNodeType {
         match val {
-            0u8 => MerkleTreeNodeType::Root,
+            0u8 => MerkleTreeNodeType::Commit,
             1u8 => MerkleTreeNodeType::Dir,
             2u8 => MerkleTreeNodeType::VNode,
             3u8 => MerkleTreeNodeType::File,
             4u8 => MerkleTreeNodeType::Schema,
             5u8 => MerkleTreeNodeType::FileChunk,
-            _ => panic!("Invalid MerkleTreeNodeType"),
+            _ => panic!("Invalid MerkleTreeNodeType: {}", val),
         }
     }
 }
