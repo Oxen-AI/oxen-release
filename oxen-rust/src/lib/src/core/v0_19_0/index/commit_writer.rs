@@ -55,7 +55,7 @@ pub fn commit(
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
-    
+
     let read_progress = ProgressBar::new_spinner();
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
@@ -165,7 +165,7 @@ fn split_into_vnodes(
         let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
         log::debug!("{} VNodes for {} children in {:?}", num_vnodes, total_children, directory);
         let mut vnode_children: Vec<EntryVNode> = vec![EntryVNode::new(0); num_vnodes as usize];
-        
+
         // Split entries into vnodes
         for child in children.into_iter() {
             let bucket = child.hash % num_vnodes;
@@ -181,7 +181,7 @@ fn split_into_vnodes(
             }
             vnode.id = vnode_hasher.digest128();
 
-            // Sort the entries in the vnode by path 
+            // Sort the entries in the vnode by path
             // to make searching for entries faster
             vnode.entries.sort_by(|a, b| a.path.cmp(&b.path));
         }
@@ -214,10 +214,19 @@ fn write_commit_entries(
 ) -> Result<(), OxenError> {
     // Write the root dir, then recurse into the vnodes and subdirectories
     let root_path = PathBuf::from("");
-    r_write_dir(
+    let dir_node = aggregate_dir_node(
         repo,
         commit_id,
-        commit_db,
+        entries,
+        &root_path
+    )?;
+    commit_db.add_child(&dir_node)?;
+
+    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+    r_create_dir_node(
+        repo,
+        commit_id,
+        &mut dir_db,
         entries,
         root_path
     )?;
@@ -225,71 +234,53 @@ fn write_commit_entries(
     Ok(())
 }
 
-fn r_write_dir(
+fn r_create_dir_node(
     repo: &LocalRepository,
     commit_id: u128,
-    node_db: &mut MerkleNodeDB,
+    dir_db: &mut MerkleNodeDB,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
-    dir_path: impl AsRef<Path>
+    path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
-    let dir_path = dir_path.as_ref().to_path_buf();
-    let Some(dir_nodes) = entries.get(&dir_path) else {
-        let err_msg = format!("No entries found for directory {:?}", dir_path);
+    let path = path.as_ref().to_path_buf();
+
+    let Some(vnodes) = entries.get(&path) else {
+        let err_msg = format!("No entries found for directory {:?}", path);
         return Err(OxenError::basic_str(err_msg));
     };
-    let dir_node = create_dir_node(
-        repo,
-        commit_id,
-        dir_path,
-        entries,
-        dir_nodes
-    )?;
 
-    log::debug!("Writing dir node {:?} to {:?}", dir_node, node_db.path());
-    node_db.add_child(&dir_node)?;
-
-    Ok(())
-}
-
-fn create_dir_node(
-    repo: &LocalRepository,
-    commit_id: u128,
-    path: impl AsRef<Path>,
-    entries: &HashMap<PathBuf, Vec<EntryVNode>>,
-    vnodes: &Vec<EntryVNode>
-) -> Result<DirNode, OxenError> {
-    let path = path.as_ref();
-    let mut hasher = xxhash_rust::xxh3::Xxh3::new();
-    let mut num_bytes = 0;
-    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+    log::debug!("Writing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
         let vnode_obj = VNode {
             id: vnode.id, ..Default::default()
         };
+        dir_db.add_child(&vnode_obj)?;
+        log::debug!("Writing vnode {:?} with {} entries", vnode.id, vnode.entries.len());
 
         let mut vnode_db = MerkleNodeDB::open_read_write(repo, &vnode_obj)?;
         for entry in vnode.entries.iter() {
             log::debug!("Writing entry {:?} [{:?}] to {:?}", entry.path, entry.data_type, vnode_db.path());
             match entry.data_type {
                 EntryDataType::Dir => {
-                    let dir_path = entry.path.clone();
-                    r_write_dir(
+
+                    let dir_node = aggregate_dir_node(
                         repo,
                         commit_id,
-                        &mut vnode_db,
                         entries,
-                        dir_path
+                        &entry.path
+                    )?;
+                    vnode_db.add_child(&dir_node)?;
+
+                    let mut child_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+                    r_create_dir_node(
+                        repo,
+                        commit_id,
+                        &mut child_db,
+                        entries,
+                        &entry.path
                     )?;
                 }
                 _ => {
                     let file_name = entry.path.file_name().unwrap_or_default().to_str().unwrap();
-
-                    hasher.update(&entry.hash.to_le_bytes());
-                    num_bytes += entry.num_bytes;
-                    
-                    *data_type_counts
-                        .entry(entry.data_type.to_string())
-                        .or_insert(0) += 1;
 
                     // Just single file chunk for now
                     let chunks = vec![entry.hash];
@@ -313,6 +304,65 @@ fn create_dir_node(
             }
         }
     }
+
+    Ok(())
+}
+
+fn get_children(
+    entries: &HashMap<PathBuf, Vec<EntryVNode>>,
+    dir_path: impl AsRef<Path>
+) -> Result<Vec<PathBuf>, OxenError> {
+    let dir_path = dir_path.as_ref().to_path_buf();
+    let mut children = vec![];
+
+    for (path, _) in entries.iter() {
+        if path.starts_with(&dir_path) {
+            children.push(path.clone());
+        }
+    }
+
+    return Ok(children);
+}
+
+fn aggregate_dir_node(
+    repo: &LocalRepository,
+    commit_id: u128,
+    entries: &HashMap<PathBuf, Vec<EntryVNode>>,
+    path: impl AsRef<Path>,
+) -> Result<DirNode, OxenError> {
+    let path = path.as_ref().to_path_buf();
+    let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+    let mut num_bytes = 0;
+    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+
+    let children = get_children(entries, &path)?;
+    log::debug!("Aggregating dir {:?} with {:?} children", path, children);
+    for child in children.iter() {
+        let Some(vnodes) = entries.get(child) else {
+            let err_msg = format!("No entries found for directory {:?}", path);
+            return Err(OxenError::basic_str(err_msg));
+        };
+
+        for vnode in vnodes.iter() {
+            for entry in vnode.entries.iter() {
+                log::debug!("Aggregating entry {:?} [{:?}]", entry.path, entry.data_type);
+                match entry.data_type {
+                    EntryDataType::Dir => {
+                        log::debug!("No need to aggregate {:?}", entry.path);
+                    }
+                    _ => {
+                        hasher.update(&entry.hash.to_le_bytes());
+                        num_bytes += entry.num_bytes;
+
+                        *data_type_counts
+                            .entry(entry.data_type.to_string())
+                            .or_insert(0) += 1;
+                    }
+                }
+            }
+        }
+    }
+
     let hash = hasher.digest128();
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
 
@@ -326,6 +376,5 @@ fn create_dir_node(
         last_modified_nanoseconds: 0,
         data_type_counts,
     };
-
     Ok(node)
 }
