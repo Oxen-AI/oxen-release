@@ -168,7 +168,6 @@ fn process_dir(
             //     }
             // });
             // 4. Custom state
-            // children.first_mut().map(|dir_entry_result| {
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let path = dir_entry.path();
@@ -207,7 +206,7 @@ fn process_dir(
                         }
                     };
 
-                    if path != Path::new("") {
+                    if entry.data_type != EntryDataType::Dir {
                         let mut buf = Vec::new();
                         entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
                         staged_db.put(path.to_str().unwrap(), &buf).unwrap();
