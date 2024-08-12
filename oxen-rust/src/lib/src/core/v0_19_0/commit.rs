@@ -2,14 +2,20 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use std::path::PathBuf;
-
+use std::str;
+use crate::core::v0_10_0::index::RefReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::opts::PaginateOpts;
 use crate::view::PaginatedCommits;
 
-pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    todo!()
+use super::index::merkle_tree::CommitMerkleTree;
+
+pub fn commit(
+    repo: &LocalRepository,
+    message: impl AsRef<str>
+) -> Result<Commit, OxenError> {
+    super::index::commit_writer::commit(repo, message)
 }
 
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
@@ -17,7 +23,17 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 }
 
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    todo!()
+    let ref_reader = RefReader::new(repo)?;
+    match ref_reader.head_commit_id() {
+        Ok(Some(commit_id)) => {
+            let commit_id = u128::from_str_radix(&commit_id, 16).unwrap();
+            let commit_data = CommitMerkleTree::read_node(repo, commit_id, false)?;
+            let commit = commit_data.commit()?;
+            Ok(commit.to_commit())
+        }
+        Ok(None) => Err(OxenError::head_not_found()),
+        Err(err) => Err(err),
+    }
 }
 
 pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {

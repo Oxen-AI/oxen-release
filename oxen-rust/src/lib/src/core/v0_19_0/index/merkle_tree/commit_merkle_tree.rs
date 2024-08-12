@@ -43,7 +43,7 @@ impl CommitMerkleTree {
         commit: &Commit,
     ) -> Result<MerkleTreeNodeData, OxenError> {
         let node_hash = u128::from_str_radix(&commit.id, 16).unwrap();
-        CommitMerkleTree::read_node(repo, node_hash, true)
+        CommitMerkleTree::read_node(repo, node_hash, false)
     }
 
     pub fn read_path(
@@ -418,7 +418,7 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::VNode => {
                 let vnode = node.vnode().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} ({})",
+                    "{}[{:?}] {:x} -> {} ({})",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     vnode.id,
@@ -429,7 +429,7 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::Dir => {
                 let dir = node.dir().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} {} ({} nodes) ({} files) [{:x}]",
+                    "{}[{:?}] {} -> {:x} {} ({} nodes) ({} files) [{:x}]",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     dir.name,
@@ -443,7 +443,7 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::File => {
                 let file = node.file().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} {} [{:x}]",
+                    "{}[{:?}] {} -> {:x} {} [{:x}]",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     file.name,
@@ -455,7 +455,7 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::Schema => {
                 let schema = node.schema().unwrap();
                 println!(
-                    "{}[{:?}] {:?} -> {} ({})",
+                    "{}[{:?}] {} -> {:x} ({})",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     schema.name,
@@ -466,7 +466,7 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::FileChunk => {
                 let _chunk = node.file_chunk().unwrap();
                 println!(
-                    "{} {:?} -> {} ({})",
+                    "{} {:?} -> {:x} ({})",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     node.hash,
