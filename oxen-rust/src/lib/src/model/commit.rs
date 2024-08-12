@@ -127,6 +127,18 @@ impl Commit {
         }
     }
 
+    pub fn from_new_and_hash(new_commit: &NewCommit, hash: u128) -> Commit {
+        Commit {
+            id: format!("{hash:x}"),
+            parent_ids: new_commit.parent_ids.to_owned(),
+            message: new_commit.message.to_owned(),
+            author: new_commit.author.to_owned(),
+            email: new_commit.email.to_owned(),
+            timestamp: new_commit.timestamp.to_owned(),
+            root_hash: None,
+        }
+    }
+
     pub fn has_ancestor(
         &self,
         parent_id: &str,
@@ -187,6 +199,10 @@ impl Commit {
             .ok_or(OxenError::revision_not_found(
                 branch.commit_id.to_string().into(),
             ))
+    }
+
+    pub fn hash_u128(&self) -> u128 {
+        u128::from_str_radix(&self.id, 16).unwrap()
     }
 
     pub fn to_uri_encoded(&self) -> String {

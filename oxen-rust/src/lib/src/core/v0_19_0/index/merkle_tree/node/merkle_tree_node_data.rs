@@ -1,5 +1,4 @@
-use rmp_serde::Serializer;
-use serde::Serialize;
+
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::{Hash, Hasher};
@@ -32,7 +31,7 @@ impl fmt::Display for MerkleTreeNodeData {
 impl MerkleTreeNodeData {
     /// Create an empty root node with a hash
     pub fn root_commit(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
-        let node_db = merkle_node_db::open_read_only(repo, hash)?;;
+        let node_db = merkle_node_db::open_read_only(repo, hash)?;
         Ok(MerkleTreeNodeData {
             hash,
             dtype: MerkleTreeNodeType::Commit,

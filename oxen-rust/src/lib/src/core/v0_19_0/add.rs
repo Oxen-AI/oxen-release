@@ -33,11 +33,11 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
     }
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct EntryMetaData {
-    hash: u128,
-    num_bytes: u64,
-    data_type: EntryDataType,
+    pub hash: u128,
+    pub num_bytes: u64,
+    pub data_type: EntryDataType,
 }
 
 impl Default for EntryMetaData {
@@ -84,8 +84,6 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
         bytesize::ByteSize::b(stats.total_bytes),
         duration
     );
-    let data_type_counts_str = type_counts_to_str(&stats.data_type_counts);
-    println!("{}", data_type_counts_str);
 
     Ok(())
 }
@@ -106,9 +104,6 @@ fn add_files(
     let progress_1 = m.add(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
-    let progress_2 = m.add(ProgressBar::new_spinner());
-    progress_2.set_style(ProgressStyle::default_spinner());
-    progress_2.enable_steady_tick(Duration::from_millis(100));
 
     let mut total = CumulativeStats {
         total_files: 0,
@@ -117,10 +112,16 @@ fn add_files(
     };
     for path in paths {
         if path.is_dir() {
-            total += process_dir(repo, path, &progress_1, &progress_2)?;
+            total += process_dir(
+                repo,
+                path,
+                &progress_1,
+                // &progress_2
+            )?;
         } else if path.is_file() {
             // Process the file here
             // For example: hash_and_stage_file(repo, path)?;
+            todo!()
         }
     }
 
@@ -131,7 +132,7 @@ fn process_dir(
     repo: &LocalRepository,
     path: &Path,
     progress_1: &ProgressBar,
-    progress_2: &ProgressBar,
+    // progress_2: &ProgressBar,
 ) -> Result<CumulativeStats, OxenError> {
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     let opts = db::key_val::opts::default();
@@ -177,8 +178,8 @@ fn process_dir(
                         let data_type = util::fs::file_data_type(&path);
                         // println!("path {:?} hash {} num_bytes {} data_type {:?}", path, hash, num_bytes, data_type);
 
-                        // Take first 3 chars of hash as dir prefix and last N chars as the dir suffix
-                        let dir_prefix_len = 3;
+                        // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+                        let dir_prefix_len = 2;
                         let dir_name = format!("{:x}", hash);
                         let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
                         let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
@@ -230,21 +231,8 @@ fn process_dir(
             bytesize::ByteSize::b(cumulative_stats.total_bytes)
         ));
 
-        // Update the second progress bar to be the data type counts
-        let data_type_counts_str = type_counts_to_str(&cumulative_stats.data_type_counts);
-        progress_2.set_message(data_type_counts_str);
-
         cumulative_stats.total_files += 1;
     }
 
     Ok(cumulative_stats)
-}
-
-fn type_counts_to_str(data_type_counts: &HashMap<EntryDataType, usize>) -> String {
-    let mut data_type_counts_str = String::from("  ");
-    for (data_type, count) in data_type_counts {
-        let emoji = data_type.to_emoji();
-        data_type_counts_str.push_str(&format!("  {}: {}", emoji, count));
-    }
-    data_type_counts_str
 }
