@@ -100,10 +100,7 @@ fn add_files(
         util::fs::create_dir_all(versions_path)?;
     }
 
-    let m = MultiProgress::new();
-    let progress_1 = m.add(ProgressBar::new_spinner());
-    progress_1.set_style(ProgressStyle::default_spinner());
-    progress_1.enable_steady_tick(Duration::from_millis(100));
+
 
     let mut total = CumulativeStats {
         total_files: 0,
@@ -115,7 +112,7 @@ fn add_files(
             total += process_dir(
                 repo,
                 path,
-                &progress_1,
+                // &progress_1,
                 // &progress_2
             )?;
         } else if path.is_file() {
@@ -131,9 +128,17 @@ fn add_files(
 fn process_dir(
     repo: &LocalRepository,
     path: &Path,
-    progress_1: &ProgressBar,
+    // progress_1: &ProgressBar,
     // progress_2: &ProgressBar,
 ) -> Result<CumulativeStats, OxenError> {
+    let m = MultiProgress::new();
+    let progress_1 = m.add(ProgressBar::new_spinner());
+    progress_1.set_style(ProgressStyle::default_spinner());
+    progress_1.enable_steady_tick(Duration::from_millis(100));
+    let progress_2 = m.add(ProgressBar::new_spinner());
+    progress_2.set_style(ProgressStyle::default_spinner());
+    progress_2.enable_steady_tick(Duration::from_millis(100));
+
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     let opts = db::key_val::opts::default();
@@ -142,7 +147,7 @@ fn process_dir(
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path).process_read_dir(
-        move |_depth, _path, _state, children| {
+        move |_depth, path, read_dir_state, children| {
             // 1. Custom sort
             // children.sort_by(|a, b| match (a, b) {
             //     (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
@@ -168,6 +173,8 @@ fn process_dir(
             //     }
             // });
             // 4. Custom state
+            *read_dir_state += 1;
+            progress_1.set_message(format!("Processing {} dirs [{:?}]", read_dir_state, path));
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let path = dir_entry.path();
@@ -229,7 +236,7 @@ fn process_dir(
             .entry(dir_entry.client_state.data_type)
             .and_modify(|count| *count += 1)
             .or_insert(1);
-        progress_1.set_message(format!(
+        progress_2.set_message(format!(
             "🐂 Added {} files {}",
             cumulative_stats.total_files,
             bytesize::ByteSize::b(cumulative_stats.total_bytes)
