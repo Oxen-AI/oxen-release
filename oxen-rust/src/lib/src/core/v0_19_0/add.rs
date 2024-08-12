@@ -206,7 +206,7 @@ fn process_dir(
                         }
                     };
 
-                    if entry.data_type != EntryDataType::Dir {
+                    if path != Path::new("") {
                         let mut buf = Vec::new();
                         entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
                         staged_db.put(path.to_str().unwrap(), &buf).unwrap();
