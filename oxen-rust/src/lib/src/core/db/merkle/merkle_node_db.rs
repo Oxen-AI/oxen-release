@@ -133,7 +133,7 @@ impl MerkleNodeLookup {
         let mut i = 0;
         while let Ok(_) = cursor.read_exact(&mut dtype_buffer) {
             log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
-            
+
             let data_type = u8::from_le_bytes(dtype_buffer);
             log::debug!(
                 "MerkleNodeLookup.load() got data_type {:?}",
@@ -234,8 +234,8 @@ impl MerkleNodeDB {
             Option<File>,
             Option<File>,
         ) = if read_only {
-            let mut node_file = File::open(node_path)?;
-            let children_file = File::open(children_path)?;
+            let mut node_file = util::fs::open_file(node_path)?;
+            let children_file = util::fs::open_file(children_path)?;
             (
                 Some(MerkleNodeLookup::load(&mut node_file)?),
                 Some(node_file),

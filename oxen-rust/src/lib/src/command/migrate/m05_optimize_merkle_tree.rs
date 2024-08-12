@@ -584,7 +584,7 @@ fn write_file_node(
         _ => return Err(OxenError::basic_str("file object is not a file")),
     };
 
-    println!("Getting latest commit for path {:?} with {:?} readers", path, commit_entry_readers.len());
+    // log::debug!("Getting latest commit for path {:?} with {:?} readers", path, commit_entry_readers.len());
     let latest_commit =
         core::v0_10_0::entries::get_latest_commit_for_path(commit_entry_readers, path)?.unwrap();
     let last_commit_id =

@@ -43,7 +43,7 @@ impl CommitMerkleTree {
         commit: &Commit,
     ) -> Result<MerkleTreeNodeData, OxenError> {
         let node_hash = u128::from_str_radix(&commit.id, 16).unwrap();
-        CommitMerkleTree::read_node(repo, node_hash, false)
+        CommitMerkleTree::read_node(repo, node_hash, true)
     }
 
     pub fn read_path(
@@ -85,7 +85,6 @@ impl CommitMerkleTree {
     ) -> Result<MerkleTreeNodeData, OxenError> {
         log::debug!("Read node root hash [{:x}]", hash);
         let mut node = MerkleTreeNodeData::root_commit(repo, hash)?;
-        log::debug!("Got node {:?}", node);
         let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
 
         CommitMerkleTree::read_children_from_node(repo, &mut node_db, &mut node, recurse)?;
@@ -413,12 +412,12 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::Commit => {
                 let commit = node.commit().unwrap();
                 let parent_ids = commit.parent_ids.iter().map(|x| format!("{:x}", x)).collect::<Vec<String>>().join(",");
-                println!("[Commit] {} -> {} parent_ids {:?}", commit.id, commit.message, parent_ids);
+                println!("[Commit] {:x} -> {} parent_ids {:?}", commit.id, commit.message, parent_ids);
             }
             MerkleTreeNodeType::VNode => {
                 let vnode = node.vnode().unwrap();
                 println!(
-                    "{}[{:?}] {:x} -> {} ({})",
+                    "{}[{:?}] {:x} -> {:x} ({})",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     vnode.id,

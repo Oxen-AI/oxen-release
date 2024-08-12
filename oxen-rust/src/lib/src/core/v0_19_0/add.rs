@@ -134,6 +134,7 @@ fn process_dir(
     progress_1: &ProgressBar,
     // progress_2: &ProgressBar,
 ) -> Result<CumulativeStats, OxenError> {
+    let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
@@ -171,6 +172,8 @@ fn process_dir(
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let path = dir_entry.path();
+                    let path = util::fs::path_relative_to_dir(path, &repo_path).unwrap();
+
                     let entry = if path.is_file() {
                         // If we can't hash - nothing downstream will work, so panic!
                         let (hash, num_bytes) = util::hasher::get_hash_and_size(&path)
@@ -204,9 +207,11 @@ fn process_dir(
                         }
                     };
 
-                    let mut buf = Vec::new();
-                    entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-                    staged_db.put(path.to_str().unwrap(), &buf).unwrap();
+                    if path != Path::new("") {
+                        let mut buf = Vec::new();
+                        entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+                        staged_db.put(path.to_str().unwrap(), &buf).unwrap();
+                    }
                     dir_entry.client_state = entry;
                 }
             });

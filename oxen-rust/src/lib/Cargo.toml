@@ -40,7 +40,7 @@ clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
 comfy-table = "7.1.1"
 deadqueue = "0.2.4"
-derive_more = "0.99.17"
+derive_more = { version = "1.0.0", features = ["full"] }
 difference = "2.0.0"
 dirs = "5.0.1"
 dotenv = "0.15.0"
