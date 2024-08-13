@@ -2,13 +2,14 @@
 //! that is stored in on disk
 //!
 
-use serde::{Deserialize, Serialize};
-
 use super::{
     file_node_types::{FileChunkType, FileStorageType},
     MerkleTreeNode, MerkleTreeNodeType,
 };
 use crate::model::EntryDataType;
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct FileNode {
@@ -68,5 +69,17 @@ impl MerkleTreeNode for FileNode {
 
     fn id(&self) -> u128 {
         self.hash
+    }
+}
+
+impl Display for FileNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "FileNode({:x}, {}) [{}]",
+            self.hash,
+            self.name,
+            bytesize::ByteSize::b(self.num_bytes)
+        )
     }
 }

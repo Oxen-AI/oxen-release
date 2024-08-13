@@ -56,6 +56,18 @@ impl MerkleTreeNodeData {
         self.children.is_empty()
     }
 
+    /// Count the total number of vnodes in the tree
+    pub fn total_vnodes(&self) -> u128 {
+        let mut count = 0;
+        for child in &self.children {
+            if child.dtype == MerkleTreeNodeType::VNode {
+                count += 1;
+            }
+            count += child.total_vnodes();
+        }
+        count
+    }
+
     /// Search for a file node by path
     pub fn get_by_path(
         &self,
@@ -72,7 +84,12 @@ impl MerkleTreeNodeData {
         path: &Path,
     ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
         let mut traversed_path = traversed_path.to_path_buf();
-
+        log::debug!(
+            "get_by_path_helper [{:?}] {:?} {:?}",
+            self.dtype,
+            traversed_path,
+            path
+        );
         if self.dtype == MerkleTreeNodeType::File {
             let file_node = self.file()?;
             traversed_path.push(file_node.name);

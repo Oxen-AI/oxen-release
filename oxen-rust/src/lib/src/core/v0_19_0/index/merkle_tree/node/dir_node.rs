@@ -2,9 +2,10 @@
 //! that is stored in on disk
 //!
 
-use std::collections::HashMap;
-
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fmt;
+use std::fmt::Display;
 
 use crate::view::DataTypeCount;
 
@@ -70,5 +71,17 @@ impl MerkleTreeNode for DirNode {
 
     fn id(&self) -> u128 {
         self.hash
+    }
+}
+
+impl Display for DirNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "DirNode({:x}, {}) [{}]",
+            self.hash,
+            self.name,
+            bytesize::ByteSize::b(self.num_bytes)
+        )
     }
 }

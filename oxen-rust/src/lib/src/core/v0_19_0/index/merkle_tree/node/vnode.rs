@@ -3,6 +3,8 @@
 //!
 
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
 
 use super::{MerkleTreeNode, MerkleTreeNodeType};
 
@@ -28,5 +30,11 @@ impl MerkleTreeNode for VNode {
 
     fn id(&self) -> u128 {
         self.id
+    }
+}
+
+impl Display for VNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "VNode({:x})", self.id)
     }
 }

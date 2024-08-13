@@ -17,12 +17,11 @@ All nodes are stored in .oxen/tree/{NODE_HASH} and contain two files:
 - node: the metadata for the node and a lookup table for all the children
 - data: the serialized nodes
 
-index file format:
+node file format:
 - node data
-- num_children
 - data-type,hash-int,data-offset,data-length
 
-data file format:
+children file format:
 - data blobs
 
 
@@ -31,7 +30,6 @@ For example, data for a vnode of hash 1234 with two children:
 .oxen/tree/1234/node
     0 # data length
     4 # data
-    2 # num_children
 
     0 # file data type
     1235 # hash
@@ -53,6 +51,7 @@ use serde::{de, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Debug;
+use std::fmt::Display;
 use std::fs::File;
 use std::io::Read;
 use std::io::Seek;
@@ -100,14 +99,14 @@ pub struct MerkleNodeLookup {
 
 impl MerkleNodeLookup {
     pub fn load(node_table_file: &mut File) -> Result<Self, OxenError> {
-        log::debug!("MerkleNodeLookup.load() {:?}", node_table_file);
+        // log::debug!("MerkleNodeLookup.load() {:?}", node_table_file);
         // Read the whole node into memory
         let mut file_data = Vec::new();
         node_table_file.read_to_end(&mut file_data)?;
-        log::debug!(
-            "MerkleNodeLookup.load() read file_data: {}",
-            file_data.len()
-        );
+        // log::debug!(
+        //     "MerkleNodeLookup.load() read file_data: {}",
+        //     file_data.len()
+        // );
 
         // Create a cursor to iterate over data
         let mut cursor = std::io::Cursor::new(file_data);
@@ -116,13 +115,13 @@ impl MerkleNodeLookup {
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
         cursor.read_exact(&mut buffer)?;
         let data_len = u32::from_le_bytes(buffer);
-        log::debug!("MerkleNodeLookup.load() data_len: {}", data_len);
+        // log::debug!("MerkleNodeLookup.load() data_len: {}", data_len);
 
         // Read the length of the data and save buffer
         let mut buffer = vec![0u8; data_len as usize];
         cursor.read_exact(&mut buffer)?;
         let data = buffer;
-        log::debug!("MerkleNodeLookup.load() read data: {}", data.len());
+        // log::debug!("MerkleNodeLookup.load() read data: {}", data.len());
 
         // Read the map of offsets
         let mut offsets: HashMap<u128, (u8, u64, u64)> = HashMap::new();
@@ -132,37 +131,37 @@ impl MerkleNodeLookup {
         let mut len_buffer = [0u8; 8]; // data-length u64 is 8 bytes
 
         // Will loop until we hit an EOF error
-        let mut i = 0;
+        // let mut i = 0;
         while let Ok(_) = cursor.read_exact(&mut dtype_buffer) {
-            log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
+            // log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
 
             let data_type = u8::from_le_bytes(dtype_buffer);
-            log::debug!(
-                "MerkleNodeLookup.load() got data_type {:?}",
-                MerkleTreeNodeType::from_u8(data_type)
-            );
+            // log::debug!(
+            //     "MerkleNodeLookup.load() got data_type {:?}",
+            //     MerkleTreeNodeType::from_u8(data_type)
+            // );
 
             // Read the hash
             cursor.read_exact(&mut hash_buffer)?;
             let hash = u128::from_le_bytes(hash_buffer);
-            log::debug!("MerkleNodeLookup.load() got hash {:x}", hash);
+            // log::debug!("MerkleNodeLookup.load() got hash {:x}", hash);
 
             // Read the offset
             cursor.read_exact(&mut offset_buffer)?;
             let data_offset = u64::from_le_bytes(offset_buffer);
-            log::debug!("MerkleNodeLookup.load() got data_offset {}", data_offset);
+            // log::debug!("MerkleNodeLookup.load() got data_offset {}", data_offset);
 
             // Read the length
             cursor.read_exact(&mut len_buffer)?;
             let data_len = u64::from_le_bytes(len_buffer);
-            log::debug!("MerkleNodeLookup.load() got data_len {}", data_len);
+            // log::debug!("MerkleNodeLookup.load() got data_len {}", data_len);
 
             offsets.insert(hash, (data_type, data_offset, data_len));
-            i += 1;
+            // i += 1;
         }
 
         let num_children = offsets.len() as u64;
-        log::debug!("MerkleNodeLookup.load() num_children {}", num_children);
+        // log::debug!("MerkleNodeLookup.load() num_children {}", num_children);
         Ok(Self {
             data,
             num_children,
@@ -209,7 +208,7 @@ impl MerkleNodeDB {
         Self::open(path, true)
     }
 
-    pub fn open_read_write<N: MerkleTreeNode + Serialize + Debug>(
+    pub fn open_read_write<N: MerkleTreeNode + Serialize + Debug + Display>(
         repo: &LocalRepository,
         node: &N,
     ) -> Result<Self, OxenError> {
@@ -285,7 +284,7 @@ impl MerkleNodeDB {
     }
 
     /// Write the base node info.
-    fn write_node<N: MerkleTreeNode + Serialize + Debug>(
+    fn write_node<N: MerkleTreeNode + Serialize + Debug + Display>(
         &mut self,
         node: &N,
     ) -> Result<(), OxenError> {
@@ -300,7 +299,7 @@ impl MerkleNodeDB {
         let Some(node_file) = self.node_file.as_mut() else {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
-        log::debug!("write_node node: {:?}", node);
+        log::debug!("write_node node: {}", node);
 
         // Write data length
         let mut buf = Vec::new();
@@ -317,7 +316,7 @@ impl MerkleNodeDB {
         Ok(())
     }
 
-    pub fn add_child<N: MerkleTreeNode + Serialize + Debug>(
+    pub fn add_child<N: MerkleTreeNode + Serialize + Debug + Display>(
         &mut self,
         item: &N,
     ) -> Result<(), OxenError> {
@@ -336,20 +335,20 @@ impl MerkleNodeDB {
         let mut buf = Vec::new();
         item.serialize(&mut Serializer::new(&mut buf)).unwrap();
         let data_len = buf.len() as u64;
-        log::debug!("--add_child-- node_file {:?}", node_file);
-        log::debug!("--add_child-- dtype {:?}", item.dtype());
-        log::debug!("--add_child-- hash {:x}", item.id());
-        log::debug!("--add_child-- data_offset {}", self.data_offset);
-        log::debug!("--add_child-- data_len {}", data_len);
-        log::debug!("--add_child-- item {:?}", item);
+        // log::debug!("--add_child-- node_file {:?}", node_file);
+        // log::debug!("--add_child-- dtype {:?}", item.dtype());
+        // log::debug!("--add_child-- hash {:x}", item.id());
+        // log::debug!("--add_child-- data_offset {}", self.data_offset);
+        // log::debug!("--add_child-- data_len {}", data_len);
+        log::debug!("--add_child-- item {}", item);
 
         node_file.write_all(&item.dtype().to_u8().to_le_bytes())?;
         node_file.write_all(&item.id().to_le_bytes())?;
         node_file.write_all(&self.data_offset.to_le_bytes())?;
         node_file.write_all(&data_len.to_le_bytes())?;
 
-        log::debug!("--add_child-- children_file {:?}", children_file);
-        log::debug!("--add_child-- buf.len() {}", buf.len());
+        // log::debug!("--add_child-- children_file {:?}", children_file);
+        // log::debug!("--add_child-- buf.len() {}", buf.len());
         children_file.write_all(&buf)?;
         self.data_offset += data_len;
 
