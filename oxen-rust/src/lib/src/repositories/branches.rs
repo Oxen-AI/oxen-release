@@ -1,6 +1,6 @@
-//! # Local Branches
+//! # Branches
 //!
-//! Interact with branches on your local machine.
+//! Interact with Oxen branches.
 //!
 
 use std::collections::HashSet;

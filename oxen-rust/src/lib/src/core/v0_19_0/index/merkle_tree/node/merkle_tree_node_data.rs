@@ -1,7 +1,7 @@
-
 use std::collections::HashSet;
 use std::fmt;
 use std::hash::{Hash, Hasher};
+use std::path::Path;
 
 use super::*;
 use crate::core::db::merkle::merkle_node_db;
@@ -54,6 +54,50 @@ impl MerkleTreeNodeData {
     /// Check if the node is a leaf node (i.e. it has no children)
     pub fn is_leaf(&self) -> bool {
         self.children.is_empty()
+    }
+
+    /// Search for a file node by path
+    pub fn get_by_path(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+        let path = path.as_ref();
+        let traversed_path = Path::new("");
+        self.get_by_path_helper(traversed_path, path)
+    }
+
+    fn get_by_path_helper(
+        &self,
+        traversed_path: &Path,
+        path: &Path,
+    ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+        let mut traversed_path = traversed_path.to_path_buf();
+
+        if self.dtype == MerkleTreeNodeType::File {
+            let file_node = self.file()?;
+            traversed_path.push(file_node.name);
+            if traversed_path == path {
+                return Ok(Some(self.clone()));
+            }
+        }
+
+        if self.dtype == MerkleTreeNodeType::Commit
+            || self.dtype == MerkleTreeNodeType::Dir
+            || self.dtype == MerkleTreeNodeType::VNode
+        {
+            for child in &self.children {
+                if child.dtype == MerkleTreeNodeType::Dir {
+                    let dir_node = child.dir()?;
+                    traversed_path.push(dir_node.name);
+                }
+
+                if let Some(node) = child.get_by_path_helper(&traversed_path, path)? {
+                    return Ok(Some(node));
+                }
+            }
+        }
+
+        Ok(None)
     }
 
     pub fn commit(&self) -> Result<CommitNode, OxenError> {

@@ -100,8 +100,6 @@ fn add_files(
         util::fs::create_dir_all(versions_path)?;
     }
 
-
-
     let mut total = CumulativeStats {
         total_files: 0,
         total_bytes: 0,
@@ -110,15 +108,20 @@ fn add_files(
     for path in paths {
         if path.is_dir() {
             total += process_dir(
-                repo,
-                path,
+                repo, path,
                 // &progress_1,
                 // &progress_2
             )?;
         } else if path.is_file() {
             // Process the file here
-            // For example: hash_and_stage_file(repo, path)?;
-            todo!()
+            let entry = add_file(repo, path)?;
+            total.total_files += 1;
+            total.total_bytes += entry.num_bytes;
+            total
+                .data_type_counts
+                .entry(entry.data_type)
+                .and_modify(|count| *count += 1)
+                .or_insert(1);
         }
     }
 
@@ -146,8 +149,9 @@ fn process_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path).process_read_dir(
-        move |_depth, path, read_dir_state, children| {
+    let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path)
+        .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()))
+        .process_read_dir(move |_depth, path, read_dir_state, children| {
             // 1. Custom sort
             // children.sort_by(|a, b| match (a, b) {
             //     (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
@@ -174,55 +178,21 @@ fn process_dir(
             // });
             // 4. Custom state
             *read_dir_state += 1;
-            progress_1.set_message(format!("Processing {} dirs [{:?}]", read_dir_state, path));
+            progress_1.set_message(format!("Processing dir [{:?}]", path));
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let path = dir_entry.path();
-                    let path = util::fs::path_relative_to_dir(path, &repo_path).unwrap();
-
-                    let entry = if path.is_file() {
-                        // If we can't hash - nothing downstream will work, so panic!
-                        let (hash, num_bytes) = util::hasher::get_hash_and_size(&path)
-                            .unwrap_or_else(|_| panic!("Could not hash file: {:?}", path));
-                        let data_type = util::fs::file_data_type(&path);
-                        // println!("path {:?} hash {} num_bytes {} data_type {:?}", path, hash, num_bytes, data_type);
-
-                        // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-                        let dir_prefix_len = 2;
-                        let dir_name = format!("{:x}", hash);
-                        let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-                        let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-                        let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
-
-                        if !dst_dir.exists() {
-                            util::fs::create_dir_all(&dst_dir).unwrap();
+                    match process_add_file(&repo_path, &versions_path, &staged_db, &path) {
+                        Ok(entry) => {
+                            dir_entry.client_state = entry;
                         }
-
-                        let dst = dst_dir.join("data");
-                        util::fs::copy(&path, &dst).unwrap();
-
-                        EntryMetaData {
-                            hash,
-                            data_type,
-                            num_bytes,
+                        Err(e) => {
+                            log::error!("Error adding file: {:?}", e);
                         }
-                    } else {
-                        EntryMetaData {
-                            data_type: EntryDataType::Dir,
-                            ..Default::default()
-                        }
-                    };
-
-                    if path != Path::new("") {
-                        let mut buf = Vec::new();
-                        entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-                        staged_db.put(path.to_str().unwrap(), &buf).unwrap();
                     }
-                    dir_entry.client_state = entry;
                 }
             });
-        },
-    );
+        });
 
     let mut cumulative_stats = CumulativeStats {
         total_files: 0,
@@ -246,4 +216,64 @@ fn process_dir(
     }
 
     Ok(cumulative_stats)
+}
+
+fn add_file(repo: &LocalRepository, path: &Path) -> Result<EntryMetaData, OxenError> {
+    let repo_path = repo.path.clone();
+    let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    process_add_file(&repo_path, &versions_path, &staged_db, path)
+}
+
+fn process_add_file(
+    repo_path: &Path,
+    versions_path: &Path,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    path: &Path,
+) -> Result<EntryMetaData, OxenError> {
+    let path = util::fs::path_relative_to_dir(path, &repo_path).unwrap();
+    let entry = if path.is_file() {
+        // If we can't hash - nothing downstream will work, so panic!
+        let (hash, num_bytes) = util::hasher::get_hash_and_size(&path)
+            .unwrap_or_else(|_| panic!("Could not hash file: {:?}", path));
+        let data_type = util::fs::file_data_type(&path);
+        // println!("path {:?} hash {} num_bytes {} data_type {:?}", path, hash, num_bytes, data_type);
+
+        // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+        let dir_prefix_len = 2;
+        let dir_name = format!("{:x}", hash);
+        let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
+        let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
+        let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
+
+        if !dst_dir.exists() {
+            util::fs::create_dir_all(&dst_dir).unwrap();
+        }
+
+        let dst = dst_dir.join("data");
+        util::fs::copy(&path, &dst).unwrap();
+
+        EntryMetaData {
+            hash,
+            data_type,
+            num_bytes,
+        }
+    } else {
+        EntryMetaData {
+            data_type: EntryDataType::Dir,
+            ..Default::default()
+        }
+    };
+
+    if path != Path::new("") {
+        let mut buf = Vec::new();
+        entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        staged_db.put(path.to_str().unwrap(), &buf).unwrap();
+    }
+
+    Ok(entry)
 }

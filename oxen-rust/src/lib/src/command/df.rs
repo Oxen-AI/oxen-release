@@ -39,8 +39,8 @@ pub fn df_revision(
         format!("Revision {} not found", revision.as_ref()),
     ))?;
     let path = input.as_ref();
-    let node = CommitMerkleTree::read_path(repo, &commit, path)?;
-    let mut df = tabular::show_node(repo.clone(), node, opts.clone())?;
+    let tree = CommitMerkleTree::from_path(repo, &commit, path)?;
+    let mut df = tabular::show_node(repo.clone(), &tree.root, opts.clone())?;
 
     if let Some(output) = opts.output {
         println!("Writing {output:?}");

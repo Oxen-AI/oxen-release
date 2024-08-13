@@ -4,7 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{file_node_types::{FileChunkType, FileStorageType}, MerkleTreeNodeType, MerkleTreeNode};
+use super::{
+    file_node_types::{FileChunkType, FileStorageType},
+    MerkleTreeNode, MerkleTreeNodeType,
+};
 use crate::model::EntryDataType;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]

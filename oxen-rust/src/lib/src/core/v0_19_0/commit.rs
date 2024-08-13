@@ -1,20 +1,17 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use std::path::PathBuf;
-use std::str;
 use crate::core::v0_10_0::index::RefReader;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::opts::PaginateOpts;
 use crate::view::PaginatedCommits;
+use std::path::PathBuf;
+use std::str;
 
 use super::index::merkle_tree::CommitMerkleTree;
 
-pub fn commit(
-    repo: &LocalRepository,
-    message: impl AsRef<str>
-) -> Result<Commit, OxenError> {
+pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     super::index::commit_writer::commit(repo, message)
 }
 

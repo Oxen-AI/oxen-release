@@ -19,12 +19,16 @@ impl CommitNode {
     pub fn to_commit(&self) -> Commit {
         Commit {
             id: format!("{:x}", self.id),
-            parent_ids: self.parent_ids.iter().map(|id| format!("{:x}", id)).collect(),
+            parent_ids: self
+                .parent_ids
+                .iter()
+                .map(|id| format!("{:x}", id))
+                .collect(),
             email: self.email.to_owned(),
             author: self.author.to_owned(),
             message: self.message.to_owned(),
             timestamp: self.timestamp.to_owned(),
-            root_hash: None
+            root_hash: None,
         }
     }
 }

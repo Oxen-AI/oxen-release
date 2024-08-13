@@ -6,9 +6,9 @@
 
 use std::path::Path;
 
-use crate::core::v0_10_0::index::{CommitEntryReader, Stager};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedData};
+use crate::repositories;
 
 /// # oxen status
 ///
@@ -66,54 +66,11 @@ use crate::model::{LocalRepository, StagedData};
 /// # }
 /// ```
 pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    let reader = CommitEntryReader::new_from_head(repository)?;
-    let stager = Stager::new(repository)?;
-    let status = stager.status(&reader)?;
-    Ok(status)
+    repositories::status(repository)
 }
 
-/// # oxen status path/to/dir
-///
-/// Similar to status but takes the a directory to start looking for changes
-///
-/// ```
-/// use liboxen::command;
-/// use liboxen::util;
-/// # use liboxen::error::OxenError;
-/// # use std::path::Path;
-/// # use liboxen::test;
-///
-/// # fn main() -> Result<(), OxenError> {
-/// # test::init_test_env();
-///
-/// let base_dir = Path::new("repo_dir_status_2");
-/// // Initialize empty repo
-/// let repo = command::init(&base_dir)?;
-///
-/// // Write file to disk
-/// let hello_file = base_dir.join("hello.txt");
-/// util::fs::write_to_path(&hello_file, "Hello World");
-///
-/// // Get status on repo
-/// let status = command::status(&repo)?;
-/// assert_eq!(status.untracked_files.len(), 1);
-///
-/// # util::fs::remove_dir_all(base_dir)?;
-/// # Ok(())
-/// # }
-/// ```
 pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<StagedData, OxenError> {
-    let reader = CommitEntryReader::new_from_head(repository)?;
-    let stager = Stager::new(repository)?;
-    let status = stager.status_from_dir(&reader, dir)?;
-    Ok(status)
-}
-
-pub fn status_without_untracked(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    let reader = CommitEntryReader::new_from_head(repository)?;
-    let stager = Stager::new(repository)?;
-    let status = stager.status_without_untracked(&reader)?;
-    Ok(status)
+    repositories::status_from_dir(repository, dir)
 }
 
 #[cfg(test)]

@@ -945,7 +945,7 @@ pub fn copy_df_add_row_num(
 
 pub fn show_node(
     repo: LocalRepository,
-    node: MerkleTreeNodeData,
+    node: &MerkleTreeNodeData,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let file_node = node.file()?;

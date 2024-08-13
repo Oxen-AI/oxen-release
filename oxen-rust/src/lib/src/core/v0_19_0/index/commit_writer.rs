@@ -1,22 +1,25 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use std::path::PathBuf;
-use std::time::Duration;
-use std::str;
 use indicatif::{ProgressBar, ProgressStyle};
-use rocksdb::{DBWithThreadMode, SingleThreaded, IteratorMode};
-use time::OffsetDateTime;
+use rocksdb::{DBWithThreadMode, IteratorMode, SingleThreaded};
+use std::path::PathBuf;
+use std::str;
+use std::time::Duration;
 use std::time::Instant;
+use time::OffsetDateTime;
 
 use crate::config::UserConfig;
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
+use crate::core::db::key_val::path_db;
 use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
 use crate::core::v0_10_0::index::RefWriter;
 use crate::core::v0_19_0::add::EntryMetaData;
-use crate::core::v0_19_0::index::merkle_tree::node::{FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode};
+use crate::core::v0_19_0::index::merkle_tree::node::{
+    FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode,
+};
 use crate::error::OxenError;
 use crate::model::{Commit, EntryDataType, LocalRepository};
 
@@ -27,14 +30,14 @@ use super::merkle_tree::node::{CommitNode, DirNode};
 #[derive(Clone)]
 struct EntryVNode {
     pub id: u128,
-    pub entries: Vec<EntryMetaDataWithPath>
+    pub entries: Vec<EntryMetaDataWithPath>,
 }
 
 impl EntryVNode {
     pub fn new(id: u128) -> Self {
         EntryVNode {
             id,
-            entries: vec![]
+            entries: vec![],
         }
     }
 }
@@ -47,13 +50,12 @@ struct EntryMetaDataWithPath {
     pub data_type: EntryDataType,
 }
 
-pub fn commit(
-    repo: &LocalRepository,
-    message: impl AsRef<str>
-) -> Result<Commit, OxenError> {
+pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     // time the commit
     let start_time = Instant::now();
     let message = message.as_ref();
+
+    // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let db: DBWithThreadMode<SingleThreaded> =
@@ -64,6 +66,78 @@ pub fn commit(
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
     // Read all the staged entries
+    let dir_entries = read_staged_entries(&db, &read_progress)?;
+
+    // if the HEAD file exists, we have parents
+    // otherwise this is the first commit
+    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
+    let parent_ids = if head_path.exists() {
+        let commit = repositories::commits::head_commit(repo)?;
+        vec![commit.hash_u128()]
+    } else {
+        vec![]
+    };
+
+    // TODO: Second commit
+    //       - Load the merkle tree from the previous commit
+    //       - Check which files have been updated/added/deleted
+    //       - Write new vnodes for updated/added/deleted files
+
+    // Sort children and split into VNodes
+    let vnode_entries = split_into_vnodes(&dir_entries)?;
+
+    // Compute the commit hash
+    let commit_id = compute_commit_id(&vnode_entries)?;
+
+    let cfg = UserConfig::get()?;
+    let timestamp = OffsetDateTime::now_utc();
+
+    let node = CommitNode {
+        id: commit_id,
+        parent_ids: parent_ids,
+        message: message.to_string(),
+        author: cfg.name,
+        email: cfg.email,
+        timestamp: timestamp,
+        ..Default::default()
+    };
+
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
+    write_commit_entries(
+        &repo,
+        commit_id,
+        &mut commit_db,
+        &vnode_entries,
+        &read_progress,
+    )?;
+    read_progress.finish_and_clear();
+
+    // Write HEAD file and update branch
+    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
+    log::debug!("Looking for HEAD file at {:?}", head_path);
+    if !head_path.exists() {
+        log::debug!("HEAD file does not exist, creating new branch");
+        let ref_writer = RefWriter::new(repo)?;
+        let branch_name = DEFAULT_BRANCH_NAME;
+        let commit_id = format!("{:x}", commit_id);
+        ref_writer.set_head(branch_name);
+        ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
+        ref_writer.set_head_commit_id(&commit_id)?;
+    }
+
+    // Clear the staged db
+    path_db::clear(&db)?;
+
+    // Print that we finished
+    println!("🐂 commit {:x} in {:?}", commit_id, start_time.elapsed());
+
+    Ok(node.to_commit())
+}
+
+fn read_staged_entries(
+    db: &DBWithThreadMode<SingleThreaded>,
+    read_progress: &ProgressBar,
+) -> Result<HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, OxenError> {
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
     let mut dir_entries: HashMap<PathBuf, Vec<EntryMetaDataWithPath>> = HashMap::new();
@@ -103,66 +177,11 @@ pub fn commit(
         }
     }
 
-    // Sort children and split into VNodes
-    read_progress.set_message(format!("Splitting {} entries into VNodes", total_entries));
-    let vnode_entries = split_into_vnodes(&dir_entries)?;
-
-    read_progress.set_message(format!("Computing commit id for {} VNodes", total_entries));
-    let commit_id = compute_commit_id(&vnode_entries)?;
-
-    // if the HEAD file exists, we have parents
-    // otherwise this is the first commit
-    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
-    let parent_ids = if head_path.exists() {
-        let commit = repositories::commits::head_commit(repo)?;
-        vec![commit.hash_u128()]
-    } else {
-        vec![]
-    };
-
-    let cfg = UserConfig::get()?;
-    let timestamp = OffsetDateTime::now_utc();
-
-    let node = CommitNode {
-        id: commit_id,
-        parent_ids: parent_ids,
-        message: message.to_string(),
-        author: cfg.name,
-        email: cfg.email,
-        timestamp: timestamp,
-        ..Default::default()
-    };
-
-    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
-    write_commit_entries(
-        &repo,
-        commit_id,
-        &mut commit_db,
-        &vnode_entries,
-        &read_progress
-    )?;
-    read_progress.finish_and_clear();
-
-    // Write HEAD file and update branch
-    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
-    log::debug!("Looking for HEAD file at {:?}", head_path);
-    if !head_path.exists() {
-        log::debug!("HEAD file does not exist, creating new branch");
-        let ref_writer = RefWriter::new(repo)?;
-        let branch_name = DEFAULT_BRANCH_NAME;
-        let commit_id = format!("{:x}", commit_id);
-        ref_writer.set_head(branch_name);
-        ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
-        ref_writer.set_head_commit_id(&commit_id)?;
-    }
-
-    println!("🐂 commit {:x} in {:?}", commit_id, start_time.elapsed());
-
-    Ok(node.to_commit())
+    Ok(dir_entries)
 }
 
 fn split_into_vnodes(
-    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>
+    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
@@ -172,7 +191,12 @@ fn split_into_vnodes(
         let total_children = children.len();
         let num_vnodes = (total_children as f32 / 10000_f32).log2();
         let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
-        log::debug!("{} VNodes for {} children in {:?}", num_vnodes, total_children, directory);
+        log::debug!(
+            "{} VNodes for {} children in {:?}",
+            num_vnodes,
+            total_children,
+            directory
+        );
         let mut vnode_children: Vec<EntryVNode> = vec![EntryVNode::new(0); num_vnodes as usize];
 
         // Split entries into vnodes
@@ -220,15 +244,11 @@ fn write_commit_entries(
     commit_id: u128,
     commit_db: &mut MerkleNodeDB,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
-    read_progress: &ProgressBar
+    read_progress: &ProgressBar,
 ) -> Result<(), OxenError> {
     // Write the root dir, then recurse into the vnodes and subdirectories
     let root_path = PathBuf::from("");
-    let dir_node = aggregate_dir_node(
-        commit_id,
-        entries,
-        &root_path
-    )?;
+    let dir_node = aggregate_dir_node(commit_id, entries, &root_path)?;
     commit_db.add_child(&dir_node)?;
 
     let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
@@ -240,7 +260,7 @@ fn write_commit_entries(
         entries,
         root_path,
         read_progress,
-        &mut total_written
+        &mut total_written,
     )?;
 
     Ok(())
@@ -253,7 +273,7 @@ fn r_create_dir_node(
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
     read_progress: &ProgressBar,
-    total_written: &mut u64
+    total_written: &mut u64,
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
     read_progress.set_message(format!("Committing {} entries [{:?}]", total_written, path));
@@ -266,28 +286,34 @@ fn r_create_dir_node(
     log::debug!("Writing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
         let vnode_obj = VNode {
-            id: vnode.id, ..Default::default()
+            id: vnode.id,
+            ..Default::default()
         };
         dir_db.add_child(&vnode_obj)?;
-        log::debug!("Writing vnode {:?} with {} entries", vnode.id, vnode.entries.len());
+        log::debug!(
+            "Writing vnode {:?} with {} entries",
+            vnode.id,
+            vnode.entries.len()
+        );
 
         *total_written += 1;
         read_progress.set_message(format!("Committing {} entries [{:?}]", total_written, path));
 
         let mut vnode_db = MerkleNodeDB::open_read_write(repo, &vnode_obj)?;
         for entry in vnode.entries.iter() {
-            log::debug!("Writing entry {:?} [{:?}] to {:?}", entry.path, entry.data_type, vnode_db.path());
+            log::debug!(
+                "Writing entry {:?} [{:?}] to {:?}",
+                entry.path,
+                entry.data_type,
+                vnode_db.path()
+            );
             match entry.data_type {
                 EntryDataType::Dir => {
-
-                    let dir_node = aggregate_dir_node(
-                        commit_id,
-                        entries,
-                        &entry.path
-                    )?;
+                    let dir_node = aggregate_dir_node(commit_id, entries, &entry.path)?;
                     vnode_db.add_child(&dir_node)?;
                     *total_written += 1;
-                    read_progress.set_message(format!("Committing {} entries [{:?}]", total_written, path));
+                    read_progress
+                        .set_message(format!("Committing {} entries [{:?}]", total_written, path));
                     let mut child_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
                     r_create_dir_node(
                         repo,
@@ -296,7 +322,7 @@ fn r_create_dir_node(
                         entries,
                         &entry.path,
                         read_progress,
-                        total_written
+                        total_written,
                     )?;
                 }
                 _ => {
@@ -321,7 +347,8 @@ fn r_create_dir_node(
                     };
                     vnode_db.add_child(&file_node)?;
                     *total_written += 1;
-                    read_progress.set_message(format!("Committing {} entries [{:?}]", total_written, path));
+                    read_progress
+                        .set_message(format!("Committing {} entries [{:?}]", total_written, path));
                 }
             }
         }
@@ -332,7 +359,7 @@ fn r_create_dir_node(
 
 fn get_children(
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
-    dir_path: impl AsRef<Path>
+    dir_path: impl AsRef<Path>,
 ) -> Result<Vec<PathBuf>, OxenError> {
     let dir_path = dir_path.as_ref().to_path_buf();
     let mut children = vec![];
@@ -398,4 +425,83 @@ fn aggregate_dir_node(
         data_type_counts,
     };
     Ok(node)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs::File;
+    use std::io::Write;
+    use std::path::Path;
+
+    use crate::command;
+    use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+    use crate::core::versions::MinOxenVersion;
+    use crate::error::OxenError;
+    use crate::model::LocalRepository;
+    use crate::test;
+    use crate::util;
+
+    fn write_first_commit_entries(repo: &LocalRepository, num_files: u64) -> Result<(), OxenError> {
+        /*
+        README.md
+        files.csv
+        files/
+          file1.txt
+          file2.txt
+          ..
+          fileN.txt
+        */
+
+        let readme_file = repo.path.join("README.md");
+        util::fs::write_to_path(&readme_file, format!("Repo with {} files", num_files))?;
+
+        command::add(&repo, &readme_file)?;
+
+        // Write files.csv
+        let files_csv = repo.path.join("files.csv");
+        let mut file = File::create(&files_csv)?;
+        file.write_all(b"file,label\n")?;
+        for i in 0..num_files {
+            let label = if i % 2 == 0 { "cat" } else { "dog" };
+            file.write_all(format!("file{}.txt,{}\n", i, label).as_bytes())?;
+        }
+        file.flush()?;
+
+        // Write files
+        let files_dir = repo.path.join("files");
+        util::fs::create_dir_all(&files_dir)?;
+        for i in 0..num_files {
+            let file_file = files_dir.join(format!("file{}.txt", i));
+            util::fs::write_to_path(&file_file, format!("File {}", i))?;
+        }
+
+        command::add(&repo, &files_csv)?;
+        command::add(&repo, &files_dir)?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_first_commit() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+
+            // Write data to the repo
+            write_first_commit_entries(&repo, 10)?;
+
+            // Commit the data
+            let commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.print();
+
+            // TODO: Determine what merkle tree APIs will be helpful here
+            let has_files_csv = tree.has_file(&Path::new("files.csv"))?;
+            assert!(has_files_csv);
+
+            Ok(())
+        })
+    }
 }

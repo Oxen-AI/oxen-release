@@ -6,6 +6,7 @@ pub mod commit;
 pub mod entries;
 pub mod index;
 pub mod init;
+pub mod status;
 
 pub use add::add;
 pub use commit::commit;

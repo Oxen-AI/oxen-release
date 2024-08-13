@@ -1,4 +1,3 @@
-use crate::command;
 use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::error;
 use crate::error::OxenError;
@@ -19,6 +18,7 @@ use crate::core::v0_10_0::index::{
     self, CommitDirEntryReader, CommitEntryReader, CommitReader, CommitWriter, RefWriter, Stager,
     TreeObjectReader,
 };
+use crate::core::v0_10_0::status;
 
 use crate::model::StagedData;
 use crate::util;
@@ -30,7 +30,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    let status = command::status::status_without_untracked(repo)?;
+    let status = status::status_without_untracked(repo)?;
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
         return Err(OxenError::NothingToCommit(
             error::string_error::StringError::new(
