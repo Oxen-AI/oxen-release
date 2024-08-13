@@ -3,7 +3,7 @@
 //! Print out values from a rocksdb key value database
 //!
 
-use crate::core::v0_19_0::add::EntryMetaData;
+use crate::core::v0_19_0::structs::EntryMetaData;
 use crate::error::OxenError;
 use crate::util::progress_bar::spinner_with_msg;
 

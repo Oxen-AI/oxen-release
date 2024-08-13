@@ -95,7 +95,7 @@ impl RunCmd for StatusCmd {
             );
         }
 
-        repo_status.print_stdout_with_params(&opts);
+        repo_status.print_with_params(&opts);
 
         Ok(())
     }

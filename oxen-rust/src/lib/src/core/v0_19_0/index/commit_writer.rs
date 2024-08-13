@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
-use rocksdb::{DBWithThreadMode, IteratorMode, SingleThreaded};
+use rocksdb::{DBWithThreadMode, SingleThreaded};
 use std::path::PathBuf;
 use std::str;
 use std::time::Duration;
@@ -16,10 +16,11 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
 use crate::core::v0_10_0::index::RefWriter;
-use crate::core::v0_19_0::add::EntryMetaData;
 use crate::core::v0_19_0::index::merkle_tree::node::{
     FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode,
 };
+use crate::core::v0_19_0::status;
+use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
 use crate::error::OxenError;
 use crate::model::{Commit, EntryDataType, LocalRepository};
 
@@ -28,7 +29,7 @@ use crate::{repositories, util};
 use super::merkle_tree::node::{CommitNode, DirNode};
 
 #[derive(Clone)]
-struct EntryVNode {
+pub struct EntryVNode {
     pub id: u128,
     pub entries: Vec<EntryMetaDataWithPath>,
 }
@@ -42,14 +43,6 @@ impl EntryVNode {
     }
 }
 
-#[derive(Clone)]
-struct EntryMetaDataWithPath {
-    pub path: PathBuf,
-    pub hash: u128,
-    pub num_bytes: u64,
-    pub data_type: EntryDataType,
-}
-
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     // time the commit
     let start_time = Instant::now();
@@ -59,14 +52,14 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     let read_progress = ProgressBar::new_spinner();
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
     // Read all the staged entries
-    let dir_entries = read_staged_entries(&db, &read_progress)?;
+    let dir_entries = status::read_staged_entries(&db, &read_progress)?;
 
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
@@ -132,52 +125,6 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     println!("🐂 commit {:x} in {:?}", commit_id, start_time.elapsed());
 
     Ok(node.to_commit())
-}
-
-fn read_staged_entries(
-    db: &DBWithThreadMode<SingleThreaded>,
-    read_progress: &ProgressBar,
-) -> Result<HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, OxenError> {
-    let mut total_entries = 0;
-    let iter = db.iterator(IteratorMode::Start);
-    let mut dir_entries: HashMap<PathBuf, Vec<EntryMetaDataWithPath>> = HashMap::new();
-    for item in iter {
-        match item {
-            // key = file path
-            // value = EntryMetaData
-            Ok((key, value)) => {
-                let key = str::from_utf8(&key)?;
-                let path = Path::new(key);
-                let entry: EntryMetaData = rmp_serde::from_slice(&value).unwrap();
-                let entry_w_path = EntryMetaDataWithPath {
-                    path: path.to_path_buf(),
-                    hash: entry.hash,
-                    num_bytes: entry.num_bytes,
-                    data_type: entry.data_type,
-                };
-
-                if let Some(parent) = path.parent() {
-                    dir_entries
-                        .entry(parent.to_path_buf())
-                        .or_default()
-                        .push(entry_w_path);
-                } else {
-                    dir_entries
-                        .entry(PathBuf::from(""))
-                        .or_default()
-                        .push(entry_w_path);
-                }
-
-                total_entries += 1;
-                read_progress.set_message(format!("Gathering {} entries to commit", total_entries));
-            }
-            Err(err) => {
-                log::error!("Could not get staged entry: {}", err);
-            }
-        }
-    }
-
-    Ok(dir_entries)
 }
 
 fn split_into_vnodes(
@@ -438,6 +385,7 @@ mod tests {
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::LocalRepository;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -489,6 +437,8 @@ mod tests {
 
             // Write data to the repo
             write_first_commit_entries(&repo, 10)?;
+            let status = repositories::status(&repo)?;
+            status.print();
 
             // Commit the data
             let commit = super::commit(&repo, "First commit")?;

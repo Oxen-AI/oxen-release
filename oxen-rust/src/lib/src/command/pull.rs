@@ -175,7 +175,7 @@ mod tests {
                 // Pull back from the OG Repo
                 command::pull(&repo).await?;
                 let old_repo_status = command::status(&repo)?;
-                old_repo_status.print_stdout();
+                old_repo_status.print();
                 // Make sure we don't modify the timestamps or anything of the OG data
                 assert!(!old_repo_status.has_modified_entries());
 
@@ -847,7 +847,7 @@ mod tests {
                     // Check for merge conflict
                     let status = command::status(&user_b_repo)?;
                     assert!(!status.merge_conflicts.is_empty());
-                    status.print_stdout();
+                    status.print();
 
                     // Checkout your version and add the changes
                     command::checkout_ours(&user_b_repo, new_file)?;
@@ -1129,7 +1129,7 @@ mod tests {
 
                 // Status should be empty too
                 let status = command::status(&cloned_repo)?;
-                status.print_stdout();
+                status.print();
                 assert!(status.is_clean());
 
                 // Make sure that the schema gets pulled
@@ -1191,7 +1191,7 @@ mod tests {
 
                 // Status should be empty too
                 let status = command::status(&cloned_repo)?;
-                status.print_stdout();
+                status.print();
                 assert!(status.is_clean());
 
                 // Make sure we grab the same amount of schemas

@@ -139,7 +139,7 @@ fn status_for_workspace(workspace: &Workspace) -> Result<StagedData, OxenError> 
     let stager = Stager::new(workspace_repo)?;
     let reader = CommitEntryReader::new(repo, commit)?;
     let status = stager.status(&reader)?;
-    status.print_stdout();
+    status.print();
 
     Ok(status)
 }
@@ -177,7 +177,7 @@ mod tests {
 
             // Verify staged data
             let staged_data = workspaces::stager::status(&workspace, directory)?;
-            staged_data.print_stdout();
+            staged_data.print();
             assert_eq!(staged_data.staged_files.len(), 1);
 
             Ok(())

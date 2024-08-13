@@ -437,10 +437,10 @@ mod tests {
             let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
             let status = command::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
-            status.print_stdout();
+            status.print();
             command::add(&repo, &one_shot_path)?;
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             command::commit(&repo, "Changing one shot")?;
 
             // checkout OG and make sure it reverts
@@ -486,7 +486,7 @@ mod tests {
             assert_eq!(status.staged_files.len(), 1);
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             command::commit(&repo, "Changing one shot")?;
 
             // checkout OG and make sure it reverts

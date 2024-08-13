@@ -27,7 +27,7 @@ pub async fn list(
     let workspace = index::workspaces::get(&repo, workspace_id)?;
     let staged = index::workspaces::stager::status(&workspace, &path)?;
 
-    staged.print_stdout();
+    staged.print();
 
     let response = RemoteStagedStatusResponse {
         status: StatusMessage::resource_found(),

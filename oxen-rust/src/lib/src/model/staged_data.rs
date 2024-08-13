@@ -146,7 +146,7 @@ impl StagedData {
         outputs
     }
 
-    pub fn print_stdout(&self) {
+    pub fn print(&self) {
         let opts = StagedDataOpts::default();
         let outputs = self.__collect_outputs(&opts);
 
@@ -155,7 +155,7 @@ impl StagedData {
         }
     }
 
-    pub fn print_stdout_with_params(&self, opts: &StagedDataOpts) {
+    pub fn print_with_params(&self, opts: &StagedDataOpts) {
         let outputs = self.__collect_outputs(opts);
         for output in outputs {
             print!("{output}")

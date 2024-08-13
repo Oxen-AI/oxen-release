@@ -262,7 +262,7 @@ impl CommitWriter {
         log::debug!("recomputing status for workspace...");
         let staged_data = command::status(&workspace.workspace_repo)?;
 
-        staged_data.print_stdout();
+        staged_data.print();
 
         Ok(staged_data)
     }
