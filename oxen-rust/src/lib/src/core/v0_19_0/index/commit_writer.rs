@@ -542,6 +542,14 @@ mod tests {
             let has_files_csv = tree.has_file(&Path::new("files.csv"))?;
             assert!(has_files_csv);
 
+            // Check that README.md is in the merkle tree
+            let has_readme = tree.has_file(&Path::new("README.md"))?;
+            assert!(has_readme);
+
+            // Check that files/dir_0/file0.txt is in the merkle tree
+            let has_file0 = tree.has_file(&Path::new("files/dir_0/file0.txt"))?;
+            assert!(has_file0);
+
             Ok(())
         })
     }
