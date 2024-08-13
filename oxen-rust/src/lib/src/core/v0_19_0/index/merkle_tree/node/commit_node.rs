@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
 use time::OffsetDateTime;
 
 use super::{MerkleTreeNode, MerkleTreeNodeType};
@@ -54,5 +56,11 @@ impl MerkleTreeNode for CommitNode {
 
     fn id(&self) -> u128 {
         self.id
+    }
+}
+
+impl Display for CommitNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "CommitNode({:x}, {})", self.id, self.message,)
     }
 }

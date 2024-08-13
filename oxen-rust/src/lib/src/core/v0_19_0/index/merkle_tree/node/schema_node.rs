@@ -2,9 +2,10 @@
 //! that is stored in on disk
 //!
 
-use serde::{Deserialize, Serialize};
-
 use super::{MerkleTreeNode, MerkleTreeNodeType};
+use serde::{Deserialize, Serialize};
+use std::fmt;
+use std::fmt::Display;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct SchemaNode {
@@ -37,5 +38,11 @@ impl MerkleTreeNode for SchemaNode {
 
     fn id(&self) -> u128 {
         self.hash
+    }
+}
+
+impl Display for SchemaNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SchemaNode({:x})", self.hash)
     }
 }

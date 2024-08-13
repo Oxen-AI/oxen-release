@@ -98,6 +98,10 @@ impl CommitMerkleTree {
         Ok(node)
     }
 
+    pub fn total_vnodes(&self) -> u128 {
+        self.root.total_vnodes()
+    }
+
     /// This uses the dir_hashes db to skip right to a file in the tree
     fn read_file(
         repo: &LocalRepository,

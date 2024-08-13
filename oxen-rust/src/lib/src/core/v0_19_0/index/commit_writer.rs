@@ -19,9 +19,11 @@ use crate::core::v0_10_0::index::RefWriter;
 use crate::core::v0_19_0::index::merkle_tree::node::{
     FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode,
 };
+use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::status;
 use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
 use crate::error::OxenError;
+use crate::model::NewCommit;
 use crate::model::{Commit, EntryDataType, LocalRepository};
 
 use crate::{repositories, util};
@@ -64,15 +66,25 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
-    let parent_ids = if head_path.exists() {
+
+    let maybe_head_commit = if head_path.exists() {
         let commit = repositories::commits::head_commit(repo)?;
-        vec![commit.hash_u128()]
+        Some(commit)
     } else {
-        vec![]
+        None
     };
 
+    let mut parent_ids = vec![];
+    if let Some(parent) = &maybe_head_commit {
+        parent_ids.push(parent.hash_u128());
+    }
+
+    let mut merkle_tree: Option<CommitMerkleTree> = None;
+    if let Some(commit) = &maybe_head_commit {
+        merkle_tree = Some(CommitMerkleTree::from_commit(repo, &commit)?);
+    }
+
     // TODO: Second commit
-    //       - Load the merkle tree from the previous commit
     //       - Check which files have been updated/added/deleted
     //       - Write new vnodes for updated/added/deleted files
 
@@ -80,10 +92,16 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     let vnode_entries = split_into_vnodes(&dir_entries)?;
 
     // Compute the commit hash
-    let commit_id = compute_commit_id(&vnode_entries)?;
-
     let cfg = UserConfig::get()?;
     let timestamp = OffsetDateTime::now_utc();
+    let new_commit = NewCommit {
+        parent_ids: parent_ids.iter().map(|id| format!("{:x}", id)).collect(),
+        message: message.to_string(),
+        author: cfg.name.clone(),
+        email: cfg.email.clone(),
+        timestamp: timestamp,
+    };
+    let commit_id = compute_commit_id(&new_commit, &vnode_entries)?;
 
     let node = CommitNode {
         id: commit_id,
@@ -156,6 +174,7 @@ fn split_into_vnodes(
         for vnode in vnode_children.iter_mut() {
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
+            vnode_hasher.update(b"vnode");
             for entry in vnode.entries.iter() {
                 vnode_hasher.update(&entry.hash.to_le_bytes());
             }
@@ -174,8 +193,17 @@ fn split_into_vnodes(
     Ok(results)
 }
 
-fn compute_commit_id(entries: &HashMap<PathBuf, Vec<EntryVNode>>) -> Result<u128, OxenError> {
+fn compute_commit_id(
+    new_commit: &NewCommit,
+    entries: &HashMap<PathBuf, Vec<EntryVNode>>,
+) -> Result<u128, OxenError> {
     let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+    hasher.update(b"commit");
+    hasher.update(format!("{:?}", new_commit.parent_ids).as_bytes());
+    hasher.update(new_commit.message.as_bytes());
+    hasher.update(new_commit.author.as_bytes());
+    hasher.update(new_commit.email.as_bytes());
+    hasher.update(&new_commit.timestamp.unix_timestamp().to_le_bytes());
     for (_, vnodes) in entries.iter() {
         for vnode in vnodes {
             for child in vnode.entries.iter() {
@@ -195,7 +223,7 @@ fn write_commit_entries(
 ) -> Result<(), OxenError> {
     // Write the root dir, then recurse into the vnodes and subdirectories
     let root_path = PathBuf::from("");
-    let dir_node = aggregate_dir_node(commit_id, entries, &root_path)?;
+    let dir_node = compute_dir_node(commit_id, entries, &root_path)?;
     commit_db.add_child(&dir_node)?;
 
     let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
@@ -238,7 +266,7 @@ fn r_create_dir_node(
         };
         dir_db.add_child(&vnode_obj)?;
         log::debug!(
-            "Writing vnode {:?} with {} entries",
+            "Writing vnode {:x} with {} entries",
             vnode.id,
             vnode.entries.len()
         );
@@ -256,7 +284,7 @@ fn r_create_dir_node(
             );
             match entry.data_type {
                 EntryDataType::Dir => {
-                    let dir_node = aggregate_dir_node(commit_id, entries, &entry.path)?;
+                    let dir_node = compute_dir_node(commit_id, entries, &entry.path)?;
                     vnode_db.add_child(&dir_node)?;
                     *total_written += 1;
                     read_progress
@@ -320,18 +348,21 @@ fn get_children(
     return Ok(children);
 }
 
-fn aggregate_dir_node(
+fn compute_dir_node(
     commit_id: u128,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
 ) -> Result<DirNode, OxenError> {
     let path = path.as_ref().to_path_buf();
     let mut hasher = xxhash_rust::xxh3::Xxh3::new();
+    hasher.update(b"dir");
+    hasher.update(path.to_str().unwrap().as_bytes());
+
     let mut num_bytes = 0;
     let mut data_type_counts: HashMap<String, usize> = HashMap::new();
 
     let children = get_children(entries, &path)?;
-    log::debug!("Aggregating dir {:?} with {:?} children", path, children);
+    // log::debug!("Aggregating dir {:?} with {:?} children", path, children);
     for child in children.iter() {
         let Some(vnodes) = entries.get(child) else {
             let err_msg = format!("No entries found for directory {:?}", path);
@@ -340,7 +371,7 @@ fn aggregate_dir_node(
 
         for vnode in vnodes.iter() {
             for entry in vnode.entries.iter() {
-                log::debug!("Aggregating entry {:?} [{:?}]", entry.path, entry.data_type);
+                // log::debug!("Aggregating entry {:?} [{:?}]", entry.path, entry.data_type);
                 match entry.data_type {
                     EntryDataType::Dir => {
                         log::debug!("No need to aggregate {:?}", entry.path);
@@ -389,7 +420,11 @@ mod tests {
     use crate::test;
     use crate::util;
 
-    fn write_first_commit_entries(repo: &LocalRepository, num_files: u64) -> Result<(), OxenError> {
+    fn write_first_commit_entries(
+        repo: &LocalRepository,
+        num_files: u64,
+        num_dirs: u64,
+    ) -> Result<(), OxenError> {
         /*
         README.md
         files.csv
@@ -419,7 +454,12 @@ mod tests {
         let files_dir = repo.path.join("files");
         util::fs::create_dir_all(&files_dir)?;
         for i in 0..num_files {
-            let file_file = files_dir.join(format!("file{}.txt", i));
+            // Create num_dirs directories
+            let dir_num = i % num_dirs;
+            let dir_path = files_dir.join(format!("dir_{}", dir_num));
+            util::fs::create_dir_all(&dir_path)?;
+
+            let file_file = dir_path.join(format!("file{}.txt", i));
             util::fs::write_to_path(&file_file, format!("File {}", i))?;
         }
 
@@ -436,7 +476,7 @@ mod tests {
             let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
-            write_first_commit_entries(&repo, 10)?;
+            write_first_commit_entries(&repo, 10, 2)?;
             let status = repositories::status(&repo)?;
             status.print();
 
@@ -447,9 +487,94 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            // TODO: Determine what merkle tree APIs will be helpful here
+            /*
+            [Commit] 861d5cd233eff0940060bd76ce24f10a
+              [Dir] ""
+                [VNode]
+                  [File] README.md
+                  [File] files.csv
+                  [Dir] files
+                    [VNode]
+                      [Dir] dir_0
+                        [VNode]
+                          [File] file4.txt
+                          [File] file0.txt
+                          [File] file2.txt
+                          [File] file6.txt
+                          [File] file8.txt
+                      [Dir] dir_1
+                        [VNode]
+                          [File] file7.txt
+                          [File] file3.txt
+                          [File] file5.txt
+                          [File] file1.txt
+                          [File] file9.txt
+            */
+
+            // Make sure we have 4 vnodes
+            let vnodes = tree.total_vnodes();
+            assert_eq!(vnodes, 4);
+
+            // Make sure the root is a commit node
+            let root = &tree.root;
+            let commit = root.commit();
+            assert!(commit.is_ok());
+
+            // Make sure the root commit has 1 child, the root dir node
+            let root_commit_children = &root.children;
+            assert_eq!(root_commit_children.len(), 1);
+
+            let dir_node_data = root_commit_children.iter().next().unwrap();
+            let dir_node = dir_node_data.dir();
+            assert!(dir_node.is_ok());
+            assert_eq!(dir_node.unwrap().name, "");
+
+            // Make sure dir node has one child, the VNode
+            let vnode_data = dir_node_data.children.iter().next().unwrap();
+            let vnode = vnode_data.vnode();
+            assert!(vnode.is_ok());
+
+            // Make sure the vnode has 3 children, the 2 files and the dir
+            let vnode_children = &vnode_data.children;
+            assert_eq!(vnode_children.len(), 3);
+
+            // Check that files.csv is in the merkle tree
             let has_files_csv = tree.has_file(&Path::new("files.csv"))?;
             assert!(has_files_csv);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_second_commit() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+
+            // Write data to the repo
+            write_first_commit_entries(&repo, 100, 20)?;
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.print();
+
+            // Add a new file to files/dir_10/
+            let new_file = repo.path.join("files/dir_10/new_file.txt");
+            util::fs::write_to_path(&new_file, "New file")?;
+            command::add(&repo, &new_file)?;
+
+            // Commit the data
+            let commit = super::commit(&repo, "Second commit")?;
+
+            // Read the merkle tree
+            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.print();
 
             Ok(())
         })
