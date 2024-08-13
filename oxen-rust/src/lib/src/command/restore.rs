@@ -368,7 +368,7 @@ mod tests {
             // Make sure is staged
             let status = command::status(&repo)?;
             assert_eq!(status.staged_files.len(), 1);
-            status.print_stdout();
+            status.print();
 
             // Remove from staged
             command::restore(&repo, RestoreOpts::from_staged_path(bbox_file))?;
@@ -459,7 +459,7 @@ mod tests {
             let status = command::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
             assert_eq!(status.staged_files.len(), 6);
-            status.print_stdout();
+            status.print();
 
             // Remove from staged
             command::restore(&repo, RestoreOpts::from_staged_path(relative_path))?;
@@ -481,7 +481,7 @@ mod tests {
             command::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             // Should add all the sub dirs
             // nlp/

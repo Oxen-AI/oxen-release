@@ -8,10 +8,11 @@ use tokio::time::Duration;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use crate::constants::{STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
+use crate::core::v0_19_0::structs::EntryMetaData;
 use crate::model::EntryDataType;
 use crate::util;
 use crate::{error::OxenError, model::LocalRepository};
@@ -29,23 +30,6 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
         self.total_bytes += other.total_bytes;
         for (data_type, count) in other.data_type_counts {
             *self.data_type_counts.entry(data_type).or_insert(0) += count;
-        }
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize, Clone)]
-pub struct EntryMetaData {
-    pub hash: u128,
-    pub num_bytes: u64,
-    pub data_type: EntryDataType,
-}
-
-impl Default for EntryMetaData {
-    fn default() -> Self {
-        EntryMetaData {
-            hash: 0,
-            num_bytes: 0,
-            data_type: EntryDataType::Binary,
         }
     }
 }
@@ -235,12 +219,13 @@ fn process_add_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: &Path,
 ) -> Result<EntryMetaData, OxenError> {
-    let path = util::fs::path_relative_to_dir(path, &repo_path).unwrap();
-    let entry = if path.is_file() {
+    let relative_path = util::fs::path_relative_to_dir(path, &repo_path).unwrap();
+    let full_path = repo_path.join(&relative_path);
+    let entry = if full_path.is_file() {
         // If we can't hash - nothing downstream will work, so panic!
-        let (hash, num_bytes) = util::hasher::get_hash_and_size(&path)
-            .unwrap_or_else(|_| panic!("Could not hash file: {:?}", path));
-        let data_type = util::fs::file_data_type(&path);
+        let (hash, num_bytes) = util::hasher::get_hash_and_size(&full_path)
+            .unwrap_or_else(|_| panic!("Could not hash file: {:?}", full_path));
+        let data_type = util::fs::file_data_type(&full_path);
         // println!("path {:?} hash {} num_bytes {} data_type {:?}", path, hash, num_bytes, data_type);
 
         // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
@@ -255,7 +240,7 @@ fn process_add_file(
         }
 
         let dst = dst_dir.join("data");
-        util::fs::copy(&path, &dst).unwrap();
+        util::fs::copy(&full_path, &dst).unwrap();
 
         EntryMetaData {
             hash,
@@ -269,10 +254,12 @@ fn process_add_file(
         }
     };
 
-    if path != Path::new("") {
+    if relative_path != Path::new("") {
         let mut buf = Vec::new();
         entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        staged_db.put(path.to_str().unwrap(), &buf).unwrap();
+        staged_db
+            .put(relative_path.to_str().unwrap(), &buf)
+            .unwrap();
     }
 
     Ok(entry)

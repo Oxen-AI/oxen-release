@@ -95,7 +95,7 @@ mod tests {
             let annotation_dir_path = repo.path.join("annotations");
             command::add(&repo, annotation_dir_path)?;
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_files.len(), 1);
             command::commit(&repo, "Changing one shot")?;
             let status = command::status(&repo)?;
@@ -199,7 +199,7 @@ mod tests {
             command::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             // Should add all the sub dirs
             // nlp/
@@ -238,7 +238,7 @@ mod tests {
             let annotation_dir_path = repo.path.join("annotations/*");
             command::add(&repo, annotation_dir_path)?;
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_files.len(), 1);
             command::commit(&repo, "Changing one shot")?;
             let status = command::status(&repo)?;
@@ -256,7 +256,7 @@ mod tests {
             command::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             // Should add all the sub dirs
             // nlp/
@@ -305,7 +305,7 @@ mod tests {
             command::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             // Should add all the sub dirs
             // nlp/

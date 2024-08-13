@@ -100,7 +100,7 @@ impl RunCmd for WorkspaceStatusCmd {
         let remote_repo = api::client::repositories::get_default_remote(&repository).await?;
         let repo_status =
             command::workspace::status(&remote_repo, workspace_id, &directory, &opts).await?;
-        repo_status.print_stdout_with_params(&opts);
+        repo_status.print_with_params(&opts);
 
         Ok(())
     }

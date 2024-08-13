@@ -125,7 +125,7 @@ mod tests {
             command::commit(&repo, "Adding training data")?;
 
             let repo_status = command::status(&repo)?;
-            repo_status.print_stdout();
+            repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 2);
@@ -147,7 +147,7 @@ mod tests {
             command::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
             let repo_status = command::status(&repo)?;
-            repo_status.print_stdout();
+            repo_status.print();
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);

@@ -128,7 +128,7 @@ mod tests {
             command::add(&repo, repo.path.join(Path::new("labels.txt")))?;
 
             let repo_status = command::status(&repo)?;
-            repo_status.print_stdout();
+            repo_status.print();
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 1);
@@ -157,7 +157,7 @@ mod tests {
 
             // Make sure that we now see the full annotations/train/ directory
             let repo_status = command::status(&repo)?;
-            repo_status.print_stdout();
+            repo_status.print();
 
             // annotations/
             assert_eq!(repo_status.staged_dirs.len(), 1);
@@ -279,14 +279,14 @@ mod tests {
             util::fs::remove_file(og_file)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.removed_files.len(), 1);
 
             let opts = RmOpts::from_path(&og_basename);
             command::rm(&repo, &opts).await?;
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), 1);
             assert_eq!(
@@ -308,14 +308,14 @@ mod tests {
             util::fs::remove_file(og_file)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.removed_files.len(), 1);
 
             let opts = RmOpts::from_path(&og_basename);
             command::rm(&repo, &opts).await?;
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), 1);
             assert_eq!(

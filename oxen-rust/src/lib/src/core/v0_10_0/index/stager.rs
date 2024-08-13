@@ -1689,7 +1689,7 @@ mod tests {
 
             // There should no longer be any added files
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_files.len(), 0);
             assert_eq!(status.staged_dirs.paths.len(), 0);
 
@@ -1797,7 +1797,7 @@ mod tests {
             // let status = command::status(&repo)?;
 
             // // print status
-            // status.print_stdout();
+            // status.print();
 
             // assert_eq!(status.staged_files.len(), 1);
 
@@ -1806,7 +1806,7 @@ mod tests {
             let status = command::status(&repo)?;
 
             // print status
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), 0);
             assert_eq!(status.untracked_files.len(), 0);
@@ -1855,7 +1855,7 @@ mod tests {
             stager.add_dir(&sub_dir, &entry_reader)?;
 
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_files.len(), 2);
 
             Ok(())
@@ -2058,7 +2058,7 @@ mod tests {
             // List files
             let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             let mod_files = status.modified_files;
             assert_eq!(mod_files.len(), 1);
             let relative_path = util::fs::path_relative_to_dir(hello_file, repo_path)?;
@@ -2153,7 +2153,7 @@ mod tests {
 
             // List dirs
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             let dirs = status.staged_dirs;
 
             // There is one directory
@@ -2186,7 +2186,7 @@ mod tests {
 
             // List modified
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             let files = status.modified_files;
 
             // There is one modified file
@@ -2215,14 +2215,14 @@ mod tests {
             let file_to_rm = repo_path.join("labels.txt");
 
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
 
             // Remove a committed file
             util::fs::remove_file(&file_to_rm)?;
 
             // List removed
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             let files = status.removed_files;
 
             // There is one removed file, and nothing else
@@ -2260,7 +2260,7 @@ mod tests {
 
             // List removed
             let status = stager.status(&entry_reader)?;
-            status.print_stdout();
+            status.print();
             let files = status.removed_files;
 
             // There is one removed file

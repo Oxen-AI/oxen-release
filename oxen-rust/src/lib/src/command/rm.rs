@@ -85,7 +85,7 @@ mod tests {
 
             // Make sure we staged these removals
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(num_files, status.staged_files.len());
             for (_path, entry) in status.staged_files.iter() {
                 assert_eq!(entry.status, StagedEntryStatus::Removed);
@@ -99,7 +99,7 @@ mod tests {
 
             // This should have removed all the staged files, but not restored from disk yet.
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(0, status.staged_files.len());
             assert_eq!(num_files, status.removed_files.len());
 
@@ -108,7 +108,7 @@ mod tests {
             command::restore(&repo, opts)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             let num_restored = util::fs::rcount_files_in_dir(&full_path);
             assert_eq!(num_restored, num_files);
@@ -257,7 +257,7 @@ mod tests {
             command::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             // Should add all the sub dirs
             // nlp/

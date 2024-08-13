@@ -219,7 +219,7 @@ mod tests {
             command::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
@@ -244,7 +244,7 @@ mod tests {
             command::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
@@ -256,7 +256,7 @@ mod tests {
             rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_dirs.len(), 0);
             assert_eq!(status.staged_files.len(), 0);
 
@@ -285,7 +285,7 @@ mod tests {
             assert!(result.is_ok());
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.staged_dirs.len(), 0);
             assert_eq!(status.staged_files.len(), 0);
 
@@ -304,7 +304,7 @@ mod tests {
             rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), 1);
             assert_eq!(
@@ -388,7 +388,7 @@ mod tests {
 
             // There should be one modified file
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
             assert_eq!(status.modified_files.len(), 1);
 
             let result = rm::rm(&repo, &opts).await;
@@ -416,7 +416,7 @@ mod tests {
             rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), og_num_files);
             for (_, staged_entry) in status.staged_files.iter() {
@@ -452,7 +452,7 @@ mod tests {
             rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), og_num_files);
             for (_, staged_entry) in status.staged_files.iter() {
@@ -480,7 +480,7 @@ mod tests {
             rm::rm(&repo, &opts).await?;
 
             let status = command::status(&repo)?;
-            status.print_stdout();
+            status.print();
 
             assert_eq!(status.staged_files.len(), og_num_files);
             for (_, staged_entry) in status.staged_files.iter() {
