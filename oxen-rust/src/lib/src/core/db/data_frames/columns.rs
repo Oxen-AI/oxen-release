@@ -65,7 +65,7 @@ pub fn record_column_change(
     new_data_type: Option<String>,
 ) -> Result<(), OxenError> {
     let change = DataFrameColumnChange {
-        column_name,
+        column_name: column_name.to_owned(),
         column_data_type,
         operation,
         new_name,
@@ -75,10 +75,20 @@ pub fn record_column_change(
     let opts = db::key_val::opts::default();
     let db = DB::open(&opts, dunce::simplified(column_changes_path))?;
 
+    let _ = maybe_revert_column_changes(&db, column_name.to_owned());
+
     data_frame_column_changes_db::write_data_frame_column_change(&change, &db)
 }
 
-pub fn revert_column_changes(db: DB, column_name: String) -> Result<(), OxenError> {
+pub fn maybe_revert_column_changes(db: &DB, column_name: String) -> Result<(), OxenError> {
+    match data_frame_column_changes_db::get_data_frame_column_change(db, &column_name) {
+        Ok(None) => revert_column_changes(db, column_name),
+        Ok(Some(_)) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+pub fn revert_column_changes(db: &DB, column_name: String) -> Result<(), OxenError> {
     data_frame_column_changes_db::delete_data_frame_column_changes(&db, &column_name)
 }
 
