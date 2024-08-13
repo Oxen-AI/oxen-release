@@ -1300,7 +1300,10 @@ pub fn is_any_parent_in_set(file_path: &Path, path_set: &HashSet<PathBuf>) -> bo
 pub fn open_file(path: impl AsRef<Path>) -> Result<File, OxenError> {
     match File::open(path.as_ref()) {
         Ok(file) => Ok(file),
-        Err(err) => Err(OxenError::basic_str(format!("Failed to open file: {:?}", err))),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "Failed to open file: {:?}",
+            err
+        ))),
     }
 }
 

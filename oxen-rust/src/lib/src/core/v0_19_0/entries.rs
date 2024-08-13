@@ -30,9 +30,9 @@ pub fn list_directory(
     let commit = repositories::revisions::get(repo, revision)?
         .ok_or(OxenError::revision_not_found(revision.into()))?;
 
-    let tree = CommitMerkleTree::read_root(repo, &commit)?;
-    let entries = CommitMerkleTree::dir_entries(repo, &tree, directory)?;
-    let dir = CommitMerkleTree::dir(repo, &tree, directory)?
+    let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+    let entries = CommitMerkleTree::dir_entries(repo, &tree.root, directory)?;
+    let dir = CommitMerkleTree::dir(repo, &tree.root, directory)?
         .ok_or(OxenError::resource_not_found(directory.to_str().unwrap()))?;
 
     let total_pages = 1;

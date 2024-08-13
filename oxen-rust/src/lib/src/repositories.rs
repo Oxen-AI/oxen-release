@@ -5,10 +5,12 @@
 
 use crate::command;
 use crate::constants;
+use crate::core;
 use crate::core::v0_10_0::cache::commit_cacher;
 use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::core::v0_10_0::index::Stager;
 use crate::core::v0_10_0::index::{CommitEntryReader, CommitWriter, RefWriter};
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::CommitEntry;
@@ -16,6 +18,7 @@ use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::NewCommit;
 use crate::model::RepoStats;
+use crate::model::StagedData;
 use crate::model::{CommitStats, LocalRepository, RepoNew};
 use crate::util;
 use fd_lock::RwLock;
@@ -32,6 +35,23 @@ pub mod entries;
 pub mod metadata;
 pub mod revisions;
 pub mod schemas;
+
+pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status(repo),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status(repo),
+    }
+}
+
+pub fn status_from_dir(
+    repo: &LocalRepository,
+    dir: impl AsRef<Path>,
+) -> Result<StagedData, OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status_from_dir(repo, dir),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_dir(repo, dir),
+    }
+}
 
 pub fn get_by_namespace_and_name(
     sync_dir: &Path,

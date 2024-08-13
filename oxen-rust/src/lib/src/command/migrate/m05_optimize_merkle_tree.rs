@@ -346,12 +346,14 @@ fn migrate_dir(
         bucket_hashes[i] = hasher.digest128();
     }
 
-
     // Add all vnodes as children of the dir
     let mut vnode_nodes: Vec<VNode> = Vec::new();
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         println!("Bucket [{}] for {:x}", i, bhash);
-        let node = VNode { id: *bhash, ..Default::default() };
+        let node = VNode {
+            id: *bhash,
+            ..Default::default()
+        };
         dir_db.add_child(&node)?;
         vnode_nodes.push(node);
     }
@@ -372,7 +374,7 @@ fn migrate_dir(
             };
 
             // if j % 1000 == 0 {
-                log::debug!("writing child {} {:?} {}", j, dtype, path.display());
+            log::debug!("writing child {} {:?} {}", j, dtype, path.display());
             // }
 
             let child_hash = u128::from_str_radix(hash, 16).expect("Failed to parse hex string");

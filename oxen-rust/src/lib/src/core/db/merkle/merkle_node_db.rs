@@ -61,12 +61,12 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::constants;
+use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNode;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeType;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::util;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNode;
 
 fn node_db_path(repo: &LocalRepository, hash: u128) -> PathBuf {
     let hash_str = format!("{hash:x}");
@@ -74,8 +74,7 @@ fn node_db_path(repo: &LocalRepository, hash: u128) -> PathBuf {
     let dir_prefix = hash_str.chars().take(dir_prefix_len).collect::<String>();
     let dir_suffix = hash_str.chars().skip(dir_prefix_len).collect::<String>();
 
-    repo
-        .path
+    repo.path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
         .join(constants::NODES_DIR)
@@ -105,7 +104,10 @@ impl MerkleNodeLookup {
         // Read the whole node into memory
         let mut file_data = Vec::new();
         node_table_file.read_to_end(&mut file_data)?;
-        log::debug!("MerkleNodeLookup.load() read file_data: {}", file_data.len());
+        log::debug!(
+            "MerkleNodeLookup.load() read file_data: {}",
+            file_data.len()
+        );
 
         // Create a cursor to iterate over data
         let mut cursor = std::io::Cursor::new(file_data);
@@ -368,7 +370,11 @@ impl MerkleNodeDB {
 
         // Find the offset and length of the data
         let Some(offset) = lookup.offsets.get(&hash) else {
-            let err_str = format!("Cannot find hash in merkle node db: {:x} in {} offsets", hash, lookup.offsets.len());
+            let err_str = format!(
+                "Cannot find hash in merkle node db: {:x} in {} offsets",
+                hash,
+                lookup.offsets.len()
+            );
             return Err(OxenError::basic_str(err_str));
         };
 

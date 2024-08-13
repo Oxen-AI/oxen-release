@@ -28,7 +28,11 @@ impl RefWriter {
     }
 
     pub fn set_head(&self, name: &str) {
-        log::debug!("RefWriter::set_head() name: {} head_file: {}", name, self.head_file.display());
+        log::debug!(
+            "RefWriter::set_head() name: {} head_file: {}",
+            name,
+            self.head_file.display()
+        );
         util::fs::write_to_path(&self.head_file, name).expect("Could not write to head");
     }
 

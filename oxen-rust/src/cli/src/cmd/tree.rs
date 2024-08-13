@@ -108,7 +108,7 @@ impl TreeCmd {
     fn print_node(&self, repo: &LocalRepository, node: &str, depth: i32) -> Result<(), OxenError> {
         let node_hash = u128::from_str_radix(&node, 16).unwrap();
         let tree = CommitMerkleTree::read_node(repo, node_hash, true)?;
-        CommitMerkleTree::print_depth(&tree, depth);
+        CommitMerkleTree::print_node_depth(&tree, depth);
 
         Ok(())
     }
@@ -122,9 +122,9 @@ impl TreeCmd {
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
         let tree = if let Some(path) = path {
-            CommitMerkleTree::read_path(repo, commit, path)?
+            CommitMerkleTree::from_path(repo, commit, path)?
         } else {
-            CommitMerkleTree::read_root(repo, commit)?
+            CommitMerkleTree::from_commit(repo, commit)?
         };
         let load_duration = load_start.elapsed(); // Calculate duration
 
@@ -161,8 +161,7 @@ impl TreeCmd {
         */
 
         let print_start = Instant::now(); // Start timing
-
-        CommitMerkleTree::print_depth(&tree, depth);
+        tree.print_depth(depth);
         let print_duration = print_start.elapsed(); // Calculate duration
         println!("Time to load tree: {:?}", load_duration);
         println!("Time to print tree: {:?}", print_duration);
