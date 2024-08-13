@@ -29,7 +29,6 @@ pub fn add(
     let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
     log::debug!("add_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
-
     let result = columns::add_column(&conn, new_column)?;
 
     columns::record_column_change(
@@ -132,7 +131,7 @@ pub fn restore(
                     name: change.column_name.clone(),
                 };
                 let result = columns::delete_column(&conn, &column_to_delete)?;
-                columns::revert_column_changes(db, change.column_name.clone())?;
+                columns::revert_column_changes(&db, change.column_name.clone())?;
                 workspaces::stager::add(workspace, file_path)?;
                 Ok(result)
             }
@@ -146,7 +145,7 @@ pub fn restore(
                         .expect("Column data type is required but was None"),
                 };
                 let result = columns::add_column(&conn, &new_column)?;
-                columns::revert_column_changes(db, change.column_name.clone())?;
+                columns::revert_column_changes(&db, change.column_name.clone())?;
                 workspaces::stager::add(workspace, file_path)?;
                 Ok(result)
             }
@@ -168,7 +167,7 @@ pub fn restore(
                 };
                 let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
                 let result = columns::update_column(&conn, &column_to_update, &table_schema)?;
-                columns::revert_column_changes(db, change.column_name.clone())?;
+                columns::revert_column_changes(&db, change.column_name.clone())?;
                 workspaces::stager::add(workspace, file_path)?;
                 Ok(result)
             }
