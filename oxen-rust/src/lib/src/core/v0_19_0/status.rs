@@ -87,6 +87,7 @@ pub fn read_staged_entries(
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
                 let entry: EntryMetaData = rmp_serde::from_slice(&value).unwrap();
+                log::info!("read_staged_entries key {} entry: {:?}", key, entry);
                 let entry_w_path = EntryMetaDataWithPath {
                     path: path.to_path_buf(),
                     hash: entry.hash,

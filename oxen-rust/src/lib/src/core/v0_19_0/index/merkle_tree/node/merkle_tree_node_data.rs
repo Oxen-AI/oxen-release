@@ -108,7 +108,9 @@ impl MerkleTreeNodeData {
             for child in &self.children {
                 if child.dtype == MerkleTreeNodeType::Dir {
                     let dir_node = child.dir()?;
-                    if let Some(node) = child.get_by_path_helper(&traversed_path.join(dir_node.name), path)? {
+                    if let Some(node) =
+                        child.get_by_path_helper(&traversed_path.join(dir_node.name), path)?
+                    {
                         return Ok(Some(node));
                     }
                 } else {

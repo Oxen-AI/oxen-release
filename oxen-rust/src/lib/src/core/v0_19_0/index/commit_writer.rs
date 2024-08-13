@@ -175,6 +175,9 @@ fn split_into_vnodes(
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
             vnode_hasher.update(b"vnode");
+            // make sure to hash the directory name so that it will be unique
+            // even if the entries are the same (for example two empty directories at different levels)
+            vnode_hasher.update(directory.to_str().unwrap().as_bytes());
             for entry in vnode.entries.iter() {
                 vnode_hasher.update(&entry.hash.to_le_bytes());
             }
@@ -548,6 +551,35 @@ mod tests {
 
             // Check that files/dir_0/file0.txt is in the merkle tree
             let has_file0 = tree.has_file(&Path::new("files/dir_0/file0.txt"))?;
+            assert!(has_file0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_single_file_deep_in_dir() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+
+            // Add a new file to files/dir_0/
+            let new_file = repo.path.join("files/dir_0/new_file.txt");
+            util::fs::create_dir_all(&new_file.parent().unwrap())?;
+            util::fs::write_to_path(&new_file, "New file")?;
+            command::add(&repo, &new_file)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.print();
+
+            let has_file0 = tree.has_file(&Path::new("files/dir_0/new_file.txt"))?;
             assert!(has_file0);
 
             Ok(())
