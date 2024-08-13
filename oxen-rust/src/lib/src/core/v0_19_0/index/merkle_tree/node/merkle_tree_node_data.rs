@@ -83,17 +83,20 @@ impl MerkleTreeNodeData {
         traversed_path: &Path,
         path: &Path,
     ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
-        let mut traversed_path = traversed_path.to_path_buf();
-        log::debug!(
-            "get_by_path_helper [{:?}] {:?} {:?}",
-            self.dtype,
-            traversed_path,
-            path
-        );
+        if traversed_path.components().count() > path.components().count() {
+            return Ok(None);
+        }
+
         if self.dtype == MerkleTreeNodeType::File {
             let file_node = self.file()?;
-            traversed_path.push(file_node.name);
-            if traversed_path == path {
+            let file_path = traversed_path.join(file_node.name);
+            log::debug!(
+                "get_by_path_helper [{:?}] {:?} {:?}",
+                self.dtype,
+                file_path,
+                path
+            );
+            if file_path == path {
                 return Ok(Some(self.clone()));
             }
         }
@@ -105,11 +108,13 @@ impl MerkleTreeNodeData {
             for child in &self.children {
                 if child.dtype == MerkleTreeNodeType::Dir {
                     let dir_node = child.dir()?;
-                    traversed_path.push(dir_node.name);
-                }
-
-                if let Some(node) = child.get_by_path_helper(&traversed_path, path)? {
-                    return Ok(Some(node));
+                    if let Some(node) = child.get_by_path_helper(&traversed_path.join(dir_node.name), path)? {
+                        return Ok(Some(node));
+                    }
+                } else {
+                    if let Some(node) = child.get_by_path_helper(&traversed_path, path)? {
+                        return Ok(Some(node));
+                    }
                 }
             }
         }
