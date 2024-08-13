@@ -210,29 +210,6 @@ fn add_file(repo: &LocalRepository, path: &Path) -> Result<EntryMetaData, OxenEr
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    // Add all the parent dirs to the staged db
-    let mut parent_path = path.to_path_buf();
-    while let Some(parent) = parent_path.parent() {
-        let relative_path = util::fs::path_relative_to_dir(&parent_path, &repo_path).unwrap();
-
-        if relative_path == Path::new("") {
-            break;
-        }
-
-        let entry = EntryMetaData {
-            data_type: EntryDataType::Dir,
-            ..Default::default()
-        };
-
-        let mut buf = Vec::new();
-        entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        staged_db
-            .put(relative_path.to_str().unwrap(), &buf)
-            .unwrap();
-
-        parent_path = parent.to_path_buf();
-    }
-
     process_add_file(&repo_path, &versions_path, &staged_db, path)
 }
 
@@ -277,25 +254,35 @@ fn process_add_file(
             .put(relative_path.to_str().unwrap(), &buf)
             .unwrap();
 
+        // Add all the parent dirs to the staged db
+        let mut parent_path = relative_path.to_path_buf();
+        while let Some(parent) = parent_path.parent() {
+            let relative_path = util::fs::path_relative_to_dir(&parent, &repo_path).unwrap();
+
+            if relative_path == Path::new("") {
+                break;
+            }
+
+            let dir_entry = EntryMetaData {
+                data_type: EntryDataType::Dir,
+                ..Default::default()
+            };
+
+            let mut buf = Vec::new();
+            dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+            staged_db
+                .put(relative_path.to_str().unwrap(), &buf)
+                .unwrap();
+
+            parent_path = parent.to_path_buf();
+        }
+
         entry
     } else {
         let entry = EntryMetaData {
             data_type: EntryDataType::Dir,
             ..Default::default()
         };
-
-        let mut path = path.to_path_buf();
-        while let Some(parent) = path.parent() {
-            if parent == Path::new("") {
-                break;
-            }
-
-            let mut buf = Vec::new();
-            entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-            staged_db.put(parent.to_str().unwrap(), &buf).unwrap();
-
-            path = parent.to_path_buf();
-        }
 
         entry
     };
