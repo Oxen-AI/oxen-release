@@ -13,6 +13,7 @@ pub struct MerkleTreeNodeData {
     pub hash: u128,
     pub dtype: MerkleTreeNodeType,
     pub data: Vec<u8>,
+    pub parent_id: Option<u128>,
     pub children: HashSet<MerkleTreeNodeData>,
 }
 
@@ -36,6 +37,7 @@ impl MerkleTreeNodeData {
             hash,
             dtype: MerkleTreeNodeType::Commit,
             data: node_db.data(),
+            parent_id: None,
             children: HashSet::new(),
         })
     }
@@ -46,6 +48,7 @@ impl MerkleTreeNodeData {
             hash,
             dtype: MerkleTreeNodeType::File, // Dummy value
             data: Vec::new(),                // Dummy value
+            parent_id: None,
             children: HashSet::new(),        // Dummy value
         };
         self.children.get(&lookup_node)
@@ -124,33 +127,68 @@ impl MerkleTreeNodeData {
         Ok(None)
     }
 
+    pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<u128, OxenError> {
+        match dtype {
+            MerkleTreeNodeType::Commit => Self::deserialize_commit(data).map(|commit| commit.id),
+            MerkleTreeNodeType::VNode => Self::deserialize_vnode(data).map(|vnode| vnode.id),
+            MerkleTreeNodeType::Dir => Self::deserialize_dir(data).map(|dir| dir.hash),
+            MerkleTreeNodeType::File => Self::deserialize_file(data).map(|file| file.hash),
+            MerkleTreeNodeType::FileChunk => Self::deserialize_file_chunk(data).map(|file_chunk| file_chunk.id),
+            MerkleTreeNodeType::Schema => Self::deserialize_schema(data).map(|schema| schema.hash),
+        }
+    }
+
     pub fn commit(&self) -> Result<CommitNode, OxenError> {
-        rmp_serde::from_slice(&self.data)
+        Self::deserialize_commit(&self.data)
+    }
+
+    fn deserialize_commit(data: &[u8]) -> Result<CommitNode, OxenError> {
+        rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing commit: {e}")))
     }
 
     pub fn vnode(&self) -> Result<VNode, OxenError> {
-        rmp_serde::from_slice(&self.data)
+        Self::deserialize_vnode(&self.data)
+    }
+
+    fn deserialize_vnode(data: &[u8]) -> Result<VNode, OxenError> {
+        rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing vnode: {e}")))
     }
 
     pub fn dir(&self) -> Result<DirNode, OxenError> {
-        rmp_serde::from_slice(&self.data)
+        Self::deserialize_dir(&self.data)
+    }
+
+    fn deserialize_dir(data: &[u8]) -> Result<DirNode, OxenError> {
+        rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing dir node: {e}")))
     }
 
     pub fn file(&self) -> Result<FileNode, OxenError> {
-        rmp_serde::from_slice(&self.data)
+        Self::deserialize_file(&self.data)
+    }
+
+    fn deserialize_file(data: &[u8]) -> Result<FileNode, OxenError> {
+        rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing file node: {e}")))
     }
 
     pub fn file_chunk(&self) -> Result<FileChunkNode, OxenError> {
-        rmp_serde::from_slice(&self.data)
+        Self::deserialize_file_chunk(&self.data)
+    }
+
+    fn deserialize_file_chunk(data: &[u8]) -> Result<FileChunkNode, OxenError> {
+        rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing file chunk node: {e}")))
     }
 
     pub fn schema(&self) -> Result<SchemaNode, OxenError> {
-        rmp_serde::from_slice(&self.data)
+        Self::deserialize_schema(&self.data)
+    }
+
+    fn deserialize_schema(data: &[u8]) -> Result<SchemaNode, OxenError> {
+        rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing schema node: {e}")))
     }
 }

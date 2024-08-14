@@ -85,8 +85,9 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     }
 
     // TODO: Second commit
-    //       - Check which files have been updated/added/deleted
+    //       - Find the vnodes we need to copy/modify
     //       - Write new vnodes for updated/added/deleted files
+    // Right now it is just making a new commit with the staged files, not connecting them to the merkle tree
 
     // Sort children and split into VNodes
     let vnode_entries = split_into_vnodes(&dir_entries)?;
