@@ -91,6 +91,7 @@ pub fn open_read_only(repo: &LocalRepository, hash: u128) -> Result<MerkleNodeDB
 }
 
 pub struct MerkleNodeLookup {
+    pub data_type: u8,
     pub data: Vec<u8>,
     pub num_children: u64,
     // hash -> (dtype, offset, length)
@@ -110,6 +111,12 @@ impl MerkleNodeLookup {
 
         // Create a cursor to iterate over data
         let mut cursor = std::io::Cursor::new(file_data);
+
+        // Read the data type
+        let mut buffer = [0u8; 1]; // u8 is 1 byte
+        cursor.read_exact(&mut buffer)?;
+        let node_data_type = u8::from_le_bytes(buffer);
+        // log::debug!("MerkleNodeLookup.load() data_type: {}", data_type);
 
         // Read the length of the node data
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
@@ -163,6 +170,7 @@ impl MerkleNodeLookup {
         let num_children = offsets.len() as u64;
         // log::debug!("MerkleNodeLookup.load() num_children {}", num_children);
         Ok(Self {
+            data_type: node_data_type,
             data,
             num_children,
             offsets,
@@ -301,6 +309,9 @@ impl MerkleNodeDB {
         };
         log::debug!("write_node node: {}", node);
 
+        // Write data type
+        node_file.write_all(&node.dtype().to_u8().to_le_bytes())?;
+
         // Write data length
         let mut buf = Vec::new();
         node.serialize(&mut Serializer::new(&mut buf)).unwrap();
@@ -343,7 +354,7 @@ impl MerkleNodeDB {
         log::debug!("--add_child-- item {}", item);
 
         node_file.write_all(&item.dtype().to_u8().to_le_bytes())?;
-        node_file.write_all(&item.id().to_le_bytes())?;
+        node_file.write_all(&item.id().to_le_bytes())?; // id of child
         node_file.write_all(&self.data_offset.to_le_bytes())?;
         node_file.write_all(&data_len.to_le_bytes())?;
 
@@ -401,6 +412,10 @@ impl MerkleNodeDB {
             return Err(OxenError::basic_str("Must call open before writing"));
         };
 
+        // Parse the node parent id
+        let data_type = MerkleTreeNodeType::from_u8(lookup.data_type);
+        let parent_id = MerkleTreeNodeData::deserialize_id(&lookup.data, data_type)?;
+
         let mut file_data = Vec::new();
         children_file.read_to_end(&mut file_data)?;
         // log::debug!("Loading merkle node db map got {} bytes", file_data.len());
@@ -419,6 +434,7 @@ impl MerkleNodeDB {
             cursor.read_exact(&mut data)?;
             let dtype = MerkleTreeNodeType::from_u8(*dtype);
             let node = MerkleTreeNodeData {
+                parent_id: Some(parent_id),
                 hash: *hash,
                 dtype,
                 data,
