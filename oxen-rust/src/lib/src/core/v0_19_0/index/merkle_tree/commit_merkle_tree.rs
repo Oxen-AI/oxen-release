@@ -484,11 +484,10 @@ impl CommitMerkleTree {
             MerkleTreeNodeType::VNode => {
                 let vnode = node.vnode().unwrap();
                 println!(
-                    "{}[{:?}] {:x} parent {:x} ({})",
+                    "{}[{:?}] {:x} ({} children)",
                     "  ".repeat(indent as usize),
                     node.dtype,
                     vnode.id,
-                    node.parent_id.unwrap(),
                     node.children.len()
                 )
             }
