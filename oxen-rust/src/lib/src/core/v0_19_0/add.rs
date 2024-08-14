@@ -18,10 +18,21 @@ use crate::util;
 use crate::{error::OxenError, model::LocalRepository};
 use std::ops::AddAssign;
 
+#[derive(Clone, Debug)]
 pub struct CumulativeStats {
     total_files: usize,
     total_bytes: u64,
     data_type_counts: HashMap<EntryDataType, usize>,
+}
+
+impl Default for CumulativeStats {
+    fn default() -> Self {
+        CumulativeStats {
+            total_files: 0,
+            total_bytes: 0,
+            data_type_counts: HashMap::new(),
+        }
+    }
 }
 
 impl AddAssign<CumulativeStats> for CumulativeStats {
@@ -62,8 +73,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
     log::debug!("---END--- oxen add: {:?} duration: {:?}", path, duration);
 
     println!(
-        "🐂 oxen add {:?} added {} files ({}) in {:?}",
-        path,
+        "🐂 oxen added {} files ({}) in {:?}",
         stats.total_files,
         bytesize::ByteSize::b(stats.total_bytes),
         duration
@@ -122,9 +132,9 @@ fn process_dir(
     let progress_1 = m.add(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
-    let progress_2 = m.add(ProgressBar::new_spinner());
-    progress_2.set_style(ProgressStyle::default_spinner());
-    progress_2.enable_steady_tick(Duration::from_millis(100));
+    // let progress_2 = m.add(ProgressBar::new_spinner());
+    // progress_2.set_style(ProgressStyle::default_spinner());
+    // progress_2.enable_steady_tick(Duration::from_millis(100));
 
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
@@ -133,9 +143,14 @@ fn process_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+    let byte_counter = Arc::new(AtomicU64::new(0));
+    let file_counter = Arc::new(AtomicU64::new(0));
+
     let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path)
         .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()))
-        .process_read_dir(move |_depth, path, read_dir_state, children| {
+        .process_read_dir(move |_depth, dir, _state, children| {
             // 1. Custom sort
             // children.sort_by(|a, b| match (a, b) {
             //     (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
@@ -161,13 +176,27 @@ fn process_dir(
             //     }
             // });
             // 4. Custom state
-            *read_dir_state += 1;
-            progress_1.set_message(format!("Processing dir [{:?}]", path));
+            let byte_counter_clone = Arc::clone(&byte_counter);
+            let file_counter_clone = Arc::clone(&file_counter);
+
+            let num_children = children.len();
+            progress_1.set_message(format!(
+                "Processing dir [{:?}] with {} entries",
+                dir, num_children
+            ));
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let path = dir_entry.path();
+                    progress_1.set_message(format!(
+                        "🐂 Added {} files ({})",
+                        file_counter_clone.load(Ordering::Relaxed),
+                        bytesize::ByteSize::b(byte_counter_clone.load(Ordering::Relaxed)),
+                    ));
                     match process_add_file(&repo_path, &versions_path, &staged_db, &path) {
                         Ok(entry) => {
+                            byte_counter_clone.fetch_add(entry.num_bytes, Ordering::Relaxed);
+                            file_counter_clone.fetch_add(1, Ordering::Relaxed);
+
                             dir_entry.client_state = entry;
                         }
                         Err(e) => {
@@ -190,11 +219,11 @@ fn process_dir(
             .entry(dir_entry.client_state.data_type)
             .and_modify(|count| *count += 1)
             .or_insert(1);
-        progress_2.set_message(format!(
-            "🐂 Added {} files {}",
-            cumulative_stats.total_files,
-            bytesize::ByteSize::b(cumulative_stats.total_bytes)
-        ));
+        // progress_2.set_message(format!(
+        //     "🐂 Added {} files {}",
+        //     cumulative_stats.total_files,
+        //     bytesize::ByteSize::b(cumulative_stats.total_bytes)
+        // ));
 
         cumulative_stats.total_files += 1;
     }
