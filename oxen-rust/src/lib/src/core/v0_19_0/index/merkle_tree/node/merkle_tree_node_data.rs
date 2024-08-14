@@ -1,7 +1,8 @@
-use std::collections::HashSet;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
+
+use std::path::PathBuf;
 
 use super::*;
 use crate::core::db::merkle::merkle_node_db;
@@ -14,7 +15,7 @@ pub struct MerkleTreeNodeData {
     pub dtype: MerkleTreeNodeType,
     pub data: Vec<u8>,
     pub parent_id: Option<u128>,
-    pub children: HashSet<MerkleTreeNodeData>,
+    pub children: Vec<MerkleTreeNodeData>,
 }
 
 impl fmt::Display for MerkleTreeNodeData {
@@ -38,20 +39,8 @@ impl MerkleTreeNodeData {
             dtype: MerkleTreeNodeType::Commit,
             data: node_db.data(),
             parent_id: None,
-            children: HashSet::new(),
+            children: Vec::new(),
         })
-    }
-
-    /// Constant time lookup by hash
-    pub fn get_by_hash(&self, hash: u128) -> Option<&MerkleTreeNodeData> {
-        let lookup_node = MerkleTreeNodeData {
-            hash,
-            dtype: MerkleTreeNodeType::File, // Dummy value
-            data: Vec::new(),                // Dummy value
-            parent_id: None,
-            children: HashSet::new(),        // Dummy value
-        };
-        self.children.get(&lookup_node)
     }
 
     /// Check if the node is a leaf node (i.e. it has no children)
@@ -69,6 +58,33 @@ impl MerkleTreeNodeData {
             count += child.total_vnodes();
         }
         count
+    }
+
+    pub fn list_dir_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
+        let mut dirs = Vec::new();
+        let current_path = Path::new("");
+        self.list_dir_paths_helper(&current_path, &mut dirs)?;
+        Ok(dirs)
+    }
+
+    fn list_dir_paths_helper(
+        &self,
+        current_path: &Path,
+        dirs: &mut Vec<PathBuf>,
+    ) -> Result<(), OxenError> {
+        if self.dtype == MerkleTreeNodeType::Dir {
+            dirs.push(current_path.to_path_buf());
+        }
+        for child in &self.children {
+            if child.dtype == MerkleTreeNodeType::Dir {
+                let dir_node = child.dir()?;
+                let new_path = current_path.join(dir_node.name);
+                child.list_dir_paths_helper(&new_path, dirs)?;
+            } else {
+                child.list_dir_paths_helper(current_path, dirs)?;
+            }
+        }
+        Ok(())
     }
 
     /// Search for a file node by path
@@ -93,13 +109,25 @@ impl MerkleTreeNodeData {
         if self.dtype == MerkleTreeNodeType::File {
             let file_node = self.file()?;
             let file_path = traversed_path.join(file_node.name);
-            log::debug!(
-                "get_by_path_helper [{:?}] {:?} {:?}",
-                self.dtype,
-                file_path,
-                path
-            );
+            // log::debug!(
+            //     "get_by_path_helper [{:?}] {:?} {:?}",
+            //     self.dtype,
+            //     file_path,
+            //     path
+            // );
             if file_path == path {
+                return Ok(Some(self.clone()));
+            }
+        }
+
+        if self.dtype == MerkleTreeNodeType::Dir {
+            // log::debug!(
+            //     "get_by_path_helper [{:?}] {:?} {:?}",
+            //     self.dtype,
+            //     traversed_path,
+            //     path
+            // );
+            if traversed_path == path {
                 return Ok(Some(self.clone()));
             }
         }
@@ -133,7 +161,9 @@ impl MerkleTreeNodeData {
             MerkleTreeNodeType::VNode => Self::deserialize_vnode(data).map(|vnode| vnode.id),
             MerkleTreeNodeType::Dir => Self::deserialize_dir(data).map(|dir| dir.hash),
             MerkleTreeNodeType::File => Self::deserialize_file(data).map(|file| file.hash),
-            MerkleTreeNodeType::FileChunk => Self::deserialize_file_chunk(data).map(|file_chunk| file_chunk.id),
+            MerkleTreeNodeType::FileChunk => {
+                Self::deserialize_file_chunk(data).map(|file_chunk| file_chunk.id)
+            }
             MerkleTreeNodeType::Schema => Self::deserialize_schema(data).map(|schema| schema.hash),
         }
     }

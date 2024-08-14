@@ -20,7 +20,13 @@ pub use merkle_tree_node_type::MerkleTreeNodeType;
 pub use schema_node::SchemaNode;
 pub use vnode::VNode;
 
-pub trait MerkleTreeNode {
+use serde::Serialize;
+use std::fmt::Debug;
+use std::fmt::Display;
+
+pub trait MerkleTreeNodeIdType {
     fn dtype(&self) -> MerkleTreeNodeType;
     fn id(&self) -> u128;
 }
+
+pub trait MerkleTreeNode: MerkleTreeNodeIdType + Serialize + Debug + Display {}

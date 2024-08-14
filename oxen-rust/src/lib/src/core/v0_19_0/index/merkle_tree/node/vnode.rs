@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
 
-use super::{MerkleTreeNode, MerkleTreeNodeType};
+use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct VNode {
@@ -23,7 +23,7 @@ impl Default for VNode {
     }
 }
 
-impl MerkleTreeNode for VNode {
+impl MerkleTreeNodeIdType for VNode {
     fn dtype(&self) -> MerkleTreeNodeType {
         self.dtype
     }
@@ -38,3 +38,5 @@ impl Display for VNode {
         write!(f, "VNode({:x})", self.id)
     }
 }
+
+impl MerkleTreeNode for VNode {}

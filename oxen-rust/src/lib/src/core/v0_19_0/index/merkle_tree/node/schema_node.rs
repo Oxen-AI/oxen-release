@@ -2,7 +2,7 @@
 //! that is stored in on disk
 //!
 
-use super::{MerkleTreeNode, MerkleTreeNodeType};
+use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
@@ -31,7 +31,7 @@ impl Default for SchemaNode {
     }
 }
 
-impl MerkleTreeNode for SchemaNode {
+impl MerkleTreeNodeIdType for SchemaNode {
     fn dtype(&self) -> MerkleTreeNodeType {
         self.dtype
     }
@@ -40,6 +40,8 @@ impl MerkleTreeNode for SchemaNode {
         self.hash
     }
 }
+
+impl MerkleTreeNode for SchemaNode {}
 
 impl Display for SchemaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
