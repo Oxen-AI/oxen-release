@@ -343,7 +343,7 @@ fn get_children(
     let mut children = vec![];
 
     for (path, _) in entries.iter() {
-        if path.starts_with(&dir_path) {
+        if path.starts_with(&dir_path) && *path != dir_path {
             children.push(path.clone());
         }
     }
@@ -551,6 +551,35 @@ mod tests {
 
             // Check that files/dir_0/file0.txt is in the merkle tree
             let has_file0 = tree.has_file(&Path::new("files/dir_0/file0.txt"))?;
+            assert!(has_file0);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_only_dirs_at_top_level() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+
+            // Add a new file to files/dir_0/
+            let new_file = repo.path.join("all_files/dir_0/new_file.txt");
+            util::fs::create_dir_all(&new_file.parent().unwrap())?;
+            util::fs::write_to_path(&new_file, "New file")?;
+            command::add(&repo, &repo.path)?;
+
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.print();
+
+            let has_file0 = tree.has_file(&Path::new("all_files/dir_0/new_file.txt"))?;
             assert!(has_file0);
 
             Ok(())
