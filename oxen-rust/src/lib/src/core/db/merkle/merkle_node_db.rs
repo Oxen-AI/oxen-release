@@ -49,7 +49,6 @@ For example, data for a vnode of hash 1234 with two children:
 use rmp_serde::Serializer;
 use serde::{de, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fs::File;
@@ -95,7 +94,7 @@ pub struct MerkleNodeLookup {
     pub data: Vec<u8>,
     pub num_children: u64,
     // hash -> (dtype, offset, length)
-    pub offsets: HashMap<u128, (u8, u64, u64)>,
+    pub offsets: Vec<(u128, (u8, u64, u64))>,
 }
 
 impl MerkleNodeLookup {
@@ -131,7 +130,7 @@ impl MerkleNodeLookup {
         // log::debug!("MerkleNodeLookup.load() read data: {}", data.len());
 
         // Read the map of offsets
-        let mut offsets: HashMap<u128, (u8, u64, u64)> = HashMap::new();
+        let mut offsets: Vec<(u128, (u8, u64, u64))> = Vec::new();
         let mut dtype_buffer = [0u8; 1]; // data-type u8 is 1 byte
         let mut hash_buffer = [0u8; 16]; // hash u128 is 16 bytes
         let mut offset_buffer = [0u8; 8]; // data-offset u64 is 8 bytes
@@ -163,7 +162,7 @@ impl MerkleNodeLookup {
             let data_len = u64::from_le_bytes(len_buffer);
             // log::debug!("MerkleNodeLookup.load() got data_len {}", data_len);
 
-            offsets.insert(hash, (data_type, data_offset, data_len));
+            offsets.push((hash, (data_type, data_offset, data_len)));
             // i += 1;
         }
 
@@ -216,7 +215,7 @@ impl MerkleNodeDB {
         Self::open(path, true)
     }
 
-    pub fn open_read_write<N: MerkleTreeNode + Serialize + Debug + Display>(
+    pub fn open_read_write<N: MerkleTreeNode>(
         repo: &LocalRepository,
         node: &N,
     ) -> Result<Self, OxenError> {
@@ -327,10 +326,7 @@ impl MerkleNodeDB {
         Ok(())
     }
 
-    pub fn add_child<N: MerkleTreeNode + Serialize + Debug + Display>(
-        &mut self,
-        item: &N,
-    ) -> Result<(), OxenError> {
+    pub fn add_child<N: MerkleTreeNode>(&mut self, item: &N) -> Result<(), OxenError> {
         if self.read_only {
             return Err(OxenError::basic_str("Cannot write to read-only db"));
         }
@@ -366,6 +362,7 @@ impl MerkleNodeDB {
         Ok(())
     }
 
+    /*
     pub fn get<D>(&self, hash: u128) -> Result<D, OxenError>
     where
         D: MerkleTreeNode + de::DeserializeOwned,
@@ -402,8 +399,9 @@ impl MerkleNodeDB {
         })?;
         Ok(val)
     }
+    */
 
-    pub fn map(&mut self) -> Result<HashMap<u128, MerkleTreeNodeData>, OxenError> {
+    pub fn map(&mut self) -> Result<Vec<(u128, MerkleTreeNodeData)>, OxenError> {
         // log::debug!("Loading merkle node db map");
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
@@ -420,7 +418,7 @@ impl MerkleNodeDB {
         children_file.read_to_end(&mut file_data)?;
         // log::debug!("Loading merkle node db map got {} bytes", file_data.len());
 
-        let mut ret: HashMap<u128, MerkleTreeNodeData> = HashMap::new();
+        let mut ret: Vec<(u128, MerkleTreeNodeData)> = Vec::new();
         ret.reserve(lookup.num_children as usize);
 
         let mut cursor = std::io::Cursor::new(file_data);
@@ -438,10 +436,10 @@ impl MerkleNodeDB {
                 hash: *hash,
                 dtype,
                 data,
-                children: HashSet::new(),
+                children: Vec::new(),
             };
             // log::debug!("Loaded node {:?}", node);
-            ret.insert(*hash, node);
+            ret.push((*hash, node));
         }
 
         Ok(ret)

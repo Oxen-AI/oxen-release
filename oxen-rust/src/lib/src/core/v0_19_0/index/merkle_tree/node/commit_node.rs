@@ -3,7 +3,7 @@ use std::fmt;
 use std::fmt::Display;
 use time::OffsetDateTime;
 
-use super::{MerkleTreeNode, MerkleTreeNodeType};
+use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 use crate::model::Commit;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
@@ -49,7 +49,7 @@ impl Default for CommitNode {
     }
 }
 
-impl MerkleTreeNode for CommitNode {
+impl MerkleTreeNodeIdType for CommitNode {
     fn dtype(&self) -> MerkleTreeNodeType {
         self.dtype
     }
@@ -58,6 +58,8 @@ impl MerkleTreeNode for CommitNode {
         self.id
     }
 }
+
+impl MerkleTreeNode for CommitNode {}
 
 impl Display for CommitNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

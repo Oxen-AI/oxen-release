@@ -98,6 +98,40 @@ impl CommitMerkleTree {
         Ok(node)
     }
 
+    pub fn list_dir_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
+        self.root.list_dir_paths()
+    }
+
+    pub fn dir_files_and_folders(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
+        let path = path.as_ref();
+        let node = self
+            .root
+            .get_by_path(path)?
+            .ok_or(OxenError::basic_str(format!(
+                "Merkle tree hash when looking up dir children: '{:?}'",
+                path
+            )))?;
+
+        if node.dtype != MerkleTreeNodeType::Dir {
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree node is not a directory: '{:?}'",
+                path
+            )));
+        }
+
+        // The dir node will have vnode children
+        let mut children = Vec::new();
+        for child in &node.children {
+            if child.dtype == MerkleTreeNodeType::VNode {
+                children.extend(child.children.iter().map(|c| c.clone()));
+            }
+        }
+        Ok(children)
+    }
+
     pub fn total_vnodes(&self) -> u128 {
         self.root.total_vnodes()
     }
@@ -199,7 +233,7 @@ impl CommitMerkleTree {
             return Ok(());
         }
 
-        let children: HashMap<u128, MerkleTreeNodeData> = node_db.map()?;
+        let children: Vec<(u128, MerkleTreeNodeData)> = node_db.map()?;
         log::debug!("read_children_from_node Got {} children", children.len());
 
         for (_key, child) in children {
@@ -219,13 +253,13 @@ impl CommitMerkleTree {
                             recurse,
                         )?;
                     }
-                    node.children.insert(child);
+                    node.children.push(child);
                 }
                 // FileChunks and Schemas are leaf nodes
                 MerkleTreeNodeType::FileChunk
                 | MerkleTreeNodeType::Schema
                 | MerkleTreeNodeType::File => {
-                    node.children.insert(child);
+                    node.children.push(child);
                 }
             }
         }

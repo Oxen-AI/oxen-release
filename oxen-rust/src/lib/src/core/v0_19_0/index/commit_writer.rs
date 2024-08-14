@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
@@ -28,6 +29,7 @@ use crate::model::{Commit, EntryDataType, LocalRepository};
 
 use crate::{repositories, util};
 
+use super::merkle_tree::node::MerkleTreeNodeData;
 use super::merkle_tree::node::{CommitNode, DirNode};
 
 #[derive(Clone)]
@@ -90,7 +92,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // Right now it is just making a new commit with the staged files, not connecting them to the merkle tree
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(&dir_entries)?;
+    let vnode_entries = split_into_vnodes(&dir_entries, &merkle_tree)?;
 
     // Compute the commit hash
     let cfg = UserConfig::get()?;
@@ -146,13 +148,94 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     Ok(node.to_commit())
 }
 
+fn node_data_to_entry(
+    base_dir: impl AsRef<Path>,
+    node: &MerkleTreeNodeData,
+) -> Result<Option<EntryMetaDataWithPath>, OxenError> {
+    let base_dir = base_dir.as_ref();
+    match node.dtype {
+        MerkleTreeNodeType::Dir => {
+            let dir_node = node.dir()?;
+            Ok(Some(EntryMetaDataWithPath {
+                path: base_dir.join(dir_node.name),
+                data_type: EntryDataType::Dir,
+                hash: node.hash,
+                num_bytes: dir_node.num_bytes,
+            }))
+        }
+        MerkleTreeNodeType::File => {
+            let file_node = node.file()?;
+            Ok(Some(EntryMetaDataWithPath {
+                path: base_dir.join(file_node.name),
+                data_type: file_node.data_type,
+                hash: node.hash,
+                num_bytes: file_node.num_bytes,
+            }))
+        }
+        _ => Ok(None),
+    }
+}
+
+fn get_existing_dir_children(
+    tree: &Option<CommitMerkleTree>,
+    dir_path: impl AsRef<Path>,
+) -> Result<HashSet<EntryMetaDataWithPath>, OxenError> {
+    if tree.is_none() {
+        return Ok(HashSet::new());
+    }
+
+    let dir_path = dir_path.as_ref().to_path_buf();
+    let mut children = HashSet::new();
+
+    if let Some(tree) = tree {
+        let dir_children = tree.dir_files_and_folders(&dir_path)?;
+        children = dir_children
+            .into_iter()
+            .map(|child| node_data_to_entry(&dir_path, &child))
+            .flatten()
+            .flatten()
+            .collect();
+    }
+
+    Ok(children)
+}
+
 fn split_into_vnodes(
     entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
+    tree: &Option<CommitMerkleTree>,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
+    // Get all the directories in the merkle tree
+    let mut dirs: HashSet<PathBuf> = HashSet::new();
+    if let Some(tree) = tree {
+        dirs = HashSet::from_iter(tree.list_dir_paths()?);
+    }
+
+    // Get all the directories in the entries
+    for (directory, _) in entries.iter() {
+        dirs.insert(directory.clone());
+    }
+
+    log::debug!("considering dirs: {:?}", dirs);
+
     // Create the VNode buckets per directory
-    for (directory, children) in entries.iter() {
+    for directory in dirs.iter() {
+        // Lookup children in the existing merkle tree
+        let mut children = get_existing_dir_children(tree, directory)?;
+        log::debug!(
+            "got {} existing children for dir {:?}",
+            children.len(),
+            directory
+        );
+        if let Some(old_children) = entries.get(directory) {
+            // Update the children with the new entries from status
+            // TODO: Handle updates and deletes, this is pure addition right now
+            for child in old_children.iter() {
+                children.insert(child.clone());
+            }
+        }
+
         // log2(N / 10000)
         let total_children = children.len();
         let num_vnodes = (total_children as f32 / 10000_f32).log2();
@@ -173,6 +256,10 @@ fn split_into_vnodes(
 
         // Compute hashes and sort entries
         for vnode in vnode_children.iter_mut() {
+            // Sort the entries in the vnode by path
+            // to make searching for entries faster
+            vnode.entries.sort_by(|a, b| a.path.cmp(&b.path));
+
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
             vnode_hasher.update(b"vnode");
@@ -183,16 +270,22 @@ fn split_into_vnodes(
                 vnode_hasher.update(&entry.hash.to_le_bytes());
             }
             vnode.id = vnode_hasher.digest128();
-
-            // Sort the entries in the vnode by path
-            // to make searching for entries faster
-            vnode.entries.sort_by(|a, b| a.path.cmp(&b.path));
         }
 
+        // Sort before we hash
         results.insert(directory.to_owned(), vnode_children);
     }
 
     log::debug!("split_into_vnodes results: {:?}", results.len());
+    for (dir, vnodes) in results.iter() {
+        log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
+        for vnode in vnodes.iter() {
+            log::debug!("  vnode {:?} has {} entries", vnode.id, vnode.entries.len());
+            for entry in vnode.entries.iter() {
+                log::debug!("    entry {:?} has {:?} bytes", entry.path, entry.num_bytes);
+            }
+        }
+    }
 
     Ok(results)
 }
@@ -623,7 +716,7 @@ mod tests {
             let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
-            write_first_commit_entries(&repo, 100, 20)?;
+            write_first_commit_entries(&repo, 10, 3)?;
             let status = repositories::status(&repo)?;
             status.print();
 
@@ -634,8 +727,8 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            // Add a new file to files/dir_10/
-            let new_file = repo.path.join("files/dir_10/new_file.txt");
+            // Add a new file to files/dir_1/
+            let new_file = repo.path.join("files/dir_1/new_file.txt");
             util::fs::write_to_path(&new_file, "New file")?;
             command::add(&repo, &new_file)?;
 

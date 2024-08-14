@@ -4,7 +4,7 @@
 
 use super::{
     file_node_types::{FileChunkType, FileStorageType},
-    MerkleTreeNode, MerkleTreeNodeType,
+    MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType,
 };
 use crate::model::EntryDataType;
 use serde::{Deserialize, Serialize};
@@ -62,7 +62,7 @@ impl Default for FileNode {
     }
 }
 
-impl MerkleTreeNode for FileNode {
+impl MerkleTreeNodeIdType for FileNode {
     fn dtype(&self) -> MerkleTreeNodeType {
         self.dtype
     }
@@ -71,6 +71,8 @@ impl MerkleTreeNode for FileNode {
         self.hash
     }
 }
+
+impl MerkleTreeNode for FileNode {}
 
 impl Display for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

@@ -9,7 +9,7 @@ use std::fmt::Display;
 
 use crate::view::DataTypeCount;
 
-use super::{MerkleTreeNode, MerkleTreeNodeType};
+use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct DirNode {
@@ -64,7 +64,7 @@ impl Default for DirNode {
     }
 }
 
-impl MerkleTreeNode for DirNode {
+impl MerkleTreeNodeIdType for DirNode {
     fn dtype(&self) -> MerkleTreeNodeType {
         self.dtype
     }
@@ -73,6 +73,8 @@ impl MerkleTreeNode for DirNode {
         self.hash
     }
 }
+
+impl MerkleTreeNode for DirNode {}
 
 impl Display for DirNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
