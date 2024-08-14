@@ -259,10 +259,6 @@ fn process_add_file(
         while let Some(parent) = parent_path.parent() {
             let relative_path = util::fs::path_relative_to_dir(&parent, &repo_path).unwrap();
 
-            if relative_path == Path::new("") {
-                break;
-            }
-
             let dir_entry = EntryMetaData {
                 data_type: EntryDataType::Dir,
                 ..Default::default()
@@ -275,6 +271,10 @@ fn process_add_file(
                 .unwrap();
 
             parent_path = parent.to_path_buf();
+
+            if relative_path == Path::new("") {
+                break;
+            }
         }
 
         entry

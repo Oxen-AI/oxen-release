@@ -87,7 +87,7 @@ pub fn read_staged_entries(
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
                 let entry: EntryMetaData = rmp_serde::from_slice(&value).unwrap();
-                // log::debug!("read_staged_entries key {} entry: {:?}", key, entry);
+                log::debug!("read_staged_entries key {} entry: {:?}", key, entry);
 
                 let entry_w_path = EntryMetaDataWithPath {
                     path: path.to_path_buf(),
@@ -99,11 +99,6 @@ pub fn read_staged_entries(
                 if let Some(parent) = path.parent() {
                     dir_entries
                         .entry(parent.to_path_buf())
-                        .or_default()
-                        .push(entry_w_path);
-                } else {
-                    dir_entries
-                        .entry(PathBuf::from(""))
                         .or_default()
                         .push(entry_w_path);
                 }
