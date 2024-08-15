@@ -100,7 +100,6 @@ pub fn polar_insert_column(
     new_column: &NewColumn,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
-    println!("ITS GETTING HERE {:?}", new_column);
     let data_type = DataType::from_string(&new_column.data_type).to_sql();
     let sql = format!(
         "ALTER TABLE {} ADD COLUMN {} {}",
