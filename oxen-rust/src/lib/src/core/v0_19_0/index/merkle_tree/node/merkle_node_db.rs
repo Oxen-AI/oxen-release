@@ -168,6 +168,8 @@ impl MerkleNodeLookup {
 }
 
 pub struct MerkleNodeDB {
+    pub node_id: u128,
+    pub dtype: MerkleTreeNodeType,
     read_only: bool,
     path: PathBuf,
     node_file: Option<File>,
@@ -175,8 +177,6 @@ pub struct MerkleNodeDB {
     lookup: Option<MerkleNodeLookup>,
     data: Vec<u8>,
     num_children: u64,
-    node_id: u128,
-    dtype: MerkleTreeNodeType,
     data_offset: u64,
 }
 
@@ -340,7 +340,7 @@ impl MerkleNodeDB {
 
         self.node_id = node.id();
         self.dtype = node.dtype();
-        log::debug!("write_node wrote dtype: {:?}", node.dtype());
+        log::debug!("write_node wrote id {:x} dtype: {:?}", node.id(), node.dtype());
         Ok(())
     }
 
