@@ -68,15 +68,15 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
 
     let stats = add_files(repo, &paths)?;
 
-    // Stop the timer
-    let duration = start.elapsed();
+    // Stop the timer, and round the duration to the nearest second
+    let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
     log::debug!("---END--- oxen add: {:?} duration: {:?}", path, duration);
 
     println!(
-        "🐂 oxen added {} files ({}) in {:?}",
+        "🐂 oxen added {} files ({}) in {}",
         stats.total_files,
         bytesize::ByteSize::b(stats.total_bytes),
-        humantime::format_duration(duration)
+        humantime::format_duration(duration).to_string()
     );
 
     Ok(())
