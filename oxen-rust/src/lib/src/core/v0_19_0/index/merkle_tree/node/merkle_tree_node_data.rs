@@ -35,11 +35,12 @@ impl MerkleTreeNodeData {
     pub fn from_hash(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
         let node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         let dtype = node_db.dtype;
+        let parent_id = node_db.parent_id;
         Ok(MerkleTreeNodeData {
             hash,
             dtype,
             data: node_db.data(),
-            parent_id: None,
+            parent_id,
             children: Vec::new(),
         })
     }

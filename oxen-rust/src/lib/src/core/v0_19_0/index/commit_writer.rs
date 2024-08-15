@@ -56,7 +56,10 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    log::debug!("0.19.0::commit_writer::commit staged db path: {:?}", db_path);
+    log::debug!(
+        "0.19.0::commit_writer::commit staged db path: {:?}",
+        db_path
+    );
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
@@ -65,7 +68,8 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     commit_progress_bar.enable_steady_tick(Duration::from_millis(100));
 
     // Read all the staged entries
-    let (dir_entries, total_changes) = status::read_staged_entries(&staged_db, &commit_progress_bar)?;
+    let (dir_entries, total_changes) =
+        status::read_staged_entries(&staged_db, &commit_progress_bar)?;
 
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
@@ -93,7 +97,6 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     But if we only modified README.md, then we only need to update the merkle tree nodes for the root dir and
     commit node.
     */
-
 
     let mut merkle_tree: Option<CommitMerkleTree> = None;
     if let Some(commit) = &maybe_head_commit {
@@ -133,10 +136,19 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     commit_progress_bar.set_message(format!("Commiting {} changes", total_changes));
 
     let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
-    let dir_hash_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+    let dir_hash_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
-    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
-    write_commit_entries(&repo, commit_id, &mut commit_db, &dir_hash_db, &vnode_entries)?;
+    // Commit node has no parent
+    let parent_id = None;
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
+    write_commit_entries(
+        &repo,
+        commit_id,
+        &mut commit_db,
+        &dir_hash_db,
+        &vnode_entries,
+    )?;
     commit_progress_bar.finish_and_clear();
 
     // Write HEAD file and update branch
@@ -345,8 +357,12 @@ fn write_commit_entries(
     commit_db.add_child(&dir_node)?;
     total_written += 1;
 
-    str_val_db::put(dir_hash_db, root_path.to_str().unwrap(), &format!("{:x}", dir_node.hash))?;
-    let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+    str_val_db::put(
+        dir_hash_db,
+        root_path.to_str().unwrap(),
+        &format!("{:x}", dir_node.hash),
+    )?;
+    let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node, Some(commit_id))?;
     r_create_dir_node(
         repo,
         commit_id,
@@ -394,7 +410,11 @@ fn r_create_dir_node(
 
         // Maybe because we don't need to overwrite vnode dbs that already exist,
         // but still need to recurse and create the children
-        let mut maybe_vnode_db = MerkleNodeDB::open_read_write_if_not_exists(repo, &vnode_obj)?;
+        let mut maybe_vnode_db = MerkleNodeDB::open_read_write_if_not_exists(
+            repo,
+            &vnode_obj,
+            maybe_dir_db.as_ref().map(|db| db.node_id),
+        )?;
         for entry in vnode.entries.iter() {
             log::debug!(
                 "Processing entry {:?} [{:?}] in vnode {:x}",
@@ -411,15 +431,24 @@ fn r_create_dir_node(
                     }
 
                     // Always write the dir hash to the dir_hashes db
-                    str_val_db::put(dir_hash_db, entry.path.to_str().unwrap(), &format!("{:x}", dir_node.hash))?;
+                    str_val_db::put(
+                        dir_hash_db,
+                        entry.path.to_str().unwrap(),
+                        &format!("{:x}", dir_node.hash),
+                    )?;
 
                     // if the vnode is new, we need a new dir db
                     let mut child_db = if maybe_vnode_db.is_some() {
-                        let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+                        let dir_db =
+                            MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.id))?;
                         Some(dir_db)
                     } else {
                         // Otherwise, check if the dir is new before opening a new db
-                        MerkleNodeDB::open_read_write_if_not_exists(repo, &dir_node)?
+                        MerkleNodeDB::open_read_write_if_not_exists(
+                            repo,
+                            &dir_node,
+                            Some(vnode.id),
+                        )?
                     };
 
                     r_create_dir_node(
@@ -759,7 +788,10 @@ mod tests {
             let second_tree_dir_0 = second_tree.get_by_path(&Path::new("files/dir_0"))?;
             assert!(first_tree_dir_0.is_some());
             assert!(second_tree_dir_0.is_some());
-            assert_eq!(first_tree_dir_0.unwrap().hash, second_tree_dir_0.unwrap().hash);
+            assert_eq!(
+                first_tree_dir_0.unwrap().hash,
+                second_tree_dir_0.unwrap().hash
+            );
 
             // Parent should be updated
             let first_tree_files = first_tree.get_by_path(&Path::new("files"))?;

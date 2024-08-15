@@ -83,7 +83,10 @@ impl CommitMerkleTree {
     }
 
     /// The dir hashes allow you to skip to a directory in the tree
-    pub fn dir_hashes(repo: &LocalRepository, commit: &Commit) -> Result<HashMap<String, u128>, OxenError> {
+    pub fn dir_hashes(
+        repo: &LocalRepository,
+        commit: &Commit,
+    ) -> Result<HashMap<String, u128>, OxenError> {
         let node_db_dir = CommitMerkleTree::dir_hash_db_path(repo, commit);
         let opts = db::key_val::opts::default();
         let node_db: DBWithThreadMode<MultiThreaded> =
@@ -99,23 +102,32 @@ impl CommitMerkleTree {
                     dir_hashes.insert(key.to_string(), hash);
                 }
                 _ => {
-                    return Err(OxenError::basic_str("Could not read iterate over db values"));
+                    return Err(OxenError::basic_str(
+                        "Could not read iterate over db values",
+                    ));
                 }
             }
         }
         Ok(dir_hashes)
     }
 
-    pub fn load_nodes(repo: &LocalRepository, commit: &Commit, paths: &[PathBuf]) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
+    pub fn load_nodes(
+        repo: &LocalRepository,
+        commit: &Commit,
+        paths: &[PathBuf],
+    ) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
 
         let mut nodes = Vec::new();
         for path in paths {
             // Skip to the nodes
             let Some(hash) = dir_hashes.get(path.to_str().unwrap()) else {
-                return Err(OxenError::basic_str(format!("Dir hash not found for path: {:?}", path)));
+                return Err(OxenError::basic_str(format!(
+                    "Dir hash not found for path: {:?}",
+                    path
+                )));
             };
-
+            log::debug!("Loading node for path: {:?} hash: {:x}", path, hash);
             let node = CommitMerkleTree::read_node(repo, *hash, false)?;
             nodes.push(node);
         }
@@ -599,6 +611,7 @@ mod tests {
     use std::path::PathBuf;
 
     use crate::command;
+    use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeType;
     use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
@@ -619,6 +632,9 @@ mod tests {
 
             // Commit the data
             let commit = repositories::commits::commit(&repo, "First commit")?;
+
+            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.print();
 
             /*
             The tree will look something like this
@@ -651,6 +667,7 @@ mod tests {
             // Make sure we have written the dir_hashes db
             let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &commit)?;
 
+            println!("Got {} dir_hashes", dir_hashes.len());
             for (key, value) in &dir_hashes {
                 println!("dir: {:?} hash: {:x}", key, value);
             }
@@ -664,13 +681,16 @@ mod tests {
             assert!(dir_hashes.contains_key(&"files/dir_2".to_string()));
 
             // Only load the root and files/dir_1
-            let paths_to_load: Vec<PathBuf> = vec![PathBuf::from(""), PathBuf::from("files").join("dir_1")];
+            let paths_to_load: Vec<PathBuf> =
+                vec![PathBuf::from(""), PathBuf::from("files").join("dir_1")];
             let loaded_nodes = CommitMerkleTree::load_nodes(&repo, &commit, &paths_to_load)?;
 
             println!("loaded {} nodes", loaded_nodes.len());
             for node in loaded_nodes {
                 println!("node: {}", node);
                 CommitMerkleTree::print_node_depth(&node, 1);
+                assert!(node.dtype == MerkleTreeNodeType::Dir);
+                assert!(node.parent_id.is_some());
             }
 
             Ok(())
