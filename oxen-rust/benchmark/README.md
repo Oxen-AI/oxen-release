@@ -11,7 +11,7 @@ This is a benchmark to test how well version control systems scale to arbitrary 
 We have provided a script to generate a dataset with an arbitrary number of files, split within subdirectories.
 
 ```bash
-python benchmark/generate_repo.py --output_dir ~/Data/10k_images --num_images 10000 --num_dirs 1000
+python benchmark/generate_image_repo.py --output_dir ~/Data/10k_images --num_images 10000 --num_dirs 1000 --image_size 128 128
 ```
 
 # Configurations
