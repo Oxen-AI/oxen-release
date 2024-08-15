@@ -202,7 +202,7 @@ fn migrate_merkle_tree(
         ..Default::default()
     };
 
-    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, None)?;
 
     // Commit node has one child, the root dir
     println!("Writing commit node {:?} to {:?}", node, commit_db.path());
@@ -217,7 +217,7 @@ fn migrate_merkle_tree(
         hash,
     )?;
 
-    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node, Some(commit_id))?;
     migrate_dir(
         repo,
         commits,
@@ -363,7 +363,7 @@ fn migrate_dir(
         let vnode = &vnode_nodes[i];
 
         // Write the children of the VNodes
-        let mut node_db = MerkleNodeDB::open_read_write(repo, vnode)?;
+        let mut node_db = MerkleNodeDB::open_read_write(repo, vnode, Some(dir_hash))?;
         println!("Writing vnodes to path: {:?}", node_db.path());
         for (j, child) in bucket.iter().enumerate() {
             let (dtype, hash, path) = match child {
@@ -415,7 +415,8 @@ fn migrate_dir(
                         child_hash,
                     )?;
                     // Recurse if it's a directory
-                    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+                    let mut dir_db =
+                        MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.id))?;
                     migrate_dir(
                         repo,
                         commits,

@@ -81,6 +81,7 @@ fn node_db_path(repo: &LocalRepository, hash: u128) -> PathBuf {
 
 pub struct MerkleNodeLookup {
     pub data_type: u8,
+    pub parent_id: u128,
     pub data: Vec<u8>,
     pub num_children: u64,
     // hash -> (dtype, offset, length)
@@ -105,7 +106,16 @@ impl MerkleNodeLookup {
         let mut buffer = [0u8; 1]; // u8 is 1 byte
         cursor.read_exact(&mut buffer)?;
         let node_data_type = u8::from_le_bytes(buffer);
-        // log::debug!("MerkleNodeLookup.load() data_type: {}", data_type);
+        log::debug!(
+            "MerkleNodeLookup.load() data_type: {:?}",
+            MerkleTreeNodeType::from_u8(node_data_type)
+        );
+
+        // Read the parent id
+        let mut buffer = [0u8; 16]; // u128 is 16 bytes
+        cursor.read_exact(&mut buffer)?;
+        let parent_id = u128::from_le_bytes(buffer);
+        log::debug!("MerkleNodeLookup.load() parent_id: {:x}", parent_id);
 
         // Read the length of the node data
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
@@ -157,9 +167,14 @@ impl MerkleNodeLookup {
         }
 
         let num_children = offsets.len() as u64;
-        // log::debug!("MerkleNodeLookup.load() num_children {}", num_children);
+        log::debug!(
+            "MerkleNodeLookup.load() parent_id {:x} num_children {}",
+            parent_id,
+            num_children
+        );
         Ok(Self {
             data_type: node_data_type,
+            parent_id,
             data,
             num_children,
             offsets,
@@ -168,8 +183,9 @@ impl MerkleNodeLookup {
 }
 
 pub struct MerkleNodeDB {
-    pub node_id: u128,
     pub dtype: MerkleTreeNodeType,
+    pub node_id: u128,
+    pub parent_id: Option<u128>,
     read_only: bool,
     path: PathBuf,
     node_file: Option<File>,
@@ -214,6 +230,7 @@ impl MerkleNodeDB {
     pub fn open_read_write_if_not_exists(
         repo: &LocalRepository,
         node: &impl MerkleTreeNode,
+        parent_id: Option<u128>,
     ) -> Result<Option<Self>, OxenError> {
         if Self::exists(repo, node.id()) {
             let db_path = node_db_path(repo, node.id());
@@ -223,13 +240,14 @@ impl MerkleNodeDB {
             );
             Ok(None)
         } else {
-            Ok(Some(Self::open_read_write(repo, node)?))
+            Ok(Some(Self::open_read_write(repo, node, parent_id)?))
         }
     }
 
     pub fn open_read_write(
         repo: &LocalRepository,
         node: &impl MerkleTreeNode,
+        parent_id: Option<u128>,
     ) -> Result<Self, OxenError> {
         let path = node_db_path(repo, node.id());
         if !path.exists() {
@@ -237,7 +255,7 @@ impl MerkleNodeDB {
         }
         log::debug!("open_read_write merkle node db at {}", path.display());
         let mut db = Self::open(path, false)?;
-        db.write_node(node)?;
+        db.write_node(node, parent_id)?;
         Ok(db)
     }
 
@@ -272,6 +290,11 @@ impl MerkleNodeDB {
             (None, Some(node_file), Some(children_file))
         };
 
+        let dtype = lookup
+            .as_ref()
+            .map(|l| MerkleTreeNodeType::from_u8(l.data_type))
+            .unwrap_or(MerkleTreeNodeType::Commit);
+        let parent_id = lookup.as_ref().map(|l| l.parent_id);
         Ok(Self {
             read_only,
             path: path.to_path_buf(),
@@ -280,8 +303,9 @@ impl MerkleNodeDB {
             lookup,
             data: vec![],
             num_children: 0,
+            dtype,
             node_id: 0,
-            dtype: MerkleTreeNodeType::VNode,
+            parent_id,
             data_offset: 0,
         })
     }
@@ -311,6 +335,7 @@ impl MerkleNodeDB {
     fn write_node<N: MerkleTreeNode + Serialize + Debug + Display>(
         &mut self,
         node: &N,
+        parent_id: Option<u128>,
     ) -> Result<(), OxenError> {
         if self.read_only {
             return Err(OxenError::basic_str("Cannot write to read-only db"));
@@ -328,6 +353,13 @@ impl MerkleNodeDB {
         // Write data type
         node_file.write_all(&node.dtype().to_u8().to_le_bytes())?;
 
+        // Write parent id
+        if let Some(parent_id) = parent_id {
+            node_file.write_all(&parent_id.to_le_bytes())?;
+        } else {
+            node_file.write_all(&[0u8; 16])?;
+        }
+
         // Write data length
         let mut buf = Vec::new();
         node.serialize(&mut Serializer::new(&mut buf)).unwrap();
@@ -338,9 +370,14 @@ impl MerkleNodeDB {
         // Write data
         node_file.write_all(&buf)?;
 
-        self.node_id = node.id();
         self.dtype = node.dtype();
-        log::debug!("write_node wrote id {:x} dtype: {:?}", node.id(), node.dtype());
+        self.node_id = node.id();
+        self.parent_id = parent_id;
+        log::debug!(
+            "write_node wrote id {:x} dtype: {:?}",
+            node.id(),
+            node.dtype()
+        );
         Ok(())
     }
 
@@ -365,7 +402,7 @@ impl MerkleNodeDB {
         // log::debug!("--add_child-- hash {:x}", item.id());
         // log::debug!("--add_child-- data_offset {}", self.data_offset);
         // log::debug!("--add_child-- data_len {}", data_len);
-        log::debug!("--add_child-- {:x} child {}", self.node_id, item);
+        log::debug!("--add_child-- child {}", item);
 
         node_file.write_all(&item.dtype().to_u8().to_le_bytes())?;
         node_file.write_all(&item.id().to_le_bytes())?; // id of child
