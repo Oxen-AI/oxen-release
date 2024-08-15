@@ -1,4 +1,3 @@
-use comfy_table::Column;
 use polars::frame::DataFrame;
 use rocksdb::DB;
 

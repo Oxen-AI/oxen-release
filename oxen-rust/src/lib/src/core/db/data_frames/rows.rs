@@ -306,12 +306,12 @@ pub fn record_row_change(
 
 pub fn maybe_revert_row_changes(db: &DB, row_id: String) -> Result<(), OxenError> {
     match data_frame_row_changes_db::get_data_frame_row_change(db, &row_id) {
-        Ok(None) => revert_row_changes(&db, row_id),
+        Ok(None) => revert_row_changes(db, row_id),
         Ok(Some(_)) => Ok(()),
         Err(e) => Err(e),
     }
 }
 
 pub fn revert_row_changes(db: &DB, row_id: String) -> Result<(), OxenError> {
-    data_frame_row_changes_db::delete_data_frame_row_changes(&db, &row_id)
+    data_frame_row_changes_db::delete_data_frame_row_changes(db, &row_id)
 }

@@ -1,6 +1,5 @@
 use std::path::Path;
 
-use comfy_table::Column;
 use duckdb::arrow::array::RecordBatch;
 use polars::frame::DataFrame;
 use rocksdb::DB;
@@ -91,8 +90,8 @@ pub fn maybe_revert_column_changes(db: &DB, column: Option<ColumnChange>) -> Res
     }
 }
 
-pub fn revert_column_changes(db: &DB, column_name: &String) -> Result<(), OxenError> {
-    data_frame_column_changes_db::delete_data_frame_column_changes(&db, &column_name)
+pub fn revert_column_changes(db: &DB, column_name: &str) -> Result<(), OxenError> {
+    data_frame_column_changes_db::delete_data_frame_column_changes(db, column_name)
 }
 
 pub fn polar_insert_column(
@@ -148,7 +147,7 @@ pub fn polar_update_column(
     let mut sql_commands = Vec::new();
 
     if let Some(ref new_data_type) = column_to_update.new_data_type {
-        let data_type = DataType::from_string(&new_data_type).to_sql();
+        let data_type = DataType::from_string(new_data_type).to_sql();
 
         let update_type_sql = format!(
             "ALTER TABLE {} ALTER COLUMN {} TYPE {}",
