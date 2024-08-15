@@ -28,7 +28,7 @@ pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
-    let dir_entries = read_staged_entries(&db, &read_progress)?;
+    let (dir_entries, total_entries) = read_staged_entries(&db, &read_progress)?;
 
     let mut summarized_dir_stats = SummarizedStagedDirStats {
         num_files_staged: 0,
@@ -75,7 +75,7 @@ pub fn status_from_dir(
 pub fn read_staged_entries(
     db: &DBWithThreadMode<SingleThreaded>,
     read_progress: &ProgressBar,
-) -> Result<HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, OxenError> {
+) -> Result<(HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, u64), OxenError> {
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
     let mut dir_entries: HashMap<PathBuf, Vec<EntryMetaDataWithPath>> = HashMap::new();
@@ -112,5 +112,5 @@ pub fn read_staged_entries(
         }
     }
 
-    Ok(dir_entries)
+    Ok((dir_entries, total_entries))
 }

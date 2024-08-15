@@ -47,8 +47,7 @@ For example, data for a vnode of hash 1234 with two children:
 */
 
 use rmp_serde::Serializer;
-use serde::{de, Serialize};
-use std::collections::HashMap;
+use serde::Serialize;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::fs::File;
@@ -78,15 +77,6 @@ fn node_db_path(repo: &LocalRepository, hash: u128) -> PathBuf {
         .join(constants::NODES_DIR)
         .join(dir_prefix)
         .join(dir_suffix)
-}
-
-pub fn open_read_only(repo: &LocalRepository, hash: u128) -> Result<MerkleNodeDB, OxenError> {
-    let db_path = node_db_path(repo, hash);
-    if !db_path.exists() {
-        util::fs::create_dir_all(&db_path)?;
-    }
-    let read_only = true;
-    MerkleNodeDB::open(db_path, read_only)
 }
 
 pub struct MerkleNodeLookup {
@@ -185,6 +175,7 @@ pub struct MerkleNodeDB {
     lookup: Option<MerkleNodeLookup>,
     data: Vec<u8>,
     num_children: u64,
+    node_id: u128,
     dtype: MerkleTreeNodeType,
     data_offset: u64,
 }
@@ -210,16 +201,41 @@ impl MerkleNodeDB {
         self.path.to_owned()
     }
 
+    pub fn exists(repo: &LocalRepository, hash: u128) -> bool {
+        let db_path = node_db_path(repo, hash);
+        db_path.exists()
+    }
+
     pub fn open_read_only(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
         let path = node_db_path(repo, hash);
         Self::open(path, true)
     }
 
-    pub fn open_read_write<N: MerkleTreeNode>(
+    pub fn open_read_write_if_not_exists(
         repo: &LocalRepository,
-        node: &N,
+        node: &impl MerkleTreeNode,
+    ) -> Result<Option<Self>, OxenError> {
+        if Self::exists(repo, node.id()) {
+            let db_path = node_db_path(repo, node.id());
+            log::debug!(
+                "open_read_write_if_not_exists skipping existing merkle node db at {}",
+                db_path.display()
+            );
+            Ok(None)
+        } else {
+            Ok(Some(Self::open_read_write(repo, node)?))
+        }
+    }
+
+    pub fn open_read_write(
+        repo: &LocalRepository,
+        node: &impl MerkleTreeNode,
     ) -> Result<Self, OxenError> {
         let path = node_db_path(repo, node.id());
+        if !path.exists() {
+            util::fs::create_dir_all(&path)?;
+        }
+        log::debug!("open_read_write merkle node db at {}", path.display());
         let mut db = Self::open(path, false)?;
         db.write_node(node)?;
         Ok(db)
@@ -264,6 +280,7 @@ impl MerkleNodeDB {
             lookup,
             data: vec![],
             num_children: 0,
+            node_id: 0,
             dtype: MerkleTreeNodeType::VNode,
             data_offset: 0,
         })
@@ -321,6 +338,7 @@ impl MerkleNodeDB {
         // Write data
         node_file.write_all(&buf)?;
 
+        self.node_id = node.id();
         self.dtype = node.dtype();
         log::debug!("write_node wrote dtype: {:?}", node.dtype());
         Ok(())
@@ -347,7 +365,7 @@ impl MerkleNodeDB {
         // log::debug!("--add_child-- hash {:x}", item.id());
         // log::debug!("--add_child-- data_offset {}", self.data_offset);
         // log::debug!("--add_child-- data_len {}", data_len);
-        log::debug!("--add_child-- item {}", item);
+        log::debug!("--add_child-- {:x} child {}", self.node_id, item);
 
         node_file.write_all(&item.dtype().to_u8().to_le_bytes())?;
         node_file.write_all(&item.id().to_le_bytes())?; // id of child
