@@ -58,11 +58,14 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
     let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
+
     let response = JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: row_df_source,
             view: row_df_view,
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
@@ -101,6 +104,7 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
             source: row_df_source,
             view: row_df_view,
         },
+        diff: None,
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
@@ -154,6 +158,8 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let row_index = index::workspaces::data_frames::rows::get_row_idx(&modified_row)?;
     let row_id = index::workspaces::data_frames::rows::get_row_id(&modified_row)?;
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
+
     log::debug!("Modified row in controller is {:?}", modified_row);
     let schema = Schema::from_polars(&modified_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -161,6 +167,7 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
             source: JsonDataFrameSource::from_df(&modified_row, &schema),
             view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_updated(),
@@ -183,6 +190,7 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = index::workspaces::get(&repo, workspace_id)?;
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
     let df = index::workspaces::data_frames::rows::delete(&workspace, file_path, &row_id)?;
 
     let schema = Schema::from_polars(&df.schema());
@@ -191,6 +199,7 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
             source: JsonDataFrameSource::from_df(&df, &schema),
             view: JsonDataFrameView::from_df_opts(df, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_deleted(),
@@ -221,6 +230,8 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let row_index = index::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
     let row_id = index::workspaces::data_frames::rows::get_row_id(&restored_row)?;
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
+
     log::debug!("Restored row in controller is {:?}", restored_row);
     let schema = Schema::from_polars(&restored_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -228,6 +239,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
             source: JsonDataFrameSource::from_df(&restored_row, &schema),
             view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_updated(),
