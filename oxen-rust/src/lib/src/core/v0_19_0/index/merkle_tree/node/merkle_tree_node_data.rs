@@ -32,11 +32,12 @@ impl fmt::Display for MerkleTreeNodeData {
 
 impl MerkleTreeNodeData {
     /// Create an empty root node with a hash
-    pub fn root_commit(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
+    pub fn from_hash(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
         let node_db = MerkleNodeDB::open_read_only(repo, hash)?;
+        let dtype = node_db.dtype;
         Ok(MerkleTreeNodeData {
             hash,
-            dtype: MerkleTreeNodeType::Commit,
+            dtype,
             data: node_db.data(),
             parent_id: None,
             children: Vec::new(),
@@ -85,6 +86,35 @@ impl MerkleTreeNodeData {
             }
         }
         Ok(())
+    }
+
+    /// Get all the vnodes for a given directory
+    pub fn get_vnodes_for_dir(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
+        let path = path.as_ref();
+        let Some(node) = self.get_by_path(path)? else {
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree directory not found: '{:?}'",
+                path
+            )));
+        };
+
+        if node.dtype != MerkleTreeNodeType::Dir {
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree node is not a directory: '{:?}'",
+                path
+            )));
+        }
+
+        let mut vnodes = Vec::new();
+        for child in &node.children {
+            if child.dtype == MerkleTreeNodeType::VNode {
+                vnodes.push(child.clone());
+            }
+        }
+        Ok(vnodes)
     }
 
     /// Search for a file node by path

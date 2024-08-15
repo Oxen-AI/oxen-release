@@ -9,7 +9,7 @@ use crate::model::{
 use crate::util;
 
 use indicatif::{ProgressBar, ProgressStyle};
-use rocksdb::{DBWithThreadMode, IteratorMode, SingleThreaded};
+use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded, SingleThreaded};
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -21,7 +21,7 @@ pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let db: DBWithThreadMode<SingleThreaded> =
+    let db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
 
     let read_progress = ProgressBar::new_spinner();
@@ -73,7 +73,7 @@ pub fn status_from_dir(
 }
 
 pub fn read_staged_entries(
-    db: &DBWithThreadMode<SingleThreaded>,
+    db: &DBWithThreadMode<MultiThreaded>,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, u64), OxenError> {
     let mut total_entries = 0;

@@ -97,6 +97,55 @@ pub async fn create_remote_repo(repo: &LocalRepository) -> Result<RemoteReposito
     api::client::repositories::create_from_local(repo, repo_new).await
 }
 
+pub fn add_n_files_m_dirs(
+    repo: &LocalRepository,
+    num_files: u64,
+    num_dirs: u64,
+) -> Result<(), OxenError> {
+    /*
+    README.md
+    files.csv
+    files/
+      file1.txt
+      file2.txt
+      ..
+      fileN.txt
+    */
+
+    let readme_file = repo.path.join("README.md");
+    util::fs::write_to_path(&readme_file, format!("Repo with {} files", num_files))?;
+
+    command::add(&repo, &readme_file)?;
+
+    // Write files.csv
+    let files_csv = repo.path.join("files.csv");
+    let mut file = File::create(&files_csv)?;
+    file.write_all(b"file,label\n")?;
+    for i in 0..num_files {
+        let label = if i % 2 == 0 { "cat" } else { "dog" };
+        file.write_all(format!("file{}.txt,{}\n", i, label).as_bytes())?;
+    }
+    file.flush()?;
+
+    // Write files
+    let files_dir = repo.path.join("files");
+    util::fs::create_dir_all(&files_dir)?;
+    for i in 0..num_files {
+        // Create num_dirs directories
+        let dir_num = i % num_dirs;
+        let dir_path = files_dir.join(format!("dir_{}", dir_num));
+        util::fs::create_dir_all(&dir_path)?;
+
+        let file_file = dir_path.join(format!("file{}.txt", i));
+        util::fs::write_to_path(&file_file, format!("File {}", i))?;
+    }
+
+    command::add(&repo, &files_csv)?;
+    command::add(&repo, &files_dir)?;
+
+    Ok(())
+}
+
 /// # Run a unit test on a test repo directory
 ///
 /// This function will create a directory with a uniq name
@@ -126,7 +175,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    // util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());

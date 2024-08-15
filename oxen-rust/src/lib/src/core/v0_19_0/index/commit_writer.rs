@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
-use rocksdb::{DBWithThreadMode, SingleThreaded};
+use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 use std::path::PathBuf;
 use std::str;
 use std::time::Duration;
@@ -15,6 +15,7 @@ use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::path_db;
+use crate::core::db::key_val::str_val_db;
 use crate::core::v0_10_0::index::RefWriter;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::core::v0_19_0::index::merkle_tree::node::{
@@ -55,15 +56,16 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let db: DBWithThreadMode<SingleThreaded> =
+    log::debug!("0.19.0::commit_writer::commit staged db path: {:?}", db_path);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    let read_progress = ProgressBar::new_spinner();
-    read_progress.set_style(ProgressStyle::default_spinner());
-    read_progress.enable_steady_tick(Duration::from_millis(100));
+    let commit_progress_bar = ProgressBar::new_spinner();
+    commit_progress_bar.set_style(ProgressStyle::default_spinner());
+    commit_progress_bar.enable_steady_tick(Duration::from_millis(100));
 
     // Read all the staged entries
-    let (dir_entries, total_changes) = status::read_staged_entries(&db, &read_progress)?;
+    let (dir_entries, total_changes) = status::read_staged_entries(&staged_db, &commit_progress_bar)?;
 
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
@@ -80,6 +82,18 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     if let Some(parent) = &maybe_head_commit {
         parent_ids.push(parent.hash_u128());
     }
+
+    /*
+    Load all the merkle tree nodes that are in the staged dir entries. Then traverse up their
+    parent directories and update the merkle tree nodes for those directories until you get to the root.
+
+    For example - if we only modified files/dir_1/file_1.txt, then we need to update
+    the merkle tree nodes for files/dir_1 and files and the root dir and commit node.
+
+    But if we only modified README.md, then we only need to update the merkle tree nodes for the root dir and
+    commit node.
+    */
+
 
     let mut merkle_tree: Option<CommitMerkleTree> = None;
     if let Some(commit) = &maybe_head_commit {
@@ -116,10 +130,14 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         ..Default::default()
     };
 
-    read_progress.set_message(format!("Commiting {} changes", total_changes));
+    commit_progress_bar.set_message(format!("Commiting {} changes", total_changes));
+
+    let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db: DBWithThreadMode<MultiThreaded> = DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
-    write_commit_entries(&repo, commit_id, &mut commit_db, &vnode_entries)?;
-    read_progress.finish_and_clear();
+    write_commit_entries(&repo, commit_id, &mut commit_db, &dir_hash_db, &vnode_entries)?;
+    commit_progress_bar.finish_and_clear();
 
     // Write HEAD file and update branch
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
@@ -135,7 +153,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     }
 
     // Clear the staged db
-    path_db::clear(&db)?;
+    path_db::clear(&staged_db)?;
 
     // Print that we finished
     println!(
@@ -317,6 +335,7 @@ fn write_commit_entries(
     repo: &LocalRepository,
     commit_id: u128,
     commit_db: &mut MerkleNodeDB,
+    dir_hash_db: &DBWithThreadMode<MultiThreaded>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
 ) -> Result<(), OxenError> {
     // Write the root dir, then recurse into the vnodes and subdirectories
@@ -326,11 +345,13 @@ fn write_commit_entries(
     commit_db.add_child(&dir_node)?;
     total_written += 1;
 
+    str_val_db::put(dir_hash_db, root_path.to_str().unwrap(), &format!("{:x}", dir_node.hash))?;
     let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
     r_create_dir_node(
         repo,
         commit_id,
         &mut Some(dir_db),
+        dir_hash_db,
         entries,
         root_path,
         &mut total_written,
@@ -343,6 +364,7 @@ fn r_create_dir_node(
     repo: &LocalRepository,
     commit_id: u128,
     maybe_dir_db: &mut Option<MerkleNodeDB>,
+    dir_hash_db: &DBWithThreadMode<MultiThreaded>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
     total_written: &mut u64,
@@ -388,6 +410,9 @@ fn r_create_dir_node(
                         *total_written += 1;
                     }
 
+                    // Always write the dir hash to the dir_hashes db
+                    str_val_db::put(dir_hash_db, entry.path.to_str().unwrap(), &format!("{:x}", dir_node.hash))?;
+
                     // if the vnode is new, we need a new dir db
                     let mut child_db = if maybe_vnode_db.is_some() {
                         let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
@@ -401,6 +426,7 @@ fn r_create_dir_node(
                         repo,
                         commit_id,
                         &mut child_db,
+                        dir_hash_db,
                         entries,
                         &entry.path,
                         total_written,
@@ -519,67 +545,16 @@ fn compute_dir_node(
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::Write;
     use std::path::Path;
 
     use crate::command;
     use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
-    use crate::model::LocalRepository;
     use crate::repositories;
     use crate::test;
+    use crate::test::add_n_files_m_dirs;
     use crate::util;
-
-    fn write_first_commit_entries(
-        repo: &LocalRepository,
-        num_files: u64,
-        num_dirs: u64,
-    ) -> Result<(), OxenError> {
-        /*
-        README.md
-        files.csv
-        files/
-          file1.txt
-          file2.txt
-          ..
-          fileN.txt
-        */
-
-        let readme_file = repo.path.join("README.md");
-        util::fs::write_to_path(&readme_file, format!("Repo with {} files", num_files))?;
-
-        command::add(&repo, &readme_file)?;
-
-        // Write files.csv
-        let files_csv = repo.path.join("files.csv");
-        let mut file = File::create(&files_csv)?;
-        file.write_all(b"file,label\n")?;
-        for i in 0..num_files {
-            let label = if i % 2 == 0 { "cat" } else { "dog" };
-            file.write_all(format!("file{}.txt,{}\n", i, label).as_bytes())?;
-        }
-        file.flush()?;
-
-        // Write files
-        let files_dir = repo.path.join("files");
-        util::fs::create_dir_all(&files_dir)?;
-        for i in 0..num_files {
-            // Create num_dirs directories
-            let dir_num = i % num_dirs;
-            let dir_path = files_dir.join(format!("dir_{}", dir_num));
-            util::fs::create_dir_all(&dir_path)?;
-
-            let file_file = dir_path.join(format!("file{}.txt", i));
-            util::fs::write_to_path(&file_file, format!("File {}", i))?;
-        }
-
-        command::add(&repo, &files_csv)?;
-        command::add(&repo, &files_dir)?;
-
-        Ok(())
-    }
 
     #[test]
     fn test_first_commit() -> Result<(), OxenError> {
@@ -588,7 +563,7 @@ mod tests {
             let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
-            write_first_commit_entries(&repo, 10, 2)?;
+            add_n_files_m_dirs(&repo, 10, 2)?;
             let status = repositories::status(&repo)?;
             status.print();
 
@@ -651,16 +626,16 @@ mod tests {
             assert_eq!(vnode_children.len(), 3);
 
             // Check that files.csv is in the merkle tree
-            let has_files_csv = tree.has_file(&Path::new("files.csv"))?;
-            assert!(has_files_csv);
+            let has_paths_csv = tree.has_path(&Path::new("files.csv"))?;
+            assert!(has_paths_csv);
 
             // Check that README.md is in the merkle tree
-            let has_readme = tree.has_file(&Path::new("README.md"))?;
+            let has_readme = tree.has_path(&Path::new("README.md"))?;
             assert!(has_readme);
 
             // Check that files/dir_0/file0.txt is in the merkle tree
-            let has_file0 = tree.has_file(&Path::new("files/dir_0/file0.txt"))?;
-            assert!(has_file0);
+            let has_path0 = tree.has_path(&Path::new("files/dir_0/file0.txt"))?;
+            assert!(has_path0);
 
             Ok(())
         })
@@ -688,8 +663,8 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            let has_file0 = tree.has_file(&Path::new("all_files/dir_0/new_file.txt"))?;
-            assert!(has_file0);
+            let has_path0 = tree.has_path(&Path::new("all_files/dir_0/new_file.txt"))?;
+            assert!(has_path0);
 
             Ok(())
         })
@@ -717,8 +692,8 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            let has_file0 = tree.has_file(&Path::new("files/dir_0/new_file.txt"))?;
-            assert!(has_file0);
+            let has_path0 = tree.has_path(&Path::new("files/dir_0/new_file.txt"))?;
+            assert!(has_path0);
 
             Ok(())
         })
@@ -731,7 +706,7 @@ mod tests {
             let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
-            write_first_commit_entries(&repo, 10, 3)?;
+            add_n_files_m_dirs(&repo, 10, 3)?;
             let status = repositories::status(&repo)?;
             status.print();
 
@@ -750,14 +725,55 @@ mod tests {
             // Commit the data
             let second_commit = super::commit(&repo, "Second commit")?;
 
+            // Make sure commit hashes are different
+            assert!(first_commit.id != second_commit.id);
+
             // Read the merkle tree
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
 
             assert_eq!(second_tree.total_vnodes(), 5);
 
-            assert!(!first_tree.has_file(&Path::new("files/dir_1/new_file.txt"))?);
-            assert!(second_tree.has_file(&Path::new("files/dir_1/new_file.txt"))?);
+            assert!(!first_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
+            assert!(second_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
+
+            // Make sure the hashes of the directories are valid
+            // We should update the hashes of dir_1 and all it's parents, but none of the siblings
+            let first_tree_dir_1 = first_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let second_tree_dir_1 = second_tree.get_by_path(&Path::new("files/dir_1"))?;
+            assert!(first_tree_dir_1.is_some());
+            assert!(second_tree_dir_1.is_some());
+            assert!(first_tree_dir_1.unwrap().hash != second_tree_dir_1.unwrap().hash);
+
+            // Make sure there is one vnode in each dir
+            let first_tree_vnodes = first_tree.get_vnodes_for_dir(&Path::new("files/dir_1"))?;
+            let second_tree_vnodes = second_tree.get_vnodes_for_dir(&Path::new("files/dir_1"))?;
+            assert_eq!(first_tree_vnodes.len(), 1);
+            assert_eq!(second_tree_vnodes.len(), 1);
+
+            // And that the vnode hashes are different
+            assert!(first_tree_vnodes[0].hash != second_tree_vnodes[0].hash);
+
+            // Siblings should be the same
+            let first_tree_dir_0 = first_tree.get_by_path(&Path::new("files/dir_0"))?;
+            let second_tree_dir_0 = second_tree.get_by_path(&Path::new("files/dir_0"))?;
+            assert!(first_tree_dir_0.is_some());
+            assert!(second_tree_dir_0.is_some());
+            assert_eq!(first_tree_dir_0.unwrap().hash, second_tree_dir_0.unwrap().hash);
+
+            // Parent should be updated
+            let first_tree_files = first_tree.get_by_path(&Path::new("files"))?;
+            let second_tree_files = second_tree.get_by_path(&Path::new("files"))?;
+            assert!(first_tree_files.is_some());
+            assert!(second_tree_files.is_some());
+            assert!(first_tree_files.unwrap().hash != second_tree_files.unwrap().hash);
+
+            // Root should be updated
+            let first_tree_root = first_tree.get_by_path(&Path::new(""))?;
+            let second_tree_root = second_tree.get_by_path(&Path::new(""))?;
+            assert!(first_tree_root.is_some());
+            assert!(second_tree_root.is_some());
+            assert!(first_tree_root.unwrap().hash != second_tree_root.unwrap().hash);
 
             Ok(())
         })
