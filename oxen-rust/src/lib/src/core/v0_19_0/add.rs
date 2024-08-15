@@ -76,7 +76,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
         "🐂 oxen added {} files ({}) in {:?}",
         stats.total_files,
         bytesize::ByteSize::b(stats.total_bytes),
-        duration
+        humantime::format_duration(duration)
     );
 
     Ok(())

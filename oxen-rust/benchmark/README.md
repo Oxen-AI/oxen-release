@@ -168,6 +168,12 @@ Disk Usage
 
 ### Two Sub Directories
 
+1m_images> oxen add .
+🐂 oxen added 1000006 files (49.4 GB) in 1820.286081054s
+gregschoeninger@Gregs-iMac-Pro ~/D/1m_images> oxen commit -m "adding 1 million files"
+Committing with message: adding 1 million files
+🐂 commit dca9c304d2884dcc21c8cd213f68228d in 67.50107683s
+
 ### Many Sub Directories
 
 1m files 1000 folders
