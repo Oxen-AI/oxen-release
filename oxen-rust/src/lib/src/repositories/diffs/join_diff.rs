@@ -347,13 +347,14 @@ fn add_diff_status_column(
                 .apply(
                     move |s| {
                         let ca = s.struct_()?;
-                        let out: StringChunked = ca
+                        let s_a = &ca.fields_as_series();
+                        let out: StringChunked = s_a
                             .into_iter()
                             .map(|row| {
-                                let key_left = row.first();
-                                let key_right = row.get(1);
-                                let target_hash_left = row.get(2);
-                                let target_hash_right = row.get(3);
+                                let key_left = row.get(0).ok();
+                                let key_right = row.get(1).ok();
+                                let target_hash_left = row.get(2).ok();
+                                let target_hash_right = row.get(3).ok();
 
                                 test_function(
                                     key_left,
@@ -401,10 +402,10 @@ fn calculate_compare_mods(joined_df: &DataFrame) -> Result<AddRemoveModifyCounts
 }
 
 fn test_function(
-    key_left: Option<&AnyValue>,
-    key_right: Option<&AnyValue>,
-    target_hash_left: Option<&AnyValue>,
-    target_hash_right: Option<&AnyValue>,
+    key_left: Option<AnyValue>,
+    key_right: Option<AnyValue>,
+    target_hash_left: Option<AnyValue>,
+    target_hash_right: Option<AnyValue>,
     has_targets: bool,
 ) -> String {
     // TODO better error handling

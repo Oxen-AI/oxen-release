@@ -536,7 +536,7 @@ pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame
         .expect(COLLECT_ERROR))
 }
 
-pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
+pub fn any_val_to_bytes(value: AnyValue) -> Vec<u8> {
     match value {
         AnyValue::Null => Vec::<u8>::new(),
         AnyValue::Int64(val) => val.to_le_bytes().to_vec(),
@@ -545,7 +545,7 @@ pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
         AnyValue::Float32(val) => val.to_le_bytes().to_vec(),
         AnyValue::Float64(val) => val.to_le_bytes().to_vec(),
         AnyValue::String(val) => val.as_bytes().to_vec(),
-        AnyValue::Boolean(val) => vec![if *val { 1 } else { 0 }],
+        AnyValue::Boolean(val) => vec![if val { 1 } else { 0 }],
         // TODO: handle rows with lists...
         // AnyValue::List(val) => {
         //     match val.dtype() {
@@ -597,7 +597,8 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         let pb = ProgressBar::new(num_rows as u64);
                         // downcast to struct
                         let ca = s.struct_()?;
-                        let out: StringChunked = ca
+                        let s_a = &ca.fields_as_series();
+                        let out: StringChunked = s_a
                             .into_iter()
                             // .par_bridge() // not sure why this is breaking
                             .map(|row| {
@@ -665,7 +666,8 @@ pub fn df_hash_rows_on_cols(
                     move |s| {
                         let pb = ProgressBar::new(num_rows as u64);
                         let ca = s.struct_()?;
-                        let out: StringChunked = ca
+                        let s_a = &ca.fields_as_series();
+                        let out: StringChunked = s_a
                             .into_iter()
                             .map(|row| {
                                 pb.inc(1);
