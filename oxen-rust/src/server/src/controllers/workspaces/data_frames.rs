@@ -55,11 +55,16 @@ pub async fn get_by_resource(
         return Ok(HttpResponse::Ok().json(response));
     }
 
+    let staged_db_path =
+        liboxen::core::index::workspaces::data_frames::duckdb_path(&workspace, &file_path);
+
+    let conn = df_db::get_connection(staged_db_path)?;
+
     let count = index::workspaces::data_frames::count(&workspace, &file_path)?;
 
     let df = index::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
 
-    let mut df_schema = Schema::from_polars(&df.schema());
+    let mut df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
     let is_indexed = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
