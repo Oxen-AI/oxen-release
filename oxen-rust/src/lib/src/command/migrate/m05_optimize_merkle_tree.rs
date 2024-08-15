@@ -11,11 +11,11 @@ use crate::core;
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild};
-use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
+use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::MerkleNodeDB;
 // use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
 use crate::core::v0_19_0::index::merkle_tree::node::*;
 use crate::error::OxenError;

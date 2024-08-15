@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
@@ -6,7 +5,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
-use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
+use crate::core::v0_19_0::index::merkle_tree::MerkleNodeDB;
 
 use crate::core::v0_10_0::index::CommitReader;
 use crate::core::v0_19_0::index::merkle_tree::node::{MerkleTreeNodeData, MerkleTreeNodeType};

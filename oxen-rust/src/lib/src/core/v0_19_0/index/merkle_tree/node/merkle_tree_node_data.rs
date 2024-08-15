@@ -5,7 +5,7 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use super::*;
-use crate::core::db::merkle::merkle_node_db;
+use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 
@@ -33,7 +33,7 @@ impl fmt::Display for MerkleTreeNodeData {
 impl MerkleTreeNodeData {
     /// Create an empty root node with a hash
     pub fn root_commit(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
-        let node_db = merkle_node_db::open_read_only(repo, hash)?;
+        let node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         Ok(MerkleTreeNodeData {
             hash,
             dtype: MerkleTreeNodeType::Commit,

@@ -15,8 +15,8 @@ use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::path_db;
-use crate::core::db::merkle::merkle_node_db::MerkleNodeDB;
 use crate::core::v0_10_0::index::RefWriter;
+use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::core::v0_19_0::index::merkle_tree::node::{
     FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode,
 };
@@ -63,7 +63,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
     // Read all the staged entries
-    let dir_entries = status::read_staged_entries(&db, &read_progress)?;
+    let (dir_entries, total_changes) = status::read_staged_entries(&db, &read_progress)?;
 
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
@@ -116,14 +116,9 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         ..Default::default()
     };
 
+    read_progress.set_message(format!("Commiting {} changes", total_changes));
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node)?;
-    write_commit_entries(
-        &repo,
-        commit_id,
-        &mut commit_db,
-        &vnode_entries,
-        &read_progress,
-    )?;
+    write_commit_entries(&repo, commit_id, &mut commit_db, &vnode_entries)?;
     read_progress.finish_and_clear();
 
     // Write HEAD file and update branch
@@ -280,7 +275,7 @@ fn split_into_vnodes(
     for (dir, vnodes) in results.iter() {
         log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
         for vnode in vnodes.iter() {
-            log::debug!("  vnode {:?} has {} entries", vnode.id, vnode.entries.len());
+            log::debug!("  vnode {:x} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
                 log::debug!("    entry {:?} has {:?} bytes", entry.path, entry.num_bytes);
             }
@@ -316,22 +311,21 @@ fn write_commit_entries(
     commit_id: u128,
     commit_db: &mut MerkleNodeDB,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
-    read_progress: &ProgressBar,
 ) -> Result<(), OxenError> {
     // Write the root dir, then recurse into the vnodes and subdirectories
+    let mut total_written = 0;
     let root_path = PathBuf::from("");
     let dir_node = compute_dir_node(commit_id, entries, &root_path)?;
     commit_db.add_child(&dir_node)?;
+    total_written += 1;
 
-    let mut dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
-    let mut total_written = 0;
+    let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
     r_create_dir_node(
         repo,
         commit_id,
-        &mut dir_db,
+        &mut Some(dir_db),
         entries,
         root_path,
-        read_progress,
         &mut total_written,
     )?;
 
@@ -341,59 +335,67 @@ fn write_commit_entries(
 fn r_create_dir_node(
     repo: &LocalRepository,
     commit_id: u128,
-    dir_db: &mut MerkleNodeDB,
+    maybe_dir_db: &mut Option<MerkleNodeDB>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
-    read_progress: &ProgressBar,
     total_written: &mut u64,
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
-    read_progress.set_message(format!("Committing {} entries [{:?}]", total_written, path));
 
     let Some(vnodes) = entries.get(&path) else {
         let err_msg = format!("No entries found for directory {:?}", path);
         return Err(OxenError::basic_str(err_msg));
     };
 
-    log::debug!("Writing dir {:?} with {} vnodes", path, vnodes.len());
+    log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
         let vnode_obj = VNode {
             id: vnode.id,
             ..Default::default()
         };
-        dir_db.add_child(&vnode_obj)?;
+        if let Some(dir_db) = maybe_dir_db {
+            dir_db.add_child(&vnode_obj)?;
+            *total_written += 1;
+        }
         log::debug!(
-            "Writing vnode {:x} with {} entries",
+            "Processing vnode {:x} with {} entries",
             vnode.id,
             vnode.entries.len()
         );
 
-        *total_written += 1;
-        read_progress.set_message(format!("Committing {} entries [{:?}]", total_written, path));
-
-        let mut vnode_db = MerkleNodeDB::open_read_write(repo, &vnode_obj)?;
+        // Maybe because we don't need to overwrite vnode dbs that already exist,
+        // but still need to recurse and create the children
+        let mut maybe_vnode_db = MerkleNodeDB::open_read_write_if_not_exists(repo, &vnode_obj)?;
         for entry in vnode.entries.iter() {
             log::debug!(
-                "Writing entry {:?} [{:?}] to {:?}",
+                "Processing entry {:?} [{:?}] in vnode {:x}",
                 entry.path,
                 entry.data_type,
-                vnode_db.path()
+                vnode.id
             );
             match entry.data_type {
                 EntryDataType::Dir => {
                     let dir_node = compute_dir_node(commit_id, entries, &entry.path)?;
-                    vnode_db.add_child(&dir_node)?;
-                    *total_written += 1;
-                    read_progress
-                        .set_message(format!("Committing {} entries [{:?}]", total_written, path));
-                    let mut child_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+                    if let Some(vnode_db) = &mut maybe_vnode_db {
+                        vnode_db.add_child(&dir_node)?;
+                        *total_written += 1;
+                    }
+
+                    // if the vnode is new, we need a new dir db
+                    let mut child_db = if maybe_vnode_db.is_some() {
+                        let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node)?;
+                        Some(dir_db)
+                    } else {
+                        // Otherwise, check if the dir is new before opening a new db
+                        MerkleNodeDB::open_read_write_if_not_exists(repo, &dir_node)?
+                    };
+
                     r_create_dir_node(
                         repo,
                         commit_id,
                         &mut child_db,
                         entries,
                         &entry.path,
-                        read_progress,
                         total_written,
                     )?;
                 }
@@ -417,14 +419,20 @@ fn r_create_dir_node(
                         extension: "".to_string(),
                         dtype: MerkleTreeNodeType::File,
                     };
-                    vnode_db.add_child(&file_node)?;
-                    *total_written += 1;
-                    read_progress
-                        .set_message(format!("Committing {} entries [{:?}]", total_written, path));
+                    if let Some(vnode_db) = &mut maybe_vnode_db {
+                        vnode_db.add_child(&file_node)?;
+                        *total_written += 1;
+                    }
                 }
             }
         }
     }
+
+    log::debug!(
+        "Finished processing dir {:?} total written {} entries",
+        path,
+        total_written
+    );
 
     Ok(())
 }
@@ -721,11 +729,11 @@ mod tests {
             status.print();
 
             // Commit the data
-            let commit = super::commit(&repo, "First commit")?;
+            let first_commit = super::commit(&repo, "First commit")?;
 
             // Read the merkle tree
-            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
-            tree.print();
+            let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            first_tree.print();
 
             // Add a new file to files/dir_1/
             let new_file = repo.path.join("files/dir_1/new_file.txt");
@@ -733,11 +741,16 @@ mod tests {
             command::add(&repo, &new_file)?;
 
             // Commit the data
-            let commit = super::commit(&repo, "Second commit")?;
+            let second_commit = super::commit(&repo, "Second commit")?;
 
             // Read the merkle tree
-            let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
-            tree.print();
+            let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
+            second_tree.print();
+
+            assert_eq!(second_tree.total_vnodes(), 5);
+
+            assert!(!first_tree.has_file(&Path::new("files/dir_1/new_file.txt"))?);
+            assert!(second_tree.has_file(&Path::new("files/dir_1/new_file.txt"))?);
 
             Ok(())
         })
