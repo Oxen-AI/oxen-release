@@ -128,6 +128,8 @@ fn process_dir(
     // progress_1: &ProgressBar,
     // progress_2: &ProgressBar,
 ) -> Result<CumulativeStats, OxenError> {
+    let start = std::time::Instant::now();
+
     let m = MultiProgress::new();
     let progress_1 = m.add(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
@@ -186,11 +188,16 @@ fn process_dir(
             ));
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
+                    let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                     let path = dir_entry.path();
+                    let duration = start.elapsed().as_secs_f32();
+                    let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+
                     progress_1.set_message(format!(
-                        "🐂 Added {} files ({})",
+                        "🐂 Added {} files ({}) {:.2} MB/s",
                         file_counter_clone.load(Ordering::Relaxed),
-                        bytesize::ByteSize::b(byte_counter_clone.load(Ordering::Relaxed)),
+                        bytesize::ByteSize::b(total_bytes),
+                        mbps
                     ));
                     match process_add_file(&repo_path, &versions_path, &staged_db, &path) {
                         Ok(entry) => {
