@@ -139,9 +139,12 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
 
     // Print that we finished
     println!(
-        "🐂 commit {:x} in {:?}",
+        "🐂 commit {:x} in {}",
         commit_id,
-        humantime::format_duration(start_time.elapsed())
+        humantime::format_duration(Duration::from_millis(
+            start_time.elapsed().as_millis() as u64
+        ))
+        .to_string()
     );
 
     Ok(node.to_commit())
