@@ -190,8 +190,8 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = index::workspaces::get(&repo, workspace_id)?;
 
+    let df = index::workspaces::data_frames::rows::delete(&workspace, &file_path, &row_id)?;
     let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
-    let df = index::workspaces::data_frames::rows::delete(&workspace, file_path, &row_id)?;
 
     let schema = Schema::from_polars(&df.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
