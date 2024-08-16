@@ -55,7 +55,7 @@ pub fn add_directories_to_cache_up(repo: &LocalRepository) -> Result<(), OxenErr
 
     let reader = CommitReader::new(repo)?;
 
-    let mut all_commits = reader.list_all_sorted_by_timestamp()?;
+    let all_commits = reader.list_all_sorted_by_timestamp()?;
 
     for commit in all_commits {
         cache::cachers::content_stats::compute(repo, &commit)?;
