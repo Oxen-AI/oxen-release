@@ -150,9 +150,8 @@ fn process_dir(
     let byte_counter = Arc::new(AtomicU64::new(0));
     let file_counter = Arc::new(AtomicU64::new(0));
 
-    let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path)
-        .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()))
-        .process_read_dir(move |_depth, dir, state, children| {
+    let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path).process_read_dir(
+        move |_depth, dir, state, children| {
             // 1. Custom sort
             // children.sort_by(|a, b| match (a, b) {
             //     (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
@@ -214,7 +213,8 @@ fn process_dir(
                     }
                 }
             });
-        });
+        },
+    );
 
     let mut cumulative_stats = CumulativeStats {
         total_files: 0,

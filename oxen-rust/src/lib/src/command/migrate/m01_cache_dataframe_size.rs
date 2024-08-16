@@ -86,9 +86,7 @@ pub fn cache_data_frame_size_up(repo: &LocalRepository) -> Result<(), OxenError>
     let _mutex = repositories::get_exclusive_lock(&mut lock_file)?;
 
     let reader = CommitReader::new(repo)?;
-    let mut all_commits = reader.list_all()?;
-    // Sort by timestamp from oldest to newest
-    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let mut all_commits = reader.list_all_sorted_by_timestamp()?;
 
     for current_commit in &all_commits {
         cachers::df_size::compute(repo, current_commit)?;

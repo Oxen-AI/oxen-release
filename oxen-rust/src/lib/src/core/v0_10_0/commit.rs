@@ -257,7 +257,7 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 }
 
 /// List commits for the repository in no particular order
-pub fn list_all(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     let committer = CommitReader::new(repo)?;
     let commits = committer.list_all()?;
     Ok(commits)

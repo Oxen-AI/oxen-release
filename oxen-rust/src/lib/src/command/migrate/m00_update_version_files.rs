@@ -124,9 +124,7 @@ pub fn update_version_files_down(repo: &LocalRepository) -> Result<(), OxenError
 
     // List all commits in the order they were created
     let reader = CommitReader::new(repo)?;
-    let mut all_commits = reader.list_all()?;
-    // Sort by timestamp from oldest to newest
-    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let all_commits = reader.list_all_sorted_by_timestamp()?;
 
     // let mut entry_hash_to_commit_ids: HashMap<(String, String), Vec<String>> = HashMap::new();
     let mut entry_hash_and_path_to_first_commit_id: HashMap<(String, PathBuf), String> =

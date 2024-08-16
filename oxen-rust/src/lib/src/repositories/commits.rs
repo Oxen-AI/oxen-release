@@ -99,7 +99,7 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 }
 
 /// List commits for the repository in no particular order
-pub fn list_all(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
+pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commit::list_all(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commit::list_all(repo),
@@ -111,6 +111,7 @@ pub fn list_all_paginated(
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
     let commits = list_all(repo)?;
+    let commits: Vec<Commit> = commits.into_iter().collect();
     let (commits, pagination) = util::paginate(commits, pagination.page_num, pagination.page_size);
     Ok(PaginatedCommits {
         status: StatusMessage::resource_found(),

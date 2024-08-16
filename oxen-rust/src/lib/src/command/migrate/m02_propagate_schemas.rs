@@ -88,9 +88,7 @@ pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
     let _mutex = repositories::get_exclusive_lock(&mut lock_file)?;
 
     let reader = CommitReader::new(repo)?;
-    let mut all_commits = reader.list_all()?;
-    // Sort by timestamp from oldest to newest
-    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let mut all_commits = reader.list_all_sorted_by_timestamp()?;
 
     for current_commit in &all_commits {
         for parent_commit_id in &current_commit.parent_ids {

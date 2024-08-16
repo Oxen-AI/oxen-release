@@ -156,6 +156,14 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
+    // Copy over the dir hashes from the previous commit
+    if let Some(commit) = &maybe_head_commit {
+        let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &commit)?;
+        for (path, hash) in dir_hashes {
+            str_val_db::put(&dir_hash_db, path, &format!("{:x}", hash))?;
+        }
+    }
+
     // Commit node has no parent
     let parent_id = None;
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
@@ -279,7 +287,7 @@ fn split_into_vnodes(
         // TODO: Handle updates and deletes, this is pure addition right now
         for child in new_children.iter() {
             // Overwrite the existing child
-            children.insert(child.clone());
+            children.replace(child.clone());
         }
 
         // Log the children
@@ -427,7 +435,12 @@ fn r_create_dir_node(
 
         // Maybe because we don't need to overwrite vnode dbs that already exist,
         // but still need to recurse and create the children
-        let mut maybe_vnode_db = MerkleNodeDB::open_read_write_if_not_exists(
+        // let mut maybe_vnode_db = MerkleNodeDB::open_read_write_if_not_exists(
+        //     repo,
+        //     &vnode_obj,
+        //     maybe_dir_db.as_ref().map(|db| db.node_id),
+        // )?;
+        let mut vnode_db = MerkleNodeDB::open_read_write(
             repo,
             &vnode_obj,
             maybe_dir_db.as_ref().map(|db| db.node_id),
@@ -441,34 +454,30 @@ fn r_create_dir_node(
             );
             match entry.data_type {
                 EntryDataType::Dir => {
-                    // I think here you just need to look up the old one and reference it
-                    if entries.contains_key(&entry.path) {
+                    // If the dir has updates, we need a new dir db
+                    let dir_node = if entries.contains_key(&entry.path) {
                         let dir_node = compute_dir_node(commit_id, entries, &entry.path)?;
-                        if let Some(vnode_db) = &mut maybe_vnode_db {
-                            vnode_db.add_child(&dir_node)?;
-                            *total_written += 1;
-                        }
 
-                        // Always write the dir hash to the dir_hashes db
-                        str_val_db::put(
-                            dir_hash_db,
-                            entry.path.to_str().unwrap(),
-                            &format!("{:x}", dir_node.hash),
-                        )?;
+                        // if let Some(vnode_db) = &mut maybe_vnode_db {
+                        vnode_db.add_child(&dir_node)?;
+                        *total_written += 1;
+                        // }
 
                         // if the vnode is new, we need a new dir db
-                        let mut child_db = if maybe_vnode_db.is_some() {
-                            let dir_db =
-                                MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.id))?;
-                            Some(dir_db)
-                        } else {
-                            // Otherwise, check if the dir is new before opening a new db
-                            MerkleNodeDB::open_read_write_if_not_exists(
-                                repo,
-                                &dir_node,
-                                Some(vnode.id),
-                            )?
-                        };
+                        // let mut child_db = if maybe_vnode_db.is_some() {
+                        let mut child_db = Some(MerkleNodeDB::open_read_write(
+                            repo,
+                            &dir_node,
+                            Some(vnode.id),
+                        )?);
+                        // } else {
+                        //     // Otherwise, check if the dir is new before opening a new db
+                        //     MerkleNodeDB::open_read_write_if_not_exists(
+                        //         repo,
+                        //         &dir_node,
+                        //         Some(vnode.id),
+                        //     )?
+                        // };
 
                         r_create_dir_node(
                             repo,
@@ -479,16 +488,26 @@ fn r_create_dir_node(
                             &entry.path,
                             total_written,
                         )?;
+                        dir_node
                     } else {
                         log::debug!("r_create_dir_node skipping {:?}", entry.path);
                         // Look up the old dir node and reference it
                         let old_dir_node = CommitMerkleTree::read_node(repo, entry.hash, false)?;
                         let dir_node = old_dir_node.dir()?;
-                        if let Some(vnode_db) = &mut maybe_vnode_db {
-                            vnode_db.add_child(&dir_node)?;
-                            *total_written += 1;
-                        }
-                    }
+
+                        // if let Some(vnode_db) = &mut maybe_vnode_db {
+                        vnode_db.add_child(&dir_node)?;
+                        *total_written += 1;
+                        // }
+                        dir_node
+                    };
+
+                    // Always write the dir hash to the dir_hashes db
+                    str_val_db::put(
+                        dir_hash_db,
+                        entry.path.to_str().unwrap(),
+                        &format!("{:x}", dir_node.hash),
+                    )?;
                 }
                 _ => {
                     let file_name = entry.path.file_name().unwrap_or_default().to_str().unwrap();
@@ -521,16 +540,16 @@ fn r_create_dir_node(
                         extension: "".to_string(),
                         dtype: MerkleTreeNodeType::File,
                     };
-                    if let Some(vnode_db) = &mut maybe_vnode_db {
-                        log::debug!(
-                            "Adding file {:?} to vnode {:x} in commit {:x}",
-                            entry.path,
-                            vnode.id,
-                            commit_id
-                        );
-                        vnode_db.add_child(&file_node)?;
-                        *total_written += 1;
-                    }
+                    // if let Some(vnode_db) = &mut maybe_vnode_db {
+                    log::debug!(
+                        "Adding file {:?} to vnode {:x} in commit {:x}",
+                        entry.path,
+                        vnode.id,
+                        commit_id
+                    );
+                    vnode_db.add_child(&file_node)?;
+                    *total_written += 1;
+                    // }
                 }
             }
         }
@@ -944,6 +963,86 @@ mod tests {
             // Read the second merkle tree
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_third_commit() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+
+            // Write data to the repo
+            add_n_files_m_dirs(&repo, 10, 3)?;
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let first_commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            first_tree.print();
+
+            let original_readme_node = first_tree.get_by_path(&Path::new("README.md"))?;
+            assert!(original_readme_node.is_some());
+            let original_readme_node = original_readme_node.unwrap();
+            let original_readme_hash = original_readme_node.hash;
+
+            // Update README.md
+            let new_file = repo.path.join("README.md");
+            util::fs::write_to_path(&new_file, "Update README.md in second commit")?;
+            repositories::add(&repo, &new_file)?;
+
+            // Commit the data
+            let second_commit = super::commit(&repo, "Second commit")?;
+
+            // Make sure commit hashes are different
+            assert!(first_commit.id != second_commit.id);
+
+            // Make sure the head commit is updated
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            assert_eq!(head_commit.id, second_commit.id);
+
+            // Read the merkle tree
+            let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
+            second_tree.print();
+
+            // Make sure the README.md hash is different
+            let updated_readme_node = second_tree.get_by_path(&Path::new("README.md"))?;
+            assert!(updated_readme_node.is_some());
+            let updated_readme_node = updated_readme_node.unwrap();
+            let updated_readme_hash = updated_readme_node.hash;
+            assert!(original_readme_hash != updated_readme_hash);
+
+            // Write a new file to files/dir_1/
+            let new_file = repo.path.join("files/dir_1/new_file.txt");
+            util::fs::write_to_path(&new_file, "New file")?;
+            repositories::add(&repo, &new_file)?;
+
+            // Commit the data
+            let third_commit = super::commit(&repo, "Third commit")?;
+
+            // Read the merkle tree
+            let third_tree = CommitMerkleTree::from_commit(&repo, &third_commit)?;
+            third_tree.print();
+
+            // Make sure the head commit is updated
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            assert_eq!(head_commit.id, third_commit.id);
+            assert!(third_commit.id != second_commit.id);
+            assert!(third_commit.id != first_commit.id);
+
+            // List the dir hashes
+            let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &third_commit)?;
+
+            for (path, hash) in dir_hashes {
+                println!("dir_hash: {:?} {:x}", path, hash);
+                let node = third_tree.get_by_path(&path)?.unwrap();
+                assert_eq!(node.hash, hash);
+            }
 
             Ok(())
         })
