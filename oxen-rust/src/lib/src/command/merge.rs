@@ -74,7 +74,7 @@ mod tests {
             println!("their df {their_df}");
 
             repositories::add(&repo, &bbox_file)?;
-            command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
+            repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
             command::checkout(&repo, og_branch.name).await?;
@@ -83,7 +83,7 @@ mod tests {
                 test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
 
             repositories::add(&repo, &bbox_file)?;
-            command::commit(&repo, "Adding new annotation on main branch")?;
+            repositories::commit(&repo, "Adding new annotation on main branch")?;
 
             // Try to merge in the changes
             command::merge(&repo, branch_name)?;
@@ -127,7 +127,7 @@ mod tests {
 
             // Add the changes
             repositories::add(&repo, &bbox_file)?;
-            command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
+            repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
             command::checkout(&repo, og_branch.name).await?;
@@ -136,7 +136,7 @@ mod tests {
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
             repositories::add(&repo, &bbox_file)?;
-            command::commit(&repo, "Adding new annotation on main branch")?;
+            repositories::commit(&repo, "Adding new annotation on main branch")?;
 
             // Try to merge in the changes
             command::merge(&repo, branch_name)?;
@@ -180,7 +180,7 @@ mod tests {
 
             // Add the changes
             repositories::add(&repo, &bbox_file)?;
-            command::commit(&repo, "Adding new column as an Ox on a branch.")?;
+            repositories::commit(&repo, "Adding new column as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
             command::checkout(&repo, og_branch.name).await?;
@@ -189,7 +189,7 @@ mod tests {
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
             repositories::add(&repo, bbox_file)?;
-            command::commit(&repo, "Adding new row on main branch")?;
+            repositories::commit(&repo, "Adding new row on main branch")?;
 
             // Try to merge in the changes
             command::merge(&repo, branch_name)?;

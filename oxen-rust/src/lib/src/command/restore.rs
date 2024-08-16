@@ -41,7 +41,7 @@ use crate::util;
 /// repositories::add(&repo, &hello_path)?;
 ///
 /// // Commit staged
-/// let commit = command::commit(&repo, "My commit message")?.unwrap();
+/// let commit = repositories::commit(&repo, "My commit message")?.unwrap();
 ///
 /// // Remove the file from disk
 /// util::fs::remove_file(hello_path)?;
@@ -128,7 +128,7 @@ mod tests {
             // Track the file
             repositories::add(&repo, &hello_file)?;
             // Commit the file
-            command::commit(&repo, "My message")?;
+            repositories::commit(&repo, "My message")?;
 
             // Remove the file from disk
             util::fs::remove_file(&hello_file)?;
@@ -155,19 +155,19 @@ mod tests {
             // Track the file
             repositories::add(&repo, &hello_file)?;
             // Commit the file
-            command::commit(&repo, "My message")?;
+            repositories::commit(&repo, "My message")?;
 
             // Modify the file once
             let first_modification = "Hola Mundo";
             let hello_file = test::modify_txt_file(hello_file, first_modification)?;
             repositories::add(&repo, &hello_file)?;
-            let first_mod_commit = command::commit(&repo, "Changing to spanish")?;
+            let first_mod_commit = repositories::commit(&repo, "Changing to spanish")?;
 
             // Modify again
             let second_modification = "Bonjour le monde";
             let hello_file = test::modify_txt_file(hello_file, second_modification)?;
             repositories::add(&repo, &hello_file)?;
-            command::commit(&repo, "Changing to french")?;
+            repositories::commit(&repo, "Changing to french")?;
 
             // Restore from the first commit
             command::restore(
@@ -193,11 +193,11 @@ mod tests {
 
             // Commit the file
             repositories::add(&repo, &file_to_remove)?;
-            command::commit(&repo, "Adding labels file")?;
+            repositories::commit(&repo, "Adding labels file")?;
 
             let train_dir = repo.path.join("train");
             repositories::add(&repo, train_dir)?;
-            command::commit(&repo, "Adding train dir")?;
+            repositories::commit(&repo, "Adding train dir")?;
 
             // Branch
             command::create_checkout(&repo, "remove-labels")?;
@@ -211,7 +211,7 @@ mod tests {
 
             // Commit removed file
             repositories::add(&repo, &file_to_remove)?;
-            command::commit(&repo, "Removing labels file")?;
+            repositories::commit(&repo, "Removing labels file")?;
 
             // Make sure file is not there
             assert!(!file_to_remove.exists());
@@ -394,7 +394,7 @@ mod tests {
 
             // Commit
             repositories::add(&repo, &ann_path)?;
-            let commit = command::commit(&repo, "adding data with duplicates")?;
+            let commit = repositories::commit(&repo, "adding data with duplicates")?;
 
             // Remove
             util::fs::remove_file(&ann_path)?;
@@ -426,7 +426,7 @@ mod tests {
 
             // Commit
             repositories::add(&repo, &ann_path)?;
-            let commit = command::commit(&repo, "adding data with duplicates")?;
+            let commit = repositories::commit(&repo, "adding data with duplicates")?;
 
             // Remove
             util::fs::remove_file(&ann_path)?;
@@ -501,7 +501,7 @@ mod tests {
             // nlp/classification/annotations/test.tsv
             assert_eq!(status.staged_files.len(), 2);
 
-            command::commit(&repo, "Adding nlp dir")?;
+            repositories::commit(&repo, "Adding nlp dir")?;
 
             // Remove the nlp dir
             let dir = Path::new("nlp");
@@ -537,7 +537,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial cat images")?;
+            repositories::commit(&repo, "Adding initial cat images")?;
 
             // Add and commit the dogs
             for i in 1..=4 {
@@ -547,7 +547,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial dog images")?;
+            repositories::commit(&repo, "Adding initial dog images")?;
 
             // Remove all the things
             let rm_opts = RmOpts {

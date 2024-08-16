@@ -85,7 +85,7 @@ mod tests {
                 repositories::add(&cloned_repo, &full_path)?;
 
                 // Commit and push the changed schema
-                command::commit(&cloned_repo, "Changed the schema 😇")?;
+                repositories::commit(&cloned_repo, "Changed the schema 😇")?;
                 command::push(&cloned_repo).await?;
 
                 // Try to commit the remote changes, should fail

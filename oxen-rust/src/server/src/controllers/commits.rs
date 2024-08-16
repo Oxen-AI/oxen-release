@@ -1346,10 +1346,10 @@ mod tests {
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         repositories::add(&repo, path)?;
-        command::commit(&repo, "first commit")?;
+        repositories::commit(&repo, "first commit")?;
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         repositories::add(&repo, path)?;
-        command::commit(&repo, "second commit")?;
+        repositories::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{name}/commits");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
@@ -1377,14 +1377,14 @@ mod tests {
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         repositories::add(&repo, path)?;
-        command::commit(&repo, "first commit")?;
+        repositories::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
         repositories::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         repositories::add(&repo, path)?;
-        command::commit(&repo, "second commit")?;
+        repositories::commit(&repo, "second commit")?;
 
         let uri = format!("/oxen/{namespace}/{repo_name}/commits/history/{branch_name}");
         let req = test::repo_request_with_param(
@@ -1426,14 +1426,14 @@ mod tests {
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "hello")?;
         repositories::add(&repo, path)?;
-        command::commit(&repo, "first commit")?;
+        repositories::commit(&repo, "first commit")?;
 
         let branch_name = "feature/list-commits";
         repositories::branches::create_checkout(&repo, branch_name)?;
 
         let path = liboxen::test::add_txt_file_to_dir(&repo.path, "world")?;
         repositories::add(&repo, path)?;
-        command::commit(&repo, "second commit")?;
+        repositories::commit(&repo, "second commit")?;
 
         // List commits from the first branch
         let uri = format!(
@@ -1477,7 +1477,7 @@ mod tests {
         let hello_file = repo.path.join("hello.txt");
         util::fs::write_to_path(&hello_file, "Hello")?;
         repositories::add(&repo, &hello_file)?;
-        let commit = command::commit(&repo, "First commit")?;
+        let commit = repositories::commit(&repo, "First commit")?;
 
         // create random tarball to post.. currently no validation that it is a valid commit dir
         let path_to_compress = format!("history/{}", commit.id);

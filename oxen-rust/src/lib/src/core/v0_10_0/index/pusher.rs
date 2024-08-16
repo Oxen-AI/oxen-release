@@ -1283,7 +1283,7 @@ mod tests {
             repositories::add(&repo, readme_path)?;
 
             // Commit again
-            let head_commit = command::commit(&repo, "Changed the readme")?;
+            let head_commit = repositories::commit(&repo, "Changed the readme")?;
             let unsynced_commits =
                 pusher::get_commit_objects_to_sync(&repo, &remote_repo, &head_commit, &branch)
                     .await?;
@@ -1415,7 +1415,7 @@ mod tests {
             repositories::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
             command::rm(&local_repo, &rm_opts).await?;
-            let commit = command::commit(&local_repo, "Moved the readme")?;
+            let commit = repositories::commit(&local_repo, "Moved the readme")?;
 
             // All remote entries should by synced
             let unsynced_entries_commits =
@@ -1461,7 +1461,7 @@ mod tests {
             rm_opts.recursive = true;
             command::rm(&local_repo, &rm_opts).await?;
             let commit =
-                command::commit(&local_repo, "Moved all the train image files to images/")?;
+                repositories::commit(&local_repo, "Moved all the train image files to images/")?;
 
             // All remote entries should by synced
             let unsynced_entries_commits =
@@ -1489,7 +1489,7 @@ mod tests {
             let new_file = local_repo.path.join("new_file.txt");
             util::fs::write(&new_file, "I am a new file")?;
             repositories::add(&local_repo, new_file)?;
-            let commit = command::commit(&local_repo, "Added a new file")?;
+            let commit = repositories::commit(&local_repo, "Added a new file")?;
 
             // We should have 1 unsynced entry
             let (commit_unsynced_commits, _) =

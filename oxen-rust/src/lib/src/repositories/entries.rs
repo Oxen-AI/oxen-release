@@ -613,7 +613,7 @@ mod tests {
 
             // Commit the file
             repositories::add(&repo, file_to_add)?;
-            let commit = command::commit(&repo, "Adding labels file")?;
+            let commit = repositories::commit(&repo, "Adding labels file")?;
 
             let entries = repositories::entries::list_all(&repo, &commit)?;
             assert_eq!(entries.len(), 1);
@@ -630,7 +630,7 @@ mod tests {
 
             // Commit the file
             repositories::add(&repo, file_to_add)?;
-            let commit = command::commit(&repo, "Adding labels file")?;
+            let commit = repositories::commit(&repo, "Adding labels file")?;
 
             let count = repositories::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, 1);
@@ -648,7 +648,7 @@ mod tests {
 
             // Commit the dir
             repositories::add(&repo, &dir_to_add)?;
-            let commit = command::commit(&repo, "Adding training data")?;
+            let commit = repositories::commit(&repo, "Adding training data")?;
             let count = repositories::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
 
@@ -664,7 +664,7 @@ mod tests {
 
             // Commit the dir
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all data")?;
+            let commit = repositories::commit(&repo, "Adding all data")?;
 
             let count = repositories::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
@@ -850,7 +850,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -891,7 +891,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -940,7 +940,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -997,7 +997,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -1046,7 +1046,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -1095,7 +1095,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -1145,7 +1145,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -1191,7 +1191,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -1242,7 +1242,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
             let force = true;
@@ -1307,7 +1307,7 @@ mod tests {
 
             // Add and commit all
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // List files
             let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
@@ -1321,7 +1321,7 @@ mod tests {
 
             // Add and commit all
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding additional file")?;
+            let commit = repositories::commit(&repo, "Adding additional file")?;
 
             let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
 
@@ -1331,7 +1331,7 @@ mod tests {
             util::fs::remove_dir_all(&dir_path)?;
 
             repositories::add(&repo, dir_path)?;
-            let commit = command::commit(&repo, "Removing dir")?;
+            let commit = repositories::commit(&repo, "Removing dir")?;
 
             let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
             assert_eq!(entries.len(), 2);
@@ -1385,7 +1385,7 @@ mod tests {
 
             // Add and commit all
             repositories::add(&repo, &repo.path)?;
-            let commit = command::commit(&repo, "Adding all the data")?;
+            let commit = repositories::commit(&repo, "Adding all the data")?;
 
             // Get the metadata entries for the two dataframes
             let meta1 = repositories::entries::get_meta_entry(&repo, &commit, &path_1)?;

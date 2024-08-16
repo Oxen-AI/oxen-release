@@ -86,7 +86,7 @@ mod tests {
                 let filepath = repo.path.join(format!("file_{}.txt", branch));
                 test::write_txt_file_to_path(&filepath, &format!("a file on {}", branch))?;
                 repositories::add(&repo, &filepath)?;
-                command::commit(&repo, &format!("Adding file on {}", branch))?;
+                repositories::commit(&repo, &format!("Adding file on {}", branch))?;
                 command::push(&repo).await?;
             }
 

@@ -111,7 +111,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -162,7 +162,7 @@ mod tests {
 
             // Add the file
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Add some metadata to the schema
             /*
@@ -193,7 +193,7 @@ mod tests {
                 &column_metadata,
             )?;
 
-            command::commit(&local_repo, "add test.csv schema metadata")?;
+            repositories::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -251,7 +251,7 @@ mod tests {
 
             // Add the file
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -300,7 +300,7 @@ mod tests {
                 &column_metadata,
             )?;
 
-            command::commit(&local_repo, "add test.csv schema metadata")?;
+            repositories::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Push the repo
             command::push(&local_repo).await?;

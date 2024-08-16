@@ -227,7 +227,7 @@ mod tests {
 
     //         repositories::add(&repo, repo.path.clone())?;
 
-    //         let commit = command::commit(&repo, "two files")?;
+    //         let commit = repositories::commit(&repo, "two files")?;
 
     //         let c1 = CommitPath {
     //             commit: Some(commit.clone()),
@@ -269,7 +269,7 @@ mod tests {
 
             repositories::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+            let commit = repositories::commit(&repo, "two files")?;
 
             let c1 = CommitPath {
                 commit: Some(commit.clone()),
@@ -329,7 +329,7 @@ mod tests {
 
             repositories::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+            let commit = repositories::commit(&repo, "two files")?;
 
             let c1 = CommitPath {
                 commit: Some(commit.clone()),
@@ -400,7 +400,7 @@ mod tests {
 
             repositories::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+            let commit = repositories::commit(&repo, "two files")?;
 
             let c1 = CommitPath {
                 commit: Some(commit.clone()),
@@ -471,7 +471,7 @@ mod tests {
 
             repositories::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+            let commit = repositories::commit(&repo, "two files")?;
 
             let c1 = CommitPath {
                 commit: Some(commit.clone()),
@@ -541,7 +541,7 @@ mod tests {
 
             repositories::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+            let commit = repositories::commit(&repo, "two files")?;
 
             let c1 = CommitPath {
                 commit: Some(commit.clone()),
@@ -605,7 +605,7 @@ mod tests {
 
             repositories::add(&repo, repo.path.clone())?;
 
-            let commit = command::commit(&repo, "two files")?;
+            let commit = repositories::commit(&repo, "two files")?;
 
             let c1 = CommitPath {
                 commit: Some(commit.clone()),

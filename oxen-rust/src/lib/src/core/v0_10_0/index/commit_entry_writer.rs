@@ -1546,7 +1546,7 @@ mod tests {
             assert!(status.staged_files.contains_key(&PathBuf::from(p1)));
             assert!(status.staged_files.contains_key(&PathBuf::from(p2)));
 
-            let commit = command::commit(&local_repo, "add two files")?;
+            let commit = repositories::commit(&local_repo, "add two files")?;
 
             let commit_entry_reader = CommitEntryReader::new(&local_repo, &commit)?;
 

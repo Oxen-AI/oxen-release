@@ -127,7 +127,7 @@ mod tests {
 
             repositories::add(&local_repo, &labels_path)?;
 
-            let first_commit = command::commit(&local_repo, "adding labels file")?;
+            let first_commit = repositories::commit(&local_repo, "adding labels file")?;
 
             command::push(&local_repo).await?;
 
@@ -140,7 +140,7 @@ mod tests {
 
             repositories::add(&local_repo, &labels_path)?;
 
-            let second_commit = command::commit(&local_repo, "adding labels file v2")?;
+            let second_commit = repositories::commit(&local_repo, "adding labels file v2")?;
 
             command::push(&local_repo).await?;
 

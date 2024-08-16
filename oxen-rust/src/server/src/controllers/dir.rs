@@ -77,7 +77,7 @@ mod tests {
         repositories::add(&repo, &train_dir)?;
 
         // commit the changes
-        let commit = command::commit(&repo, "adding training dir")?;
+        let commit = repositories::commit(&repo, "adding training dir")?;
 
         // Use the api list the files from the commit
         let uri = format!("/oxen/{}/{}/dir/{}/train/", namespace, name, commit.id);

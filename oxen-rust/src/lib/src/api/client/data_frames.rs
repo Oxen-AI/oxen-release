@@ -130,7 +130,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Add some metadata to the schema
             /*
@@ -175,7 +175,7 @@ mod tests {
 
             command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
 
-            command::commit(&local_repo, "add test.csv schema metadata")?;
+            repositories::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -242,7 +242,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -290,7 +290,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -344,7 +344,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -436,7 +436,7 @@ mod tests {
 
             // Add the file
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -488,7 +488,7 @@ mod tests {
                 &column_metadata,
             )?;
 
-            command::commit(&local_repo, "add test.csv schema metadata")?;
+            repositories::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Cannot get schema that does not exist
             let opts = DFOpts::empty();
@@ -542,7 +542,7 @@ mod tests {
             util::fs::copy(from_file, &test_file)?;
 
             repositories::add(&local_repo, &test_file)?;
-            command::commit(&local_repo, "add test.parquet")?;
+            repositories::commit(&local_repo, "add test.parquet")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -609,7 +609,7 @@ mod tests {
             util::fs::copy(from_file, &test_file)?;
 
             repositories::add(&local_repo, &test_file)?;
-            command::commit(&local_repo, "add test.parquet")?;
+            repositories::commit(&local_repo, "add test.parquet")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());
@@ -672,7 +672,7 @@ mod tests {
             util::fs::copy(from_file, &test_file)?;
 
             repositories::add(&local_repo, &test_file)?;
-            command::commit(&local_repo, "add test.parquet")?;
+            repositories::commit(&local_repo, "add test.parquet")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());

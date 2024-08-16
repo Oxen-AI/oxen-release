@@ -158,12 +158,12 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             let train_dir = repo.path.join("train");
             repositories::add(&repo, train_dir)?;
-            command::commit(&repo, "adding train dir")?;
+            repositories::commit(&repo, "adding train dir")?;
 
             let test_dir = repo.path.join("test");
             repositories::add(&repo, test_dir)?;
             let most_recent_message = "adding test dir";
-            command::commit(&repo, most_recent_message)?;
+            repositories::commit(&repo, most_recent_message)?;
 
             let commit_reader = CommitReader::new(&repo)?;
             let history = commit_reader.history_from_head()?;
@@ -182,22 +182,22 @@ mod tests {
             let new_file = repo.path.join("new_1.txt");
             test::write_txt_file_to_path(&new_file, "new 1")?;
             repositories::add(&repo, new_file)?;
-            let base_commit = command::commit(&repo, "commit 1")?;
+            let base_commit = repositories::commit(&repo, "commit 1")?;
 
             let new_file = repo.path.join("new_2.txt");
             test::write_txt_file_to_path(&new_file, "new 2")?;
             repositories::add(&repo, new_file)?;
-            let first_new_commit = command::commit(&repo, "commit 2")?;
+            let first_new_commit = repositories::commit(&repo, "commit 2")?;
 
             let new_file = repo.path.join("new_3.txt");
             test::write_txt_file_to_path(&new_file, "new 3")?;
             repositories::add(&repo, new_file)?;
-            let head_commit = command::commit(&repo, "commit 3")?;
+            let head_commit = repositories::commit(&repo, "commit 3")?;
 
             let new_file = repo.path.join("new_4.txt");
             test::write_txt_file_to_path(&new_file, "new 4")?;
             repositories::add(&repo, new_file)?;
-            command::commit(&repo, "commit 4")?;
+            repositories::commit(&repo, "commit 4")?;
 
             let commit_reader = CommitReader::new(&repo)?;
             let history =

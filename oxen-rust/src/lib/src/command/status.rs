@@ -186,7 +186,7 @@ mod tests {
         test::run_empty_local_repo_test(|repo| {
             let commits = repositories::commits::list(&repo)?;
             let initial_len = commits.len();
-            let result = command::commit(&repo, "Should not work");
+            let result = repositories::commit(&repo, "Should not work");
             assert!(result.is_err());
             let commits = repositories::commits::list(&repo)?;
             // We should not have added any commits
@@ -204,7 +204,7 @@ mod tests {
             let labels_path = repo.path.join("labels.txt");
             util::fs::write_to_path(labels_path, "changing this guy, but not committing")?;
 
-            let result = command::commit(&repo, "Should not work");
+            let result = repositories::commit(&repo, "Should not work");
             assert!(result.is_err());
             let commits = repositories::commits::list(&repo)?;
             // We should not have added any commits
@@ -236,7 +236,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
             let labels_path = repo.path.join("labels.txt");
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "adding initial labels file")?;
+            repositories::commit(&repo, "adding initial labels file")?;
 
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
@@ -246,14 +246,14 @@ mod tests {
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "adding none category")?;
+            repositories::commit(&repo, "adding none category")?;
 
             // Add a "person" category on a the main branch
             command::checkout(&repo, og_branch.name).await?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "adding person category")?;
+            repositories::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
             let commit = command::merge(&repo, branch_name)?;
