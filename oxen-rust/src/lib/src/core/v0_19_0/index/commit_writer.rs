@@ -198,7 +198,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         email: cfg.email.clone(),
         timestamp: timestamp,
     };
-    let commit_id = compute_commit_id(&new_commit, 0)?;
+    let commit_id = compute_commit_id(&new_commit)?;
 
     let node = CommitNode {
         id: commit_id,
@@ -231,22 +231,22 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // Write HEAD file and update branch
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
     log::debug!("Looking for HEAD file at {:?}", head_path);
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_id = format!("{:x}", commit_id);
     if !head_path.exists() {
         log::debug!("HEAD file does not exist, creating new branch");
-        let ref_writer = RefWriter::new(repo)?;
         let branch_name = DEFAULT_BRANCH_NAME;
-        let commit_id = format!("{:x}", commit_id);
         ref_writer.set_head(branch_name);
         ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
-        ref_writer.set_head_commit_id(&commit_id)?;
     }
+    ref_writer.set_head_commit_id(&commit_id)?;
 
     // Clear the staged db
     path_db::clear(&staged_db)?;
 
     // Print that we finished
     println!(
-        "🐂 commit {:x} in {}",
+        "🐂 commit {} in {}",
         commit_id,
         humantime::format_duration(Duration::from_millis(
             start_time.elapsed().as_millis() as u64
@@ -518,7 +518,7 @@ fn split_into_vnodes(
     Ok(results)
 }
 
-fn compute_commit_id(new_commit: &NewCommit, root_dir_hash: u128) -> Result<u128, OxenError> {
+fn compute_commit_id(new_commit: &NewCommit) -> Result<u128, OxenError> {
     let mut hasher = xxhash_rust::xxh3::Xxh3::new();
     hasher.update(b"commit");
     hasher.update(format!("{:?}", new_commit.parent_ids).as_bytes());
@@ -526,7 +526,6 @@ fn compute_commit_id(new_commit: &NewCommit, root_dir_hash: u128) -> Result<u128
     hasher.update(new_commit.author.as_bytes());
     hasher.update(new_commit.email.as_bytes());
     hasher.update(&new_commit.timestamp.unix_timestamp().to_le_bytes());
-    hasher.update(&root_dir_hash.to_le_bytes());
     Ok(hasher.digest128())
 }
 
@@ -967,6 +966,10 @@ mod tests {
             // Make sure commit hashes are different
             assert!(first_commit.id != second_commit.id);
 
+            // Make sure the head commit is updated
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            assert_eq!(head_commit.id, second_commit.id);
+
             // Read the merkle tree
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
@@ -975,6 +978,27 @@ mod tests {
 
             assert!(!first_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
             assert!(second_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
+
+            // Make sure the last commit id is updated on new_file.txt
+            let updated_node = second_tree.get_by_path(&Path::new("files/dir_1/new_file.txt"))?;
+            assert!(updated_node.is_some());
+            let updated_file_node = updated_node.unwrap().file()?;
+            let updated_commit_id = format!("{:x}", updated_file_node.last_commit_id);
+            assert_eq!(updated_commit_id, second_commit.id);
+
+            // Make sure that last commit id is not updated on other files in the dir
+            let other_file_node = second_tree.get_by_path(&Path::new("files/dir_1/file7.txt"))?;
+            assert!(other_file_node.is_some());
+            let other_file_node = other_file_node.unwrap().file()?;
+            let other_commit_id = format!("{:x}", other_file_node.last_commit_id);
+            assert_eq!(other_commit_id, first_commit.id);
+
+            // Make sure last commit is updated on the dir
+            let dir_node = second_tree.get_by_path(&Path::new("files/dir_1"))?;
+            assert!(dir_node.is_some());
+            let dir_node = dir_node.unwrap().dir()?;
+            let dir_commit_id = format!("{:x}", dir_node.last_commit_id);
+            assert_eq!(dir_commit_id, second_commit.id);
 
             // Make sure the hashes of the directories are valid
             // We should update the hashes of dir_1 and all it's parents, but none of the siblings
