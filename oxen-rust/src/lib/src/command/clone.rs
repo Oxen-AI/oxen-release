@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use crate::config::repository_config::RepositoryConfig;
+use crate::config::repository_config::{RepositoryConfig, DEFAULT_VNODE_SIZE};
 use crate::constants::{
     DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME, MIN_OXEN_VERSION, REPO_CONFIG_FILENAME,
 };
@@ -118,6 +118,7 @@ async fn clone_repo(
         remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
         remotes: vec![remote_repo.remote.clone()],
         min_version: Some(MIN_OXEN_VERSION.to_string()),
+        vnode_size: Some(DEFAULT_VNODE_SIZE),
     };
 
     let toml = toml::to_string(&remote_cfg)?;

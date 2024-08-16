@@ -57,7 +57,7 @@ impl MerkleTreeNodeData {
         self.children.is_empty()
     }
 
-    /// Count the total number of vnodes in the tree
+    /// Recursively count the total number of vnodes in the tree
     pub fn total_vnodes(&self) -> u128 {
         let mut count = 0;
         for child in &self.children {
@@ -65,6 +65,17 @@ impl MerkleTreeNodeData {
                 count += 1;
             }
             count += child.total_vnodes();
+        }
+        count
+    }
+
+    /// Count the number of vnodes a dir has
+    pub fn num_vnodes(&self) -> u128 {
+        let mut count = 0;
+        for child in &self.children {
+            if child.dtype == MerkleTreeNodeType::VNode {
+                count += 1;
+            }
         }
         count
     }
