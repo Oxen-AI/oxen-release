@@ -96,10 +96,7 @@ pub fn create_merkle_trees_for_all_repos_down(_path: &Path) -> Result<(), OxenEr
 pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
     // Get all commits in repo, then construct merkle tree for each commit
     let reader = CommitReader::new(repo)?;
-    let all_commits = reader.list_all()?;
-    // sort these by timestamp from oldest to newest
-    let mut all_commits = all_commits.clone();
-    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let all_commits = reader.list_all_sorted_by_timestamp()?;
 
     let bar = oxen_progress_bar(all_commits.len() as u64, ProgressBarType::Counter);
     let commit_writer = CommitWriter::new(repo)?;

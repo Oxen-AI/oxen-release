@@ -63,8 +63,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
     let reader = CommitEntryReader::new(repo, commit)?;
     let commit_reader = CommitReader::new(repo)?;
 
-    let mut commits = commit_reader.list_all()?;
-    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let mut commits = commit_reader.list_all_sorted_by_timestamp()?;
 
     let dirs = reader.list_dirs()?;
     log::debug!("REPO_SIZE {commit} Computing size of {} dirs", dirs.len());

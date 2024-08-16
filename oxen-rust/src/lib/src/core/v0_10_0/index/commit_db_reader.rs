@@ -35,9 +35,9 @@ impl CommitDBReader {
     }
 
     /// List all the commits for the repo
-    pub fn list_all(db: &DBWithThreadMode<MultiThreaded>) -> Result<Vec<Commit>, OxenError> {
+    pub fn list_all(db: &DBWithThreadMode<MultiThreaded>) -> Result<HashSet<Commit>, OxenError> {
         let commits: Vec<Commit> = str_json_db::list_vals(db)?;
-        Ok(commits)
+        Ok(commits.into_iter().collect())
     }
 
     pub fn head_commit(

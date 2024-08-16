@@ -43,8 +43,16 @@ impl CommitReader {
     }
 
     /// Returns all the commit objects in a repo, in no particular order
-    pub fn list_all(&self) -> Result<Vec<Commit>, OxenError> {
+    pub fn list_all(&self) -> Result<HashSet<Commit>, OxenError> {
         CommitDBReader::list_all(&self.db)
+    }
+
+    /// Returns all the commit objects ordered by timestamp
+    pub fn list_all_sorted_by_timestamp(&self) -> Result<Vec<Commit>, OxenError> {
+        let all = CommitDBReader::list_all(&self.db)?;
+        let mut all_vec: Vec<Commit> = Vec::from_iter(all.into_iter());
+        all_vec.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+        Ok(all_vec)
     }
 
     /// Return the latest commit by timestamp

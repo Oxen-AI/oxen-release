@@ -596,7 +596,6 @@ mod tests {
 
     use uuid::Uuid;
 
-    use crate::command;
     use crate::core::v0_10_0::cache;
     use crate::core::v0_10_0::index;
     use crate::error::OxenError;

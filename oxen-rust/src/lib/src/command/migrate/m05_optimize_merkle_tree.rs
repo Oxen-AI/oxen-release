@@ -98,10 +98,7 @@ pub fn create_merkle_trees_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     // Get all commits in repo, then construct merkle tree for each commit
     let commit_reader = CommitReader::new(repo)?;
-    let all_commits = commit_reader.list_all()?;
-    // sort these by timestamp from oldest to newest
-    let mut all_commits = all_commits.clone();
-    all_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let all_commits = commit_reader.list_all_sorted_by_timestamp()?;
     println!("Migrate {} commits for {:?}", all_commits.len(), repo.path);
 
     // Setup these object readers and entry readers to help pre-compute of latest commit for each file

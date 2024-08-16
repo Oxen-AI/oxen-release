@@ -50,7 +50,7 @@ pub async fn compute_cache(
     let commits = if let Some(revision) = revision {
         repositories::commits::list_from(repo, &revision)?
     } else {
-        repositories::commits::list_all(repo)?
+        Vec::from_iter(repositories::commits::list_all(repo)?.into_iter())
     };
     for commit in commits {
         println!("Compute cache for commit {:?}", commit);

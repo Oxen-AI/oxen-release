@@ -120,8 +120,7 @@ pub fn get_cli(
     // Not the most efficient, if there are a ton of commits, but it's the easiest way to get the last updated commit
     let mut last_updated: Option<Commit> = None;
     // Sort commits by timestamp
-    let mut commits = commit_reader.list_all()?;
-    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+    let commits = commit_reader.list_all_sorted_by_timestamp()?;
 
     // Now that we know the commits are sorted, we can iterate through them and find when the file was last updated
     for commit in commits {
