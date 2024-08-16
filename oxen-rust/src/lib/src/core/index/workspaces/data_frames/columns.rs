@@ -60,7 +60,12 @@ pub fn delete(
     let conn = df_db::get_connection(&db_path)?;
 
     let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
-    let column_data_type = table_schema.get_field(&column_to_delete.name).unwrap();
+    let column_data_type =
+        table_schema
+            .get_field(&column_to_delete.name)
+            .ok_or(OxenError::Basic(
+                "A column with the given name does not exist".into(),
+            ))?;
 
     let result = columns::delete_column(&conn, column_to_delete)?;
 
