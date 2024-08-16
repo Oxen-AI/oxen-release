@@ -799,6 +799,63 @@ mod tests {
         })
     }
 
+
+    #[test]
+    fn test_second_commit_keeps_num_bytes_and_data_type_counts() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+
+            // Write data to the repo
+            add_n_files_m_dirs(&repo, 10, 3)?;
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let first_commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            first_tree.print();
+
+            // Get the original root dir file count
+            let original_root_dir = first_tree.get_by_path(&Path::new(""))?;
+            let original_root_dir = original_root_dir.unwrap().dir()?;
+            let original_root_dir_file_count = original_root_dir.num_files();
+
+            // Ten image files + README.md + files.csv
+            assert_eq!(original_root_dir_file_count, 12);
+
+            // Add a new file to files/dir_1/
+            let new_file = repo.path.join("README.md");
+            util::fs::write_to_path(&new_file, "Update that README.md")?;
+            repositories::add(&repo, &new_file)?;
+
+            // Commit the data
+            let second_commit = super::commit(&repo, "Second commit")?;
+
+            // Make sure commit hashes are different
+            assert!(first_commit.id != second_commit.id);
+
+            // Make sure the head commit is updated
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            assert_eq!(head_commit.id, second_commit.id);
+
+            // Read the merkle tree
+            let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
+            second_tree.print();
+
+            // Make sure the root dir file count is the same
+            let updated_root_dir = second_tree.get_by_path(&Path::new(""))?;
+            let updated_root_dir = updated_root_dir.unwrap().dir()?;
+            let updated_root_dir_file_count = updated_root_dir.num_files();
+            assert_eq!(updated_root_dir_file_count, original_root_dir_file_count);
+
+
+            Ok(())
+        })
+    }
+
     #[test]
     fn test_second_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
