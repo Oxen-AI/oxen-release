@@ -145,7 +145,7 @@ mod tests {
     use crate::constants;
     use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
-
+    use crate::repositories;
     use crate::test;
     use crate::view::compare::{TabularCompareFieldBody, TabularCompareTargetBody};
     use polars::lazy::dsl::col;
@@ -166,7 +166,7 @@ mod tests {
             test::write_txt_file_to_path(local_repo.path.join(left_path), csv1)?;
             test::write_txt_file_to_path(local_repo.path.join(right_path), csv2)?;
 
-            command::add(&local_repo, &local_repo.path)?;
+            repositories::add(&local_repo, &local_repo.path)?;
 
             command::commit(&local_repo, "committing files")?;
 
@@ -266,7 +266,7 @@ mod tests {
             test::write_txt_file_to_path(local_repo.path.join(left_path), csv1)?;
             test::write_txt_file_to_path(local_repo.path.join(right_path), csv2)?;
 
-            command::add(&local_repo, &local_repo.path)?;
+            repositories::add(&local_repo, &local_repo.path)?;
             command::commit(&local_repo, "committing files")?;
 
             // set remote
@@ -351,7 +351,7 @@ mod tests {
             // let csv2 = "a,b,c,d\n1,2,3,4\n4,5,6,8\n0,1,9,2";
 
             test::write_txt_file_to_path(local_repo.path.join(left_path), csv1)?;
-            command::add(&local_repo, &local_repo.path)?;
+            repositories::add(&local_repo, &local_repo.path)?;
             command::commit(&local_repo, "committing files")?;
             command::push(&local_repo).await?;
 

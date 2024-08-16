@@ -132,7 +132,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial cat images")?;
 
             // Create branch
@@ -186,7 +186,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial cat images")?;
 
             // Add and commit the dogs
@@ -196,7 +196,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial dog images")?;
 
             // Create branch
@@ -218,7 +218,7 @@ mod tests {
                 new_img.save(repo_filepath).unwrap();
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Resized all the cats")?;
 
             // Remove one of the dogs
@@ -232,7 +232,7 @@ mod tests {
             let test_file = test::test_img_file_with_name("dwight_vince.jpeg");
             let repo_filepath = images_dir.join(test_file.file_name().unwrap());
             util::fs::copy(&test_file, repo_filepath)?;
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             let commit = command::commit(&repo, "Adding dwight and vince")?;
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
@@ -254,7 +254,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             let dir = Path::new("nlp");
             let repo_dir = repo.path.join(dir);
-            command::add(&repo, repo_dir)?;
+            repositories::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
             status.print();
@@ -288,7 +288,7 @@ mod tests {
             assert_eq!(status.removed_files.len(), 2);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
-            command::add(&repo, "nlp/*")?;
+            repositories::add(&repo, "nlp/*")?;
 
             let status = command::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
@@ -312,7 +312,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial cat images")?;
 
             // Add and commit the dogs
@@ -322,7 +322,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial dog images")?;
 
             // Pre-remove two cats and one dog to ensure deleted images get staged as removed as well as non-deleted images

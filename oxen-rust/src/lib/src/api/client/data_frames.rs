@@ -112,8 +112,8 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
-
     use crate::opts::DFOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -129,7 +129,7 @@ mod tests {
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
 
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Add some metadata to the schema
@@ -241,7 +241,7 @@ mod tests {
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
 
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
@@ -289,7 +289,7 @@ mod tests {
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
 
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
@@ -343,7 +343,7 @@ mod tests {
             let from_file = test::test_200k_csv();
             util::fs::copy(from_file, &csv_file)?;
 
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
@@ -435,7 +435,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             // Add the file
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
@@ -541,7 +541,7 @@ mod tests {
             let from_file = test::test_1k_parquet();
             util::fs::copy(from_file, &test_file)?;
 
-            command::add(&local_repo, &test_file)?;
+            repositories::add(&local_repo, &test_file)?;
             command::commit(&local_repo, "add test.parquet")?;
 
             // Set the proper remote
@@ -608,7 +608,7 @@ mod tests {
             let from_file = test::test_1k_parquet();
             util::fs::copy(from_file, &test_file)?;
 
-            command::add(&local_repo, &test_file)?;
+            repositories::add(&local_repo, &test_file)?;
             command::commit(&local_repo, "add test.parquet")?;
 
             // Set the proper remote
@@ -671,7 +671,7 @@ mod tests {
             let from_file = test::test_1k_parquet();
             util::fs::copy(from_file, &test_file)?;
 
-            command::add(&local_repo, &test_file)?;
+            repositories::add(&local_repo, &test_file)?;
             command::commit(&local_repo, "add test.parquet")?;
 
             // Set the proper remote

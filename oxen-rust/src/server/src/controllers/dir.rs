@@ -50,6 +50,7 @@ mod tests {
 
     use liboxen::command;
     use liboxen::error::OxenError;
+    use liboxen::repositories;
     use liboxen::util;
     use liboxen::view::PaginatedDirEntries;
 
@@ -73,7 +74,7 @@ mod tests {
         // add the full dir
         let train_dir = repo.path.join(Path::new("train"));
         let num_entries = util::fs::rcount_files_in_dir(&train_dir);
-        command::add(&repo, &train_dir)?;
+        repositories::add(&repo, &train_dir)?;
 
         // commit the changes
         let commit = command::commit(&repo, "adding training dir")?;

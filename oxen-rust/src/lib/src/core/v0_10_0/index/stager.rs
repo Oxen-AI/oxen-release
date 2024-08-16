@@ -1653,6 +1653,7 @@ mod tests {
     };
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
+    use crate::repositories;
     use crate::util;
     use crate::{command, test};
 
@@ -1792,7 +1793,7 @@ mod tests {
     fn test_stager_add_file2() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
             let hello_file = test::write_txt_file_to_path(repo.path.join("heyyo.txt"), "Hello 1")?;
-            command::add(&repo, hello_file)?;
+            repositories::add(&repo, hello_file)?;
 
             // let status = command::status(&repo)?;
 

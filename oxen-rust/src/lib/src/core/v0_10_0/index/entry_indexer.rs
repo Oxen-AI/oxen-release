@@ -1090,12 +1090,12 @@ mod tests {
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             let train_dir = repo.path.join("train");
-            command::add(&repo, &train_dir)?;
+            repositories::add(&repo, &train_dir)?;
             // Commit the file
             command::commit(&repo, "Adding training data")?;
 
             let test_dir = repo.path.join("test");
-            command::add(&repo, &test_dir)?;
+            repositories::add(&repo, &test_dir)?;
             // Commit the file
             command::commit(&repo, "Adding testing data")?;
 

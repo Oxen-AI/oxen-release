@@ -138,6 +138,7 @@ mod tests {
     use crate::constants::INITIAL_COMMIT_MSG;
     use crate::core::v0_10_0::index::CommitReader;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
 
     #[test]
@@ -156,11 +157,11 @@ mod tests {
     fn test_commit_history_order() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             let train_dir = repo.path.join("train");
-            command::add(&repo, train_dir)?;
+            repositories::add(&repo, train_dir)?;
             command::commit(&repo, "adding train dir")?;
 
             let test_dir = repo.path.join("test");
-            command::add(&repo, test_dir)?;
+            repositories::add(&repo, test_dir)?;
             let most_recent_message = "adding test dir";
             command::commit(&repo, most_recent_message)?;
 
@@ -180,22 +181,22 @@ mod tests {
         test::run_training_data_repo_test_fully_committed(|repo| {
             let new_file = repo.path.join("new_1.txt");
             test::write_txt_file_to_path(&new_file, "new 1")?;
-            command::add(&repo, new_file)?;
+            repositories::add(&repo, new_file)?;
             let base_commit = command::commit(&repo, "commit 1")?;
 
             let new_file = repo.path.join("new_2.txt");
             test::write_txt_file_to_path(&new_file, "new 2")?;
-            command::add(&repo, new_file)?;
+            repositories::add(&repo, new_file)?;
             let first_new_commit = command::commit(&repo, "commit 2")?;
 
             let new_file = repo.path.join("new_3.txt");
             test::write_txt_file_to_path(&new_file, "new 3")?;
-            command::add(&repo, new_file)?;
+            repositories::add(&repo, new_file)?;
             let head_commit = command::commit(&repo, "commit 3")?;
 
             let new_file = repo.path.join("new_4.txt");
             test::write_txt_file_to_path(&new_file, "new 4")?;
-            command::add(&repo, new_file)?;
+            repositories::add(&repo, new_file)?;
             command::commit(&repo, "commit 4")?;
 
             let commit_reader = CommitReader::new(&repo)?;

@@ -612,7 +612,7 @@ mod tests {
             let file_to_add = repo.path.join("labels.txt");
 
             // Commit the file
-            command::add(&repo, file_to_add)?;
+            repositories::add(&repo, file_to_add)?;
             let commit = command::commit(&repo, "Adding labels file")?;
 
             let entries = repositories::entries::list_all(&repo, &commit)?;
@@ -629,7 +629,7 @@ mod tests {
             let file_to_add = repo.path.join("labels.txt");
 
             // Commit the file
-            command::add(&repo, file_to_add)?;
+            repositories::add(&repo, file_to_add)?;
             let commit = command::commit(&repo, "Adding labels file")?;
 
             let count = repositories::entries::count_for_commit(&repo, &commit)?;
@@ -647,7 +647,7 @@ mod tests {
             let num_files = util::fs::rcount_files_in_dir(&dir_to_add);
 
             // Commit the dir
-            command::add(&repo, &dir_to_add)?;
+            repositories::add(&repo, &dir_to_add)?;
             let commit = command::commit(&repo, "Adding training data")?;
             let count = repositories::entries::count_for_commit(&repo, &commit)?;
             assert_eq!(count, num_files);
@@ -663,7 +663,7 @@ mod tests {
             let num_files = util::fs::rcount_files_in_dir(&repo.path);
 
             // Commit the dir
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all data")?;
 
             let count = repositories::entries::count_for_commit(&repo, &commit)?;
@@ -849,7 +849,7 @@ mod tests {
             util::fs::write(filepath, "readme....")?;
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -890,7 +890,7 @@ mod tests {
             }
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -939,7 +939,7 @@ mod tests {
             }
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -996,7 +996,7 @@ mod tests {
             util::fs::write(filepath, "readme....")?;
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -1045,7 +1045,7 @@ mod tests {
             util::fs::write(filepath, "readme....")?;
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -1094,7 +1094,7 @@ mod tests {
             util::fs::write(filepath, "readme....")?;
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -1144,7 +1144,7 @@ mod tests {
             }
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -1190,7 +1190,7 @@ mod tests {
             }
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -1241,7 +1241,7 @@ mod tests {
             }
 
             // Add and commit all the dirs and files
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Run the compute cache
@@ -1306,7 +1306,7 @@ mod tests {
             util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
 
             // Add and commit all
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // List files
@@ -1320,7 +1320,7 @@ mod tests {
             util::fs::write(filepath, "1\t2\t3\nhello\tworld\tsup\n")?;
 
             // Add and commit all
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding additional file")?;
 
             let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
@@ -1330,7 +1330,7 @@ mod tests {
             // Remove the deeply nested dir
             util::fs::remove_dir_all(&dir_path)?;
 
-            command::add(&repo, dir_path)?;
+            repositories::add(&repo, dir_path)?;
             let commit = command::commit(&repo, "Removing dir")?;
 
             let entries = repositories::entries::list_tabular_files_in_repo(&repo, &commit)?;
@@ -1384,7 +1384,7 @@ mod tests {
             util::fs::write(filepath, "readme....")?;
 
             // Add and commit all
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit = command::commit(&repo, "Adding all the data")?;
 
             // Get the metadata entries for the two dataframes

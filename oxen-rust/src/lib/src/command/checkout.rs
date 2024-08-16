@@ -184,7 +184,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello")?;
 
             // Stage a hello file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             // Commit the hello file
             let first_commit = command::commit(&repo, "Adding hello")?;
 
@@ -193,7 +193,7 @@ mod tests {
             util::fs::write_to_path(&world_file, "World")?;
 
             // Stage a world file
-            command::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file)?;
 
             // Commit the world file
             command::commit(&repo, "Adding world")?;
@@ -224,7 +224,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello")?;
 
             // Track & commit the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Added hello.txt")?;
 
             // Create and checkout branch
@@ -245,7 +245,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello")?;
 
             // Track & commit the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Added hello.txt")?;
 
             // Create and checkout branch
@@ -266,7 +266,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello")?;
 
             // Track & commit the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
@@ -281,7 +281,7 @@ mod tests {
             util::fs::write_to_path(&world_file, "World")?;
 
             // Track & commit the second file in the branch
-            command::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file)?;
             command::commit(&repo, "Added world.txt")?;
 
             // Make sure we have both commits after the initial
@@ -324,7 +324,7 @@ mod tests {
             util::fs::write_to_path(&keep_file, "I am untracked, don't remove me")?;
 
             // Track & commit the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
@@ -339,7 +339,7 @@ mod tests {
             util::fs::write_to_path(&world_file, "World")?;
 
             // Track & commit the second file in the branch
-            command::add(&repo, &world_file)?;
+            repositories::add(&repo, &world_file)?;
             command::commit(&repo, "Added world.txt")?;
 
             // Make sure we have both commits after the initial
@@ -381,7 +381,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello")?;
 
             // Track & commit the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Added hello.txt")?;
 
             // Get the original branch name
@@ -395,7 +395,7 @@ mod tests {
             let hello_file = test::modify_txt_file(hello_file, "World")?;
 
             // Track & commit the change in the branch
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Changed file to world")?;
 
             // It should say World at this point
@@ -424,7 +424,7 @@ mod tests {
 
             // Track & commit the file
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
-            command::add(&repo, &one_shot_path)?;
+            repositories::add(&repo, &one_shot_path)?;
             command::commit(&repo, "Adding one shot")?;
 
             // Get OG file contents
@@ -438,7 +438,7 @@ mod tests {
             let status = command::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
             status.print();
-            command::add(&repo, &one_shot_path)?;
+            repositories::add(&repo, &one_shot_path)?;
             let status = command::status(&repo)?;
             status.print();
             command::commit(&repo, "Changing one shot")?;
@@ -467,7 +467,7 @@ mod tests {
 
             // Track & commit all the data
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             command::commit(&repo, "Adding one shot")?;
 
             // Get OG file contents
@@ -480,7 +480,7 @@ mod tests {
             let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
             let status = command::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
-            command::add(&repo, &one_shot_path)?;
+            repositories::add(&repo, &one_shot_path)?;
             let status = command::status(&repo)?;
             assert_eq!(status.modified_files.len(), 0);
             assert_eq!(status.staged_files.len(), 1);
@@ -515,7 +515,7 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&dir_to_remove);
 
             // track the dir
-            command::add(&repo, &dir_to_remove)?;
+            repositories::add(&repo, &dir_to_remove)?;
             command::commit(&repo, "Adding train dir")?;
 
             // Create a branch to make the changes
@@ -526,7 +526,7 @@ mod tests {
             util::fs::remove_dir_all(&dir_to_remove)?;
 
             // Track the deletion
-            command::add(&repo, &dir_to_remove)?;
+            repositories::add(&repo, &dir_to_remove)?;
             command::commit(&repo, "Removing train dir")?;
 
             // checkout OG and make sure it restores the train dir

@@ -58,6 +58,7 @@ mod tests {
 
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -90,7 +91,7 @@ mod tests {
             let file_path = local_repo.path.join(file_name);
             let file_content = "Hello, World!";
             util::fs::write_to_path(&file_path, file_content)?;
-            command::add(&local_repo, file_path)?;
+            repositories::add(&local_repo, file_path)?;
 
             // Commit it
             let first_commit = command::commit(&local_repo, "Add file.txt")?;
@@ -115,7 +116,7 @@ mod tests {
             let file2_content = "Hello, World 2!";
             util::fs::write_to_path(&file1_path, file1_content)?;
             util::fs::write_to_path(&file2_path, file2_content)?;
-            command::add(&local_repo, &dir_path)?;
+            repositories::add(&local_repo, &dir_path)?;
 
             // Commit it
             let second_commit = command::commit(&local_repo, "Add data dir")?;
@@ -155,7 +156,7 @@ mod tests {
             let file4_content = "Hello, World 4!";
             util::fs::write_to_path(&file3_path, file3_content)?;
             util::fs::write_to_path(&file4_path, file4_content)?;
-            command::add(&local_repo, &dir2_path)?;
+            repositories::add(&local_repo, &dir2_path)?;
 
             // Commit it
             let third_commit = command::commit(&local_repo, "Add a_data dir")?;
@@ -198,7 +199,7 @@ mod tests {
             let file6_content = "Hello, World 6!";
             util::fs::write_to_path(&file5_path, file5_content)?;
             util::fs::write_to_path(&file6_path, file6_content)?;
-            command::add(&local_repo, &dir3_path)?;
+            repositories::add(&local_repo, &dir3_path)?;
 
             // Commit it
             let fourth_commit = command::commit(&local_repo, "Add sub_data dir")?;

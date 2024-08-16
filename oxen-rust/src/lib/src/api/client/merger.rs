@@ -45,6 +45,7 @@ mod tests {
 
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use crate::{api, command};
 
@@ -80,7 +81,7 @@ mod tests {
             command::checkout(&local_repo, base).await?;
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
             command::commit(&local_repo, "adding file 1")?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
@@ -106,17 +107,17 @@ mod tests {
             // Modify README.md
             let path = local_repo.path.join("README.md");
             test::write_txt_file_to_path(&path, "I am the README now")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
 
             // Commit twice
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
             command::commit(&local_repo, "adding file 1")?;
 
             let path = local_repo.path.join("file_2.txt");
             test::write_txt_file_to_path(&path, "world")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
             command::commit(&local_repo, "adding file 2")?;
 
             // Push commits
@@ -145,17 +146,17 @@ mod tests {
             // Modify README.md to have a conflict
             let path = local_repo.path.join("README.md");
             test::write_txt_file_to_path(&path, "I am the README now")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
 
             // Commit twice
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
             command::commit(&local_repo, "adding file 1")?;
 
             let path = local_repo.path.join("file_2.txt");
             test::write_txt_file_to_path(&path, "world")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
             command::commit(&local_repo, "adding file 2")?;
 
             // Push commits
@@ -166,7 +167,7 @@ mod tests {
             command::checkout(&local_repo, base).await?;
             let path = local_repo.path.join("README.md");
             test::write_txt_file_to_path(&path, "I am on main conflicting the README")?;
-            command::add(&local_repo, &path)?;
+            repositories::add(&local_repo, &path)?;
             command::commit(&local_repo, "modifying readme on main")?;
 
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;

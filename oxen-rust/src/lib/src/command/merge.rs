@@ -73,7 +73,7 @@ mod tests {
             let their_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
             println!("their df {their_df}");
 
-            command::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file)?;
             command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
@@ -82,7 +82,7 @@ mod tests {
             let bbox_file =
                 test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
 
-            command::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file)?;
             command::commit(&repo, "Adding new annotation on main branch")?;
 
             // Try to merge in the changes
@@ -126,7 +126,7 @@ mod tests {
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_branch)?;
 
             // Add the changes
-            command::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file)?;
             command::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
@@ -135,7 +135,7 @@ mod tests {
             let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
-            command::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file)?;
             command::commit(&repo, "Adding new annotation on main branch")?;
 
             // Try to merge in the changes
@@ -179,7 +179,7 @@ mod tests {
             tabular::write_df(&mut df, &bbox_file)?;
 
             // Add the changes
-            command::add(&repo, &bbox_file)?;
+            repositories::add(&repo, &bbox_file)?;
             command::commit(&repo, "Adding new column as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
@@ -188,7 +188,7 @@ mod tests {
             let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
 
-            command::add(&repo, bbox_file)?;
+            repositories::add(&repo, bbox_file)?;
             command::commit(&repo, "Adding new row on main branch")?;
 
             // Try to merge in the changes

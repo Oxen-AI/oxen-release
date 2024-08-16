@@ -68,6 +68,7 @@ mod tests {
     use crate::command;
     use crate::error::OxenError;
     use crate::model::LocalRepository;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -78,7 +79,7 @@ mod tests {
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello World")?;
             // Add-commit
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Adding hello file")?;
 
             // Save to a path
@@ -102,7 +103,7 @@ mod tests {
                 let hello_file = repo.path.join("hello.txt");
                 util::fs::write_to_path(&hello_file, "Hello World")?;
                 // Add-commit
-                command::add(&repo, &hello_file)?;
+                repositories::add(&repo, &hello_file)?;
                 command::commit(&repo, "Adding hello file")?;
 
                 // Save to a path
@@ -132,7 +133,7 @@ mod tests {
                 let hello_file = repo.path.join("hello.txt");
                 util::fs::write_to_path(&hello_file, "Hello World")?;
                 // Add-commit
-                command::add(&repo, &hello_file)?;
+                repositories::add(&repo, &hello_file)?;
                 command::commit(&repo, "Adding hello file")?;
 
                 // Save to a path
@@ -170,8 +171,8 @@ mod tests {
                 util::fs::write_to_path(&hello_file, "Hello World")?;
                 util::fs::write_to_path(&goodbye_file, "Goodbye World")?;
                 // Add-commit
-                command::add(&repo, &hello_file)?;
-                command::add(&repo, &goodbye_file)?;
+                repositories::add(&repo, &hello_file)?;
+                repositories::add(&repo, &goodbye_file)?;
                 command::commit(&repo, "Adding hello file")?;
 
                 // Move hello into a folder
@@ -188,10 +189,10 @@ mod tests {
                 util::fs::write_to_path(&third_file, "Third File")?;
 
                 // Add-commit
-                command::add(&repo, &moved_hello)?;
-                command::add(&repo, &hello_file)?;
-                command::add(&repo, &goodbye_file)?;
-                command::add(&repo, &third_file)?;
+                repositories::add(&repo, &moved_hello)?;
+                repositories::add(&repo, &hello_file)?;
+                repositories::add(&repo, &goodbye_file)?;
+                repositories::add(&repo, &third_file)?;
                 command::commit(&repo, "Moving hello file")?;
 
                 // Save to a path

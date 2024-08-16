@@ -92,7 +92,7 @@ mod tests {
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
-
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -110,7 +110,7 @@ mod tests {
             let from_file = test::test_csv_file_with_name("mixed_data_types.csv");
             util::fs::copy(from_file, &csv_file)?;
 
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
@@ -161,7 +161,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             // Add the file
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Add some metadata to the schema
@@ -250,7 +250,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             // Add the file
-            command::add(&local_repo, &csv_file)?;
+            repositories::add(&local_repo, &csv_file)?;
             command::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote

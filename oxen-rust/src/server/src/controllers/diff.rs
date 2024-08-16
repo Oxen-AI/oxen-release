@@ -825,7 +825,7 @@ fn group_dir_diffs_by_dir(dir_diffs: Vec<(PathBuf, DiffEntryStatus)>) -> Vec<Dir
 
 #[cfg(test)]
 mod tests {
-    use liboxen::{command, error::OxenError};
+    use liboxen::{command, error::OxenError, repositories};
 
     use crate::test;
 
@@ -847,7 +847,7 @@ mod tests {
         liboxen::test::write_txt_file_to_path(path1, csv1)?;
         liboxen::test::write_txt_file_to_path(path2, csv2)?;
 
-        command::add(&repo, &repo.path)?;
+        repositories::add(&repo, &repo.path)?;
 
         command::status(&repo)?;
 

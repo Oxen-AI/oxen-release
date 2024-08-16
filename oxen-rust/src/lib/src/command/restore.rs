@@ -38,7 +38,7 @@ use crate::util;
 /// util::fs::write_to_path(&hello_path, "Hello World");
 ///
 /// // Stage the file
-/// command::add(&repo, &hello_path)?;
+/// repositories::add(&repo, &hello_path)?;
 ///
 /// // Commit staged
 /// let commit = command::commit(&repo, "My commit message")?.unwrap();
@@ -126,7 +126,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello World")?;
 
             // Track the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             // Commit the file
             command::commit(&repo, "My message")?;
 
@@ -153,20 +153,20 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello World")?;
 
             // Track the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             // Commit the file
             command::commit(&repo, "My message")?;
 
             // Modify the file once
             let first_modification = "Hola Mundo";
             let hello_file = test::modify_txt_file(hello_file, first_modification)?;
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             let first_mod_commit = command::commit(&repo, "Changing to spanish")?;
 
             // Modify again
             let second_modification = "Bonjour le monde";
             let hello_file = test::modify_txt_file(hello_file, second_modification)?;
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             command::commit(&repo, "Changing to french")?;
 
             // Restore from the first commit
@@ -192,11 +192,11 @@ mod tests {
             let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Commit the file
-            command::add(&repo, &file_to_remove)?;
+            repositories::add(&repo, &file_to_remove)?;
             command::commit(&repo, "Adding labels file")?;
 
             let train_dir = repo.path.join("train");
-            command::add(&repo, train_dir)?;
+            repositories::add(&repo, train_dir)?;
             command::commit(&repo, "Adding train dir")?;
 
             // Branch
@@ -210,7 +210,7 @@ mod tests {
             assert_eq!(status.removed_files.len(), 1);
 
             // Commit removed file
-            command::add(&repo, &file_to_remove)?;
+            repositories::add(&repo, &file_to_remove)?;
             command::commit(&repo, "Removing labels file")?;
 
             // Make sure file is not there
@@ -363,7 +363,7 @@ mod tests {
             let bbox_path = repo.path.join(&bbox_file);
 
             // Stage file
-            command::add(&repo, bbox_path)?;
+            repositories::add(&repo, bbox_path)?;
 
             // Make sure is staged
             let status = command::status(&repo)?;
@@ -393,7 +393,7 @@ mod tests {
             let og_contents = util::fs::read_from_path(&ann_path)?;
 
             // Commit
-            command::add(&repo, &ann_path)?;
+            repositories::add(&repo, &ann_path)?;
             let commit = command::commit(&repo, "adding data with duplicates")?;
 
             // Remove
@@ -425,7 +425,7 @@ mod tests {
             let og_contents = util::fs::read_from_path(&ann_path)?;
 
             // Commit
-            command::add(&repo, &ann_path)?;
+            repositories::add(&repo, &ann_path)?;
             let commit = command::commit(&repo, "adding data with duplicates")?;
 
             // Remove
@@ -453,7 +453,7 @@ mod tests {
             let annotations_dir = repo.path.join(relative_path);
 
             // Stage file
-            command::add(&repo, annotations_dir)?;
+            repositories::add(&repo, annotations_dir)?;
 
             // Make sure is staged
             let status = command::status(&repo)?;
@@ -478,7 +478,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             let dir = Path::new("nlp");
             let repo_dir = repo.path.join(dir);
-            command::add(&repo, repo_dir)?;
+            repositories::add(&repo, repo_dir)?;
 
             let status = command::status(&repo)?;
             status.print();
@@ -512,7 +512,7 @@ mod tests {
             assert_eq!(status.removed_files.len(), 2);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
-            command::add(&repo, "nlp/*")?;
+            repositories::add(&repo, "nlp/*")?;
 
             let status = command::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
@@ -536,7 +536,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial cat images")?;
 
             // Add and commit the dogs
@@ -546,7 +546,7 @@ mod tests {
                 util::fs::copy(&test_file, &repo_filepath)?;
             }
 
-            command::add(&repo, &images_dir)?;
+            repositories::add(&repo, &images_dir)?;
             command::commit(&repo, "Adding initial dog images")?;
 
             // Remove all the things
@@ -633,7 +633,7 @@ mod tests {
                 .unwrap();
 
             // Add both files
-            command::add(&repo, &new_annotations_dir)?;
+            repositories::add(&repo, &new_annotations_dir)?;
 
             let status = command::status(&repo)?;
             assert_eq!(status.staged_files.len(), 2);
