@@ -131,7 +131,9 @@ mod tests {
             let path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
-            let data = "{\"name\":\"test\", \"data_type\": \"str\"}";
+            let column_name = "test";
+            let data = format!(r#"{{"name":"{}", "data_type": "str"}}"#, column_name);
+
             api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let result = api::remote::workspaces::data_frames::columns::create(
                 &remote_repo,
@@ -140,6 +142,28 @@ mod tests {
                 data.to_string(),
             )
             .await;
+
+            let df = api::remote::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            if df
+                .data_frame
+                .unwrap()
+                .view
+                .schema
+                .fields
+                .iter()
+                .enumerate()
+                .find(|(_index, field)| field.name == column_name)
+                .is_none()
+            {
+                panic!("Column {} does not exist in the data frame", column_name);
+            }
 
             assert!(result.is_ok());
 
