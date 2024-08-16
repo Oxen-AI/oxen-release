@@ -6,6 +6,7 @@ pub enum StagedEntryStatus {
     Added,
     Modified,
     Removed,
+    Unmodified,
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]

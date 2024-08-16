@@ -27,7 +27,7 @@ use crate::core::v0_19_0::status;
 use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
 use crate::error::OxenError;
 use crate::model::NewCommit;
-use crate::model::{Commit, EntryDataType, LocalRepository};
+use crate::model::{Commit, EntryDataType, LocalRepository, StagedEntryStatus};
 
 use crate::{repositories, util};
 
@@ -385,6 +385,8 @@ fn node_data_to_entry(
                 data_type: EntryDataType::Dir,
                 hash: node.hash,
                 num_bytes: dir_node.num_bytes,
+                status: StagedEntryStatus::Unmodified,
+                last_commit_id: dir_node.last_commit_id,
             }))
         }
         MerkleTreeNodeType::File => {
@@ -394,6 +396,8 @@ fn node_data_to_entry(
                 data_type: file_node.data_type,
                 hash: node.hash,
                 num_bytes: file_node.num_bytes,
+                status: StagedEntryStatus::Unmodified,
+                last_commit_id: file_node.last_commit_id,
             }))
         }
         _ => Ok(None),
@@ -456,6 +460,7 @@ fn split_into_vnodes(
         // Update the children with the new entries from status
         // TODO: Handle updates and deletes, this is pure addition right now
         for child in new_children.iter() {
+            // Overwrite the existing child
             children.insert(child.clone());
         }
 
@@ -665,6 +670,13 @@ fn r_create_dir_node(
                 _ => {
                     let file_name = entry.path.file_name().unwrap_or_default().to_str().unwrap();
 
+                    log::debug!(
+                        "Processing file {:?} in vnode {:x} in commit {:x}",
+                        entry.path,
+                        vnode.id,
+                        commit_id
+                    );
+
                     // Just single file chunk for now
                     let chunks = vec![entry.hash];
                     let file_node = FileNode {
@@ -673,7 +685,11 @@ fn r_create_dir_node(
                         num_bytes: entry.num_bytes,
                         chunk_type: FileChunkType::SingleFile,
                         storage_backend: FileStorageType::Disk,
-                        last_commit_id: commit_id,
+                        last_commit_id: if entry.status == StagedEntryStatus::Unmodified {
+                            entry.last_commit_id
+                        } else {
+                            commit_id
+                        },
                         last_modified_seconds: 0,
                         last_modified_nanoseconds: 0,
                         chunk_hashes: chunks,
@@ -683,6 +699,12 @@ fn r_create_dir_node(
                         dtype: MerkleTreeNodeType::File,
                     };
                     if let Some(vnode_db) = &mut maybe_vnode_db {
+                        log::debug!(
+                            "Adding file {:?} to vnode {:x} in commit {:x}",
+                            entry.path,
+                            vnode.id,
+                            commit_id
+                        );
                         vnode_db.add_child(&file_node)?;
                         *total_written += 1;
                     }
@@ -809,8 +831,6 @@ mod tests {
             // Read the merkle tree
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
-
-            return Ok(());
 
             /*
             [Commit] 861d5cd233eff0940060bd76ce24f10a

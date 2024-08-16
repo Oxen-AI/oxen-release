@@ -225,6 +225,9 @@ impl StagedData {
                     StagedEntryStatus::Removed => {
                         dir_row.push("  removed: ".green());
                     }
+                    StagedEntryStatus::Unmodified => {
+                        // dir_row.push("  unmodified: ".green());
+                    }
                 }
 
                 dir_row.push(staged_dir.path.to_str().unwrap().to_string().green().bold());
@@ -301,6 +304,9 @@ impl StagedData {
                         "  new file: ".green(),
                         format!("{}\n", path.to_str().unwrap()).green().bold(),
                     ]
+                }
+                StagedEntryStatus::Unmodified => {
+                    vec![]
                 }
             },
             outputs,
@@ -379,6 +385,9 @@ impl StagedData {
                                 .green()
                                 .bold(),
                         ]
+                    }
+                    StagedEntryStatus::Unmodified => {
+                        vec![]
                     }
                 }
             },

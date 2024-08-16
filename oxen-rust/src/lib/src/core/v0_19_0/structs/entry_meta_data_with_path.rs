@@ -1,4 +1,4 @@
-use crate::model::EntryDataType;
+use crate::model::{EntryDataType, StagedEntryStatus};
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
@@ -8,6 +8,8 @@ pub struct EntryMetaDataWithPath {
     pub hash: u128,
     pub num_bytes: u64,
     pub data_type: EntryDataType,
+    pub status: StagedEntryStatus,
+    pub last_commit_id: u128,
 }
 
 impl PartialEq for EntryMetaDataWithPath {

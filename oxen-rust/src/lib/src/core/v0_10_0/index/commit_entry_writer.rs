@@ -687,6 +687,9 @@ impl CommitEntryWriter {
                     // Remove the child from the map
                     prev_children_map.remove(&child_with_status.child.path_as_str().to_string());
                 }
+                StagedEntryStatus::Unmodified => {
+                    // Do nothing
+                }
             }
         }
         let mut updated_children: Vec<TreeObjectChild> =
@@ -1260,6 +1263,9 @@ impl CommitEntryWriter {
                     }
                 }
             }
+            StagedEntryStatus::Unmodified => {
+                // Do nothing
+            }
         }
     }
 
@@ -1321,6 +1327,10 @@ impl CommitEntryWriter {
                             last_modified_nanoseconds: 0,
                             hash: entry.hash.clone(),
                         }
+                    }
+                    StagedEntryStatus::Unmodified => {
+                        // Do nothing
+                        panic!("Unmodified entry should not be committed");
                     }
                 };
 
