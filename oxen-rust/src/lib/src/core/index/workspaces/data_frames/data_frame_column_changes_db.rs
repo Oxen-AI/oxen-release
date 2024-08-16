@@ -13,7 +13,17 @@ pub fn save_data_frame_column_changes(
     db: &DB,
     data_frame_column_change: &DataFrameColumnChange,
 ) -> Result<(), OxenError> {
-    let key = &data_frame_column_change.column_name;
+    let column_name = match &data_frame_column_change.column_after {
+        Some(column_after) => column_after.column_name.clone(),
+        None => data_frame_column_change
+            .column_before
+            .as_ref()
+            .expect("column_before is None")
+            .column_name
+            .clone(),
+    };
+
+    let key = column_name;
     let val_json = serde_json::to_string(data_frame_column_change)?;
 
     db.put(key, val_json.as_bytes())?;

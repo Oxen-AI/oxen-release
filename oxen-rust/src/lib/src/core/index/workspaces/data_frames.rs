@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 
 pub mod columns;
 pub mod data_frame_column_changes_db;
+pub mod data_frame_row_changes_db;
 pub mod rows;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
@@ -61,6 +62,16 @@ pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> Pat
         .join("duckdb")
         .join(path_hash)
         .join("column_changes")
+}
+
+pub fn row_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    workspace
+        .dir()
+        .join(MODS_DIR)
+        .join("duckdb")
+        .join(path_hash)
+        .join("row_changes")
 }
 
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {
@@ -195,10 +206,7 @@ pub fn query(
     let conn = df_db::get_connection(db_path)?;
 
     // Get the schema of this commit entry
-    let repo = &workspace.base_repo;
-    let commit = &workspace.commit;
-    let schema = api::local::schemas::get_by_path_from_ref(repo, &commit.id, path)?
-        .ok_or_else(|| OxenError::resource_not_found(path.to_string_lossy()))?;
+    let schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
     // Enrich w/ oxen cols
     let full_schema = workspace_df_db::enhance_schema_with_oxen_cols(&schema)?;
