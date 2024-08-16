@@ -26,5 +26,5 @@ pub struct DataFrameRowChange {
     pub row_id: String,
     pub operation: String,
     pub value: Value,
-    pub new_value: Option<String>,
+    pub new_value: Option<Value>,
 }

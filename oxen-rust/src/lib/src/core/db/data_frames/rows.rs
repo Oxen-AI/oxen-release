@@ -287,7 +287,7 @@ pub fn record_row_change(
     row_id: String,
     operation: String,
     value: Value,
-    new_value: Option<String>,
+    new_value: Option<Value>,
 ) -> Result<(), OxenError> {
     let change = DataFrameRowChange {
         row_id: row_id.to_owned(),

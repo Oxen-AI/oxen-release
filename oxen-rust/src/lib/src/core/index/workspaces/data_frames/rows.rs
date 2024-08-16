@@ -278,10 +278,25 @@ pub fn update(
     let path = path.as_ref();
     let db_path = workspaces::data_frames::duckdb_path(workspace, path);
     let conn = df_db::get_connection(db_path)?;
+    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, path);
 
     let mut df = tabular::parse_json_to_df(data)?;
 
-    let result = rows::modify_row(&conn, &mut df, row_id)?;
+    let mut row = get_by_id(workspace, path, row_id)?;
+
+    let mut result = rows::modify_row(&conn, &mut df, row_id)?;
+
+    let row_before = JsonDataFrameView::json_from_df(&mut row);
+
+    let row_after = JsonDataFrameView::json_from_df(&mut result);
+
+    rows::record_row_change(
+        &row_changes_path,
+        row_id.to_owned(),
+        "updated".to_owned(),
+        row_before,
+        Some(row_after),
+    )?;
 
     workspaces::stager::add(workspace, path)?;
 
