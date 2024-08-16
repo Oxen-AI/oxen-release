@@ -12,7 +12,7 @@
 //! // Instantiate a new repo
 //! let repo = command::init("test_repo")?;
 //! // Add a file to the repo
-//! command::add(&repo, "file.txt")?;
+//! repositories::add(&repo, "file.txt")?;
 //! // Commit the file
 //! command::commit(&repo, "Added file.txt")?;
 //!
@@ -27,7 +27,7 @@
 //! // Create LocalRepository from existing repo
 //! let repo = LocalRepository::new("test_repo")?;
 //! // Add a file to the repo
-//! command::add(&repo, "file.txt")?;
+//! repositories::add(&repo, "file.txt")?;
 //! // Commit the file
 //! command::commit(&repo, "Added file.txt")?;
 //! // Set remote

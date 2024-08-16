@@ -1223,12 +1223,12 @@ mod tests {
             //     test/
             //       annotations.txt
             let train_dir = local_repo.path.join("annotations").join("train");
-            command::add(&local_repo, &train_dir)?;
+            repositories::add(&local_repo, &train_dir)?;
             // Commit the directory
             let commit1 = command::commit(&local_repo, "Adding 1")?;
 
             let test_dir = local_repo.path.join("annotations").join("test");
-            command::add(&local_repo, &test_dir)?;
+            repositories::add(&local_repo, &test_dir)?;
             // Commit the directory
             let commit2 = command::commit(&local_repo, "Adding 2")?;
 
@@ -1302,7 +1302,7 @@ mod tests {
             //     test/
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
-            command::add(&local_repo, &annotations_dir)?;
+            repositories::add(&local_repo, &annotations_dir)?;
             // Commit the directory
             let commit = command::commit(
                 &local_repo,
@@ -1383,18 +1383,18 @@ mod tests {
             // Write, add, and commit file_1
             let file_1 = local_repo.path.join("file_1.txt");
             util::fs::write_to_path(&file_1, "file_1")?;
-            command::add(&local_repo, &file_1)?;
+            repositories::add(&local_repo, &file_1)?;
             let commit_1_file_1 = command::commit(&local_repo, "Adding file_1")?;
 
             // Add a new commit to file_1
             util::fs::write_to_path(&file_1, "file_1_2")?;
-            command::add(&local_repo, &file_1)?;
+            repositories::add(&local_repo, &file_1)?;
             let commit_2_file_1 = command::commit(&local_repo, "Adding file_1_2")?;
 
             // Add a new file_2 and a single commit
             let file_2 = local_repo.path.join("file_2.txt");
             util::fs::write_to_path(&file_2, "file_2")?;
-            command::add(&local_repo, &file_2)?;
+            repositories::add(&local_repo, &file_2)?;
             let _commit_1_file_2 = command::commit(&local_repo, "Adding file_2")?;
 
             // Push it
@@ -1449,18 +1449,18 @@ mod tests {
 
             let file_1 = sub_dir.join("file_1.txt");
             util::fs::write_to_path(&file_1, "file_1")?;
-            command::add(&local_repo, &file_1)?;
+            repositories::add(&local_repo, &file_1)?;
             let commit_1_file_1 = command::commit(&local_repo, "Adding file_1")?;
 
             // Add a new commit to file_1
             util::fs::write_to_path(&file_1, "file_1_2")?;
-            command::add(&local_repo, &file_1)?;
+            repositories::add(&local_repo, &file_1)?;
             let commit_2_file_1 = command::commit(&local_repo, "Adding file_1_2")?;
 
             // Add a new file_2 and a single commit
             let file_2 = sub_dir.join("file_2.txt");
             util::fs::write_to_path(&file_2, "file_2")?;
-            command::add(&local_repo, &file_2)?;
+            repositories::add(&local_repo, &file_2)?;
             let commit_1_file_2 = command::commit(&local_repo, "Adding file_2")?;
 
             // Push it
@@ -1575,7 +1575,7 @@ mod tests {
             //     test/
             //       annotations.txt
             let annotations_dir = local_repo.path.join("annotations");
-            command::add(&local_repo, &annotations_dir)?;
+            repositories::add(&local_repo, &annotations_dir)?;
             // Commit the directory
             let commit = command::commit(
                 &local_repo,

@@ -1517,6 +1517,7 @@ mod tests {
     use crate::command;
     use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
+    use crate::repositories;
     use crate::test;
     use std::path::PathBuf;
 
@@ -1533,8 +1534,8 @@ mod tests {
             test::write_txt_file_to_path(&path_1, common_contents)?;
             test::write_txt_file_to_path(&path_2, common_contents)?;
 
-            command::add(&local_repo, &path_1)?;
-            command::add(&local_repo, &path_2)?;
+            repositories::add(&local_repo, &path_1)?;
+            repositories::add(&local_repo, &path_2)?;
 
             let status = command::status(&local_repo)?;
 

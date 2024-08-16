@@ -490,7 +490,7 @@ mod tests {
             util::fs::write_to_path(&file_repo_path, "test")?;
 
             // Add the dir
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit_1 = command::commit(&repo, "adding test dir")?;
 
             // New file in root
@@ -499,7 +499,7 @@ mod tests {
             util::fs::write_to_path(&file_repo_path_2, "test")?;
 
             // Add the file
-            command::add(&repo, &file_repo_path_2)?;
+            repositories::add(&repo, &file_repo_path_2)?;
             let commit_2 = command::commit(&repo, "adding test file")?;
 
             // Now modify both files, add a third
@@ -511,7 +511,7 @@ mod tests {
             util::fs::write_to_path(&file_repo_path, "something different now")?;
 
             // Add-commit all
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
 
             let commit_3 = command::commit(&repo, "adding test file 2")?;
 
@@ -554,19 +554,19 @@ mod tests {
 
             // Write initial file
             util::fs::write_to_path(&file_repo_path, "test")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit_1 = command::commit(&repo, "adding test file")?;
 
             // Change it
             util::fs::write_to_path(&file_repo_path, "something different now")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit_2 = command::commit(&repo, "adding test file 2")?;
 
             // Add an irrelevant file - aka this isn't changing for commit 3
             let file_path_2 = Path::new("test_file_2.txt");
             let file_repo_path_2 = repo.path.join(file_path_2);
             util::fs::write_to_path(file_repo_path_2, "test")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let _commit_3 = command::commit(&repo, "adding test file 3")?;
 
             // Branch off of main
@@ -574,12 +574,12 @@ mod tests {
 
             // Change the file again
             util::fs::write_to_path(&file_repo_path, "something different now again")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit_4 = command::commit(&repo, "adding test file 4")?;
 
             // One more time on branch
             util::fs::write_to_path(&file_repo_path, "something different now again again")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit_5 = command::commit(&repo, "adding test file 5")?;
 
             // Back to main - hacky to avoid async checkout
@@ -590,7 +590,7 @@ mod tests {
 
             // Another commit
             util::fs::write_to_path(&file_repo_path, "something different now again again again")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
             let commit_6 = command::commit(&repo, "adding test file 6")?;
 
             let _main = repositories::branches::get_by_name(&repo, DEFAULT_BRANCH_NAME)?.unwrap();

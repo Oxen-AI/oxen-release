@@ -27,7 +27,7 @@ use crate::repositories;
 /// util::fs::write_to_path(&hello_file, "Hello World");
 ///
 /// // Stage the file
-/// command::add(&repo, &hello_file)?;
+/// repositories::add(&repo, &hello_file)?;
 ///
 /// // Commit staged
 /// command::commit(&repo, "My commit message")?;
@@ -60,7 +60,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello World")?;
 
             // Track the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
             // Commit the file
             let commit = command::commit(&repo, "My message")?;
             assert_eq!(commit.message, "My message");
@@ -87,7 +87,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello World")?;
 
             // Track the file
-            command::add(&repo, &hello_file)?;
+            repositories::add(&repo, &hello_file)?;
 
             // Remove the file
             util::fs::remove_file(&hello_file)?;
@@ -105,7 +105,7 @@ mod tests {
             let goodbye_file = repo.path.join("goodbye.txt");
             util::fs::write_to_path(&goodbye_file, "Goodbye World")?;
 
-            command::add(&repo, &goodbye_file)?;
+            repositories::add(&repo, &goodbye_file)?;
 
             util::fs::remove_file(&goodbye_file)?;
 
@@ -120,7 +120,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Track the file
             let train_dir = repo.path.join("train");
-            command::add(&repo, train_dir)?;
+            repositories::add(&repo, train_dir)?;
             // Commit the file
             command::commit(&repo, "Adding training data")?;
 
@@ -143,7 +143,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Track the annotations dir, which has sub dirs
             let annotations_dir = repo.path.join("annotations");
-            command::add(&repo, annotations_dir)?;
+            repositories::add(&repo, annotations_dir)?;
             command::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
             let repo_status = command::status(&repo)?;
@@ -176,7 +176,7 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&train_path);
 
             // Add directory
-            command::add(&repo, &train_path)?;
+            repositories::add(&repo, &train_path)?;
             // Make sure we can get the status
             let status = command::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
@@ -215,7 +215,7 @@ mod tests {
             let new_dir_path = repo.path.join("annotations").join("train");
             let og_num_files = util::fs::rcount_files_in_dir(&new_dir_path);
 
-            command::add(&repo, &new_dir_path)?;
+            repositories::add(&repo, &new_dir_path)?;
             command::commit(&repo, "Adding train dir")?;
 
             // checkout OG and make sure it removes the train dir
@@ -239,14 +239,14 @@ mod tests {
             let dir_to_remove = repo.path.join("train");
             let og_file_count = util::fs::rcount_files_in_dir(&dir_to_remove);
 
-            command::add(&repo, &dir_to_remove)?;
+            repositories::add(&repo, &dir_to_remove)?;
             command::commit(&repo, "Adding train directory")?;
 
             // Delete the directory
             util::fs::remove_dir_all(&dir_to_remove)?;
 
             // Add the deleted dir, so that we can commit the deletion
-            command::add(&repo, &dir_to_remove)?;
+            repositories::add(&repo, &dir_to_remove)?;
 
             // Make sure we have the correct amount of files tagged as removed
             let status = command::status(&repo)?;
@@ -267,7 +267,7 @@ mod tests {
     async fn test_commit_after_merge_conflict() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
             let labels_path = repo.path.join("labels.txt");
-            command::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -277,14 +277,14 @@ mod tests {
             repositories::branches::create_checkout(&repo, branch_name)?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
-            command::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path)?;
             command::commit(&repo, "adding none category")?;
 
             // Add a "person" category on a the main branch
             command::checkout(&repo, og_branch.name).await?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
-            command::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path)?;
             command::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
@@ -297,7 +297,7 @@ mod tests {
             // Assume that we fixed the conflict and added the file
             let path = status.merge_conflicts[0].base_entry.path.clone();
             let fullpath = repo.path.join(path);
-            command::add(&repo, fullpath)?;
+            repositories::add(&repo, fullpath)?;
 
             // Should commit, and then see full commit history
             command::commit(&repo, "merging into main")?;
@@ -325,7 +325,7 @@ mod tests {
 
             // Get the hash of the file at this timestamp
             let hash_when_add = util::hasher::hash_file_contents(&text_path)?;
-            command::add(&repo, &text_path)?;
+            repositories::add(&repo, &text_path)?;
 
             // Modify the text file
             util::fs::write_to_path(&text_path, "Goodbye, world!")?;

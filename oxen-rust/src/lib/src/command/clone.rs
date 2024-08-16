@@ -397,26 +397,26 @@ mod tests {
             let filename = "file_to_modify.txt";
             let filepath = local_repo.path.join(filename);
             test::write_txt_file_to_path(&filepath, "Content before modification")?;
-            command::add(&local_repo, &filepath)?;
+            repositories::add(&local_repo, &filepath)?;
             command::commit(&local_repo, "Adding file_to_modify.txt")?;
 
             // Change the file's contents - different hash
             test::write_txt_file_to_path(&filepath, "A whole new hash now!")?;
-            command::add(&local_repo, &filepath)?;
+            repositories::add(&local_repo, &filepath)?;
             command::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
             test::write_txt_file_to_path(&filepath, "Changing againnnnn")?;
-            command::add(&local_repo, &filepath)?;
+            repositories::add(&local_repo, &filepath)?;
             command::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
             // Delete file
             std::fs::remove_file(&filepath)?;
-            command::add(&local_repo, &filepath)?;
+            repositories::add(&local_repo, &filepath)?;
             command::commit(&local_repo, "Deleting file_to_modify.txt")?;
 
             // Add back new
             test::write_txt_file_to_path(&filepath, "Adding back new")?;
-            command::add(&local_repo, &filepath)?;
+            repositories::add(&local_repo, &filepath)?;
             command::commit(&local_repo, "Adding back file_to_modify.txt")?;
 
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME)
@@ -499,15 +499,15 @@ mod tests {
             // Track a file
             let filename = "labels.txt";
             let file_path = repo.path.join(filename);
-            command::add(&repo, &file_path)?;
+            repositories::add(&repo, &file_path)?;
             command::commit(&repo, "Adding labels file")?;
 
             let train_path = repo.path.join("train");
-            command::add(&repo, &train_path)?;
+            repositories::add(&repo, &train_path)?;
             command::commit(&repo, "Adding train dir")?;
 
             let test_path = repo.path.join("test");
-            command::add(&repo, &test_path)?;
+            repositories::add(&repo, &test_path)?;
             command::commit(&repo, "Adding test dir")?;
 
             // Set the proper remote
@@ -579,7 +579,7 @@ mod tests {
                 let new_file = "new_file.txt";
                 let new_file_path = cloned_repo.path.join(new_file);
                 let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
-                command::add(&cloned_repo, &new_file_path)?;
+                repositories::add(&cloned_repo, &new_file_path)?;
                 command::commit(&cloned_repo, "Adding new file path.")?;
 
                 command::push(&cloned_repo).await?;

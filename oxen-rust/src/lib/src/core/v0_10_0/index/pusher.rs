@@ -1280,7 +1280,7 @@ mod tests {
             // Modify README
             let readme_path = repo.path.join("README.md");
             let readme_path = test::modify_txt_file(readme_path, "I am the readme now.")?;
-            command::add(&repo, readme_path)?;
+            repositories::add(&repo, readme_path)?;
 
             // Commit again
             let head_commit = command::commit(&repo, "Changed the readme")?;
@@ -1412,7 +1412,7 @@ mod tests {
             let new_path = local_repo.path.join("README2.md");
             util::fs::rename(&readme_path, &new_path)?;
 
-            command::add(&local_repo, new_path)?;
+            repositories::add(&local_repo, new_path)?;
             let rm_opts = RmOpts::from_path("README.md");
             command::rm(&local_repo, &rm_opts).await?;
             let commit = command::commit(&local_repo, "Moved the readme")?;
@@ -1456,7 +1456,7 @@ mod tests {
             util::fs::create_dir_all(local_repo.path.join("images"))?;
             util::fs::rename(&train_images, &new_path)?;
 
-            command::add(&local_repo, new_path)?;
+            repositories::add(&local_repo, new_path)?;
             let mut rm_opts = RmOpts::from_path("train");
             rm_opts.recursive = true;
             command::rm(&local_repo, &rm_opts).await?;
@@ -1488,7 +1488,7 @@ mod tests {
             // Add a single new file
             let new_file = local_repo.path.join("new_file.txt");
             util::fs::write(&new_file, "I am a new file")?;
-            command::add(&local_repo, new_file)?;
+            repositories::add(&local_repo, new_file)?;
             let commit = command::commit(&local_repo, "Added a new file")?;
 
             // We should have 1 unsynced entry

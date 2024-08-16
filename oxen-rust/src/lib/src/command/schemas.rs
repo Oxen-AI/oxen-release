@@ -245,7 +245,7 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let bbox_file = repo.path.join(bbox_filename);
-            command::add(&repo, bbox_file)?;
+            repositories::add(&repo, bbox_file)?;
 
             // Make sure it is staged
             let status = command::status(&repo)?;
@@ -304,7 +304,7 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
             let bbox_file = repo.path.join(&bbox_filename);
-            command::add(&repo, bbox_file)?;
+            repositories::add(&repo, bbox_file)?;
 
             // Make sure it is staged
             let status = command::status(&repo)?;
@@ -325,7 +325,7 @@ mod tests {
             let readme_filename = Path::new("README.md");
             let readme_file = repo.path.join(readme_filename);
             util::fs::write(&readme_file, "Changing the README")?;
-            command::add(&repo, readme_file)?;
+            repositories::add(&repo, readme_file)?;
             let commit = command::commit(&repo, "Changing the README")?;
 
             // Fetch schema from HEAD commit, it should still be there in all it's glory
@@ -364,7 +364,7 @@ mod tests {
                 .join("bounding_box.csv");
 
             // Add the file
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
 
             // Make sure it is staged
             let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
@@ -443,7 +443,7 @@ mod tests {
             let min_x_meta = json!({
                 "key": "val"
             });
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             command::schemas::add_column_metadata(&repo, schema_ref, "min_x", &min_x_meta)?;
 
             let schemas = command::schemas::get_staged(&repo, schema_ref)?;
@@ -474,7 +474,7 @@ mod tests {
             let schema_ref = bbox_file.to_string_lossy();
 
             // Add and commit the schema
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             command::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema
@@ -508,7 +508,7 @@ mod tests {
             let schema_ref = bbox_file.to_string_lossy();
 
             // Add and commit the schema
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             command::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema metadata
@@ -557,7 +557,7 @@ mod tests {
             });
             let bbox_file = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
             let schema_ref = bbox_file.to_string_lossy();
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
 
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -585,7 +585,7 @@ mod tests {
                 .join("bounding_box.csv");
 
             // Add the schema
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             let commit = command::commit(&repo, "Adding bounding box file")?;
 
             let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
@@ -601,7 +601,7 @@ mod tests {
                 "root": "images"
             });
 
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -643,7 +643,7 @@ mod tests {
                 .join("bounding_box.csv");
 
             // Add the schema
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             let commit = command::commit(&repo, "Adding bounding box file")?;
 
             let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
@@ -667,7 +667,7 @@ mod tests {
             command::df::add_column(&bbox_path, "new_column:0:i32")?;
 
             // Stage the file
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
 
             // Make sure the metadata persisted
             let schemas = command::schemas::get_staged(&repo, &schema_ref)?;
@@ -700,7 +700,7 @@ mod tests {
             let file_metadata = json!({
                 "root": "images"
             });
-            command::add(&repo, &bbox_path)?;
+            repositories::add(&repo, &bbox_path)?;
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &file_metadata)?;
 
             // Fetch staged

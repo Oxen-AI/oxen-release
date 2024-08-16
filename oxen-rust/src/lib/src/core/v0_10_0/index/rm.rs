@@ -72,7 +72,7 @@ async fn rm_dir(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     }
 
     // Stage all the removed files
-    command::add(repo, &full_path)?;
+    repositories::add(repo, &full_path)?;
 
     Ok(())
 }
@@ -132,7 +132,7 @@ fn rm_file(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     }
 
     // Stage the removed file
-    command::add(repo, &full_path)?;
+    repositories::add(repo, &full_path)?;
 
     Ok(())
 }
@@ -186,6 +186,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RmOpts;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -194,7 +195,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("README", |repo| async move {
             // Stage the README.md file
             let path = Path::new("README.md");
-            command::add(&repo, repo.path.join(path))?;
+            repositories::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
             assert_eq!(status.staged_files.len(), 1);
@@ -216,7 +217,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train");
-            command::add(&repo, repo.path.join(path))?;
+            repositories::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
             status.print();
@@ -241,7 +242,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train");
-            command::add(&repo, repo.path.join(path))?;
+            repositories::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
             status.print();
@@ -270,7 +271,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
             // Stage the data
             let path = Path::new("train/");
-            command::add(&repo, repo.path.join(path))?;
+            repositories::add(&repo, repo.path.join(path))?;
 
             let status = command::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);

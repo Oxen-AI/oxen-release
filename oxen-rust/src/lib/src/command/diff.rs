@@ -168,6 +168,7 @@ mod tests {
     use crate::error::OxenError;
     use crate::model::diff::{ChangeType, DiffResult};
     use crate::model::entries::commit_entry::CommitPath;
+    use crate::repositories;
     use crate::test;
     use crate::util;
 
@@ -224,7 +225,7 @@ mod tests {
     //         tokio::fs::write(repo.path.join(&path_1), csv1).await?;
     //         tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-    //         command::add(&repo, repo.path.clone())?;
+    //         repositories::add(&repo, repo.path.clone())?;
 
     //         let commit = command::commit(&repo, "two files")?;
 
@@ -266,7 +267,7 @@ mod tests {
             tokio::fs::write(repo.path.join(&path_1), csv1).await?;
             tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+            repositories::add(&repo, repo.path.clone())?;
 
             let commit = command::commit(&repo, "two files")?;
 
@@ -326,7 +327,7 @@ mod tests {
             tokio::fs::write(repo.path.join(&path_1), csv1).await?;
             tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+            repositories::add(&repo, repo.path.clone())?;
 
             let commit = command::commit(&repo, "two files")?;
 
@@ -397,7 +398,7 @@ mod tests {
             tokio::fs::write(repo.path.join(&path_1), csv1).await?;
             tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+            repositories::add(&repo, repo.path.clone())?;
 
             let commit = command::commit(&repo, "two files")?;
 
@@ -468,7 +469,7 @@ mod tests {
             tokio::fs::write(repo.path.join(&path_1), csv1).await?;
             tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+            repositories::add(&repo, repo.path.clone())?;
 
             let commit = command::commit(&repo, "two files")?;
 
@@ -538,7 +539,7 @@ mod tests {
             tokio::fs::write(repo.path.join(&path_1), csv1).await?;
             tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+            repositories::add(&repo, repo.path.clone())?;
 
             let commit = command::commit(&repo, "two files")?;
 
@@ -602,7 +603,7 @@ mod tests {
             tokio::fs::write(repo.path.join(&path_1), csv1).await?;
             tokio::fs::write(repo.path.join(&path_2), csv2).await?;
 
-            command::add(&repo, repo.path.clone())?;
+            repositories::add(&repo, repo.path.clone())?;
 
             let commit = command::commit(&repo, "two files")?;
 

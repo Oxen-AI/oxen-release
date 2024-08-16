@@ -28,6 +28,7 @@ use std::fs::File;
 use std::path::Path;
 use time::OffsetDateTime;
 
+pub mod add;
 pub mod branches;
 pub mod commits;
 pub mod diffs;
@@ -35,6 +36,8 @@ pub mod entries;
 pub mod metadata;
 pub mod revisions;
 pub mod schemas;
+
+pub use add::add;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     match repo.version() {
@@ -317,7 +320,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
                     std::fs::create_dir_all(parent_dir)?;
                 }
                 util::fs::write(&full_path, contents)?;
-                command::add(&local_repo, &full_path)?;
+                add(&local_repo, &full_path)?;
             }
 
             // Commit the file data

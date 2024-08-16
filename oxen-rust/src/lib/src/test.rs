@@ -12,8 +12,8 @@ use crate::model::schema::Field;
 use crate::model::RepoNew;
 use crate::model::Schema;
 use crate::model::{LocalRepository, RemoteRepository};
-
 use crate::opts::RmOpts;
+use crate::repositories;
 use crate::util;
 
 use env_logger::Env;
@@ -115,7 +115,7 @@ pub fn add_n_files_m_dirs(
     let readme_file = repo.path.join("README.md");
     util::fs::write_to_path(&readme_file, format!("Repo with {} files", num_files))?;
 
-    command::add(&repo, &readme_file)?;
+    repositories::add(&repo, &readme_file)?;
 
     // Write files.csv
     let files_csv = repo.path.join("files.csv");
@@ -140,8 +140,8 @@ pub fn add_n_files_m_dirs(
         util::fs::write_to_path(&file_file, format!("File {}", i))?;
     }
 
-    command::add(&repo, &files_csv)?;
-    command::add(&repo, &files_dir)?;
+    repositories::add(&repo, &files_csv)?;
+    repositories::add(&repo, &files_dir)?;
 
     Ok(())
 }
@@ -317,7 +317,7 @@ where
         // Get random string
         let txt = generate_random_string(20);
         let file_path = add_txt_file_to_dir(&local_repo_dir, &txt)?;
-        command::add(&local_repo, &file_path)?;
+        repositories::add(&local_repo, &file_path)?;
         command::commit(&local_repo, &format!("Adding file_{}", i))?;
     }
 
@@ -381,16 +381,16 @@ where
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
     // Make a few commits before we sync
-    command::add(&local_repo, local_repo.path.join("train"))?;
+    repositories::add(&local_repo, local_repo.path.join("train"))?;
     command::commit(&local_repo, "Adding train/")?;
 
-    command::add(&local_repo, local_repo.path.join("test"))?;
+    repositories::add(&local_repo, local_repo.path.join("test"))?;
     command::commit(&local_repo, "Adding test/")?;
 
-    command::add(&local_repo, local_repo.path.join("annotations"))?;
+    repositories::add(&local_repo, local_repo.path.join("annotations"))?;
     command::commit(&local_repo, "Adding annotations/")?;
 
-    command::add(&local_repo, local_repo.path.join("nlp"))?;
+    repositories::add(&local_repo, local_repo.path.join("nlp"))?;
     command::commit(&local_repo, "Adding nlp/")?;
 
     // Remove the test dir to make a more complex history
@@ -405,7 +405,7 @@ where
     command::commit(&local_repo, "Removing test/")?;
 
     // Add all the files
-    command::add(&local_repo, &local_repo.path)?;
+    repositories::add(&local_repo, &local_repo.path)?;
     // Commit all the data locally
     command::commit(&local_repo, "Adding rest of data")?;
 
@@ -445,7 +445,7 @@ where
     populate_select_training_data(&repo_dir, data)?;
 
     // Make a few commits before we sync
-    command::add(&local_repo, local_repo.path.join(data))?;
+    repositories::add(&local_repo, local_repo.path.join(data))?;
     command::commit(&local_repo, &format!("Adding {data}"))?;
 
     // Create remote
@@ -637,7 +637,7 @@ where
 
     // Write all the files
     create_bounding_box_csv(&local_repo.path)?;
-    command::add(&local_repo, &local_repo.path)?;
+    repositories::add(&local_repo, &local_repo.path)?;
     command::commit(&local_repo, "Adding bounding box csv")?;
 
     // Set the proper remote
@@ -748,7 +748,7 @@ where
     populate_select_training_data(&repo_dir, data)?;
 
     // Add all the files
-    command::add(&repo, &repo.path)?;
+    repositories::add(&repo, &repo.path)?;
     log::debug!("about to commit whole repo");
     // commit
     command::commit(&repo, "Adding all data")?;
@@ -867,7 +867,7 @@ where
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
     // Add all the files
-    command::add(&repo, &repo.path)?;
+    repositories::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
@@ -932,7 +932,7 @@ where
     // Write all the files
     create_bounding_box_csv(&repo.path)?;
     // Add all the files
-    command::add(&repo, &repo.path)?;
+    repositories::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
@@ -972,7 +972,7 @@ where
 
     // Add all the files
     create_bounding_box_csv(&repo.path)?;
-    command::add(&repo, &repo.path)?;
+    repositories::add(&repo, &repo.path)?;
 
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
@@ -1046,7 +1046,7 @@ where
 71,241,M,1,no",
     )?;
 
-    command::add(&repo, &repo.path)?;
+    repositories::add(&repo, &repo.path)?;
     command::commit(&repo, "adding both csvs for compare")?;
 
     let result = match test(repo) {
@@ -1075,7 +1075,7 @@ where
     populate_dir_with_training_data(&repo_dir)?;
 
     // Add all the files
-    command::add(&repo, &repo.path)?;
+    repositories::add(&repo, &repo.path)?;
     // Make it easy to find these schemas during testing
     command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
     command::schemas::set_name(
@@ -1102,13 +1102,13 @@ where
 }
 
 fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
-    command::add(repo, repo.path.join("train"))?;
-    command::add(repo, repo.path.join("test"))?;
-    command::add(repo, repo.path.join("annotations"))?;
-    command::add(repo, repo.path.join("large_files"))?;
-    command::add(repo, repo.path.join("nlp"))?;
-    command::add(repo, repo.path.join("labels.txt"))?;
-    command::add(repo, repo.path.join("README.md"))?;
+    repositories::add(repo, repo.path.join("train"))?;
+    repositories::add(repo, repo.path.join("test"))?;
+    repositories::add(repo, repo.path.join("annotations"))?;
+    repositories::add(repo, repo.path.join("large_files"))?;
+    repositories::add(repo, repo.path.join("nlp"))?;
+    repositories::add(repo, repo.path.join("labels.txt"))?;
+    repositories::add(repo, repo.path.join("README.md"))?;
 
     // Make it easy to find these schemas during testing
     command::schemas::set_name(repo, "b821946753334c083124fd563377d795", "bounding_box")?;

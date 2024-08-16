@@ -588,7 +588,7 @@ mod tests {
 
             // Add another commit on this branch
             let labels_path = repo.path.join("labels.txt");
-            command::add(&repo, labels_path)?;
+            repositories::add(&repo, labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
             // Checkout main again
@@ -621,7 +621,7 @@ mod tests {
 
             // Add another commit on this branch
             let labels_path = repo.path.join("labels.txt");
-            command::add(&repo, labels_path)?;
+            repositories::add(&repo, labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
             // Checkout main again
@@ -666,7 +666,7 @@ mod tests {
             // Now push a new commit
             let labels_path = repo.path.join("labels.txt");
             test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
-            command::add(&repo, labels_path)?;
+            repositories::add(&repo, labels_path)?;
             command::commit(&repo, "adding labels file")?;
             command::push(&repo).await?;
 

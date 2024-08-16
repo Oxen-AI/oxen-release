@@ -125,7 +125,7 @@ mod tests {
     #[test]
     fn test_command_add_one_file_top_level() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
-            command::add(&repo, repo.path.join(Path::new("labels.txt")))?;
+            repositories::add(&repo, repo.path.join(Path::new("labels.txt")))?;
 
             let repo_status = command::status(&repo)?;
             repo_status.print();
@@ -150,7 +150,7 @@ mod tests {
     fn test_command_status_shows_intermediate_directory_if_file_added() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Add a deep file
-            command::add(
+            repositories::add(
                 &repo,
                 repo.path.join(Path::new("annotations/train/one_shot.csv")),
             )?;
@@ -235,7 +235,7 @@ mod tests {
     async fn test_merge_conflict_shows_in_status() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
             let labels_path = repo.path.join("labels.txt");
-            command::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path)?;
             command::commit(&repo, "adding initial labels file")?;
 
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -245,14 +245,14 @@ mod tests {
             repositories::branches::create_checkout(&repo, branch_name)?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
-            command::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path)?;
             command::commit(&repo, "adding none category")?;
 
             // Add a "person" category on a the main branch
             command::checkout(&repo, og_branch.name).await?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
-            command::add(&repo, &labels_path)?;
+            repositories::add(&repo, &labels_path)?;
             command::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
@@ -347,14 +347,14 @@ mod tests {
             assert_eq!(status.untracked_files.len(), 1);
 
             // Add one file...
-            command::add(&repo, &og_file)?;
+            repositories::add(&repo, &og_file)?;
             let status = command::status(&repo)?;
             // No notion of movement until the pair are added
             assert_eq!(status.moved_files.len(), 0);
             assert_eq!(status.staged_files.len(), 1);
 
             // Complete the pair
-            command::add(&repo, &new_file)?;
+            repositories::add(&repo, &new_file)?;
             let status = command::status(&repo)?;
             assert_eq!(status.moved_files.len(), 1);
             assert_eq!(status.staged_files.len(), 2); // Staged files still operates on the addition + removal
@@ -391,8 +391,8 @@ mod tests {
             assert_eq!(status.removed_files.len(), 5);
 
             // Add the removals
-            command::add(&repo, &og_dir)?;
-            // command::add(&repo, &new_dir)?;
+            repositories::add(&repo, &og_dir)?;
+            // repositories::add(&repo, &new_dir)?;
 
             let status = command::status(&repo)?;
             // No moved files, 5 staged (the removals)
@@ -401,7 +401,7 @@ mod tests {
             assert_eq!(status.staged_dirs.len(), 1);
 
             // Complete the pairs
-            command::add(&repo, &new_dir)?;
+            repositories::add(&repo, &new_dir)?;
             let status = command::status(&repo)?;
             assert_eq!(status.moved_files.len(), 5);
             assert_eq!(status.staged_files.len(), 10);

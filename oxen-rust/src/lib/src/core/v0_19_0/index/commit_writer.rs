@@ -732,7 +732,7 @@ mod tests {
             let new_file = repo.path.join("all_files/dir_0/new_file.txt");
             util::fs::create_dir_all(&new_file.parent().unwrap())?;
             util::fs::write_to_path(&new_file, "New file")?;
-            command::add(&repo, &repo.path)?;
+            repositories::add(&repo, &repo.path)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -761,7 +761,7 @@ mod tests {
             let new_file = repo.path.join("files/dir_0/new_file.txt");
             util::fs::create_dir_all(&new_file.parent().unwrap())?;
             util::fs::write_to_path(&new_file, "New file")?;
-            command::add(&repo, &new_file)?;
+            repositories::add(&repo, &new_file)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -801,7 +801,7 @@ mod tests {
             // Add a new file to files/dir_1/
             let new_file = repo.path.join("files/dir_1/new_file.txt");
             util::fs::write_to_path(&new_file, "New file")?;
-            command::add(&repo, &new_file)?;
+            repositories::add(&repo, &new_file)?;
 
             // Commit the data
             let second_commit = super::commit(&repo, "Second commit")?;
@@ -928,7 +928,7 @@ mod tests {
                     .path
                     .join(format!("files/dir_{}/new_file_{}.txt", dir_num, i));
                 util::fs::write_to_path(&new_file, format!("New fileeeee {}", i))?;
-                command::add(&repo, &new_file)?;
+                repositories::add(&repo, &new_file)?;
             }
 
             // Commit the data

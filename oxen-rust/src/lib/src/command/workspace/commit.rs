@@ -36,16 +36,12 @@ pub async fn commit(
 
 #[cfg(test)]
 mod tests {
-    // use std::path::Path;
-
     use crate::api;
     use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
-    // use crate::config::UserConfig;
-    // use crate::constants;
     use crate::error::OxenError;
-    // use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
+    use crate::repositories;
     use crate::test;
 
     #[tokio::test]
@@ -86,7 +82,7 @@ mod tests {
                 opts.add_col = Some("is_something:n/a:str".to_string());
                 opts.output = Some(full_path.to_path_buf()); // write back to same path
                 command::df(&full_path, opts)?;
-                command::add(&cloned_repo, &full_path)?;
+                repositories::add(&cloned_repo, &full_path)?;
 
                 // Commit and push the changed schema
                 command::commit(&cloned_repo, "Changed the schema 😇")?;
