@@ -206,10 +206,7 @@ pub fn query(
     let conn = df_db::get_connection(db_path)?;
 
     // Get the schema of this commit entry
-    let repo = &workspace.base_repo;
-    let commit = &workspace.commit;
-    let schema = api::local::schemas::get_by_path_from_ref(repo, &commit.id, path)?
-        .ok_or_else(|| OxenError::resource_not_found(path.to_string_lossy()))?;
+    let schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
     // Enrich w/ oxen cols
     let full_schema = workspace_df_db::enhance_schema_with_oxen_cols(&schema)?;

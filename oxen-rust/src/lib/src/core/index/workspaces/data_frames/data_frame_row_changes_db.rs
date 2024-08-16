@@ -68,8 +68,6 @@ pub fn get_data_frame_row_change(
 ) -> Result<Option<DataFrameRowChange>, OxenError> {
     let val = db.get(name)?;
 
-    println!("val eloy: {:?}", val);
-
     match val {
         Some(val) => {
             let val_str = match std::str::from_utf8(&val) {
