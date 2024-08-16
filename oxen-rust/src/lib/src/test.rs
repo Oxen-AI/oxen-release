@@ -318,7 +318,7 @@ where
         let txt = generate_random_string(20);
         let file_path = add_txt_file_to_dir(&local_repo_dir, &txt)?;
         repositories::add(&local_repo, &file_path)?;
-        command::commit(&local_repo, &format!("Adding file_{}", i))?;
+        repositories::commit(&local_repo, &format!("Adding file_{}", i))?;
     }
 
     // Run test to see if it panic'd
@@ -382,16 +382,16 @@ where
     populate_dir_with_training_data(&repo_dir)?;
     // Make a few commits before we sync
     repositories::add(&local_repo, local_repo.path.join("train"))?;
-    command::commit(&local_repo, "Adding train/")?;
+    repositories::commit(&local_repo, "Adding train/")?;
 
     repositories::add(&local_repo, local_repo.path.join("test"))?;
-    command::commit(&local_repo, "Adding test/")?;
+    repositories::commit(&local_repo, "Adding test/")?;
 
     repositories::add(&local_repo, local_repo.path.join("annotations"))?;
-    command::commit(&local_repo, "Adding annotations/")?;
+    repositories::commit(&local_repo, "Adding annotations/")?;
 
     repositories::add(&local_repo, local_repo.path.join("nlp"))?;
-    command::commit(&local_repo, "Adding nlp/")?;
+    repositories::commit(&local_repo, "Adding nlp/")?;
 
     // Remove the test dir to make a more complex history
     let rm_opts = RmOpts {
@@ -402,12 +402,12 @@ where
     };
 
     command::rm(&local_repo, &rm_opts).await?;
-    command::commit(&local_repo, "Removing test/")?;
+    repositories::commit(&local_repo, "Removing test/")?;
 
     // Add all the files
     repositories::add(&local_repo, &local_repo.path)?;
     // Commit all the data locally
-    command::commit(&local_repo, "Adding rest of data")?;
+    repositories::commit(&local_repo, "Adding rest of data")?;
 
     // Create remote
     let remote_repo = create_remote_repo(&local_repo).await?;
@@ -446,7 +446,7 @@ where
 
     // Make a few commits before we sync
     repositories::add(&local_repo, local_repo.path.join(data))?;
-    command::commit(&local_repo, &format!("Adding {data}"))?;
+    repositories::commit(&local_repo, &format!("Adding {data}"))?;
 
     // Create remote
     let remote_repo = create_remote_repo(&local_repo).await?;
@@ -591,7 +591,7 @@ where
     // Write all the files
     populate_dir_with_training_data(&local_repo.path)?;
     add_all_data_to_repo(&local_repo)?;
-    command::commit(&local_repo, "Adding all data")?;
+    repositories::commit(&local_repo, "Adding all data")?;
 
     // Set the proper remote
     let remote = repo_remote_url_from(&local_repo.dirname());
@@ -638,7 +638,7 @@ where
     // Write all the files
     create_bounding_box_csv(&local_repo.path)?;
     repositories::add(&local_repo, &local_repo.path)?;
-    command::commit(&local_repo, "Adding bounding box csv")?;
+    repositories::commit(&local_repo, "Adding bounding box csv")?;
 
     // Set the proper remote
     let remote = repo_remote_url_from(&local_repo.dirname());
@@ -751,7 +751,7 @@ where
     repositories::add(&repo, &repo.path)?;
     log::debug!("about to commit whole repo");
     // commit
-    command::commit(&repo, "Adding all data")?;
+    repositories::commit(&repo, "Adding all data")?;
     log::debug!("committed whole repo");
 
     // Run test to see if it panic'd
@@ -878,7 +878,7 @@ where
     )?;
 
     log::debug!("about to commit this repo");
-    command::commit(&repo, "adding all data baby")?;
+    repositories::commit(&repo, "adding all data baby")?;
     log::debug!("successfully committed the repo");
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -942,7 +942,7 @@ where
         "text_classification",
     )?;
 
-    command::commit(&repo, "adding all data baby")?;
+    repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -982,7 +982,7 @@ where
         "text_classification",
     )?;
 
-    command::commit(&repo, "adding all data baby")?;
+    repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
     let result = match test(repo) {
@@ -1047,7 +1047,7 @@ where
     )?;
 
     repositories::add(&repo, &repo.path)?;
-    command::commit(&repo, "adding both csvs for compare")?;
+    repositories::commit(&repo, "adding both csvs for compare")?;
 
     let result = match test(repo) {
         Ok(_) => true,
@@ -1084,7 +1084,7 @@ where
         "text_classification",
     )?;
 
-    command::commit(&repo, "adding all data baby")?;
+    repositories::commit(&repo, "adding all data baby")?;
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
         Ok(_) => {}

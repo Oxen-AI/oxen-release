@@ -49,7 +49,7 @@ Stage a file or directory with `oxen add <file>`"
         let _ = CommitEntryWriter::new(repo, &commit)?;
         let _elapsed = start.elapsed();
     }
-    log::info!("DONE COMMITTING in command::commit {}", commit);
+    log::info!("DONE COMMITTING in repositories::commit {}", commit);
     Ok(commit)
 }
 

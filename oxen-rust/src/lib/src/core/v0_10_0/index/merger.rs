@@ -755,33 +755,33 @@ mod tests {
         util::fs::write_to_path(&a_path, "a")?;
         repositories::add(repo, a_path)?;
         // Return the lowest common ancestor for the tests
-        let lca = command::commit(repo, "Committing a.txt file")?;
+        let lca = repositories::commit(repo, "Committing a.txt file")?;
 
         // Make changes on B
         repositories::branches::create_checkout(repo, merge_branch_name)?;
         let b_path = repo.path.join("b.txt");
         util::fs::write_to_path(&b_path, "b")?;
         repositories::add(repo, b_path)?;
-        command::commit(repo, "Committing b.txt file")?;
+        repositories::commit(repo, "Committing b.txt file")?;
 
         // Checkout A again to make another change
         command::checkout(repo, &a_branch.name).await?;
         let c_path = repo.path.join("c.txt");
         util::fs::write_to_path(&c_path, "c")?;
         repositories::add(repo, c_path)?;
-        command::commit(repo, "Committing c.txt file")?;
+        repositories::commit(repo, "Committing c.txt file")?;
 
         let d_path = repo.path.join("d.txt");
         util::fs::write_to_path(&d_path, "d")?;
         repositories::add(repo, d_path)?;
-        command::commit(repo, "Committing d.txt file")?;
+        repositories::commit(repo, "Committing d.txt file")?;
 
         // Checkout merge branch (B) to make another change
         command::checkout(repo, merge_branch_name).await?;
         let e_path = repo.path.join("e.txt");
         util::fs::write_to_path(&e_path, "e")?;
         repositories::add(repo, e_path)?;
-        command::commit(repo, "Committing e.txt file")?;
+        repositories::commit(repo, "Committing e.txt file")?;
 
         // Checkout the OG branch again so that we can merge into it
         command::checkout(repo, &a_branch.name).await?;
@@ -797,7 +797,7 @@ mod tests {
             let hello_file = repo.path.join("hello.txt");
             util::fs::write_to_path(&hello_file, "Hello")?;
             repositories::add(&repo, hello_file)?;
-            command::commit(&repo, "Adding hello file")?;
+            repositories::commit(&repo, "Adding hello file")?;
 
             // Branch to add world
             let branch_name = "add-world";
@@ -806,7 +806,7 @@ mod tests {
             let world_file = repo.path.join("world.txt");
             util::fs::write_to_path(&world_file, "World")?;
             repositories::add(&repo, &world_file)?;
-            command::commit(&repo, "Adding world file")?;
+            repositories::commit(&repo, "Adding world file")?;
             // Fetch the branch again to get the latest commit
             let merge_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
@@ -847,7 +847,7 @@ mod tests {
             repositories::add(&repo, &world_file)?;
 
             // Commit two files
-            command::commit(&repo, "Adding hello & world files")?;
+            repositories::commit(&repo, "Adding hello & world files")?;
 
             // Branch to remove world
             let branch_name = "remove-world";
@@ -859,7 +859,7 @@ mod tests {
 
             // Commit the removal
             repositories::add(&repo, &world_file)?;
-            command::commit(&repo, "Removing world file")?;
+            repositories::commit(&repo, "Removing world file")?;
 
             // Checkout and merge additions
             command::checkout(&repo, &og_branch.name).await?;
@@ -894,7 +894,7 @@ mod tests {
             repositories::add(&repo, &world_file)?;
 
             // Commit two files
-            command::commit(&repo, "Adding hello & world files")?;
+            repositories::commit(&repo, "Adding hello & world files")?;
 
             // Branch to remove world
             let branch_name = "modify-world";
@@ -906,7 +906,7 @@ mod tests {
 
             // Commit the removal
             repositories::add(&repo, &world_file)?;
-            command::commit(&repo, "Modifying world file")?;
+            repositories::commit(&repo, "Modifying world file")?;
 
             // Checkout and merge additions
             command::checkout(&repo, &og_branch.name).await?;
@@ -1014,7 +1014,7 @@ mod tests {
             util::fs::write_to_path(&a_path, "a")?;
             repositories::add(&repo, &a_path)?;
             // Return the lowest common ancestor for the tests
-            command::commit(&repo, "Committing a.txt file")?;
+            repositories::commit(&repo, "Committing a.txt file")?;
 
             // Make changes on B
             let merge_branch_name = "B";
@@ -1030,7 +1030,7 @@ mod tests {
             repositories::add(&repo, &a_path)?;
 
             // Commit changes
-            command::commit(&repo, "Committing b.txt file")?;
+            repositories::commit(&repo, "Committing b.txt file")?;
 
             // Checkout main branch again to make another change
             command::checkout(&repo, &a_branch.name).await?;
@@ -1045,13 +1045,13 @@ mod tests {
             repositories::add(&repo, &a_path)?;
 
             // Commit changes to main branch
-            command::commit(&repo, "Committing c.txt file")?;
+            repositories::commit(&repo, "Committing c.txt file")?;
 
             // Commit some more changes to main branch
             let d_path = repo.path.join("d.txt");
             util::fs::write_to_path(&d_path, "d")?;
             repositories::add(&repo, &d_path)?;
-            command::commit(&repo, "Committing d.txt file")?;
+            repositories::commit(&repo, "Committing d.txt file")?;
 
             // Checkout merge branch (B) to make another change
             command::checkout(&repo, merge_branch_name).await?;
@@ -1060,7 +1060,7 @@ mod tests {
             let e_path = repo.path.join("e.txt");
             util::fs::write_to_path(&e_path, "e")?;
             repositories::add(&repo, &e_path)?;
-            command::commit(&repo, "Committing e.txt file")?;
+            repositories::commit(&repo, "Committing e.txt file")?;
 
             // Checkout the OG branch again so that we can merge into it
             command::checkout(&repo, &a_branch.name).await?;
@@ -1097,14 +1097,14 @@ mod tests {
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
             repositories::add(&repo, &labels_path)?;
             // Return the lowest common ancestor for the tests
-            command::commit(&repo, "Add initial labels.txt file with cat and dog")?;
+            repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
             // Add a fish label to the file on a branch
             let fish_branch_name = "add-fish-label";
             repositories::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "Adding fish to labels.txt file")?;
+            repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
             command::checkout(&repo, &og_branch.name).await?;
@@ -1112,7 +1112,7 @@ mod tests {
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             repositories::add(&repo, labels_path)?;
-            command::commit(&repo, "Adding human to labels.txt file")?;
+            repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
             command::checkout(&repo, &og_branch.name).await?;
@@ -1153,14 +1153,14 @@ mod tests {
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
             repositories::add(&repo, &labels_path)?;
             // Return the lowest common ancestor for the tests
-            command::commit(&repo, "Add initial labels.txt file with cat and dog")?;
+            repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
             // Add a fish label to the file on a branch
             let fish_branch_name = "add-fish-label";
             repositories::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "Adding fish to labels.txt file")?;
+            repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
             command::checkout(&repo, &og_branch.name).await?;
@@ -1168,7 +1168,7 @@ mod tests {
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             repositories::add(&repo, labels_path)?;
-            command::commit(&repo, "Adding human to labels.txt file")?;
+            repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
             command::checkout(&repo, &og_branch.name).await?;
@@ -1204,14 +1204,14 @@ mod tests {
             util::fs::write_to_path(&labels_path, "cat\ndog")?;
             repositories::add(&repo, &labels_path)?;
             // Return the lowest common ancestor for the tests
-            command::commit(&repo, "Add initial labels.txt file with cat and dog")?;
+            repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
             // Add a fish label to the file on a branch
             let fish_branch_name = "add-fish-label";
             repositories::branches::create_checkout(&repo, fish_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "Adding fish to labels.txt file")?;
+            repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
             command::checkout(&repo, &og_branch.name).await?;
@@ -1219,7 +1219,7 @@ mod tests {
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
             repositories::add(&repo, labels_path)?;
-            let human_commit = command::commit(&repo, "Adding human to labels.txt file")?;
+            let human_commit = repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
             command::checkout(&repo, &og_branch.name).await?;

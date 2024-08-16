@@ -42,7 +42,7 @@ mod tests {
                 util::fs::write_to_path(&path, format!("lol hi {}", i))?;
             }
             repositories::add(&repo, &dir)?;
-            command::commit(&repo, "adding text files")?;
+            repositories::commit(&repo, "adding text files")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -100,7 +100,7 @@ mod tests {
                 util::fs::write_to_path(&path, format!("lol hi {}", i))?;
             }
             repositories::add(&repo, &dir)?;
-            command::commit(&repo, "adding text files")?;
+            repositories::commit(&repo, "adding text files")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());

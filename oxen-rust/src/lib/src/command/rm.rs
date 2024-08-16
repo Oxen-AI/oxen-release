@@ -133,7 +133,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial cat images")?;
+            repositories::commit(&repo, "Adding initial cat images")?;
 
             // Create branch
             let branch_name = "remove-data";
@@ -148,7 +148,7 @@ mod tests {
             let mut rm_opts = RmOpts::from_path(Path::new("images"));
             rm_opts.recursive = true;
             command::rm(&repo, &rm_opts).await?;
-            let commit = command::commit(&repo, "Removing cat images")?;
+            let commit = repositories::commit(&repo, "Removing cat images")?;
 
             for i in 1..=3 {
                 let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
@@ -187,7 +187,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial cat images")?;
+            repositories::commit(&repo, "Adding initial cat images")?;
 
             // Add and commit the dogs
             for i in 1..=4 {
@@ -197,7 +197,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial dog images")?;
+            repositories::commit(&repo, "Adding initial dog images")?;
 
             // Create branch
             let branch_name = "modify-data";
@@ -219,21 +219,21 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Resized all the cats")?;
+            repositories::commit(&repo, "Resized all the cats")?;
 
             // Remove one of the dogs
             let repo_filepath = PathBuf::from("images").join("dog_1.jpg");
 
             let rm_opts = RmOpts::from_path(repo_filepath);
             command::rm(&repo, &rm_opts).await?;
-            command::commit(&repo, "Removing dog")?;
+            repositories::commit(&repo, "Removing dog")?;
 
             // Add dwight howard and vince carter
             let test_file = test::test_img_file_with_name("dwight_vince.jpeg");
             let repo_filepath = images_dir.join(test_file.file_name().unwrap());
             util::fs::copy(&test_file, repo_filepath)?;
             repositories::add(&repo, &images_dir)?;
-            let commit = command::commit(&repo, "Adding dwight and vince")?;
+            let commit = repositories::commit(&repo, "Adding dwight and vince")?;
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
             let entries = repositories::entries::list_all(&repo, &commit)?;
@@ -277,7 +277,7 @@ mod tests {
             // nlp/classification/annotations/test.tsv
             assert_eq!(status.staged_files.len(), 2);
 
-            command::commit(&repo, "Adding nlp dir")?;
+            repositories::commit(&repo, "Adding nlp dir")?;
 
             // Remove the nlp dir
             let dir = Path::new("nlp");
@@ -313,7 +313,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial cat images")?;
+            repositories::commit(&repo, "Adding initial cat images")?;
 
             // Add and commit the dogs
             for i in 1..=4 {
@@ -323,7 +323,7 @@ mod tests {
             }
 
             repositories::add(&repo, &images_dir)?;
-            command::commit(&repo, "Adding initial dog images")?;
+            repositories::commit(&repo, "Adding initial dog images")?;
 
             // Pre-remove two cats and one dog to ensure deleted images get staged as removed as well as non-deleted images
             std::fs::remove_file(repo.path.join("images").join("cat_1.jpg"))?;

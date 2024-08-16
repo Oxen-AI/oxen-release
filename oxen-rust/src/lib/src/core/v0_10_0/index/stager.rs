@@ -1802,7 +1802,7 @@ mod tests {
 
             // assert_eq!(status.staged_files.len(), 1);
 
-            command::commit(&repo, "Add Hello 1")?;
+            repositories::commit(&repo, "Add Hello 1")?;
 
             let status = command::status(&repo)?;
 

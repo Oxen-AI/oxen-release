@@ -94,7 +94,7 @@ mod tests {
             repositories::add(&local_repo, file_path)?;
 
             // Commit it
-            let first_commit = command::commit(&local_repo, "Add file.txt")?;
+            let first_commit = repositories::commit(&local_repo, "Add file.txt")?;
 
             // Push it
             command::push(&local_repo).await?;
@@ -119,7 +119,7 @@ mod tests {
             repositories::add(&local_repo, &dir_path)?;
 
             // Commit it
-            let second_commit = command::commit(&local_repo, "Add data dir")?;
+            let second_commit = repositories::commit(&local_repo, "Add data dir")?;
 
             // Push it
             command::push(&local_repo).await?;
@@ -159,7 +159,7 @@ mod tests {
             repositories::add(&local_repo, &dir2_path)?;
 
             // Commit it
-            let third_commit = command::commit(&local_repo, "Add a_data dir")?;
+            let third_commit = repositories::commit(&local_repo, "Add a_data dir")?;
 
             // Push it
             command::push(&local_repo).await?;
@@ -202,7 +202,7 @@ mod tests {
             repositories::add(&local_repo, &dir3_path)?;
 
             // Commit it
-            let fourth_commit = command::commit(&local_repo, "Add sub_data dir")?;
+            let fourth_commit = repositories::commit(&local_repo, "Add sub_data dir")?;
 
             // Push it
             command::push(&local_repo).await?;

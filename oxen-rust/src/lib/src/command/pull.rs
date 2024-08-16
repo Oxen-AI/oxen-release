@@ -105,7 +105,7 @@ mod tests {
             let og_num_files = util::fs::rcount_files_in_dir(&train_dir);
             repositories::add(&repo, &train_dir)?;
             // Commit the train dir
-            command::commit(&repo, "Adding training data")?;
+            repositories::commit(&repo, "Adding training data")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -125,7 +125,7 @@ mod tests {
 
             // Add and commit and push
             repositories::add(&repo, &party_ppl_file_path)?;
-            let latest_commit = command::commit(&repo, "Adding party_ppl.txt")?;
+            let latest_commit = repositories::commit(&repo, "Adding party_ppl.txt")?;
             command::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
@@ -169,7 +169,7 @@ mod tests {
 
                 // Add and commit and push
                 repositories::add(&cloned_repo, &send_it_back_file_path)?;
-                command::commit(&cloned_repo, "Adding send_it_back.txt")?;
+                repositories::commit(&cloned_repo, "Adding send_it_back.txt")?;
                 command::push(&cloned_repo).await?;
 
                 // Pull back from the OG Repo
@@ -188,7 +188,7 @@ mod tests {
                 let party_ppl_contents = String::from("Late to the party");
                 util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents)?;
                 repositories::add(&repo, &party_ppl_file_path)?;
-                command::commit(&repo, "Modified party ppl contents")?;
+                repositories::commit(&repo, "Modified party ppl contents")?;
                 command::push(&repo).await?;
 
                 // Pull the modifications
@@ -200,7 +200,7 @@ mod tests {
                 // Remove a file, add, commit, push the change
                 util::fs::remove_file(&send_it_back_file_path)?;
                 repositories::add(&cloned_repo, &send_it_back_file_path)?;
-                command::commit(&cloned_repo, "Removing the send it back file")?;
+                repositories::commit(&cloned_repo, "Removing the send it back file")?;
                 command::push(&cloned_repo).await?;
                 println!("----AFTER-----");
 
@@ -234,7 +234,7 @@ mod tests {
             let filename = "labels.txt";
             let filepath = repo.path.join(filename);
             repositories::add(&repo, &filepath)?;
-            command::commit(&repo, "Adding labels file")?;
+            repositories::commit(&repo, "Adding labels file")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -258,7 +258,7 @@ mod tests {
                 let changed_content = "messing up the labels";
                 util::fs::write_to_path(&cloned_filepath, changed_content)?;
                 repositories::add(&cloned_repo, &cloned_filepath)?;
-                command::commit(&cloned_repo, "I messed with the label file")?;
+                repositories::commit(&cloned_repo, "I messed with the label file")?;
 
                 // Push back to server
                 command::push(&cloned_repo).await?;
@@ -275,7 +275,7 @@ mod tests {
 
                 // Stage & Commit & Push the removal
                 repositories::add(&repo, &filepath)?;
-                command::commit(&repo, "You mess with it, I remove it")?;
+                repositories::commit(&repo, "You mess with it, I remove it")?;
                 command::push(&repo).await?;
 
                 command::pull(&cloned_repo).await?;
@@ -297,12 +297,12 @@ mod tests {
             // Track a dir
             let train_path = repo.path.join("train");
             repositories::add(&repo, &train_path)?;
-            command::commit(&repo, "Adding train dir")?;
+            repositories::commit(&repo, "Adding train dir")?;
 
             // Track larger files
             let larger_dir = repo.path.join("large_files");
             repositories::add(&repo, &larger_dir)?;
-            command::commit(&repo, "Adding larger files")?;
+            repositories::commit(&repo, "Adding larger files")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -336,7 +336,7 @@ mod tests {
                 let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
                 util::fs::copy(hotdog_path, &new_file_path)?;
                 repositories::add(&cloned_repo, &new_file_path)?;
-                command::commit(&cloned_repo, "Adding one file to train dir")?;
+                repositories::commit(&cloned_repo, "Adding one file to train dir")?;
 
                 // Push it back
                 command::push_remote_branch(
@@ -363,7 +363,7 @@ mod tests {
                 let new_file_path = train_path.join("hotdog_2.jpg");
                 util::fs::copy(hotdog_path, &new_file_path)?;
                 repositories::add(&repo, &train_path)?;
-                command::commit(&repo, "Adding next file to train dir")?;
+                repositories::commit(&repo, "Adding next file to train dir")?;
                 command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)
                     .await?;
 
@@ -407,7 +407,7 @@ mod tests {
             }
 
             repositories::add(&repo, &train_dir)?;
-            command::commit(&repo, "Adding train dir")?;
+            repositories::commit(&repo, "Adding train dir")?;
 
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
@@ -440,7 +440,7 @@ mod tests {
                 let new_file_path = cloned_repo.path.join("train").join("hotdog_1.jpg");
                 util::fs::copy(hotdog_path, &new_file_path)?;
                 repositories::add(&cloned_repo, &new_file_path)?;
-                command::commit(&cloned_repo, "Adding one file to train dir")?;
+                repositories::commit(&cloned_repo, "Adding one file to train dir")?;
 
                 // Push it back
                 command::push_remote_branch(
@@ -481,7 +481,7 @@ mod tests {
             test::write_txt_file_to_path(&filepath, og_content)?;
 
             repositories::add(&repo, filepath)?;
-            let commit = command::commit(&repo, "Adding file without extension");
+            let commit = repositories::commit(&repo, "Adding file without extension");
 
             assert!(commit.is_ok());
 
@@ -553,7 +553,7 @@ mod tests {
             repositories::add(&repo, &filepath)?;
 
             // Commit the files
-            command::commit(&repo, "Adding initial data")?;
+            repositories::commit(&repo, "Adding initial data")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -577,7 +577,7 @@ mod tests {
             }
 
             // Commit the files
-            command::commit(&repo, "Adding mooooore data")?;
+            repositories::commit(&repo, "Adding mooooore data")?;
 
             // Push it
             command::push(&repo).await?;
@@ -631,7 +631,7 @@ mod tests {
             repositories::add(&repo, &filepath)?;
 
             // Commit the files
-            command::commit(&repo, "Adding initial data")?;
+            repositories::commit(&repo, "Adding initial data")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -655,7 +655,7 @@ mod tests {
             }
 
             // Commit the files
-            command::commit(&repo, "Adding mooooore data")?;
+            repositories::commit(&repo, "Adding mooooore data")?;
 
             // Push it
             command::push(&repo).await?;
@@ -705,7 +705,7 @@ mod tests {
             repositories::add(&local_repo, path)?;
             println!("adding file to index at path {}", path.display());
             println!("First commit");
-            command::commit(&local_repo, "Adding file for first time")?;
+            repositories::commit(&local_repo, "Adding file for first time")?;
             println!("Commit successfull");
             // Write the same file to newfolder/a.txt
 
@@ -727,7 +727,7 @@ mod tests {
             util::fs::remove_file(&new_path)?;
             repositories::add(&local_repo, &new_path)?;
             println!("Second commit");
-            command::commit(
+            repositories::commit(
                 &local_repo,
                 "Moved file to 2 new places and deleted original",
             )?;
@@ -766,7 +766,7 @@ mod tests {
                 test::write_txt_file_to_path(path, contents)?;
 
                 repositories::add(&cloned_repo, path)?;
-                let commit = command::commit(&cloned_repo, "Adding file for first time")?;
+                let commit = repositories::commit(&cloned_repo, "Adding file for first time")?;
 
                 // Try to push upstream branch
                 let push_result = command::push_remote_branch(
@@ -827,7 +827,7 @@ mod tests {
                     let new_file_path = user_a_repo.path.join(new_file);
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
-                    command::commit(&user_a_repo, "User A changing file.")?;
+                    repositories::commit(&user_a_repo, "User A changing file.")?;
                     command::push(&user_a_repo).await?;
 
                     // User B changes the same file and pushes
@@ -835,7 +835,7 @@ mod tests {
                     let new_file_path =
                         test::write_txt_file_to_path(new_file_path, "I am user B, try to stop me")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "User B changing file.")?;
+                    repositories::commit(&user_b_repo, "User B changing file.")?;
 
                     // Push should fail
                     let result = command::push(&user_b_repo).await;
@@ -853,7 +853,7 @@ mod tests {
                     command::checkout_ours(&user_b_repo, new_file)?;
                     repositories::add(&user_b_repo, &new_file_path)?;
                     // Commit the changes
-                    command::commit(&user_b_repo, "Taking my changes")?;
+                    repositories::commit(&user_b_repo, "Taking my changes")?;
 
                     // Push should succeed
                     command::push(&user_b_repo).await?;
@@ -898,7 +898,7 @@ mod tests {
                     repositories::add(&user_a_repo, user_a_repo.path.join(file_1))?;
                     repositories::add(&user_a_repo, user_a_repo.path.join(file_2))?;
 
-                    command::commit(&user_a_repo, "Adding file_1 and file_2")?;
+                    repositories::commit(&user_a_repo, "Adding file_1 and file_2")?;
 
                     // Push
                     command::push(&user_a_repo).await?;
@@ -908,7 +908,7 @@ mod tests {
                     test::write_txt_file_to_path(user_b_repo.path.join(file_3), "File 3")?;
 
                     repositories::add(&user_b_repo, user_b_repo.path.join(file_3))?;
-                    command::commit(&user_b_repo, "Adding file_3")?;
+                    repositories::commit(&user_b_repo, "Adding file_3")?;
 
                     // Pull changes without pushing first - fine since no conflict
                     command::pull(&user_b_repo).await?;
@@ -960,7 +960,7 @@ mod tests {
                     repositories::add(&user_a_repo, user_a_repo.path.join(file_1))?;
                     repositories::add(&user_a_repo, user_a_repo.path.join(file_2))?;
 
-                    command::commit(&user_a_repo, "Adding file_1 and file_2")?;
+                    repositories::commit(&user_a_repo, "Adding file_1 and file_2")?;
 
                     // Push
                     command::push(&user_a_repo).await?;
@@ -1052,15 +1052,15 @@ mod tests {
             let filename = "labels.txt";
             let file_path = repo.path.join(filename);
             repositories::add(&repo, &file_path)?;
-            command::commit(&repo, "Adding labels file")?;
+            repositories::commit(&repo, "Adding labels file")?;
 
             let train_path = repo.path.join("train");
             repositories::add(&repo, &train_path)?;
-            command::commit(&repo, "Adding train dir")?;
+            repositories::commit(&repo, "Adding train dir")?;
 
             let test_path = repo.path.join("test");
             repositories::add(&repo, &test_path)?;
-            command::commit(&repo, "Adding test dir")?;
+            repositories::commit(&repo, "Adding test dir")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1101,7 +1101,7 @@ mod tests {
             let og_contents = util::fs::read_from_path(&file_path)?;
 
             repositories::add(&repo, &file_path)?;
-            command::commit(&repo, "Adding bounding box file")?;
+            repositories::commit(&repo, "Adding bounding box file")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -1214,24 +1214,24 @@ mod tests {
             let filename = "labels.txt";
             let filepath = repo.path.join(filename);
             repositories::add(&repo, &filepath)?;
-            command::commit(&repo, "Adding labels file")?;
+            repositories::commit(&repo, "Adding labels file")?;
 
             // Second commit
             let new_filename = "new.txt";
             let new_filepath = repo.path.join(new_filename);
             util::fs::write_to_path(&new_filepath, "hallo")?;
             repositories::add(&repo, &new_filepath)?;
-            command::commit(&repo, "Adding a new file")?;
+            repositories::commit(&repo, "Adding a new file")?;
 
             // Third commit
             let train_path = repo.path.join("train");
             repositories::add(&repo, &train_path)?;
-            command::commit(&repo, "Adding train dir")?;
+            repositories::commit(&repo, "Adding train dir")?;
 
             // Fourth commit
             let test_path = repo.path.join("test");
             repositories::add(&repo, &test_path)?;
-            command::commit(&repo, "Adding test dir")?;
+            repositories::commit(&repo, "Adding test dir")?;
 
             // Get local history
             let local_history = repositories::commits::list(&repo)?;
@@ -1353,13 +1353,13 @@ mod tests {
                     let new_file_path = user_b_repo.path.join(new_file);
                     test::write_txt_file_to_path(&new_file_path, "hello from a file")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding new file")?;
+                    repositories::commit(&user_b_repo, "Adding new file")?;
 
                     let new_file = "new_file_2.txt";
                     let new_file_path = user_b_repo.path.join(new_file);
                     test::write_txt_file_to_path(&new_file_path, "hello from a different")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding new file 2")?;
+                    repositories::commit(&user_b_repo, "Adding new file 2")?;
                     command::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
@@ -1415,13 +1415,13 @@ mod tests {
                     let new_file_path = user_b_repo.path.join(new_file);
                     test::write_txt_file_to_path(&new_file_path, "hello from a file")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding new file")?;
+                    repositories::commit(&user_b_repo, "Adding new file")?;
 
                     let new_file = "new_file_2.txt";
                     let new_file_path = user_b_repo.path.join(new_file);
                     test::write_txt_file_to_path(&new_file_path, "hello from a different")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
-                    command::commit(&user_b_repo, "Adding new file 2")?;
+                    repositories::commit(&user_b_repo, "Adding new file 2")?;
                     command::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)

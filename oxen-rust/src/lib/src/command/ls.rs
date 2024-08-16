@@ -63,7 +63,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            command::commit(&repo, "Adding all the data")?;
+            repositories::commit(&repo, "Adding all the data")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -106,7 +106,7 @@ mod tests {
 
             // Add and commit all the dirs and files
             repositories::add(&repo, &repo.path)?;
-            command::commit(&repo, "Adding all the data")?;
+            repositories::commit(&repo, "Adding all the data")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -182,7 +182,7 @@ mod tests {
                 util::fs::write_to_path(&path, format!("lol hi {}", i))?;
             }
             repositories::add(&repo, &dir)?;
-            command::commit(&repo, "adding text files")?;
+            repositories::commit(&repo, "adding text files")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());

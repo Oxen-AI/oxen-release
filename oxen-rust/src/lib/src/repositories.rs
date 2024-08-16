@@ -38,6 +38,7 @@ pub mod revisions;
 pub mod schemas;
 
 pub use add::add;
+pub use commits::commit;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     match repo.version() {

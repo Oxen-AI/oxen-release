@@ -260,7 +260,7 @@ mod tests {
             command::schemas::set_name(&repo, schema_ref, schema_name)?;
 
             // Schema should be committed after commit
-            command::commit(&repo, "Adding bounding box schema")?;
+            repositories::commit(&repo, "Adding bounding box schema")?;
 
             // Make sure no schemas are staged after commit
             let status = command::status(&repo)?;
@@ -319,14 +319,14 @@ mod tests {
             command::schemas::set_name(&repo, schema_ref, schema_name)?;
 
             // Schema should be committed after commit
-            command::commit(&repo, "Adding bounding box schema")?;
+            repositories::commit(&repo, "Adding bounding box schema")?;
 
             // Write a new commit that is modifies any file
             let readme_filename = Path::new("README.md");
             let readme_file = repo.path.join(readme_filename);
             util::fs::write(&readme_file, "Changing the README")?;
             repositories::add(&repo, readme_file)?;
-            let commit = command::commit(&repo, "Changing the README")?;
+            let commit = repositories::commit(&repo, "Changing the README")?;
 
             // Fetch schema from HEAD commit, it should still be there in all it's glory
             let maybe_schema =
@@ -475,7 +475,7 @@ mod tests {
 
             // Add and commit the schema
             repositories::add(&repo, &bbox_path)?;
-            command::commit(&repo, "Adding bounding box file")?;
+            repositories::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema
             let metadata = json!({
@@ -509,7 +509,7 @@ mod tests {
 
             // Add and commit the schema
             repositories::add(&repo, &bbox_path)?;
-            command::commit(&repo, "Adding bounding box file")?;
+            repositories::commit(&repo, "Adding bounding box file")?;
 
             // Add the schema metadata
             let schema_metadata = json!({
@@ -586,7 +586,7 @@ mod tests {
 
             // Add the schema
             repositories::add(&repo, &bbox_path)?;
-            let commit = command::commit(&repo, "Adding bounding box file")?;
+            let commit = repositories::commit(&repo, "Adding bounding box file")?;
 
             let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
             for (path, schema) in schemas.iter() {
@@ -614,7 +614,7 @@ mod tests {
             assert_eq!(schema.fields[0].metadata, Some(metadata.to_owned()));
 
             // Commit the schema
-            let commit = command::commit(&repo, "Adding metadata to file column")?;
+            let commit = repositories::commit(&repo, "Adding metadata to file column")?;
 
             // List the committed schemas
             let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
@@ -644,7 +644,7 @@ mod tests {
 
             // Add the schema
             repositories::add(&repo, &bbox_path)?;
-            let commit = command::commit(&repo, "Adding bounding box file")?;
+            let commit = repositories::commit(&repo, "Adding bounding box file")?;
 
             let schemas = repositories::schemas::list(&repo, Some(&commit.id))?;
             for (path, schema) in schemas.iter() {
@@ -661,7 +661,7 @@ mod tests {
             command::schemas::add_column_metadata(&repo, &schema_ref, "file", &metadata)?;
 
             // Commit the schema
-            command::commit(&repo, "Adding metadata to file column")?;
+            repositories::commit(&repo, "Adding metadata to file column")?;
 
             // Add a new column to the data frame
             command::df::add_column(&bbox_path, "new_column:0:i32")?;
@@ -724,7 +724,7 @@ mod tests {
             assert_eq!(schema.fields[5].dtype, "i64");
 
             // Commit the schema
-            command::commit(&repo, "Adding bounding box schema")?;
+            repositories::commit(&repo, "Adding bounding box schema")?;
 
             // Update the schema
             let min_x_metadata = json!({
@@ -767,7 +767,7 @@ mod tests {
             assert_eq!(schema.fields[5].dtype, "i64");
 
             // Commit the schema again
-            command::commit(&repo, "Updating the bounding box schema")?;
+            repositories::commit(&repo, "Updating the bounding box schema")?;
 
             // Update the schema
             let width_metadata = json!({

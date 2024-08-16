@@ -225,7 +225,7 @@ mod tests {
                 util::fs::write_to_path(&path, format!("hello world {}", i))?;
             }
             repositories::add(&repo, &dir)?;
-            command::commit(&repo, "adding ten text files")?;
+            repositories::commit(&repo, "adding ten text files")?;
 
             let commit = repositories::commits::head_commit(&repo)?;
 

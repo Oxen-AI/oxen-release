@@ -60,7 +60,7 @@ mod tests {
             util::fs::copy(from_file, &csv_file)?;
 
             repositories::add(&local_repo, &csv_file)?;
-            command::commit(&local_repo, "add test.csv")?;
+            repositories::commit(&local_repo, "add test.csv")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&local_repo.dirname());

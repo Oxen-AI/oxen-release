@@ -1525,7 +1525,7 @@ mod tests {
 
             repositories::add(&repo, &hello_file)?;
             repositories::add(&repo, &world_file)?;
-            let head_commit = command::commit(&repo, "Adding two files")?;
+            let head_commit = repositories::commit(&repo, "Adding two files")?;
 
             let entries = repositories::diffs::list_diff_entries(
                 &repo,
@@ -1567,7 +1567,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             )?;
 
             repositories::add(&repo, bbox_file)?;
-            let head_commit = command::commit(&repo, "Removing a row from train bbox data")?;
+            let head_commit = repositories::commit(&repo, "Removing a row from train bbox data")?;
 
             let entries = repositories::diffs::list_diff_entries(
                 &repo,
@@ -1604,7 +1604,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
-            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
             let entries = repositories::diffs::list_diff_entries(
                 &repo,
                 &base_commit,
@@ -1646,7 +1646,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             repositories::add(&repo, &hello_file)?;
             repositories::add(&repo, &world_file)?;
-            command::commit(&repo, "Removing a row from train bbox data")?;
+            repositories::commit(&repo, "Removing a row from train bbox data")?;
 
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -1658,7 +1658,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
-            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
 
             let entries = repositories::diffs::list_diff_entries(
                 &repo,
@@ -1726,7 +1726,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
             repositories::add(&repo, &repo.path)?;
-            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
             let entries = repositories::diffs::list_diff_entries_in_dir_top_level(
                 &repo,
                 PathBuf::from(""),
@@ -1798,7 +1798,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
 
             let opts = RmOpts::from_path(&bbox_filename);
             command::rm(&repo, &opts).await?;
-            let head_commit = command::commit(&repo, "Removing a the training data file")?;
+            let head_commit = repositories::commit(&repo, "Removing a the training data file")?;
             let entries = repositories::diffs::list_diff_entries_in_dir_top_level(
                 &repo,
                 PathBuf::from(""),

@@ -80,7 +80,7 @@ mod tests {
             util::fs::write_to_path(&hello_file, "Hello World")?;
             // Add-commit
             repositories::add(&repo, &hello_file)?;
-            command::commit(&repo, "Adding hello file")?;
+            repositories::commit(&repo, "Adding hello file")?;
 
             // Save to a path
             let save_path = repo.path.join(Path::new("backup.tar.gz"));
@@ -104,7 +104,7 @@ mod tests {
                 util::fs::write_to_path(&hello_file, "Hello World")?;
                 // Add-commit
                 repositories::add(&repo, &hello_file)?;
-                command::commit(&repo, "Adding hello file")?;
+                repositories::commit(&repo, "Adding hello file")?;
 
                 // Save to a path
                 let save_path = dir.join(Path::new("backup.tar.gz"));
@@ -134,7 +134,7 @@ mod tests {
                 util::fs::write_to_path(&hello_file, "Hello World")?;
                 // Add-commit
                 repositories::add(&repo, &hello_file)?;
-                command::commit(&repo, "Adding hello file")?;
+                repositories::commit(&repo, "Adding hello file")?;
 
                 // Save to a path
                 let save_path = dir.join(Path::new("backup.tar.gz"));
@@ -173,7 +173,7 @@ mod tests {
                 // Add-commit
                 repositories::add(&repo, &hello_file)?;
                 repositories::add(&repo, &goodbye_file)?;
-                command::commit(&repo, "Adding hello file")?;
+                repositories::commit(&repo, "Adding hello file")?;
 
                 // Move hello into a folder
                 let hello_dir = repo.path.join("hello_dir");
@@ -193,7 +193,7 @@ mod tests {
                 repositories::add(&repo, &hello_file)?;
                 repositories::add(&repo, &goodbye_file)?;
                 repositories::add(&repo, &third_file)?;
-                command::commit(&repo, "Moving hello file")?;
+                repositories::commit(&repo, "Moving hello file")?;
 
                 // Save to a path
                 let save_path = dir.join(Path::new("backup.tar.gz"));

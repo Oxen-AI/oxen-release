@@ -168,7 +168,7 @@ mod tests {
 
             repositories::add(&local_repo, &local_repo.path)?;
 
-            command::commit(&local_repo, "committing files")?;
+            repositories::commit(&local_repo, "committing files")?;
 
             // set remote
 
@@ -267,7 +267,7 @@ mod tests {
             test::write_txt_file_to_path(local_repo.path.join(right_path), csv2)?;
 
             repositories::add(&local_repo, &local_repo.path)?;
-            command::commit(&local_repo, "committing files")?;
+            repositories::commit(&local_repo, "committing files")?;
 
             // set remote
 
@@ -352,7 +352,7 @@ mod tests {
 
             test::write_txt_file_to_path(local_repo.path.join(left_path), csv1)?;
             repositories::add(&local_repo, &local_repo.path)?;
-            command::commit(&local_repo, "committing files")?;
+            repositories::commit(&local_repo, "committing files")?;
             command::push(&local_repo).await?;
 
             // Now get the derived df

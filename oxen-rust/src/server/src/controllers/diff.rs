@@ -851,7 +851,7 @@ mod tests {
 
         command::status(&repo)?;
 
-        command::commit(&repo, "commit 1")?;
+        repositories::commit(&repo, "commit 1")?;
 
         Ok(())
     }

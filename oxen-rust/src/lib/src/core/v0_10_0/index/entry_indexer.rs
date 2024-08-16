@@ -1092,12 +1092,12 @@ mod tests {
             let train_dir = repo.path.join("train");
             repositories::add(&repo, &train_dir)?;
             // Commit the file
-            command::commit(&repo, "Adding training data")?;
+            repositories::commit(&repo, "Adding training data")?;
 
             let test_dir = repo.path.join("test");
             repositories::add(&repo, &test_dir)?;
             // Commit the file
-            command::commit(&repo, "Adding testing data")?;
+            repositories::commit(&repo, "Adding testing data")?;
 
             // Create remote
             let remote_repo = test::create_remote_repo(&repo).await?;

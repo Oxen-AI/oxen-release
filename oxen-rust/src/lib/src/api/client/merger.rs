@@ -82,7 +82,7 @@ mod tests {
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
             repositories::add(&local_repo, &path)?;
-            command::commit(&local_repo, "adding file 1")?;
+            repositories::commit(&local_repo, "adding file 1")?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 
             let mergability = api::client::merger::mergability(&remote_repo, base, head).await?;
@@ -113,12 +113,12 @@ mod tests {
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
             repositories::add(&local_repo, &path)?;
-            command::commit(&local_repo, "adding file 1")?;
+            repositories::commit(&local_repo, "adding file 1")?;
 
             let path = local_repo.path.join("file_2.txt");
             test::write_txt_file_to_path(&path, "world")?;
             repositories::add(&local_repo, &path)?;
-            command::commit(&local_repo, "adding file 2")?;
+            repositories::commit(&local_repo, "adding file 2")?;
 
             // Push commits
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
@@ -152,12 +152,12 @@ mod tests {
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
             repositories::add(&local_repo, &path)?;
-            command::commit(&local_repo, "adding file 1")?;
+            repositories::commit(&local_repo, "adding file 1")?;
 
             let path = local_repo.path.join("file_2.txt");
             test::write_txt_file_to_path(&path, "world")?;
             repositories::add(&local_repo, &path)?;
-            command::commit(&local_repo, "adding file 2")?;
+            repositories::commit(&local_repo, "adding file 2")?;
 
             // Push commits
 
@@ -168,7 +168,7 @@ mod tests {
             let path = local_repo.path.join("README.md");
             test::write_txt_file_to_path(&path, "I am on main conflicting the README")?;
             repositories::add(&local_repo, &path)?;
-            command::commit(&local_repo, "modifying readme on main")?;
+            repositories::commit(&local_repo, "modifying readme on main")?;
 
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, base).await?;
 

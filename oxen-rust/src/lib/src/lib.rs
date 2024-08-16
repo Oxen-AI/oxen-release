@@ -14,7 +14,7 @@
 //! // Add a file to the repo
 //! repositories::add(&repo, "file.txt")?;
 //! // Commit the file
-//! command::commit(&repo, "Added file.txt")?;
+//! repositories::commit(&repo, "Added file.txt")?;
 //!
 //! ```
 //!
@@ -29,7 +29,7 @@
 //! // Add a file to the repo
 //! repositories::add(&repo, "file.txt")?;
 //! // Commit the file
-//! command::commit(&repo, "Added file.txt")?;
+//! repositories::commit(&repo, "Added file.txt")?;
 //! // Set remote
 //! let namespace = "ox";
 //! let repo_name = "test_repo";

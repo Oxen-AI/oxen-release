@@ -97,7 +97,7 @@ mod tests {
             let status = command::status(&repo)?;
             status.print();
             assert_eq!(status.staged_files.len(), 1);
-            command::commit(&repo, "Changing one shot")?;
+            repositories::commit(&repo, "Changing one shot")?;
             let status = command::status(&repo)?;
             assert!(status.is_clean());
 
@@ -113,7 +113,7 @@ mod tests {
 
             // Commit the file
             repositories::add(&repo, &file_to_remove)?;
-            command::commit(&repo, "Adding labels file")?;
+            repositories::commit(&repo, "Adding labels file")?;
 
             // Delete the file
             util::fs::remove_file(&file_to_remove)?;
@@ -148,7 +148,7 @@ mod tests {
         test::run_select_data_repo_test_no_commits_async("labels", |repo| async move {
             let labels_path = repo.path.join("labels.txt");
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "adding initial labels file")?;
+            repositories::commit(&repo, "adding initial labels file")?;
 
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
@@ -158,14 +158,14 @@ mod tests {
 
             test::modify_txt_file(&labels_path, "cat\ndog\nnone")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "adding none category")?;
+            repositories::commit(&repo, "adding none category")?;
 
             // Add a "person" category on a the main branch
             command::checkout(&repo, og_branch.name).await?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
             repositories::add(&repo, &labels_path)?;
-            command::commit(&repo, "adding person category")?;
+            repositories::commit(&repo, "adding person category")?;
 
             // Try to merge in the changes
             command::merge(&repo, branch_name)?;
@@ -240,7 +240,7 @@ mod tests {
             let status = command::status(&repo)?;
             status.print();
             assert_eq!(status.staged_files.len(), 1);
-            command::commit(&repo, "Changing one shot")?;
+            repositories::commit(&repo, "Changing one shot")?;
             let status = command::status(&repo)?;
             assert!(status.is_clean());
 
@@ -276,7 +276,7 @@ mod tests {
             // nlp/classification/annotations/test.tsv
             assert_eq!(status.staged_files.len(), 2);
 
-            command::commit(&repo, "Adding nlp dir")?;
+            repositories::commit(&repo, "Adding nlp dir")?;
 
             // Remove the nlp dir
             let dir = Path::new("nlp");

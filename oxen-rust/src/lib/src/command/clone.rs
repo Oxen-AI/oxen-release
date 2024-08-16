@@ -398,26 +398,26 @@ mod tests {
             let filepath = local_repo.path.join(filename);
             test::write_txt_file_to_path(&filepath, "Content before modification")?;
             repositories::add(&local_repo, &filepath)?;
-            command::commit(&local_repo, "Adding file_to_modify.txt")?;
+            repositories::commit(&local_repo, "Adding file_to_modify.txt")?;
 
             // Change the file's contents - different hash
             test::write_txt_file_to_path(&filepath, "A whole new hash now!")?;
             repositories::add(&local_repo, &filepath)?;
-            command::commit(&local_repo, "Modifying file_to_modify.txt")?;
+            repositories::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
             test::write_txt_file_to_path(&filepath, "Changing againnnnn")?;
             repositories::add(&local_repo, &filepath)?;
-            command::commit(&local_repo, "Modifying file_to_modify.txt")?;
+            repositories::commit(&local_repo, "Modifying file_to_modify.txt")?;
 
             // Delete file
             std::fs::remove_file(&filepath)?;
             repositories::add(&local_repo, &filepath)?;
-            command::commit(&local_repo, "Deleting file_to_modify.txt")?;
+            repositories::commit(&local_repo, "Deleting file_to_modify.txt")?;
 
             // Add back new
             test::write_txt_file_to_path(&filepath, "Adding back new")?;
             repositories::add(&local_repo, &filepath)?;
-            command::commit(&local_repo, "Adding back file_to_modify.txt")?;
+            repositories::commit(&local_repo, "Adding back file_to_modify.txt")?;
 
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME)
                 .await?;
@@ -500,15 +500,15 @@ mod tests {
             let filename = "labels.txt";
             let file_path = repo.path.join(filename);
             repositories::add(&repo, &file_path)?;
-            command::commit(&repo, "Adding labels file")?;
+            repositories::commit(&repo, "Adding labels file")?;
 
             let train_path = repo.path.join("train");
             repositories::add(&repo, &train_path)?;
-            command::commit(&repo, "Adding train dir")?;
+            repositories::commit(&repo, "Adding train dir")?;
 
             let test_path = repo.path.join("test");
             repositories::add(&repo, &test_path)?;
-            command::commit(&repo, "Adding test dir")?;
+            repositories::commit(&repo, "Adding test dir")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -580,7 +580,7 @@ mod tests {
                 let new_file_path = cloned_repo.path.join(new_file);
                 let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                 repositories::add(&cloned_repo, &new_file_path)?;
-                command::commit(&cloned_repo, "Adding new file path.")?;
+                repositories::commit(&cloned_repo, "Adding new file path.")?;
 
                 command::push(&cloned_repo).await?;
 

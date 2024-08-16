@@ -425,7 +425,7 @@ mod tests {
             }
 
             // commit the removal
-            let commit = command::commit(&repo, "removed train dir")?;
+            let commit = repositories::commit(&repo, "removed train dir")?;
 
             // make sure the train dir is deleted from the commits db
             let commit_reader = CommitEntryReader::new(&repo, &commit)?;

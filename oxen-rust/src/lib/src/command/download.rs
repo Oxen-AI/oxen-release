@@ -53,7 +53,7 @@ mod tests {
                 util::fs::write_to_path(&path, format!("lol hi {}", i))?;
             }
             repositories::add(&repo, &dir)?;
-            command::commit(&repo, "adding text files")?;
+            repositories::commit(&repo, "adding text files")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -97,7 +97,7 @@ mod tests {
                 util::fs::write_to_path(&path, format!("lol hi {}", i))?;
             }
             repositories::add(&repo, &dir)?;
-            command::commit(&repo, "adding text files")?;
+            repositories::commit(&repo, "adding text files")?;
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
@@ -140,7 +140,7 @@ mod tests {
             util::fs::write_to_path(local_path, file_contents)?;
 
             repositories::add(&local_repo, local_path)?;
-            command::commit(&local_repo, "Added hello.txt")?;
+            repositories::commit(&local_repo, "Added hello.txt")?;
 
             command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, cloned_remote.url())?;
             command::push(&local_repo).await?;
