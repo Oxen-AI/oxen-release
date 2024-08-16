@@ -3,8 +3,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
-use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
-use std::ops::AddAssign;
+use rocksdb::{DBWithThreadMode, SingleThreaded};
 use std::path::PathBuf;
 use std::str;
 use std::time::Duration;
@@ -49,65 +48,6 @@ impl EntryVNode {
     }
 }
 
-pub struct DirTreeNode {
-    pub dir: PathBuf,
-    pub stats: AggregateStats,
-    pub children: Vec<DirTreeNode>,
-}
-
-pub struct DirTree {
-    pub root: DirTreeNode,
-}
-
-impl DirTree {
-    pub fn print(&self) {
-        log::debug!("DirTree 🌲");
-        self.print_recursive(&self.root, 0);
-    }
-
-    fn print_recursive(&self, node: &DirTreeNode, depth: usize) {
-        log::debug!(
-            "  {}DirNode: {:?} {:?}",
-            "  ".repeat(depth),
-            node.dir,
-            node.stats
-        );
-        for child in &node.children {
-            self.print_recursive(child, depth + 1);
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-struct AggregateStats {
-    pub total_files: usize,
-    pub total_dirs: usize,
-    pub total_bytes: usize,
-    pub data_type_counts: HashMap<EntryDataType, usize>,
-}
-
-impl AddAssign<AggregateStats> for AggregateStats {
-    fn add_assign(&mut self, other: AggregateStats) {
-        self.total_files += other.total_files;
-        self.total_dirs += other.total_dirs;
-        self.total_bytes += other.total_bytes;
-        for (data_type, count) in other.data_type_counts {
-            *self.data_type_counts.entry(data_type).or_insert(0) += count;
-        }
-    }
-}
-
-impl Default for AggregateStats {
-    fn default() -> Self {
-        AggregateStats {
-            total_files: 0,
-            total_dirs: 0,
-            total_bytes: 0,
-            data_type_counts: HashMap::new(),
-        }
-    }
-}
-
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     // time the commit
     let start_time = Instant::now();
@@ -120,7 +60,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         "0.19.0::commit_writer::commit staged db path: {:?}",
         db_path
     );
-    let staged_db: DBWithThreadMode<MultiThreaded> =
+    let staged_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     let commit_progress_bar = ProgressBar::new_spinner();
@@ -213,7 +153,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     commit_progress_bar.set_message(format!("Commiting {} changes", total_changes));
 
     let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
-    let dir_hash_db: DBWithThreadMode<MultiThreaded> =
+    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
     // Commit node has no parent
@@ -257,121 +197,6 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     Ok(node.to_commit())
 }
 
-fn entries_to_dir_tree(
-    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
-) -> Result<DirTree, OxenError> {
-    let mut root = DirTreeNode {
-        dir: PathBuf::from(""),
-        stats: AggregateStats::default(),
-        children: vec![],
-    };
-
-    for (path, _) in entries.iter() {
-        insert_dir_path(&mut root, path)?;
-    }
-
-    Ok(DirTree { root })
-}
-
-fn insert_dir_path(node: &mut DirTreeNode, path: &Path) -> Result<(), OxenError> {
-    let mut current = node;
-    for component in path.components() {
-        if let std::path::Component::Normal(name) = component {
-            let name = name
-                .to_str()
-                .ok_or_else(|| OxenError::basic_str("Invalid path component"))?;
-            let child_index = current
-                .children
-                .iter()
-                .position(|c| c.dir.file_name().unwrap_or_default() == name);
-
-            if let Some(index) = child_index {
-                current = &mut current.children[index];
-            } else {
-                let new_node = DirTreeNode {
-                    dir: current.dir.join(name),
-                    children: vec![],
-                    stats: AggregateStats::default(),
-                };
-                current.children.push(new_node);
-                current = current.children.last_mut().unwrap();
-            }
-        }
-    }
-    Ok(())
-}
-
-fn agg_stats(
-    repo: &LocalRepository,
-    commit: &Option<Commit>,
-    dir_tree: &mut DirTree,
-    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
-) -> Result<(), OxenError> {
-    agg_stats_recursive(repo, commit, &mut dir_tree.root, entries, 0)?;
-    Ok(())
-}
-
-fn agg_stats_recursive(
-    repo: &LocalRepository,
-    commit: &Option<Commit>,
-    node: &mut DirTreeNode,
-    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
-    depth: usize,
-) -> Result<AggregateStats, OxenError> {
-    let mut stats = AggregateStats {
-        total_files: 0,
-        total_dirs: 0,
-        total_bytes: 0,
-        data_type_counts: HashMap::new(),
-    };
-
-    // Recursively aggregate stats for children
-    for child in &mut node.children {
-        stats += agg_stats_recursive(repo, commit, child, entries, depth + 1)?;
-    }
-
-    // Write the dir node and the vnodes
-    if let Some(children) = entries.get(&node.dir) {
-        for entry in children.iter() {
-            log::debug!(
-                "    {} {:?} has {:?} bytes",
-                "  ".repeat(depth),
-                entry.path,
-                entry.num_bytes
-            );
-            if entry.data_type != EntryDataType::Dir {
-                stats.total_files += 1;
-                stats.total_bytes += entry.num_bytes as usize;
-            }
-
-            if entry.data_type == EntryDataType::Dir {
-                stats.total_dirs += 1;
-            }
-        }
-    } else {
-        // look up the old stats
-        log::debug!("looking up old stats for {:?}", node.dir);
-        let old_dir = CommitMerkleTree::from_path(repo, &commit.as_ref().unwrap(), &node.dir)?;
-        let dir_node = old_dir.root.dir()?;
-        stats.total_files = dir_node.num_files();
-        stats.total_dirs += 1;
-        stats.total_bytes = dir_node.num_bytes as usize;
-    }
-
-    log::debug!(
-        "  {} {:?} {} files {} dirs {} bytes",
-        "  ".repeat(depth),
-        node.dir,
-        stats.total_files,
-        stats.total_dirs,
-        bytesize::ByteSize::b(stats.total_bytes as u64),
-    );
-
-    node.stats = stats.clone();
-
-    Ok(stats)
-}
-
 fn node_data_to_entry(
     base_dir: impl AsRef<Path>,
     node: &MerkleTreeNodeData,
@@ -408,16 +233,8 @@ fn get_node_dir_children(
     base_dir: impl AsRef<Path>,
     node: &MerkleTreeNodeData,
 ) -> Result<HashSet<EntryMetaDataWithPath>, OxenError> {
-    let Ok(dir_node) = node.dir() else {
-        let err_msg = format!("Node is not a directory {:?}", node);
-        return Err(OxenError::basic_str(err_msg));
-    };
-
-    // let dir_path = dir_path.as_ref().to_path_buf();
-    let mut children = HashSet::new();
-
     let dir_children = CommitMerkleTree::node_files_and_folders(&node)?;
-    children = dir_children
+    let children = dir_children
         .into_iter()
         .map(|child| node_data_to_entry(&base_dir, &child))
         .flatten()
@@ -544,7 +361,7 @@ fn write_commit_entries(
     repo: &LocalRepository,
     commit_id: u128,
     commit_db: &mut MerkleNodeDB,
-    dir_hash_db: &DBWithThreadMode<MultiThreaded>,
+    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
 ) -> Result<(), OxenError> {
     // Write the root dir, then recurse into the vnodes and subdirectories
@@ -577,7 +394,7 @@ fn r_create_dir_node(
     repo: &LocalRepository,
     commit_id: u128,
     maybe_dir_db: &mut Option<MerkleNodeDB>,
-    dir_hash_db: &DBWithThreadMode<MultiThreaded>,
+    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
     total_written: &mut u64,
