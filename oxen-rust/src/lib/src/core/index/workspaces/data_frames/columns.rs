@@ -155,7 +155,9 @@ pub fn restore(
                     name: change
                         .column_after
                         .clone()
-                        .expect("To restore an add, the column after object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore an add, the column after object has to be defined".into(),
+                        ))?
                         .column_name
                         .clone(),
                 };
@@ -164,7 +166,9 @@ pub fn restore(
                     &db,
                     &change
                         .column_after
-                        .expect("To restore an add, the column after object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore an add, the column after object has to be defined".into(),
+                        ))?
                         .column_name,
                 )?;
                 workspaces::stager::add(workspace, file_path)?;
@@ -176,21 +180,32 @@ pub fn restore(
                     name: change
                         .column_before
                         .clone()
-                        .expect("To restore a delete, the column before object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore a delete, the column before object has to be defined"
+                                .into(),
+                        ))?
                         .column_name,
                     data_type: change
                         .column_before
                         .clone()
-                        .expect("To restore a delete, the column before object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore a delete, the column before object has to be defined"
+                                .into(),
+                        ))?
                         .column_data_type
-                        .expect("Column data type is required but was None"),
+                        .ok_or(OxenError::Basic(
+                            "Column data type is required but was None".into(),
+                        ))?,
                 };
                 let result = columns::add_column(&conn, &new_column)?;
                 columns::revert_column_changes(
                     &db,
                     &change
                         .column_before
-                        .expect("To restore a delete, the column before object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore a delete, the column before object has to be defined"
+                                .into(),
+                        ))?
                         .column_name,
                 )?;
                 workspaces::stager::add(workspace, file_path)?;
@@ -202,24 +217,32 @@ pub fn restore(
                     change
                         .column_before
                         .clone()
-                        .expect("To restore a modify, the column before object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore a modify, the column before object has to be defined"
+                                .into(),
+                        ))?
                         .column_data_type
-                        .expect("column_data_type is None, cannot unwrap"),
+                        .ok_or(OxenError::Basic(
+                            "column_data_type is None, cannot unwrap".into(),
+                        ))?,
                 )
                 .to_sql();
                 let column_to_update = ColumnToUpdate {
                     name: change
                         .column_after
-                        .expect("To restore a modify, the column after object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore a modify, the column after object has to be defined".into(),
+                        ))?
                         .column_name,
                     new_data_type: Some(new_data_type.to_owned()),
                     new_name: Some(
                         change
                             .column_before
                             .clone()
-                            .expect(
-                                "To restore a modify, the column before object has to be defined",
-                            )
+                            .ok_or(OxenError::Basic(
+                                "To restore a modify, the column before object has to be defined"
+                                    .into(),
+                            ))?
                             .column_name,
                     ),
                 };
@@ -229,7 +252,10 @@ pub fn restore(
                     &db,
                     &change
                         .column_before
-                        .expect("To restore a modify, the column before object has to be defined")
+                        .ok_or(OxenError::Basic(
+                            "To restore a modify, the column before object has to be defined"
+                                .into(),
+                        ))?
                         .column_name,
                 )?;
                 workspaces::stager::add(workspace, file_path)?;
