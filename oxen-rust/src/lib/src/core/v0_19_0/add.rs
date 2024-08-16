@@ -152,7 +152,7 @@ fn process_dir(
 
     let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path)
         .parallelism(jwalk::Parallelism::RayonNewPool(num_cpus::get()))
-        .process_read_dir(move |_depth, dir, _state, children| {
+        .process_read_dir(move |_depth, dir, state, children| {
             // 1. Custom sort
             // children.sort_by(|a, b| match (a, b) {
             //     (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
@@ -186,6 +186,7 @@ fn process_dir(
                 "Processing dir [{:?}] with {} entries",
                 dir, num_children
             ));
+            *state += 1;
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
