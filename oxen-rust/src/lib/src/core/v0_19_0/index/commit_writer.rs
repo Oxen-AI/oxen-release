@@ -186,7 +186,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // Right now it is just making a new commit with the staged files, not connecting them to the merkle tree
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(&dir_entries, &existing_nodes)?;
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
 
     // Compute the commit hash
     let cfg = UserConfig::get()?;
@@ -429,6 +429,7 @@ fn get_node_dir_children(
 
 // This should return the directory to vnode mapping that we need to update
 fn split_into_vnodes(
+    repo: &LocalRepository,
     entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
     existing_nodes: &HashMap<PathBuf, MerkleTreeNodeData>,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
@@ -469,15 +470,20 @@ fn split_into_vnodes(
             log::debug!("  child {:?} has {:?} bytes", child.path, child.num_bytes);
         }
 
-        // log2(N / 10000)
+        // Compute number of vnodes based on the repo's vnode size and number of children
         let total_children = children.len();
-        let num_vnodes = (total_children as f32 / 10000_f32).log2();
-        let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
+        let vnode_size = repo.vnode_size();
+        let num_vnodes = (total_children as f32 / vnode_size as f32).ceil() as u128;
+
+        // Antoher way to do it would be log2(N / 10000) if we wanted it to scale more logarithmically
+        // let num_vnodes = (total_children as f32 / 10000_f32).log2();
+        // let num_vnodes = 2u128.pow(num_vnodes.ceil() as u32);
         log::debug!(
-            "{} VNodes for {} children in {:?}",
+            "{} VNodes for {} children in {:?} with vnode size {}",
             num_vnodes,
             total_children,
-            directory
+            directory,
+            vnode_size
         );
         let mut vnode_children: Vec<EntryVNode> = vec![EntryVNode::new(0); num_vnodes as usize];
 
@@ -1060,6 +1066,67 @@ mod tests {
             assert!(first_tree_root.is_some());
             assert!(second_tree_root.is_some());
             assert!(first_tree_root.unwrap().hash != second_tree_root.unwrap().hash);
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_configurable_vnode_size() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let mut repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            // Set the vnode size to 5
+            repo.set_vnode_size(5);
+
+            // Write data to the repo, 23 files in 2 dirs
+            add_n_files_m_dirs(&repo, 23, 2)?;
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let first_commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            first_tree.print();
+
+            // Make sure we have the correct number of vnodes
+            let root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            // The root dir should have one vnode because there are only 3 files/dirs (README.md, files.csv, files)
+            assert_eq!(root_node.num_vnodes(), 1);
+
+            // Both dir_0 and dir_1 should have 3 vnodes each (vnode size is 5 and there will be 12 and 13 files respectively)
+            // 12 / 5 = 2.4 -> 3 vnodes
+            // 13 / 5 = 2.6 -> 3 vnodes
+            let dir_0_node = first_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            assert_eq!(dir_0_node.num_vnodes(), 3);
+            let dir_1_node = first_tree.get_by_path(&Path::new("files/dir_1"))?.unwrap();
+            assert_eq!(dir_1_node.num_vnodes(), 3);
+
+            // Add a news files
+            for i in 0..10 {
+                let dir_num = i % 2;
+                let new_file = repo
+                    .path
+                    .join(format!("files/dir_{}/new_file_{}.txt", dir_num, i));
+                util::fs::write_to_path(&new_file, format!("New fileeeee {}", i))?;
+                command::add(&repo, &new_file)?;
+            }
+
+            // Commit the data
+            let second_commit = super::commit(&repo, "Second commit")?;
+
+            // Make sure commit hashes are different
+            assert!(first_commit.id != second_commit.id);
+
+            // Make sure the head commit is updated
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            assert_eq!(head_commit.id, second_commit.id);
+
+            // Read the second merkle tree
+            let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
+            second_tree.print();
 
             Ok(())
         })
