@@ -4,6 +4,7 @@ use std::path::Path;
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
+use std::ops::AddAssign;
 use std::path::PathBuf;
 use std::str;
 use std::time::Duration;
@@ -48,6 +49,65 @@ impl EntryVNode {
     }
 }
 
+pub struct DirTreeNode {
+    pub dir: PathBuf,
+    pub stats: AggregateStats,
+    pub children: Vec<DirTreeNode>,
+}
+
+pub struct DirTree {
+    pub root: DirTreeNode,
+}
+
+impl DirTree {
+    pub fn print(&self) {
+        log::debug!("DirTree 🌲");
+        self.print_recursive(&self.root, 0);
+    }
+
+    fn print_recursive(&self, node: &DirTreeNode, depth: usize) {
+        log::debug!(
+            "  {}DirNode: {:?} {:?}",
+            "  ".repeat(depth),
+            node.dir,
+            node.stats
+        );
+        for child in &node.children {
+            self.print_recursive(child, depth + 1);
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+struct AggregateStats {
+    pub total_files: usize,
+    pub total_dirs: usize,
+    pub total_bytes: usize,
+    pub data_type_counts: HashMap<EntryDataType, usize>,
+}
+
+impl AddAssign<AggregateStats> for AggregateStats {
+    fn add_assign(&mut self, other: AggregateStats) {
+        self.total_files += other.total_files;
+        self.total_dirs += other.total_dirs;
+        self.total_bytes += other.total_bytes;
+        for (data_type, count) in other.data_type_counts {
+            *self.data_type_counts.entry(data_type).or_insert(0) += count;
+        }
+    }
+}
+
+impl Default for AggregateStats {
+    fn default() -> Self {
+        AggregateStats {
+            total_files: 0,
+            total_dirs: 0,
+            total_bytes: 0,
+            data_type_counts: HashMap::new(),
+        }
+    }
+}
+
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     // time the commit
     let start_time = Instant::now();
@@ -71,6 +131,11 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     let (dir_entries, total_changes) =
         status::read_staged_entries(&staged_db, &commit_progress_bar)?;
 
+    // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
+    // dir_tree.print();
+
+    // log::debug!("🫧======================🫧");
+
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
@@ -87,6 +152,9 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         parent_ids.push(parent.hash_u128());
     }
 
+    // agg_stats(&repo, &maybe_head_commit, &mut dir_tree, &dir_entries)?;
+    // dir_tree.print();
+
     /*
     Load all the merkle tree nodes that are in the staged dir entries. Then traverse up their
     parent directories and update the merkle tree nodes for those directories until you get to the root.
@@ -98,9 +166,18 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     commit node.
     */
 
-    let mut merkle_tree: Option<CommitMerkleTree> = None;
+    // Next - just load the merkle tree nodes that match the dir_entries map
+    //        we can traverse and update their parents if they exist
+    //        if they don't exist, we need to create them
+
+    let directories = dir_entries
+        .keys()
+        .map(|path| path.to_path_buf())
+        .collect::<Vec<_>>();
+
+    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNodeData> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
-        merkle_tree = Some(CommitMerkleTree::from_commit(repo, &commit)?);
+        existing_nodes = CommitMerkleTree::load_nodes(&repo, &commit, &directories)?;
     }
 
     // TODO: Second commit
@@ -109,7 +186,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     // Right now it is just making a new commit with the staged files, not connecting them to the merkle tree
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(&dir_entries, &merkle_tree)?;
+    let vnode_entries = split_into_vnodes(&dir_entries, &existing_nodes)?;
 
     // Compute the commit hash
     let cfg = UserConfig::get()?;
@@ -121,7 +198,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         email: cfg.email.clone(),
         timestamp: timestamp,
     };
-    let commit_id = compute_commit_id(&new_commit, &vnode_entries)?;
+    let commit_id = compute_commit_id(&new_commit, 0)?;
 
     let node = CommitNode {
         id: commit_id,
@@ -180,6 +257,121 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     Ok(node.to_commit())
 }
 
+fn entries_to_dir_tree(
+    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
+) -> Result<DirTree, OxenError> {
+    let mut root = DirTreeNode {
+        dir: PathBuf::from(""),
+        stats: AggregateStats::default(),
+        children: vec![],
+    };
+
+    for (path, _) in entries.iter() {
+        insert_dir_path(&mut root, path)?;
+    }
+
+    Ok(DirTree { root })
+}
+
+fn insert_dir_path(node: &mut DirTreeNode, path: &Path) -> Result<(), OxenError> {
+    let mut current = node;
+    for component in path.components() {
+        if let std::path::Component::Normal(name) = component {
+            let name = name
+                .to_str()
+                .ok_or_else(|| OxenError::basic_str("Invalid path component"))?;
+            let child_index = current
+                .children
+                .iter()
+                .position(|c| c.dir.file_name().unwrap_or_default() == name);
+
+            if let Some(index) = child_index {
+                current = &mut current.children[index];
+            } else {
+                let new_node = DirTreeNode {
+                    dir: current.dir.join(name),
+                    children: vec![],
+                    stats: AggregateStats::default(),
+                };
+                current.children.push(new_node);
+                current = current.children.last_mut().unwrap();
+            }
+        }
+    }
+    Ok(())
+}
+
+fn agg_stats(
+    repo: &LocalRepository,
+    commit: &Option<Commit>,
+    dir_tree: &mut DirTree,
+    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
+) -> Result<(), OxenError> {
+    agg_stats_recursive(repo, commit, &mut dir_tree.root, entries, 0)?;
+    Ok(())
+}
+
+fn agg_stats_recursive(
+    repo: &LocalRepository,
+    commit: &Option<Commit>,
+    node: &mut DirTreeNode,
+    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
+    depth: usize,
+) -> Result<AggregateStats, OxenError> {
+    let mut stats = AggregateStats {
+        total_files: 0,
+        total_dirs: 0,
+        total_bytes: 0,
+        data_type_counts: HashMap::new(),
+    };
+
+    // Recursively aggregate stats for children
+    for child in &mut node.children {
+        stats += agg_stats_recursive(repo, commit, child, entries, depth + 1)?;
+    }
+
+    // Write the dir node and the vnodes
+    if let Some(children) = entries.get(&node.dir) {
+        for entry in children.iter() {
+            log::debug!(
+                "    {} {:?} has {:?} bytes",
+                "  ".repeat(depth),
+                entry.path,
+                entry.num_bytes
+            );
+            if entry.data_type != EntryDataType::Dir {
+                stats.total_files += 1;
+                stats.total_bytes += entry.num_bytes as usize;
+            }
+
+            if entry.data_type == EntryDataType::Dir {
+                stats.total_dirs += 1;
+            }
+        }
+    } else {
+        // look up the old stats
+        log::debug!("looking up old stats for {:?}", node.dir);
+        let old_dir = CommitMerkleTree::from_path(repo, &commit.as_ref().unwrap(), &node.dir)?;
+        let dir_node = old_dir.root.dir()?;
+        stats.total_files = dir_node.num_files();
+        stats.total_dirs += 1;
+        stats.total_bytes = dir_node.num_bytes as usize;
+    }
+
+    log::debug!(
+        "  {} {:?} {} files {} dirs {} bytes",
+        "  ".repeat(depth),
+        node.dir,
+        stats.total_files,
+        stats.total_dirs,
+        bytesize::ByteSize::b(stats.total_bytes as u64),
+    );
+
+    node.stats = stats.clone();
+
+    Ok(stats)
+}
+
 fn node_data_to_entry(
     base_dir: impl AsRef<Path>,
     node: &MerkleTreeNodeData,
@@ -208,64 +400,68 @@ fn node_data_to_entry(
     }
 }
 
-fn get_existing_dir_children(
-    tree: &Option<CommitMerkleTree>,
-    dir_path: impl AsRef<Path>,
+fn get_node_dir_children(
+    base_dir: impl AsRef<Path>,
+    node: &MerkleTreeNodeData,
 ) -> Result<HashSet<EntryMetaDataWithPath>, OxenError> {
-    if tree.is_none() {
-        return Ok(HashSet::new());
-    }
+    let Ok(dir_node) = node.dir() else {
+        let err_msg = format!("Node is not a directory {:?}", node);
+        return Err(OxenError::basic_str(err_msg));
+    };
 
-    let dir_path = dir_path.as_ref().to_path_buf();
+    // let dir_path = dir_path.as_ref().to_path_buf();
     let mut children = HashSet::new();
 
-    if let Some(tree) = tree {
-        let dir_children = tree.dir_files_and_folders(&dir_path)?;
-        children = dir_children
-            .into_iter()
-            .map(|child| node_data_to_entry(&dir_path, &child))
-            .flatten()
-            .flatten()
-            .collect();
-    }
+    let dir_children = CommitMerkleTree::node_files_and_folders(&node)?;
+    children = dir_children
+        .into_iter()
+        .map(|child| node_data_to_entry(&base_dir, &child))
+        .flatten()
+        .flatten()
+        .collect();
 
     Ok(children)
 }
 
+// This should return the directory to vnode mapping that we need to update
 fn split_into_vnodes(
     entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
-    tree: &Option<CommitMerkleTree>,
+    existing_nodes: &HashMap<PathBuf, MerkleTreeNodeData>,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
-    // Get all the directories in the merkle tree
-    let mut dirs: HashSet<PathBuf> = HashSet::new();
-    if let Some(tree) = tree {
-        dirs = HashSet::from_iter(tree.list_dir_paths()?);
-    }
-
-    // Get all the directories in the entries
-    for (directory, _) in entries.iter() {
-        dirs.insert(directory.clone());
-    }
-
-    log::debug!("considering dirs: {:?}", dirs);
+    log::debug!("split_into_vnodes entries keys: {:?}", entries.keys());
+    log::debug!(
+        "split_into_vnodes existing_nodes keys: {:?}",
+        existing_nodes.keys()
+    );
 
     // Create the VNode buckets per directory
-    for directory in dirs.iter() {
+    for (directory, new_children) in entries {
+        let mut children = HashSet::new();
+
         // Lookup children in the existing merkle tree
-        let mut children = get_existing_dir_children(tree, directory)?;
-        log::debug!(
-            "got {} existing children for dir {:?}",
-            children.len(),
-            directory
-        );
-        if let Some(old_children) = entries.get(directory) {
-            // Update the children with the new entries from status
-            // TODO: Handle updates and deletes, this is pure addition right now
-            for child in old_children.iter() {
-                children.insert(child.clone());
-            }
+        if let Some(existing_node) = existing_nodes.get(directory) {
+            log::debug!("got existing node for {:?}", directory);
+            children = get_node_dir_children(&directory, &existing_node)?;
+            log::debug!(
+                "got {} existing children for dir {:?}",
+                children.len(),
+                directory
+            );
+        } else {
+            log::debug!("no existing node for {:?}", directory);
+        };
+
+        // Update the children with the new entries from status
+        // TODO: Handle updates and deletes, this is pure addition right now
+        for child in new_children.iter() {
+            children.insert(child.clone());
+        }
+
+        // Log the children
+        for child in children.iter() {
+            log::debug!("  child {:?} has {:?} bytes", child.path, child.num_bytes);
         }
 
         // log2(N / 10000)
@@ -322,10 +518,7 @@ fn split_into_vnodes(
     Ok(results)
 }
 
-fn compute_commit_id(
-    new_commit: &NewCommit,
-    entries: &HashMap<PathBuf, Vec<EntryVNode>>,
-) -> Result<u128, OxenError> {
+fn compute_commit_id(new_commit: &NewCommit, root_dir_hash: u128) -> Result<u128, OxenError> {
     let mut hasher = xxhash_rust::xxh3::Xxh3::new();
     hasher.update(b"commit");
     hasher.update(format!("{:?}", new_commit.parent_ids).as_bytes());
@@ -333,13 +526,7 @@ fn compute_commit_id(
     hasher.update(new_commit.author.as_bytes());
     hasher.update(new_commit.email.as_bytes());
     hasher.update(&new_commit.timestamp.unix_timestamp().to_le_bytes());
-    for (_, vnodes) in entries.iter() {
-        for vnode in vnodes {
-            for child in vnode.entries.iter() {
-                hasher.update(&child.hash.to_le_bytes());
-            }
-        }
-    }
+    hasher.update(&root_dir_hash.to_le_bytes());
     Ok(hasher.digest128())
 }
 
@@ -388,7 +575,10 @@ fn r_create_dir_node(
     let path = path.as_ref().to_path_buf();
 
     let Some(vnodes) = entries.get(&path) else {
-        let err_msg = format!("No entries found for directory {:?}", path);
+        let err_msg = format!(
+            "r_create_dir_node No entries found for directory {:?}",
+            path
+        );
         return Err(OxenError::basic_str(err_msg));
     };
 
@@ -424,42 +614,54 @@ fn r_create_dir_node(
             );
             match entry.data_type {
                 EntryDataType::Dir => {
-                    let dir_node = compute_dir_node(commit_id, entries, &entry.path)?;
-                    if let Some(vnode_db) = &mut maybe_vnode_db {
-                        vnode_db.add_child(&dir_node)?;
-                        *total_written += 1;
-                    }
+                    // I think here you just need to look up the old one and reference it
+                    if entries.contains_key(&entry.path) {
+                        let dir_node = compute_dir_node(commit_id, entries, &entry.path)?;
+                        if let Some(vnode_db) = &mut maybe_vnode_db {
+                            vnode_db.add_child(&dir_node)?;
+                            *total_written += 1;
+                        }
 
-                    // Always write the dir hash to the dir_hashes db
-                    str_val_db::put(
-                        dir_hash_db,
-                        entry.path.to_str().unwrap(),
-                        &format!("{:x}", dir_node.hash),
-                    )?;
+                        // Always write the dir hash to the dir_hashes db
+                        str_val_db::put(
+                            dir_hash_db,
+                            entry.path.to_str().unwrap(),
+                            &format!("{:x}", dir_node.hash),
+                        )?;
 
-                    // if the vnode is new, we need a new dir db
-                    let mut child_db = if maybe_vnode_db.is_some() {
-                        let dir_db =
-                            MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.id))?;
-                        Some(dir_db)
-                    } else {
-                        // Otherwise, check if the dir is new before opening a new db
-                        MerkleNodeDB::open_read_write_if_not_exists(
+                        // if the vnode is new, we need a new dir db
+                        let mut child_db = if maybe_vnode_db.is_some() {
+                            let dir_db =
+                                MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.id))?;
+                            Some(dir_db)
+                        } else {
+                            // Otherwise, check if the dir is new before opening a new db
+                            MerkleNodeDB::open_read_write_if_not_exists(
+                                repo,
+                                &dir_node,
+                                Some(vnode.id),
+                            )?
+                        };
+
+                        r_create_dir_node(
                             repo,
-                            &dir_node,
-                            Some(vnode.id),
-                        )?
-                    };
-
-                    r_create_dir_node(
-                        repo,
-                        commit_id,
-                        &mut child_db,
-                        dir_hash_db,
-                        entries,
-                        &entry.path,
-                        total_written,
-                    )?;
+                            commit_id,
+                            &mut child_db,
+                            dir_hash_db,
+                            entries,
+                            &entry.path,
+                            total_written,
+                        )?;
+                    } else {
+                        log::debug!("r_create_dir_node skipping {:?}", entry.path);
+                        // Look up the old dir node and reference it
+                        let old_dir_node = CommitMerkleTree::read_node(repo, entry.hash, false)?;
+                        let dir_node = old_dir_node.dir()?;
+                        if let Some(vnode_db) = &mut maybe_vnode_db {
+                            vnode_db.add_child(&dir_node)?;
+                            *total_written += 1;
+                        }
+                    }
                 }
                 _ => {
                     let file_name = entry.path.file_name().unwrap_or_default().to_str().unwrap();
@@ -507,7 +709,7 @@ fn get_children(
     let mut children = vec![];
 
     for (path, _) in entries.iter() {
-        if path.starts_with(&dir_path) && *path != dir_path {
+        if path.starts_with(&dir_path) {
             children.push(path.clone());
         }
     }
@@ -529,16 +731,16 @@ fn compute_dir_node(
     let mut data_type_counts: HashMap<String, usize> = HashMap::new();
 
     let children = get_children(entries, &path)?;
-    // log::debug!("Aggregating dir {:?} with {:?} children", path, children);
+    log::debug!("Aggregating dir {:?} with {:?} children", path, children);
     for child in children.iter() {
         let Some(vnodes) = entries.get(child) else {
-            let err_msg = format!("No entries found for directory {:?}", path);
+            let err_msg = format!("compute_dir_node No entries found for directory {:?}", path);
             return Err(OxenError::basic_str(err_msg));
         };
 
         for vnode in vnodes.iter() {
             for entry in vnode.entries.iter() {
-                // log::debug!("Aggregating entry {:?} [{:?}]", entry.path, entry.data_type);
+                log::debug!("Aggregating entry {:?} [{:?}]", entry.path, entry.data_type);
                 match entry.data_type {
                     EntryDataType::Dir => {
                         log::debug!("No need to aggregate {:?}", entry.path);
@@ -558,6 +760,12 @@ fn compute_dir_node(
 
     let hash = hasher.digest128();
     let file_name = path.file_name().unwrap_or_default().to_str().unwrap();
+    log::debug!(
+        "Aggregated dir {:?} num_bytes {:?} data_type_counts {:?}",
+        path,
+        num_bytes,
+        data_type_counts
+    );
 
     let node = DirNode {
         dtype: MerkleTreeNodeType::Dir,
@@ -602,6 +810,8 @@ mod tests {
             // Read the merkle tree
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
+
+            return Ok(());
 
             /*
             [Commit] 861d5cd233eff0940060bd76ce24f10a

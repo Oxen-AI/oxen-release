@@ -20,13 +20,20 @@ pub struct MerkleTreeNodeData {
 
 impl fmt::Display for MerkleTreeNodeData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{} [{:?}] ({})",
-            self.hash,
-            self.dtype,
-            self.children.len()
-        )
+        match self.dtype {
+            MerkleTreeNodeType::Commit => write!(f, "CommitNode({:x})", self.hash),
+            MerkleTreeNodeType::VNode => write!(f, "VNode({:x})", self.hash),
+            MerkleTreeNodeType::Dir => {
+                let dir = self.dir().unwrap();
+                write!(f, "DirNode({:x}, {:?})", self.hash, dir.name)
+            }
+            MerkleTreeNodeType::File => {
+                let file = self.file().unwrap();
+                write!(f, "FileNode({:x}, {:?})", self.hash, file.name)
+            }
+            MerkleTreeNodeType::FileChunk => write!(f, "FileChunkNode({:x})", self.hash),
+            MerkleTreeNodeType::Schema => write!(f, "SchemaNode({:x})", self.hash),
+        }
     }
 }
 
@@ -87,6 +94,18 @@ impl MerkleTreeNodeData {
             }
         }
         Ok(())
+    }
+
+    /// Get all files and dirs in a directory
+    pub fn get_all_children(&self) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
+        let mut children = Vec::new();
+        for child in &self.children {
+            children.push(child.clone());
+            if child.dtype == MerkleTreeNodeType::Dir {
+                children.extend(child.get_all_children()?);
+            }
+        }
+        Ok(children)
     }
 
     /// Get all the vnodes for a given directory
