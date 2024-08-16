@@ -1,9 +1,9 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 
-use liboxen::repositories;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 use crate::helpers::check_repo_migration_needed;

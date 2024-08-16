@@ -82,6 +82,14 @@ pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commi
     }
 }
 
+/// Commit id exists
+pub fn commit_id_exists(
+    repo: &LocalRepository,
+    commit_id: impl AsRef<str>,
+) -> Result<bool, OxenError> {
+    get_by_id(repo, commit_id.as_ref()).map(|commit| commit.is_some())
+}
+
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     match repo.version() {

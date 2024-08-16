@@ -6,7 +6,8 @@ use crate::command;
 use crate::constants;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
-use crate::core::v0_10_0::index::{RefWriter, Stager};
+use crate::core::refs::RefWriter;
+
 use crate::error::OxenError;
 use crate::model::schema::Field;
 use crate::model::RepoNew;
@@ -80,7 +81,7 @@ fn create_prefixed_dir(
     Ok(full_dir)
 }
 
-fn create_repo_dir(base_dir: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
+pub fn create_repo_dir(base_dir: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
     create_prefixed_dir(base_dir, "repo")
 }
 
@@ -1118,34 +1119,6 @@ fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
         "text_classification",
     )?;
 
-    Ok(())
-}
-
-pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
-where
-    T: FnOnce(Stager, LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
-{
-    init_test_env();
-    let repo_dir = create_repo_dir(test_run_dir())?;
-    log::debug!("BEFORE COMMAND::INIT");
-    let repo = command::init(&repo_dir)?;
-    log::debug!("AFTER COMMAND::INIT");
-    let stager = Stager::new(&repo)?;
-    log::debug!("AFTER CREATE STAGER");
-
-    // Run test to see if it panic'd
-    let result = std::panic::catch_unwind(|| match test(stager, repo) {
-        Ok(_) => {}
-        Err(err) => {
-            panic!("Error running test. Err: {}", err);
-        }
-    });
-
-    // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
-
-    // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
     Ok(())
 }
 

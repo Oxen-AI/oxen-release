@@ -1,4 +1,6 @@
-use crate::core::v0_10_0::index::{CommitReader, RefReader};
+use crate::core::refs::RefReader;
+use crate::core::v0_10_0::index::CommitReader;
+
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, ParsedResource};
 use crate::repositories;

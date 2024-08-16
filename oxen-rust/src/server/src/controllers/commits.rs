@@ -20,7 +20,7 @@ use liboxen::core::v0_10_0::commit::merge_objects_dbs;
 use liboxen::core::v0_10_0::index::CommitReader;
 use liboxen::core::v0_10_0::index::CommitWriter;
 
-use liboxen::core::v0_10_0::index::RefWriter;
+use liboxen::core::refs::RefWriter;
 use liboxen::error::OxenError;
 use liboxen::model::commit::CommitWithBranchName;
 use liboxen::model::RepoNew;
