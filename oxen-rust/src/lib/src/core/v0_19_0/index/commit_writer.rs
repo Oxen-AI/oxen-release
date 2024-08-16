@@ -16,7 +16,7 @@ use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_val_db;
-use crate::core::v0_10_0::index::RefWriter;
+use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::core::v0_19_0::index::merkle_tree::node::{
     FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode,

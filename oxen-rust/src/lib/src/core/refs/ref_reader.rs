@@ -1,8 +1,8 @@
 use crate::constants::{HEAD_FILE, REFS_DIR};
 use crate::core::db;
-use crate::core::v0_10_0::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository};
+use crate::repositories;
 use crate::util;
 
 use rocksdb::{IteratorMode, DB};
@@ -106,8 +106,7 @@ impl RefReader {
                     "RefReader::head_commit_id looking for head_ref {}",
                     head_ref
                 );
-                let commit_reader = CommitReader::new(&self.repository)?;
-                if commit_reader.commit_id_exists(&head_ref) {
+                if repositories::commits::commit_id_exists(&self.repository, &head_ref)? {
                     Ok(Some(head_ref))
                 } else {
                     log::debug!("Commit id does not exist {:?}", head_ref);
@@ -186,7 +185,7 @@ impl RefReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::v0_10_0::index::RefReader;
+    use crate::core::refs::RefReader;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;

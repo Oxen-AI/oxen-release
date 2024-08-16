@@ -1649,19 +1649,110 @@ impl Stager {
 #[cfg(test)]
 mod tests {
     use crate::core::v0_10_0::index::{
-        oxenignore, CommitEntryReader, CommitReader, CommitWriter, SchemaReader, Stager,
+        oxenignore, CommitDBReader, CommitEntryReader, CommitReader, CommitWriter, SchemaReader,
+        Stager,
     };
     use crate::error::OxenError;
-    use crate::model::StagedEntryStatus;
+    use crate::model::LocalRepository;
+    use crate::model::{StagedData, StagedEntryStatus};
     use crate::repositories;
     use crate::util;
     use crate::{command, test};
 
     use std::path::{Path, PathBuf};
 
+    pub fn run_empty_stager_test<T>(test: T) -> Result<(), OxenError>
+    where
+        T: FnOnce(Stager, LocalRepository) -> Result<(), OxenError> + std::panic::UnwindSafe,
+    {
+        test::init_test_env();
+        let repo_dir = test::create_repo_dir(test::test_run_dir())?;
+        log::debug!("BEFORE COMMAND::INIT");
+        let repo = command::init(&repo_dir)?;
+        log::debug!("AFTER COMMAND::INIT");
+        let stager = Stager::new(&repo)?;
+        log::debug!("AFTER CREATE STAGER");
+
+        // Run test to see if it panic'd
+        let result = std::panic::catch_unwind(|| match test(stager, repo) {
+            Ok(_) => {}
+            Err(err) => {
+                panic!("Error running test. Err: {}", err);
+            }
+        });
+
+        // Remove repo dir
+        util::fs::remove_dir_all(&repo_dir)?;
+
+        // Assert everything okay after we cleanup the repo dir
+        assert!(result.is_ok());
+        Ok(())
+    }
+
+    #[test]
+    fn test_commit() -> Result<(), OxenError> {
+        run_empty_stager_test(|stager, repo| {
+            // Create committer with no commits
+            let repo_path = &repo.path;
+            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
+            let schema_reader = SchemaReader::new_from_head(&repo)?;
+            let commit_writer = CommitWriter::new(&repo)?;
+
+            let train_dir = repo_path.join("training_data");
+            std::fs::create_dir_all(&train_dir)?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
+            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
+            let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
+
+            let test_dir = repo_path.join("test_data");
+            std::fs::create_dir_all(&test_dir)?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
+            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
+
+            // Add a file and a directory
+            stager.add_file(&annotation_file, &entry_reader, &schema_reader)?;
+            stager.add_dir(&train_dir, &entry_reader)?;
+
+            let message = "Adding training data to 🐂";
+            let status = stager.status(&entry_reader)?;
+            let commit = commit_writer.commit(&status, message)?;
+            stager.unstage()?;
+
+            let commit_history =
+                CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
+
+            // should be two commits now
+            assert_eq!(commit_history.len(), 2);
+
+            // Check that the files are no longer staged
+            let status = stager.status(&entry_reader)?;
+            let files = status.staged_files;
+            assert_eq!(files.len(), 0);
+            let dirs = stager.list_staged_dirs()?;
+            assert_eq!(dirs.len(), 0);
+
+            Ok(())
+        })
+    }
+
+    // This is how we initialize
+    #[test]
+    fn test_commit_no_files() -> Result<(), OxenError> {
+        run_empty_stager_test(|stager, repo| {
+            let status = StagedData::empty();
+            log::debug!("run_empty_stager_test before CommitWriter::new...");
+            let commit_writer = CommitWriter::new(&repo)?;
+            commit_writer.commit(&status, "Init")?;
+            stager.unstage()?;
+
+            Ok(())
+        })
+    }
+
     #[test]
     fn test_stager_unstage() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
+        run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
@@ -1700,7 +1791,7 @@ mod tests {
 
     #[test]
     fn test_stager_add_twice_only_adds_once() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
@@ -1723,7 +1814,7 @@ mod tests {
 
     #[test]
     fn test_stager_cannot_add_if_not_modified() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
+        run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
@@ -1756,7 +1847,7 @@ mod tests {
 
     #[test]
     fn test_stager_add_non_existant_file() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1775,7 +1866,7 @@ mod tests {
 
     #[test]
     fn test_stager_add_file() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1818,7 +1909,7 @@ mod tests {
 
     #[test]
     fn test_stager_single_add_file_in_dir() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1842,7 +1933,7 @@ mod tests {
 
     #[test]
     fn test_stager_add_directory() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
@@ -1865,7 +1956,7 @@ mod tests {
 
     #[test]
     fn test_stager_get_entry() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1888,7 +1979,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1911,7 +2002,7 @@ mod tests {
 
     #[test]
     fn test_stager_add_file_in_sub_dir() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1940,7 +2031,7 @@ mod tests {
 
     #[test]
     fn test_stager_add_all_files_in_sub_dir() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -1981,7 +2072,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_directories() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
@@ -2013,7 +2104,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_untracked_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, _repo| {
+        run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
 
@@ -2034,7 +2125,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_modified_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
+        run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
             let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
@@ -2071,7 +2162,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_untracked_dirs() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
+        run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
@@ -2095,7 +2186,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_one_untracked_directory() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
+        run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
@@ -2277,7 +2368,7 @@ mod tests {
 
     #[test]
     fn test_stager_list_untracked_directories_after_add() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
+        run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;

@@ -3,10 +3,11 @@ use crate::constants::{COMMITS_DIR, MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db::key_val::path_db;
 
 use crate::core::db;
+use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     self, workspaces, CommitDBReader, CommitDirEntryReader, CommitEntryReader, CommitEntryWriter,
-    CommitReader, EntryIndexer, ObjectDBReader, RefReader, RefWriter,
+    CommitReader, EntryIndexer, ObjectDBReader,
 };
 use crate::error::OxenError;
 use crate::model::{
@@ -804,67 +805,6 @@ mod tests {
     use crate::model::{NewCommitBody, StagedData};
     use crate::opts::DFOpts;
     use crate::{repositories, test, util};
-
-    // This is how we initialize
-    #[test]
-    fn test_commit_no_files() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
-            let status = StagedData::empty();
-            log::debug!("run_empty_stager_test before CommitWriter::new...");
-            let commit_writer = CommitWriter::new(&repo)?;
-            commit_writer.commit(&status, "Init")?;
-            stager.unstage()?;
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_commit() -> Result<(), OxenError> {
-        test::run_empty_stager_test(|stager, repo| {
-            // Create committer with no commits
-            let repo_path = &repo.path;
-            let entry_reader = CommitEntryReader::new_from_head(&repo)?;
-            let schema_reader = SchemaReader::new_from_head(&repo)?;
-            let commit_writer = CommitWriter::new(&repo)?;
-
-            let train_dir = repo_path.join("training_data");
-            std::fs::create_dir_all(&train_dir)?;
-            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 1")?;
-            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 2")?;
-            let _ = test::add_txt_file_to_dir(&train_dir, "Train Ex 3")?;
-            let annotation_file = test::add_txt_file_to_dir(repo_path, "some annotations...")?;
-
-            let test_dir = repo_path.join("test_data");
-            std::fs::create_dir_all(&test_dir)?;
-            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 1")?;
-            let _ = test::add_txt_file_to_dir(&test_dir, "Test Ex 2")?;
-
-            // Add a file and a directory
-            stager.add_file(&annotation_file, &entry_reader, &schema_reader)?;
-            stager.add_dir(&train_dir, &entry_reader)?;
-
-            let message = "Adding training data to 🐂";
-            let status = stager.status(&entry_reader)?;
-            let commit = commit_writer.commit(&status, message)?;
-            stager.unstage()?;
-
-            let commit_history =
-                CommitDBReader::history_from_commit(&commit_writer.commits_db, &commit)?;
-
-            // should be two commits now
-            assert_eq!(commit_history.len(), 2);
-
-            // Check that the files are no longer staged
-            let status = stager.status(&entry_reader)?;
-            let files = status.staged_files;
-            assert_eq!(files.len(), 0);
-            let dirs = stager.list_staged_dirs()?;
-            assert_eq!(dirs.len(), 0);
-
-            Ok(())
-        })
-    }
 
     #[test]
     fn test_commit_tabular_append_invalid_schema() -> Result<(), OxenError> {

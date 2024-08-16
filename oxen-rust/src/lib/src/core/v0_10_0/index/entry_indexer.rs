@@ -14,8 +14,10 @@ use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::{self, db};
 
+use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::index::{self, puller, versioner, Merger, Stager};
-use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, RefWriter};
+use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader};
+
 use crate::error::OxenError;
 use crate::model::entries::commit_entry::{Entry, SchemaEntry};
 use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;

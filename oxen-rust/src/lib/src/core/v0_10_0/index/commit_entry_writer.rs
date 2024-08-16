@@ -8,9 +8,8 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db;
 use crate::core::db::key_val::tree_db::{TreeObject, TreeObjectChild, TreeObjectChildWithStatus};
-use crate::core::v0_10_0::index::{
-    LegacyCommitDirEntryReader, ObjectDBReader, RefWriter, SchemaWriter,
-};
+use crate::core::refs::RefWriter;
+use crate::core::v0_10_0::index::{LegacyCommitDirEntryReader, ObjectDBReader, SchemaWriter};
 use crate::error::OxenError;
 use crate::model::{
     Commit, CommitEntry, LocalRepository, StagedData, StagedEntry, StagedEntryStatus, StagedSchema,

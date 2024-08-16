@@ -1,9 +1,10 @@
 use crate::config::UserConfig;
 use crate::constants::MERGE_DIR;
 use crate::core::db;
+use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::index::{
     oxenignore, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
-    MergeConflictDBReader, RefReader, RefWriter, SchemaReader, Stager,
+    MergeConflictDBReader, SchemaReader, Stager,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};

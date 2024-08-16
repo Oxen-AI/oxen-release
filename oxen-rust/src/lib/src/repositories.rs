@@ -6,10 +6,11 @@
 use crate::command;
 use crate::constants;
 use crate::core;
+use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::cache::commit_cacher;
 use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::core::v0_10_0::index::Stager;
-use crate::core::v0_10_0::index::{CommitEntryReader, CommitWriter, RefWriter};
+use crate::core::v0_10_0::index::{CommitEntryReader, CommitWriter};
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::Commit;
