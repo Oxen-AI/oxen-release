@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::io::Cursor;
 
 use super::data_frames::DataFrameColumnChange;
+use super::data_frames::DataFrameRowChange;
 use super::StatusMessage;
 use crate::constants;
 use crate::core::df::tabular;
@@ -67,6 +68,7 @@ pub struct WorkspaceJsonDataFrameViewResponse {
 pub struct JsonDataFrameRowResponse {
     #[serde(flatten)]
     pub status: StatusMessage,
+    pub diff: Option<Vec<DataFrameRowChange>>,
     pub data_frame: JsonDataFrameViews,
     pub commit: Option<Commit>,
     pub resource: Option<ResourceVersion>,
