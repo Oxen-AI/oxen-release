@@ -94,6 +94,8 @@ pub fn read_staged_entries(
                     hash: entry.hash,
                     num_bytes: entry.num_bytes,
                     data_type: entry.data_type,
+                    status: StagedEntryStatus::Added,
+                    last_commit_id: 0,
                 };
 
                 if let Some(parent) = path.parent() {

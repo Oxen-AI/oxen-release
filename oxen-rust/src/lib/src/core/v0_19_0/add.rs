@@ -187,6 +187,7 @@ fn process_dir(
                 dir, num_children
             ));
             *state += 1;
+            // Curious why this is only < 300% CPU usage
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
                     let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
