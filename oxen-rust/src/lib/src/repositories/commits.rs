@@ -66,6 +66,15 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     }
 }
 
+/// Maybe get the head commit if it exists
+/// Returns None if the head commit does not exist (empty repo)
+pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::commit::head_commit_maybe(repo),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commit::head_commit_maybe(repo),
+    }
+}
+
 /// Get the root commit of a repository
 pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     match repo.version() {

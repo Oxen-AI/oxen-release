@@ -66,6 +66,11 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     reader.head_commit()
 }
 
+pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
+    let reader = CommitReader::new(repo)?;
+    reader.head_commit_maybe()
+}
+
 /// Get the root commit of a repository
 pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let committer = CommitReader::new(repo)?;

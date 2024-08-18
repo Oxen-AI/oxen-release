@@ -1,4 +1,4 @@
-use crate::model::EntryDataType;
+use crate::model::{EntryDataType, StagedEntryStatus};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::fmt::Display;
@@ -8,6 +8,7 @@ pub struct EntryMetaData {
     pub hash: u128,
     pub num_bytes: u64,
     pub data_type: EntryDataType,
+    pub status: StagedEntryStatus,
 }
 
 impl Default for EntryMetaData {
@@ -16,6 +17,7 @@ impl Default for EntryMetaData {
             hash: 0,
             num_bytes: 0,
             data_type: EntryDataType::Binary,
+            status: StagedEntryStatus::Added,
         }
     }
 }
@@ -24,8 +26,8 @@ impl Display for EntryMetaData {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "EntryMetaData {{ hash: {:x}, num_bytes: {}, data_type: {:?} }}",
-            self.hash, self.num_bytes, self.data_type
+            "EntryMetaData {{ hash: {:x}, num_bytes: {}, data_type: {:?}, status: {:?} }}",
+            self.hash, self.num_bytes, self.data_type, self.status
         )
     }
 }

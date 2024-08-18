@@ -169,6 +169,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
     write_commit_entries(
         &repo,
+        &maybe_head_commit,
         commit_id,
         &mut commit_db,
         &dir_hash_db,
@@ -287,12 +288,18 @@ fn split_into_vnodes(
         // TODO: Handle updates and deletes, this is pure addition right now
         for child in new_children.iter() {
             // Overwrite the existing child
+            log::debug!("replacing child {:?} with {:?}", child.path, child);
             children.replace(child.clone());
         }
 
         // Log the children
         for child in children.iter() {
-            log::debug!("  child {:?} has {:?} bytes", child.path, child.num_bytes);
+            log::debug!(
+                "  child {:?} has {:?} bytes and status {:?}",
+                child.path,
+                child.num_bytes,
+                child.status
+            );
         }
 
         // Compute number of vnodes based on the repo's vnode size and number of children
@@ -346,7 +353,12 @@ fn split_into_vnodes(
         for vnode in vnodes.iter() {
             log::debug!("  vnode {:x} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
-                log::debug!("    entry {:?} has {:?} bytes", entry.path, entry.num_bytes);
+                log::debug!(
+                    "    entry {:?} has {:?} bytes with status {:?}",
+                    entry.path,
+                    entry.num_bytes,
+                    entry.status
+                );
             }
         }
     }
@@ -367,6 +379,7 @@ fn compute_commit_id(new_commit: &NewCommit) -> Result<u128, OxenError> {
 
 fn write_commit_entries(
     repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
     commit_id: u128,
     commit_db: &mut MerkleNodeDB,
     dir_hash_db: &DBWithThreadMode<SingleThreaded>,
@@ -375,7 +388,7 @@ fn write_commit_entries(
     // Write the root dir, then recurse into the vnodes and subdirectories
     let mut total_written = 0;
     let root_path = PathBuf::from("");
-    let dir_node = compute_dir_node(commit_id, entries, &root_path)?;
+    let dir_node = compute_dir_node(repo, maybe_head_commit, commit_id, entries, &root_path)?;
     commit_db.add_child(&dir_node)?;
     total_written += 1;
 
@@ -387,6 +400,7 @@ fn write_commit_entries(
     let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node, Some(commit_id))?;
     r_create_dir_node(
         repo,
+        maybe_head_commit,
         commit_id,
         &mut Some(dir_db),
         dir_hash_db,
@@ -400,6 +414,7 @@ fn write_commit_entries(
 
 fn r_create_dir_node(
     repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
     commit_id: u128,
     maybe_dir_db: &mut Option<MerkleNodeDB>,
     dir_hash_db: &DBWithThreadMode<SingleThreaded>,
@@ -456,7 +471,13 @@ fn r_create_dir_node(
                 EntryDataType::Dir => {
                     // If the dir has updates, we need a new dir db
                     let dir_node = if entries.contains_key(&entry.path) {
-                        let dir_node = compute_dir_node(commit_id, entries, &entry.path)?;
+                        let dir_node = compute_dir_node(
+                            repo,
+                            maybe_head_commit,
+                            commit_id,
+                            entries,
+                            &entry.path,
+                        )?;
 
                         // if let Some(vnode_db) = &mut maybe_vnode_db {
                         vnode_db.add_child(&dir_node)?;
@@ -481,6 +502,7 @@ fn r_create_dir_node(
 
                         r_create_dir_node(
                             repo,
+                            maybe_head_commit,
                             commit_id,
                             &mut child_db,
                             dir_hash_db,
@@ -581,6 +603,8 @@ fn get_children(
 }
 
 fn compute_dir_node(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
     commit_id: u128,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
@@ -593,8 +617,23 @@ fn compute_dir_node(
     let mut num_bytes = 0;
     let mut data_type_counts: HashMap<String, usize> = HashMap::new();
 
+    // Collect the previous commit counts
+    if let Some(head_commit) = maybe_head_commit {
+        if let Ok(old_dir_node) = CommitMerkleTree::dir_metadata_from_path(repo, head_commit, &path)
+        {
+            num_bytes = old_dir_node.num_bytes;
+            data_type_counts = old_dir_node.data_type_counts;
+        };
+    }
+
     let children = get_children(entries, &path)?;
-    log::debug!("Aggregating dir {:?} with {:?} children", path, children);
+    log::debug!(
+        "Aggregating dir {:?} with {:?} children num_bytes {:?} data_type_counts {:?}",
+        path,
+        children,
+        num_bytes,
+        data_type_counts
+    );
     for child in children.iter() {
         let Some(vnodes) = entries.get(child) else {
             let err_msg = format!("compute_dir_node No entries found for directory {:?}", path);
@@ -603,18 +642,31 @@ fn compute_dir_node(
 
         for vnode in vnodes.iter() {
             for entry in vnode.entries.iter() {
-                log::debug!("Aggregating entry {:?} [{:?}]", entry.path, entry.data_type);
+                log::debug!("Aggregating entry {}", entry);
                 match entry.data_type {
                     EntryDataType::Dir => {
                         log::debug!("No need to aggregate {:?}", entry.path);
                     }
                     _ => {
                         hasher.update(&entry.hash.to_le_bytes());
-                        num_bytes += entry.num_bytes;
 
-                        *data_type_counts
-                            .entry(entry.data_type.to_string())
-                            .or_insert(0) += 1;
+                        match entry.status {
+                            StagedEntryStatus::Added => {
+                                num_bytes += entry.num_bytes;
+                                *data_type_counts
+                                    .entry(entry.data_type.to_string())
+                                    .or_insert(0) += 1;
+                            }
+                            StagedEntryStatus::Removed => {
+                                num_bytes -= entry.num_bytes;
+                                *data_type_counts
+                                    .entry(entry.data_type.to_string())
+                                    .or_insert(1) -= 1;
+                            }
+                            _ => {
+                                // Do nothing
+                            }
+                        }
                     }
                 }
             }
@@ -799,7 +851,6 @@ mod tests {
         })
     }
 
-
     #[test]
     fn test_second_commit_keeps_num_bytes_and_data_type_counts() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
@@ -850,7 +901,6 @@ mod tests {
             let updated_root_dir = updated_root_dir.unwrap().dir()?;
             let updated_root_dir_file_count = updated_root_dir.num_files();
             assert_eq!(updated_root_dir_file_count, original_root_dir_file_count);
-
 
             Ok(())
         })
