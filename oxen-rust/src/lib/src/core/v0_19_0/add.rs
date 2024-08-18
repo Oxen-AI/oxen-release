@@ -13,10 +13,13 @@ use serde::Serialize;
 use crate::constants::{STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::EntryMetaData;
-use crate::model::EntryDataType;
-use crate::util;
+use crate::model::{Commit, EntryDataType, StagedEntryStatus};
 use crate::{error::OxenError, model::LocalRepository};
+use crate::{repositories, util};
 use std::ops::AddAssign;
+
+use super::index::merkle_tree::node::{MerkleTreeNodeData, MerkleTreeNodeType};
+use super::index::merkle_tree::CommitMerkleTree;
 
 #[derive(Clone, Debug)]
 pub struct CumulativeStats {
@@ -89,10 +92,14 @@ fn add_files(
     // To start, let's see how fast we can simply loop through all the paths
     // and and copy them into an index.
 
+    // Create the versions dir if it doesn't exist
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     if !versions_path.exists() {
         util::fs::create_dir_all(versions_path)?;
     }
+
+    // Lookup the head commit
+    let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
 
     let mut total = CumulativeStats {
         total_files: 0,
@@ -101,14 +108,10 @@ fn add_files(
     };
     for path in paths {
         if path.is_dir() {
-            total += process_dir(
-                repo, path,
-                // &progress_1,
-                // &progress_2
-            )?;
+            total += process_dir(repo, &maybe_head_commit, path.clone())?;
         } else if path.is_file() {
             // Process the file here
-            let entry = add_file(repo, path)?;
+            let entry = add_file(repo, &maybe_head_commit, path)?;
             total.total_files += 1;
             total.total_bytes += entry.num_bytes;
             total
@@ -124,9 +127,8 @@ fn add_files(
 
 fn process_dir(
     repo: &LocalRepository,
-    path: &Path,
-    // progress_1: &ProgressBar,
-    // progress_2: &ProgressBar,
+    maybe_head_commit: &Option<Commit>,
+    path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
 
@@ -134,10 +136,10 @@ fn process_dir(
     let progress_1 = m.add(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
-    // let progress_2 = m.add(ProgressBar::new_spinner());
-    // progress_2.set_style(ProgressStyle::default_spinner());
-    // progress_2.enable_steady_tick(Duration::from_millis(100));
 
+    let path = path.clone();
+    let repo = repo.clone();
+    let maybe_head_commit = maybe_head_commit.clone();
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     let opts = db::key_val::opts::default();
@@ -150,7 +152,7 @@ fn process_dir(
     let byte_counter = Arc::new(AtomicU64::new(0));
     let file_counter = Arc::new(AtomicU64::new(0));
 
-    let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(path).process_read_dir(
+    let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(&path).process_read_dir(
         move |_depth, dir, state, children| {
             // 1. Custom sort
             // children.sort_by(|a, b| match (a, b) {
@@ -186,6 +188,10 @@ fn process_dir(
                 dir, num_children
             ));
             *state += 1;
+
+            // Load the directory
+            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &path).unwrap();
+
             // Curious why this is only < 300% CPU usage
             children.par_iter_mut().for_each(|dir_entry_result| {
                 if let Ok(dir_entry) = dir_entry_result {
@@ -200,7 +206,8 @@ fn process_dir(
                         bytesize::ByteSize::b(total_bytes),
                         mbps
                     ));
-                    match process_add_file(&repo_path, &versions_path, &staged_db, &path) {
+                    match process_add_file(&repo_path, &versions_path, &staged_db, &dir_node, &path)
+                    {
                         Ok(entry) => {
                             byte_counter_clone.fetch_add(entry.num_bytes, Ordering::Relaxed);
                             file_counter_clone.fetch_add(1, Ordering::Relaxed);
@@ -240,7 +247,39 @@ fn process_dir(
     Ok(cumulative_stats)
 }
 
-fn add_file(repo: &LocalRepository, path: &Path) -> Result<EntryMetaData, OxenError> {
+fn maybe_load_directory(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    path: &Path,
+) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+    if let Some(head_commit) = maybe_head_commit {
+        let dir_node = CommitMerkleTree::dir_from_path_with_children(repo, &head_commit, path)?;
+        Ok(Some(dir_node))
+    } else {
+        Ok(None)
+    }
+}
+
+fn dir_node_has_file(
+    dir_node: &Option<MerkleTreeNodeData>,
+    path: &Path,
+) -> Result<bool, OxenError> {
+    if let Some(node) = dir_node {
+        if let Some(node) = node.get_by_path(path)? {
+            Ok(node.dtype == MerkleTreeNodeType::File)
+        } else {
+            Ok(false)
+        }
+    } else {
+        Ok(false)
+    }
+}
+
+fn add_file(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    path: &Path,
+) -> Result<EntryMetaData, OxenError> {
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     let opts = db::key_val::opts::default();
@@ -248,16 +287,34 @@ fn add_file(repo: &LocalRepository, path: &Path) -> Result<EntryMetaData, OxenEr
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    process_add_file(&repo_path, &versions_path, &staged_db, path)
+    let mut maybe_dir_node = None;
+    if let Some(head_commit) = maybe_head_commit {
+        let path = util::fs::path_relative_to_dir(path, &repo_path)?;
+        let parent_path = path.parent().unwrap_or(Path::new(""));
+        maybe_dir_node = Some(CommitMerkleTree::dir_from_path_with_children(
+            repo,
+            &head_commit,
+            parent_path,
+        )?);
+    }
+
+    process_add_file(
+        &repo_path,
+        &versions_path,
+        &staged_db,
+        &maybe_dir_node,
+        path,
+    )
 }
 
 fn process_add_file(
     repo_path: &Path,
     versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
+    maybe_dir_node: &Option<MerkleTreeNodeData>,
     path: &Path,
 ) -> Result<EntryMetaData, OxenError> {
-    let relative_path = util::fs::path_relative_to_dir(path, &repo_path).unwrap();
+    let relative_path = util::fs::path_relative_to_dir(path, &repo_path)?;
     let full_path = repo_path.join(&relative_path);
     let entry = if full_path.is_file() {
         // If we can't hash - nothing downstream will work, so panic!
@@ -280,10 +337,19 @@ fn process_add_file(
         let dst = dst_dir.join("data");
         util::fs::copy(&full_path, &dst).unwrap();
 
+        // Check if the file is already in the head commit
+        let is_file_in_head_commit = dir_node_has_file(maybe_dir_node, &relative_path)?;
+        let status = if is_file_in_head_commit {
+            StagedEntryStatus::Modified
+        } else {
+            StagedEntryStatus::Added
+        };
+
         let entry = EntryMetaData {
             hash,
             data_type,
             num_bytes,
+            status,
         };
 
         let mut buf = Vec::new();

@@ -44,6 +44,18 @@ fn head_commit_id(repo: &LocalRepository) -> Result<u128, OxenError> {
     }
 }
 
+pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
+    let ref_reader = RefReader::new(repo)?;
+    match ref_reader.head_commit_id() {
+        Ok(Some(commit_id)) => {
+            let commit_id = uhash_from_str(&commit_id)?;
+            get_by_uid(repo, commit_id)
+        }
+        Ok(None) => Ok(None),
+        Err(err) => Err(err),
+    }
+}
+
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let head_commit_id = head_commit_id(repo)?;
     let commit_data = CommitMerkleTree::read_node(repo, head_commit_id, false)?;

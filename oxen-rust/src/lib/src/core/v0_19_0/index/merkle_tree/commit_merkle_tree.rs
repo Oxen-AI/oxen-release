@@ -17,6 +17,8 @@ use crate::model::LocalRepository;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::util;
 
+use super::node::DirNode;
+
 pub struct CommitMerkleTree {
     pub root: MerkleTreeNodeData,
     pub dir_hashes: HashMap<String, u128>,
@@ -67,6 +69,50 @@ impl CommitMerkleTree {
             CommitMerkleTree::read_file(repo, &dir_hashes, node_path)?
         };
         Ok(Self { root, dir_hashes })
+    }
+
+    /// Read the dir metadata from the path, without reading the children
+    pub fn dir_metadata_from_path(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+    ) -> Result<DirNode, OxenError> {
+        let node_path = path.as_ref();
+        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        let node_hash: Option<u128> = dir_hashes.get(node_path.to_str().unwrap()).cloned();
+        if let Some(node_hash) = node_hash {
+            // We are reading a node with children
+            log::debug!("Look up dir 🗂️ {:?}", node_path);
+            CommitMerkleTree::read_node(repo, node_hash, false)?.dir()
+        } else {
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree hash not found for parent: '{}'",
+                node_path.to_str().unwrap()
+            )));
+        }
+    }
+
+    pub fn dir_from_path_with_children(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+    ) -> Result<MerkleTreeNodeData, OxenError> {
+        let node_path = path.as_ref();
+        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        let node_hash: Option<u128> = dir_hashes.get(node_path.to_str().unwrap()).cloned();
+        if let Some(node_hash) = node_hash {
+            // We are reading a node with children
+            log::debug!("Look up dir 🗂️ {:?}", node_path);
+            // Read the node at depth 2 to get VNodes and Sub-Files/Dirs
+            CommitMerkleTree::read_depth(repo, node_hash, 2)
+        } else {
+            return Err(OxenError::basic_str(format!(
+                "Merkle tree hash not found for parent: '{}'",
+                node_path.to_str().unwrap()
+            )));
+        }
     }
 
     pub fn read_node(

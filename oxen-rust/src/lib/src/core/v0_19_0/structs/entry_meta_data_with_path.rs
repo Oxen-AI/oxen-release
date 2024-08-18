@@ -1,8 +1,10 @@
 use crate::model::{EntryDataType, StagedEntryStatus};
+use std::fmt;
+use std::fmt::Display;
 use std::hash::{Hash, Hasher};
 use std::path::PathBuf;
 
-#[derive(Clone, Eq)]
+#[derive(Clone, Eq, Debug)]
 pub struct EntryMetaDataWithPath {
     pub path: PathBuf,
     pub hash: u128,
@@ -21,5 +23,15 @@ impl PartialEq for EntryMetaDataWithPath {
 impl Hash for EntryMetaDataWithPath {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.path.hash(state);
+    }
+}
+
+impl Display for EntryMetaDataWithPath {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "EntryMetaDataWithPath {{ path: {:?}, hash: {:x}, num_bytes: {}, data_type: {:?}, status: {:?} }}",
+            self.path, self.hash, self.num_bytes, self.data_type, self.status
+        )
     }
 }

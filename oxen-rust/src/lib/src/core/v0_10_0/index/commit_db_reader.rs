@@ -56,6 +56,18 @@ impl CommitDBReader {
         }
     }
 
+    pub fn head_commit_maybe(
+        repo: &LocalRepository,
+        db: &DBWithThreadMode<MultiThreaded>,
+    ) -> Result<Option<Commit>, OxenError> {
+        let ref_reader = RefReader::new(repo)?;
+        match ref_reader.head_commit_id() {
+            Ok(Some(commit_id)) => CommitDBReader::get_commit_by_id(db, &commit_id),
+            Ok(None) => Ok(None),
+            Err(err) => Err(err),
+        }
+    }
+
     pub fn root_commit(
         repo: &LocalRepository,
         db: &DBWithThreadMode<MultiThreaded>,

@@ -65,6 +65,11 @@ impl CommitReader {
         CommitDBReader::head_commit(&self.repository, &self.db)
     }
 
+    /// Get the head commit if it exists
+    pub fn head_commit_maybe(&self) -> Result<Option<Commit>, OxenError> {
+        CommitDBReader::head_commit_maybe(&self.repository, &self.db)
+    }
+
     /// Get the root commit of the db
     pub fn root_commit(&self) -> Result<Commit, OxenError> {
         // Traverse db to find root commit
