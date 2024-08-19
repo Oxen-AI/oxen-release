@@ -8,12 +8,14 @@ use crate::core::db::data_frames::{columns, df_db};
 use crate::core::index::workspaces;
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
 use crate::error::OxenError;
-use crate::model::schema::DataType;
+use crate::model::schema::field::Changes;
+use crate::model::schema::{DataType, Field};
 use crate::model::Workspace;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
 use crate::view::data_frames::{ColumnChange, DataFrameColumnChange};
+use crate::view::JsonDataFrameViews;
 
 use std::path::Path;
 
@@ -280,4 +282,97 @@ pub fn get_column_diff(
     let opts = db::key_val::opts::default();
     let db = DB::open_for_read_only(&opts, dunce::simplified(&column_changes_path), false)?;
     get_all_data_frame_column_changes(&db)
+}
+
+pub fn decorate_fields_with_column_diffs(
+    workspace: &Workspace,
+    file_path: impl AsRef<Path>,
+    df_views: &mut JsonDataFrameViews,
+) -> Result<(), OxenError> {
+    let column_changes_path =
+        workspaces::data_frames::column_changes_path(workspace, file_path.as_ref());
+    let opts = db::key_val::opts::default();
+    let db = DB::open_for_read_only(
+        &opts,
+        dunce::simplified(column_changes_path.as_path()),
+        false,
+    )?;
+
+    df_views
+        .source
+        .schema
+        .fields
+        .iter_mut()
+        .try_for_each(|field| {
+            let column_name = &field.name;
+            match db.get(column_name.as_bytes()) {
+                Ok(Some(value_bytes)) => {
+                    let value_result =
+                        serde_json::from_slice::<DataFrameColumnChange>(&value_bytes);
+                    match value_result {
+                        Ok(value) => {
+                            if let Some(changes) = handle_data_frame_column_change(value)? {
+                                field.changes = Some(changes);
+                            }
+                            Ok(())
+                        }
+                        Err(_) => Err(OxenError::basic_str("Error deserializing value")),
+                    }
+                }
+                Ok(None) => Ok(()),
+                Err(e) => Err(OxenError::from(e)),
+            }
+        })?;
+
+    Ok(())
+}
+
+pub fn handle_data_frame_column_change(
+    change: DataFrameColumnChange,
+) -> Result<Option<Changes>, OxenError> {
+    match change.operation.as_str() {
+        "added" => Ok(Some(Changes {
+            status: "added".to_string(),
+            previous: None,
+        })),
+        "deleted" => {
+            let column_before = change.column_before.ok_or(OxenError::basic_str(
+                "A deleted column needs to have a column before value",
+            ))?;
+
+            let previous_field = Field {
+                name: column_before.column_name.clone(),
+                dtype: column_before.column_data_type.ok_or(OxenError::basic_str(
+                    "A deleted column needs to have a before datatype value",
+                ))?,
+                metadata: None,
+                changes: None,
+            };
+
+            Ok(Some(Changes {
+                status: "deleted".to_string(),
+                previous: Some(Box::new(previous_field)),
+            }))
+        }
+        "modified" => {
+            let column_before = change.column_before.ok_or(OxenError::basic_str(
+                "A modified column needs to have a column before value",
+            ))?;
+
+            let previous_field = Field {
+                name: column_before.column_name.clone(),
+                dtype: column_before.column_data_type.ok_or(OxenError::basic_str(
+                    "A modified column needs to have a before datatype value",
+                ))?,
+                metadata: None,
+                changes: None,
+            };
+
+            Ok(Some(Changes {
+                status: "modified".to_string(),
+                previous: Some(Box::new(previous_field)),
+            }))
+        }
+        _ => Ok(None),
+    }
 }
