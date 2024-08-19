@@ -208,7 +208,7 @@ mod tests {
             assert!(!world_file.exists());
 
             // // Check status
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert!(status.is_clean());
 
             Ok(())
@@ -435,11 +435,11 @@ mod tests {
 
             let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
             let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
             status.print();
             repositories::add(&repo, &one_shot_path)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             repositories::commit(&repo, "Changing one shot")?;
 
@@ -478,14 +478,14 @@ mod tests {
 
             let file_contents = "file,label\ntrain/cat_1.jpg,0\n";
             let one_shot_path = test::modify_txt_file(one_shot_path, file_contents)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
             repositories::add(&repo, &one_shot_path)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.modified_files.len(), 0);
             assert_eq!(status.staged_files.len(), 1);
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             repositories::commit(&repo, "Changing one shot")?;
 

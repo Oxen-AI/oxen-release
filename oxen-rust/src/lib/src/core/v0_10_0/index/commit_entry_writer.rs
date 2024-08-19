@@ -1536,7 +1536,7 @@ mod tests {
             repositories::add(&local_repo, &path_1)?;
             repositories::add(&local_repo, &path_2)?;
 
-            let status = command::status(&local_repo)?;
+            let status = repositories::status(&local_repo)?;
 
             log::debug!("staged files here are {:?}", status.staged_files);
 

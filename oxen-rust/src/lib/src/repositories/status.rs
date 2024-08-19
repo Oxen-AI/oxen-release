@@ -6,9 +6,10 @@
 
 use std::path::Path;
 
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, StagedData};
-use crate::repositories;
 
 /// # oxen status
 ///
@@ -28,9 +29,9 @@ use crate::repositories;
 ///
 /// let base_dir = Path::new("repo_dir_status_1");
 /// // Initialize empty repo
-/// let repo = command::init(&base_dir)?;
+/// let repo = repositories::init(&base_dir)?;
 /// // Get status on repo
-/// let status = command::status(&repo)?;
+/// let status = repositories::status(&repo)?;
 /// assert!(status.is_clean());
 ///
 /// # util::fs::remove_dir_all(base_dir)?;
@@ -51,26 +52,35 @@ use crate::repositories;
 ///
 /// let base_dir = Path::new("repo_dir_status_2");
 /// // Initialize empty repo
-/// let repo = command::init(&base_dir)?;
+/// let repo = repositories::init(&base_dir)?;
 ///
 /// // Write file to disk
 /// let hello_file = base_dir.join("hello.txt");
 /// util::fs::write_to_path(&hello_file, "Hello World");
 ///
 /// // Get status on repo
-/// let status = command::status(&repo)?;
+/// let status = repositories::status(&repo)?;
 /// assert_eq!(status.untracked_files.len(), 1);
 ///
 /// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
 /// # }
 /// ```
-pub fn status(repository: &LocalRepository) -> Result<StagedData, OxenError> {
-    repositories::status(repository)
+pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status(repo),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status(repo),
+    }
 }
 
-pub fn status_from_dir(repository: &LocalRepository, dir: &Path) -> Result<StagedData, OxenError> {
-    repositories::status_from_dir(repository, dir)
+pub fn status_from_dir(
+    repo: &LocalRepository,
+    dir: impl AsRef<Path>,
+) -> Result<StagedData, OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status_from_dir(repo, dir),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_dir(repo, dir),
+    }
 }
 
 #[cfg(test)]
@@ -90,7 +100,7 @@ mod tests {
     #[test]
     fn test_command_status_empty() -> Result<(), OxenError> {
         test::run_empty_local_repo_test(|repo| {
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
@@ -104,7 +114,7 @@ mod tests {
     #[test]
     fn test_command_status_nothing_staged_full_directory() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
@@ -127,7 +137,7 @@ mod tests {
         test::run_training_data_repo_test_no_commits(|repo| {
             repositories::add(&repo, repo.path.join(Path::new("labels.txt")))?;
 
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             repo_status.print();
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
@@ -156,7 +166,7 @@ mod tests {
             )?;
 
             // Make sure that we now see the full annotations/train/ directory
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             repo_status.print();
 
             // annotations/
@@ -221,7 +231,7 @@ mod tests {
             util::fs::write_to_path(hello_file, "Hello World")?;
 
             // Get status
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 1);
@@ -262,7 +272,7 @@ mod tests {
             assert!(commit.is_none());
 
             // Make sure we can access the conflicts in the status command
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
             Ok(())
@@ -278,14 +288,14 @@ mod tests {
             let og_file = repo.path.join(&og_basename);
             util::fs::remove_file(og_file)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.removed_files.len(), 1);
 
             let opts = RmOpts::from_path(&og_basename);
-            command::rm(&repo, &opts).await?;
-            let status = command::status(&repo)?;
+            repositories::rm(&repo, &opts).await?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.staged_files.len(), 1);
@@ -307,14 +317,14 @@ mod tests {
             let og_file = repo.path.join(&og_basename);
             util::fs::remove_file(og_file)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.removed_files.len(), 1);
 
             let opts = RmOpts::from_path(&og_basename);
-            command::rm(&repo, &opts).await?;
-            let status = command::status(&repo)?;
+            repositories::rm(&repo, &opts).await?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.staged_files.len(), 1);
@@ -340,7 +350,7 @@ mod tests {
             util::fs::rename(&og_file, &new_file)?;
 
             // Status before
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
 
             assert_eq!(status.moved_files.len(), 0);
             assert_eq!(status.removed_files.len(), 1);
@@ -348,14 +358,14 @@ mod tests {
 
             // Add one file...
             repositories::add(&repo, &og_file)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             // No notion of movement until the pair are added
             assert_eq!(status.moved_files.len(), 0);
             assert_eq!(status.staged_files.len(), 1);
 
             // Complete the pair
             repositories::add(&repo, &new_file)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.moved_files.len(), 1);
             assert_eq!(status.staged_files.len(), 2); // Staged files still operates on the addition + removal
 
@@ -363,7 +373,7 @@ mod tests {
             command::restore(&repo, RestoreOpts::from_staged_path(og_basename))?;
 
             // Pair is broken; no more "moved"
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.moved_files.len(), 0);
             assert_eq!(status.staged_files.len(), 1);
 
@@ -385,7 +395,7 @@ mod tests {
             util::fs::create_dir_all(&new_dir)?;
             util::fs::rename(&og_dir, &new_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.moved_files.len(), 0);
             assert_eq!(status.untracked_dirs.len(), 1);
             assert_eq!(status.removed_files.len(), 5);
@@ -394,7 +404,7 @@ mod tests {
             repositories::add(&repo, &og_dir)?;
             // repositories::add(&repo, &new_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             // No moved files, 5 staged (the removals)
             assert_eq!(status.moved_files.len(), 0);
             assert_eq!(status.staged_files.len(), 5);
@@ -402,7 +412,7 @@ mod tests {
 
             // Complete the pairs
             repositories::add(&repo, &new_dir)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.moved_files.len(), 5);
             assert_eq!(status.staged_files.len(), 10);
             assert_eq!(status.staged_dirs.len(), 2);

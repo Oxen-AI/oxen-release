@@ -236,7 +236,7 @@ mod tests {
                 assert!(repository.is_ok());
 
                 let repository = repository.unwrap();
-                let status = command::status(&repository)?;
+                let status = repositories::status(&repository)?;
                 assert!(status.is_clean());
 
                 // Cleanup
@@ -261,14 +261,14 @@ mod tests {
 
                 api::client::repositories::delete(&remote_repo).await?;
 
-                command::status(&local_repo)?;
+                repositories::status(&local_repo)?;
 
                 let new_path = dir.join("new_path");
 
                 util::fs::rename(&local_repo.path, &new_path)?;
 
                 let new_repo = LocalRepository::from_dir(&new_path)?;
-                command::status(&new_repo)?;
+                repositories::status(&new_repo)?;
                 assert_eq!(new_repo.path, new_path);
 
                 Ok(dir)
@@ -549,7 +549,7 @@ mod tests {
                     command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
 
-                let status = command::status(&cloned_repo);
+                let status = repositories::status(&cloned_repo);
                 assert!(status.is_ok());
 
                 Ok(new_repo_dir)
@@ -572,7 +572,7 @@ mod tests {
                     command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
 
-                let status = command::status(&cloned_repo);
+                let status = repositories::status(&cloned_repo);
                 assert!(status.is_ok());
 
                 // Add a file to the cloned repo

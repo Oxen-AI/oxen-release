@@ -1,10 +1,11 @@
-use crate::command;
 use flate2::read::GzDecoder;
 use std::path::PathBuf;
 use std::{fs::File, path::Path};
 use tar::Archive;
 
+use crate::command;
 use crate::opts::RestoreOpts;
+use crate::repositories;
 use crate::{error::OxenError, model::LocalRepository};
 
 pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(), OxenError> {
@@ -40,7 +41,7 @@ pub fn load(src_path: &Path, dest_path: &Path, no_working_dir: bool) -> Result<(
     // Client repos - need to hydrate working dir from versions files
     let repo = LocalRepository::new(&dest_path)?;
 
-    let status = command::status(&repo)?;
+    let status = repositories::status(&repo)?;
 
     // TODO: This logic can be simplified to restore("*") once wildcard changes are merged
     let mut restore_opts = RestoreOpts {
@@ -149,7 +150,7 @@ mod tests {
                 assert!(!hydrated_repo.path.join("hello.txt").exists());
 
                 // Should have `hello.txt` in removed files bc it's in commits db but not working dir
-                let status = command::status(&hydrated_repo)?;
+                let status = repositories::status(&hydrated_repo)?;
 
                 assert_eq!(status.removed_files.len(), 1);
 

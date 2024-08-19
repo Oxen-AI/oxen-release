@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 ///
 /// // Initialize the repository
 /// let base_dir = Path::new("repo_dir_commit");
-/// let repo = command::init(base_dir)?;
+/// let repo = repositories::init(base_dir)?;
 ///
 /// // Write file to disk
 /// let hello_file = base_dir.join("hello.txt");
@@ -247,7 +247,7 @@ mod tests {
             assert_eq!(commit.message, "My message");
 
             // Get status and make sure it is removed from the untracked and added
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
             assert_eq!(repo_status.untracked_files.len(), 0);
@@ -305,7 +305,7 @@ mod tests {
             // Commit the file
             repositories::commit(&repo, "Adding training data")?;
 
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             repo_status.print();
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 0);
@@ -327,7 +327,7 @@ mod tests {
             repositories::add(&repo, annotations_dir)?;
             repositories::commit(&repo, "Adding annotations data dir, which has two levels")?;
 
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             repo_status.print();
 
             assert_eq!(repo_status.staged_dirs.len(), 0);
@@ -359,13 +359,13 @@ mod tests {
             // Add directory
             repositories::add(&repo, &train_path)?;
             // Make sure we can get the status
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
 
             // Commit changes
             repositories::commit(&repo, "Adding train dir")?;
             // Make sure we can get the status and they are no longer added
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 0);
 
             // checkout OG and make sure it removes the train dir
@@ -430,7 +430,7 @@ mod tests {
             repositories::add(&repo, &dir_to_remove)?;
 
             // Make sure we have the correct amount of files tagged as removed
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_files.len(), og_file_count);
             assert_eq!(
                 status.staged_files.iter().next().unwrap().1.status,
@@ -472,7 +472,7 @@ mod tests {
             command::merge(&repo, branch_name)?;
 
             // We should have a conflict
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Assume that we fixed the conflict and added the file

@@ -6,7 +6,6 @@
 //! allowing the file to be removed from just the index.
 
 use crate::api;
-use crate::command;
 use crate::config::UserConfig;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
@@ -81,7 +80,7 @@ fn list_modified_files_in_dir(
     repo: &LocalRepository,
     path: &Path,
 ) -> Result<Vec<PathBuf>, OxenError> {
-    let status = command::status(repo)?;
+    let status = repositories::status(repo)?;
     let modified: Vec<PathBuf> = status
         .modified_files
         .into_iter()
@@ -197,14 +196,14 @@ mod tests {
             let path = Path::new("README.md");
             repositories::add(&repo, repo.path.join(path))?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_files.len(), 1);
             assert!(status.staged_files.contains_key(path));
 
             let opts = RmOpts::from_staged_path(path);
             rm::rm(&repo, &opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
@@ -219,7 +218,7 @@ mod tests {
             let path = Path::new("train");
             repositories::add(&repo, repo.path.join(path))?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_dirs.len(), 1);
 
@@ -244,7 +243,7 @@ mod tests {
             let path = Path::new("train");
             repositories::add(&repo, repo.path.join(path))?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_dirs.len(), 1);
 
@@ -256,7 +255,7 @@ mod tests {
             };
             rm::rm(&repo, &opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_dirs.len(), 0);
             assert_eq!(status.staged_files.len(), 0);
@@ -273,7 +272,7 @@ mod tests {
             let path = Path::new("train/");
             repositories::add(&repo, repo.path.join(path))?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
 
             let opts = RmOpts {
@@ -285,7 +284,7 @@ mod tests {
             let result = rm::rm(&repo, &opts).await;
             assert!(result.is_ok());
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_dirs.len(), 0);
             assert_eq!(status.staged_files.len(), 0);
@@ -304,7 +303,7 @@ mod tests {
             let opts = RmOpts::from_path(path);
             rm::rm(&repo, &opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.staged_files.len(), 1);
@@ -388,7 +387,7 @@ mod tests {
             )?;
 
             // There should be one modified file
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.modified_files.len(), 1);
 
@@ -416,7 +415,7 @@ mod tests {
             };
             rm::rm(&repo, &opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.staged_files.len(), og_num_files);
@@ -452,7 +451,7 @@ mod tests {
             };
             rm::rm(&repo, &opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.staged_files.len(), og_num_files);
@@ -480,7 +479,7 @@ mod tests {
             };
             rm::rm(&repo, &opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             assert_eq!(status.staged_files.len(), og_num_files);
