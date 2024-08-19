@@ -2,9 +2,9 @@ use crate::app_data::OxenAppData;
 use crate::helpers;
 use crate::queues::{InMemoryTaskQueue, RedisTaskQueue, TaskQueue};
 
-use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 use liboxen::util;
 
 use env_logger::Env;
