@@ -94,6 +94,53 @@ pub async fn delete(
     }
 }
 
+pub async fn update(
+    remote_repo: &RemoteRepository,
+    workspace_id: &str,
+    path: &Path,
+    column_name: &str,
+    data: String,
+) -> Result<JsonDataFrameColumnResponse, OxenError> {
+    let Some(file_path_str) = path.to_str() else {
+        return Err(OxenError::basic_str(format!(
+            "Path must be a string: {:?}",
+            path
+        )));
+    };
+
+    let uri = format!(
+        "/workspaces/{workspace_id}/data_frames/columns/{column_name}/resource/{file_path_str}"
+    );
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    log::debug!("update_column {url}\n{data}");
+
+    let client = client::new_for_url(&url)?;
+    match client
+        .put(&url)
+        .header("Content-Type", "application/json")
+        .body(data)
+        .send()
+        .await
+    {
+        Ok(res) => {
+            let body = client::parse_json_body(&url, res).await?;
+            let response: Result<JsonDataFrameColumnResponse, serde_json::Error> =
+                serde_json::from_str(&body);
+            match response {
+                Ok(val) => Ok(val),
+                Err(err) => {
+                    let err = format!("api::staging::update_row error parsing response from {url}\n\nErr {err:?} \n\n{body}");
+                    Err(OxenError::basic_str(err))
+                }
+            }
+        }
+        Err(err) => {
+            let err = format!("api::staging::update_row Request failed: {url}\n\nErr {err:?}");
+            Err(OxenError::basic_str(err))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -237,6 +284,84 @@ mod tests {
                 .find(|(_index, field)| field.name == column.name)
             {
                 panic!("Column {} still exists in the data frame", column.name);
+            }
+
+            Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_update_column() -> Result<(), OxenError> {
+        // Skip duckdb if on windows
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        }
+
+        test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
+            let branch_name = "add-images";
+            let branch = api::remote::branches::create_from_or_get(
+                &remote_repo,
+                branch_name,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
+            assert_eq!(branch.name, branch_name);
+
+            let workspace_id = UserConfig::identifier()?;
+            let workspace =
+                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+            assert_eq!(workspace.id, workspace_id);
+
+            // Path to the CSV file
+            let path = Path::new("annotations")
+                .join("train")
+                .join("bounding_box.csv");
+
+            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
+
+            let df = api::remote::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            // Extract the first _oxen_row_id from the data frame
+            let binding = df.data_frame.unwrap();
+            let column = binding.view.schema.fields.get(4).unwrap();
+
+            let data: &str = "{\"new_name\":\"files\"}";
+
+            api::remote::workspaces::data_frames::columns::update(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                &column.name,
+                data.to_string(),
+            )
+            .await?;
+
+            let df = api::remote::workspaces::data_frames::get(
+                &remote_repo,
+                &workspace_id,
+                &path,
+                DFOpts::empty(),
+            )
+            .await?;
+
+            if let None = df
+                .data_frame
+                .unwrap()
+                .view
+                .schema
+                .fields
+                .iter()
+                .enumerate()
+                .find(|(_index, field)| field.name == "files")
+            {
+                panic!("Column {} doesn't exist in the data frame", "files");
             }
 
             Ok(remote_repo)
