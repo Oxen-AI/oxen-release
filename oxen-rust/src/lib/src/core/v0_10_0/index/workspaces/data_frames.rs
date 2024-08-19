@@ -772,7 +772,7 @@ mod tests {
                 _ => panic!("Expected tabular diff result"),
             }
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             log::debug!("got this status {:?}", status);
 
             // Commit the new file

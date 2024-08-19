@@ -3,15 +3,12 @@
 //! This module is all the domain logic for repositories, and it's sub-modules.
 //!
 
-use crate::command;
 use crate::constants;
-use crate::core;
 use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::cache::commit_cacher;
 use crate::core::v0_10_0::index::CommitEntryWriter;
 use crate::core::v0_10_0::index::Stager;
 use crate::core::v0_10_0::index::{CommitEntryReader, CommitWriter};
-use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::CommitEntry;
@@ -19,7 +16,6 @@ use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::NewCommit;
 use crate::model::RepoStats;
-use crate::model::StagedData;
 use crate::model::{CommitStats, LocalRepository, RepoNew};
 use crate::util;
 use fd_lock::RwLock;
@@ -34,29 +30,19 @@ pub mod branches;
 pub mod commits;
 pub mod diffs;
 pub mod entries;
+pub mod init;
 pub mod metadata;
 pub mod revisions;
+pub mod rm;
 pub mod schemas;
+pub mod status;
 
 pub use add::add;
 pub use commits::commit;
-
-pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
-    match repo.version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status(repo),
-    }
-}
-
-pub fn status_from_dir(
-    repo: &LocalRepository,
-    dir: impl AsRef<Path>,
-) -> Result<StagedData, OxenError> {
-    match repo.version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::status::status_from_dir(repo, dir),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_dir(repo, dir),
-    }
-}
+pub use init::init;
+pub use rm::rm;
+pub use status::status;
+pub use status::status_from_dir;
 
 pub fn get_by_namespace_and_name(
     sync_dir: &Path,
@@ -334,7 +320,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
                 email: user.email.clone(),
                 timestamp: OffsetDateTime::now_utc(),
             };
-            let status = command::status(&local_repo)?;
+            let status = status(&local_repo)?;
             let stager = Stager::new(&local_repo)?;
             let commit_writer = CommitWriter::new(&local_repo)?;
             let commit = commit_writer.commit_from_new(&new_commit, &status, &local_repo.path)?;
@@ -496,7 +482,7 @@ mod tests {
             let namespace_dir = sync_dir.join(namespace);
             std::fs::create_dir_all(&namespace_dir)?;
             let repo_dir = namespace_dir.join(name);
-            command::init(&repo_dir)?;
+            repositories::init(&repo_dir)?;
 
             let namespaces = repositories::list_namespaces(sync_dir)?;
             assert_eq!(namespaces.len(), 1);
@@ -519,9 +505,9 @@ mod tests {
             let namespace_3 = "my-namespace-3";
             let _ = sync_dir.join(namespace_3);
 
-            let _ = command::init(namespace_1_dir.join("testing1"))?;
-            let _ = command::init(namespace_1_dir.join("testing2"))?;
-            let _ = command::init(namespace_2_dir.join("testing3"))?;
+            let _ = repositories::init(namespace_1_dir.join("testing1"))?;
+            let _ = repositories::init(namespace_1_dir.join("testing2"))?;
+            let _ = repositories::init(namespace_2_dir.join("testing3"))?;
 
             let repos = repositories::list_namespaces(sync_dir)?;
             assert_eq!(repos.len(), 2);
@@ -536,9 +522,9 @@ mod tests {
             let namespace = "my-namespace";
             let namespace_dir = sync_dir.join(namespace);
 
-            let _ = command::init(namespace_dir.join("testing1"))?;
-            let _ = command::init(namespace_dir.join("testing2"))?;
-            let _ = command::init(namespace_dir.join("testing3"))?;
+            let _ = repositories::init(namespace_dir.join("testing1"))?;
+            let _ = repositories::init(namespace_dir.join("testing2"))?;
+            let _ = repositories::init(namespace_dir.join("testing3"))?;
 
             let repos = repositories::list_repos_in_namespace(&namespace_dir);
             assert_eq!(repos.len(), 3);
@@ -555,7 +541,7 @@ mod tests {
             let repo_dir = sync_dir.join(namespace).join(name);
             std::fs::create_dir_all(&repo_dir)?;
 
-            let _ = command::init(&repo_dir)?;
+            let _ = repositories::init(&repo_dir)?;
             let _repo =
                 repositories::get_by_namespace_and_name(sync_dir, namespace, name)?.unwrap();
             Ok(())

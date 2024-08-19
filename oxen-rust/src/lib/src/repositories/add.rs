@@ -72,7 +72,7 @@ mod tests {
             // Track the file
             repositories::add(&repo, &hello_file)?;
             // Get status and make sure it is removed from the untracked, and added to the tracked
-            let repo_status = command::status(&repo)?;
+            let repo_status = repositories::status(&repo)?;
             assert_eq!(repo_status.staged_dirs.len(), 0);
             assert_eq!(repo_status.staged_files.len(), 1);
             assert_eq!(repo_status.untracked_files.len(), 0);
@@ -89,16 +89,16 @@ mod tests {
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
             let file_contents = "file,label\ntrain/cat_1.jpg,0";
             test::modify_txt_file(one_shot_path, file_contents)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
             // Add the top level directory, and make sure the modified file gets added
             let annotation_dir_path = repo.path.join("annotations");
             repositories::add(&repo, annotation_dir_path)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_files.len(), 1);
             repositories::commit(&repo, "Changing one shot")?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert!(status.is_clean());
 
             Ok(())
@@ -119,7 +119,7 @@ mod tests {
             util::fs::remove_file(&file_to_remove)?;
 
             // We should recognize it as missing now
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.removed_files.len(), 1);
 
             Ok(())
@@ -170,7 +170,7 @@ mod tests {
             // Try to merge in the changes
             command::merge(&repo, branch_name)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Assume that we fixed the conflict and added the file
@@ -179,7 +179,7 @@ mod tests {
             repositories::add(&repo, fullpath)?;
 
             // Adding should add to added files
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
 
             assert_eq!(status.staged_files.len(), 1);
 
@@ -198,7 +198,7 @@ mod tests {
             let repo_dir = repo.path.join(dir);
             repositories::add(&repo, repo_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             // Should add all the sub dirs
@@ -232,16 +232,16 @@ mod tests {
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
             let file_contents = "file,label\ntrain/cat_1.jpg,0";
             test::modify_txt_file(one_shot_path, file_contents)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.modified_files.len(), 1);
             // Add the top level directory, and make sure the modified file gets added
             let annotation_dir_path = repo.path.join("annotations/*");
             repositories::add(&repo, annotation_dir_path)?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(status.staged_files.len(), 1);
             repositories::commit(&repo, "Changing one shot")?;
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert!(status.is_clean());
 
             Ok(())
@@ -255,7 +255,7 @@ mod tests {
             let repo_dir = repo.path.join(dir);
             repositories::add(&repo, repo_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             // Should add all the sub dirs
@@ -283,13 +283,13 @@ mod tests {
             let repo_nlp_dir = repo.path.join(dir);
             std::fs::remove_dir_all(repo_nlp_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.removed_files.len(), 2);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
             repositories::add(&repo, "nlp/*")?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
             assert_eq!(status.staged_files.len(), 2);
 
@@ -304,7 +304,7 @@ mod tests {
             let repo_dir = repo.path.join(dir);
             repositories::add(&repo, repo_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             // Should add all the sub dirs

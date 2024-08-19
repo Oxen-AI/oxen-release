@@ -712,7 +712,7 @@ mod tests {
     fn test_first_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 2)?;
@@ -797,7 +797,7 @@ mod tests {
     fn test_commit_only_dirs_at_top_level() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("all_files/dir_0/new_file.txt");
@@ -826,7 +826,7 @@ mod tests {
     fn test_commit_single_file_deep_in_dir() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("files/dir_0/new_file.txt");
@@ -855,7 +855,7 @@ mod tests {
     fn test_second_commit_keeps_num_bytes_and_data_type_counts() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;
@@ -910,7 +910,7 @@ mod tests {
     fn test_second_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;
@@ -1018,7 +1018,7 @@ mod tests {
     fn test_commit_configurable_vnode_size() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let mut repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let mut repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
             // Set the vnode size to 5
             repo.set_vnode_size(5);
 
@@ -1079,7 +1079,7 @@ mod tests {
     fn test_third_commit() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
-            let repo = command::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
 
             // Write data to the repo
             add_n_files_m_dirs(&repo, 10, 3)?;

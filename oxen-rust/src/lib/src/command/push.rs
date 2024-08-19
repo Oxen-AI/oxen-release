@@ -23,7 +23,7 @@ use crate::repositories;
 /// # test::init_test_env();
 /// // Initialize the repository
 /// let base_dir = Path::new("repo_dir_push");
-/// let mut repo = command::init(base_dir)?;
+/// let mut repo = repositories::init(base_dir)?;
 ///
 /// // Write file to disk
 /// let hello_file = base_dir.join("hello.txt");
@@ -1026,7 +1026,7 @@ mod tests {
                     command::pull(&user_b_repo).await?;
 
                     // There should be conflicts
-                    let status = command::status(&user_b_repo)?;
+                    let status = repositories::status(&user_b_repo)?;
                     assert!(status.has_merge_conflicts());
 
                     // User B resolves conflicts
@@ -1070,7 +1070,7 @@ mod tests {
     ) -> Result<(), OxenError> {
         // Create Repo for User A
         test::run_empty_dir_test_async(|user_a_repo_dir| async move {
-            let mut user_a_repo = command::init(&user_a_repo_dir)?;
+            let mut user_a_repo = repositories::init(&user_a_repo_dir)?;
 
             // Add data for User A
             let mod_file = "README.md";
@@ -1157,7 +1157,7 @@ mod tests {
                 assert!(pull_a.is_ok());
 
                 // There should be conflicts in A
-                let status = command::status(&user_a_repo)?;
+                let status = repositories::status(&user_a_repo)?;
                 assert!(status.has_merge_conflicts());
 
                 // User A resolves conflicts

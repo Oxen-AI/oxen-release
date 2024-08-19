@@ -89,7 +89,7 @@ mod tests {
             command::merge(&repo, branch_name)?;
 
             // We should have a conflict....
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Run command::checkout_theirs() and make sure their changes get kept
@@ -142,7 +142,7 @@ mod tests {
             command::merge(&repo, branch_name)?;
 
             // We should have a conflict....
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Run command::checkout_theirs() and make sure their changes get kept
@@ -195,7 +195,7 @@ mod tests {
             command::merge(&repo, branch_name)?;
 
             // We should have a conflict....
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
             // Run command::checkout_theirs() and make sure we cannot

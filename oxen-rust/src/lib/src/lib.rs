@@ -10,7 +10,7 @@
 //! use liboxen::command;
 //!
 //! // Instantiate a new repo
-//! let repo = command::init("test_repo")?;
+//! let repo = repositories::init("test_repo")?;
 //! // Add a file to the repo
 //! repositories::add(&repo, "file.txt")?;
 //! // Commit the file

@@ -1,7 +1,6 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use liboxen::command;
 use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
@@ -80,7 +79,7 @@ impl RunCmd for StatusCmd {
         check_repo_migration_needed(&repository)?;
 
         let directory = directory.unwrap_or(repository.path.clone());
-        let repo_status = command::status_from_dir(&repository, &directory)?;
+        let repo_status = repositories::status_from_dir(&repository, &directory)?;
 
         if let Some(current_branch) = repositories::branches::current_branch(&repository)? {
             println!(

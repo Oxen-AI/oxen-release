@@ -158,7 +158,7 @@ mod tests {
                 assert_eq!(repo_commits.len(), cloned_commits.len());
 
                 // Make sure we updated the dbs properly
-                let status = command::status(&cloned_repo)?;
+                let status = repositories::status(&cloned_repo)?;
                 assert!(status.is_clean());
 
                 // Have this side add a file, and send it back over
@@ -174,7 +174,7 @@ mod tests {
 
                 // Pull back from the OG Repo
                 command::pull(&repo).await?;
-                let old_repo_status = command::status(&repo)?;
+                let old_repo_status = repositories::status(&repo)?;
                 old_repo_status.print();
                 // Make sure we don't modify the timestamps or anything of the OG data
                 assert!(!old_repo_status.has_modified_entries());
@@ -845,7 +845,7 @@ mod tests {
                     command::pull(&user_b_repo).await?;
 
                     // Check for merge conflict
-                    let status = command::status(&user_b_repo)?;
+                    let status = repositories::status(&user_b_repo)?;
                     assert!(!status.merge_conflicts.is_empty());
                     status.print();
 
@@ -1128,7 +1128,7 @@ mod tests {
                 assert_eq!(cloned_contents, og_contents);
 
                 // Status should be empty too
-                let status = command::status(&cloned_repo)?;
+                let status = repositories::status(&cloned_repo)?;
                 status.print();
                 assert!(status.is_clean());
 
@@ -1190,7 +1190,7 @@ mod tests {
                 println!("Cloned {filename:?} {cloned_df}");
 
                 // Status should be empty too
-                let status = command::status(&cloned_repo)?;
+                let status = repositories::status(&cloned_repo)?;
                 status.print();
                 assert!(status.is_clean());
 
@@ -1291,7 +1291,7 @@ mod tests {
                 let cloned_repo =
                     command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
-                let result = command::status(&cloned_repo);
+                let result = repositories::status(&cloned_repo);
                 assert!(result.is_err());
 
                 Ok(repo_dir)

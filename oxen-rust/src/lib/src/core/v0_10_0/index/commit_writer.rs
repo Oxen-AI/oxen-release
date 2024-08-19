@@ -15,7 +15,7 @@ use crate::model::{
 };
 
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{command, util};
+use crate::{repositories, util};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
@@ -261,7 +261,7 @@ impl CommitWriter {
 
         // Have to recompute staged data
         log::debug!("recomputing status for workspace...");
-        let staged_data = command::status(&workspace.workspace_repo)?;
+        let staged_data = repositories::status(&workspace.workspace_repo)?;
 
         staged_data.print();
 
@@ -798,11 +798,9 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core::df;
-    use crate::core::v0_10_0::index::{
-        workspaces, CommitDBReader, CommitEntryReader, CommitWriter, SchemaReader,
-    };
+    use crate::core::v0_10_0::index::workspaces;
     use crate::error::OxenError;
-    use crate::model::{NewCommitBody, StagedData};
+    use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
     use crate::{repositories, test, util};
 

@@ -20,7 +20,7 @@ use crate::model::LocalRepository;
 /// # fn main() -> Result<(), OxenError> {
 /// # test::init_test_env();
 /// let base_dir = Path::new("repo_dir_init");
-/// command::init(base_dir)?;
+/// command::repositori(base_dir)?;
 /// assert!(base_dir.join(".oxen").exists());
 /// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
@@ -43,7 +43,6 @@ pub fn init_with_version(
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::constants;
     use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
@@ -55,7 +54,7 @@ mod tests {
     fn test_command_init() -> Result<(), OxenError> {
         test::run_empty_dir_test(|repo_dir| {
             // Init repo
-            let repo = command::init(repo_dir)?;
+            let repo = repositories::init(repo_dir)?;
 
             // Init should create the .oxen directory
             let hidden_dir = util::fs::oxen_hidden_dir(repo_dir);
@@ -78,7 +77,7 @@ mod tests {
         test::run_empty_dir_test(|dir| {
             test::populate_dir_with_training_data(dir)?;
 
-            let repo = command::init(dir)?;
+            let repo = repositories::init(dir)?;
             let commits = repositories::commits::list(&repo)?;
             let commit = commits.last().unwrap();
             let reader = CommitEntryReader::new(&repo, commit)?;

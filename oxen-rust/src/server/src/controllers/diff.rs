@@ -849,7 +849,7 @@ mod tests {
 
         repositories::add(&repo, &repo.path)?;
 
-        command::status(&repo)?;
+        repositories::status(&repo)?;
 
         repositories::commit(&repo, "commit 1")?;
 

@@ -217,7 +217,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     let result = match test(repo) {
         Ok(_) => true,
@@ -242,7 +242,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     let result = match test(repo).await {
         Ok(_) => true,
@@ -269,7 +269,7 @@ where
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
 
-    let local_repo = command::init(&repo_dir)?;
+    let local_repo = repositories::init(&repo_dir)?;
     let remote_repo = create_remote_repo(&local_repo).await?;
 
     // Run test to see if it panic'd
@@ -302,7 +302,7 @@ where
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
 
-    let mut local_repo = command::init(&repo_dir)?;
+    let mut local_repo = repositories::init(&repo_dir)?;
     let remote_repo = create_remote_repo(&local_repo).await?;
 
     // Set remote
@@ -347,7 +347,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let local_repo = command::init(&repo_dir)?;
+    let local_repo = repositories::init(&repo_dir)?;
 
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
@@ -377,7 +377,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let mut local_repo = command::init(&repo_dir)?;
+    let mut local_repo = repositories::init(&repo_dir)?;
 
     // Write all the training data files
     populate_dir_with_training_data(&repo_dir)?;
@@ -402,7 +402,7 @@ where
         remote: false,
     };
 
-    command::rm(&local_repo, &rm_opts).await?;
+    repositories::rm(&local_repo, &rm_opts).await?;
     repositories::commit(&local_repo, "Removing test/")?;
 
     // Add all the files
@@ -440,7 +440,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let mut local_repo = command::init(&repo_dir)?;
+    let mut local_repo = repositories::init(&repo_dir)?;
 
     // Write all the training data files
     populate_select_training_data(&repo_dir, data)?;
@@ -483,7 +483,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let mut local_repo = command::init(&repo_dir)?;
+    let mut local_repo = repositories::init(&repo_dir)?;
 
     // Write all the training data files
     populate_select_training_data(&repo_dir, data)?;
@@ -551,7 +551,7 @@ where
     let empty_dir = create_empty_dir(test_run_dir())?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
-    let local_repo = command::init(&path)?;
+    let local_repo = repositories::init(&path)?;
     let remote_repo = create_remote_repo(&local_repo).await?;
 
     println!("REMOTE REPO: {remote_repo:?}");
@@ -587,7 +587,7 @@ where
     let empty_dir = create_empty_dir(test_run_dir())?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
-    let mut local_repo = command::init(&path)?;
+    let mut local_repo = repositories::init(&path)?;
 
     // Write all the files
     populate_dir_with_training_data(&local_repo.path)?;
@@ -634,7 +634,7 @@ where
     let empty_dir = create_empty_dir(test_run_dir())?;
     let name = format!("repo_{}", uuid::Uuid::new_v4());
     let path = empty_dir.join(name);
-    let mut local_repo = command::init(&path)?;
+    let mut local_repo = repositories::init(&path)?;
 
     // Write all the files
     create_bounding_box_csv(&local_repo.path)?;
@@ -679,7 +679,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
@@ -711,7 +711,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write all the files
     populate_select_training_data(&repo_dir, data)?;
@@ -743,7 +743,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write all the files
     populate_select_training_data(&repo_dir, data)?;
@@ -779,7 +779,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -805,7 +805,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
@@ -832,7 +832,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write the select files
     populate_select_training_data(&repo_dir, data)?;
@@ -863,7 +863,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
@@ -928,7 +928,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Write all the files
     create_bounding_box_csv(&repo.path)?;
@@ -969,7 +969,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Add all the files
     create_bounding_box_csv(&repo.path)?;
@@ -1008,7 +1008,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
 
     // Has 6 match observations in both keys, 5 diffs,
     // 2 key sets left only, 1 keyset right only.
@@ -1071,7 +1071,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
     // Write all the files
     populate_dir_with_training_data(&repo_dir)?;
 
@@ -1128,7 +1128,7 @@ where
 {
     init_test_env();
     let repo_dir = create_repo_dir(test_run_dir())?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
     let referencer = RefWriter::new(&repo)?;
 
     // Run test to see if it panic'd

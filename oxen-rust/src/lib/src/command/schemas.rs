@@ -233,7 +233,7 @@ mod tests {
     fn test_stage_and_commit_schema() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Make sure no schemas are staged
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 0);
 
             // Make sure no schemas are committed
@@ -248,7 +248,7 @@ mod tests {
             repositories::add(&repo, bbox_file)?;
 
             // Make sure it is staged
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 1);
             for (path, schema) in status.staged_schemas.iter() {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
@@ -263,7 +263,7 @@ mod tests {
             repositories::commit(&repo, "Adding bounding box schema")?;
 
             // Make sure no schemas are staged after commit
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 0);
 
             // Fetch schema from HEAD commit
@@ -292,7 +292,7 @@ mod tests {
     fn test_copy_schemas_from_parent() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
             // Make sure no schemas are staged
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 0);
 
             // Make sure no schemas are committed
@@ -307,7 +307,7 @@ mod tests {
             repositories::add(&repo, bbox_file)?;
 
             // Make sure it is staged
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 1);
             for (path, schema) in status.staged_schemas.iter() {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");

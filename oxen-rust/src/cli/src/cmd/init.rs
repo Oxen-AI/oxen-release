@@ -49,7 +49,7 @@ impl RunCmd for InitCmd {
 
         // Initialize the repository
         let directory = dunce::canonicalize(PathBuf::from(&path))?;
-        command::init::init_with_version(&directory, oxen_version)?;
+        repositories::init::init_with_version(&directory, oxen_version)?;
         println!("🐂 repository initialized at: {directory:?}");
         Ok(())
     }

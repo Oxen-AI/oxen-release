@@ -49,7 +49,7 @@ pub fn create_local_repo(
     init_test_env();
     let repo_dir = sync_dir.join(namespace).join(name);
     std::fs::create_dir_all(&repo_dir)?;
-    let repo = command::init(&repo_dir)?;
+    let repo = repositories::init(&repo_dir)?;
     Ok(repo)
 }
 

@@ -1656,8 +1656,8 @@ mod tests {
     use crate::model::LocalRepository;
     use crate::model::{StagedData, StagedEntryStatus};
     use crate::repositories;
+    use crate::test;
     use crate::util;
-    use crate::{command, test};
 
     use std::path::{Path, PathBuf};
 
@@ -1668,7 +1668,7 @@ mod tests {
         test::init_test_env();
         let repo_dir = test::create_repo_dir(test::test_run_dir())?;
         log::debug!("BEFORE COMMAND::INIT");
-        let repo = command::init(&repo_dir)?;
+        let repo = repositories::init(&repo_dir)?;
         log::debug!("AFTER COMMAND::INIT");
         let stager = Stager::new(&repo)?;
         log::debug!("AFTER CREATE STAGER");
@@ -1886,7 +1886,7 @@ mod tests {
             let hello_file = test::write_txt_file_to_path(repo.path.join("heyyo.txt"), "Hello 1")?;
             repositories::add(&repo, hello_file)?;
 
-            // let status = command::status(&repo)?;
+            // let status = repositories::status(&repo)?;
 
             // // print status
             // status.print();
@@ -1895,7 +1895,7 @@ mod tests {
 
             repositories::commit(&repo, "Add Hello 1")?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
 
             // print status
             status.print();

@@ -7,10 +7,12 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use crate::constants::OXEN_HIDDEN_DIR;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::{core::v0_10_0::index, repositories};
+use crate::repositories;
 
 use glob::glob;
 
@@ -40,10 +42,17 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 
     for path in paths {
         let opts = RmOpts::from_path_opts(path, opts);
-        index::rm(repo, &opts).await?;
+        p_rm(repo, &opts).await?;
     }
 
     Ok(())
+}
+
+async fn p_rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::rm(repo, opts).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::rm(repo, opts).await,
+    }
 }
 
 #[cfg(test)]
@@ -81,10 +90,10 @@ mod tests {
                 staged: false,
                 remote: false,
             };
-            command::rm(&repo, &opts).await?;
+            repositories::rm(&repo, &opts).await?;
 
             // Make sure we staged these removals
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(num_files, status.staged_files.len());
             for (_path, entry) in status.staged_files.iter() {
@@ -98,7 +107,7 @@ mod tests {
             command::restore(&repo, opts)?;
 
             // This should have removed all the staged files, but not restored from disk yet.
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(0, status.staged_files.len());
             assert_eq!(num_files, status.removed_files.len());
@@ -107,7 +116,7 @@ mod tests {
             let opts = RestoreOpts::from_path(&rm_dir);
             command::restore(&repo, opts)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             let num_restored = util::fs::rcount_files_in_dir(&full_path);
@@ -147,7 +156,7 @@ mod tests {
 
             let mut rm_opts = RmOpts::from_path(Path::new("images"));
             rm_opts.recursive = true;
-            command::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts).await?;
             let commit = repositories::commit(&repo, "Removing cat images")?;
 
             for i in 1..=3 {
@@ -225,7 +234,7 @@ mod tests {
             let repo_filepath = PathBuf::from("images").join("dog_1.jpg");
 
             let rm_opts = RmOpts::from_path(repo_filepath);
-            command::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts).await?;
             repositories::commit(&repo, "Removing dog")?;
 
             // Add dwight howard and vince carter
@@ -256,7 +265,7 @@ mod tests {
             let repo_dir = repo.path.join(dir);
             repositories::add(&repo, repo_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             status.print();
 
             // Should add all the sub dirs
@@ -284,13 +293,13 @@ mod tests {
             let repo_nlp_dir = repo.path.join(dir);
             std::fs::remove_dir_all(repo_nlp_dir)?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.removed_files.len(), 2);
             assert_eq!(status.staged_files.len(), 0);
             // Add the removed nlp dir with a wildcard
             repositories::add(&repo, "nlp/*")?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.staged_dirs.len(), 1);
             assert_eq!(status.staged_files.len(), 2);
 
@@ -330,7 +339,7 @@ mod tests {
             std::fs::remove_file(repo.path.join("images").join("cat_2.jpg"))?;
             std::fs::remove_file(repo.path.join("images").join("dog_1.jpg"))?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
             assert_eq!(status.removed_files.len(), 3);
             assert_eq!(status.staged_files.len(), 0);
 
@@ -342,9 +351,9 @@ mod tests {
                 remote: false,
             };
 
-            command::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
 
             // Should now have 7 staged for removal
             assert_eq!(status.staged_files.len(), 7);
@@ -358,9 +367,9 @@ mod tests {
                 remote: false,
             };
 
-            command::rm(&repo, &rm_opts).await?;
+            repositories::rm(&repo, &rm_opts).await?;
 
-            let status = command::status(&repo)?;
+            let status = repositories::status(&repo)?;
 
             // Files unstaged, still removed
             assert_eq!(status.staged_files.len(), 0);
