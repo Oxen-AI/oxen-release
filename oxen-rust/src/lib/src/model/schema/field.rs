@@ -9,8 +9,14 @@ use super::CustomDataType;
 pub struct Field {
     pub name: String,
     pub dtype: String,
-    // You can supply metadata as json to a column for user driven features.
     pub metadata: Option<Value>,
+    pub changes: Option<Changes>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Changes {
+    pub status: String,
+    pub previous: Option<Box<Field>>,
 }
 
 impl PartialEq for Field {
@@ -25,6 +31,7 @@ impl Field {
             name: name.to_owned(),
             dtype: dtype.to_owned(),
             metadata: None,
+            changes: None,
         }
     }
 

@@ -83,7 +83,14 @@ pub async fn get_by_resource(
 
     df_schema.update_metadata_from_schema(&og_schema);
 
-    let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
+    let mut df_views =
+        JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
 
     let response = WorkspaceJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
