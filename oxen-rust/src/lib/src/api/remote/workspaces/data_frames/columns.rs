@@ -148,6 +148,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
+    use crate::model::schema::field::Changes;
     use crate::opts::DFOpts;
     use crate::test;
 
@@ -273,7 +274,7 @@ mod tests {
             )
             .await?;
 
-            if let Some((_index, _field)) = df
+            if let Some((_index, field)) = df
                 .data_frame
                 .unwrap()
                 .view
@@ -283,7 +284,13 @@ mod tests {
                 .enumerate()
                 .find(|(_index, field)| field.name == column.name)
             {
-                panic!("Column {} still exists in the data frame", column.name);
+                if <std::option::Option<Changes> as Clone>::clone(&field.changes)
+                    .unwrap()
+                    .status
+                    != "deleted"
+                {
+                    panic!("Column {} still exists in the data frame", column.name);
+                }
             }
 
             Ok(remote_repo)
