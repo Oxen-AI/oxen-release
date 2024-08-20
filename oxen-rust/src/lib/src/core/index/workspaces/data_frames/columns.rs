@@ -297,14 +297,46 @@ pub fn decorate_fields_with_column_diffs(
     let column_changes_path =
         workspaces::data_frames::column_changes_path(workspace, file_path.as_ref());
     let opts = db::key_val::opts::default();
-    let db = DB::open_for_read_only(
+    let db_open_result = DB::open_for_read_only(
         &opts,
         dunce::simplified(column_changes_path.as_path()),
         false,
-    )?;
+    );
+
+    if db_open_result.is_err() {
+        return Ok(());
+    }
+
+    let db = db_open_result?;
 
     df_views
         .source
+        .schema
+        .fields
+        .iter_mut()
+        .try_for_each(|field| {
+            let column_name = &field.name;
+            match db.get(column_name.as_bytes()) {
+                Ok(Some(value_bytes)) => {
+                    let value_result =
+                        serde_json::from_slice::<DataFrameColumnChange>(&value_bytes);
+                    match value_result {
+                        Ok(value) => {
+                            if let Some(changes) = handle_data_frame_column_change(value)? {
+                                field.changes = Some(changes);
+                            }
+                            Ok(())
+                        }
+                        Err(_) => Err(OxenError::basic_str("Error deserializing value")),
+                    }
+                }
+                Ok(None) => Ok(()),
+                Err(e) => Err(OxenError::from(e)),
+            }
+        })?;
+
+    df_views
+        .view
         .schema
         .fields
         .iter_mut()

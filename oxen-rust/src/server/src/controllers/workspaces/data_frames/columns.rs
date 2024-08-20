@@ -107,6 +107,7 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
+    println!("DEBUG 1");
     let column_df =
         index::workspaces::data_frames::columns::delete(&workspace, &file_path, &column_to_delete)?;
 
@@ -120,13 +121,13 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         view: column_df_view,
     };
 
+    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+
     index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
         &workspace,
         &file_path,
         &mut df_views,
     )?;
-
-    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
     let response = JsonDataFrameColumnResponse {
         data_frame: df_views,
