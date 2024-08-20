@@ -9,32 +9,13 @@ use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 
-#[derive(Debug, Clone, Eq)]
+#[derive(Clone, Eq)]
 pub struct MerkleTreeNodeData {
     pub hash: u128,
     pub dtype: MerkleTreeNodeType,
     pub data: Vec<u8>,
     pub parent_id: Option<u128>,
     pub children: Vec<MerkleTreeNodeData>,
-}
-
-impl fmt::Display for MerkleTreeNodeData {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self.dtype {
-            MerkleTreeNodeType::Commit => write!(f, "CommitNode({:x})", self.hash),
-            MerkleTreeNodeType::VNode => write!(f, "VNode({:x})", self.hash),
-            MerkleTreeNodeType::Dir => {
-                let dir = self.dir().unwrap();
-                write!(f, "DirNode({:x}, {:?})", self.hash, dir.name)
-            }
-            MerkleTreeNodeType::File => {
-                let file = self.file().unwrap();
-                write!(f, "FileNode({:x}, {:?})", self.hash, file.name)
-            }
-            MerkleTreeNodeType::FileChunk => write!(f, "FileChunkNode({:x})", self.hash),
-            MerkleTreeNodeType::Schema => write!(f, "SchemaNode({:x})", self.hash),
-        }
-    }
 }
 
 impl MerkleTreeNodeData {
@@ -281,6 +262,79 @@ impl MerkleTreeNodeData {
     fn deserialize_schema(data: &[u8]) -> Result<SchemaNode, OxenError> {
         rmp_serde::from_slice(data)
             .map_err(|e| OxenError::basic_str(format!("Error deserializing schema node: {e}")))
+    }
+}
+
+/// Debug is used for verbose multi-line output with println!("{:?}", node)
+impl fmt::Debug for MerkleTreeNodeData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "[{:?}]", self.dtype)?;
+        writeln!(f, "hash: {:x}", self.hash)?;
+        writeln!(f, "dtype: {:?}", self.dtype)?;
+        writeln!(
+            f,
+            "data.len(): {:?}",
+            bytesize::ByteSize::b(self.data.len() as u64)
+        )?;
+        writeln!(
+            f,
+            "parent_id: {}",
+            self.parent_id
+                .map_or("None".to_string(), |id| format!("{:x}", id))
+        )?;
+        writeln!(f, "children.len(): {}", self.children.len())?;
+        writeln!(f, "=============")?;
+
+        for child in &self.children {
+            writeln!(f, "{}", child)?;
+        }
+        Ok(())
+    }
+}
+
+/// Display is used for single line output with println!("{}", node)
+impl fmt::Display for MerkleTreeNodeData {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self.dtype {
+            MerkleTreeNodeType::Commit => {
+                let commit = self.commit().unwrap();
+                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, commit)
+            }
+            MerkleTreeNodeType::VNode => {
+                let vnode = self.vnode().unwrap();
+                write!(
+                    f,
+                    "[{:?}] {:x} {} ({} children)",
+                    self.dtype,
+                    self.hash,
+                    vnode,
+                    self.children.len()
+                )
+            }
+            MerkleTreeNodeType::Dir => {
+                let dir = self.dir().unwrap();
+                write!(
+                    f,
+                    "[{:?}] {:x} {} ({} children)",
+                    self.dtype,
+                    self.hash,
+                    dir,
+                    self.children.len()
+                )
+            }
+            MerkleTreeNodeType::File => {
+                let file = self.file().unwrap();
+                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, file)
+            }
+            MerkleTreeNodeType::FileChunk => {
+                let file_chunk = self.file_chunk().unwrap();
+                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, file_chunk)
+            }
+            MerkleTreeNodeType::Schema => {
+                let schema = self.schema().unwrap();
+                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, schema)
+            }
+        }
     }
 }
 

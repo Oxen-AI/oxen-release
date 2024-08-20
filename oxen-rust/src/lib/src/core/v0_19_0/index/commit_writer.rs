@@ -55,13 +55,13 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
 
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     log::debug!(
         "0.19.0::commit_writer::commit staged db path: {:?}",
-        db_path
+        staged_db_path
     );
     let staged_db: DBWithThreadMode<SingleThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+        DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
 
     let commit_progress_bar = ProgressBar::new_spinner();
     commit_progress_bar.set_style(ProgressStyle::default_spinner());
@@ -191,7 +191,7 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     ref_writer.set_head_commit_id(&commit_id)?;
 
     // Clear the staged db
-    path_db::clear(&staged_db)?;
+    util::fs::remove_dir_all(&staged_db_path)?;
 
     // Print that we finished
     println!(
@@ -334,12 +334,9 @@ fn split_into_vnodes(
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
             vnode_hasher.update(b"vnode");
-            // make sure to hash the directory name so that it will be unique
-            // even if the entries are the same (for example two empty directories at different levels)
-            vnode_hasher.update(directory.to_str().unwrap().as_bytes());
-            for entry in vnode.entries.iter() {
-                vnode_hasher.update(&entry.hash.to_le_bytes());
-            }
+            // generate a uuid for the vnode
+            let uuid = uuid::Uuid::new_v4();
+            vnode_hasher.update(uuid.as_bytes());
             vnode.id = vnode_hasher.digest128();
         }
 
@@ -347,6 +344,7 @@ fn split_into_vnodes(
         results.insert(directory.to_owned(), vnode_children);
     }
 
+    // TODO: We have to start from the bottom vnodes in the tree and update all the vnode ids above it
     log::debug!("split_into_vnodes results: {:?}", results.len());
     for (dir, vnodes) in results.iter() {
         log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
@@ -699,7 +697,6 @@ fn compute_dir_node(
 mod tests {
     use std::path::Path;
 
-    use crate::command;
     use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
@@ -852,7 +849,7 @@ mod tests {
     }
 
     #[test]
-    fn test_second_commit_keeps_num_bytes_and_data_type_counts() -> Result<(), OxenError> {
+    fn test_2nd_commit_keeps_num_bytes_and_data_type_counts() -> Result<(), OxenError> {
         test::run_empty_dir_test(|dir| {
             // Instantiate the correct version of the repo
             let repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
@@ -870,8 +867,8 @@ mod tests {
             first_tree.print();
 
             // Get the original root dir file count
-            let original_root_dir = first_tree.get_by_path(&Path::new(""))?;
-            let original_root_dir = original_root_dir.unwrap().dir()?;
+            let original_root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let original_root_dir = original_root_node.dir()?;
             let original_root_dir_file_count = original_root_dir.num_files();
 
             // Ten image files + README.md + files.csv
@@ -923,6 +920,11 @@ mod tests {
             // Read the merkle tree
             let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
             first_tree.print();
+
+            // Count the number of files in the files/dir_1 dir
+            let original_dir_1_node = first_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let original_dir_1_node = original_dir_1_node.unwrap().dir()?;
+            let original_dir_1_file_count = original_dir_1_node.num_files();
 
             // Add a new file to files/dir_1/
             let new_file = repo.path.join("files/dir_1/new_file.txt");
@@ -1009,6 +1011,14 @@ mod tests {
             assert!(first_tree_root.is_some());
             assert!(second_tree_root.is_some());
             assert!(first_tree_root.unwrap().hash != second_tree_root.unwrap().hash);
+
+            // Read the first tree again, and make sure the file count of the files/dir_1 is the same as the first time we read it
+            let first_tree_again = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            first_tree_again.print();
+            let dir_1_node_again = first_tree_again.get_by_path(&Path::new("files/dir_1"))?;
+            let dir_1_node_again = dir_1_node_again.unwrap().dir()?;
+            let dir_1_file_count_again = dir_1_node_again.num_files();
+            assert_eq!(original_dir_1_file_count, dir_1_file_count_again);
 
             Ok(())
         })

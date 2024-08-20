@@ -9,9 +9,8 @@ use super::{
 use crate::model::EntryDataType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::fmt::Display;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct FileNode {
     pub dtype: MerkleTreeNodeType,
 
@@ -74,14 +73,32 @@ impl MerkleTreeNodeIdType for FileNode {
 
 impl MerkleTreeNode for FileNode {}
 
-impl Display for FileNode {
+/// Debug is used for verbose multi-line output with println!("{:?}", node)
+impl fmt::Debug for FileNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "FileNode")?;
+        writeln!(f, "\thash: {:x}", self.hash)?;
+        writeln!(f, "\tname: {}", self.name)?;
+        writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
+        writeln!(f, "\tdata_type: {:?}", self.data_type)?;
+        writeln!(f, "\tmime_type: {}", self.mime_type)?;
+        writeln!(f, "\textension: {}", self.extension)?;
+        writeln!(f, "\tchunk_hashes: {:?}", self.chunk_hashes)?;
+        writeln!(f, "\tchunk_type: {:?}", self.chunk_type)?;
+        writeln!(f, "\tstorage_backend: {:?}", self.storage_backend)?;
+        Ok(())
+    }
+}
+
+/// Display is used for single line output with println!("{}", node)
+impl fmt::Display for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "FileNode({:x}, {}) [{}]",
-            self.hash,
+            "\"{}\" ({}) (commit {:x})",
             self.name,
-            bytesize::ByteSize::b(self.num_bytes)
+            bytesize::ByteSize::b(self.num_bytes),
+            self.last_commit_id
         )
     }
 }

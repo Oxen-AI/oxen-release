@@ -18,7 +18,9 @@ pub fn init_test_env() {
         log::debug!("Logger initialized");
     }
 
-    std::env::set_var("TEST", "true");
+    unsafe {
+        std::env::set_var("TEST", "true");
+    }
 
     init_queue();
 }

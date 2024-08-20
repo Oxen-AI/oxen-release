@@ -63,6 +63,9 @@ pub use moo::MooCmd;
 pub mod merge;
 pub use merge::MergeCmd;
 
+pub mod node;
+pub use node::NodeCmd;
+
 pub mod pack;
 pub use pack::PackCmd;
 

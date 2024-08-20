@@ -4,11 +4,10 @@
 
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::fmt::Display;
 
 use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct VNode {
     pub id: u128,
     pub dtype: MerkleTreeNodeType,
@@ -33,9 +32,18 @@ impl MerkleTreeNodeIdType for VNode {
     }
 }
 
-impl Display for VNode {
+/// Debug is used for verbose multi-line output with println!("{:?}", node)
+impl fmt::Debug for VNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "VNode({:x})", self.id)
+    }
+}
+
+/// Display is used for single line output with println!("{}", node)
+impl fmt::Display for VNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // id and dtype already get printed by the node.rs println!("{:?}", node)
+        write!(f, "")
     }
 }
 

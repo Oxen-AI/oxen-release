@@ -645,78 +645,7 @@ impl CommitMerkleTree {
             return;
         }
 
-        match node.dtype {
-            MerkleTreeNodeType::Commit => {
-                let commit = node.commit().unwrap();
-                let parent_ids = commit
-                    .parent_ids
-                    .iter()
-                    .map(|x| format!("{:x}", x))
-                    .collect::<Vec<String>>()
-                    .join(",");
-                println!(
-                    "[Commit] {:x} -> {} parent_ids {:?}",
-                    commit.id, commit.message, parent_ids
-                );
-            }
-            MerkleTreeNodeType::VNode => {
-                let vnode = node.vnode().unwrap();
-                println!(
-                    "{}[{:?}] {:x} ({} children)",
-                    "  ".repeat(indent as usize),
-                    node.dtype,
-                    vnode.id,
-                    node.children.len()
-                )
-            }
-            MerkleTreeNodeType::Dir => {
-                let dir = node.dir().unwrap();
-                println!(
-                    "{}[{:?}] {} -> {:x} {} ({} nodes) ({} files) [latest commit {:x}]",
-                    "  ".repeat(indent as usize),
-                    node.dtype,
-                    dir.name,
-                    node.hash,
-                    bytesize::ByteSize::b(dir.num_bytes),
-                    node.children.len(),
-                    dir.num_files(),
-                    dir.last_commit_id
-                )
-            }
-            MerkleTreeNodeType::File => {
-                let file = node.file().unwrap();
-                println!(
-                    "{}[{:?}] {} -> {:x} {} [latest commit {:x}]",
-                    "  ".repeat(indent as usize),
-                    node.dtype,
-                    file.name,
-                    node.hash,
-                    bytesize::ByteSize::b(file.num_bytes),
-                    file.last_commit_id
-                )
-            }
-            MerkleTreeNodeType::Schema => {
-                let schema = node.schema().unwrap();
-                println!(
-                    "{}[{:?}] {} -> {:x} ({})",
-                    "  ".repeat(indent as usize),
-                    node.dtype,
-                    schema.name,
-                    node.hash,
-                    node.children.len()
-                )
-            }
-            MerkleTreeNodeType::FileChunk => {
-                let _chunk = node.file_chunk().unwrap();
-                println!(
-                    "{} {:?} -> {:x} ({})",
-                    "  ".repeat(indent as usize),
-                    node.dtype,
-                    node.hash,
-                    node.children.len()
-                )
-            }
-        }
+        println!("{}{}", "  ".repeat(indent as usize), node);
 
         for child in &node.children {
             CommitMerkleTree::r_print(child, indent + 1, depth);
@@ -729,7 +658,6 @@ mod tests {
 
     use std::path::PathBuf;
 
-    use crate::command;
     use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeType;
     use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
