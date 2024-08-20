@@ -3,16 +3,15 @@
 //! Interact with Oxen branches.
 //!
 
-use std::collections::HashSet;
 use std::path::Path;
 
 use crate::constants::{BRANCH_LOCKS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::refs::{RefReader, RefWriter};
-use crate::core::v0_10_0::index::{CommitEntryReader, CommitReader, CommitWriter, EntryIndexer};
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, RemoteBranch};
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository};
 use crate::repositories;
-use crate::{api, util};
+use crate::{core, util};
 
 /// List all the local branches within a repo
 pub fn list(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
@@ -78,8 +77,7 @@ pub fn create_from_head(
 ) -> Result<Branch, OxenError> {
     let name = name.as_ref();
     let ref_writer = RefWriter::new(repo)?;
-    let commit_reader = CommitReader::new(repo)?;
-    let head_commit = commit_reader.head_commit()?;
+    let head_commit = repositories::commits::head_commit(repo)?;
     ref_writer.create_branch(name, &head_commit.id)
 }
 
@@ -92,8 +90,7 @@ pub fn create(
     let name = name.as_ref();
     let commit_id = commit_id.as_ref();
     let ref_writer = RefWriter::new(repo)?;
-    let commit_reader = CommitReader::new(repo)?;
-    if commit_reader.commit_id_exists(commit_id) {
+    if repositories::commits::commit_id_exists(repo, &commit_id)? {
         ref_writer.create_branch(name, commit_id)
     } else {
         Err(OxenError::commit_id_does_not_exist(commit_id))
@@ -136,6 +133,7 @@ pub fn update(
     }
 }
 
+/// Delete a local branch
 pub fn delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Branch, OxenError> {
     let name = name.as_ref();
     // Make sure they don't delete the current checked out branch
@@ -170,6 +168,7 @@ pub fn force_delete(repo: &LocalRepository, name: impl AsRef<str>) -> Result<Bra
     ref_writer.delete_branch(name)
 }
 
+/// Check if a branch is checked out
 pub fn is_checked_out(repo: &LocalRepository, name: &str) -> bool {
     match RefReader::new(repo) {
         Ok(ref_reader) => {
@@ -185,19 +184,7 @@ pub fn is_checked_out(repo: &LocalRepository, name: &str) -> bool {
     }
 }
 
-pub async fn set_working_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-    let branch = repositories::branches::get_by_name(repo, name)?
-        .ok_or(OxenError::local_branch_not_found(name))?;
-    let commit = repositories::commits::get_by_id(repo, &branch.commit_id)?
-        .ok_or(OxenError::commit_id_does_not_exist(&branch.commit_id))?;
-
-    // Sync changes if needed
-    maybe_pull_missing_entries(repo, &commit).await?;
-
-    let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_commit(&commit).await
-}
-
+/// Lock a branch for pushing
 pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     // Errors if lock exists - to avoid double-request ("is_locked" -> if false "lock")
     let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
@@ -235,6 +222,7 @@ pub fn lock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
+/// Check if a branch is locked
 pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
     // Get the oxen hidden dir
     let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
@@ -257,6 +245,7 @@ pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> 
     Ok(branch_lock_file.exists())
 }
 
+/// Read the lock file for a branch
 pub fn read_lock_file(repo: &LocalRepository, name: &str) -> Result<String, OxenError> {
     // Get the oxen hidden dir
     let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
@@ -281,6 +270,7 @@ pub fn read_lock_file(repo: &LocalRepository, name: &str) -> Result<String, Oxen
     Ok(contents)
 }
 
+/// Get the latest synced commit
 pub fn latest_synced_commit(repo: &LocalRepository, name: &str) -> Result<Commit, OxenError> {
     // If branch is locked, we want to get the commit from the lockfile
     if is_locked(repo, name)? {
@@ -297,6 +287,7 @@ pub fn latest_synced_commit(repo: &LocalRepository, name: &str) -> Result<Commit
     Ok(commit)
 }
 
+/// Unlock a branch for pushing
 pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     // Get the oxen hidden dir
     let oxen_dir = repo.path.join(OXEN_HIDDEN_DIR);
@@ -322,49 +313,31 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     Ok(())
 }
 
-async fn maybe_pull_missing_entries(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<(), OxenError> {
-    // If we don't have a remote, there are not missing entries, so return
-    let rb = RemoteBranch::default();
-    let remote = repo.get_remote(&rb.remote);
-    if remote.is_none() {
-        log::debug!("No remote, no missing entries to fetch");
-        return Ok(());
+/// Checkout a branch
+pub async fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::branches::checkout(repo, name).await
+        },
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::branches::checkout(repo, name).await
+        }
     }
-
-    // Safe to unwrap now.
-    let remote = remote.unwrap();
-
-    match api::client::repositories::get_by_remote(&remote).await {
-        Ok(Some(remote_repo)) => {
-            let indexer = EntryIndexer::new(repo)?;
-            indexer
-                .pull_all_entries_for_commit(&remote_repo, commit)
-                .await?;
-        }
-        Ok(None) => {
-            log::debug!("No remote repo found, no entries to fetch");
-        }
-        Err(err) => {
-            log::error!("Error getting remote repo: {}", err);
-        }
-    };
-
-    Ok(())
 }
 
-pub async fn set_working_commit_id(
+/// Checkout a commit id
+pub async fn checkout_commit_id(
     repo: &LocalRepository,
-    commit_id: &str,
+    commit_id: impl AsRef<str>,
 ) -> Result<(), OxenError> {
-    let commit = repositories::commits::get_by_id(repo, commit_id)?
-        .ok_or(OxenError::commit_id_does_not_exist(commit_id))?;
-    println!("Checkout commit: {commit}");
-
-    let commit_writer = CommitWriter::new(repo)?;
-    commit_writer.set_working_repo_to_commit(&commit).await
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::branches::checkout_commit_id(repo, commit_id).await
+        },
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::branches::checkout_commit_id(repo, commit_id).await
+        }
+    }
 }
 
 pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
@@ -375,11 +348,9 @@ pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
 
 fn branch_has_been_merged(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> {
     let ref_reader = RefReader::new(repo)?;
-    let commit_reader = CommitReader::new(repo)?;
-
     if let Some(branch_commit_id) = ref_reader.get_commit_id_for_branch(name)? {
         if let Some(commit_id) = ref_reader.head_commit_id()? {
-            let history = commit_reader.history_from_commit_id(&commit_id)?;
+            let history = repositories::commits::list_from(repo, &commit_id)?;
             for commit in history.iter() {
                 if commit.id == branch_commit_id {
                     return Ok(true);
@@ -421,41 +392,17 @@ pub fn list_entry_versions_on_branch(
         branch.name,
         branch.commit_id
     );
-    list_entry_versions_for_commit(local_repo, &branch.commit_id, path)
-}
-
-pub fn list_entry_versions_for_commit(
-    local_repo: &LocalRepository,
-    commit_id: &str,
-    path: &Path,
-) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
-    let commit_reader = CommitReader::new(local_repo)?;
-
-    let root_commit = commit_reader.root_commit()?;
-    let mut branch_commits = commit_reader.history_from_base_to_head(&root_commit.id, commit_id)?;
-
-    // Sort on timestamp oldest to newest
-    branch_commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
-    let mut result: Vec<(Commit, CommitEntry)> = Vec::new();
-    let mut seen_hashes: HashSet<String> = HashSet::new();
-
-    for commit in branch_commits {
-        let entry_reader = CommitEntryReader::new(local_repo, &commit)?;
-        let entry = entry_reader.get_entry(path)?;
-
-        if let Some(entry) = entry {
-            if !seen_hashes.contains(&entry.hash) {
-                seen_hashes.insert(entry.hash.clone());
-                result.push((commit, entry));
-            }
+    match local_repo.version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::branches::list_entry_versions_for_commit(local_repo, &branch.commit_id, path)
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::branches::list_entry_versions_for_commit(local_repo, &branch.commit_id, path)
         }
     }
-
-    result.reverse();
-
-    Ok(result)
 }
+
+
 
 fn branch_name_no_slashes(name: &str) -> String {
     // Replace all slashes with dashes
@@ -467,7 +414,6 @@ fn branch_name_no_slashes(name: &str) -> String {
 mod tests {
     use std::path::Path;
 
-    use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::core;
     use crate::error::OxenError;
@@ -631,7 +577,7 @@ mod tests {
             repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Must checkout main again before deleting
-            command::checkout(&repo, og_branch.name).await?;
+            repositories::checkout(&repo, og_branch.name).await?;
 
             // Now we can delete
             repositories::branches::delete(&repo, branch_name)?;

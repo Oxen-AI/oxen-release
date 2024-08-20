@@ -82,7 +82,7 @@ mod tests {
             // Create a few local branches and push them
             let branches = ["test_moo", "test_moo_2"];
             for branch in branches.iter() {
-                command::create_checkout(&repo, branch)?;
+                repositories::branches::create_checkout(&repo, branch)?;
                 let filepath = repo.path.join(format!("file_{}.txt", branch));
                 test::write_txt_file_to_path(&filepath, &format!("a file on {}", branch))?;
                 repositories::add(&repo, &filepath)?;

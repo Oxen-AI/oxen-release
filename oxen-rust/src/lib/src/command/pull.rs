@@ -567,7 +567,7 @@ mod tests {
 
             // Create a branch to collab on
             let branch_name = "feature/add-mooooore-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add the rest of the files
             for i in 3..6 {
@@ -600,7 +600,7 @@ mod tests {
 
                 // Switch to main branch and pull
                 command::fetch(&cloned_repo).await?;
-                command::checkout(&cloned_repo, "main").await?;
+                repositories::checkout(&cloned_repo, "main").await?;
 
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(cloned_num_files, 2);
@@ -645,7 +645,7 @@ mod tests {
 
             // Create a branch to collab on
             let branch_name = "feature/add-mooooore-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add the rest of the files
             for i in 3..6 {
@@ -679,7 +679,7 @@ mod tests {
                 // Switch to main branch and pull
                 command::fetch(&cloned_repo).await?;
 
-                command::checkout(&cloned_repo, branch_name).await?;
+                repositories::checkout(&cloned_repo, branch_name).await?;
 
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(cloned_num_files, 5);
@@ -758,7 +758,7 @@ mod tests {
 
                 // Create-checkout a new branch
                 let branch_name = "new-branch";
-                command::create_checkout(&cloned_repo, branch_name)?;
+                repositories::branches::create_checkout(&cloned_repo, branch_name)?;
 
                 // Add a file
                 let contents = "this is the file";
@@ -850,7 +850,7 @@ mod tests {
                     status.print();
 
                     // Checkout your version and add the changes
-                    command::checkout_ours(&user_b_repo, new_file)?;
+                    repositories::checkout::checkout_ours(&user_b_repo, new_file)?;
                     repositories::add(&user_b_repo, &new_file_path)?;
                     // Commit the changes
                     repositories::commit(&user_b_repo, "Taking my changes")?;

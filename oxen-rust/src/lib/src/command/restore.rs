@@ -200,7 +200,7 @@ mod tests {
             repositories::commit(&repo, "Adding train dir")?;
 
             // Branch
-            command::create_checkout(&repo, "remove-labels")?;
+            repositories::branches::create_checkout(&repo, "remove-labels")?;
 
             // Delete the file
             util::fs::remove_file(&file_to_remove)?;
@@ -217,7 +217,7 @@ mod tests {
             assert!(!file_to_remove.exists());
 
             // Switch back to main branch
-            command::checkout(&repo, orig_branch.name).await?;
+            repositories::checkout(&repo, orig_branch.name).await?;
             // Make sure we restore file
             assert!(file_to_remove.exists());
 

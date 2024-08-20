@@ -3,6 +3,7 @@
 
 pub mod db;
 pub mod df;
+pub mod merge;
 pub mod refs;
 
 pub mod v0_10_0;

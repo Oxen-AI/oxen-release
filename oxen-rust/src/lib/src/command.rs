@@ -3,8 +3,6 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
-pub mod branch;
-pub mod checkout;
 pub mod clone;
 pub mod commit_cache;
 pub mod config;
@@ -24,10 +22,6 @@ pub mod save;
 pub mod schemas;
 pub mod workspace;
 
-pub use crate::command::branch::unlock;
-pub use crate::command::checkout::{
-    checkout, checkout_combine, checkout_ours, checkout_theirs, create_checkout,
-};
 pub use crate::command::clone::{clone, clone_url, deep_clone_url, shallow_clone_url};
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::{diff, diff_commits};

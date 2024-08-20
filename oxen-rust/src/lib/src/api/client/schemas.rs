@@ -275,7 +275,7 @@ mod tests {
 
             // Create a new branch
             let branch_name = "new_branch";
-            command::create_checkout(&local_repo, branch_name)?;
+            repositories::branches::create_checkout(&local_repo, branch_name)?;
             // Add some metadata to the schema
             /*
             prompt,response,is_correct,response_time,difficulty

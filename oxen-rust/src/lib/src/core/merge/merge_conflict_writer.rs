@@ -4,12 +4,11 @@
 use crate::constants::{MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db;
 use crate::error::OxenError;
+use crate::core::merge;
 use crate::model::{Commit, LocalRepository, MergeConflict};
 use crate::util;
 
 use rocksdb::DB;
-
-use super::merger;
 
 /// Creates the DB object then calls write_conflicts_to_disk
 pub fn write_conflicts_to_db(
@@ -18,7 +17,7 @@ pub fn write_conflicts_to_db(
     base_commit: &Commit,
     conflicts: &[MergeConflict],
 ) -> Result<(), OxenError> {
-    let db_path = merger::db_path(repo);
+    let db_path = merge::db_path(repo);
     let opts = db::key_val::opts::default();
     let db = DB::open(&opts, dunce::simplified(&db_path))?;
 

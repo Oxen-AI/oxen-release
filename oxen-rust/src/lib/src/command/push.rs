@@ -740,7 +740,7 @@ mod tests {
             assert_eq!(history_main.len(), 1);
 
             // Back to main
-            command::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
+            repositories::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
 
             // Push to remote
             command::push(&local_repo).await?;
@@ -1715,7 +1715,7 @@ mod tests {
                 let main_head = repositories::commits::head_commit(&user_a_repo)?;
 
                 // User a checkout a branch
-                command::create_checkout(&user_a_repo, new_branch)?;
+                repositories::branches::create_checkout(&user_a_repo, new_branch)?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
@@ -1728,7 +1728,7 @@ mod tests {
                     .await?;
 
                     // User b checkout the same branch
-                    command::create_checkout(&user_b_repo, new_branch)?;
+                    repositories::branches::create_checkout(&user_b_repo, new_branch)?;
 
                     // User A adds a file and pushes
                     let modify_path_a = user_a_repo

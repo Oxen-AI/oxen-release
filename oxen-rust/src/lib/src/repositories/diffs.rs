@@ -1503,7 +1503,6 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    use crate::command;
     use crate::error::OxenError;
     use crate::model::diff::diff_entry_status::DiffEntryStatus;
     use crate::opts::RmOpts;
