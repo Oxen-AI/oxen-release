@@ -7,9 +7,8 @@ use serde::{Deserialize, Serialize};
 use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 
 use std::fmt;
-use std::fmt::Display;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct FileChunkNode {
     pub data: Vec<u8>,
     pub dtype: MerkleTreeNodeType,
@@ -38,7 +37,15 @@ impl MerkleTreeNodeIdType for FileChunkNode {
 
 impl MerkleTreeNode for FileChunkNode {}
 
-impl Display for FileChunkNode {
+/// Debug is used for verbose multi-line output with println!("{:?}", node)
+impl fmt::Debug for FileChunkNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "FileChunkNode({:x})", self.id)
+    }
+}
+
+/// Display is used for single line output with println!("{}", node)
+impl fmt::Display for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "FileChunkNode({:x})", self.id)
     }

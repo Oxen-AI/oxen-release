@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::fmt::Display;
 use time::OffsetDateTime;
 
 use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 use crate::model::Commit;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct CommitNode {
     pub id: u128,
     pub dtype: MerkleTreeNodeType,
@@ -61,8 +60,32 @@ impl MerkleTreeNodeIdType for CommitNode {
 
 impl MerkleTreeNode for CommitNode {}
 
-impl Display for CommitNode {
+/// Debug is used for verbose multi-line output with println!("{:?}", node)
+impl fmt::Debug for CommitNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "CommitNode({:x}, {})", self.id, self.message,)
+        writeln!(f, "CommitNode")?;
+        writeln!(f, "\tmessage: {}", self.message)?;
+        writeln!(f, "\tparent_ids: {:?}", self.parent_ids)?;
+        writeln!(f, "\tauthor: {}", self.author)?;
+        writeln!(f, "\temail: {}", self.email)?;
+        writeln!(f, "\ttimestamp: {}", self.timestamp)?;
+        Ok(())
+    }
+}
+
+/// Display is used for single line output with println!("{}", node)
+impl fmt::Display for CommitNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let parent_ids = self
+            .parent_ids
+            .iter()
+            .map(|x| format!("{:x}", x))
+            .collect::<Vec<String>>()
+            .join(",");
+        write!(
+            f,
+            "\"{}\" -> {} {} parent_ids {:?}",
+            self.message, self.author, self.email, parent_ids
+        )
     }
 }

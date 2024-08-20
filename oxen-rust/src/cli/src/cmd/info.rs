@@ -61,10 +61,7 @@ impl RunCmd for InfoCmd {
         };
 
         // Look up from the current dir for .oxen directory
-        let current_dir = env::current_dir().unwrap();
-        let repo_dir = util::fs::get_repo_root(&current_dir)
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
         let metadata = command::info(&repository, opts.to_owned())?;
 
         if opts.output_as_json {

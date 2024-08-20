@@ -5,9 +5,8 @@
 use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use std::fmt::Display;
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct SchemaNode {
     // The name of the file the schema references
     pub name: String,
@@ -43,7 +42,15 @@ impl MerkleTreeNodeIdType for SchemaNode {
 
 impl MerkleTreeNode for SchemaNode {}
 
-impl Display for SchemaNode {
+/// Debug is used for verbose multi-line output with println!("{:?}", node)
+impl fmt::Debug for SchemaNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "SchemaNode({:x})", self.hash)
+    }
+}
+
+/// Display is used for single line output with println!("{}", node)
+impl fmt::Display for SchemaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SchemaNode({:x})", self.hash)
     }
