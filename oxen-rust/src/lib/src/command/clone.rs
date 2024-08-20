@@ -324,7 +324,7 @@ mod tests {
                 assert!(!test_dir_path.exists());
 
                 // checkout the commit
-                command::checkout(&cloned_repo, &commit.unwrap().id).await?;
+                repositories::checkout(&cloned_repo, &commit.unwrap().id).await?;
                 // Make sure we restored the directory
                 assert!(test_dir_path.exists());
 

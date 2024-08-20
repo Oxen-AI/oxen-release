@@ -27,17 +27,20 @@ use time::OffsetDateTime;
 
 pub mod add;
 pub mod branches;
+pub mod checkout;
 pub mod commits;
 pub mod diffs;
 pub mod entries;
 pub mod init;
 pub mod metadata;
+pub mod merge;
 pub mod revisions;
 pub mod rm;
 pub mod schemas;
 pub mod status;
 
 pub use add::add;
+pub use checkout::checkout;
 pub use commits::commit;
 pub use init::init;
 pub use rm::rm;
@@ -384,7 +387,6 @@ pub fn get_lock_file(repo: &LocalRepository) -> Result<fd_lock::RwLock<File>, st
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
     use crate::config::UserConfig;
     use crate::constants;
     use crate::error::OxenError;

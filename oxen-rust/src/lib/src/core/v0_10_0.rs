@@ -2,6 +2,7 @@
 //!
 
 pub mod add;
+pub mod branches;
 pub mod cache;
 pub mod commit;
 pub mod entries;

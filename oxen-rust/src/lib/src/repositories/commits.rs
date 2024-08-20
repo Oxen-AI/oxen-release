@@ -84,7 +84,11 @@ pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 }
 
 /// Get a commit by it's hash
-pub fn get_by_id(repo: &LocalRepository, commit_id: &str) -> Result<Option<Commit>, OxenError> {
+pub fn get_by_id(
+    repo: &LocalRepository,
+    commit_id: impl AsRef<str>
+) -> Result<Option<Commit>, OxenError> {
+    let commit_id = commit_id.as_ref();
     match repo.version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commit::get_by_id(repo, commit_id),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commit::get_by_id(repo, commit_id),
@@ -369,11 +373,11 @@ mod tests {
             assert_eq!(status.staged_dirs.len(), 0);
 
             // checkout OG and make sure it removes the train dir
-            command::checkout(&repo, orig_branch.name).await?;
+            repositories::checkout(&repo, orig_branch.name).await?;
             assert!(!train_path.exists());
 
             // checkout branch again and make sure it reverts
-            command::checkout(&repo, branch_name).await?;
+            repositories::checkout(&repo, branch_name).await?;
             assert!(train_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&train_path), og_num_files);
 
@@ -400,11 +404,11 @@ mod tests {
             repositories::commit(&repo, "Adding train dir")?;
 
             // checkout OG and make sure it removes the train dir
-            command::checkout(&repo, orig_branch.name).await?;
+            repositories::checkout(&repo, orig_branch.name).await?;
             assert!(!new_dir_path.exists());
 
             // checkout branch again and make sure it reverts
-            command::checkout(&repo, branch_name).await?;
+            repositories::checkout(&repo, branch_name).await?;
             assert!(new_dir_path.exists());
             assert_eq!(util::fs::rcount_files_in_dir(&new_dir_path), og_num_files);
 
@@ -462,7 +466,7 @@ mod tests {
             repositories::commit(&repo, "adding none category")?;
 
             // Add a "person" category on a the main branch
-            command::checkout(&repo, og_branch.name).await?;
+            repositories::checkout(&repo, og_branch.name).await?;
 
             test::modify_txt_file(&labels_path, "cat\ndog\nperson")?;
             repositories::add(&repo, &labels_path)?;

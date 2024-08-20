@@ -74,17 +74,17 @@ impl RunCmd for CheckoutCmd {
 
 impl CheckoutCmd {
     pub async fn checkout(&self, repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
-        command::checkout(repo, name).await?;
+        repositories::checkout(repo, name).await?;
         Ok(())
     }
 
     pub fn checkout_theirs(&self, repo: &LocalRepository, path: &str) -> Result<(), OxenError> {
-        command::checkout_theirs(repo, path)?;
+        repositories::checkout::checkout_theirs(repo, path)?;
         Ok(())
     }
 
     pub fn checkout_ours(&self, repo: &LocalRepository, path: &str) -> Result<(), OxenError> {
-        command::checkout_ours(repo, path)?;
+        repositories::checkout::checkout_ours(repo, path)?;
         Ok(())
     }
 

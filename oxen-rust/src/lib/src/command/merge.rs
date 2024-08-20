@@ -77,7 +77,7 @@ mod tests {
             repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
-            command::checkout(&repo, og_branch.name).await?;
+            repositories::checkout(&repo, og_branch.name).await?;
 
             let bbox_file =
                 test::append_line_txt_file(bbox_file, "train/dog_4.jpg,dog,52.0,62.5,256,429")?;
@@ -92,8 +92,8 @@ mod tests {
             let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
-            // Run command::checkout_theirs() and make sure their changes get kept
-            command::checkout_theirs(&repo, &bbox_filename)?;
+            // Run repositories::checkout::checkout_theirs() and make sure their changes get kept
+            repositories::checkout::checkout_theirs(&repo, &bbox_filename)?;
             let restored_df = tabular::read_df(&bbox_file, DFOpts::empty())?;
             println!("restored df {restored_df}");
 
@@ -130,7 +130,7 @@ mod tests {
             repositories::commit(&repo, "Adding new annotation as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
-            command::checkout(&repo, og_branch.name).await?;
+            repositories::checkout(&repo, og_branch.name).await?;
 
             let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
@@ -145,8 +145,8 @@ mod tests {
             let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
-            // Run command::checkout_theirs() and make sure their changes get kept
-            command::checkout_combine(&repo, bbox_filename)?;
+            // Run repositories::checkout::checkout_theirs() and make sure their changes get kept
+            repositories::checkout::checkout_combine(&repo, bbox_filename)?;
             let df = tabular::read_df(&bbox_file, DFOpts::empty())?;
 
             // This doesn't guarantee order, but let's make sure we have 7 annotations now
@@ -183,7 +183,7 @@ mod tests {
             repositories::commit(&repo, "Adding new column as an Ox on a branch.")?;
 
             // Add a more rows on the main branch
-            command::checkout(&repo, og_branch.name).await?;
+            repositories::checkout(&repo, og_branch.name).await?;
 
             let row_from_main = "train/dog_4.jpg,dog,52.0,62.5,256,429";
             let bbox_file = test::append_line_txt_file(bbox_file, row_from_main)?;
@@ -198,8 +198,8 @@ mod tests {
             let status = repositories::status(&repo)?;
             assert_eq!(status.merge_conflicts.len(), 1);
 
-            // Run command::checkout_theirs() and make sure we cannot
-            let result = command::checkout_combine(&repo, bbox_filename);
+            // Run repositories::checkout::checkout_theirs() and make sure we cannot
+            let result = repositories::checkout::checkout_combine(&repo, bbox_filename);
             println!("{result:?}");
             assert!(result.is_err());
 

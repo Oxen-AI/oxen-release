@@ -1,10 +1,12 @@
 use crate::config::UserConfig;
-use crate::constants::MERGE_DIR;
+use crate::core::merge::db_path;
 use crate::core::db;
 use crate::core::refs::{RefReader, RefWriter};
+use crate::core::merge::merge_conflict_writer;
+pub use crate::core::merge::merge_conflict_db_reader::MergeConflictDBReader;
 use crate::core::v0_10_0::index::{
     oxenignore, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter,
-    MergeConflictDBReader, SchemaReader, Stager,
+    SchemaReader, Stager,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
@@ -15,11 +17,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
 use std::path::{Path, PathBuf};
 use std::str;
 
-use super::{merge_conflict_writer, restore};
-
-pub fn db_path(repo: &LocalRepository) -> PathBuf {
-    util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR))
-}
+use super::restore;
 
 // This is a struct to find the commits we want to merge
 pub struct MergeCommits {
@@ -732,8 +730,8 @@ impl Merger {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
-    use crate::core::v0_10_0::index::{CommitReader, MergeConflictReader, Merger};
+    use crate::core::merge::merge_conflict_reader::MergeConflictReader;
+    use crate::core::v0_10_0::index::{CommitReader, Merger};
     use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository};
     use crate::repositories;
@@ -766,7 +764,7 @@ mod tests {
         repositories::commit(repo, "Committing b.txt file")?;
 
         // Checkout A again to make another change
-        command::checkout(repo, &a_branch.name).await?;
+        repositories::checkout(repo, &a_branch.name).await?;
         let c_path = repo.path.join("c.txt");
         util::fs::write_to_path(&c_path, "c")?;
         repositories::add(repo, c_path)?;
@@ -778,14 +776,14 @@ mod tests {
         repositories::commit(repo, "Committing d.txt file")?;
 
         // Checkout merge branch (B) to make another change
-        command::checkout(repo, merge_branch_name).await?;
+        repositories::checkout(repo, merge_branch_name).await?;
         let e_path = repo.path.join("e.txt");
         util::fs::write_to_path(&e_path, "e")?;
         repositories::add(repo, e_path)?;
         repositories::commit(repo, "Committing e.txt file")?;
 
         // Checkout the OG branch again so that we can merge into it
-        command::checkout(repo, &a_branch.name).await?;
+        repositories::checkout(repo, &a_branch.name).await?;
 
         Ok(lca)
     }
@@ -812,7 +810,7 @@ mod tests {
             let merge_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Checkout and merge additions
-            let og_branch = command::checkout(&repo, &og_branch.name).await?.unwrap();
+            let og_branch = repositories::checkout(&repo, &og_branch.name).await?.unwrap();
 
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
@@ -863,7 +861,7 @@ mod tests {
             repositories::commit(&repo, "Removing world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
 
             // Make sure world file exists until we merge the removal in
             assert!(world_file.exists());
@@ -910,7 +908,7 @@ mod tests {
             repositories::commit(&repo, "Modifying world file")?;
 
             // Checkout and merge additions
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
 
             // Make sure world file exists in it's original form
             let contents = util::fs::read_from_path(&world_file)?;
@@ -1034,7 +1032,7 @@ mod tests {
             repositories::commit(&repo, "Committing b.txt file")?;
 
             // Checkout main branch again to make another change
-            command::checkout(&repo, &a_branch.name).await?;
+            repositories::checkout(&repo, &a_branch.name).await?;
 
             // Add new file c.txt on main branch
             let c_path = repo.path.join("c.txt");
@@ -1055,7 +1053,7 @@ mod tests {
             repositories::commit(&repo, "Committing d.txt file")?;
 
             // Checkout merge branch (B) to make another change
-            command::checkout(&repo, merge_branch_name).await?;
+            repositories::checkout(&repo, merge_branch_name).await?;
 
             // Add another branch
             let e_path = repo.path.join("e.txt");
@@ -1064,7 +1062,7 @@ mod tests {
             repositories::commit(&repo, "Committing e.txt file")?;
 
             // Checkout the OG branch again so that we can merge into it
-            command::checkout(&repo, &a_branch.name).await?;
+            repositories::checkout(&repo, &a_branch.name).await?;
 
             // Make sure the merger can detect the three way merge
             {
@@ -1108,7 +1106,7 @@ mod tests {
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
@@ -1116,7 +1114,7 @@ mod tests {
             repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge in a scope so that it closes the db
             {
@@ -1125,7 +1123,7 @@ mod tests {
             }
 
             // Checkout main again, merge again
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
             {
                 let merger = Merger::new(&repo)?;
                 merger.merge(human_branch_name)?;
@@ -1164,7 +1162,7 @@ mod tests {
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
@@ -1172,7 +1170,7 @@ mod tests {
             repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
             let merger = Merger::new(&repo)?;
@@ -1215,7 +1213,7 @@ mod tests {
             repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
             // Checkout main, and branch from it to another branch to add a human label
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
             let human_branch_name = "add-human-label";
             repositories::branches::create_checkout(&repo, human_branch_name)?;
             let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
@@ -1223,7 +1221,7 @@ mod tests {
             let human_commit = repositories::commit(&repo, "Adding human to labels.txt file")?;
 
             // Checkout main again
-            command::checkout(&repo, &og_branch.name).await?;
+            repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
             let merger = Merger::new(&repo)?;

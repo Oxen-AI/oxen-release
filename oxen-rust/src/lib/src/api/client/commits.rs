@@ -46,8 +46,9 @@ pub struct ChunkParams {
 
 pub async fn get_by_id(
     repository: &RemoteRepository,
-    commit_id: &str,
+    commit_id: impl AsRef<str>,
 ) -> Result<Option<Commit>, OxenError> {
+    let commit_id = commit_id.as_ref();
     let uri = format!("/commits/{commit_id}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
     log::debug!("remote::commits::get_by_id {}", url);

@@ -146,7 +146,7 @@ mod tests {
 
             // Create branch
             let branch_name = "remove-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Remove all the cat images
             for i in 1..=3 {
@@ -210,7 +210,7 @@ mod tests {
 
             // Create branch
             let branch_name = "modify-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Resize all the cat images
             for i in 1..=3 {

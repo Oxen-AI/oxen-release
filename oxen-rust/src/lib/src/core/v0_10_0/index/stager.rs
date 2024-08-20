@@ -9,12 +9,13 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
+use crate::core::merge::merge_conflict_reader::MergeConflictReader;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::oxenignore;
 use crate::core::v0_10_0::index::ObjectDBReader;
 use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::{
-    CommitDirEntryReader, CommitEntryReader, CommitReader, MergeConflictReader, Merger,
+    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger,
     StagedDirEntryDB,
 };
 use crate::error::OxenError;

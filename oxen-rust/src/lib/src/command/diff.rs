@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::v0_10_0::index::MergeConflictReader;
+use crate::core::merge::merge_conflict_reader::MergeConflictReader;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
 use crate::model::entries::commit_entry::CommitPath;

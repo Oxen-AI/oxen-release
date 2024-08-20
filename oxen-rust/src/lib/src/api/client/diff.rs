@@ -126,7 +126,7 @@ mod tests {
 
             // Create branch
             let branch_name = "feat/collect-another-cat";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add and commit the second cat
             let test_file = test::test_img_file_with_name("cat_2.jpg");
@@ -201,7 +201,7 @@ mod tests {
 
             // Create branch
             let branch_name = "feat/modify-dat-cat";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the first cat
             let repo_filepath = images_dir.join("cat_1.jpg");
@@ -293,7 +293,7 @@ mod tests {
 
             // Create branch
             let branch_name = "feat/add-some-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the dataframe
             let repo_filepath = test::append_line_txt_file(repo_filepath, "answer the question,what is the color of the sky?,blue,trivia")?;
@@ -407,7 +407,7 @@ mod tests {
 
             // Create branch
             let branch_name = "feat/add-some-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the dataframe
             let repo_filepath = test::write_txt_file_to_path(
@@ -540,7 +540,7 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
 
             // Create branch
             let branch_name = "feat/add-some-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the dataframe
             let repo_filepath = test::write_txt_file_to_path(
@@ -673,7 +673,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "feat/modify-dat-cat";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify and commit the first cat
             let repo_filepath = images_dir.join("cat_1.jpg");
@@ -772,7 +772,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "modify-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Modify test.csv file
             let test_file = test::test_csv_file_with_name("test_cifar_2x10000.csv");
@@ -875,7 +875,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "add-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add and commit the dogs
             for i in 1..=4 {
@@ -960,7 +960,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "add-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add and commit the dogs
             let dogs_dir = images_dir.join("dogs");
@@ -1108,7 +1108,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "remove-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Remove all the cat images
             for i in 1..=3 {
@@ -1215,7 +1215,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "remove-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Remove all the cat images
             for i in 1..=3 {
@@ -1323,7 +1323,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "add-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add some dog images
             let dogs_dir = repo.path.join("images").join("dogs").join("puppers");
@@ -1449,7 +1449,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "add-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Add some dog images
             let dogs_dir = repo.path.join("images").join("dogs");
@@ -1583,7 +1583,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "modify-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Remove all the cat images
             for i in 1..=3 {
@@ -1696,7 +1696,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "remove-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Remove all the cat images
             for i in 1..=3 {
@@ -1790,7 +1790,7 @@ who won the game?,The packers beat up on the bears,packers
 
             // Create branch
             let branch_name = "modify-data";
-            command::create_checkout(&repo, branch_name)?;
+            repositories::branches::create_checkout(&repo, branch_name)?;
 
             // Resize all the cat images
             for i in 1..=3 {

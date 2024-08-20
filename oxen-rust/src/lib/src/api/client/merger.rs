@@ -55,7 +55,7 @@ mod tests {
             let base = "main";
             let head = "add-data";
 
-            command::create_checkout(&local_repo, head)?;
+            repositories::branches::create_checkout(&local_repo, head)?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
             let mergability = api::client::merger::mergability(&remote_repo, base, head).await?;
@@ -74,11 +74,11 @@ mod tests {
             let base = "main";
             let head = "add-data";
 
-            command::create_checkout(&local_repo, head)?;
+            repositories::branches::create_checkout(&local_repo, head)?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
             // Checkout main and add a file to be ahead
-            command::checkout(&local_repo, base).await?;
+            repositories::checkout(&local_repo, base).await?;
             let path = local_repo.path.join("file_1.txt");
             test::write_txt_file_to_path(&path, "hello")?;
             repositories::add(&local_repo, &path)?;
@@ -101,7 +101,7 @@ mod tests {
             let base = "main";
             let head = "add-data";
 
-            command::create_checkout(&local_repo, head)?;
+            repositories::branches::create_checkout(&local_repo, head)?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
             // Modify README.md
@@ -140,7 +140,7 @@ mod tests {
             let base = "main";
             let head = "add-data";
 
-            command::create_checkout(&local_repo, head)?;
+            repositories::branches::create_checkout(&local_repo, head)?;
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
             // Modify README.md to have a conflict
@@ -164,7 +164,7 @@ mod tests {
             command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, head).await?;
 
             // Checkout main and modify README.md to have a conflict
-            command::checkout(&local_repo, base).await?;
+            repositories::checkout(&local_repo, base).await?;
             let path = local_repo.path.join("README.md");
             test::write_txt_file_to_path(&path, "I am on main conflicting the README")?;
             repositories::add(&local_repo, &path)?;

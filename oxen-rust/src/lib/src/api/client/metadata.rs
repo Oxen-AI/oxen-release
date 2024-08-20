@@ -134,7 +134,7 @@ mod tests {
             let main_branch = DEFAULT_BRANCH_NAME;
             let second_branch = "second";
 
-            command::create_checkout(&local_repo, second_branch)?;
+            repositories::branches::create_checkout(&local_repo, second_branch)?;
 
             test::write_txt_file_to_path(&labels_path, "I am the labels file v2")?;
 
