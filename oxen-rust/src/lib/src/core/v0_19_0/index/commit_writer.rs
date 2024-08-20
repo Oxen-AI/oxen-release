@@ -335,8 +335,22 @@ fn split_into_vnodes(
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
             vnode_hasher.update(b"vnode");
             // generate a uuid for the vnode
-            let uuid = uuid::Uuid::new_v4();
-            vnode_hasher.update(uuid.as_bytes());
+            vnode_hasher.update(directory.to_str().unwrap().as_bytes());
+
+            let mut has_new_entries = false;
+            for entry in vnode.entries.iter() {
+                vnode_hasher.update(&entry.hash.to_le_bytes());
+                if entry.status != StagedEntryStatus::Unmodified {
+                    has_new_entries = true;
+                }
+            }
+
+            // If the vnode has new entries, we need to update the uuid to make a new vnode
+            if existing_nodes.contains_key(directory) && has_new_entries {
+                let uuid = uuid::Uuid::new_v4();
+                vnode_hasher.update(uuid.as_bytes());
+            }
+
             vnode.id = vnode_hasher.digest128();
         }
 
@@ -344,11 +358,13 @@ fn split_into_vnodes(
         results.insert(directory.to_owned(), vnode_children);
     }
 
+    // Make sure to update all the vnode ids based on all their children
+
     // TODO: We have to start from the bottom vnodes in the tree and update all the vnode ids above it
     log::debug!("split_into_vnodes results: {:?}", results.len());
-    for (dir, vnodes) in results.iter() {
+    for (dir, vnodes) in results.iter_mut() {
         log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
-        for vnode in vnodes.iter() {
+        for vnode in vnodes.iter_mut() {
             log::debug!("  vnode {:x} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
                 log::debug!(
@@ -695,6 +711,7 @@ fn compute_dir_node(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashSet;
     use std::path::Path;
 
     use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
@@ -1080,6 +1097,68 @@ mod tests {
             // Read the second merkle tree
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
+
+            Ok(())
+        })
+    }
+
+    #[test]
+    fn test_commit_20_files_6_vnode_size() -> Result<(), OxenError> {
+        test::run_empty_dir_test(|dir| {
+            // Instantiate the correct version of the repo
+            let mut repo = repositories::init::init_with_version(dir, MinOxenVersion::V0_19_0)?;
+            // Set the vnode size to 6
+            repo.set_vnode_size(6);
+
+            // Write data to the repo, 20 files in 1 dir
+            add_n_files_m_dirs(&repo, 20, 1)?;
+            let status = repositories::status(&repo)?;
+            status.print();
+
+            // Commit the data
+            let first_commit = super::commit(&repo, "First commit")?;
+
+            // Read the merkle tree
+            let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
+            first_tree.print();
+
+            // Make sure we have the correct number of vnodes
+            let root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            // The root dir should have one vnode because there are only 3 files/dirs (README.md, files.csv, files)
+            assert_eq!(root_node.num_vnodes(), 1);
+
+            // There should only be 3 vnodes in the dir
+            // 20 / 6 = 3.333 -> 4 vnodes
+            let dir_0_node = first_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            assert_eq!(dir_0_node.num_vnodes(), 4);
+
+            // Add a news file
+            let new_file = repo.path.join("files/dir_0/new_file.txt");
+            util::fs::write_to_path(&new_file, "New file")?;
+            repositories::add(&repo, &new_file)?;
+
+            // Commit the data
+            let second_commit = super::commit(&repo, "Second commit")?;
+
+            // Make sure commit hashes are different
+            assert!(first_commit.id != second_commit.id);
+
+            // Make sure the head commit is updated
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            assert_eq!(head_commit.id, second_commit.id);
+
+            // Read the second merkle tree
+            let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
+            second_tree.print();
+
+            let second_dir_0_node = second_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            assert_eq!(second_dir_0_node.num_vnodes(), 4);
+
+            // Make sure 3 of the vnodes have the same hash as the first vnode
+            let first_children_hashes: HashSet<u128> = dir_0_node.children.iter().map(|vnode| vnode.hash).collect();
+            let second_children_hashes: HashSet<u128> = second_dir_0_node.children.iter().map(|vnode| vnode.hash).collect();
+            let intersection: HashSet<&u128> = second_children_hashes.intersection(&first_children_hashes).collect();
+            assert_eq!(intersection.len(), 3);
 
             Ok(())
         })
