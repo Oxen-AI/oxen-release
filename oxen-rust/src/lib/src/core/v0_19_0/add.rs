@@ -201,7 +201,7 @@ fn process_dir(
                     let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
                     progress_1.set_message(format!(
-                        "🐂 Added {} files ({}) {:.2} MB/s",
+                        "🐂 Adding {} files ({}) {:.2} MB/s",
                         file_counter_clone.load(Ordering::Relaxed),
                         bytesize::ByteSize::b(total_bytes),
                         mbps
