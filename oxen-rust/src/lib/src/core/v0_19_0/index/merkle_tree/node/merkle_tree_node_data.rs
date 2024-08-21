@@ -38,6 +38,11 @@ impl MerkleTreeNodeData {
         self.children.is_empty()
     }
 
+    /// Check if the node has children
+    pub fn has_children(&self) -> bool {
+        !self.children.is_empty()
+    }
+
     /// Recursively count the total number of vnodes in the tree
     pub fn total_vnodes(&self) -> u128 {
         let mut count = 0;

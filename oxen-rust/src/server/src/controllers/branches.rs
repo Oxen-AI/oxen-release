@@ -43,7 +43,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
 
     let view = BranchResponse {
-        status: StatusMessage::resource_created(),
+        status: StatusMessage::resource_found(),
         branch,
     };
 

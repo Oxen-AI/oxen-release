@@ -121,9 +121,10 @@ impl BranchCmd {
 
     pub fn list_branches(&self, repo: &LocalRepository) -> Result<(), OxenError> {
         let branches = repositories::branches::list(repo)?;
+        let current_branch = repositories::branches::current_branch(repo)?;
 
         for branch in branches.iter() {
-            if branch.is_head {
+            if current_branch.is_some() && current_branch.as_ref().unwrap().name == branch.name {
                 let branch_str = format!("* {}", branch.name).green();
                 println!("{branch_str}")
             } else {

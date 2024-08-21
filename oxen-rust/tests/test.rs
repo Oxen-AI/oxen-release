@@ -2,8 +2,8 @@
 
 use std::path::Path;
 
-use liboxen::command;
 use liboxen::error::OxenError;
+use liboxen::repositories;
 use liboxen::test;
 
 #[test]
