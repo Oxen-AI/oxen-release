@@ -2,14 +2,14 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use time::OffsetDateTime;
 
-use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
 use crate::model::Commit;
+use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct CommitNode {
-    pub id: u128,
+    pub id: MerkleHash,
     pub dtype: MerkleTreeNodeType,
-    pub parent_ids: Vec<u128>,
+    pub parent_ids: Vec<MerkleHash>,
     pub message: String,
     pub author: String,
     pub email: String,
@@ -19,12 +19,8 @@ pub struct CommitNode {
 impl CommitNode {
     pub fn to_commit(&self) -> Commit {
         Commit {
-            id: format!("{:x}", self.id),
-            parent_ids: self
-                .parent_ids
-                .iter()
-                .map(|id| format!("{:x}", id))
-                .collect(),
+            id: self.id.to_string(),
+            parent_ids: self.parent_ids.iter().map(|id| id.to_string()).collect(),
             email: self.email.to_owned(),
             author: self.author.to_owned(),
             message: self.message.to_owned(),
@@ -37,7 +33,7 @@ impl CommitNode {
 impl Default for CommitNode {
     fn default() -> Self {
         CommitNode {
-            id: 0,
+            id: MerkleHash::new(0),
             dtype: MerkleTreeNodeType::Commit,
             parent_ids: vec![],
             message: "".to_string(),
@@ -53,12 +49,12 @@ impl MerkleTreeNodeIdType for CommitNode {
         self.dtype
     }
 
-    fn id(&self) -> u128 {
+    fn id(&self) -> MerkleHash {
         self.id
     }
 }
 
-impl MerkleTreeNode for CommitNode {}
+impl TMerkleTreeNode for CommitNode {}
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for CommitNode {
@@ -79,7 +75,7 @@ impl fmt::Display for CommitNode {
         let parent_ids = self
             .parent_ids
             .iter()
-            .map(|x| format!("{:x}", x))
+            .map(|x| x.to_string())
             .collect::<Vec<String>>()
             .join(",");
         write!(

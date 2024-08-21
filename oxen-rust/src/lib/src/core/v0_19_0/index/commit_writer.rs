@@ -18,12 +18,14 @@ use crate::core::db::key_val::str_val_db;
 use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::core::v0_19_0::index::merkle_tree::node::{
-    FileChunkType, FileNode, FileStorageType, MerkleTreeNodeType, VNode,
+    FileChunkType, FileNode, FileStorageType, VNode,
 };
 use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::status;
 use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
 use crate::error::OxenError;
+use crate::model::MerkleHash;
+use crate::model::MerkleTreeNodeType;
 use crate::model::NewCommit;
 use crate::model::User;
 use crate::model::{Commit, EntryDataType, LocalRepository, StagedEntryStatus};
@@ -35,12 +37,12 @@ use super::merkle_tree::node::{CommitNode, DirNode};
 
 #[derive(Clone)]
 pub struct EntryVNode {
-    pub id: u128,
+    pub id: MerkleHash,
     pub entries: Vec<EntryMetaDataWithPath>,
 }
 
 impl EntryVNode {
-    pub fn new(id: u128) -> Self {
+    pub fn new(id: MerkleHash) -> Self {
         EntryVNode {
             id,
             entries: vec![],
@@ -109,7 +111,7 @@ pub fn commit_with_cfg(
 
     let mut parent_ids = vec![];
     if let Some(parent) = &maybe_head_commit {
-        parent_ids.push(parent.hash_u128());
+        parent_ids.push(parent.hash()?);
     }
 
     // agg_stats(&repo, &maybe_head_commit, &mut dir_tree, &dir_entries)?;
@@ -151,7 +153,7 @@ pub fn commit_with_cfg(
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
     let new_commit = NewCommit {
-        parent_ids: parent_ids.iter().map(|id| format!("{:x}", id)).collect(),
+        parent_ids: parent_ids.iter().map(|id| id.to_string()).collect(),
         message: message.to_string(),
         author: cfg.name.clone(),
         email: cfg.email.clone(),
@@ -179,7 +181,7 @@ pub fn commit_with_cfg(
     if let Some(commit) = &maybe_head_commit {
         let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &commit)?;
         for (path, hash) in dir_hashes {
-            str_val_db::put(&dir_hash_db, path, &format!("{:x}", hash))?;
+            str_val_db::put(&dir_hash_db, path, &hash.to_string())?;
         }
     }
 
@@ -200,7 +202,7 @@ pub fn commit_with_cfg(
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
     log::debug!("Looking for HEAD file at {:?}", head_path);
     let ref_writer = RefWriter::new(repo)?;
-    let commit_id = format!("{:x}", commit_id);
+    let commit_id = commit_id.to_string();
     if !head_path.exists() {
         log::debug!("HEAD file does not exist, creating new branch");
         let branch_name = DEFAULT_BRANCH_NAME;
@@ -336,11 +338,12 @@ fn split_into_vnodes(
             directory,
             vnode_size
         );
-        let mut vnode_children: Vec<EntryVNode> = vec![EntryVNode::new(0); num_vnodes as usize];
+        let mut vnode_children: Vec<EntryVNode> =
+            vec![EntryVNode::new(MerkleHash::new(0)); num_vnodes as usize];
 
         // Split entries into vnodes
         for child in children.into_iter() {
-            let bucket = child.hash % num_vnodes;
+            let bucket = child.hash.to_u128() % num_vnodes;
             vnode_children[bucket as usize].entries.push(child.clone());
         }
 
@@ -370,7 +373,7 @@ fn split_into_vnodes(
                 vnode_hasher.update(uuid.as_bytes());
             }
 
-            vnode.id = vnode_hasher.digest128();
+            vnode.id = MerkleHash::new(vnode_hasher.digest128());
         }
 
         // Sort before we hash
@@ -384,7 +387,7 @@ fn split_into_vnodes(
     for (dir, vnodes) in results.iter_mut() {
         log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
         for vnode in vnodes.iter_mut() {
-            log::debug!("  vnode {:x} has {} entries", vnode.id, vnode.entries.len());
+            log::debug!("  vnode {} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
                 log::debug!(
                     "    entry {:?} has {:?} bytes with status {:?}",
@@ -399,7 +402,7 @@ fn split_into_vnodes(
     Ok(results)
 }
 
-fn compute_commit_id(new_commit: &NewCommit) -> Result<u128, OxenError> {
+fn compute_commit_id(new_commit: &NewCommit) -> Result<MerkleHash, OxenError> {
     let mut hasher = xxhash_rust::xxh3::Xxh3::new();
     hasher.update(b"commit");
     hasher.update(format!("{:?}", new_commit.parent_ids).as_bytes());
@@ -407,13 +410,13 @@ fn compute_commit_id(new_commit: &NewCommit) -> Result<u128, OxenError> {
     hasher.update(new_commit.author.as_bytes());
     hasher.update(new_commit.email.as_bytes());
     hasher.update(&new_commit.timestamp.unix_timestamp().to_le_bytes());
-    Ok(hasher.digest128())
+    Ok(MerkleHash::new(hasher.digest128()))
 }
 
 fn write_commit_entries(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
-    commit_id: u128,
+    commit_id: MerkleHash,
     commit_db: &mut MerkleNodeDB,
     dir_hash_db: &DBWithThreadMode<SingleThreaded>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
@@ -428,7 +431,7 @@ fn write_commit_entries(
     str_val_db::put(
         dir_hash_db,
         root_path.to_str().unwrap(),
-        &format!("{:x}", dir_node.hash),
+        &dir_node.hash.to_string(),
     )?;
     let dir_db = MerkleNodeDB::open_read_write(repo, &dir_node, Some(commit_id))?;
     r_create_dir_node(
@@ -448,7 +451,7 @@ fn write_commit_entries(
 fn r_create_dir_node(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
-    commit_id: u128,
+    commit_id: MerkleHash,
     maybe_dir_db: &mut Option<MerkleNodeDB>,
     dir_hash_db: &DBWithThreadMode<SingleThreaded>,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
@@ -476,7 +479,7 @@ fn r_create_dir_node(
             *total_written += 1;
         }
         log::debug!(
-            "Processing vnode {:x} with {} entries",
+            "Processing vnode {} with {} entries",
             vnode.id,
             vnode.entries.len()
         );
@@ -495,7 +498,7 @@ fn r_create_dir_node(
         )?;
         for entry in vnode.entries.iter() {
             log::debug!(
-                "Processing entry {:?} [{:?}] in vnode {:x}",
+                "Processing entry {:?} [{:?}] in vnode {}",
                 entry.path,
                 entry.data_type,
                 vnode.id
@@ -547,7 +550,7 @@ fn r_create_dir_node(
                     } else {
                         log::debug!("r_create_dir_node skipping {:?}", entry.path);
                         // Look up the old dir node and reference it
-                        let old_dir_node = CommitMerkleTree::read_node(repo, entry.hash, false)?;
+                        let old_dir_node = CommitMerkleTree::read_node(repo, &entry.hash, false)?;
                         let dir_node = old_dir_node.dir()?;
 
                         // if let Some(vnode_db) = &mut maybe_vnode_db {
@@ -561,21 +564,21 @@ fn r_create_dir_node(
                     str_val_db::put(
                         dir_hash_db,
                         entry.path.to_str().unwrap(),
-                        &format!("{:x}", dir_node.hash),
+                        &dir_node.hash.to_string(),
                     )?;
                 }
                 _ => {
                     let file_name = entry.path.file_name().unwrap_or_default().to_str().unwrap();
 
                     log::debug!(
-                        "Processing file {:?} in vnode {:x} in commit {:x}",
+                        "Processing file {:?} in vnode {} in commit {}",
                         entry.path,
                         vnode.id,
                         commit_id
                     );
 
                     // Just single file chunk for now
-                    let chunks = vec![entry.hash];
+                    let chunks = vec![entry.hash.to_u128()];
                     let file_node = FileNode {
                         name: file_name.to_owned(),
                         hash: entry.hash,
@@ -597,7 +600,7 @@ fn r_create_dir_node(
                     };
                     // if let Some(vnode_db) = &mut maybe_vnode_db {
                     log::debug!(
-                        "Adding file {:?} to vnode {:x} in commit {:x}",
+                        "Adding file {:?} to vnode {} in commit {}",
                         entry.path,
                         vnode.id,
                         commit_id
@@ -638,7 +641,7 @@ fn get_children(
 fn compute_dir_node(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
-    commit_id: u128,
+    commit_id: MerkleHash,
     entries: &HashMap<PathBuf, Vec<EntryVNode>>,
     path: impl AsRef<Path>,
 ) -> Result<DirNode, OxenError> {
@@ -718,7 +721,7 @@ fn compute_dir_node(
     let node = DirNode {
         dtype: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
-        hash,
+        hash: MerkleHash::new(hash),
         num_bytes,
         last_commit_id: commit_id,
         last_modified_seconds: 0,
@@ -736,6 +739,7 @@ mod tests {
     use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
+    use crate::model::MerkleHash;
     use crate::repositories;
     use crate::test;
     use crate::test::add_n_files_m_dirs;
@@ -990,21 +994,21 @@ mod tests {
             let updated_node = second_tree.get_by_path(&Path::new("files/dir_1/new_file.txt"))?;
             assert!(updated_node.is_some());
             let updated_file_node = updated_node.unwrap().file()?;
-            let updated_commit_id = format!("{:x}", updated_file_node.last_commit_id);
+            let updated_commit_id = updated_file_node.last_commit_id.to_string();
             assert_eq!(updated_commit_id, second_commit.id);
 
             // Make sure that last commit id is not updated on other files in the dir
             let other_file_node = second_tree.get_by_path(&Path::new("files/dir_1/file7.txt"))?;
             assert!(other_file_node.is_some());
             let other_file_node = other_file_node.unwrap().file()?;
-            let other_commit_id = format!("{:x}", other_file_node.last_commit_id);
+            let other_commit_id = other_file_node.last_commit_id.to_string();
             assert_eq!(other_commit_id, first_commit.id);
 
             // Make sure last commit is updated on the dir
             let dir_node = second_tree.get_by_path(&Path::new("files/dir_1"))?;
             assert!(dir_node.is_some());
             let dir_node = dir_node.unwrap().dir()?;
-            let dir_commit_id = format!("{:x}", dir_node.last_commit_id);
+            let dir_commit_id = dir_node.last_commit_id.to_string();
             assert_eq!(dir_commit_id, second_commit.id);
 
             // Make sure the hashes of the directories are valid
@@ -1174,14 +1178,14 @@ mod tests {
             assert_eq!(second_dir_0_node.num_vnodes(), 4);
 
             // Make sure 3 of the vnodes have the same hash as the first vnode
-            let first_children_hashes: HashSet<u128> =
+            let first_children_hashes: HashSet<MerkleHash> =
                 dir_0_node.children.iter().map(|vnode| vnode.hash).collect();
-            let second_children_hashes: HashSet<u128> = second_dir_0_node
+            let second_children_hashes: HashSet<MerkleHash> = second_dir_0_node
                 .children
                 .iter()
                 .map(|vnode| vnode.hash)
                 .collect();
-            let intersection: HashSet<&u128> = second_children_hashes
+            let intersection: HashSet<&MerkleHash> = second_children_hashes
                 .intersection(&first_children_hashes)
                 .collect();
             assert_eq!(intersection.len(), 3);
@@ -1261,7 +1265,7 @@ mod tests {
             let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &third_commit)?;
 
             for (path, hash) in dir_hashes {
-                println!("dir_hash: {:?} {:x}", path, hash);
+                println!("dir_hash: {:?} {}", path, hash);
                 let node = third_tree.get_by_path(&path)?.unwrap();
                 assert_eq!(node.hash, hash);
             }

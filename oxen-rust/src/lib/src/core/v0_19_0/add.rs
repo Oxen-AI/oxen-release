@@ -13,13 +13,14 @@ use serde::Serialize;
 use crate::constants::{STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::EntryMetaData;
-use crate::model::{Commit, EntryDataType, StagedEntryStatus};
+use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
 
-use super::index::merkle_tree::node::{MerkleTreeNodeData, MerkleTreeNodeType};
+use super::index::merkle_tree::node::MerkleTreeNodeData;
 use super::index::merkle_tree::CommitMerkleTree;
+use crate::model::MerkleTreeNodeType;
 
 #[derive(Clone, Debug)]
 pub struct CumulativeStats {
@@ -346,7 +347,7 @@ fn process_add_file(
         };
 
         let entry = EntryMetaData {
-            hash,
+            hash: MerkleHash::new(hash),
             data_type,
             num_bytes,
             status,

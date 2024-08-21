@@ -2,11 +2,10 @@
 //! that is stored in on disk
 //!
 
-use super::{
-    file_node_types::{FileChunkType, FileStorageType},
-    MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType,
+use super::file_node_types::{FileChunkType, FileStorageType};
+use crate::model::{
+    EntryDataType, MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode,
 };
-use crate::model::EntryDataType;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -18,11 +17,11 @@ pub struct FileNode {
     pub name: String,
 
     // Full file hash
-    pub hash: u128,
+    pub hash: MerkleHash,
     // Number of bytes in the file
     pub num_bytes: u64,
     // Last commit id that modified the file
-    pub last_commit_id: u128,
+    pub last_commit_id: MerkleHash,
     // Last modified timestamp
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
@@ -46,9 +45,9 @@ impl Default for FileNode {
         FileNode {
             dtype: MerkleTreeNodeType::File,
             name: "".to_string(),
-            hash: 0,
+            hash: MerkleHash::new(0),
             num_bytes: 0,
-            last_commit_id: 0,
+            last_commit_id: MerkleHash::new(0),
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
             data_type: EntryDataType::Binary,
@@ -66,18 +65,18 @@ impl MerkleTreeNodeIdType for FileNode {
         self.dtype
     }
 
-    fn id(&self) -> u128 {
+    fn id(&self) -> MerkleHash {
         self.hash
     }
 }
 
-impl MerkleTreeNode for FileNode {}
+impl TMerkleTreeNode for FileNode {}
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "FileNode")?;
-        writeln!(f, "\thash: {:x}", self.hash)?;
+        writeln!(f, "\thash: {}", self.hash.to_string())?;
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
         writeln!(f, "\tdata_type: {:?}", self.data_type)?;
@@ -95,10 +94,10 @@ impl fmt::Display for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            "\"{}\" ({}) (commit {:x})",
+            "\"{}\" ({}) (commit {})",
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
-            self.last_commit_id
+            self.last_commit_id.to_string()
         )
     }
 }

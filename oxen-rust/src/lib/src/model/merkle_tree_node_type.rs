@@ -1,6 +1,6 @@
 //! This is the type of node that we are storing in the merkle tree
 //!
-//! There are only 5 node types as of now, so can store in a u8, and would
+//! There are only 6 node types as of now, so can store in a u8, and would
 //! need a migration to change anyways.
 //!
 //! This value is stored at the top of a merkle tree db file
@@ -17,10 +17,6 @@ pub enum MerkleTreeNodeType {
     VNode,
     Schema,
     FileChunk,
-    //       Fun realization - this fixes our push protocol of having to
-    //       "chunk" large files before sending and reconstruct on the other side
-    //       because we already chunked, and we can write them directly to the merkle tree
-    //       on the other side
 }
 
 impl MerkleTreeNodeType {

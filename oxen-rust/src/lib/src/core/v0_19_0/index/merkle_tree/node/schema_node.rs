@@ -2,7 +2,7 @@
 //! that is stored in on disk
 //!
 
-use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
+use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -17,7 +17,7 @@ pub struct SchemaNode {
     //   * name
     //   * type
     pub dtype: MerkleTreeNodeType,
-    pub hash: u128,
+    pub hash: MerkleHash,
 }
 
 impl Default for SchemaNode {
@@ -25,7 +25,7 @@ impl Default for SchemaNode {
         SchemaNode {
             dtype: MerkleTreeNodeType::Schema,
             name: "".to_string(),
-            hash: 0,
+            hash: MerkleHash::new(0),
         }
     }
 }
@@ -35,23 +35,23 @@ impl MerkleTreeNodeIdType for SchemaNode {
         self.dtype
     }
 
-    fn id(&self) -> u128 {
+    fn id(&self) -> MerkleHash {
         self.hash
     }
 }
 
-impl MerkleTreeNode for SchemaNode {}
+impl TMerkleTreeNode for SchemaNode {}
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for SchemaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SchemaNode({:x})", self.hash)
+        write!(f, "SchemaNode({})", self.hash.to_string())
     }
 }
 
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for SchemaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SchemaNode({:x})", self.hash)
+        write!(f, "SchemaNode({})", self.hash.to_string())
     }
 }

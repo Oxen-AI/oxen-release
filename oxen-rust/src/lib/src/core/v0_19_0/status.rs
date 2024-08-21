@@ -3,8 +3,8 @@ use crate::core::db;
 use crate::core::v0_19_0::structs::{EntryMetaData, EntryMetaDataWithPath};
 use crate::error::OxenError;
 use crate::model::{
-    EntryDataType, LocalRepository, StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
-    SummarizedStagedDirStats,
+    EntryDataType, LocalRepository, MerkleHash, StagedData, StagedDirStats, StagedEntry,
+    StagedEntryStatus, SummarizedStagedDirStats,
 };
 use crate::util;
 
@@ -51,7 +51,7 @@ pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
                 }
                 _ => {
                     let staged_entry = StagedEntry {
-                        hash: format!("{:x}", entry.hash),
+                        hash: entry.hash.to_string(),
                         status: StagedEntryStatus::Added,
                     };
                     staged_data.staged_files.insert(entry.path, staged_entry);
@@ -96,7 +96,7 @@ pub fn read_staged_entries(
                     num_bytes: entry.num_bytes,
                     data_type: entry.data_type,
                     status: entry.status,
-                    last_commit_id: 0,
+                    last_commit_id: MerkleHash::new(0),
                 };
 
                 if let Some(parent) = path.parent() {
