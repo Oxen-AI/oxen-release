@@ -21,6 +21,7 @@ pub mod metadata;
 pub mod repositories;
 pub mod schemas;
 pub mod stats;
+pub mod tree;
 pub mod version;
 pub mod workspaces;
 

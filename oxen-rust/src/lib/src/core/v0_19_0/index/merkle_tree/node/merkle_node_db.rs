@@ -65,7 +65,10 @@ use crate::model::MerkleHash;
 use crate::model::{MerkleTreeNodeType, TMerkleTreeNode};
 use crate::util;
 
-fn node_db_path(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
+const NODE_FILE: &str = "node";
+const CHILDREN_FILE: &str = "children";
+
+pub fn node_db_path(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
     let hash_str = hash.to_string();
     let dir_prefix_len = 3;
     let dir_prefix = hash_str.chars().take(dir_prefix_len).collect::<String>();
@@ -219,7 +222,7 @@ impl MerkleNodeDB {
 
     pub fn exists(repo: &LocalRepository, hash: &MerkleHash) -> bool {
         let db_path = node_db_path(repo, hash);
-        db_path.exists()
+        db_path.join(NODE_FILE).exists() && db_path.join(CHILDREN_FILE).exists()
     }
 
     pub fn open_read_only(repo: &LocalRepository, hash: &MerkleHash) -> Result<Self, OxenError> {
@@ -232,8 +235,8 @@ impl MerkleNodeDB {
         node: &impl TMerkleTreeNode,
         parent_id: Option<MerkleHash>,
     ) -> Result<Option<Self>, OxenError> {
-        if Self::exists(repo, &node.id()) {
-            let db_path = node_db_path(repo, &node.id());
+        if Self::exists(repo, &node.hash()) {
+            let db_path = node_db_path(repo, &node.hash());
             log::debug!(
                 "open_read_write_if_not_exists skipping existing merkle node db at {}",
                 db_path.display()
@@ -249,7 +252,7 @@ impl MerkleNodeDB {
         node: &impl TMerkleTreeNode,
         parent_id: Option<MerkleHash>,
     ) -> Result<Self, OxenError> {
-        let path = node_db_path(repo, &node.id());
+        let path = node_db_path(repo, &node.hash());
         if !path.exists() {
             util::fs::create_dir_all(&path)?;
         }
@@ -267,8 +270,8 @@ impl MerkleNodeDB {
             util::fs::create_dir_all(path)?;
         }
 
-        let node_path = path.join("node");
-        let children_path = path.join("children");
+        let node_path = path.join(NODE_FILE);
+        let children_path = path.join(CHILDREN_FILE);
 
         log::debug!("Opening merkle node db at {}", path.display());
         let (lookup, node_file, children_file): (
@@ -371,11 +374,11 @@ impl MerkleNodeDB {
         node_file.write_all(&buf)?;
 
         self.dtype = node.dtype();
-        self.node_id = node.id();
+        self.node_id = node.hash();
         self.parent_id = parent_id;
         log::debug!(
             "write_node wrote id {} dtype: {:?}",
-            node.id(),
+            node.hash(),
             node.dtype()
         );
         Ok(())
@@ -405,7 +408,7 @@ impl MerkleNodeDB {
         log::debug!("--add_child-- child {}", item);
 
         node_file.write_all(&item.dtype().to_u8().to_le_bytes())?;
-        node_file.write_all(&item.id().to_le_bytes())?; // id of child
+        node_file.write_all(&item.hash().to_le_bytes())?; // id of child
         node_file.write_all(&self.data_offset.to_le_bytes())?;
         node_file.write_all(&data_len.to_le_bytes())?;
 

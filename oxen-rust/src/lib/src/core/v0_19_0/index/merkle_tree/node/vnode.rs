@@ -9,7 +9,7 @@ use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkle
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct VNode {
-    pub id: MerkleHash,
+    pub hash: MerkleHash,
     pub dtype: MerkleTreeNodeType,
 }
 
@@ -17,7 +17,7 @@ impl Default for VNode {
     fn default() -> Self {
         VNode {
             dtype: MerkleTreeNodeType::VNode,
-            id: MerkleHash::new(0),
+            hash: MerkleHash::new(0),
         }
     }
 }
@@ -27,15 +27,15 @@ impl MerkleTreeNodeIdType for VNode {
         self.dtype
     }
 
-    fn id(&self) -> MerkleHash {
-        self.id
+    fn hash(&self) -> MerkleHash {
+        self.hash
     }
 }
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for VNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "VNode({})", self.id.to_string())
+        write!(f, "VNode({})", self.hash.to_string())
     }
 }
 

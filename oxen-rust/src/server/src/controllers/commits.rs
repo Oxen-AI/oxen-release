@@ -1297,7 +1297,6 @@ mod tests {
     use std::path::Path;
     use std::thread;
 
-    use liboxen::command;
     use liboxen::constants::OXEN_HIDDEN_DIR;
     use liboxen::error::OxenError;
     use liboxen::repositories;

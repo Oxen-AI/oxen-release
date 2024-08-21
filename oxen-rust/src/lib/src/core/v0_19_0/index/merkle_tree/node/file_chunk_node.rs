@@ -12,7 +12,7 @@ use std::fmt;
 pub struct FileChunkNode {
     pub data: Vec<u8>,
     pub dtype: MerkleTreeNodeType,
-    pub id: MerkleHash,
+    pub hash: MerkleHash,
 }
 
 impl Default for FileChunkNode {
@@ -20,7 +20,7 @@ impl Default for FileChunkNode {
         FileChunkNode {
             data: vec![],
             dtype: MerkleTreeNodeType::FileChunk,
-            id: MerkleHash::new(0),
+            hash: MerkleHash::new(0),
         }
     }
 }
@@ -30,8 +30,8 @@ impl MerkleTreeNodeIdType for FileChunkNode {
         self.dtype
     }
 
-    fn id(&self) -> MerkleHash {
-        self.id
+    fn hash(&self) -> MerkleHash {
+        self.hash
     }
 }
 
@@ -40,13 +40,13 @@ impl TMerkleTreeNode for FileChunkNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({})", self.id.to_string())
+        write!(f, "FileChunkNode({})", self.hash.to_string())
     }
 }
 
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({})", self.id.to_string())
+        write!(f, "FileChunkNode({})", self.hash.to_string())
     }
 }
