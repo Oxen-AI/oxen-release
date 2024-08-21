@@ -10,11 +10,8 @@ use log;
 
 pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
-
     let namespace = path_param(&req, "namespace")?;
-
     let repo_name = path_param(&req, "repo_name")?;
-
     let repository = get_repo(&app_data.path, namespace, repo_name)?;
 
     let resource = parse_resource(&req, &repository)?;

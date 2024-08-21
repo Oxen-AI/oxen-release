@@ -58,15 +58,15 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::constants;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNode;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeType;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
+use crate::model::MerkleHash;
+use crate::model::{MerkleTreeNodeType, TMerkleTreeNode};
 use crate::util;
 
-fn node_db_path(repo: &LocalRepository, hash: u128) -> PathBuf {
-    let hash_str = format!("{hash:x}");
+fn node_db_path(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
+    let hash_str = hash.to_string();
     let dir_prefix_len = 3;
     let dir_prefix = hash_str.chars().take(dir_prefix_len).collect::<String>();
     let dir_suffix = hash_str.chars().skip(dir_prefix_len).collect::<String>();
@@ -184,8 +184,8 @@ impl MerkleNodeLookup {
 
 pub struct MerkleNodeDB {
     pub dtype: MerkleTreeNodeType,
-    pub node_id: u128,
-    pub parent_id: Option<u128>,
+    pub node_id: MerkleHash,
+    pub parent_id: Option<MerkleHash>,
     read_only: bool,
     path: PathBuf,
     node_file: Option<File>,
@@ -217,23 +217,23 @@ impl MerkleNodeDB {
         self.path.to_owned()
     }
 
-    pub fn exists(repo: &LocalRepository, hash: u128) -> bool {
+    pub fn exists(repo: &LocalRepository, hash: &MerkleHash) -> bool {
         let db_path = node_db_path(repo, hash);
         db_path.exists()
     }
 
-    pub fn open_read_only(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
+    pub fn open_read_only(repo: &LocalRepository, hash: &MerkleHash) -> Result<Self, OxenError> {
         let path = node_db_path(repo, hash);
         Self::open(path, true)
     }
 
     pub fn open_read_write_if_not_exists(
         repo: &LocalRepository,
-        node: &impl MerkleTreeNode,
-        parent_id: Option<u128>,
+        node: &impl TMerkleTreeNode,
+        parent_id: Option<MerkleHash>,
     ) -> Result<Option<Self>, OxenError> {
-        if Self::exists(repo, node.id()) {
-            let db_path = node_db_path(repo, node.id());
+        if Self::exists(repo, &node.id()) {
+            let db_path = node_db_path(repo, &node.id());
             log::debug!(
                 "open_read_write_if_not_exists skipping existing merkle node db at {}",
                 db_path.display()
@@ -246,10 +246,10 @@ impl MerkleNodeDB {
 
     pub fn open_read_write(
         repo: &LocalRepository,
-        node: &impl MerkleTreeNode,
-        parent_id: Option<u128>,
+        node: &impl TMerkleTreeNode,
+        parent_id: Option<MerkleHash>,
     ) -> Result<Self, OxenError> {
-        let path = node_db_path(repo, node.id());
+        let path = node_db_path(repo, &node.id());
         if !path.exists() {
             util::fs::create_dir_all(&path)?;
         }
@@ -304,8 +304,8 @@ impl MerkleNodeDB {
             data: vec![],
             num_children: 0,
             dtype,
-            node_id: 0,
-            parent_id,
+            node_id: MerkleHash::new(0),
+            parent_id: parent_id.map(|id| MerkleHash::new(id)),
             data_offset: 0,
         })
     }
@@ -332,10 +332,10 @@ impl MerkleNodeDB {
     }
 
     /// Write the base node info.
-    fn write_node<N: MerkleTreeNode + Serialize + Debug + Display>(
+    fn write_node<N: TMerkleTreeNode + Serialize + Debug + Display>(
         &mut self,
         node: &N,
-        parent_id: Option<u128>,
+        parent_id: Option<MerkleHash>,
     ) -> Result<(), OxenError> {
         if self.read_only {
             return Err(OxenError::basic_str("Cannot write to read-only db"));
@@ -374,14 +374,14 @@ impl MerkleNodeDB {
         self.node_id = node.id();
         self.parent_id = parent_id;
         log::debug!(
-            "write_node wrote id {:x} dtype: {:?}",
+            "write_node wrote id {} dtype: {:?}",
             node.id(),
             node.dtype()
         );
         Ok(())
     }
 
-    pub fn add_child<N: MerkleTreeNode>(&mut self, item: &N) -> Result<(), OxenError> {
+    pub fn add_child<N: TMerkleTreeNode>(&mut self, item: &N) -> Result<(), OxenError> {
         if self.read_only {
             return Err(OxenError::basic_str("Cannot write to read-only db"));
         }
@@ -420,7 +420,7 @@ impl MerkleNodeDB {
     /*
     pub fn get<D>(&self, hash: u128) -> Result<D, OxenError>
     where
-        D: MerkleTreeNode + de::DeserializeOwned,
+        D: TMerkleTreeNode + de::DeserializeOwned,
     {
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
@@ -456,7 +456,7 @@ impl MerkleNodeDB {
     }
     */
 
-    pub fn map(&mut self) -> Result<Vec<(u128, MerkleTreeNodeData)>, OxenError> {
+    pub fn map(&mut self) -> Result<Vec<(MerkleHash, MerkleTreeNodeData)>, OxenError> {
         // log::debug!("Loading merkle node db map");
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
@@ -473,7 +473,7 @@ impl MerkleNodeDB {
         children_file.read_to_end(&mut file_data)?;
         // log::debug!("Loading merkle node db map got {} bytes", file_data.len());
 
-        let mut ret: Vec<(u128, MerkleTreeNodeData)> = Vec::new();
+        let mut ret: Vec<(MerkleHash, MerkleTreeNodeData)> = Vec::new();
         ret.reserve(lookup.num_children as usize);
 
         let mut cursor = std::io::Cursor::new(file_data);
@@ -488,13 +488,13 @@ impl MerkleNodeDB {
             let dtype = MerkleTreeNodeType::from_u8(*dtype);
             let node = MerkleTreeNodeData {
                 parent_id: Some(parent_id),
-                hash: *hash,
+                hash: MerkleHash::new(*hash),
                 dtype,
                 data,
                 children: Vec::new(),
             };
             // log::debug!("Loaded node {:?}", node);
-            ret.push((*hash, node));
+            ret.push((MerkleHash::new(*hash), node));
         }
 
         Ok(ret)

@@ -3,7 +3,7 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use time::OffsetDateTime;
 
-use super::{Branch, User};
+use super::{Branch, MerkleHash, User};
 use crate::core::v0_10_0::index::CommitReader;
 use crate::error::OxenError;
 use crate::view::workspaces::WorkspaceCommit;
@@ -201,8 +201,8 @@ impl Commit {
             ))
     }
 
-    pub fn hash_u128(&self) -> u128 {
-        u128::from_str_radix(&self.id, 16).unwrap()
+    pub fn hash(&self) -> Result<MerkleHash, OxenError> {
+        MerkleHash::from_str(&self.id)
     }
 
     pub fn to_uri_encoded(&self) -> String {

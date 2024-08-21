@@ -7,25 +7,25 @@ use std::path::PathBuf;
 use super::*;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::error::OxenError;
-use crate::model::LocalRepository;
+use crate::model::{LocalRepository, MerkleHash, MerkleTreeNode, MerkleTreeNodeType};
 
 #[derive(Clone, Eq)]
 pub struct MerkleTreeNodeData {
-    pub hash: u128,
+    pub hash: MerkleHash,
     pub dtype: MerkleTreeNodeType,
     pub data: Vec<u8>,
-    pub parent_id: Option<u128>,
+    pub parent_id: Option<MerkleHash>,
     pub children: Vec<MerkleTreeNodeData>,
 }
 
 impl MerkleTreeNodeData {
     /// Create an empty root node with a hash
-    pub fn from_hash(repo: &LocalRepository, hash: u128) -> Result<Self, OxenError> {
+    pub fn from_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Self, OxenError> {
         let node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         let dtype = node_db.dtype;
         let parent_id = node_db.parent_id;
         Ok(MerkleTreeNodeData {
-            hash,
+            hash: hash.clone(),
             dtype,
             data: node_db.data(),
             parent_id,
@@ -44,7 +44,7 @@ impl MerkleTreeNodeData {
     }
 
     /// Recursively count the total number of vnodes in the tree
-    pub fn total_vnodes(&self) -> u128 {
+    pub fn total_vnodes(&self) -> usize {
         let mut count = 0;
         for child in &self.children {
             if child.dtype == MerkleTreeNodeType::VNode {
@@ -202,7 +202,18 @@ impl MerkleTreeNodeData {
         Ok(None)
     }
 
-    pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<u128, OxenError> {
+    pub fn to_node(&self) -> Result<MerkleTreeNode, OxenError> {
+        match self.dtype {
+            MerkleTreeNodeType::Commit => Ok(MerkleTreeNode::Commit(self.commit()?)),
+            MerkleTreeNodeType::VNode => Ok(MerkleTreeNode::VNode(self.vnode()?)),
+            MerkleTreeNodeType::Dir => Ok(MerkleTreeNode::Directory(self.dir()?)),
+            MerkleTreeNodeType::File => Ok(MerkleTreeNode::File(self.file()?)),
+            MerkleTreeNodeType::FileChunk => Ok(MerkleTreeNode::FileChunk(self.file_chunk()?)),
+            MerkleTreeNodeType::Schema => Ok(MerkleTreeNode::Schema(self.schema()?)),
+        }
+    }
+
+    pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
         match dtype {
             MerkleTreeNodeType::Commit => Self::deserialize_commit(data).map(|commit| commit.id),
             MerkleTreeNodeType::VNode => Self::deserialize_vnode(data).map(|vnode| vnode.id),
@@ -274,7 +285,7 @@ impl MerkleTreeNodeData {
 impl fmt::Debug for MerkleTreeNodeData {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "[{:?}]", self.dtype)?;
-        writeln!(f, "hash: {:x}", self.hash)?;
+        writeln!(f, "hash: {}", self.hash.to_string())?;
         writeln!(f, "dtype: {:?}", self.dtype)?;
         writeln!(
             f,
@@ -285,7 +296,7 @@ impl fmt::Debug for MerkleTreeNodeData {
             f,
             "parent_id: {}",
             self.parent_id
-                .map_or("None".to_string(), |id| format!("{:x}", id))
+                .map_or("None".to_string(), |id| id.to_string())
         )?;
         writeln!(f, "children.len(): {}", self.children.len())?;
         writeln!(f, "=============")?;
@@ -303,15 +314,15 @@ impl fmt::Display for MerkleTreeNodeData {
         match self.dtype {
             MerkleTreeNodeType::Commit => {
                 let commit = self.commit().unwrap();
-                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, commit)
+                write!(f, "[{:?}] {} {}", self.dtype, self.hash.to_string(), commit)
             }
             MerkleTreeNodeType::VNode => {
                 let vnode = self.vnode().unwrap();
                 write!(
                     f,
-                    "[{:?}] {:x} {} ({} children)",
+                    "[{:?}] {} {} ({} children)",
                     self.dtype,
-                    self.hash,
+                    self.hash.to_string(),
                     vnode,
                     self.children.len()
                 )
@@ -320,24 +331,30 @@ impl fmt::Display for MerkleTreeNodeData {
                 let dir = self.dir().unwrap();
                 write!(
                     f,
-                    "[{:?}] {:x} {} ({} children)",
+                    "[{:?}] {} {} ({} children)",
                     self.dtype,
-                    self.hash,
+                    self.hash.to_string(),
                     dir,
                     self.children.len()
                 )
             }
             MerkleTreeNodeType::File => {
                 let file = self.file().unwrap();
-                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, file)
+                write!(f, "[{:?}] {} {}", self.dtype, self.hash.to_string(), file)
             }
             MerkleTreeNodeType::FileChunk => {
                 let file_chunk = self.file_chunk().unwrap();
-                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, file_chunk)
+                write!(
+                    f,
+                    "[{:?}] {} {}",
+                    self.dtype,
+                    self.hash.to_string(),
+                    file_chunk
+                )
             }
             MerkleTreeNodeType::Schema => {
                 let schema = self.schema().unwrap();
-                write!(f, "[{:?}] {:x} {}", self.dtype, self.hash, schema)
+                write!(f, "[{:?}] {} {}", self.dtype, self.hash, schema)
             }
         }
     }
@@ -351,6 +368,6 @@ impl PartialEq for MerkleTreeNodeData {
 
 impl Hash for MerkleTreeNodeData {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.hash.hash(state);
+        self.hash.to_u128().hash(state);
     }
 }

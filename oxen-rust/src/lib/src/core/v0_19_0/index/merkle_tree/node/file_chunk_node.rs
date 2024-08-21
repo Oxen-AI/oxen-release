@@ -4,7 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
-use super::{MerkleTreeNode, MerkleTreeNodeIdType, MerkleTreeNodeType};
+use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
 use std::fmt;
 
@@ -12,7 +12,7 @@ use std::fmt;
 pub struct FileChunkNode {
     pub data: Vec<u8>,
     pub dtype: MerkleTreeNodeType,
-    pub id: u128,
+    pub id: MerkleHash,
 }
 
 impl Default for FileChunkNode {
@@ -20,7 +20,7 @@ impl Default for FileChunkNode {
         FileChunkNode {
             data: vec![],
             dtype: MerkleTreeNodeType::FileChunk,
-            id: 0,
+            id: MerkleHash::new(0),
         }
     }
 }
@@ -30,23 +30,23 @@ impl MerkleTreeNodeIdType for FileChunkNode {
         self.dtype
     }
 
-    fn id(&self) -> u128 {
+    fn id(&self) -> MerkleHash {
         self.id
     }
 }
 
-impl MerkleTreeNode for FileChunkNode {}
+impl TMerkleTreeNode for FileChunkNode {}
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({:x})", self.id)
+        write!(f, "FileChunkNode({})", self.id.to_string())
     }
 }
 
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({:x})", self.id)
+        write!(f, "FileChunkNode({})", self.id.to_string())
     }
 }

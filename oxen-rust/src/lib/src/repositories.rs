@@ -6,16 +6,10 @@
 use crate::constants;
 use crate::core;
 use crate::core::refs::RefWriter;
-use crate::core::v0_10_0::cache::commit_cacher;
-use crate::core::v0_10_0::index::CommitEntryWriter;
-use crate::core::v0_10_0::index::Stager;
-use crate::core::v0_10_0::index::{CommitEntryReader, CommitWriter};
+use crate::core::v0_10_0::index::CommitEntryReader;
 use crate::error::OxenError;
-use crate::model::Commit;
-use crate::model::CommitEntry;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
-use crate::model::NewCommit;
 use crate::model::RepoStats;
 use crate::model::{CommitStats, LocalRepository, RepoNew};
 use crate::util;
@@ -24,7 +18,6 @@ use jwalk::WalkDir;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
-use time::OffsetDateTime;
 
 pub mod add;
 pub mod branches;
@@ -40,6 +33,7 @@ pub mod revisions;
 pub mod rm;
 pub mod schemas;
 pub mod status;
+pub mod tree;
 
 pub use add::add;
 pub use checkout::checkout;

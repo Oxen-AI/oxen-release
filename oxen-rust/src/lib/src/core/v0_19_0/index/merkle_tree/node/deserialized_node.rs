@@ -9,8 +9,8 @@ use super::file_chunk_node::FileChunkNode;
 use super::file_node::FileNode;
 use super::schema_node::SchemaNode;
 use super::vnode::VNode;
-use super::MerkleTreeNodeType;
 use crate::error::OxenError;
+use crate::model::MerkleTreeNodeType;
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct DeserializedMerkleTreeNode {

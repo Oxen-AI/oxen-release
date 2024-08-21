@@ -4,7 +4,7 @@ use liboxen::core::db;
 use liboxen::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
 use liboxen::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use liboxen::error::OxenError;
-use liboxen::model::{Commit, LocalRepository};
+use liboxen::model::{Commit, LocalRepository, MerkleHash};
 use liboxen::repositories;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashMap;
@@ -106,8 +106,8 @@ impl RunCmd for TreeCmd {
 
 impl TreeCmd {
     fn print_node(&self, repo: &LocalRepository, node: &str, depth: i32) -> Result<(), OxenError> {
-        let node_hash = u128::from_str_radix(&node, 16).unwrap();
-        let tree = CommitMerkleTree::read_node(repo, node_hash, true)?;
+        let node_hash = MerkleHash::from_str(&node)?;
+        let tree = CommitMerkleTree::read_node(repo, &node_hash, true)?;
         CommitMerkleTree::print_node_depth(&tree, depth);
 
         Ok(())

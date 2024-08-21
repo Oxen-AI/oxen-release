@@ -3,7 +3,7 @@ use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteRepository};
 use crate::{api, repositories};
 
-use super::index::merkle_tree::node::{MerkleTreeNodeData, MerkleTreeNodeType};
+use super::index::merkle_tree::node::MerkleTreeNodeData;
 use super::index::merkle_tree::CommitMerkleTree;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
