@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::core::refs::RefReader;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository};
+use crate::model::{Commit, LocalRepository, User};
 use crate::opts::PaginateOpts;
 use crate::repositories;
 use crate::view::PaginatedCommits;
@@ -14,6 +14,14 @@ use super::index::merkle_tree::CommitMerkleTree;
 
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     super::index::commit_writer::commit(repo, message)
+}
+
+pub fn commit_with_user(
+    repo: &LocalRepository,
+    message: impl AsRef<str>,
+    user: &User,
+) -> Result<Commit, OxenError> {
+    super::index::commit_writer::commit_with_user(repo, message, user)
 }
 
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
@@ -32,7 +40,7 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
             }
         }
     }
-    latest_commit.ok_or(OxenError::basic_str("No commits found".to_string()))
+    latest_commit.ok_or(OxenError::no_commits_found())
 }
 
 fn head_commit_id(repo: &LocalRepository) -> Result<u128, OxenError> {

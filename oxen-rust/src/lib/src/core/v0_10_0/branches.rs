@@ -1,10 +1,10 @@
-use crate::error::OxenError;
-use crate::model::{LocalRepository, Commit, CommitEntry, RemoteBranch};
 use super::index::{CommitEntryReader, CommitReader, CommitWriter, EntryIndexer};
+use crate::error::OxenError;
+use crate::model::{Commit, CommitEntry, LocalRepository, RemoteBranch};
 use crate::{api, repositories};
 
-use std::path::Path;
 use std::collections::HashSet;
+use std::path::Path;
 
 pub async fn checkout(repo: &LocalRepository, branch_name: &str) -> Result<(), OxenError> {
     let branch = repositories::branches::get_by_name(repo, branch_name)?

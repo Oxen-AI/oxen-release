@@ -86,7 +86,7 @@ pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 /// Get a commit by it's hash
 pub fn get_by_id(
     repo: &LocalRepository,
-    commit_id: impl AsRef<str>
+    commit_id: impl AsRef<str>,
 ) -> Result<Option<Commit>, OxenError> {
     let commit_id = commit_id.as_ref();
     match repo.version() {

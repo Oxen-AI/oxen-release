@@ -78,7 +78,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Make sure we have no entries
             let root_path = Path::new("");
@@ -97,7 +97,7 @@ mod tests {
             let first_commit = repositories::commit(&local_repo, "Add file.txt")?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Make sure we have one entry
             let root_entries =
@@ -122,7 +122,7 @@ mod tests {
             let second_commit = repositories::commit(&local_repo, "Add data dir")?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Make sure we have two entries
             let root_entries =
@@ -162,7 +162,7 @@ mod tests {
             let third_commit = repositories::commit(&local_repo, "Add a_data dir")?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Make sure we have three entries
             let root_entries =
@@ -205,7 +205,7 @@ mod tests {
             let fourth_commit = repositories::commit(&local_repo, "Add sub_data dir")?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Make sure the sub directory has the correct commit id
             let root_entries =

@@ -122,7 +122,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "feat/collect-another-cat";
@@ -141,7 +141,12 @@ mod tests {
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::diff_entries(
                 &remote_repo,
@@ -197,7 +202,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "feat/modify-dat-cat";
@@ -224,7 +229,12 @@ mod tests {
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::diff_entries(
                 &remote_repo,
@@ -289,7 +299,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "feat/add-some-data";
@@ -308,7 +318,7 @@ mod tests {
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
 
             let compare = api::client::diff::diff_entries(
                 &remote_repo,
@@ -403,7 +413,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "feat/add-some-data";
@@ -429,7 +439,12 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::diff_entries(
                 &remote_repo,
@@ -536,7 +551,7 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "feat/add-some-data";
@@ -563,7 +578,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::diff_entries(
                 &remote_repo,
@@ -669,7 +689,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "feat/modify-dat-cat";
@@ -696,7 +716,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::diff_entries(
                 &remote_repo,
@@ -768,7 +793,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "modify-data";
@@ -793,7 +818,12 @@ who won the game?,The packers beat up on the bears,packers
             repositories::commit(&repo, "Adding columns to train.csv")?;
 
             // Push it real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -871,7 +901,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "add-data";
@@ -892,7 +922,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -956,7 +991,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "add-data";
@@ -1004,7 +1039,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1104,7 +1144,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "remove-data";
@@ -1126,7 +1166,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1211,7 +1256,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "remove-data";
@@ -1234,7 +1279,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1319,7 +1369,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "add-data";
@@ -1342,7 +1392,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1445,7 +1500,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "add-data";
@@ -1476,7 +1531,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1579,7 +1639,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "modify-data";
@@ -1608,7 +1668,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1692,7 +1757,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "remove-data";
@@ -1714,7 +1779,12 @@ who won the game?,The packers beat up on the bears,packers
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
             // Push new branch real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,
@@ -1786,7 +1856,7 @@ who won the game?,The packers beat up on the bears,packers
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create branch
             let branch_name = "modify-data";
@@ -1825,7 +1895,12 @@ who won the game?,The packers beat up on the bears,packers
             repositories::commit(&repo, "Adding dwight and vince")?;
 
             // Push it real good
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name).await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                branch_name,
+            )
+            .await?;
 
             let compare = api::client::diff::list_diff_entries(
                 &remote_repo,

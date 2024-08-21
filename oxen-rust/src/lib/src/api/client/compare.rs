@@ -177,7 +177,7 @@ mod tests {
                 constants::DEFAULT_REMOTE_NAME,
                 &remote_repo.remote.url,
             )?;
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             let compare_id = "abcdefgh";
 
@@ -276,7 +276,7 @@ mod tests {
                 constants::DEFAULT_REMOTE_NAME,
                 &remote_repo.remote.url,
             )?;
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             let compare_id = "abcdefgh";
 
@@ -353,7 +353,7 @@ mod tests {
             test::write_txt_file_to_path(local_repo.path.join(left_path), csv1)?;
             repositories::add(&local_repo, &local_repo.path)?;
             repositories::commit(&local_repo, "committing files")?;
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Now get the derived df
             let derived_df =

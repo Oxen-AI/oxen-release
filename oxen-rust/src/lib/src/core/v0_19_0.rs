@@ -7,6 +7,7 @@ pub mod commit;
 pub mod entries;
 pub mod index;
 pub mod init;
+pub mod push;
 pub mod rm;
 pub mod status;
 pub mod structs;

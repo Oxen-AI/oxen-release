@@ -989,7 +989,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let mut opts = CloneOpts::new(
@@ -1033,7 +1033,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let mut opts = CloneOpts::new(
@@ -1105,7 +1105,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let mut opts = CloneOpts::new(

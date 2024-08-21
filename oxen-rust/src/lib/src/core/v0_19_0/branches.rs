@@ -1,5 +1,5 @@
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Commit, CommitEntry};
+use crate::model::{Commit, CommitEntry, LocalRepository};
 
 use std::path::Path;
 

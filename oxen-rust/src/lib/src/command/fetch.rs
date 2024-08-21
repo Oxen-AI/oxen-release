@@ -87,7 +87,7 @@ mod tests {
                 test::write_txt_file_to_path(&filepath, &format!("a file on {}", branch))?;
                 repositories::add(&repo, &filepath)?;
                 repositories::commit(&repo, &format!("Adding file on {}", branch))?;
-                command::push(&repo).await?;
+                repositories::push(&repo).await?;
             }
 
             // Clone the main branch, then fetch the others

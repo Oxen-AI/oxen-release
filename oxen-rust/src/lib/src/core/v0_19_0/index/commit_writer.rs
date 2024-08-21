@@ -14,7 +14,6 @@ use crate::config::UserConfig;
 use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
-use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::refs::RefWriter;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
@@ -26,6 +25,7 @@ use crate::core::v0_19_0::status;
 use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
 use crate::error::OxenError;
 use crate::model::NewCommit;
+use crate::model::User;
 use crate::model::{Commit, EntryDataType, LocalRepository, StagedEntryStatus};
 
 use crate::{repositories, util};
@@ -49,6 +49,26 @@ impl EntryVNode {
 }
 
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
+    let cfg = UserConfig::get()?;
+    commit_with_cfg(repo, message, &cfg)
+}
+
+pub fn commit_with_user(
+    repo: &LocalRepository,
+    message: impl AsRef<str>,
+    user: &User,
+) -> Result<Commit, OxenError> {
+    let mut cfg = UserConfig::get()?;
+    cfg.name = user.name.clone();
+    cfg.email = user.email.clone();
+    commit_with_cfg(repo, message, &cfg)
+}
+
+pub fn commit_with_cfg(
+    repo: &LocalRepository,
+    message: impl AsRef<str>,
+    cfg: &UserConfig,
+) -> Result<Commit, OxenError> {
     // time the commit
     let start_time = Instant::now();
     let message = message.as_ref();
@@ -129,7 +149,6 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
     let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
 
     // Compute the commit hash
-    let cfg = UserConfig::get()?;
     let timestamp = OffsetDateTime::now_utc();
     let new_commit = NewCommit {
         parent_ids: parent_ids.iter().map(|id| format!("{:x}", id)).collect(),
@@ -144,8 +163,8 @@ pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit
         id: commit_id,
         parent_ids: parent_ids,
         message: message.to_string(),
-        author: cfg.name,
-        email: cfg.email,
+        author: cfg.name.clone(),
+        email: cfg.email.clone(),
         timestamp: timestamp,
         ..Default::default()
     };
@@ -1155,9 +1174,16 @@ mod tests {
             assert_eq!(second_dir_0_node.num_vnodes(), 4);
 
             // Make sure 3 of the vnodes have the same hash as the first vnode
-            let first_children_hashes: HashSet<u128> = dir_0_node.children.iter().map(|vnode| vnode.hash).collect();
-            let second_children_hashes: HashSet<u128> = second_dir_0_node.children.iter().map(|vnode| vnode.hash).collect();
-            let intersection: HashSet<&u128> = second_children_hashes.intersection(&first_children_hashes).collect();
+            let first_children_hashes: HashSet<u128> =
+                dir_0_node.children.iter().map(|vnode| vnode.hash).collect();
+            let second_children_hashes: HashSet<u128> = second_dir_0_node
+                .children
+                .iter()
+                .map(|vnode| vnode.hash)
+                .collect();
+            let intersection: HashSet<&u128> = second_children_hashes
+                .intersection(&first_children_hashes)
+                .collect();
             assert_eq!(intersection.len(), 3);
 
             Ok(())

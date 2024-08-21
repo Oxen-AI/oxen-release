@@ -1275,7 +1275,7 @@ mod tests {
             assert_eq!(unsynced_commits.len(), 0);
 
             // Full push to clear out
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Modify README
             let readme_path = repo.path.join("README.md");
@@ -1388,7 +1388,7 @@ mod tests {
 
             // Full push (to catch the final poll_until_synced)
             // Since the other two steps have already been enumerated above, this effectively just tests `push_missing_commit_entries` with the wrapup that sets CONTENT_IS_VALID
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // All should now be synced
             let unsynced_entries_commits =
@@ -1431,7 +1431,7 @@ mod tests {
             assert_eq!(commit_unsynced_commits.len(), 1);
             assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
 
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // All remote entries should by synced
             let unsynced_entries_commits =
@@ -1477,7 +1477,7 @@ mod tests {
             assert_eq!(commit_unsynced_commits.len(), 1);
             assert_eq!(commit_unsynced_commits[0].entries.len(), 5);
 
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // All remote entries should by synced
             let unsynced_entries_commits =
@@ -1501,7 +1501,7 @@ mod tests {
 
             assert_eq!(commit_unsynced_commits[0].entries.len(), 1);
 
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             Ok(remote_repo)
         })

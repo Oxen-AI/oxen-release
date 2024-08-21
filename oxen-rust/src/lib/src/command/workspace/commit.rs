@@ -86,7 +86,7 @@ mod tests {
 
                 // Commit and push the changed schema
                 repositories::commit(&cloned_repo, "Changed the schema 😇")?;
-                command::push(&cloned_repo).await?;
+                repositories::push(&cloned_repo).await?;
 
                 // Try to commit the remote changes, should fail
                 let result =

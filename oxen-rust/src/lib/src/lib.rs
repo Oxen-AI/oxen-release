@@ -42,7 +42,7 @@
 //! let remote_name = "origin";
 //! command::config::set_remote(&mut repo, remote_name, &remote_url)?;
 //! // Push to remote
-//! command::push(&repo).await?;
+//! repositories::push(&repo).await?;
 //! ```
 //!
 //! Clone data from remote url

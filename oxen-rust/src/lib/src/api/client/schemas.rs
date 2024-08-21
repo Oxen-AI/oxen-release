@@ -125,7 +125,7 @@ mod tests {
             assert_eq!(schemas.len(), 0);
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the one schema
             let schemas = api::client::schemas::list(&remote_repo, DEFAULT_BRANCH_NAME).await?;
@@ -208,7 +208,7 @@ mod tests {
             assert!(result.is_err());
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the one schema
             let schema =
@@ -271,7 +271,7 @@ mod tests {
             assert!(result.is_err());
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Create a new branch
             let branch_name = "new_branch";
@@ -303,7 +303,7 @@ mod tests {
             repositories::commit(&local_repo, "add test.csv schema metadata")?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the one schema
             let schema = api::client::schemas::get(&remote_repo, branch_name, schema_ref).await?;

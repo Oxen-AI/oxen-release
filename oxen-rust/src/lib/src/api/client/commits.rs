@@ -1277,7 +1277,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?
@@ -1354,7 +1354,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the remote commits
             let remote_commits =
@@ -1399,7 +1399,7 @@ mod tests {
             let _commit_1_file_2 = repositories::commit(&local_repo, "Adding file_2")?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the remote commits
             let remote_commits = api::client::commits::list_commits_for_path(
@@ -1465,7 +1465,7 @@ mod tests {
             let commit_1_file_2 = repositories::commit(&local_repo, "Adding file_2")?;
 
             // Push it
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the remote commits
             let remote_commits = api::client::commits::list_commits_for_path(
@@ -1612,7 +1612,7 @@ mod tests {
                 constants::DEFAULT_REMOTE_NAME,
                 &remote_repo.remote.url,
             )?;
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Should now be synced
             let latest_synced =

@@ -185,7 +185,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();
@@ -252,7 +252,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();
@@ -300,7 +300,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();
@@ -354,7 +354,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Index the df on the remote repo
             api::client::data_frames::index(
@@ -457,7 +457,7 @@ mod tests {
             assert!(result.is_err());
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Create a new branch
             let branch_name = "new_branch";
@@ -497,7 +497,7 @@ mod tests {
             assert!(result.is_err());
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the one schema
             let opts = DFOpts::empty();
@@ -552,7 +552,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();
@@ -619,7 +619,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();
@@ -682,7 +682,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Get the df
             let mut opts = DFOpts::empty();

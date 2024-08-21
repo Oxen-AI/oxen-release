@@ -129,7 +129,7 @@ mod tests {
 
             let first_commit = repositories::commit(&local_repo, "adding labels file")?;
 
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             let main_branch = DEFAULT_BRANCH_NAME;
             let second_branch = "second";
@@ -142,7 +142,7 @@ mod tests {
 
             let second_commit = repositories::commit(&local_repo, "adding labels file v2")?;
 
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             let meta: MetadataEntryResponse =
                 api::client::metadata::get_file(&remote_repo, main_branch, &path).await?;

@@ -417,7 +417,7 @@ where
     let remote_url = repo_remote_url_from(&local_repo.dirname());
     command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
     // Push data
-    command::push(&local_repo).await?;
+    repositories::push(&local_repo).await?;
 
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
@@ -456,7 +456,7 @@ where
     let remote_url = repo_remote_url_from(&local_repo.dirname());
     command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
     // Push data
-    command::push(&local_repo).await?;
+    repositories::push(&local_repo).await?;
 
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
@@ -495,7 +495,7 @@ where
     let remote_url = repo_remote_url_from(&local_repo.dirname());
     command::config::set_remote(&mut local_repo, constants::DEFAULT_REMOTE_NAME, &remote_url)?;
     // Push data
-    command::push(&local_repo).await?;
+    repositories::push(&local_repo).await?;
 
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
@@ -601,7 +601,7 @@ where
     // Create remote repo
     let repo = create_remote_repo(&local_repo).await?;
 
-    command::push(&local_repo).await?;
+    repositories::push(&local_repo).await?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {
@@ -648,7 +648,7 @@ where
     // Create remote repo
     let repo = create_remote_repo(&local_repo).await?;
 
-    command::push(&local_repo).await?;
+    repositories::push(&local_repo).await?;
 
     // Run test to see if it panic'd
     let result = match test(repo).await {

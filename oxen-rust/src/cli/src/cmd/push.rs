@@ -5,7 +5,7 @@ use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use std::env;
 
-use liboxen::command;
+use liboxen::repositories;
 
 use crate::helpers::{
     check_remote_version, check_remote_version_blocking, check_repo_migration_needed,
@@ -76,7 +76,7 @@ impl RunCmd for PushCmd {
             check_remote_version_blocking(host.clone()).await?;
             check_remote_version(host).await?;
 
-            command::push_remote_branch(&repository, remote, branch).await?;
+            repositories::push::push_remote_branch(&repository, remote, branch).await?;
             Ok(())
         }
     }

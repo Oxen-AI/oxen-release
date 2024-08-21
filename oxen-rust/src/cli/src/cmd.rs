@@ -30,6 +30,9 @@ pub use create_remote::CreateRemoteCmd;
 pub mod db;
 pub use db::DbCmd;
 
+pub mod delete_remote;
+pub use delete_remote::DeleteRemoteCmd;
+
 pub mod df;
 pub use df::DFCmd;
 
