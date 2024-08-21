@@ -15,8 +15,7 @@ use crate::core::v0_10_0::index::oxenignore;
 use crate::core::v0_10_0::index::ObjectDBReader;
 use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::{
-    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger,
-    StagedDirEntryDB,
+    CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, StagedDirEntryDB,
 };
 use crate::error::OxenError;
 use crate::model::entries::entry_status::EntryStatus;

@@ -4,6 +4,7 @@
 //!
 
 use crate::constants;
+use crate::core;
 use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::cache::commit_cacher;
 use crate::core::v0_10_0::index::CommitEntryWriter;
@@ -32,8 +33,9 @@ pub mod commits;
 pub mod diffs;
 pub mod entries;
 pub mod init;
-pub mod metadata;
 pub mod merge;
+pub mod metadata;
+pub mod push;
 pub mod revisions;
 pub mod rm;
 pub mod schemas;
@@ -43,6 +45,7 @@ pub use add::add;
 pub use checkout::checkout;
 pub use commits::commit;
 pub use init::init;
+pub use push::push;
 pub use rm::rm;
 pub use status::status;
 pub use status::status_from_dir;
@@ -249,11 +252,6 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
     let history_dir = util::fs::oxen_hidden_dir(&repo_dir).join(constants::HISTORY_DIR);
     std::fs::create_dir_all(history_dir)?;
 
-    // Create objects dir and all objects rocksdbs
-    {
-        CommitEntryWriter::create_objects_dbs(&local_repo)?;
-    }
-
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
 
     {
@@ -270,75 +268,26 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
         );
     }
 
-    // TODO: This is kinda ugly...
-    if let Some(root_commit) = &new_repo.root_commit {
-        // Write the root commit
-        let commit_writer = CommitWriter::new(&local_repo)?;
-        commit_writer.add_commit_from_empty_status(root_commit)?;
-    } else {
-        // if no root commit, but yes files and a user, add and commit them
-        if let Some(files) = &new_repo.files {
-            let user = &files[0].user;
-            // Add root commit
-            let commit_data = NewCommit {
-                parent_ids: vec![],
-                message: String::from(constants::INITIAL_COMMIT_MSG),
-                author: user.name.clone(),
-                email: user.email.clone(),
-                timestamp: OffsetDateTime::now_utc(),
-            };
-
-            let entries: Vec<CommitEntry> = vec![];
-            let id = util::hasher::compute_commit_hash(&commit_data, &entries);
-            let root_commit = Commit::from_new_and_id(&commit_data, id);
-            {
-                // Write the root commit and go out of scope to close DB
-                let commit_writer = CommitWriter::new(&local_repo)?;
-                commit_writer.add_commit_from_empty_status(&root_commit)?;
-                log::debug!("root commit created for repo {:?}", local_repo.path);
+    // If the user supplied files, add and commit them
+    if let Some(files) = &new_repo.files {
+        let user = &files[0].user;
+        // Add the files
+        log::debug!("repositories::create files: {:?}", files.len());
+        for file in files {
+            let path = &file.path;
+            let contents = &file.contents;
+            // write the data to the path
+            // if the path does not exist within the repo, make it
+            let full_path = repo_dir.join(path);
+            let parent_dir = full_path.parent().unwrap();
+            if !parent_dir.exists() {
+                std::fs::create_dir_all(parent_dir)?;
             }
-
-            // Add the files
-            log::debug!("repositories::create files: {:?}", files.len());
-            for file in files {
-                let path = &file.path;
-                let contents = &file.contents;
-                // write the data to the path
-                // if the path does not exist within the repo, make it
-                let full_path = repo_dir.join(path);
-                let parent_dir = full_path.parent().unwrap();
-                if !parent_dir.exists() {
-                    std::fs::create_dir_all(parent_dir)?;
-                }
-                util::fs::write(&full_path, contents)?;
-                add(&local_repo, &full_path)?;
-            }
-
-            // Commit the file data
-            let parent_id = root_commit.id;
-            let new_commit = NewCommit {
-                parent_ids: vec![parent_id],
-                message: String::from("Adding initial files"),
-                author: user.name.clone(),
-                email: user.email.clone(),
-                timestamp: OffsetDateTime::now_utc(),
-            };
-            let status = status(&local_repo)?;
-            let stager = Stager::new(&local_repo)?;
-            let commit_writer = CommitWriter::new(&local_repo)?;
-            let commit = commit_writer.commit_from_new(&new_commit, &status, &local_repo.path)?;
-            stager.unstage()?;
-
-            // Cleanup the files since they are now in version dirs
-            for file in files {
-                let full_path = repo_dir.join(&file.path);
-                util::fs::remove_file(&full_path)?;
-            }
-
-            // Kick off post commit actions
-            let force = true;
-            commit_cacher::run_all(&local_repo, &commit, force)?;
+            util::fs::write(&full_path, contents)?;
+            add(&local_repo, &full_path)?;
         }
+
+        core::v0_19_0::commit::commit_with_user(&local_repo, "Initial commit", user)?;
     }
 
     Ok(local_repo)

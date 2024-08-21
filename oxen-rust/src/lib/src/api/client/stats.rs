@@ -70,7 +70,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&local_repo).await?;
 
             // Push the repo
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // List the stats
             let stats = api::client::stats::get(&remote_repo).await?;

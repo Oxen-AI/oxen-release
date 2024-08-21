@@ -73,7 +73,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Now list the remote
             let branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -116,7 +116,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Now list the remote
             let branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -192,7 +192,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Now list the remote
             let branch = repositories::branches::current_branch(&repo)?.unwrap();

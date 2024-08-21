@@ -375,7 +375,7 @@ mod tests {
                 command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
                 // Should be able to push all data successfully
-                command::push_remote_branch(&cloned_repo, remote_name, "main").await?;
+                repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await?;
 
                 // TODO: figure out how to repro why the Pets Dataset we could not clone --all and push to staging
 
@@ -419,8 +419,12 @@ mod tests {
             repositories::add(&local_repo, &filepath)?;
             repositories::commit(&local_repo, "Adding back file_to_modify.txt")?;
 
-            command::push_remote_branch(&local_repo, DEFAULT_REMOTE_NAME, DEFAULT_BRANCH_NAME)
-                .await?;
+            repositories::push::push_remote_branch(
+                &local_repo,
+                DEFAULT_REMOTE_NAME,
+                DEFAULT_BRANCH_NAME,
+            )
+            .await?;
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -443,7 +447,7 @@ mod tests {
                 command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
                 // Should be able to push all data successfully
-                command::push_remote_branch(&cloned_repo, remote_name, "main").await?;
+                repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await?;
 
                 Ok(new_repo_dir)
             })
@@ -480,7 +484,8 @@ mod tests {
                 command::config::set_remote(&mut cloned_repo, remote_name, &remote_url)?;
 
                 // Should fail
-                let push_res = command::push_remote_branch(&cloned_repo, remote_name, "main").await;
+                let push_res =
+                    repositories::push::push_remote_branch(&cloned_repo, remote_name, "main").await;
                 assert!(push_res.is_err());
                 // TODO: figure out how to repro why the Pets Dataset we could not clone --all and push to staging
 
@@ -518,7 +523,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -582,7 +587,7 @@ mod tests {
                 repositories::add(&cloned_repo, &new_file_path)?;
                 repositories::commit(&cloned_repo, "Adding new file path.")?;
 
-                command::push(&cloned_repo).await?;
+                repositories::push(&cloned_repo).await?;
 
                 Ok(new_repo_dir)
             })

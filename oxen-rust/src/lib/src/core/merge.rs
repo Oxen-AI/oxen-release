@@ -1,5 +1,5 @@
-use crate::{constants::MERGE_DIR, model::LocalRepository};
 use crate::util;
+use crate::{constants::MERGE_DIR, model::LocalRepository};
 
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;

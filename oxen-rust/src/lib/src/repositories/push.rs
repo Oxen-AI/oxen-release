@@ -3,8 +3,8 @@
 //! Push data from your local machine to a remote.
 //!
 
-use crate::constants::DEFAULT_BRANCH_NAME;
-use crate::core::v0_10_0::index::{pusher, EntryIndexer};
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::repositories;
@@ -41,7 +41,7 @@ use crate::repositories;
 /// let remote_repo = api::client::repositories::create(&repo, "repositories", "hello", "localhost:3000").await?;
 ///
 /// // Push the file
-/// command::push(&repo).await;
+/// repositories::push(&repo).await;
 ///
 /// # util::fs::remove_dir_all(base_dir)?;
 /// # api::client::repositories::delete(&remote_repo).await?;
@@ -49,57 +49,26 @@ use crate::repositories;
 /// # }
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let mut remote_branch = RemoteBranch::default();
-
-    // Push the currently checked out branch
-    let Some(local_branch) = repositories::branches::current_branch(repo)? else {
-        return Err(OxenError::local_branch_not_found(DEFAULT_BRANCH_NAME));
-    };
-
-    let local_branch_cpy = local_branch.clone();
-    remote_branch.branch = local_branch_cpy.clone().name;
-    indexer.push(local_branch_cpy, remote_branch).await?;
-    Ok(local_branch)
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::push::push(repo).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::push::push(repo).await,
+    }
 }
 
 /// Push to a specific remote branch on the default remote repository
 pub async fn push_remote_branch(
     repo: &LocalRepository,
-    remote: &str,
-    branch_name: &str,
+    remote: impl AsRef<str>,
+    branch_name: impl AsRef<str>,
 ) -> Result<Branch, OxenError> {
-    let Some(local_branch) = repositories::branches::get_by_name(repo, branch_name)? else {
-        return Err(OxenError::local_branch_not_found(branch_name));
-    };
-
-    let indexer = EntryIndexer::new(repo)?;
-    let remote_branch = RemoteBranch {
-        remote: String::from(remote),
-        branch: String::from(branch_name),
-    };
-    indexer.push(local_branch.clone(), remote_branch).await?;
-    Ok(local_branch)
-}
-
-/// Push to a specific remote repository
-pub async fn push_remote_repo_branch(
-    local_repo: LocalRepository,
-    remote_repo: RemoteRepository,
-    branch: Branch,
-) -> Result<RemoteRepository, OxenError> {
-    pusher::push_remote_repo(&local_repo, remote_repo, branch).await
-}
-
-/// Push to a specific remote repository, given a branch name
-pub async fn push_remote_repo_branch_name(
-    local_repo: LocalRepository,
-    remote_repo: RemoteRepository,
-    branch_name: &str,
-) -> Result<RemoteRepository, OxenError> {
-    let branch = repositories::branches::get_by_name(&local_repo, branch_name)?
-        .ok_or(OxenError::local_branch_not_found(branch_name))?;
-    push_remote_repo_branch(local_repo, remote_repo, branch).await
+    match repo.version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::push::push_remote_branch(repo, remote, branch_name).await
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::push::push_remote_branch(repo, remote, branch_name).await
+        }
+    }
 }
 
 #[cfg(test)]
@@ -139,7 +108,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             let page_num = 1;
             let page_size = num_files + 10;
@@ -178,7 +147,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Sleep so it can unpack...
             std::thread::sleep(std::time::Duration::from_secs(2));
@@ -221,7 +190,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Sleep so it can unpack...
             std::thread::sleep(std::time::Duration::from_secs(2));
@@ -233,7 +202,7 @@ mod tests {
             let commit = repositories::commit(&repo, "adding the rest of the annotations")?;
 
             // Push again
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?
@@ -266,7 +235,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Track the test dir
             let test_dir = repo.path.join("test");
@@ -275,7 +244,7 @@ mod tests {
             let commit = repositories::commit(&repo, "Adding test data")?;
 
             // Push the files
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             let page_num = 1;
             let page_size = num_train_files + num_test_files + 5;
@@ -327,7 +296,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             let page_num = 1;
             let entries =
@@ -409,7 +378,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Make sure we get the correct latest commit messages
             let page_num = 1;
@@ -488,7 +457,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             let page_num = 1;
             let page_size = num_files + 10;
@@ -515,7 +484,7 @@ mod tests {
             repositories::commit(&repo, "Adding training data")?;
 
             // Should not be able to push
-            let result = command::push(&repo).await;
+            let result = repositories::push(&repo).await;
             assert!(result.is_err());
             Ok(())
         })
@@ -538,14 +507,18 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             let new_branch_name = "my-branch";
             repositories::branches::create_checkout(&repo, new_branch_name)?;
 
             // Push new branch, without any new commits, should still create the branch
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)
-                .await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                new_branch_name,
+            )
+            .await?;
 
             let remote_branches = api::client::branches::list(&remote_repo).await?;
             assert_eq!(2, remote_branches.len());
@@ -582,7 +555,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&first_cloned_repo, &new_file_path)?;
                     repositories::commit(&first_cloned_repo, "Adding first file path.")?;
-                    command::push(&first_cloned_repo).await?;
+                    repositories::push(&first_cloned_repo).await?;
 
                     // The push to the second version of the same repo should fail
                     // Adding two commits to have a longer history that also should fail
@@ -599,7 +572,7 @@ mod tests {
                     repositories::commit(&second_cloned_repo, "Adding third file path.")?;
 
                     // Push should FAIL
-                    let result = command::push(&second_cloned_repo).await;
+                    let result = repositories::push(&second_cloned_repo).await;
                     assert!(result.is_err());
 
                     Ok(second_repo_dir)
@@ -634,7 +607,7 @@ mod tests {
                 let remote = test::repo_remote_url_from(&repo_1.dirname());
                 command::config::set_remote(&mut repo_1, constants::DEFAULT_REMOTE_NAME, &remote)?;
                 test::create_remote_repo(&repo_1).await?;
-                command::push(&repo_1).await?;
+                repositories::push(&repo_1).await?;
 
                 // Adding two commits to have a longer history that also should fail
                 let new_file = "new_file_2.txt";
@@ -653,7 +626,7 @@ mod tests {
                 command::config::set_remote(&mut repo_2, constants::DEFAULT_REMOTE_NAME, &remote)?;
 
                 // Push should FAIL
-                let result = command::push(&repo_2).await;
+                let result = repositories::push(&repo_2).await;
                 assert!(result.is_err());
 
                 Ok(())
@@ -680,7 +653,7 @@ mod tests {
             assert_eq!(history.len(), 1);
 
             // Push all to remote
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // Should now have 25 commits on remote
             let history =
@@ -722,7 +695,7 @@ mod tests {
             repositories::commit(&local_repo, "Adding first file path.")?;
 
             // Push new branch to remote without first syncing main
-            command::push_remote_branch(
+            repositories::push::push_remote_branch(
                 &local_repo,
                 constants::DEFAULT_REMOTE_NAME,
                 new_branch_name,
@@ -743,7 +716,7 @@ mod tests {
             repositories::checkout(&local_repo, DEFAULT_BRANCH_NAME).await?;
 
             // Push to remote
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             // 25 on main
             let history_main =
@@ -786,7 +759,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&first_cloned_repo, &new_file_path)?;
                     repositories::commit(&first_cloned_repo, "Adding first file path.")?;
-                    command::push(&first_cloned_repo).await?;
+                    repositories::push(&first_cloned_repo).await?;
 
                     // The push to the second version of the same repo should fail
                     // Adding two commits to have a longer history that also should fail
@@ -803,7 +776,7 @@ mod tests {
                     repositories::commit(&second_cloned_repo, "Adding third file path.")?;
 
                     // Push should FAIL
-                    let result = command::push(&second_cloned_repo).await;
+                    let result = repositories::push(&second_cloned_repo).await;
                     assert!(result.is_err());
 
                     Ok(second_repo_dir)
@@ -856,7 +829,7 @@ mod tests {
                             test::write_txt_file_to_path(new_file_path, "new file")?;
                         repositories::add(&first_cloned_repo, &new_file_path)?;
                         repositories::commit(&first_cloned_repo, "Adding first file path.")?;
-                        command::push(&first_cloned_repo).await?;
+                        repositories::push(&first_cloned_repo).await?;
 
                         // Reset the remote on the second repo to the first repo
                         let first_remote = test::repo_remote_url_from(&first_cloned_repo.dirname());
@@ -882,7 +855,7 @@ mod tests {
                         repositories::commit(&second_cloned_repo, "Adding third file path.")?;
 
                         // Push should FAIL
-                        let result = command::push(&second_cloned_repo).await;
+                        let result = repositories::push(&second_cloned_repo).await;
                         assert!(result.is_err());
 
                         Ok(second_repo_dir)
@@ -938,7 +911,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushes
                     let different_file = "another_file.txt";
@@ -948,14 +921,14 @@ mod tests {
                     repositories::commit(&user_b_repo, "Adding second file path.")?;
 
                     // Push should succeed now!!! there are no conflicts
-                    let result = command::push(&user_b_repo).await;
+                    let result = repositories::push(&user_b_repo).await;
                     assert!(result.is_ok());
 
                     // Pull should succeed
                     command::pull(&user_b_repo).await?;
 
                     // Push should now succeed
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -1009,7 +982,7 @@ mod tests {
                         test::write_txt_file_to_path(a_mod_file_path, "I am the README now")?;
                     repositories::add(&user_a_repo, &a_mod_file_path)?;
                     repositories::commit(&user_a_repo, "User A modifying the README.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B tries to modify the same README.md and push
                     let b_mod_file_path = user_b_repo.path.join(mod_file);
@@ -1019,7 +992,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B modifying the README.")?;
 
                     // Push should fail! Remote is ahead
-                    let first_push_result = command::push(&user_b_repo).await;
+                    let first_push_result = repositories::push(&user_b_repo).await;
                     assert!(first_push_result.is_err());
 
                     // Pull should succeed
@@ -1039,7 +1012,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B resolving conflicts.")?;
 
                     // Push should now succeed
-                    let third_push_result = command::push(&user_b_repo).await;
+                    let third_push_result = repositories::push(&user_b_repo).await;
                     assert!(third_push_result.is_ok());
 
                     Ok(user_b_repo_dir_copy)
@@ -1101,7 +1074,7 @@ mod tests {
 
             // Push data for User A
             println!("Pushing README.md for user A...");
-            command::push(&user_a_repo).await?;
+            repositories::push(&user_a_repo).await?;
 
             // Clone Repo to User B
             test::run_empty_dir_test_async(|user_b_repo_dir| async move {
@@ -1121,7 +1094,7 @@ mod tests {
                 repositories::add(&user_a_repo, &a_mod_file_path)?;
                 repositories::commit(&user_a_repo, "User A adds bounding_box.csv.")?;
                 println!("Pushing bounding_box.csv for user A...");
-                command::push(&user_a_repo).await?;
+                repositories::push(&user_a_repo).await?;
 
                 // User B modifies the README.md and pushes
                 let mod_file = "README.md";
@@ -1133,7 +1106,7 @@ mod tests {
                 repositories::commit(&user_b_repo, "User B modifying the README.")?;
 
                 // Push from B should succeed!
-                let first_push_result = command::push(&user_b_repo).await;
+                let first_push_result = repositories::push(&user_b_repo).await;
                 assert!(first_push_result.is_ok());
 
                 // User A modifies tries to modify the same README.md and pushes
@@ -1145,11 +1118,11 @@ mod tests {
 
                 // Push should fail! Remote is ahead
                 println!("Pushing README.md for user A...");
-                let second_push_a = command::push(&user_a_repo).await;
+                let second_push_a = repositories::push(&user_a_repo).await;
                 assert!(second_push_a.is_err());
 
                 // Try it again - I don't know why this is succeeding the second time
-                let second_push_again = command::push(&user_a_repo).await;
+                let second_push_again = repositories::push(&user_a_repo).await;
                 assert!(second_push_again.is_err());
 
                 // Pull A should succeed
@@ -1171,7 +1144,7 @@ mod tests {
 
                 // Push should now succeed
                 println!("Final pushing README.md for user A...");
-                let third_push_result = command::push(&user_a_repo).await;
+                let third_push_result = repositories::push(&user_a_repo).await;
                 assert!(third_push_result.is_ok());
 
                 // Return repo B because that is the closure we are in
@@ -1218,7 +1191,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file_2.txt";
@@ -1226,7 +1199,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding second file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file_3.txt";
@@ -1234,7 +1207,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding third file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushes
                     let different_file = "another_file.txt";
@@ -1244,18 +1217,18 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;
                     // This should now succeed! Used to fail, but auto-merges now.
                     log::debug!("pushing b...");
-                    let result = command::push(&user_b_repo).await;
+                    let result = repositories::push(&user_b_repo).await;
                     assert!(result.is_ok());
 
                     command::pull(&user_b_repo).await?;
 
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     // Full pull
                     command::pull_all(&user_b_repo).await?;
 
                     // Push should now succeed
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -1312,7 +1285,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file_2.txt";
@@ -1320,7 +1293,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding second file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file_3.txt";
@@ -1328,7 +1301,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "Adding third file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushes
                     let different_file = "another_file.txt";
@@ -1341,7 +1314,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;
 
                     // Push should succeed - different dirs!
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -1403,7 +1376,7 @@ mod tests {
                     repositories::add(&user_a_repo, &modify_path_a)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
 
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushe
                     test::write_txt_file_to_path(&modify_path_b, "newer file")?;
@@ -1411,7 +1384,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;
 
                     // Push should fail - this creates a merge conflict.
-                    let res = command::push(&user_b_repo).await;
+                    let res = repositories::push(&user_b_repo).await;
                     assert!(res.is_err());
 
                     Ok(user_b_repo_dir_copy)
@@ -1472,7 +1445,7 @@ mod tests {
                     test::write_txt_file_to_path(&modify_path_a, "new file")?;
                     repositories::add(&user_a_repo, &modify_path_a)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushe
                     test::write_txt_file_to_path(&modify_path_b, "newer file")?;
@@ -1480,7 +1453,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;
 
                     // Push should succeed - different dirs!
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -1556,7 +1529,7 @@ mod tests {
                     repositories::add(&user_a_repo, &modify_path_a)?;
                     let commit_a =
                         repositories::commit(&user_a_repo, "modifying first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B deletes at user a path A modified, causing conflicts.
                     util::fs::remove_file(&modify_path_b)?;
@@ -1609,7 +1582,7 @@ mod tests {
                     log::debug!("commit_b pre is {:?}", commit_b);
 
                     // Push should fail
-                    let res = command::push(&user_b_repo).await;
+                    let res = repositories::push(&user_b_repo).await;
 
                     log::debug!("here's the result and why it failed: {:?}", res);
 
@@ -1674,7 +1647,7 @@ mod tests {
                     test::write_txt_file_to_path(&modify_path_a, "new file")?;
                     repositories::add(&user_a_repo, &modify_path_a)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushe
                     test::write_txt_file_to_path(&modify_path_b, "newer file")?;
@@ -1682,7 +1655,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;
 
                     // Push should succeed - different dirs!
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -1744,7 +1717,7 @@ mod tests {
                     test::write_txt_file_to_path(&modify_path_a, "new file")?;
                     repositories::add(&user_a_repo, &modify_path_a)?;
                     repositories::commit(&user_a_repo, "Adding first file path.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B adds a different file and pushe
                     test::write_txt_file_to_path(&modify_path_b, "newer file")?;
@@ -1753,7 +1726,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B adding second file path.")?;
 
                     // Push should succeed - different dirs!
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     // Get the new branch head
                     let new_main =

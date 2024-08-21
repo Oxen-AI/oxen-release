@@ -115,7 +115,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Add a new file
             let party_ppl_filename = "party_ppl.txt";
@@ -126,7 +126,7 @@ mod tests {
             // Add and commit and push
             repositories::add(&repo, &party_ppl_file_path)?;
             let latest_commit = repositories::commit(&repo, "Adding party_ppl.txt")?;
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -170,7 +170,7 @@ mod tests {
                 // Add and commit and push
                 repositories::add(&cloned_repo, &send_it_back_file_path)?;
                 repositories::commit(&cloned_repo, "Adding send_it_back.txt")?;
-                command::push(&cloned_repo).await?;
+                repositories::push(&cloned_repo).await?;
 
                 // Pull back from the OG Repo
                 command::pull(&repo).await?;
@@ -189,7 +189,7 @@ mod tests {
                 util::fs::write_to_path(&party_ppl_file_path, &party_ppl_contents)?;
                 repositories::add(&repo, &party_ppl_file_path)?;
                 repositories::commit(&repo, "Modified party ppl contents")?;
-                command::push(&repo).await?;
+                repositories::push(&repo).await?;
 
                 // Pull the modifications
                 command::pull(&cloned_repo).await?;
@@ -201,7 +201,7 @@ mod tests {
                 util::fs::remove_file(&send_it_back_file_path)?;
                 repositories::add(&cloned_repo, &send_it_back_file_path)?;
                 repositories::commit(&cloned_repo, "Removing the send it back file")?;
-                command::push(&cloned_repo).await?;
+                repositories::push(&cloned_repo).await?;
                 println!("----AFTER-----");
 
                 // Pull down the changes and make sure the file is removed
@@ -244,7 +244,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -261,7 +261,7 @@ mod tests {
                 repositories::commit(&cloned_repo, "I messed with the label file")?;
 
                 // Push back to server
-                command::push(&cloned_repo).await?;
+                repositories::push(&cloned_repo).await?;
 
                 // Pull back to original guy
                 command::pull(&repo).await?;
@@ -276,7 +276,7 @@ mod tests {
                 // Stage & Commit & Push the removal
                 repositories::add(&repo, &filepath)?;
                 repositories::commit(&repo, "You mess with it, I remove it")?;
-                command::push(&repo).await?;
+                repositories::push(&repo).await?;
 
                 command::pull(&cloned_repo).await?;
                 assert!(!cloned_filepath.exists());
@@ -312,7 +312,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
             let og_num_files = util::fs::rcount_files_in_dir(&repo.path);
 
             // run another test with a new repo dir that we are going to sync to
@@ -339,7 +339,7 @@ mod tests {
                 repositories::commit(&cloned_repo, "Adding one file to train dir")?;
 
                 // Push it back
-                command::push_remote_branch(
+                repositories::push::push_remote_branch(
                     &cloned_repo,
                     constants::DEFAULT_REMOTE_NAME,
                     branch_name,
@@ -364,8 +364,12 @@ mod tests {
                 util::fs::copy(hotdog_path, &new_file_path)?;
                 repositories::add(&repo, &train_path)?;
                 repositories::commit(&repo, "Adding next file to train dir")?;
-                command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, branch_name)
-                    .await?;
+                repositories::push::push_remote_branch(
+                    &repo,
+                    constants::DEFAULT_REMOTE_NAME,
+                    branch_name,
+                )
+                .await?;
 
                 // Pull it on the second side again
                 command::pull_remote_branch(
@@ -419,7 +423,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -443,7 +447,7 @@ mod tests {
                 repositories::commit(&cloned_repo, "Adding one file to train dir")?;
 
                 // Push it back
-                command::push_remote_branch(
+                repositories::push::push_remote_branch(
                     &cloned_repo,
                     constants::DEFAULT_REMOTE_NAME,
                     branch_name,
@@ -493,7 +497,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -563,7 +567,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create a branch to collab on
             let branch_name = "feature/add-mooooore-data";
@@ -580,7 +584,7 @@ mod tests {
             repositories::commit(&repo, "Adding mooooore data")?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -641,7 +645,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create a branch to collab on
             let branch_name = "feature/add-mooooore-data";
@@ -658,7 +662,7 @@ mod tests {
             repositories::commit(&repo, "Adding mooooore data")?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -731,7 +735,7 @@ mod tests {
                 &local_repo,
                 "Moved file to 2 new places and deleted original",
             )?;
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 // Pull down this removal
@@ -769,7 +773,7 @@ mod tests {
                 let commit = repositories::commit(&cloned_repo, "Adding file for first time")?;
 
                 // Try to push upstream branch
-                let push_result = command::push_remote_branch(
+                let push_result = repositories::push::push_remote_branch(
                     &cloned_repo,
                     constants::DEFAULT_REMOTE_NAME,
                     branch_name,
@@ -828,7 +832,7 @@ mod tests {
                     let new_file_path = test::write_txt_file_to_path(new_file_path, "new file")?;
                     repositories::add(&user_a_repo, &new_file_path)?;
                     repositories::commit(&user_a_repo, "User A changing file.")?;
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // User B changes the same file and pushes
                     let new_file_path = user_b_repo.path.join(new_file);
@@ -838,7 +842,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "User B changing file.")?;
 
                     // Push should fail
-                    let result = command::push(&user_b_repo).await;
+                    let result = repositories::push(&user_b_repo).await;
                     assert!(result.is_err());
 
                     // Pull
@@ -856,7 +860,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "Taking my changes")?;
 
                     // Push should succeed
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -901,7 +905,7 @@ mod tests {
                     repositories::commit(&user_a_repo, "Adding file_1 and file_2")?;
 
                     // Push
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     // Add file_3 to user B repo
                     let file_3 = "file_3.txt";
@@ -963,7 +967,7 @@ mod tests {
                     repositories::commit(&user_a_repo, "Adding file_1 and file_2")?;
 
                     // Push
-                    command::push(&user_a_repo).await?;
+                    repositories::push(&user_a_repo).await?;
 
                     let local_file_2 = "file_2.txt";
                     test::write_txt_file_to_path(
@@ -1070,7 +1074,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -1111,7 +1115,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -1168,7 +1172,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -1244,7 +1248,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
@@ -1360,7 +1364,7 @@ mod tests {
                     test::write_txt_file_to_path(&new_file_path, "hello from a different")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
                     repositories::commit(&user_b_repo, "Adding new file 2")?;
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })
@@ -1422,7 +1426,7 @@ mod tests {
                     test::write_txt_file_to_path(&new_file_path, "hello from a different")?;
                     repositories::add(&user_b_repo, &new_file_path)?;
                     repositories::commit(&user_b_repo, "Adding new file 2")?;
-                    command::push(&user_b_repo).await?;
+                    repositories::push(&user_b_repo).await?;
 
                     Ok(user_b_repo_dir_copy)
                 })

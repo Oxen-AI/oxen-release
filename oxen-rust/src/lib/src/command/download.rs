@@ -63,7 +63,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Now list the remote
             let branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -107,7 +107,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Now list the remote
             let branch = repositories::branches::current_branch(&repo)?.unwrap();
@@ -143,7 +143,7 @@ mod tests {
             repositories::commit(&local_repo, "Added hello.txt")?;
 
             command::config::set_remote(&mut local_repo, DEFAULT_REMOTE_NAME, cloned_remote.url())?;
-            command::push(&local_repo).await?;
+            repositories::push(&local_repo).await?;
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let local_path = repo_dir.join("new_name.txt");

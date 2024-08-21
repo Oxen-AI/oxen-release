@@ -483,15 +483,19 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Create new branch
             let new_branch_name = "my-branch";
             repositories::branches::create_checkout(&repo, new_branch_name)?;
 
             // Push new branch
-            command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, new_branch_name)
-                .await?;
+            repositories::push::push_remote_branch(
+                &repo,
+                constants::DEFAULT_REMOTE_NAME,
+                new_branch_name,
+            )
+            .await?;
 
             // Delete the branch
             api::client::branches::delete(&remote_repo, new_branch_name).await?;
@@ -517,7 +521,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push main branch first
-            if command::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, "main")
+            if repositories::push::push_remote_branch(&repo, constants::DEFAULT_REMOTE_NAME, "main")
                 .await
                 .is_err()
             {
@@ -525,7 +529,7 @@ mod tests {
             }
 
             // Then try to push branch that doesn't exist
-            if command::push_remote_branch(
+            if repositories::push::push_remote_branch(
                 &repo,
                 constants::DEFAULT_REMOTE_NAME,
                 "branch-does-not-exist",
@@ -650,7 +654,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
             let remote_main = api::client::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
                 .await?
                 .unwrap();
@@ -668,7 +672,7 @@ mod tests {
             test::write_txt_file_to_path(&labels_path, "I am the labels file")?;
             repositories::add(&repo, labels_path)?;
             repositories::commit(&repo, "adding labels file")?;
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
 
             // Get main again, latest should have moved
             let remote_main = api::client::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
@@ -696,7 +700,7 @@ mod tests {
             let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
-            command::push(&repo).await?;
+            repositories::push(&repo).await?;
             let remote_main = api::client::branches::get_by_name(&remote_repo, DEFAULT_BRANCH_NAME)
                 .await?
                 .unwrap();

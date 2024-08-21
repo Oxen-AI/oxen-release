@@ -316,12 +316,8 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 /// Checkout a branch
 pub async fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
     match repo.version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::branches::checkout(repo, name).await
-        },
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::checkout(repo, name).await
-        }
+        MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name).await,
     }
 }
 
@@ -333,7 +329,7 @@ pub async fn checkout_commit_id(
     match repo.version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::branches::checkout_commit_id(repo, commit_id).await
-        },
+        }
         MinOxenVersion::V0_19_0 => {
             core::v0_19_0::branches::checkout_commit_id(repo, commit_id).await
         }
@@ -393,16 +389,18 @@ pub fn list_entry_versions_on_branch(
         branch.commit_id
     );
     match local_repo.version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::branches::list_entry_versions_for_commit(local_repo, &branch.commit_id, path)
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::branches::list_entry_versions_for_commit(local_repo, &branch.commit_id, path)
-        }
+        MinOxenVersion::V0_10_0 => core::v0_10_0::branches::list_entry_versions_for_commit(
+            local_repo,
+            &branch.commit_id,
+            path,
+        ),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::branches::list_entry_versions_for_commit(
+            local_repo,
+            &branch.commit_id,
+            path,
+        ),
     }
 }
-
-
 
 fn branch_name_no_slashes(name: &str) -> String {
     // Replace all slashes with dashes

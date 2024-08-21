@@ -1,6 +1,6 @@
 [package]
 name = "oxen-cli"
-version = "0.18.12"
+version = "0.19.0"
 edition = "2021"
 
 [dependencies]
@@ -8,6 +8,7 @@ async-trait = "0.1.80"
 bytesize = "1.1.0"
 clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
+dialoguer = "0.11.0"
 dunce = "1"
 env_logger = "0.11.3"
 jwalk = "0.8.1"
