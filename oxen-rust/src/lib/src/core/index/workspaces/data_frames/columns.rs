@@ -1,5 +1,5 @@
 use polars::frame::DataFrame;
-use rocksdb::DB;
+use rocksdb::{IteratorMode, DB};
 
 use crate::constants::TABLE_NAME;
 use crate::core::db;
@@ -309,6 +309,8 @@ pub fn decorate_fields_with_column_diffs(
 
     let db = db_open_result?;
 
+    reinsert_deleted_columns_into_schema(&db, df_views)?;
+
     df_views
         .source
         .schema
@@ -396,4 +398,58 @@ pub fn handle_data_frame_column_change(
         }
         _ => Ok(None),
     }
+}
+
+pub fn reinsert_deleted_columns_into_schema(
+    db: &DB,
+    df_views: &mut JsonDataFrameViews,
+) -> Result<(), OxenError> {
+    let mut deleted_columns = Vec::new();
+
+    for item in db.iterator(IteratorMode::Start) {
+        match item {
+            Ok((_key, value_bytes)) => {
+                let column_change: DataFrameColumnChange = serde_json::from_slice(&value_bytes)
+                    .map_err(|_| OxenError::basic_str("Error deserializing value"))?;
+
+                if column_change.operation == "deleted" {
+                    deleted_columns.push(column_change.column_before);
+                }
+            }
+            Err(_) => return Err(OxenError::basic_str("Error reading from db")),
+        }
+    }
+
+    for deleted_column in &deleted_columns {
+        let before_column = deleted_column.clone().ok_or(OxenError::basic_str(
+            "A deleted column needs to have a column before value",
+        ))?;
+
+        df_views.source.schema.fields.push(Field {
+            name: before_column.column_name.clone(),
+            dtype: before_column
+                .column_data_type
+                .clone()
+                .ok_or(OxenError::basic_str(
+                    "A deleted column needs to have a before datatype value",
+                ))?
+                .clone(),
+            metadata: None,
+            changes: None,
+        });
+
+        df_views.view.schema.fields.push(Field {
+            name: before_column.column_name.clone(),
+            dtype: before_column
+                .column_data_type
+                .ok_or(OxenError::basic_str(
+                    "A deleted column needs to have a before datatype value",
+                ))?
+                .clone(),
+            metadata: None,
+            changes: None,
+        });
+    }
+
+    Ok(())
 }

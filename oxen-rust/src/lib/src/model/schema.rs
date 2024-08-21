@@ -204,7 +204,18 @@ impl Schema {
     }
 
     pub fn fields_names(&self) -> Vec<String> {
-        self.fields.iter().map(|f| f.name.to_owned()).collect()
+        self.fields
+            .iter()
+            .filter(|f| {
+                println!("{:?}", f);
+
+                // Perform the actual filter condition check
+                f.changes
+                    .as_ref()
+                    .map_or(true, |changes| changes.status != "deleted")
+            })
+            .map(|f| f.name.clone()) // Assuming name is a String and needs to be cloned
+            .collect()
     }
 
     /// Compare the schemas, looking for added fields
