@@ -8,8 +8,8 @@ use crate::core::db::data_frames::{columns, df_db};
 use crate::core::index::workspaces;
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
 use crate::error::OxenError;
-use crate::model::schema::field::Changes;
-use crate::model::schema::{DataType, Field};
+use crate::model::schema::field::{Changes, PreviousField};
+use crate::model::schema::DataType;
 use crate::model::Workspace;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
@@ -372,42 +372,26 @@ pub fn handle_data_frame_column_change(
             status: "added".to_string(),
             previous: None,
         })),
-        "deleted" => {
-            let column_before = change.column_before.ok_or(OxenError::basic_str(
-                "A deleted column needs to have a column before value",
-            ))?;
-
-            let previous_field = Field {
-                name: column_before.column_name.clone(),
-                dtype: column_before.column_data_type.ok_or(OxenError::basic_str(
-                    "A deleted column needs to have a before datatype value",
-                ))?,
-                metadata: None,
-                changes: None,
-            };
-
-            Ok(Some(Changes {
-                status: "deleted".to_string(),
-                previous: Some(Box::new(previous_field)),
-            }))
-        }
+        "deleted" => Ok(Some(Changes {
+            status: "deleted".to_string(),
+            previous: None,
+        })),
         "modified" => {
             let column_before = change.column_before.ok_or(OxenError::basic_str(
                 "A modified column needs to have a column before value",
             ))?;
 
-            let previous_field = Field {
+            let previous_field = PreviousField {
                 name: column_before.column_name.clone(),
                 dtype: column_before.column_data_type.ok_or(OxenError::basic_str(
                     "A modified column needs to have a before datatype value",
                 ))?,
                 metadata: None,
-                changes: None,
             };
 
             Ok(Some(Changes {
                 status: "modified".to_string(),
-                previous: Some(Box::new(previous_field)),
+                previous: Some(previous_field),
             }))
         }
         _ => Ok(None),

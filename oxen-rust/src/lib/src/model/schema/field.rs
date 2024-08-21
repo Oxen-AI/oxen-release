@@ -14,9 +14,16 @@ pub struct Field {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PreviousField {
+    pub name: String,
+    pub dtype: String,
+    pub metadata: Option<Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Changes {
     pub status: String,
-    pub previous: Option<Box<Field>>,
+    pub previous: Option<PreviousField>,
 }
 
 impl PartialEq for Field {
