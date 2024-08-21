@@ -156,6 +156,15 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     })?;
 
     if let Some(obj) = body_json.as_object_mut() {
+        if obj.contains_key("name") {
+            let name_value = obj.remove("name").unwrap(); // Safe to unwrap because we just checked it exists
+            obj.insert("new_name".to_string(), name_value);
+        }
+        if obj.contains_key("dtype") {
+            let dtype_value = obj.remove("dtype").unwrap(); // Safe to unwrap because we just checked it exists
+            obj.insert("new_data_type".to_string(), dtype_value);
+        }
+
         obj.insert("name".to_string(), json!(column_name));
     } else {
         return Err(OxenHttpError::BadRequest(

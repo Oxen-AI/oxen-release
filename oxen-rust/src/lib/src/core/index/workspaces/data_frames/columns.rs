@@ -9,7 +9,7 @@ use crate::core::index::workspaces;
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
 use crate::error::OxenError;
 use crate::model::schema::field::{Changes, PreviousField};
-use crate::model::schema::{DataType, Field};
+use crate::model::schema::Field;
 use crate::model::Workspace;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
@@ -220,20 +220,16 @@ pub fn restore(
             }
             "modified" => {
                 log::debug!("restore_column() column was modified, reverting changes");
-                let new_data_type = DataType::from_string(
-                    change
-                        .column_before
-                        .clone()
-                        .ok_or(OxenError::Basic(
-                            "To restore a modify, the column before object has to be defined"
-                                .into(),
-                        ))?
-                        .column_data_type
-                        .ok_or(OxenError::Basic(
-                            "column_data_type is None, cannot unwrap".into(),
-                        ))?,
-                )
-                .to_sql();
+                let new_data_type = change
+                    .column_before
+                    .clone()
+                    .ok_or(OxenError::Basic(
+                        "To restore a modify, the column before object has to be defined".into(),
+                    ))?
+                    .column_data_type
+                    .ok_or(OxenError::Basic(
+                        "column_data_type is None, cannot unwrap".into(),
+                    ))?;
                 let column_to_update = ColumnToUpdate {
                     name: change
                         .column_after
@@ -253,6 +249,7 @@ pub fn restore(
                             .column_name,
                     ),
                 };
+
                 let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
                 let result = columns::update_column(&conn, &column_to_update, &table_schema)?;
                 columns::revert_column_changes(
@@ -309,6 +306,7 @@ pub fn decorate_fields_with_column_diffs(
 
     let db = db_open_result?;
 
+    // Because the schema is derived from the data, we need to reinsert the deleted columns into the schema to track diffs as they were deleted in the sql query.
     reinsert_deleted_columns_into_schema(&db, df_views)?;
 
     df_views
