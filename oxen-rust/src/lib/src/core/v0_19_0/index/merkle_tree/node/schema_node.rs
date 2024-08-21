@@ -35,7 +35,7 @@ impl MerkleTreeNodeIdType for SchemaNode {
         self.dtype
     }
 
-    fn id(&self) -> MerkleHash {
+    fn hash(&self) -> MerkleHash {
         self.hash
     }
 }

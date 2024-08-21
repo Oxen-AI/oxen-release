@@ -66,7 +66,12 @@ pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let head_commit_id = head_commit_id(repo)?;
-    let commit_data = CommitMerkleTree::read_node(repo, &head_commit_id, false)?;
+    let commit_data = CommitMerkleTree::read_node(repo, &head_commit_id, false)?.ok_or(
+        OxenError::basic_str(format!(
+            "Merkle tree node not found for head commit: '{}'",
+            head_commit_id
+        )),
+    )?;
     let commit = commit_data.commit()?;
     Ok(commit.to_commit())
 }
@@ -103,8 +108,9 @@ pub fn get_by_id(
 }
 
 pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<Commit>, OxenError> {
-    let commit_data = CommitMerkleTree::read_node(repo, &hash, false)
-        .map_err(|_| OxenError::revision_not_found(hash.to_string().into()))?;
+    let Some(commit_data) = CommitMerkleTree::read_node(repo, &hash, false)? else {
+        return Ok(None);
+    };
     let commit = commit_data.commit()?;
     Ok(Some(commit.to_commit()))
 }

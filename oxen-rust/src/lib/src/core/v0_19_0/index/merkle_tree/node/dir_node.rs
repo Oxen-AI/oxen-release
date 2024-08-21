@@ -68,7 +68,7 @@ impl MerkleTreeNodeIdType for DirNode {
         self.dtype
     }
 
-    fn id(&self) -> MerkleHash {
+    fn hash(&self) -> MerkleHash {
         self.hash
     }
 }

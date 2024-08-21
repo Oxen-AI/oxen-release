@@ -162,7 +162,7 @@ pub fn commit_with_cfg(
     let commit_id = compute_commit_id(&new_commit)?;
 
     let node = CommitNode {
-        id: commit_id,
+        hash: commit_id,
         parent_ids: parent_ids,
         message: message.to_string(),
         author: cfg.name.clone(),
@@ -471,7 +471,7 @@ fn r_create_dir_node(
     log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());
     for vnode in vnodes.iter() {
         let vnode_obj = VNode {
-            id: vnode.id,
+            hash: vnode.id,
             ..Default::default()
         };
         if let Some(dir_db) = maybe_dir_db {
@@ -550,7 +550,8 @@ fn r_create_dir_node(
                     } else {
                         log::debug!("r_create_dir_node skipping {:?}", entry.path);
                         // Look up the old dir node and reference it
-                        let old_dir_node = CommitMerkleTree::read_node(repo, &entry.hash, false)?;
+                        let old_dir_node =
+                            CommitMerkleTree::read_node(repo, &entry.hash, false)?.unwrap();
                         let dir_node = old_dir_node.dir()?;
 
                         // if let Some(vnode_db) = &mut maybe_vnode_db {

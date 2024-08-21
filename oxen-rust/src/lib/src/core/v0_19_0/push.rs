@@ -89,24 +89,34 @@ async fn r_push_node(
     remote_repo: &RemoteRepository,
     node: &MerkleTreeNodeData,
 ) -> Result<(), OxenError> {
-    // Check if the node exists on the remote
-    // GET /api/repos/:namespace/:repo_name/tree/nodes/:node_id
-    //     Return the node, with all the unsynced children
-
-    // If not exists, create it
-
-    // List the children that need to be synced for the node
-
-    // If all children exist, return
-    // This way we don't have to push the same node twice
-
-    push_node(repo, remote_repo, node).await?;
-
+    // Push the root last
     for child in &node.children {
         if child.has_children() {
             Box::pin(r_push_node(repo, remote_repo, child)).await?;
         }
     }
+
+    println!("r_push_node: {}", node);
+    // Check if the node exists on the remote
+    let has_node = api::client::tree::has_node(remote_repo, node.hash).await?;
+    println!("has_node: {:?}", has_node);
+
+    // If not exists, create it
+    if !has_node {
+        // Create the node on the server
+        println!("Creating node on the server: {}", node);
+        api::client::tree::create_node(repo, remote_repo, node).await?;
+    }
+
+    // Find the missing children on the server
+    // If we just created the node, all children will be missing
+    // If the server has the node, but some of the children are missing, we need to push them
+    // If the server has the node and all the children, we can move onto the next node
+
+    // If all children exist, return
+    // This way we don't have to push the same node twice
+
+    push_node(repo, remote_repo, node).await?;
 
     Ok(())
 }

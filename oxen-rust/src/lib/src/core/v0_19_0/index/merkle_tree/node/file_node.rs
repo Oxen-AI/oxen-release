@@ -65,7 +65,7 @@ impl MerkleTreeNodeIdType for FileNode {
         self.dtype
     }
 
-    fn id(&self) -> MerkleHash {
+    fn hash(&self) -> MerkleHash {
         self.hash
     }
 }

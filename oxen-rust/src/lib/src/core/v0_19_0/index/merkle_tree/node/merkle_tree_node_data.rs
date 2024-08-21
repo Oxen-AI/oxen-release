@@ -215,12 +215,12 @@ impl MerkleTreeNodeData {
 
     pub fn deserialize_id(data: &[u8], dtype: MerkleTreeNodeType) -> Result<MerkleHash, OxenError> {
         match dtype {
-            MerkleTreeNodeType::Commit => Self::deserialize_commit(data).map(|commit| commit.id),
-            MerkleTreeNodeType::VNode => Self::deserialize_vnode(data).map(|vnode| vnode.id),
+            MerkleTreeNodeType::Commit => Self::deserialize_commit(data).map(|commit| commit.hash),
+            MerkleTreeNodeType::VNode => Self::deserialize_vnode(data).map(|vnode| vnode.hash),
             MerkleTreeNodeType::Dir => Self::deserialize_dir(data).map(|dir| dir.hash),
             MerkleTreeNodeType::File => Self::deserialize_file(data).map(|file| file.hash),
             MerkleTreeNodeType::FileChunk => {
-                Self::deserialize_file_chunk(data).map(|file_chunk| file_chunk.id)
+                Self::deserialize_file_chunk(data).map(|file_chunk| file_chunk.hash)
             }
             MerkleTreeNodeType::Schema => Self::deserialize_schema(data).map(|schema| schema.hash),
         }

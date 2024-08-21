@@ -5,7 +5,9 @@ use crate::model::{LocalRepository, MerkleHash, MerkleTreeNode};
 pub fn get_node_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,
-) -> Result<MerkleTreeNode, OxenError> {
-    let node = CommitMerkleTree::read_node(repo, hash, false)?;
-    Ok(node.to_node()?)
+) -> Result<Option<MerkleTreeNode>, OxenError> {
+    let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
+        return Ok(None);
+    };
+    Ok(Some(node.to_node()?))
 }

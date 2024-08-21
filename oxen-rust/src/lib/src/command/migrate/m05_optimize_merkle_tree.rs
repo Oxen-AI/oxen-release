@@ -192,7 +192,7 @@ fn migrate_merkle_tree(
 
     // Create the root commit
     let node = CommitNode {
-        id: commit_id,
+        hash: commit_id,
         parent_ids: parent_ids,
         message: commit.message.clone(),
         author: commit.author.clone(),
@@ -350,7 +350,7 @@ fn migrate_dir(
     for (i, bhash) in bucket_hashes.iter().enumerate() {
         println!("Bucket [{}] for {:x}", i, bhash);
         let node = VNode {
-            id: MerkleHash::new(*bhash),
+            hash: MerkleHash::new(*bhash),
             ..Default::default()
         };
         dir_db.add_child(&node)?;
@@ -415,7 +415,7 @@ fn migrate_dir(
                     )?;
                     // Recurse if it's a directory
                     let mut dir_db =
-                        MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.id))?;
+                        MerkleNodeDB::open_read_write(repo, &dir_node, Some(vnode.hash))?;
                     migrate_dir(
                         repo,
                         commits,
