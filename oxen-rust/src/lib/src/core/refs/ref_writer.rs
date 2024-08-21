@@ -52,7 +52,6 @@ impl RefWriter {
             Ok(Branch {
                 name: String::from(name),
                 commit_id: String::from(commit_id),
-                is_head: false,
             })
         }
     }
@@ -148,7 +147,6 @@ impl RefWriter {
                         branch_names.push(Branch {
                             name: ref_name.clone(),
                             commit_id: id.clone(),
-                            is_head: (ref_name == head_ref),
                         });
                     }
                     _ => {
@@ -170,7 +168,6 @@ impl RefWriter {
             Ok(Some(Branch {
                 name: ref_name,
                 commit_id: id,
-                is_head: true,
             }))
         } else {
             Ok(None)
@@ -187,7 +184,6 @@ impl RefWriter {
             Ok(Some(commit_id)) => Ok(Some(Branch {
                 name: name.to_string(),
                 commit_id: commit_id.to_string(),
-                is_head: commit_id == head_commit_id,
             })),
             Ok(None) => Ok(None),
             Err(err) => Err(err),

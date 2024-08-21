@@ -3,7 +3,7 @@ use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteRepository};
 use crate::{api, repositories};
 
-use super::index::merkle_tree::node::MerkleTreeNodeData;
+use super::index::merkle_tree::node::{MerkleTreeNodeData, MerkleTreeNodeType};
 use super::index::merkle_tree::CommitMerkleTree;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
@@ -65,13 +65,17 @@ async fn push_to_new_branch(
     remote_repo: &RemoteRepository,
     branch: &Branch,
 ) -> Result<(), OxenError> {
-    // Iterate over the nodes in the commit tree
+    // Get the commit from the branch
     let Some(commit) = repositories::commits::get_by_id(repo, &branch.commit_id)? else {
         return Err(OxenError::revision_not_found(
             branch.commit_id.clone().into(),
         ));
     };
+    // Figure out which nodes we need to push
     let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+
+    //
+
     // Push each node, and all their file children
     r_push_node(repo, remote_repo, &tree.root).await?;
     // Push the commit
@@ -85,10 +89,25 @@ async fn r_push_node(
     remote_repo: &RemoteRepository,
     node: &MerkleTreeNodeData,
 ) -> Result<(), OxenError> {
+    // Check if the node exists on the remote
+    // GET /api/repos/:namespace/:repo_name/tree/nodes/:node_id
+    //     Return the node, with all the unsynced children
+
+    // If not exists, create it
+
+    // List the children that need to be synced for the node
+
+    // If all children exist, return
+    // This way we don't have to push the same node twice
+
     push_node(repo, remote_repo, node).await?;
+
     for child in &node.children {
-        Box::pin(r_push_node(repo, remote_repo, child)).await?;
+        if child.has_children() {
+            Box::pin(r_push_node(repo, remote_repo, child)).await?;
+        }
     }
+
     Ok(())
 }
 

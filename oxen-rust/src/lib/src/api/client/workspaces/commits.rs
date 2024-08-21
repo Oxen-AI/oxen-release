@@ -27,7 +27,6 @@ pub async fn commit(
             let branch = Branch {
                 name: branch_name.to_string(),
                 commit_id: commit.id.clone(),
-                is_head: false
             };
             api::client::commits::post_push_complete(remote_repo, &branch, &commit.id).await?;
             api::client::repositories::post_push(remote_repo, &branch, &commit.id).await?;

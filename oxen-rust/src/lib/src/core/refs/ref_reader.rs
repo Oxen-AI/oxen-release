@@ -60,7 +60,6 @@ impl RefReader {
             Ok(Some(Branch {
                 name: ref_name,
                 commit_id: id,
-                is_head: true,
             }))
         } else {
             Ok(None)
@@ -145,7 +144,6 @@ impl RefReader {
                             branch_names.push(Branch {
                                 name: ref_name.clone(),
                                 commit_id: id.clone(),
-                                is_head: (ref_name == head_ref.clone()),
                             });
                         }
                     }
@@ -163,19 +161,11 @@ impl RefReader {
     }
 
     pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
-        // log::debug!("get_branch_by_name {name}");
-        let maybe_head_id = self.head_commit_id()?;
-        if maybe_head_id.is_none() {
-            return Ok(None);
-        }
-
-        let head_commit_id = maybe_head_id.unwrap();
-        // log::debug!("get_branch_by_name got head_commit_id {}", head_commit_id);
+        log::debug!("get_branch_by_name {name}");
         match self.get_commit_id_for_branch(name) {
             Ok(Some(commit_id)) => Ok(Some(Branch {
                 name: name.to_string(),
                 commit_id: commit_id.to_string(),
-                is_head: commit_id == head_commit_id,
             })),
             Ok(None) => Ok(None),
             Err(err) => Err(err),

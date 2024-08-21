@@ -208,8 +208,6 @@ impl error::ResponseError for OxenHttpError {
                         HttpResponse::NotFound().json(error_json)
                     }
                     OxenError::BranchNotFound(branch) => {
-                        log::debug!("Branch not found: {}", branch);
-
                         let error_json = json!({
                             "error": {
                                 "type": MSG_RESOURCE_NOT_FOUND,

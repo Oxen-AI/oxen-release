@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "Oxen"
-version = "0.18.12"
+version = "0.19.0"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -31,6 +31,7 @@ dependencies = [
  "comfy-table",
  "deadqueue",
  "derive_more 1.0.0",
+ "dialoguer",
  "difference",
  "dirs",
  "dotenv",
@@ -1834,6 +1835,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dialoguer"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "658bce805d770f407bc62102fca7c2c64ceef2fbcb2b8bd19d2765ce093980de"
+dependencies = [
+ "console",
+ "shell-words",
+ "tempfile",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
 name = "difference"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3072,7 +3086,7 @@ checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
 
 [[package]]
 name = "liboxen"
-version = "0.18.12"
+version = "0.19.0"
 dependencies = [
  "actix-files",
  "actix-web",
@@ -3707,12 +3721,13 @@ dependencies = [
 
 [[package]]
 name = "oxen-cli"
-version = "0.18.12"
+version = "0.19.0"
 dependencies = [
  "async-trait",
  "bytesize",
  "clap",
  "colored",
+ "dialoguer",
  "dunce",
  "env_logger",
  "glob",
@@ -3728,7 +3743,7 @@ dependencies = [
 
 [[package]]
 name = "oxen-server"
-version = "0.18.12"
+version = "0.19.0"
 dependencies = [
  "actix-files",
  "actix-http",
@@ -5366,6 +5381,12 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
+
+[[package]]
+name = "shell-words"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
 
 [[package]]
 name = "shlex"
