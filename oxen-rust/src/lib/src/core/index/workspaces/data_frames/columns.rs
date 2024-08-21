@@ -9,7 +9,7 @@ use crate::core::index::workspaces;
 use crate::core::index::workspaces::data_frames::data_frame_column_changes_db;
 use crate::error::OxenError;
 use crate::model::schema::field::{Changes, PreviousField};
-use crate::model::schema::DataType;
+use crate::model::schema::{DataType, Field};
 use crate::model::Workspace;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
