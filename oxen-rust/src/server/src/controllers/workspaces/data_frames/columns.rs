@@ -107,7 +107,6 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    println!("DEBUG 1");
     let column_df =
         index::workspaces::data_frames::columns::delete(&workspace, &file_path, &column_to_delete)?;
 
