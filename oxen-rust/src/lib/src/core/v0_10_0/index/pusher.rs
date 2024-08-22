@@ -747,7 +747,7 @@ async fn push_missing_commit_entries(
     Ok(())
 }
 
-async fn push_entries(
+pub async fn push_entries(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     entries: &[Entry],

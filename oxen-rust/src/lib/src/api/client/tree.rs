@@ -1,5 +1,6 @@
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use std::collections::HashSet;
 use std::time;
 
 use crate::api::client;
@@ -8,7 +9,7 @@ use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_path
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
-use crate::view::StatusMessage;
+use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};
 
 pub async fn has_node(
@@ -81,4 +82,22 @@ pub async fn create_node(
     println!("upload node complete {}", body);
 
     Ok(())
+}
+
+pub async fn list_missing_file_hashes(
+    remote_repo: &RemoteRepository,
+    node_id: &MerkleHash,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let uri = format!("/tree/nodes/{node_id}/missing_file_hashes");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response.hashes),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::tree::list_missing_file_hashes() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
 }

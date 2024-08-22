@@ -28,6 +28,7 @@ use crate::error::OxenError;
 use crate::model::entries::commit_entry::Entry;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
+use crate::model::MerkleHash;
 use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;
@@ -189,6 +190,10 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
 }
 
+pub fn version_path_from_hash(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
+    version_path_from_hash_and_file(&repo.path, hash.to_string(), PathBuf::new())
+}
+
 pub fn version_path_for_entry(repo: &LocalRepository, entry: &Entry) -> PathBuf {
     match entry {
         Entry::CommitEntry(commit_entry) => version_path(repo, commit_entry),
@@ -226,7 +231,15 @@ pub fn version_path_from_hash_and_file(
     if extension.is_empty() {
         version_dir.join(VERSION_FILE_NAME)
     } else {
-        version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension))
+        // backwards compatibility
+        let path = version_dir.join(format!("{}.{}", VERSION_FILE_NAME, extension));
+        if path.exists() {
+            // Older files have the extension in the filename
+            path
+        } else {
+            // Newer files do not have the extension in the filename
+            version_dir.join(VERSION_FILE_NAME)
+        }
     }
 }
 

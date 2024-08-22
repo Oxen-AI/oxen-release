@@ -5,6 +5,7 @@ use futures_util::stream::StreamExt as _;
 use liboxen::constants::NODES_DIR;
 use liboxen::constants::OXEN_HIDDEN_DIR;
 use liboxen::constants::TREE_DIR;
+use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 use tar::Archive;
 
@@ -23,13 +24,30 @@ pub async fn get_node_by_id(req: HttpRequest) -> actix_web::Result<HttpResponse,
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
     let repository = get_repo(&app_data.path, namespace, repo_name)?;
-    let node_id = path_param(&req, "node_id")?;
+    let node_id_str = path_param(&req, "node_id")?;
+    let node_id = MerkleHash::from_str(&node_id_str)?;
 
-    let node_id = MerkleHash::from_str(&node_id)?;
     let node = repositories::tree::get_node_by_id(&repository, &node_id)?
         .ok_or(OxenHttpError::NotFound)?;
 
     node_to_json(node)
+}
+
+pub async fn list_missing_file_hashes(
+    req: HttpRequest,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repository = get_repo(&app_data.path, namespace, repo_name)?;
+    let node_id_str = path_param(&req, "node_id")?;
+    let node_id = MerkleHash::from_str(&node_id_str)?;
+
+    let hashes = repositories::tree::list_missing_file_hashes(&repository, &node_id)?;
+    Ok(HttpResponse::Ok().json(MerkleHashesResponse {
+        status: StatusMessage::resource_found(),
+        hashes,
+    }))
 }
 
 pub async fn create_node(
