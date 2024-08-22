@@ -10,7 +10,7 @@ use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
 
-use crate::constants::{STAGED_DIR, VERSIONS_DIR};
+use crate::constants::{FILES_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::EntryMetaData;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
@@ -142,7 +142,9 @@ fn process_dir(
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
     let repo_path = repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
+    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
+        .join(VERSIONS_DIR)
+        .join(FILES_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =

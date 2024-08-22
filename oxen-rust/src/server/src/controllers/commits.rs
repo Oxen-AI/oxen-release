@@ -1011,10 +1011,10 @@ pub async fn upload(
 
     // Match commit as either the provided commit id if it exists, or the head commit of the repo otherwise.
 
-    let commit = match repositories::commits::get_by_id(&repo, &commit_id)? {
-        Some(commit) => commit,
-        None => repositories::commits::head_commit(&repo)?,
-    };
+    // let commit = match repositories::commits::get_by_id(&repo, &commit_id)? {
+    //     Some(commit) => commit,
+    //     None => repositories::commits::head_commit(&repo)?,
+    // };
 
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
@@ -1041,10 +1041,7 @@ pub async fn upload(
     unpack_entry_tarball(&hidden_dir, &mut archive);
     // });
 
-    Ok(HttpResponse::Ok().json(CommitResponse {
-        status: StatusMessage::resource_created(),
-        commit: commit.to_owned(),
-    }))
+    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
 }
 
 /// Notify that the push should be complete, and we should start doing our background processing

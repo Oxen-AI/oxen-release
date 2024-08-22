@@ -85,3 +85,5 @@ pub use crate::view::sql_parse_error::SQLParseError;
 
 pub use crate::view::tabular_diff_view::TabularDiffView;
 pub use crate::view::workspaces::WorkspaceResponseView;
+
+pub use crate::view::tree::merkle_hashes::MerkleHashesResponse;

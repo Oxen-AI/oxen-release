@@ -999,7 +999,7 @@ async fn upload_single_tarball_to_server(
     commit: &Commit,
     buffer: &[u8],
     bar: Arc<ProgressBar>,
-) -> Result<CommitResponse, OxenError> {
+) -> Result<StatusMessage, OxenError> {
     let uri = format!("/commits/{}/data", commit.id);
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::builder_for_url(&url)?
@@ -1011,7 +1011,7 @@ async fn upload_single_tarball_to_server(
         Ok(res) => {
             let body = client::parse_json_body(&url, res).await?;
 
-            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => {
                     bar.inc(size);

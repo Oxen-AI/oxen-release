@@ -3,6 +3,7 @@
 
 use crate::core;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entries::commit_entry::{Entry, SchemaEntry};
@@ -20,7 +21,7 @@ use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::v0_10_0::index::{ObjectDBReader, SchemaReader};
 use crate::model::{
-    Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
+    Commit, CommitEntry, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;

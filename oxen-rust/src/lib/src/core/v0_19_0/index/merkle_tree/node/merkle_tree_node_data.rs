@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::path::Path;
@@ -8,6 +9,7 @@ use super::*;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNode, MerkleTreeNodeType};
+use crate::util;
 
 #[derive(Clone, Eq)]
 pub struct MerkleTreeNodeData {
@@ -91,6 +93,24 @@ impl MerkleTreeNodeData {
             }
         }
         Ok(())
+    }
+
+    /// List missing file hashes
+    pub fn list_missing_file_hashes(
+        &self,
+        repo: &LocalRepository,
+    ) -> Result<HashSet<MerkleHash>, OxenError> {
+        let mut missing_hashes = HashSet::new();
+        for child in &self.children {
+            if child.dtype == MerkleTreeNodeType::File {
+                // Check if the file exists in the versions directory
+                let file_path = util::fs::version_path_from_hash(repo, &child.hash);
+                if !file_path.exists() {
+                    missing_hashes.insert(child.hash);
+                }
+            }
+        }
+        Ok(missing_hashes)
     }
 
     /// Get all files and dirs in a directory

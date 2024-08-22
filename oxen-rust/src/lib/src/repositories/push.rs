@@ -6,8 +6,7 @@
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
-use crate::repositories;
+use crate::model::{Branch, LocalRepository};
 
 /// # Get a log of all the commits
 ///
