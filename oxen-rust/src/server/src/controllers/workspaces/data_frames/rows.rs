@@ -5,10 +5,13 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
+use liboxen::core::index::workspaces::data_frames::rows::UpdateResult;
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
-use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
+use liboxen::view::json_data_frame_view::{
+    BatchUpdateResponse, JsonDataFrameRowResponse, JsonDataFrameSource,
+};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
 use liboxen::{api, core::index};
 
@@ -247,4 +250,60 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         row_id,
         row_index,
     }))
+}
+
+pub async fn batch_update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+
+    let file_path = PathBuf::from(path_param(&req, "path")?);
+    let Ok(data) = String::from_utf8(bytes.to_vec()) else {
+        return Err(OxenHttpError::BadRequest(
+            "Could not parse bytes as utf8".to_string().into(),
+        ));
+    };
+
+    let json_value: serde_json::Value = serde_json::from_str(&data)?;
+    let data = if let Some(data_obj) = json_value.get("data") {
+        data_obj
+    } else {
+        &json_value
+    };
+
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    log::debug!(
+        "update row repo {}/{} -> {}/{:?}",
+        namespace,
+        repo_name,
+        workspace_id,
+        file_path
+    );
+
+    let modified_rows =
+        index::workspaces::data_frames::rows::batch_update(&workspace, &file_path, data)?;
+
+    let mut responses = Vec::new();
+
+    for modified_row in modified_rows {
+        let response = match modified_row {
+            UpdateResult::Success(row_id, _data_frame) => BatchUpdateResponse {
+                row_id,
+                code: 200,
+                error: None,
+            },
+            UpdateResult::Error(row_id, error) => BatchUpdateResponse {
+                row_id,
+                code: 500,
+                error: Some(error.to_string()),
+            },
+        };
+        responses.push(response);
+    }
+
+    Ok(HttpResponse::Ok().json(responses))
 }
