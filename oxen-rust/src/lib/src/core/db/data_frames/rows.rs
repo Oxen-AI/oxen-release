@@ -170,7 +170,6 @@ fn get_hash_and_status_for_modification(
 ) -> Result<(String, String), OxenError> {
     let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
     let col_names = schema.fields_names();
-
     let old_status = old_row.column(DIFF_STATUS_COL)?.get(0)?;
     let old_status = old_status
         .get_str()
