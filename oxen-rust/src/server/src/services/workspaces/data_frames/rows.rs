@@ -18,6 +18,10 @@ pub fn rows() -> Scope {
             web::put().to(controllers::workspaces::data_frames::rows::update),
         )
         .route(
+            "/resource/{path:.*}",
+            web::put().to(controllers::workspaces::data_frames::rows::batch_update),
+        )
+        .route(
             "/{row_id}/resource/{path:.*}",
             web::delete().to(controllers::workspaces::data_frames::rows::delete),
         )
