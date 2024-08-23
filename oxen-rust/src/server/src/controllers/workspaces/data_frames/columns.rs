@@ -24,9 +24,22 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let new_column: NewColumn = serde_json::from_str(&body).map_err(|_err| {
+    let mut body_json: Value = serde_json::from_str(&body).map_err(|_err| {
         OxenHttpError::BadRequest("Failed to parse NewColumn from request body".into())
     })?;
+
+    if let Some(obj) = body_json.as_object_mut() {
+        if obj.contains_key("dtype") {
+            let dtype_value = obj.remove("dtype").unwrap(); // Safe to unwrap because we just checked it exists
+            obj.insert("data_type".to_string(), dtype_value);
+        }
+    } else {
+        return Err(OxenHttpError::BadRequest(
+            "Request body is not a valid JSON object".into(),
+        ));
+    }
+
+    let new_column: NewColumn = serde_json::from_value(body_json)?;
 
     log::info!(
         "create column {namespace}/{repo_name} for file {:?} on in workspace id {}",
