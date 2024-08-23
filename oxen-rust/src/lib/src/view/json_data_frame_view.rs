@@ -78,6 +78,13 @@ pub struct JsonDataFrameRowResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BatchUpdateResponse {
+    pub row_id: String,
+    pub code: i32,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct JsonDataFrameColumnResponse {
     #[serde(flatten)]
     pub status: StatusMessage,

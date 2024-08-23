@@ -4,6 +4,7 @@ use polars::frame::DataFrame;
 use polars::prelude::NamedFrom;
 use polars::series::Series;
 use rocksdb::DB;
+use serde_json::Value;
 use sql_query_builder::Select;
 
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
@@ -300,17 +301,52 @@ pub fn update(
 
     workspaces::stager::add(workspace, path)?;
 
-    // TODO: Better way of tracking when a file is restored to its original state without diffing
-    //       this could be really slow
     let diff = workspaces::data_frames::diff(workspace, path)?;
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            // Restored to original state == delete file from staged db
             workspaces::stager::rm(workspace, path)?;
         }
     }
 
     Ok(result)
+}
+
+#[derive(Debug)]
+pub enum UpdateResult {
+    Success(String, DataFrame),
+    Error(String, OxenError),
+}
+
+pub fn batch_update(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    data: &Value,
+) -> Result<Vec<UpdateResult>, OxenError> {
+    let path = path.as_ref();
+    if let Some(array) = data.as_array() {
+        let results: Result<Vec<UpdateResult>, OxenError> = array
+            .iter()
+            .map(|obj| {
+                let row_id = obj
+                    .get("row_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| OxenError::basic_str("Missing row_id"))?
+                    .to_owned();
+                let value = obj
+                    .get("value")
+                    .ok_or_else(|| OxenError::basic_str("Missing value"))?;
+
+                match update(workspace, path, &row_id, value) {
+                    Ok(data_frame) => Ok(UpdateResult::Success(row_id, data_frame)),
+                    Err(e) => Ok(UpdateResult::Error(row_id, e)),
+                }
+            })
+            .collect();
+
+        results
+    } else {
+        Err(OxenError::basic_str("Data is not an array"))
+    }
 }
 
 pub fn get_row_diff(
