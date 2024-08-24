@@ -93,7 +93,7 @@ mod tests {
             // Clone the main branch, then fetch the others
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
                 let branches = repositories::branches::list(&cloned_repo)?;
 

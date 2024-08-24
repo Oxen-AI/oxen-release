@@ -132,7 +132,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let oxen_dir = cloned_repo.path.join(OXEN_HIDDEN_DIR);
                 assert!(oxen_dir.exists());
                 command::pull(&cloned_repo).await?;
@@ -250,7 +250,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull(&cloned_repo).await?;
 
                 // Modify the file in the cloned dir
@@ -319,7 +319,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull_all(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(6, cloned_num_files);
@@ -429,7 +429,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull_all(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // the original training files
@@ -503,7 +503,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull(&cloned_repo).await?;
                 let filepath = cloned_repo.path.join(filename);
                 let content = util::fs::read_from_path(&filepath)?;
@@ -596,7 +596,7 @@ mod tests {
                     shallow: false,
                     all: false,
                 };
-                let cloned_repo = command::clone(&opts).await?;
+                let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -674,7 +674,7 @@ mod tests {
                     shallow: false,
                     all: false,
                 };
-                let cloned_repo = command::clone(&opts).await?;
+                let cloned_repo = repositories::clone(&opts).await?;
 
                 // Make sure we have all the files from the branch
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -741,7 +741,7 @@ mod tests {
                 // Pull down this removal
                 let repo_dir = repo_dir.join("repoo");
                 let _cloned_repo =
-                    command::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                    repositories::deep_clone_url(&remote_repo.remote.url, &repo_dir).await?;
                 Ok(repo_dir)
             })
             .await?;
@@ -758,7 +758,7 @@ mod tests {
             test::run_empty_dir_test_async(|repo_dir| async move {
                 // Clone the remote repo
                 let repo_dir = repo_dir.join("repoo");
-                let cloned_repo = command::clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                let cloned_repo = repositories::clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
                 // Create-checkout a new branch
                 let branch_name = "new-branch";
@@ -817,14 +817,14 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
                     let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file.txt";
@@ -885,13 +885,13 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
                     let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                     // Add file_1 and file_2 to user A repo
                     let file_1 = "file_1.txt";
@@ -947,13 +947,13 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Clone Repo to User B
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
                     let user_b_repo =
-                        command::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
 
                     // Add file_1 and file_2 to user A repo
                     let file_1 = "file_1.txt";
@@ -1080,7 +1080,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // 2 test, 5 train, 1 labels
@@ -1121,7 +1121,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull(&cloned_repo).await?;
                 let file_path = cloned_repo.path.join(filename);
 
@@ -1178,7 +1178,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull(&cloned_repo).await?;
 
                 let filename = Path::new("nlp")
@@ -1254,7 +1254,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 command::pull_all(&cloned_repo).await?;
 
                 // Get cloned history, which should fall back to API if not found locally
@@ -1293,7 +1293,7 @@ mod tests {
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let repo_dir = repo_dir.join("repoo");
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
                 let result = repositories::status(&cloned_repo);
                 assert!(result.is_err());
@@ -1316,7 +1316,7 @@ mod tests {
                 let repo_dir = repo_dir.join("repoo");
 
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
                 let path = cloned_repo.path.join("README.md");
                 util::fs::write_to_path(&path, "# Can't add this")?;
@@ -1342,7 +1342,7 @@ mod tests {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo_dir_copy = user_a_repo_dir_copy.join("repoo");
                 let user_a_shallow =
-                    command::shallow_clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy)
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy)
                         .await?;
 
                 // Deep copy pushes two new commits to advance the remote
@@ -1350,7 +1350,7 @@ mod tests {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("repoo");
 
                     let user_b_repo =
-                        command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                        repositories::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
                             .await?;
 
                     let new_file = "new_file.txt";
@@ -1405,14 +1405,14 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("repo_a");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Deep copy pushes two new commits to advance the remote
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
 
                     let user_b_repo =
-                        command::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                        repositories::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
                             .await?;
 
                     let new_file = "new_file.txt";

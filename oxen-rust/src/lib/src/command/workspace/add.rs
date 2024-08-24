@@ -119,7 +119,7 @@ mod tests {
     use crate::model::staged_data::StagedDataOpts;
     use crate::opts::DFOpts;
     use crate::test;
-    use crate::{api, command};
+    use crate::{api, command, repositories};
     use polars::prelude::AnyValue;
 
     #[tokio::test]
@@ -134,7 +134,7 @@ mod tests {
                 let repo_dir = repo_dir.join("new_repo");
 
                 let cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
                 // Remote add row
                 let path = test::test_nlp_classification_csv();

@@ -690,7 +690,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let deep_clone =
-                    command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 // Get head commit of deep_clone repo
                 let head_commit = repositories::commits::head_commit(&deep_clone)?;
                 assert!(commit_history_is_complete(&deep_clone, &head_commit));
@@ -711,7 +711,7 @@ mod tests {
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let clone =
-                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
                 // Get head commit of deep_clone repo
                 let head_commit = repositories::commits::head_commit(&clone)?;

@@ -53,7 +53,7 @@
 //! let url = "http://0.0.0.0:3000/ox/test_repo";
 //! let repo_dir = "test_repo";
 //! let opts = CloneOpts::new(url, &repo_dir);
-//! let repo = command::clone(&opts).await?;
+//! let repo = repositories::clone(&opts).await?;
 //! ```
 
 extern crate approx;
