@@ -284,7 +284,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|local_repo, remote_repo| async move {
             // Create additional branch on remote repo before clone
             let branch_name = "test-branch";
-            api::client::branches::create_from_or_get(
+            api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -527,9 +527,11 @@ mod tests {
 
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
-                        .await?;
+                let cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &new_repo_dir.join("new_repo"),
+                )
+                .await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // 2 test, 5 train, 1 labels
                 assert_eq!(8, cloned_num_files);
@@ -550,9 +552,11 @@ mod tests {
 
             // Create a new repo to clone to, then clean it up
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
-                        .await?;
+                let cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &new_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 let status = repositories::status(&cloned_repo);
                 assert!(status.is_ok());
@@ -573,9 +577,11 @@ mod tests {
 
             // Create a new repo to clone to, then clean it up
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
-                        .await?;
+                let cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &new_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 let status = repositories::status(&cloned_repo);
                 assert!(status.is_ok());

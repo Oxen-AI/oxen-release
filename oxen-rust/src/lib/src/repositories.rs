@@ -38,7 +38,7 @@ pub mod tree;
 
 pub use add::add;
 pub use checkout::checkout;
-pub use clone::{clone, clone_url, shallow_clone_url, deep_clone_url};
+pub use clone::{clone, clone_url, deep_clone_url, shallow_clone_url};
 pub use commits::commit;
 pub use init::init;
 pub use push::push;

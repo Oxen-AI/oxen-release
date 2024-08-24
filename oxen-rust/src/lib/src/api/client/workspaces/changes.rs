@@ -86,7 +86,7 @@ mod tests {
 
             // client can decide what to use for id
             let workspace_id = UserConfig::identifier()?;
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -121,7 +121,7 @@ mod tests {
     async fn test_list_empty_changes_all_data_pushed() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
