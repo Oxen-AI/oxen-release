@@ -537,12 +537,12 @@ mod tests {
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
                 let first_cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
                         .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
-                    let second_cloned_repo = command::clone_url(
+                    let second_cloned_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &second_repo_dir.join("second_repo"),
                     )
@@ -741,12 +741,12 @@ mod tests {
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
                 let first_cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
                         .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
-                    let second_cloned_repo = command::clone_url(
+                    let second_cloned_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &second_repo_dir.join("second_repo"),
                     )
@@ -807,7 +807,7 @@ mod tests {
                 let remote_repo_2_copy = remote_repo_2.clone();
                 // Clone the first repo
                 test::run_empty_dir_test_async(|first_repo_dir| async move {
-                    let first_cloned_repo = command::clone_url(
+                    let first_cloned_repo = repositories::clone_url(
                         &remote_repo_1.remote.url,
                         &first_repo_dir.join("first_repo_dir"),
                     )
@@ -815,7 +815,7 @@ mod tests {
 
                     // Clone the second repo
                     test::run_empty_dir_test_async(|second_repo_dir| async move {
-                        let mut second_cloned_repo = command::clone_url(
+                        let mut second_cloned_repo = repositories::clone_url(
                             &remote_repo_2.remote.url,
                             &second_repo_dir.join("second_repo_dir"),
                         )
@@ -888,7 +888,7 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo = command::clone_url(
+                let user_a_repo = repositories::clone_url(
                     &remote_repo.remote.url,
                     &user_a_repo_dir_copy.join("new_repo"),
                 )
@@ -898,7 +898,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir_copy.join("New_repo"),
                     )
@@ -958,7 +958,7 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo = command::clone_url(
+                let user_a_repo = repositories::clone_url(
                     &remote_repo.remote.url,
                     &user_a_repo_dir_copy.join("new_repo"),
                 )
@@ -968,7 +968,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir_copy.join("New_repo"),
                     )
@@ -1079,7 +1079,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                 let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-                let user_b_repo = command::clone_url(
+                let user_b_repo = repositories::clone_url(
                     &remote_repo.remote.url,
                     &user_b_repo_dir_copy.join("New_repo"),
                 )
@@ -1168,7 +1168,7 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
-                let user_a_repo = command::clone_url(
+                let user_a_repo = repositories::clone_url(
                     &remote_repo.remote.url,
                     &user_a_repo_dir_copy.join("new_repo"),
                 )
@@ -1178,7 +1178,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir_copy.join("new_repo"),
                     )
@@ -1253,7 +1253,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
                         .await?;
 
                 // Log out all files in this directory with fs
@@ -1272,7 +1272,7 @@ mod tests {
 
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),
                     )
@@ -1338,7 +1338,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
                         .await?;
 
                 // Log out all files in this directory with fs
@@ -1354,7 +1354,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),
                     )
@@ -1409,7 +1409,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
                         .await?;
 
                 // Log out all files in this directory with fs
@@ -1423,7 +1423,7 @@ mod tests {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
                     log::debug!("About to clone b...");
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),
                     )
@@ -1476,7 +1476,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
                         .await?;
 
                 // Log out all files in this directory with fs
@@ -1492,7 +1492,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),
                     )
@@ -1610,7 +1610,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
                         .await?;
 
                 // Log out all files in this directory with fs
@@ -1626,7 +1626,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo = command::clone_url(
+                    let user_b_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),
                     )
@@ -1677,7 +1677,7 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo = command::deep_clone_url(
+                let user_a_repo = repositories::deep_clone_url(
                     &remote_repo.remote.url,
                     &user_a_repo_dir.join("new_repo"),
                 )
@@ -1693,7 +1693,7 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.clone();
 
-                    let user_b_repo = command::deep_clone_url(
+                    let user_b_repo = repositories::deep_clone_url(
                         &remote_repo.remote.url,
                         &user_b_repo_dir.join("new_repo"),
                     )

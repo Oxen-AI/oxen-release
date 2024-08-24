@@ -297,7 +297,7 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::deep_clone_url(
+                let cloned_repo = repositories::deep_clone_url(
                     &remote_repo.remote.url,
                     &new_repo_dir.join("new_repo"),
                 )
@@ -358,7 +358,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let mut cloned_repo =
-                    command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
                 let remote_url = test::repo_remote_url_from(&repo_name);
@@ -430,7 +430,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let mut cloned_repo =
-                    command::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::deep_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
                 let remote_url = test::repo_remote_url_from(&repo_name);
@@ -467,7 +467,7 @@ mod tests {
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let mut cloned_repo =
-                    command::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
 
                 let repo_name = format!("new_remote_repo_name_{}", uuid::Uuid::new_v4());
                 let remote_url = test::repo_remote_url_from(&repo_name);
@@ -528,7 +528,7 @@ mod tests {
             // run another test with a new repo dir that we are going to sync to
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // 2 test, 5 train, 1 labels
@@ -551,7 +551,7 @@ mod tests {
             // Create a new repo to clone to, then clean it up
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
 
                 let status = repositories::status(&cloned_repo);
@@ -574,7 +574,7 @@ mod tests {
             // Create a new repo to clone to, then clean it up
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
 
                 let status = repositories::status(&cloned_repo);

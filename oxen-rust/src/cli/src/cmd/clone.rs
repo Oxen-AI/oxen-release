@@ -2,10 +2,10 @@ use async_trait::async_trait;
 use clap::{arg, Arg, Command};
 
 use liboxen::api;
-use liboxen::command;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::opts::CloneOpts;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 use crate::helpers::{check_remote_version, check_remote_version_blocking};
@@ -74,7 +74,7 @@ impl RunCmd for CloneCmd {
         check_remote_version_blocking(host.clone()).await?;
         check_remote_version(host).await?;
 
-        command::clone(&opts).await?;
+        repositories::clone(&opts).await?;
         Ok(())
     }
 }

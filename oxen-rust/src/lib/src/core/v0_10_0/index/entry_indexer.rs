@@ -998,7 +998,7 @@ mod tests {
                 );
                 opts.shallow = true;
 
-                let cloned_repo = command::clone(&opts).await?;
+                let cloned_repo = repositories::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 let rb = RemoteBranch {
@@ -1042,7 +1042,7 @@ mod tests {
                 );
                 opts.shallow = true;
 
-                let cloned_repo = command::clone(&opts).await?;
+                let cloned_repo = repositories::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit
@@ -1113,7 +1113,7 @@ mod tests {
                     new_repo_dir.join("new_repo"),
                 );
                 opts.shallow = true;
-                let cloned_repo = command::clone(&opts).await?;
+                let cloned_repo = repositories::clone(&opts).await?;
                 let indexer = EntryIndexer::new(&cloned_repo)?;
 
                 // Pull a part of the commit

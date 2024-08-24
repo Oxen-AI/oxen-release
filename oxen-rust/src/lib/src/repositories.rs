@@ -22,6 +22,7 @@ use std::path::Path;
 pub mod add;
 pub mod branches;
 pub mod checkout;
+pub mod clone;
 pub mod commits;
 pub mod diffs;
 pub mod entries;
@@ -37,6 +38,7 @@ pub mod tree;
 
 pub use add::add;
 pub use checkout::checkout;
+pub use clone::{clone, clone_url, shallow_clone_url, deep_clone_url};
 pub use commits::commit;
 pub use init::init;
 pub use push::push;

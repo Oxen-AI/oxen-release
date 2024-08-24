@@ -3,7 +3,6 @@
 //! Top level commands you are likely to run on an Oxen repository
 //!
 
-pub mod clone;
 pub mod commit_cache;
 pub mod config;
 pub mod db;
@@ -21,7 +20,6 @@ pub mod save;
 pub mod schemas;
 pub mod workspace;
 
-pub use crate::command::clone::{clone, clone_url, deep_clone_url, shallow_clone_url};
 pub use crate::command::df::{df, schema};
 pub use crate::command::diff::{diff, diff_commits};
 pub use crate::command::download::download;

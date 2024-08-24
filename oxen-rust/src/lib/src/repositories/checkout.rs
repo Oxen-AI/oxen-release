@@ -542,7 +542,7 @@ mod tests {
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
                 let cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
+                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
                         .await?;
 
                 // Make sure we have all the commit objects
@@ -605,7 +605,7 @@ mod tests {
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let cloned_repo =
-                    command::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
 
                 let commits = repositories::commits::list(&cloned_repo)?;
                 // iterate over commits in reverse order and checkout each one
@@ -636,7 +636,7 @@ mod tests {
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.join("user_a_repo");
                 let user_a_repo =
-                    command::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir_copy).await?;
 
                 // Create a new branch
                 let branch_name = "test-branch";
@@ -691,7 +691,7 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::deep_clone_url(
+                let cloned_repo = repositories::deep_clone_url(
                     &remote_repo.remote.url,
                     &new_repo_dir.join("new_repo"),
                 )
@@ -760,7 +760,7 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo = command::deep_clone_url(
+                let cloned_repo = repositories::deep_clone_url(
                     &remote_repo.remote.url,
                     &new_repo_dir.join("new_repo"),
                 )
