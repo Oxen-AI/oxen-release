@@ -758,7 +758,8 @@ mod tests {
             test::run_empty_dir_test_async(|repo_dir| async move {
                 // Clone the remote repo
                 let repo_dir = repo_dir.join("repoo");
-                let cloned_repo = repositories::clone_url(&remote_repo.remote.url, &repo_dir).await?;
+                let cloned_repo =
+                    repositories::clone_url(&remote_repo.remote.url, &repo_dir).await?;
 
                 // Create-checkout a new branch
                 let branch_name = "new-branch";
@@ -824,7 +825,8 @@ mod tests {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
 
                     let user_b_repo =
-                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
 
                     // User A adds a file and pushes
                     let new_file = "new_file.txt";
@@ -891,7 +893,8 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
                     let user_b_repo =
-                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
 
                     // Add file_1 and file_2 to user A repo
                     let file_1 = "file_1.txt";
@@ -953,7 +956,8 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("user_b_repo");
                     let user_b_repo =
-                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy).await?;
+                        repositories::clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
+                            .await?;
 
                     // Add file_1 and file_2 to user A repo
                     let file_1 = "file_1.txt";
@@ -1349,9 +1353,11 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("repoo");
 
-                    let user_b_repo =
-                        repositories::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
-                            .await?;
+                    let user_b_repo = repositories::deep_clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir_copy,
+                    )
+                    .await?;
 
                     let new_file = "new_file.txt";
                     let new_file_path = user_b_repo.path.join(new_file);
@@ -1411,9 +1417,11 @@ mod tests {
                 test::run_empty_dir_test_async(|user_b_repo_dir| async move {
                     let user_b_repo_dir_copy = user_b_repo_dir.join("repo_b");
 
-                    let user_b_repo =
-                        repositories::deep_clone_url(&remote_repo.remote.url, &user_b_repo_dir_copy)
-                            .await?;
+                    let user_b_repo = repositories::deep_clone_url(
+                        &remote_repo.remote.url,
+                        &user_b_repo_dir_copy,
+                    )
+                    .await?;
 
                     let new_file = "new_file.txt";
                     let new_file_path = user_b_repo.path.join(new_file);

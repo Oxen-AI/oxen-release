@@ -536,9 +536,11 @@ mod tests {
 
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
-                let first_cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
-                        .await?;
+                let first_cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &first_repo_dir.join("first_repo"),
+                )
+                .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
@@ -740,9 +742,11 @@ mod tests {
 
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
-                let first_cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
-                        .await?;
+                let first_cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &first_repo_dir.join("first_repo"),
+                )
+                .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
@@ -1252,9 +1256,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1337,9 +1343,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1408,9 +1416,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1475,9 +1485,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1609,9 +1621,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);

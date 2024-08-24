@@ -52,7 +52,7 @@ mod tests {
     async fn test_commit_staged_multiple_files() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-data";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,

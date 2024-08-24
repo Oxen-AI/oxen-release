@@ -455,7 +455,7 @@ impl CommitMerkleTree {
 
         for (key, child) in children {
             let mut child = child.to_owned();
-            log::debug!("read_children_from_node child: {} -> {}", key, child);
+            // log::debug!("read_children_from_node child: {} -> {}", key, child);
             match &child.dtype {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit

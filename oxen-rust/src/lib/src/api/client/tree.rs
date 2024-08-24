@@ -72,14 +72,14 @@ pub async fn create_node(
         .build()?;
 
     let size = buffer.len() as u64;
-    println!(
+    log::debug!(
         "uploading node of size {} to {}",
         bytesize::ByteSize::b(size),
         url
     );
     let res = client.post(&url).body(buffer.to_owned()).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    println!("upload node complete {}", body);
+    log::debug!("upload node complete {}", body);
 
     Ok(())
 }

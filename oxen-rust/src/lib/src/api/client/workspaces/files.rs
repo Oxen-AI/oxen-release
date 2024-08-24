@@ -170,7 +170,7 @@ mod tests {
     async fn test_stage_single_file() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -217,7 +217,7 @@ mod tests {
     async fn test_stage_multiple_files() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-data";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -267,7 +267,7 @@ mod tests {
     async fn test_commit_staged_single_file_and_pull() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-data";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -342,7 +342,7 @@ mod tests {
     async fn test_commit_schema_on_branch() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "test-schema-issues";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -391,7 +391,7 @@ mod tests {
     async fn test_rm_file() -> Result<(), OxenError> {
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
-            let branch = api::client::branches::create_from_or_get(
+            let branch = api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,

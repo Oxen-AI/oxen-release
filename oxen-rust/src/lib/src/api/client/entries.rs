@@ -57,7 +57,7 @@ pub async fn upload_entries(
     }
 
     let branch_name = if let Some(branch) = &opts.branch {
-        api::client::branches::create_from_or_get(remote_repo, branch, DEFAULT_BRANCH_NAME).await?;
+        api::client::branches::create_from_branch(remote_repo, branch, DEFAULT_BRANCH_NAME).await?;
         branch.to_owned()
     } else {
         DEFAULT_BRANCH_NAME.to_string()
