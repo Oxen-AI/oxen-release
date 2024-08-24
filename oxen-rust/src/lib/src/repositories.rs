@@ -249,7 +249,6 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
     std::fs::create_dir_all(history_dir)?;
 
     // Create HEAD file and point it to DEFAULT_BRANCH_NAME
-
     {
         // Make go out of scope to release LOCK
         log::debug!(
@@ -283,7 +282,7 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
             add(&local_repo, &full_path)?;
         }
 
-        core::v0_19_0::commit::commit_with_user(&local_repo, "Initial commit", user)?;
+        core::v0_19_0::commits::commit_with_user(&local_repo, "Initial commit", user)?;
     }
 
     Ok(local_repo)

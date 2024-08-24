@@ -104,7 +104,7 @@ impl EntryIndexer {
         // If our local branch is currently completely synced (from a clone or pull --all), we should
         // override the opts and pull all commits
         if let Some(ref commit) = head_commit {
-            if core::v0_10_0::commit::commit_history_is_complete(&self.repository, commit) {
+            if core::v0_10_0::commits::commit_history_is_complete(&self.repository, commit) {
                 opts.should_pull_all = true;
             }
         }
@@ -188,7 +188,7 @@ impl EntryIndexer {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::error!("pull_all error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                core::v0_10_0::commit::commit_with_no_files(
+                core::v0_10_0::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )?
@@ -250,7 +250,7 @@ impl EntryIndexer {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::debug!("pull_one empty repo: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                core::v0_10_0::commit::commit_with_no_files(
+                core::v0_10_0::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )
@@ -356,7 +356,7 @@ impl EntryIndexer {
 
         let mut missing_commits = Vec::new();
         for remote_commit in remote_commits {
-            if !(core::v0_10_0::commit::commit_history_db_exists(&self.repository, &remote_commit)?)
+            if !(core::v0_10_0::commits::commit_history_db_exists(&self.repository, &remote_commit)?)
             {
                 // log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);

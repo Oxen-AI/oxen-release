@@ -4,7 +4,7 @@
 pub mod add;
 pub mod branches;
 pub mod cache;
-pub mod commit;
+pub mod commits;
 pub mod entries;
 pub mod index;
 pub mod init;

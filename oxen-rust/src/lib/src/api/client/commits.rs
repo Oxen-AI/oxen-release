@@ -4,7 +4,7 @@ use crate::constants::{
 };
 
 use crate::core::db::{self};
-use crate::core::v0_10_0::commit::merge_objects_dbs;
+use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{
     CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger,
 };

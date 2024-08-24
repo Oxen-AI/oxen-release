@@ -1,9 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
-
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
@@ -236,10 +234,39 @@ async fn push_to_existing_branch(
     }
 
     // Check if the remote branch is ahead or behind the local branch
+    // If we don't have the commit locally, we are behind
+    let Some(latest_remote_commit) = repositories::commits::get_by_id(repo, &remote_branch.commit_id)? else {
+        let err_str = format!(
+            "Branch {} is behind {} must pull.",
+            remote_branch.name, remote_branch.commit_id
+        );
+        return Err(OxenError::local_revision_not_found(err_str));
+    };
 
-    // If it is ahead - see if we can push the missing nodes...
-    // I forget the logic here, but if we didn't touch the same nodes, we should
-    // be able to push and merge the commits on the server?
+    // If we do have the commit locally, we are ahead
+    // We need to find all the commits that need to be pushed
+    let mut commits = repositories::commits::list_between(repo, &head_commit, &latest_remote_commit)?;
+    commits.reverse();
+
+    let progress_bar = oxen_progress_bar_with_msg(
+        commits.len() as u64,
+        format!(
+            "🐂 Pushing {} commits from {} to {}",
+            commits.len(),
+            local_branch.name,
+            remote_repo.name
+        ),
+    );
+
+    for commit in commits {
+        println!("Pushing commit: {}", commit);
+        // Figure out which nodes we need to push
+        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+        r_push_node(repo, remote_repo, &commit, &tree.root, &progress_bar).await?;
+    }
+
+    // Update the remote branch to point to the latest commit
+    api::client::branches::update(remote_repo, &local_branch.name, &head_commit).await?;
 
     Ok(())
 }

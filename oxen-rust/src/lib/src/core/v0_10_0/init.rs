@@ -34,7 +34,7 @@ fn p_init(path: impl AsRef<Path>) -> Result<LocalRepository, OxenError> {
     repo.save(&config_path)?;
 
     // In older versions we make the initial commit for the users
-    super::commit::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
+    super::commits::commit_with_no_files(&repo, constants::INITIAL_COMMIT_MSG)?;
 
     Ok(repo)
 }
