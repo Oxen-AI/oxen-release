@@ -3,7 +3,7 @@
 
 pub mod add;
 pub mod branches;
-pub mod commit;
+pub mod commits;
 pub mod entries;
 pub mod index;
 pub mod init;
@@ -13,6 +13,6 @@ pub mod status;
 pub mod structs;
 
 pub use add::add;
-pub use commit::commit;
+pub use commits::commit;
 pub use init::init;
 pub use rm::rm;

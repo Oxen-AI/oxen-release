@@ -311,7 +311,7 @@ async fn get_commit_objects_to_sync(
 
         // Early return to avoid checking for remote commits: if full local history and no remote branch,
         // push full local branch history.
-        if core::v0_10_0::commit::commit_history_is_complete(local_repo, local_commit) {
+        if core::v0_10_0::commits::commit_history_is_complete(local_repo, local_commit) {
             return repositories::commits::list_from(local_repo, &local_commit.id);
         }
 

@@ -30,6 +30,8 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
+use super::index::Merger;
+
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     let status = status::status_without_untracked(repo)?;
     if !status.has_added_entries() && status.staged_schemas.is_empty() {
@@ -310,6 +312,18 @@ pub fn list_from(
         Ok(commits) => Ok(commits),
         Err(_) => Err(OxenError::local_revision_not_found(revision)),
     }
+}
+
+/// List the history between two commits
+pub fn list_between(
+    repo: &LocalRepository,
+    base: &Commit,
+    head: &Commit,
+) -> Result<Vec<Commit>, OxenError> {
+    let merger = Merger::new(repo)?;
+    let reader = CommitReader::new(repo)?;
+    let commits = merger.list_commits_between_commits(&reader, base, head)?;
+    Ok(commits)
 }
 
 /// Retrieve entries with filepaths matching a provided glob pattern

@@ -12,11 +12,11 @@ use liboxen::constants::VERSION_FILE_NAME;
 use liboxen::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use liboxen::core::v0_10_0::cache::cachers::content_validator;
 use liboxen::core::v0_10_0::cache::commit_cacher;
-use liboxen::core::v0_10_0::commit::create_commit_object;
-use liboxen::core::v0_10_0::commit::create_commit_object_with_committers;
-use liboxen::core::v0_10_0::commit::head_commits_have_conflicts;
-use liboxen::core::v0_10_0::commit::list_with_missing_dbs;
-use liboxen::core::v0_10_0::commit::merge_objects_dbs;
+use liboxen::core::v0_10_0::commits::create_commit_object;
+use liboxen::core::v0_10_0::commits::create_commit_object_with_committers;
+use liboxen::core::v0_10_0::commits::head_commits_have_conflicts;
+use liboxen::core::v0_10_0::commits::list_with_missing_dbs;
+use liboxen::core::v0_10_0::commits::merge_objects_dbs;
 use liboxen::core::v0_10_0::index::CommitReader;
 use liboxen::core::v0_10_0::index::CommitWriter;
 

@@ -119,20 +119,26 @@ pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<C
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
     let commit = head_commit(repo)?;
-    list_recursive(repo, commit, &mut results)?;
+    list_recursive(repo, commit, &mut results, None)?;
     Ok(results)
 }
 
+/// List commits recursively from a given commit
+/// if stop_at is provided, stop at that commit
 fn list_recursive(
     repo: &LocalRepository,
     commit: Commit,
     results: &mut Vec<Commit>,
+    stop_at: Option<Commit>,
 ) -> Result<(), OxenError> {
+    if stop_at.is_some() && commit == *stop_at.as_ref().unwrap() {
+        return Ok(());
+    }
     results.push(commit.clone());
     for parent_id in commit.parent_ids {
         let parent_id = MerkleHash::from_str(&parent_id)?;
         if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
-            list_recursive(repo, parent_commit, results)?;
+            list_recursive(repo, parent_commit, results, stop_at.clone())?;
         }
     }
     Ok(())
@@ -175,8 +181,19 @@ pub fn list_from(
     let mut results = vec![];
     let commit = repositories::revisions::get(repo, revision)?;
     if let Some(commit) = commit {
-        list_recursive(repo, commit, &mut results)?;
+        list_recursive(repo, commit, &mut results, None)?;
     }
+    Ok(results)
+}
+
+/// List the history between two commits
+pub fn list_between(
+    repo: &LocalRepository,
+    base: &Commit,
+    head: &Commit,
+) -> Result<Vec<Commit>, OxenError> {
+    let mut results = vec![];
+    list_recursive(repo, base.clone(), &mut results, Some(head.clone()))?;
     Ok(results)
 }
 
