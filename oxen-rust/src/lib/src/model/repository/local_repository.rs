@@ -103,6 +103,10 @@ impl LocalRepository {
         }
     }
 
+    pub fn set_min_version(&mut self, version: MinOxenVersion) {
+        self.min_version = Some(version.to_string());
+    }
+
     pub fn remotes(&self) -> &Vec<Remote> {
         &self.remotes
     }

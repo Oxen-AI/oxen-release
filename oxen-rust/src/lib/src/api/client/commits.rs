@@ -506,7 +506,7 @@ pub async fn download_commit_entries_db_to_repo(
     commit_id: &str,
 ) -> Result<PathBuf, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
+    download_dir_hashes_db_to_path(remote_repo, commit_id, hidden_dir).await
 }
 
 pub async fn download_objects_db_to_path(
@@ -573,7 +573,7 @@ pub async fn download_objects_db_to_repo(
     Ok(())
 }
 
-pub async fn download_commit_entries_db_to_path(
+pub async fn download_dir_hashes_db_to_path(
     remote_repo: &RemoteRepository,
     commit_id: &str,
     path: impl AsRef<Path>,
@@ -581,7 +581,7 @@ pub async fn download_commit_entries_db_to_path(
     let uri = format!("/commits/{commit_id}/commit_db");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!(
-        "calling download_commit_entries_db_to_path for commit {}",
+        "calling download_dir_hashes_db_to_path for commit {}",
         commit_id
     );
     log::debug!("{} downloading from {}", current_function!(), url);

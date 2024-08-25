@@ -90,7 +90,6 @@ async fn clone_repo(
     remote_repo: RemoteRepository,
     opts: &CloneOpts,
 ) -> Result<LocalRepository, OxenError> {
-    println!("clone_repo remote_repo.min_version(): {:?}", remote_repo);
     match remote_repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::clone::clone_repo(remote_repo, opts).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::clone::clone_repo(remote_repo, opts).await,

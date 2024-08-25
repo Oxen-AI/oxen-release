@@ -156,12 +156,8 @@ pub async fn download_dir(
         .join(&remote_repo.namespace)
         .join(&remote_repo.name);
     let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-    api::client::commits::download_commit_entries_db_to_path(
-        remote_repo,
-        commit_id,
-        &repo_cache_dir,
-    )
-    .await?;
+    api::client::commits::download_dir_hashes_db_to_path(remote_repo, commit_id, &repo_cache_dir)
+        .await?;
 
     let local_objects_dir = repo_cache_dir.join(OBJECTS_DIR);
     let tmp_objects_dir =

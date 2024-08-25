@@ -79,6 +79,16 @@ impl EntryIndexer {
         }
 
         let remote_repo = RemoteRepository::from_data_view(&remote_data_view, &remote);
+        self.pull_remote_repo(&remote_repo, rb, &opts).await
+    }
+
+    pub async fn pull_remote_repo(
+        &self,
+        remote_repo: &RemoteRepository,
+        rb: &RemoteBranch,
+        opts: &PullOpts,
+    ) -> Result<(), OxenError> {
+        let mut opts = opts.clone();
 
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = repositories::commits::head_commit(&self.repository);
