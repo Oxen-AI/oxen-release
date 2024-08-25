@@ -1,7 +1,7 @@
 use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::LocalRepository;
+use crate::model::{Commit, LocalRepository};
 use crate::opts::PaginateOpts;
 use crate::repositories;
 use crate::view::entries::ResourceVersion;
@@ -9,6 +9,7 @@ use crate::view::PaginatedDirEntries;
 
 use std::path::Path;
 
+use super::index::merkle_tree::node::DirNode;
 use super::index::merkle_tree::CommitMerkleTree;
 
 pub fn list_directory(
@@ -53,4 +54,16 @@ pub fn list_directory(
         total_pages,
         total_entries,
     })
+}
+
+pub fn get_directory(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<DirNode>, OxenError> {
+    let node = CommitMerkleTree::dir_without_children(repo, &commit, path)?;
+    let Some(node) = node else {
+        return Ok(None);
+    };
+    Ok(Some(node))
 }

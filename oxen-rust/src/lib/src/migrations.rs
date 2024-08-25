@@ -50,6 +50,7 @@ pub fn list_unmigrated(
                 result.push(RepositoryView {
                     namespace: namespace.clone(),
                     name: repo_name.to_string(),
+                    min_version: None,
                 });
             } else if let Ok(repo_last_migration) = std::fs::read_to_string(&repo_last_migration) {
                 if repo_last_migration <= migration_tstamp {
@@ -57,6 +58,7 @@ pub fn list_unmigrated(
                     result.push(RepositoryView {
                         namespace: namespace.clone(),
                         name: repo_name.to_string(),
+                        min_version: None,
                     });
                 }
             }

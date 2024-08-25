@@ -3,6 +3,7 @@
 
 use crate::core;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_19_0::index::merkle_tree::node::DirNode;
 use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
@@ -21,12 +22,24 @@ use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::v0_10_0::index::{ObjectDBReader, SchemaReader};
 use crate::model::{
-    Commit, CommitEntry, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
+    Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+/// Get a directory object for a commit
+pub fn get_directory(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<DirNode>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_directory(repo, commit, path),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_directory(repo, commit, path),
+    }
+}
 
 /// List all the entries within a directory given a specific commit
 pub fn list_directory(
@@ -35,7 +48,7 @@ pub fn list_directory(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    list_directory_w_version(repo, directory, revision, paginate_opts, repo.version())
+    list_directory_w_version(repo, directory, revision, paginate_opts, repo.min_version())
 }
 
 /// Force a version when listing a repo
@@ -326,7 +339,10 @@ pub fn get_commit_entry(
     reader.get_entry(path)
 }
 
-pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
+pub fn list_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CommitEntry>, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     reader.list_entries()
 }
@@ -615,7 +631,7 @@ mod tests {
             repositories::add(&repo, file_to_add)?;
             let commit = repositories::commit(&repo, "Adding labels file")?;
 
-            let entries = repositories::entries::list_all(&repo, &commit)?;
+            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 1);
 
             Ok(())

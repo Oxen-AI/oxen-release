@@ -29,6 +29,7 @@ pub mod entries;
 pub mod init;
 pub mod merge;
 pub mod metadata;
+pub mod pull;
 pub mod push;
 pub mod revisions;
 pub mod rm;
@@ -41,6 +42,7 @@ pub use checkout::checkout;
 pub use clone::{clone, clone_url, deep_clone_url, shallow_clone_url};
 pub use commits::commit;
 pub use init::init;
+pub use pull::{pull, pull_all, pull_remote_branch, pull_shallow};
 pub use push::push;
 pub use rm::rm;
 pub use status::status;
@@ -90,7 +92,7 @@ pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
     let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
 
     match commits::head_commit(repo) {
-        Ok(commit) => match entries::list_all(repo, &commit) {
+        Ok(commit) => match entries::list_for_commit(repo, &commit) {
             Ok(entries) => {
                 for entry in entries {
                     data_size += entry.num_bytes;

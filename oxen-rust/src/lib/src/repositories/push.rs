@@ -48,7 +48,7 @@ use crate::model::{Branch, LocalRepository};
 /// # }
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::push::push(repo).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::push::push(repo).await,
     }
@@ -60,7 +60,7 @@ pub async fn push_remote_branch(
     remote: impl AsRef<str>,
     branch_name: impl AsRef<str>,
 ) -> Result<Branch, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::push::push_remote_branch(repo, remote, branch_name).await
         }
@@ -928,7 +928,7 @@ mod tests {
                     assert!(result.is_ok());
 
                     // Pull should succeed
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // Push should now succeed
                     repositories::push(&user_b_repo).await?;
@@ -999,7 +999,7 @@ mod tests {
                     assert!(first_push_result.is_err());
 
                     // Pull should succeed
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // There should be conflicts
                     let status = repositories::status(&user_b_repo)?;
@@ -1129,7 +1129,7 @@ mod tests {
                 assert!(second_push_again.is_err());
 
                 // Pull A should succeed
-                let pull_a = command::pull(&user_a_repo).await;
+                let pull_a = repositories::pull(&user_a_repo).await;
                 assert!(pull_a.is_ok());
 
                 // There should be conflicts in A
@@ -1223,12 +1223,12 @@ mod tests {
                     let result = repositories::push(&user_b_repo).await;
                     assert!(result.is_ok());
 
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     repositories::push(&user_b_repo).await?;
 
                     // Full pull
-                    command::pull_all(&user_b_repo).await?;
+                    repositories::pull_all(&user_b_repo).await?;
 
                     // Push should now succeed
                     repositories::push(&user_b_repo).await?;
