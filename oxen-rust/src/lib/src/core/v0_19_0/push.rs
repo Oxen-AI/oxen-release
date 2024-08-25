@@ -211,7 +211,7 @@ async fn push_files(
 
             let file_node = child.file()?;
             entries.push(Entry::CommitEntry(CommitEntry {
-                commit_id: commit.id.clone(),
+                commit_id: file_node.last_commit_id.to_string(),
                 path: PathBuf::from(file_node.name),
                 hash: child.hash.to_string(),
                 num_bytes: file_node.num_bytes,

@@ -1,11 +1,20 @@
+use rayon::prelude::*;
+use std::path::PathBuf;
+
 use crate::api;
 use crate::constants::OXEN_HIDDEN_DIR;
+use crate::core;
 use crate::core::refs::RefWriter;
+use crate::core::v0_10_0::index::versioner;
 use crate::error::OxenError;
+use crate::model::entries::commit_entry::Entry;
+use crate::model::CommitEntry;
 use crate::model::{
     LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteBranch, RemoteRepository,
 };
 use crate::opts::PullOpts;
+use crate::repositories;
+use crate::util;
 use crate::view::repository::RepositoryDataTypesView;
 
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
@@ -108,7 +117,8 @@ pub async fn pull_remote_repo(
     let commit_node = api::client::tree::download_tree(repo, remote_repo, &hash).await?;
 
     // Recursively download the entries
-    r_download_entries(repo, remote_repo, &commit_node).await?;
+    let directory = PathBuf::from("");
+    r_download_entries(repo, remote_repo, &commit_node, &directory).await?;
 
     let ref_writer = RefWriter::new(&repo)?;
     if opts.should_update_head {
@@ -124,17 +134,89 @@ async fn r_download_entries(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     node: &MerkleTreeNodeData,
+    directory: &PathBuf,
 ) -> Result<(), OxenError> {
     for child in &node.children {
+        let mut new_directory = directory.clone();
+        if node.dtype == MerkleTreeNodeType::Dir {
+            let dir_node = node.dir()?;
+            new_directory.push(dir_node.name);
+        }
+
         if child.has_children() {
-            Box::pin(r_download_entries(repo, remote_repo, &child)).await?;
+            Box::pin(r_download_entries(
+                repo,
+                remote_repo,
+                &child,
+                &new_directory,
+            ))
+            .await?;
         }
     }
 
     if node.dtype == MerkleTreeNodeType::VNode {
-        // Download all the entries
-        println!("Downloading entries for {}", node.hash);
+        // Figure out which entries need to be downloaded
+        let mut missing_entries: Vec<Entry> = vec![];
+        let missing_hashes = repositories::tree::list_missing_file_hashes(repo, &node.hash)?;
+
+        for child in &node.children {
+            if child.dtype == MerkleTreeNodeType::File {
+                if !missing_hashes.contains(&child.hash) {
+                    continue;
+                }
+
+                let file_node = child.file()?;
+                missing_entries.push(Entry::CommitEntry(CommitEntry {
+                    commit_id: file_node.last_commit_id.to_string(),
+                    path: directory.join(file_node.name),
+                    hash: child.hash.to_string(),
+                    num_bytes: file_node.num_bytes,
+                    last_modified_seconds: file_node.last_modified_seconds,
+                    last_modified_nanoseconds: file_node.last_modified_nanoseconds,
+                }));
+            }
+        }
+
+        core::v0_10_0::index::puller::pull_entries_to_versions_dir(
+            remote_repo,
+            &missing_entries,
+            &repo.path,
+        )
+        .await?;
+
+        unpack_entries(repo, &missing_entries)?;
     }
+
+    Ok(())
+}
+
+fn unpack_entries(repo: &LocalRepository, entries: &[Entry]) -> Result<(), OxenError> {
+    let repo = repo.clone();
+    entries.par_iter().for_each(|entry| {
+        let filepath = repo.path.join(entry.path());
+        // log::debug!(
+        //     "unpack_version_files_to_working_dir found filepath {:?}",
+        //     filepath
+        // );
+        if versioner::should_unpack_entry(entry, &filepath) {
+            // log::debug!(
+            //     "unpack_version_files_to_working_dir unpack! {:?}",
+            //     entry.path()
+            // );
+            let version_path = util::fs::version_path_for_entry(&repo, entry);
+            match util::fs::copy_mkdir(version_path, &filepath) {
+                Ok(_) => {}
+                Err(err) => {
+                    log::error!("pull_entries_for_commit unpack error: {}", err);
+                }
+            }
+        } else {
+            log::debug!(
+                "unpack_version_files_to_working_dir do not unpack :( {:?}",
+                entry.path()
+            );
+        }
+    });
 
     Ok(())
 }
