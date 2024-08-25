@@ -1,7 +1,14 @@
 use crate::api;
+use crate::constants::OXEN_HIDDEN_DIR;
+use crate::core::refs::RefWriter;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{
+    LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteBranch, RemoteRepository,
+};
+use crate::opts::PullOpts;
 use crate::view::repository::RepositoryDataTypesView;
+
+use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let rb = RemoteBranch::default();
@@ -19,10 +26,12 @@ pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
 /// Pull a specific remote and branch
 pub async fn pull_remote_branch(
     repo: &LocalRepository,
-    remote: &str,
-    branch: &str,
+    remote: impl AsRef<str>,
+    branch: impl AsRef<str>,
     all: bool,
 ) -> Result<(), OxenError> {
+    let remote = remote.as_ref();
+    let branch = branch.as_ref();
     println!("🐂 Oxen pull {} {}", remote, branch);
 
     let remote = repo
@@ -50,8 +59,82 @@ pub async fn pull_remote_branch(
         );
     }
 
+    let rb = RemoteBranch {
+        remote: remote.to_string(),
+        branch: branch.to_string(),
+    };
+
     let remote_repo = RemoteRepository::from_data_view(&remote_data_view, &remote);
-    println!("🐂 remote_repo: {:?}", remote_repo);
+    pull_remote_repo(
+        repo,
+        &remote_repo,
+        &rb,
+        &PullOpts {
+            should_pull_all: all,
+            should_update_head: true,
+        },
+    )
+    .await?;
+
+    Ok(())
+}
+
+pub async fn pull_remote_repo(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    remote_branch: &RemoteBranch,
+    opts: &PullOpts,
+) -> Result<(), OxenError> {
+    // Find the head commit on the remote branch
+    let Some(remote_branch) =
+        api::client::branches::get_by_name(remote_repo, &remote_branch.branch).await?
+    else {
+        return Err(OxenError::remote_branch_not_found(&remote_branch.branch));
+    };
+
+    // Download the dir hashes
+    // Must do this before downloading the commit node
+    // because the commit node references the dir hashes
+    let repo_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    api::client::commits::download_dir_hashes_db_to_path(
+        remote_repo,
+        &remote_branch.commit_id,
+        &repo_hidden_dir,
+    )
+    .await?;
+
+    // Download the commit node
+    let hash = MerkleHash::from_str(&remote_branch.commit_id)?;
+    let commit_node = api::client::tree::download_tree(repo, remote_repo, &hash).await?;
+
+    // Recursively download the entries
+    r_download_entries(repo, remote_repo, &commit_node).await?;
+
+    let ref_writer = RefWriter::new(&repo)?;
+    if opts.should_update_head {
+        // Make sure head is pointing to that branch
+        ref_writer.set_head(&remote_branch.name);
+    }
+    ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
+
+    Ok(())
+}
+
+async fn r_download_entries(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    node: &MerkleTreeNodeData,
+) -> Result<(), OxenError> {
+    for child in &node.children {
+        if child.has_children() {
+            Box::pin(r_download_entries(repo, remote_repo, &child)).await?;
+        }
+    }
+
+    if node.dtype == MerkleTreeNodeType::VNode {
+        // Download all the entries
+        println!("Downloading entries for {}", node.hash);
+    }
 
     Ok(())
 }

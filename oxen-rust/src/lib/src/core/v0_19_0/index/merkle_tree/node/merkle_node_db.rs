@@ -68,18 +68,21 @@ use crate::util;
 const NODE_FILE: &str = "node";
 const CHILDREN_FILE: &str = "children";
 
-pub fn node_db_path(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
+pub fn node_db_prefix(hash: &MerkleHash) -> PathBuf {
     let hash_str = hash.to_string();
     let dir_prefix_len = 3;
     let dir_prefix = hash_str.chars().take(dir_prefix_len).collect::<String>();
     let dir_suffix = hash_str.chars().skip(dir_prefix_len).collect::<String>();
+    Path::new(&dir_prefix).join(&dir_suffix)
+}
 
+pub fn node_db_path(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
+    let dir_prefix = node_db_prefix(hash);
     repo.path
         .join(constants::OXEN_HIDDEN_DIR)
         .join(constants::TREE_DIR)
         .join(constants::NODES_DIR)
         .join(dir_prefix)
-        .join(dir_suffix)
 }
 
 pub struct MerkleNodeLookup {

@@ -1,4 +1,5 @@
 use serde::Serialize;
+use std::fmt;
 use std::fmt::Debug;
 use std::fmt::Display;
 
@@ -22,4 +23,43 @@ pub enum MerkleTreeNode {
     VNode(VNode),
     FileChunk(FileChunkNode),
     Schema(SchemaNode),
+}
+
+impl MerkleTreeNode {
+    pub fn has_children(&self) -> bool {
+        match self {
+            MerkleTreeNode::Commit(_) => true,
+            MerkleTreeNode::Directory(_) => true,
+            MerkleTreeNode::File(_) => false,
+            MerkleTreeNode::VNode(_) => true,
+            MerkleTreeNode::FileChunk(_) => false,
+            MerkleTreeNode::Schema(_) => false,
+        }
+    }
+}
+
+impl fmt::Display for MerkleTreeNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MerkleTreeNode::Commit(node) => write!(f, "{}", node),
+            MerkleTreeNode::Directory(node) => write!(f, "{}", node),
+            MerkleTreeNode::File(node) => write!(f, "{}", node),
+            MerkleTreeNode::VNode(node) => write!(f, "{}", node),
+            MerkleTreeNode::FileChunk(node) => write!(f, "{}", node),
+            MerkleTreeNode::Schema(node) => write!(f, "{}", node),
+        }
+    }
+}
+
+impl fmt::Debug for MerkleTreeNode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MerkleTreeNode::Commit(node) => f.debug_tuple("Commit").field(node).finish(),
+            MerkleTreeNode::Directory(node) => f.debug_tuple("Directory").field(node).finish(),
+            MerkleTreeNode::File(node) => f.debug_tuple("File").field(node).finish(),
+            MerkleTreeNode::VNode(node) => f.debug_tuple("VNode").field(node).finish(),
+            MerkleTreeNode::FileChunk(node) => f.debug_tuple("FileChunk").field(node).finish(),
+            MerkleTreeNode::Schema(node) => f.debug_tuple("Schema").field(node).finish(),
+        }
+    }
 }

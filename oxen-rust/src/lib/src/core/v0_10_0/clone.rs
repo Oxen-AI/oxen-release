@@ -42,8 +42,8 @@ pub async fn clone_repo(
     let remote_cfg = RepositoryConfig {
         remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
         remotes: vec![remote_repo.remote.clone()],
-        min_version: Some(MIN_OXEN_VERSION.to_string()),
-        vnode_size: Some(DEFAULT_VNODE_SIZE),
+        min_version: Some(remote_repo.min_version().to_string()),
+        vnode_size: None,
     };
 
     let toml = toml::to_string(&remote_cfg)?;

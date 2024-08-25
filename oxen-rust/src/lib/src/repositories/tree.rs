@@ -23,3 +23,17 @@ pub fn list_missing_file_hashes(
     };
     Ok(node.list_missing_file_hashes(repo)?)
 }
+
+pub fn child_hashes(
+    repo: &LocalRepository,
+    hash: &MerkleHash,
+) -> Result<Vec<MerkleHash>, OxenError> {
+    let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
+        return Err(OxenError::basic_str(format!("Node {} not found", hash)));
+    };
+    let mut children = vec![];
+    for child in node.children {
+        children.push(child.hash);
+    }
+    Ok(children)
+}

@@ -1,8 +1,9 @@
 //! Legacy pull logic for oxen v0.10.0 and above
 
+use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteBranch};
+use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
 use crate::opts::PullOpts;
 
 /// Pull a repository's data from default branches origin/main
@@ -71,4 +72,14 @@ pub async fn pull_remote_branch(
             },
         )
         .await
+}
+
+pub async fn pull_remote_repo(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    rb: &RemoteBranch,
+    opts: &PullOpts,
+) -> Result<(), OxenError> {
+    let indexer = EntryIndexer::new(repo)?;
+    indexer.pull_remote_repo(remote_repo, &rb, opts).await
 }

@@ -1,12 +1,10 @@
-use crate::api;
 use crate::config::RepositoryConfig;
-use crate::constants::{
-    DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, MIN_OXEN_VERSION, REPO_CONFIG_FILENAME,
-};
+use crate::constants::{DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, REPO_CONFIG_FILENAME};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
-use crate::opts::CloneOpts;
+use crate::opts::{CloneOpts, PullOpts};
 use crate::util;
+use crate::{api, repositories};
 
 use std::path::Path;
 
@@ -35,19 +33,24 @@ pub async fn clone_repo(
     let mut local_repo = LocalRepository::from_remote(remote_repo.clone(), repo_path)?;
     repo_path.clone_into(&mut local_repo.path);
     local_repo.set_remote(DEFAULT_REMOTE_NAME, &remote_repo.remote.url);
+    local_repo.set_min_version(remote_repo.min_version());
 
     // Save remote config in .oxen/config.toml
     let remote_cfg = RepositoryConfig {
         remote_name: Some(DEFAULT_REMOTE_NAME.to_string()),
         remotes: vec![remote_repo.remote.clone()],
-        min_version: Some(MIN_OXEN_VERSION.to_string()),
+        min_version: Some(remote_repo.min_version().to_string()),
         vnode_size: Some(DEFAULT_VNODE_SIZE),
     };
 
     let toml = toml::to_string(&remote_cfg)?;
     util::fs::write_to_path(&repo_config_file, &toml)?;
 
-    // TODO: Pull all the data
+    let pull_opts = PullOpts {
+        should_pull_all: opts.all,
+        should_update_head: true,
+    };
+    repositories::pull::pull_remote_repo(&local_repo, &remote_repo, &pull_opts).await?;
 
     Ok(local_repo)
 }
