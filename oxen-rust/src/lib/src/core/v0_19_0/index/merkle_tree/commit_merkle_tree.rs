@@ -88,11 +88,11 @@ impl CommitMerkleTree {
     }
 
     /// Read the dir metadata from the path, without reading the children
-    pub fn dir_metadata_from_path(
+    pub fn dir_without_children(
         repo: &LocalRepository,
         commit: &Commit,
         path: impl AsRef<Path>,
-    ) -> Result<DirNode, OxenError> {
+    ) -> Result<Option<DirNode>, OxenError> {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
@@ -100,14 +100,13 @@ impl CommitMerkleTree {
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
-            CommitMerkleTree::read_node(repo, &node_hash, false)?
-                .unwrap()
-                .dir()
+            if let Some(node) = CommitMerkleTree::read_node(repo, &node_hash, false)? {
+                Ok(Some(node.dir()?))
+            } else {
+                return Ok(None);
+            }
         } else {
-            return Err(OxenError::basic_str(format!(
-                "Merkle tree hash not found for parent: '{}'",
-                node_path.to_str().unwrap()
-            )));
+            return Ok(None);
         }
     }
 

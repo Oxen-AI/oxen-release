@@ -67,7 +67,7 @@ use crate::model::{LocalRepository, StagedData};
 /// # }
 /// ```
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::status::status(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::status::status(repo),
     }
@@ -77,7 +77,7 @@ pub fn status_from_dir(
     repo: &LocalRepository,
     dir: impl AsRef<Path>,
 ) -> Result<StagedData, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::status::status_from_dir(repo, dir),
         MinOxenVersion::V0_19_0 => core::v0_19_0::status::status_from_dir(repo, dir),
     }

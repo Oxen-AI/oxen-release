@@ -868,7 +868,7 @@ pub async fn post_tree_objects_to_server(
     .await
 }
 
-pub async fn post_commit_db_to_server(
+pub async fn post_commit_dir_hashes_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,

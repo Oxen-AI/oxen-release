@@ -3,54 +3,33 @@
 //! Pull data from a remote branch
 //!
 
-use crate::core::v0_10_0::index::EntryIndexer;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteBranch};
-use crate::opts::PullOpts;
+use crate::model::LocalRepository;
 
 /// Pull a repository's data from default branches origin/main
 /// Defaults defined in
 /// `constants::DEFAULT_REMOTE_NAME` and `constants::DEFAULT_BRANCH_NAME`
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch::default();
-    indexer
-        .pull(
-            &rb,
-            PullOpts {
-                should_pull_all: false,
-                should_update_head: true,
-            },
-        )
-        .await
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull(repo).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull(repo).await,
+    }
 }
 
 pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch::default();
-    indexer
-        .pull(
-            &rb,
-            PullOpts {
-                should_pull_all: false,
-                should_update_head: true,
-            },
-        )
-        .await
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull_shallow(repo).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_shallow(repo).await,
+    }
 }
 
 pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch::default();
-    indexer
-        .pull(
-            &rb,
-            PullOpts {
-                should_pull_all: true,
-                should_update_head: true,
-            },
-        )
-        .await
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::pull::pull_all(repo).await,
+        MinOxenVersion::V0_19_0 => core::v0_19_0::pull::pull_all(repo).await,
+    }
 }
 
 /// Pull a specific remote and branch
@@ -60,20 +39,14 @@ pub async fn pull_remote_branch(
     branch: &str,
     all: bool,
 ) -> Result<(), OxenError> {
-    let indexer = EntryIndexer::new(repo)?;
-    let rb = RemoteBranch {
-        remote: String::from(remote),
-        branch: String::from(branch),
-    };
-    indexer
-        .pull(
-            &rb,
-            PullOpts {
-                should_pull_all: all,
-                should_update_head: true,
-            },
-        )
-        .await
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::pull::pull_remote_branch(repo, remote, branch, all).await
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::pull::pull_remote_branch(repo, remote, branch, all).await
+        }
+    }
 }
 
 #[cfg(test)]
@@ -87,8 +60,6 @@ mod tests {
     use crate::constants::OXEN_HIDDEN_DIR;
     use crate::core::df::tabular;
     use crate::core::v0_10_0::index;
-    use crate::core::v0_10_0::index::CommitEntryReader;
-    use crate::core::v0_10_0::index::CommitReader;
     use crate::error::OxenError;
     use crate::opts::CloneOpts;
     use crate::opts::DFOpts;
@@ -135,7 +106,7 @@ mod tests {
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
                 let oxen_dir = cloned_repo.path.join(OXEN_HIDDEN_DIR);
                 assert!(oxen_dir.exists());
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
 
                 // Make sure we pulled all of the train dir
                 let cloned_train_dir = cloned_repo.path.join(train_dirname);
@@ -173,7 +144,7 @@ mod tests {
                 repositories::push(&cloned_repo).await?;
 
                 // Pull back from the OG Repo
-                command::pull(&repo).await?;
+                repositories::pull(&repo).await?;
                 let old_repo_status = repositories::status(&repo)?;
                 old_repo_status.print();
                 // Make sure we don't modify the timestamps or anything of the OG data
@@ -192,7 +163,7 @@ mod tests {
                 repositories::push(&repo).await?;
 
                 // Pull the modifications
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
                 let pulled_contents = util::fs::read_from_path(&cloned_party_ppl_path)?;
                 assert_eq!(pulled_contents, party_ppl_contents);
 
@@ -205,7 +176,7 @@ mod tests {
                 println!("----AFTER-----");
 
                 // Pull down the changes and make sure the file is removed
-                command::pull(&repo).await?;
+                repositories::pull(&repo).await?;
                 let pulled_send_it_back_path = repo.path.join(send_it_back_filename);
                 assert!(!pulled_send_it_back_path.exists());
 
@@ -251,7 +222,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
 
                 // Modify the file in the cloned dir
                 let cloned_filepath = cloned_repo.path.join(filename);
@@ -264,7 +235,7 @@ mod tests {
                 repositories::push(&cloned_repo).await?;
 
                 // Pull back to original guy
-                command::pull(&repo).await?;
+                repositories::pull(&repo).await?;
 
                 // Make sure content changed
                 let pulled_content = util::fs::read_from_path(&filepath)?;
@@ -278,7 +249,7 @@ mod tests {
                 repositories::commit(&repo, "You mess with it, I remove it")?;
                 repositories::push(&repo).await?;
 
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
                 assert!(!cloned_filepath.exists());
 
                 api::client::repositories::delete(&remote_repo).await?;
@@ -320,7 +291,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull_all(&cloned_repo).await?;
+                repositories::pull_all(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 assert_eq!(6, cloned_num_files);
                 let og_commits = repositories::commits::list(&repo)?;
@@ -347,7 +318,7 @@ mod tests {
                 .await?;
 
                 // Pull it on the OG side
-                command::pull_remote_branch(
+                repositories::pull_remote_branch(
                     &repo,
                     constants::DEFAULT_REMOTE_NAME,
                     branch_name,
@@ -372,7 +343,7 @@ mod tests {
                 .await?;
 
                 // Pull it on the second side again
-                command::pull_remote_branch(
+                repositories::pull_remote_branch(
                     &cloned_repo,
                     constants::DEFAULT_REMOTE_NAME,
                     branch_name,
@@ -430,7 +401,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull_all(&cloned_repo).await?;
+                repositories::pull_all(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // the original training files
                 assert_eq!(train_paths.len(), cloned_num_files);
@@ -455,7 +426,7 @@ mod tests {
                 .await?;
 
                 // Pull it on the OG side
-                command::pull_remote_branch(
+                repositories::pull_remote_branch(
                     &repo,
                     constants::DEFAULT_REMOTE_NAME,
                     &og_branch.name,
@@ -504,7 +475,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("new_repo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
                 let filepath = cloned_repo.path.join(filename);
                 let content = util::fs::read_from_path(&filepath)?;
                 assert_eq!(og_content, content);
@@ -848,7 +819,7 @@ mod tests {
                     assert!(result.is_err());
 
                     // Pull
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // Check for merge conflict
                     let status = repositories::status(&user_b_repo)?;
@@ -918,7 +889,7 @@ mod tests {
                     repositories::commit(&user_b_repo, "Adding file_3")?;
 
                     // Pull changes without pushing first - fine since no conflict
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // Get new  head commit of the pulled repo
                     repositories::commits::head_commit(&user_b_repo)?;
@@ -1014,7 +985,7 @@ mod tests {
                     )?;
 
                     // Pull changes
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // Files from the other commit successfully pulled
                     assert!(user_b_repo.path.join(file_1).exists());
@@ -1085,7 +1056,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
                 // 2 test, 5 train, 1 labels
                 assert_eq!(8, cloned_num_files);
@@ -1126,7 +1097,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
                 let file_path = cloned_repo.path.join(filename);
 
                 let cloned_df = tabular::read_df(&file_path, DFOpts::empty())?;
@@ -1183,7 +1154,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull(&cloned_repo).await?;
+                repositories::pull(&cloned_repo).await?;
 
                 let filename = Path::new("nlp")
                     .join("classification")
@@ -1259,7 +1230,7 @@ mod tests {
                 let new_repo_dir = new_repo_dir.join("repoo");
                 let cloned_repo =
                     repositories::shallow_clone_url(&remote_repo.remote.url, &new_repo_dir).await?;
-                command::pull_all(&cloned_repo).await?;
+                repositories::pull_all(&cloned_repo).await?;
 
                 // Get cloned history, which should fall back to API if not found locally
                 let cloned_history = repositories::commits::list(&cloned_repo)?;
@@ -1275,8 +1246,7 @@ mod tests {
                     assert!(commit_history_dir.exists());
 
                     // make sure we can successfully open the db and read entries
-                    let reader = CommitEntryReader::new(&cloned_repo, commit)?;
-                    let entries = reader.list_entries();
+                    let entries = repositories::entries::list_for_commit(&cloned_repo, &commit);
                     assert!(entries.is_ok());
                 }
 
@@ -1377,11 +1347,10 @@ mod tests {
                 .await?;
 
                 // Pull on the shallow copy
-                command::pull_shallow(&user_a_shallow).await?;
+                repositories::pull_shallow(&user_a_shallow).await?;
 
                 // Get all commits on the remote
-                let commit_reader = CommitReader::new(&user_a_shallow)?;
-                let remote_commits = commit_reader.list_all()?;
+                let remote_commits = repositories::commits::list(&user_a_shallow)?;
 
                 let mut synced_commits = 0;
                 log::debug!("total n remote commits {}", remote_commits.len());
@@ -1441,11 +1410,10 @@ mod tests {
                 .await?;
 
                 // Pull on the shallow copy
-                command::pull_shallow(&user_a_repo).await?;
+                repositories::pull_shallow(&user_a_repo).await?;
 
                 // Get all commits on the remote
-                let commit_reader = CommitReader::new(&user_a_repo)?;
-                let remote_commits = commit_reader.list_all()?;
+                let remote_commits = repositories::commits::list(&user_a_repo)?;
 
                 let mut synced_commits = 0;
                 log::debug!("total n remote commits {}", remote_commits.len());

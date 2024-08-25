@@ -621,7 +621,7 @@ async fn push_missing_commit_dbs(
                 let (local_repo, remote_repo, commits, bar) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
                 for commit in &commits {
-                    match api::client::commits::post_commit_db_to_server(
+                    match api::client::commits::post_commit_dir_hashes_to_server(
                         &local_repo,
                         &remote_repo,
                         commit,

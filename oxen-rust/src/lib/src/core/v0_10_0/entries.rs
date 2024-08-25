@@ -2,9 +2,12 @@
 //!
 
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_19_0::index::merkle_tree::node::DirNode;
 use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
+use crate::model::MerkleHash;
+use crate::model::MerkleTreeNodeType;
 use crate::opts::DFOpts;
 use crate::opts::PaginateOpts;
 use crate::view::entries::ResourceVersion;
@@ -25,6 +28,37 @@ use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+pub fn get_directory(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<DirNode>, OxenError> {
+    let path = path.as_ref();
+    let object_reader = get_object_reader(repo, &commit.id)?;
+    let reader = CommitDirEntryReader::new(repo, &commit.id, path, object_reader.clone())?;
+    let Some(entry) = reader.get_entry(path)? else {
+        return Ok(None);
+    };
+
+    let node = DirNode {
+        dtype: MerkleTreeNodeType::Dir,
+        name: entry
+            .path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string(),
+        hash: MerkleHash::from_str(&entry.hash)?,
+        num_bytes: entry.num_bytes,
+        last_commit_id: MerkleHash::from_str(&entry.commit_id)?,
+        last_modified_seconds: entry.last_modified_seconds,
+        last_modified_nanoseconds: entry.last_modified_nanoseconds,
+        data_type_counts: HashMap::new(),
+    };
+    Ok(Some(node))
+}
 
 /// List all files and directories in a directory given a specific commit
 // This is wayyyy more complicated that it needs to be because we have these two separate dbs....

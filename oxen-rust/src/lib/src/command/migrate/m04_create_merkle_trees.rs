@@ -49,7 +49,7 @@ impl Migrate for CreateMerkleTreesMigration {
             .path
             .join(constants::OXEN_HIDDEN_DIR)
             .join(constants::OBJECTS_DIR);
-        if !objects_dir.exists() && repo.version() <= MinOxenVersion::V0_10_0 {
+        if !objects_dir.exists() && repo.min_version() <= MinOxenVersion::V0_10_0 {
             return Ok(true);
         }
         // This may need a more elaborate check for migrations that are aborted with a single repo...

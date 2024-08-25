@@ -49,7 +49,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 }
 
 async fn p_rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::index::rm(repo, opts).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::rm(repo, opts).await,
     }
@@ -164,7 +164,7 @@ mod tests {
                 assert!(!repo_filepath.exists())
             }
 
-            let entries = repositories::entries::list_all(&repo, &commit)?;
+            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
             let dir_reader = CommitEntryReader::new(&repo, &commit)?;
@@ -245,7 +245,7 @@ mod tests {
             let commit = repositories::commit(&repo, "Adding dwight and vince")?;
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
-            let entries = repositories::entries::list_all(&repo, &commit)?;
+            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
 
             for entry in entries.iter() {
                 println!("entry: {:?}", entry.path);

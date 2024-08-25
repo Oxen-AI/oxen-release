@@ -44,7 +44,7 @@ use std::path::{Path, PathBuf};
 /// # }
 /// ```
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::commit(repo, message),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::commit(repo, message),
     }
@@ -52,7 +52,7 @@ pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError
 
 /// Iterate over all commits and get the one with the latest timestamp
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::latest_commit(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::latest_commit(repo),
     }
@@ -60,7 +60,7 @@ pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 
 /// The current HEAD commit of the branch you currently have checked out
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::head_commit(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::head_commit(repo),
     }
@@ -69,7 +69,7 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
 /// Maybe get the head commit if it exists
 /// Returns None if the head commit does not exist (empty repo)
 pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::head_commit_maybe(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::head_commit_maybe(repo),
     }
@@ -77,7 +77,7 @@ pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 
 /// Get the root commit of a repository
 pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::root_commit(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::root_commit(repo),
     }
@@ -89,7 +89,7 @@ pub fn get_by_id(
     commit_id: impl AsRef<str>,
 ) -> Result<Option<Commit>, OxenError> {
     let commit_id = commit_id.as_ref();
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::get_by_id(repo, commit_id),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_by_id(repo, commit_id),
     }
@@ -105,7 +105,7 @@ pub fn commit_id_exists(
 
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list(repo),
     }
@@ -113,7 +113,7 @@ pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
 
 /// List commits for the repository in no particular order
 pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_all(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_all(repo),
     }
@@ -135,7 +135,7 @@ pub fn list_all_paginated(
 
 /// List the history for a specific branch or commit (revision)
 pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_from(repo, revision),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from(repo, revision),
     }
@@ -147,7 +147,7 @@ pub fn list_between(
     start: &Commit,
     end: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_between(repo, start, end),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_between(repo, start, end),
     }
@@ -183,7 +183,7 @@ pub fn list_with_missing_entries(
     repo: &LocalRepository,
     commit_id: impl AsRef<str>,
 ) -> Result<Vec<Commit>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::commits::list_with_missing_entries(repo, commit_id)
         }
@@ -199,7 +199,7 @@ pub fn search_entries(
     commit: &Commit,
     pattern: &str,
 ) -> Result<HashSet<PathBuf>, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::search_entries(repo, commit, pattern),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::search_entries(repo, commit, pattern),
     }
@@ -227,7 +227,7 @@ pub fn list_by_path_from_paginated(
     path: &Path,
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
         }

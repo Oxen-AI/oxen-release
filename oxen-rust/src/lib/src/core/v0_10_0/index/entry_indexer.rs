@@ -356,8 +356,10 @@ impl EntryIndexer {
 
         let mut missing_commits = Vec::new();
         for remote_commit in remote_commits {
-            if !(core::v0_10_0::commits::commit_history_db_exists(&self.repository, &remote_commit)?)
-            {
+            if !(core::v0_10_0::commits::commit_history_db_exists(
+                &self.repository,
+                &remote_commit,
+            )?) {
                 // log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);
             } else {

@@ -1,7 +1,7 @@
+use indicatif::ProgressBar;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
-use indicatif::ProgressBar;
 
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
@@ -148,6 +148,7 @@ async fn r_push_node(
     }
 
     log::debug!("r_push_node: {}", node);
+
     // Check if the node exists on the remote
     let has_node = api::client::tree::has_node(remote_repo, node.hash).await?;
     log::debug!("has_node: {:?}", has_node);
@@ -156,6 +157,13 @@ async fn r_push_node(
     if !has_node {
         // Create the node on the server
         log::debug!("Creating node on the server: {}", node);
+
+        // If node is a commit, we need to push the dir hashes too
+        if node.dtype == MerkleTreeNodeType::Commit {
+            api::client::commits::post_commit_dir_hashes_to_server(repo, remote_repo, commit)
+                .await?;
+        }
+
         api::client::tree::create_node(repo, remote_repo, node).await?;
     }
 
@@ -235,7 +243,9 @@ async fn push_to_existing_branch(
 
     // Check if the remote branch is ahead or behind the local branch
     // If we don't have the commit locally, we are behind
-    let Some(latest_remote_commit) = repositories::commits::get_by_id(repo, &remote_branch.commit_id)? else {
+    let Some(latest_remote_commit) =
+        repositories::commits::get_by_id(repo, &remote_branch.commit_id)?
+    else {
         let err_str = format!(
             "Branch {} is behind {} must pull.",
             remote_branch.name, remote_branch.commit_id
@@ -245,7 +255,8 @@ async fn push_to_existing_branch(
 
     // If we do have the commit locally, we are ahead
     // We need to find all the commits that need to be pushed
-    let mut commits = repositories::commits::list_between(repo, &head_commit, &latest_remote_commit)?;
+    let mut commits =
+        repositories::commits::list_between(repo, &head_commit, &latest_remote_commit)?;
     commits.reverse();
 
     let progress_bar = oxen_progress_bar_with_msg(

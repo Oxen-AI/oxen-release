@@ -656,7 +656,8 @@ fn compute_dir_node(
 
     // Collect the previous commit counts
     if let Some(head_commit) = maybe_head_commit {
-        if let Ok(old_dir_node) = CommitMerkleTree::dir_metadata_from_path(repo, head_commit, &path)
+        if let Ok(Some(old_dir_node)) =
+            CommitMerkleTree::dir_without_children(repo, head_commit, &path)
         {
             num_bytes = old_dir_node.num_bytes;
             data_type_counts = old_dir_node.data_type_counts;
