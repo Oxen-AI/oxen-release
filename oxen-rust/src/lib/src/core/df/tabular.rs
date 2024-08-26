@@ -588,6 +588,14 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
                     let vec: Vec<f32> = l.f32().unwrap().into_iter().flatten().collect();
                     json!(vec)
                 }
+                polars::prelude::DataType::String => {
+                    let vec: Vec<String> = l.str().unwrap().into_iter().flatten().map(|s| s.to_string()).collect();
+                    json!(vec)
+                }
+                polars::prelude::DataType::Boolean => {
+                    let vec: Vec<bool> = l.bool().unwrap().into_iter().flatten().collect();
+                    json!(vec)
+                }
                 dtype => {
                     panic!("Unsupported dtype: {:?}", dtype)
                 }
