@@ -62,7 +62,7 @@ pub async fn download_data_from_version_paths(
             continue;
         }
 
-        log::debug!("download_data_from_version_paths pulling {}", content_file);
+        // log::debug!("download_data_from_version_paths pulling {}", content_file);
 
         // We read from version file as determined by the latest logic (data.extension)
         // but still want to write the tar archive with the original filename so that it

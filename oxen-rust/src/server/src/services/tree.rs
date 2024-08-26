@@ -5,10 +5,6 @@ use crate::controllers;
 
 pub fn tree() -> Scope {
     web::scope("/tree")
-        .route(
-            "/{hash}/download",
-            web::get().to(controllers::tree::download_tree),
-        )
         .service(
             web::scope("/nodes")
                 .route("", web::post().to(controllers::tree::create_node))
@@ -21,5 +17,13 @@ pub fn tree() -> Scope {
                             web::get().to(controllers::tree::list_missing_file_hashes),
                         ),
                 ),
+        )
+        .route(
+            "/commits/{base_head}/download",
+            web::get().to(controllers::tree::download_commits),
+        )
+        .route(
+            "/all/{hash}/download",
+            web::get().to(controllers::tree::download_tree),
         )
 }

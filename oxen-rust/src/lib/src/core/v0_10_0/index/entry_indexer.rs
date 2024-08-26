@@ -8,6 +8,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
@@ -605,6 +606,7 @@ impl EntryIndexer {
         api::client::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
         Ok(())
     }
+
     pub async fn pull_entries_for_commits(
         &self,
         remote_repo: &RemoteRepository,
@@ -668,8 +670,21 @@ impl EntryIndexer {
         });
 
         log::debug!("about to pull the entires to the versions dir");
-        puller::pull_entries_to_versions_dir(remote_repo, &all_entries, &self.repository.path)
-            .await?;
+        let byte_counter = Arc::new(AtomicU64::new(0));
+        let file_counter = Arc::new(AtomicU64::new(0));
+        let progress_bar = Arc::new(ProgressBar::new_spinner());
+        progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
+        progress_bar.set_message(format!("Downloading {} entries", all_entries.len()));
+
+        puller::pull_entries_to_versions_dir(
+            remote_repo,
+            &all_entries,
+            &self.repository.path,
+            &byte_counter,
+            &file_counter,
+            &progress_bar,
+        )
+        .await?;
 
         // Get full length of all entries arrays in unsynced_entries
         let mut entries_to_unpack: usize = 0;
@@ -728,14 +743,26 @@ impl EntryIndexer {
         let n_entries_to_pull = entries.len();
         log::debug!("got {} entries to pull", n_entries_to_pull);
 
-        // PUll all the entries to the versions dir and then hydrate them into the working dir
-        puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path).await?;
+        // Pull all the entries to the versions dir and then hydrate them into the working dir
+        let byte_counter = Arc::new(AtomicU64::new(0));
+        let file_counter = Arc::new(AtomicU64::new(0));
+        let progress_bar = Arc::new(ProgressBar::new_spinner());
+        progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
+        progress_bar.set_message(format!("Downloading {} entries", entries.len()));
+        puller::pull_entries_to_versions_dir(
+            remote_repo,
+            &entries,
+            &self.repository.path,
+            &byte_counter,
+            &file_counter,
+            &progress_bar,
+        )
+        .await?;
 
         let entries_to_unpack = entries.len();
 
-        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
-
         println!("🐂 Unpacking files...");
+        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
         self.unpack_version_files_to_working_dir(&commit, &entries, &bar)?;
 
         if limit == 0 {

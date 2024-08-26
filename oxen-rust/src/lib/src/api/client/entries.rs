@@ -21,6 +21,7 @@ use std::fs::{self};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 /// Returns the metadata given a file path
@@ -181,7 +182,20 @@ pub async fn download_dir(
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
-    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path).await?;
+    let byte_counter = Arc::new(AtomicU64::new(0));
+    let file_counter = Arc::new(AtomicU64::new(0));
+    let progress_bar = Arc::new(ProgressBar::new_spinner());
+    progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
+    progress_bar.set_message(format!("Downloading {} entries", entries.len()));
+    puller::pull_entries_to_working_dir(
+        remote_repo,
+        &entries,
+        local_path,
+        &byte_counter,
+        &file_counter,
+        &progress_bar,
+    )
+    .await?;
 
     Ok(())
 }
@@ -194,14 +208,12 @@ pub async fn download_file(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     if entry.size > AVG_CHUNK_SIZE {
-        let bar = oxen_progress_bar(entry.size, ProgressBarType::Bytes);
         download_large_entry(
             remote_repo,
             &remote_path,
             &local_path,
             &revision,
             entry.size,
-            bar,
         )
         .await
     } else {
@@ -256,7 +268,6 @@ pub async fn download_large_entry(
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
     num_bytes: u64,
-    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     // Read chunks
     let chunk_size = AVG_CHUNK_SIZE;
@@ -340,7 +351,7 @@ pub async fn download_large_entry(
         .for_each(|b| async {
             match b {
                 Ok(s) => {
-                    bar.inc(s);
+                    log::debug!("Downloaded chunk {:?}", s);
                 }
                 Err(err) => {
                     log::error!("Error uploading chunk: {:?}", err)

@@ -178,15 +178,15 @@ pub fn commit_with_cfg(
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
 
     // Copy over the dir hashes from the previous commit
+    let mut parent_id: Option<MerkleHash> = None;
     if let Some(commit) = &maybe_head_commit {
+        parent_id = Some(commit.hash()?);
         let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &commit)?;
         for (path, hash) in dir_hashes {
             str_val_db::put(&dir_hash_db, path, &hash.to_string())?;
         }
     }
 
-    // Commit node has no parent
-    let parent_id = None;
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
     write_commit_entries(
         &repo,

@@ -2,6 +2,7 @@
 //!
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use indicatif::ProgressBar;
@@ -13,7 +14,6 @@ use crate::model::entries::commit_entry::Entry;
 use crate::model::RemoteRepository;
 use crate::repositories;
 use crate::util::concurrency;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{current_function, util};
 
 pub async fn pull_entries(
@@ -21,6 +21,9 @@ pub async fn pull_entries(
     entries: &[Entry],
     dst: impl AsRef<Path>,
     to_working_dir: bool,
+    bytes_downloaded: &Arc<AtomicU64>,
+    files_downloaded: &Arc<AtomicU64>,
+    progress_bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     log::debug!("{} entries.len() {}", current_function!(), entries.len());
 
@@ -34,9 +37,6 @@ pub async fn pull_entries(
     if missing_entries.is_empty() {
         return Ok(());
     }
-
-    let total_size = repositories::entries::compute_generic_entries_size(entries)?;
-    println!("🐂 Downloading {}", bytesize::ByteSize::b(total_size));
 
     // Some files may be much larger than others....so we can't just download them within a single body
     // Hence we chunk and send the big ones, and bundle and download the small ones
@@ -55,9 +55,6 @@ pub async fn pull_entries(
         .map(|e| e.to_owned())
         .collect();
 
-    // Progress bar to be shared between small and large entries
-    let bar = oxen_progress_bar(total_size, ProgressBarType::Bytes);
-
     // Either download to the working directory or the versions directory
     let (small_entry_paths, large_entry_paths) = if to_working_dir {
         let small_entry_paths =
@@ -71,15 +68,29 @@ pub async fn pull_entries(
         (small_entry_paths, large_entry_paths)
     };
 
-    let large_entries_sync =
-        pull_large_entries(remote_repo, larger_entries, &dst, large_entry_paths, &bar);
-    let small_entries_sync =
-        pull_small_entries(remote_repo, smaller_entries, &dst, small_entry_paths, &bar);
+    let large_entries_sync = pull_large_entries(
+        remote_repo,
+        larger_entries,
+        &dst,
+        large_entry_paths,
+        bytes_downloaded,
+        files_downloaded,
+        progress_bar,
+    );
+
+    let small_entries_sync = pull_small_entries(
+        remote_repo,
+        smaller_entries,
+        &dst,
+        small_entry_paths,
+        bytes_downloaded,
+        files_downloaded,
+        progress_bar,
+    );
 
     match tokio::join!(large_entries_sync, small_entries_sync) {
         (Ok(_), Ok(_)) => {
             log::debug!("Successfully synced entries!");
-            bar.finish_and_clear();
         }
         (Err(err), Ok(_)) => {
             let err = format!("Error syncing large entries: {err}");
@@ -139,14 +150,16 @@ async fn pull_large_entries(
     entries: Vec<Entry>,
     dst: impl AsRef<Path>,
     download_paths: Vec<PathBuf>,
-    bar: &Arc<ProgressBar>,
+    bytes_downloaded: &Arc<AtomicU64>,
+    files_downloaded: &Arc<AtomicU64>,
+    progress_bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     if entries.is_empty() {
         return Ok(());
     }
     // Pull the large entries in parallel
     use tokio::time::{sleep, Duration};
-    type PieceOfWork = (RemoteRepository, Entry, PathBuf, PathBuf, Arc<ProgressBar>);
+    type PieceOfWork = (RemoteRepository, Entry, PathBuf, PathBuf);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -160,7 +173,6 @@ async fn pull_large_entries(
                 e.to_owned(),
                 dst.as_ref().to_owned(),
                 path.to_owned(),
-                bar.to_owned(),
             )
         })
         .collect();
@@ -183,9 +195,12 @@ async fn pull_large_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
+        let bytes_downloaded = Arc::clone(&bytes_downloaded);
+        let files_downloaded = Arc::clone(&files_downloaded);
+        let progress_bar = Arc::clone(&progress_bar);
         tokio::spawn(async move {
             loop {
-                let (remote_repo, entry, _dst, download_path, bar) = queue.pop().await;
+                let (remote_repo, entry, _dst, download_path) = queue.pop().await;
 
                 log::debug!("worker[{}] processing task...", worker);
 
@@ -199,12 +214,19 @@ async fn pull_large_entries(
                     &download_path,
                     &entry.commit_id(),
                     entry.num_bytes(),
-                    bar,
                 )
                 .await
                 {
                     Ok(_) => {
                         // log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
+                        let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
+                        let total_files = files_downloaded.load(Ordering::Relaxed);
+                        bytes_downloaded.fetch_add(entry.num_bytes(), Ordering::Relaxed);
+                        progress_bar.set_message(format!(
+                            "🐂 downloaded {} ({} files)",
+                            bytesize::ByteSize::b(total_bytes),
+                            total_files
+                        ));
                     }
                     Err(err) => {
                         log::error!("Could not download chunk... {}", err)
@@ -230,7 +252,9 @@ async fn pull_small_entries(
     entries: Vec<Entry>,
     dst: impl AsRef<Path>,
     content_ids: Vec<(String, PathBuf)>,
-    bar: &Arc<ProgressBar>,
+    bytes_downloaded: &Arc<AtomicU64>,
+    files_downloaded: &Arc<AtomicU64>,
+    progress_bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     if content_ids.is_empty() {
         return Ok(());
@@ -253,12 +277,7 @@ async fn pull_small_entries(
 
     // Split into chunks, zip up, and post to server
     use tokio::time::{sleep, Duration};
-    type PieceOfWork = (
-        RemoteRepository,
-        Vec<(String, PathBuf)>,
-        PathBuf,
-        Arc<ProgressBar>,
-    );
+    type PieceOfWork = (RemoteRepository, Vec<(String, PathBuf)>, PathBuf);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -270,7 +289,6 @@ async fn pull_small_entries(
                 remote_repo.to_owned(),
                 chunk.to_owned(),
                 dst.as_ref().to_owned(),
-                bar.to_owned(),
             )
         })
         .collect();
@@ -286,9 +304,12 @@ async fn pull_small_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
+        let bytes_downloaded = Arc::clone(&bytes_downloaded);
+        let files_downloaded = Arc::clone(&files_downloaded);
+        let progress_bar = Arc::clone(&progress_bar);
         tokio::spawn(async move {
             loop {
-                let (remote_repo, chunk, path, bar) = queue.pop().await;
+                let (remote_repo, chunk, path) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
 
                 match api::client::entries::download_data_from_version_paths(
@@ -299,7 +320,14 @@ async fn pull_small_entries(
                 .await
                 {
                     Ok(download_size) => {
-                        bar.inc(download_size);
+                        bytes_downloaded.fetch_add(download_size, Ordering::Relaxed);
+                        let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
+                        let total_files = files_downloaded.load(Ordering::Relaxed);
+                        progress_bar.set_message(format!(
+                            "🐂 downloaded {} ({} files)",
+                            bytesize::ByteSize::b(total_bytes),
+                            total_files
+                        ));
                     }
                     Err(err) => {
                         log::error!("Could not download entries... {}", err)
@@ -349,9 +377,21 @@ pub async fn pull_entries_to_versions_dir(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
     dst: impl AsRef<Path>,
+    bytes_downloaded: &Arc<AtomicU64>,
+    files_downloaded: &Arc<AtomicU64>,
+    progress_bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let to_working_dir = false;
-    pull_entries(remote_repo, entries, dst, to_working_dir).await?;
+    pull_entries(
+        remote_repo,
+        entries,
+        dst,
+        to_working_dir,
+        bytes_downloaded,
+        files_downloaded,
+        progress_bar,
+    )
+    .await?;
     Ok(())
 }
 
@@ -359,8 +399,20 @@ pub async fn pull_entries_to_working_dir(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
     dst: impl AsRef<Path>,
+    bytes_downloaded: &Arc<AtomicU64>,
+    files_downloaded: &Arc<AtomicU64>,
+    progress_bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let to_working_dir = true;
-    pull_entries(remote_repo, entries, dst, to_working_dir).await?;
+    pull_entries(
+        remote_repo,
+        entries,
+        dst,
+        to_working_dir,
+        bytes_downloaded,
+        files_downloaded,
+        progress_bar,
+    )
+    .await?;
     Ok(())
 }

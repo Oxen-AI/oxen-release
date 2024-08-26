@@ -9,7 +9,6 @@ use liboxen::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_pa
 use liboxen::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_prefix;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::util;
 use liboxen::view::MerkleHashesResponse;
 use liboxen::view::StatusMessage;
 
@@ -154,6 +153,61 @@ pub async fn download_node(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     Ok(HttpResponse::Ok().body(buffer))
 }
 
+pub async fn download_commits(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let name = path_param(&req, "repo_name")?;
+    let base_head = path_param(&req, "base_head")?;
+    let repository = get_repo(&app_data.path, namespace, name)?;
+
+    let (base_commit_id, maybe_head_commit_id) = maybe_parse_base_head(base_head)?;
+
+    let base_commit = repositories::commits::get_by_id(&repository, &base_commit_id)?
+        .ok_or(OxenError::resource_not_found(&base_commit_id))?;
+
+    // If we have a head commit, then we are downloading a range of commits
+    // Otherwise, we are downloading all commits from the base commit back to the first commit
+    // This is the difference between the first pull and subsequent pulls
+    // The first pull doesn't have a head commit, but subsequent pulls do
+    let commits = if let Some(head_commit_id) = maybe_head_commit_id {
+        let head_commit = repositories::commits::get_by_id(&repository, &head_commit_id)?
+            .ok_or(OxenError::resource_not_found(&head_commit_id))?;
+        repositories::commits::list_between(&repository, &head_commit, &base_commit)?
+    } else {
+        repositories::commits::list_from(&repository, &base_commit_id)?
+    };
+
+    // zip up the node directory
+    let enc = GzEncoder::new(Vec::new(), Compression::default());
+    let mut tar = tar::Builder::new(enc);
+
+    for commit in &commits {
+        let hash = commit.hash()?;
+        // This will be the subdir within the tarball
+        // so when we untar it, all the subdirs will be extracted to
+        // tree/nodes/...
+        let dir_prefix = node_db_prefix(&hash);
+        let tar_subdir = Path::new(TREE_DIR).join(NODES_DIR).join(dir_prefix);
+
+        let node_dir = node_db_path(&repository, &hash);
+        log::debug!("Compressing commit from dir {:?}", node_dir);
+        if node_dir.exists() {
+            tar.append_dir_all(&tar_subdir, node_dir)?;
+        }
+    }
+    tar.finish()?;
+
+    let buffer: Vec<u8> = tar.into_inner()?.finish()?;
+    let total_size: u64 = u64::try_from(buffer.len()).unwrap_or(u64::MAX);
+    log::debug!(
+        "Compressed {} commits size is {}",
+        commits.len(),
+        ByteSize::b(total_size)
+    );
+
+    Ok(HttpResponse::Ok().body(buffer))
+}
+
 fn compress_node(repository: &LocalRepository, hash: &MerkleHash) -> Result<Vec<u8>, OxenError> {
     // This will be the subdir within the tarball
     // so when we untar it, all the subdirs will be extracted to
@@ -255,5 +309,25 @@ fn node_to_json(node: MerkleTreeNode) -> actix_web::Result<HttpResponse, OxenHtt
             node: vnode,
         })),
         _ => Err(OxenHttpError::NotFound),
+    }
+}
+
+/// Parses a base..head string into a base and head string
+/// If the base..head string does not contain a .., then it returns the base as the base and head as None
+fn maybe_parse_base_head(
+    base_head: impl AsRef<str>,
+) -> Result<(String, Option<String>), OxenError> {
+    let base_head_str = base_head.as_ref();
+    if base_head_str.contains("..") {
+        let mut split = base_head_str.split("..");
+        if let (Some(base), Some(head)) = (split.next(), split.next()) {
+            Ok((base.to_string(), Some(head.to_string())))
+        } else {
+            Err(OxenError::basic_str(
+                "Could not parse commits. Format should be base..head",
+            ))
+        }
+    } else {
+        Ok((base_head_str.to_string(), None))
     }
 }
