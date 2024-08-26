@@ -39,7 +39,7 @@ pub async fn push_remote_branch(
     };
 
     println!(
-        "🐂 Oxen push {} {} -> {}",
+        "🐂 oxen push {} {} -> {}",
         remote, local_branch.name, local_branch.commit_id
     );
 
@@ -54,10 +54,11 @@ pub async fn push_remote_branch(
     };
 
     let num_bytes = push_remote_repo(repo, &remote_repo, &local_branch).await?;
+    let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
     println!(
-        "🐂 pushed {} in {:?}",
+        "🐂 pushed {} in {}",
         bytesize::ByteSize::b(num_bytes),
-        start.elapsed()
+        humantime::format_duration(duration).to_string()
     );
     Ok(local_branch)
 }
@@ -78,6 +79,8 @@ async fn push_remote_repo(
     let tree = CommitMerkleTree::from_commit(repo, &commit)?;
     // There should always be a root dir, so unwrap is safe
     let root_dir = tree.root.children.first().unwrap().dir()?;
+
+    // TODO: Have a running total of bytes pushed
 
     // Going to return the number of bytes pushed
     let progress_bar = oxen_progress_bar_with_msg(
