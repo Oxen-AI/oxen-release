@@ -63,14 +63,27 @@ pub fn record_column_change(
     column_before: Option<ColumnChange>,
     column_after: Option<ColumnChange>,
 ) -> Result<(), OxenError> {
+    let opts = db::key_val::opts::default();
+    let db = DB::open(&opts, dunce::simplified(column_changes_path))?;
+
+    if operation == "deleted" {
+        if let Some(column) = &column_before {
+            if let Some(previous_change) = data_frame_column_changes_db::get_data_frame_column_change(&db, &column.column_name)? {
+                if previous_change.operation == "added" {
+                    // If we're deleting a previously added column, just remove the change
+                    return revert_column_changes(&db, &column.column_name);
+                }
+            }
+        }
+    }
+
+    println!("column_before: {:?}", column_before);
+
     let change = DataFrameColumnChange {
         operation,
         column_before: column_before.clone(),
         column_after: column_after.clone(),
     };
-
-    let opts = db::key_val::opts::default();
-    let db = DB::open(&opts, dunce::simplified(column_changes_path))?;
 
     let _ = maybe_revert_column_changes(&db, column_before);
     let _ = maybe_revert_column_changes(&db, column_after);
@@ -82,8 +95,8 @@ pub fn maybe_revert_column_changes(db: &DB, column: Option<ColumnChange>) -> Res
     if let Some(column) = column {
         data_frame_column_changes_db::get_data_frame_column_change(db, &column.column_name)
             .and_then(|change_opt| match change_opt {
-                None => revert_column_changes(db, &column.column_name.to_owned()),
-                Some(_) => Ok(()),
+                Some(_) => revert_column_changes(db, &column.column_name.to_owned()),
+                None => Ok(()),
             })
     } else {
         Ok(())
