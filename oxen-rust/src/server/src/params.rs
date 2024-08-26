@@ -88,8 +88,8 @@ pub fn parse_resource(
 }
 
 /// Split the base..head string into base and head strings
-pub fn parse_base_head(base_head: &str) -> Result<(String, String), OxenError> {
-    let mut split = base_head.split("..");
+pub fn parse_base_head(base_head: impl AsRef<str>) -> Result<(String, String), OxenError> {
+    let mut split = base_head.as_ref().split("..");
     if let (Some(base), Some(head)) = (split.next(), split.next()) {
         Ok((base.to_string(), head.to_string()))
     } else {

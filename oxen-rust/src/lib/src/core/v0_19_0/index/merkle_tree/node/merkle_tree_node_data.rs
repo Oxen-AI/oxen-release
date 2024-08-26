@@ -320,6 +320,8 @@ impl fmt::Debug for MerkleTreeNodeData {
         )?;
         writeln!(f, "children.len(): {}", self.children.len())?;
         writeln!(f, "=============")?;
+        writeln!(f, "{}", self)?;
+        writeln!(f, "=============")?;
 
         for child in &self.children {
             writeln!(f, "{}", child)?;
