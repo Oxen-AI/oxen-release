@@ -193,7 +193,13 @@ pub async fn diff(
 
     df_schema.update_metadata_from_schema(&og_schema);
 
-    let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
+    let mut df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
 
     let resource = ResourceVersion {
         path: file_path.to_string_lossy().to_string(),
