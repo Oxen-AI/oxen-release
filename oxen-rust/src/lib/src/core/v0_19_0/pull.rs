@@ -1,7 +1,6 @@
-use indicatif::{ProgressBar, ProgressStyle};
+
 use rayon::prelude::*;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use crate::api;
@@ -18,8 +17,8 @@ use crate::model::{
 use crate::opts::PullOpts;
 use crate::repositories;
 use crate::util;
-use crate::view::repository::RepositoryDataTypesView;
 
+use crate::core::v0_19_0::structs::pull_progress::PullProgress;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
@@ -127,11 +126,7 @@ pub async fn pull_remote_repo(
     }
 
     // Keep track of how many bytes we have downloaded
-    let byte_counter = Arc::new(AtomicU64::new(0));
-    let file_counter = Arc::new(AtomicU64::new(0));
-    let progress_bar = Arc::new(ProgressBar::new_spinner());
-    progress_bar.set_style(ProgressStyle::default_spinner());
-    progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
+    let pull_progress = PullProgress::new();
 
     // Recursively download the entries
     let directory = PathBuf::from("");
@@ -140,9 +135,7 @@ pub async fn pull_remote_repo(
         remote_repo,
         &commit_node,
         &directory,
-        &byte_counter,
-        &file_counter,
-        &progress_bar,
+        &pull_progress,
     )
     .await?;
 
@@ -152,13 +145,13 @@ pub async fn pull_remote_repo(
         ref_writer.set_head(&remote_branch.name);
     }
     ref_writer.set_branch_commit_id(&remote_branch.name, &remote_branch.commit_id)?;
-    progress_bar.finish_and_clear();
+    pull_progress.finish();
     let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
 
     println!(
         "🐂 oxen pulled {} ({} files) in {}",
-        bytesize::ByteSize::b(byte_counter.load(Ordering::Relaxed)),
-        file_counter.load(Ordering::Relaxed),
+        bytesize::ByteSize::b(pull_progress.get_num_bytes()),
+        pull_progress.get_num_files(),
         humantime::format_duration(duration).to_string()
     );
 
@@ -170,9 +163,7 @@ async fn r_download_entries(
     remote_repo: &RemoteRepository,
     node: &MerkleTreeNodeData,
     directory: &PathBuf,
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
+    pull_progress: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     for child in &node.children {
         let mut new_directory = directory.clone();
@@ -187,9 +178,7 @@ async fn r_download_entries(
                 remote_repo,
                 &child,
                 &new_directory,
-                bytes_downloaded,
-                files_downloaded,
-                progress_bar,
+                pull_progress,
             ))
             .await?;
         }
@@ -222,9 +211,7 @@ async fn r_download_entries(
             remote_repo,
             &missing_entries,
             &repo.path,
-            bytes_downloaded,
-            files_downloaded,
-            progress_bar,
+            pull_progress,
         )
         .await?;
 

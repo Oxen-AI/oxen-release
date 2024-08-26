@@ -13,6 +13,7 @@ use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_19_0::structs::PullProgress;
 use crate::core::{self, db};
 
 use crate::core::refs::RefWriter;
@@ -670,18 +671,12 @@ impl EntryIndexer {
         });
 
         log::debug!("about to pull the entires to the versions dir");
-        let byte_counter = Arc::new(AtomicU64::new(0));
-        let file_counter = Arc::new(AtomicU64::new(0));
-        let progress_bar = Arc::new(ProgressBar::new_spinner());
-        progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
-        progress_bar.set_message(format!("Downloading {} entries", all_entries.len()));
+        let progress_bar = PullProgress::new();
 
         puller::pull_entries_to_versions_dir(
             remote_repo,
             &all_entries,
             &self.repository.path,
-            &byte_counter,
-            &file_counter,
             &progress_bar,
         )
         .await?;
@@ -744,17 +739,11 @@ impl EntryIndexer {
         log::debug!("got {} entries to pull", n_entries_to_pull);
 
         // Pull all the entries to the versions dir and then hydrate them into the working dir
-        let byte_counter = Arc::new(AtomicU64::new(0));
-        let file_counter = Arc::new(AtomicU64::new(0));
-        let progress_bar = Arc::new(ProgressBar::new_spinner());
-        progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
-        progress_bar.set_message(format!("Downloading {} entries", entries.len()));
+        let progress_bar = PullProgress::new();
         puller::pull_entries_to_versions_dir(
             remote_repo,
             &entries,
             &self.repository.path,
-            &byte_counter,
-            &file_counter,
             &progress_bar,
         )
         .await?;
