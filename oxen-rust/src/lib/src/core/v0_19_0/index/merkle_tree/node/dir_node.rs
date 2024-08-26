@@ -20,14 +20,14 @@ pub struct DirNode {
 
     // Hash of all the children
     pub hash: MerkleHash,
-    // Number of bytes in the file
+    // Recursive size of the directory
     pub num_bytes: u64,
     // Last commit id that modified the file
     pub last_commit_id: MerkleHash,
     // Last modified timestamp
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
-    // Total number of files in the directory
+    // Recursive file counts in the directory
     pub data_type_counts: HashMap<String, usize>,
 }
 
