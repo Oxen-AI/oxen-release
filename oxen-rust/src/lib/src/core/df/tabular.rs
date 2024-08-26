@@ -589,7 +589,13 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
                     json!(vec)
                 }
                 polars::prelude::DataType::String => {
-                    let vec: Vec<String> = l.str().unwrap().into_iter().flatten().map(|s| s.to_string()).collect();
+                    let vec: Vec<String> = l
+                        .str()
+                        .unwrap()
+                        .into_iter()
+                        .flatten()
+                        .map(|s| s.to_string())
+                        .collect();
                     json!(vec)
                 }
                 polars::prelude::DataType::Boolean => {
