@@ -68,7 +68,12 @@ pub fn record_column_change(
 
     if operation == "deleted" {
         if let Some(column) = &column_before {
-            if let Some(previous_change) = data_frame_column_changes_db::get_data_frame_column_change(&db, &column.column_name)? {
+            if let Some(previous_change) =
+                data_frame_column_changes_db::get_data_frame_column_change(
+                    &db,
+                    &column.column_name,
+                )?
+            {
                 if previous_change.operation == "added" {
                     // If we're deleting a previously added column, just remove the change
                     return revert_column_changes(&db, &column.column_name);
