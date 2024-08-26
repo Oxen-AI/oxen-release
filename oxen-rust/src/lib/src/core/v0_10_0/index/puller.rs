@@ -221,7 +221,8 @@ async fn pull_large_entries(
                         // log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
                         let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
                         let total_files = files_downloaded.load(Ordering::Relaxed);
-                        bytes_downloaded.fetch_add(entry.num_bytes(), Ordering::Relaxed);
+                        bytes_downloaded.fetch_add(entry.num_bytes() as u64, Ordering::Relaxed);
+                        files_downloaded.fetch_add(1, Ordering::Relaxed);
                         progress_bar.set_message(format!(
                             "🐂 downloaded {} ({} files)",
                             bytesize::ByteSize::b(total_bytes),
@@ -321,6 +322,7 @@ async fn pull_small_entries(
                 {
                     Ok(download_size) => {
                         bytes_downloaded.fetch_add(download_size, Ordering::Relaxed);
+                        files_downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed);
                         let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
                         let total_files = files_downloaded.load(Ordering::Relaxed);
                         progress_bar.set_message(format!(

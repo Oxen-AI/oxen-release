@@ -44,7 +44,7 @@ pub async fn pull_remote_branch(
 ) -> Result<(), OxenError> {
     let remote = remote.as_ref();
     let branch = branch.as_ref();
-    println!("🐂 Oxen pull {} {}", remote, branch);
+    println!("🐂 oxen pull {} {}", remote, branch);
 
     let remote = repo
         .get_remote(&remote)
@@ -55,18 +55,6 @@ pub async fn pull_remote_branch(
         Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
         Err(err) => return Err(err),
     };
-
-    println!(
-        "{} ({}) contains {} files",
-        remote_data_view.name,
-        bytesize::ByteSize::b(remote_data_view.size),
-        remote_data_view.total_files()
-    );
-
-    println!(
-        "\n  {}\n",
-        RepositoryDataTypesView::data_types_str(&remote_data_view.data_types)
-    );
 
     let rb = RemoteBranch {
         remote: remote.to_string(),
@@ -168,7 +156,7 @@ pub async fn pull_remote_repo(
     let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
 
     println!(
-        "🐂 Oxen downloaded {} ({} files) in {}",
+        "🐂 oxen pulled {} ({} files) in {}",
         bytesize::ByteSize::b(byte_counter.load(Ordering::Relaxed)),
         file_counter.load(Ordering::Relaxed),
         humantime::format_duration(duration).to_string()
@@ -242,10 +230,7 @@ async fn r_download_entries(
 
         unpack_entries(
             repo,
-            &missing_entries,
-            bytes_downloaded,
-            files_downloaded,
-            progress_bar,
+            &missing_entries
         )?;
     }
 
@@ -255,9 +240,6 @@ async fn r_download_entries(
 fn unpack_entries(
     repo: &LocalRepository,
     entries: &[Entry],
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let repo = repo.clone();
     entries.par_iter().for_each(|entry| {
@@ -274,14 +256,6 @@ fn unpack_entries(
             let version_path = util::fs::version_path_for_entry(&repo, entry);
             match util::fs::copy_mkdir(version_path, &filepath) {
                 Ok(_) => {
-                    let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
-                    let total_files = files_downloaded.load(Ordering::Relaxed);
-                    files_downloaded.fetch_add(1, Ordering::Relaxed);
-                    progress_bar.set_message(format!(
-                        "🐂 downloaded {} ({} files)",
-                        bytesize::ByteSize::b(total_bytes),
-                        total_files
-                    ));
                 }
                 Err(err) => {
                     log::error!("pull_entries_for_commit unpack error: {}", err);
