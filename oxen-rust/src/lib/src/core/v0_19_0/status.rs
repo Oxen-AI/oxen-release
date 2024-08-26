@@ -17,10 +17,22 @@ use std::str;
 use std::time::Duration;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
+    status_from_dir(repo, Path::new(""))
+}
+
+pub fn status_from_dir(
+    repo: &LocalRepository,
+    dir: impl AsRef<Path>,
+) -> Result<StagedData, OxenError> {
     let mut staged_data = StagedData::empty();
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+
+    if !db_path.join("CURRENT").exists() {
+        return Ok(staged_data);
+    }
+
     let db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
 
@@ -28,7 +40,7 @@ pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
-    let (dir_entries, total_entries) = read_staged_entries(&db, &read_progress)?;
+    let (dir_entries, total_entries) = read_staged_entries_below_path(&db, dir, &read_progress)?;
     println!("Considering {} total entries", total_entries);
 
     let mut summarized_dir_stats = SummarizedStagedDirStats {
@@ -66,17 +78,19 @@ pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     Ok(staged_data)
 }
 
-pub fn status_from_dir(
-    repo: &LocalRepository,
-    dir: impl AsRef<Path>,
-) -> Result<StagedData, OxenError> {
-    todo!()
-}
-
 pub fn read_staged_entries(
     db: &DBWithThreadMode<SingleThreaded>,
     read_progress: &ProgressBar,
 ) -> Result<(HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, u64), OxenError> {
+    read_staged_entries_below_path(db, Path::new(""), read_progress)
+}
+
+pub fn read_staged_entries_below_path(
+    db: &DBWithThreadMode<SingleThreaded>,
+    start_path: impl AsRef<Path>,
+    read_progress: &ProgressBar,
+) -> Result<(HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, u64), OxenError> {
+    let start_path = start_path.as_ref();
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
     let mut dir_entries: HashMap<PathBuf, Vec<EntryMetaDataWithPath>> = HashMap::new();
@@ -100,10 +114,12 @@ pub fn read_staged_entries(
                 };
 
                 if let Some(parent) = path.parent() {
-                    dir_entries
-                        .entry(parent.to_path_buf())
-                        .or_default()
-                        .push(entry_w_path);
+                    if parent.starts_with(start_path) {
+                        dir_entries
+                            .entry(parent.to_path_buf())
+                            .or_default()
+                            .push(entry_w_path);
+                    }
                 }
 
                 total_entries += 1;
