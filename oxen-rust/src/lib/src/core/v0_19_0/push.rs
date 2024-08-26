@@ -1,4 +1,4 @@
-use indicatif::ProgressBar;
+
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -13,8 +13,9 @@ use crate::model::{
 use crate::util::progress_bar::oxen_progress_bar_with_msg;
 use crate::{api, repositories};
 
-use super::index::merkle_tree::node::MerkleTreeNodeData;
-use super::index::merkle_tree::CommitMerkleTree;
+use core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
+use core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use core::v0_19_0::structs::push_progress::PushProgress;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let Some(current_branch) = repositories::branches::current_branch(repo)? else {
@@ -80,18 +81,7 @@ async fn push_remote_repo(
     // There should always be a root dir, so unwrap is safe
     let root_dir = tree.root.children.first().unwrap().dir()?;
 
-    // TODO: Have a running total of bytes pushed
-
-    // Going to return the number of bytes pushed
-    let progress_bar = oxen_progress_bar_with_msg(
-        root_dir.num_bytes,
-        format!(
-            "🐂 Pushing {} {} to {}",
-            bytesize::ByteSize::b(root_dir.num_bytes),
-            local_branch.name,
-            remote_repo.name
-        ),
-    );
+    let progress = PushProgress::new();
 
     // Check if the remote branch exists, and either push to it or create a new one
     match api::client::branches::get_by_name(remote_repo, &local_branch.name).await? {
@@ -105,7 +95,7 @@ async fn push_remote_repo(
                 local_branch,
                 &commit,
                 &tree,
-                &progress_bar,
+                &progress,
             )
             .await?
         }
@@ -120,10 +110,10 @@ async fn push_to_new_branch(
     branch: &Branch,
     commit: &Commit,
     tree: &CommitMerkleTree,
-    progress_bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Push each node, and all their file children
-    r_push_node(repo, remote_repo, commit, &tree.root, progress_bar).await?;
+    r_push_node(repo, remote_repo, commit, &tree.root, progress).await?;
 
     // TODO: Do we want a final API call to send the commit?
     //       This might be needed for the hub to set the latest commit
@@ -140,13 +130,13 @@ async fn r_push_node(
     remote_repo: &RemoteRepository,
     commit: &Commit,
     node: &MerkleTreeNodeData,
-    progress_bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Recursively push the node and all its children
     // We want to push all the children before the commit at the root
     for child in &node.children {
         if child.has_children() {
-            Box::pin(r_push_node(repo, remote_repo, commit, child, progress_bar)).await?;
+            Box::pin(r_push_node(repo, remote_repo, commit, child, progress)).await?;
         }
     }
 
@@ -189,7 +179,7 @@ async fn r_push_node(
         commit,
         node,
         &missing_file_hashes,
-        progress_bar,
+        progress
     )
     .await?;
 
@@ -202,7 +192,7 @@ async fn push_files(
     commit: &Commit,
     node: &MerkleTreeNodeData,
     hashes: &HashSet<MerkleHash>,
-    progress_bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Get all the entries
     let mut entries: Vec<Entry> = Vec::new();
@@ -225,7 +215,7 @@ async fn push_files(
     }
 
     log::debug!("pushing {} entries", entries.len());
-    core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &entries, &commit, progress_bar)
+    core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &entries, &commit, progress)
         .await?;
     Ok(())
 }
@@ -262,15 +252,7 @@ async fn push_to_existing_branch(
         repositories::commits::list_between(repo, &head_commit, &latest_remote_commit)?;
     commits.reverse();
 
-    let progress_bar = oxen_progress_bar_with_msg(
-        commits.len() as u64,
-        format!(
-            "🐂 Pushing {} commits from {} to {}",
-            commits.len(),
-            local_branch.name,
-            remote_repo.name
-        ),
-    );
+    let progress_bar = PushProgress::new();
 
     for commit in commits {
         println!("Pushing commit: {}", commit);

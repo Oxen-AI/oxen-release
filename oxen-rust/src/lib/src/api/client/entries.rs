@@ -3,11 +3,11 @@ use crate::config::UserConfig;
 use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, OBJECTS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
+use crate::core::v0_19_0::structs::PullProgress;
 use crate::error::OxenError;
 use crate::model::entries::commit_entry::Entry;
 use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -16,13 +16,10 @@ use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::ProgressBar;
 use std::fs::{self};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
 
 /// Returns the metadata given a file path
 pub async fn get_entry(
@@ -182,18 +179,12 @@ pub async fn download_dir(
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
-    let byte_counter = Arc::new(AtomicU64::new(0));
-    let file_counter = Arc::new(AtomicU64::new(0));
-    let progress_bar = Arc::new(ProgressBar::new_spinner());
-    progress_bar.enable_steady_tick(std::time::Duration::from_millis(100));
-    progress_bar.set_message(format!("Downloading {} entries", entries.len()));
+    let pull_progress = PullProgress::new();
     puller::pull_entries_to_working_dir(
         remote_repo,
         &entries,
         local_path,
-        &byte_counter,
-        &file_counter,
-        &progress_bar,
+        &pull_progress,
     )
     .await?;
 

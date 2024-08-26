@@ -2,13 +2,11 @@
 //!
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
-
-use indicatif::ProgressBar;
 
 use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
+use crate::core::v0_19_0::structs::PullProgress;
 use crate::error::OxenError;
 use crate::model::entries::commit_entry::Entry;
 use crate::model::RemoteRepository;
@@ -21,9 +19,7 @@ pub async fn pull_entries(
     entries: &[Entry],
     dst: impl AsRef<Path>,
     to_working_dir: bool,
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
+    progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     log::debug!("{} entries.len() {}", current_function!(), entries.len());
 
@@ -73,8 +69,6 @@ pub async fn pull_entries(
         larger_entries,
         &dst,
         large_entry_paths,
-        bytes_downloaded,
-        files_downloaded,
         progress_bar,
     );
 
@@ -83,8 +77,6 @@ pub async fn pull_entries(
         smaller_entries,
         &dst,
         small_entry_paths,
-        bytes_downloaded,
-        files_downloaded,
         progress_bar,
     );
 
@@ -150,9 +142,7 @@ async fn pull_large_entries(
     entries: Vec<Entry>,
     dst: impl AsRef<Path>,
     download_paths: Vec<PathBuf>,
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
+    progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     if entries.is_empty() {
         return Ok(());
@@ -195,8 +185,6 @@ async fn pull_large_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
-        let bytes_downloaded = Arc::clone(&bytes_downloaded);
-        let files_downloaded = Arc::clone(&files_downloaded);
         let progress_bar = Arc::clone(&progress_bar);
         tokio::spawn(async move {
             loop {
@@ -219,15 +207,8 @@ async fn pull_large_entries(
                 {
                     Ok(_) => {
                         // log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
-                        let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
-                        let total_files = files_downloaded.load(Ordering::Relaxed);
-                        bytes_downloaded.fetch_add(entry.num_bytes() as u64, Ordering::Relaxed);
-                        files_downloaded.fetch_add(1, Ordering::Relaxed);
-                        progress_bar.set_message(format!(
-                            "🐂 downloaded {} ({} files)",
-                            bytesize::ByteSize::b(total_bytes),
-                            total_files
-                        ));
+                        progress_bar.add_bytes(entry.num_bytes() as u64);
+                        progress_bar.add_files(1);
                     }
                     Err(err) => {
                         log::error!("Could not download chunk... {}", err)
@@ -253,9 +234,7 @@ async fn pull_small_entries(
     entries: Vec<Entry>,
     dst: impl AsRef<Path>,
     content_ids: Vec<(String, PathBuf)>,
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
+    progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     if content_ids.is_empty() {
         return Ok(());
@@ -305,8 +284,6 @@ async fn pull_small_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
-        let bytes_downloaded = Arc::clone(&bytes_downloaded);
-        let files_downloaded = Arc::clone(&files_downloaded);
         let progress_bar = Arc::clone(&progress_bar);
         tokio::spawn(async move {
             loop {
@@ -321,15 +298,8 @@ async fn pull_small_entries(
                 .await
                 {
                     Ok(download_size) => {
-                        bytes_downloaded.fetch_add(download_size, Ordering::Relaxed);
-                        files_downloaded.fetch_add(chunk.len() as u64, Ordering::Relaxed);
-                        let total_bytes = bytes_downloaded.load(Ordering::Relaxed);
-                        let total_files = files_downloaded.load(Ordering::Relaxed);
-                        progress_bar.set_message(format!(
-                            "🐂 downloaded {} ({} files)",
-                            bytesize::ByteSize::b(total_bytes),
-                            total_files
-                        ));
+                        progress_bar.add_bytes(download_size);
+                        progress_bar.add_files(chunk.len() as u64);
                     }
                     Err(err) => {
                         log::error!("Could not download entries... {}", err)
@@ -379,9 +349,7 @@ pub async fn pull_entries_to_versions_dir(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
     dst: impl AsRef<Path>,
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
+    progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let to_working_dir = false;
     pull_entries(
@@ -389,8 +357,6 @@ pub async fn pull_entries_to_versions_dir(
         entries,
         dst,
         to_working_dir,
-        bytes_downloaded,
-        files_downloaded,
         progress_bar,
     )
     .await?;
@@ -401,9 +367,7 @@ pub async fn pull_entries_to_working_dir(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
     dst: impl AsRef<Path>,
-    bytes_downloaded: &Arc<AtomicU64>,
-    files_downloaded: &Arc<AtomicU64>,
-    progress_bar: &Arc<ProgressBar>,
+    progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let to_working_dir = true;
     pull_entries(
@@ -411,8 +375,6 @@ pub async fn pull_entries_to_working_dir(
         entries,
         dst,
         to_working_dir,
-        bytes_downloaded,
-        files_downloaded,
         progress_bar,
     )
     .await?;
