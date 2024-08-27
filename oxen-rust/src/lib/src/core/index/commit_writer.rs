@@ -832,7 +832,7 @@ mod tests {
             // Create committer with no commits
             let repo_path = &repo.path;
             let entry_reader = CommitEntryReader::new_from_head(&repo)?;
-            let schema_reader = SchemaReader::new_from_head(&repo)?;
+            let schema_reader = SchemaReader::new_from_head(&repo, None)?;
             let commit_writer = CommitWriter::new(&repo)?;
 
             let train_dir = repo_path.join("training_data");
