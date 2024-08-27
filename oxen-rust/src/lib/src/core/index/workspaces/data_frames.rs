@@ -4,8 +4,8 @@ use polars::frame::DataFrame;
 use sql_query_builder::{Delete, Select};
 
 use crate::api;
-use crate::constants::MODS_DIR;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
+use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::df::tabular;
@@ -38,6 +38,7 @@ pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -48,6 +49,7 @@ pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -58,6 +60,7 @@ pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> Pat
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -68,6 +71,7 @@ pub fn row_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBu
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)

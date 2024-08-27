@@ -1,16 +1,30 @@
 use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded};
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use crate::constants::{FILES_DIR, MODS_DIR};
+use crate::constants::{FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_json_db;
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
-use crate::model::StagedData;
+use crate::model::{StagedData, StagedEntry};
 
 fn files_db_path(workspace: &Workspace) -> PathBuf {
-    workspace.dir().join(MODS_DIR).join(FILES_DIR)
+    workspace
+        .dir()
+        .join(OXEN_HIDDEN_DIR)
+        .join(MODS_DIR)
+        .join(FILES_DIR)
+}
+
+fn staged_files_db_path(workspace: &Workspace, directory: impl AsRef<Path>) -> PathBuf {
+    workspace
+        .dir()
+        .join(OXEN_HIDDEN_DIR)
+        .join(STAGED_DIR)
+        .join(FILES_DIR)
+        .join(directory.as_ref())
 }
 
 pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<StagedData, OxenError> {
@@ -32,12 +46,23 @@ fn list_staged_entries(
     directory: impl AsRef<Path>,
     status: &mut StagedData,
 ) -> Result<(), OxenError> {
+    let directory = directory.as_ref();
     let mod_entries = list_files(workspace)?;
 
     for path in mod_entries {
-        if Path::new(".") == directory.as_ref() || path.starts_with(directory.as_ref()) {
+        log::debug!(
+            "list_staged_entries path: {:?} directory: {:?}",
+            path,
+            directory
+        );
+        if Path::new(".") == directory || path.starts_with(directory) {
             status.modified_files.push(path.to_owned());
         }
+    }
+
+    let staged_entries = list_staged_files(workspace, directory)?;
+    for (path, entry) in staged_entries {
+        status.staged_files.insert(PathBuf::from(path), entry);
     }
 
     Ok(())
@@ -49,6 +74,18 @@ pub fn list_files(workspace: &Workspace) -> Result<Vec<PathBuf>, OxenError> {
     let opts = db::key_val::opts::default();
     let db: DBWithThreadMode<SingleThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     str_json_db::list_vals(&db)
+}
+
+fn list_staged_files(
+    workspace: &Workspace,
+    directory: impl AsRef<Path>,
+) -> Result<HashMap<String, StagedEntry>, OxenError> {
+    let directory = directory.as_ref();
+    let db_path = staged_files_db_path(workspace, directory);
+    log::debug!("list_staged_files from files_db_path {db_path:?}");
+    let opts = db::key_val::opts::default();
+    let db: DBWithThreadMode<SingleThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
+    str_json_db::hash_map(&db)
 }
 
 pub fn add(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
