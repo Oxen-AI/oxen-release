@@ -396,7 +396,7 @@ impl Merger {
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
         let reader = CommitEntryReader::new(repo, &commit)?;
-        let schema_reader = SchemaReader::new(repo, &commit.id)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id, None)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
 
@@ -432,7 +432,7 @@ impl Merger {
         let stager = Stager::new(repo)?;
         let commit = api::local::commits::head_commit(repo)?;
         let reader = CommitEntryReader::new(repo, &commit)?;
-        let schema_reader = SchemaReader::new(repo, &commit.id)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id, None)?;
         let ignore = oxenignore::create(repo);
         stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
 
