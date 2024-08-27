@@ -1,4 +1,3 @@
-
 use rayon::prelude::*;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -18,8 +17,8 @@ use crate::opts::PullOpts;
 use crate::repositories;
 use crate::util;
 
-use crate::core::v0_19_0::structs::pull_progress::PullProgress;
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
+use crate::core::v0_19_0::structs::pull_progress::PullProgress;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let rb = RemoteBranch::default();
@@ -130,14 +129,7 @@ pub async fn pull_remote_repo(
 
     // Recursively download the entries
     let directory = PathBuf::from("");
-    r_download_entries(
-        repo,
-        remote_repo,
-        &commit_node,
-        &directory,
-        &pull_progress,
-    )
-    .await?;
+    r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
 
     let ref_writer = RefWriter::new(&repo)?;
     if opts.should_update_head {
@@ -215,19 +207,13 @@ async fn r_download_entries(
         )
         .await?;
 
-        unpack_entries(
-            repo,
-            &missing_entries
-        )?;
+        unpack_entries(repo, &missing_entries)?;
     }
 
     Ok(())
 }
 
-fn unpack_entries(
-    repo: &LocalRepository,
-    entries: &[Entry],
-) -> Result<(), OxenError> {
+fn unpack_entries(repo: &LocalRepository, entries: &[Entry]) -> Result<(), OxenError> {
     let repo = repo.clone();
     entries.par_iter().for_each(|entry| {
         let filepath = repo.path.join(entry.path());
@@ -242,8 +228,7 @@ fn unpack_entries(
             // );
             let version_path = util::fs::version_path_for_entry(&repo, entry);
             match util::fs::copy_mkdir(version_path, &filepath) {
-                Ok(_) => {
-                }
+                Ok(_) => {}
                 Err(err) => {
                     log::error!("pull_entries_for_commit unpack error: {}", err);
                 }

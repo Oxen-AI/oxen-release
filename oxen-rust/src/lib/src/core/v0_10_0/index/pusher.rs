@@ -26,9 +26,9 @@ use crate::core::v0_10_0::index::{self, CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
+use crate::core::v0_19_0::structs::push_progress::PushProgress;
 use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
-use crate::core::v0_19_0::structs::push_progress::PushProgress;
 
 pub async fn push(
     repo: &LocalRepository,
@@ -825,12 +825,7 @@ async fn chunk_and_send_large_entries(
     }
 
     use tokio::time::sleep;
-    type PieceOfWork = (
-        Entry,
-        LocalRepository,
-        Commit,
-        RemoteRepository,
-    );
+    type PieceOfWork = (Entry, LocalRepository, Commit, RemoteRepository);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -1106,12 +1101,7 @@ async fn bundle_and_send_small_entries(
 
     // Split into chunks, zip up, and post to server
     use tokio::time::sleep;
-    type PieceOfWork = (
-        Vec<Entry>,
-        LocalRepository,
-        Commit,
-        RemoteRepository,
-    );
+    type PieceOfWork = (Vec<Entry>, LocalRepository, Commit, RemoteRepository);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 

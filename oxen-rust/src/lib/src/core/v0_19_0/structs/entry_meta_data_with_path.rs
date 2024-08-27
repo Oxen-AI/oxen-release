@@ -12,6 +12,8 @@ pub struct EntryMetaDataWithPath {
     pub data_type: EntryDataType,
     pub status: StagedEntryStatus,
     pub last_commit_id: MerkleHash,
+    pub last_modified_seconds: i64,
+    pub last_modified_nanoseconds: u32,
 }
 
 impl PartialEq for EntryMetaDataWithPath {

@@ -180,13 +180,7 @@ pub async fn download_dir(
 
     // Pull all the entries
     let pull_progress = PullProgress::new();
-    puller::pull_entries_to_working_dir(
-        remote_repo,
-        &entries,
-        local_path,
-        &pull_progress,
-    )
-    .await?;
+    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &pull_progress).await?;
 
     Ok(())
 }

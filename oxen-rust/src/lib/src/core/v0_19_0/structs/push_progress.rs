@@ -1,6 +1,5 @@
-
-use std::sync::Arc;
 use crate::core::v0_19_0::structs::sync_progress::{SyncProgress, SyncType};
+use std::sync::Arc;
 
 pub struct PushProgress {
     sync_progress: Arc<SyncProgress>,

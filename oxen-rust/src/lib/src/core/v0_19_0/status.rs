@@ -40,8 +40,8 @@ pub fn status_from_dir(
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
-    let (dir_entries, total_entries) = read_staged_entries_below_path(&db, dir, &read_progress)?;
-    println!("Considering {} total entries", total_entries);
+    let (dir_entries, _) = read_staged_entries_below_path(&db, dir, &read_progress)?;
+    read_progress.finish_and_clear();
 
     let mut summarized_dir_stats = SummarizedStagedDirStats {
         num_files_staged: 0,
@@ -111,10 +111,12 @@ pub fn read_staged_entries_below_path(
                     data_type: entry.data_type,
                     status: entry.status,
                     last_commit_id: MerkleHash::new(0),
+                    last_modified_seconds: entry.last_modified_seconds,
+                    last_modified_nanoseconds: entry.last_modified_nanoseconds,
                 };
 
                 if let Some(parent) = path.parent() {
-                    if parent.starts_with(start_path) {
+                    if Path::new("") == start_path || parent.starts_with(start_path) {
                         dir_entries
                             .entry(parent.to_path_buf())
                             .or_default()
@@ -123,7 +125,7 @@ pub fn read_staged_entries_below_path(
                 }
 
                 total_entries += 1;
-                read_progress.set_message(format!("Gathering {} entries to commit", total_entries));
+                read_progress.set_message(format!("Found {} entries", total_entries));
             }
             Err(err) => {
                 log::error!("Could not get staged entry: {}", err);
