@@ -1,6 +1,8 @@
-
 use indicatif::{ProgressBar, ProgressStyle};
-use std::sync::{atomic::{AtomicU64, Ordering}, Arc};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 pub enum SyncType {
     Push,
@@ -40,7 +42,12 @@ impl SyncProgress {
     pub fn update_message(&self) {
         let files = self.file_counter.load(Ordering::Relaxed);
         let bytes = self.byte_counter.load(Ordering::Relaxed);
-        let message = format!("🐂 {} {} ({} files)", self.sync_type.as_str(), bytesize::ByteSize::b(bytes), files);
+        let message = format!(
+            "🐂 {} {} ({} files)",
+            self.sync_type.as_str(),
+            bytesize::ByteSize::b(bytes),
+            files
+        );
         self.progress_bar.set_message(message);
     }
 

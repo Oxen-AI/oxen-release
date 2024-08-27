@@ -1,4 +1,3 @@
-
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -89,15 +88,7 @@ async fn push_remote_repo(
             push_to_existing_branch(repo, remote_repo, local_branch, &remote_branch).await?
         }
         None => {
-            push_to_new_branch(
-                repo,
-                remote_repo,
-                local_branch,
-                &commit,
-                &tree,
-                &progress,
-            )
-            .await?
+            push_to_new_branch(repo, remote_repo, local_branch, &commit, &tree, &progress).await?
         }
     }
 
@@ -179,7 +170,7 @@ async fn r_push_node(
         commit,
         node,
         &missing_file_hashes,
-        progress
+        progress,
     )
     .await?;
 

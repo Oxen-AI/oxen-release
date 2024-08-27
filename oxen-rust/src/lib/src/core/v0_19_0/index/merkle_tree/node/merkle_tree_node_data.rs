@@ -169,6 +169,12 @@ impl MerkleTreeNodeData {
         traversed_path: &Path,
         path: &Path,
     ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+        log::debug!(
+            "get_by_path_helper traversed_path: {:?} path: {:?} {}",
+            traversed_path,
+            path,
+            self
+        );
         if traversed_path.components().count() > path.components().count() {
             return Ok(None);
         }
@@ -176,12 +182,12 @@ impl MerkleTreeNodeData {
         if self.dtype == MerkleTreeNodeType::File {
             let file_node = self.file()?;
             let file_path = traversed_path.join(file_node.name);
-            // log::debug!(
-            //     "get_by_path_helper [{:?}] {:?} {:?}",
-            //     self.dtype,
-            //     file_path,
-            //     path
-            // );
+            log::debug!(
+                "get_by_path_helper [{:?}] {:?} {:?}",
+                self.dtype,
+                file_path,
+                path
+            );
             if file_path == path {
                 return Ok(Some(self.clone()));
             }
@@ -199,10 +205,41 @@ impl MerkleTreeNodeData {
             }
         }
 
-        if self.dtype == MerkleTreeNodeType::Commit
-            || self.dtype == MerkleTreeNodeType::Dir
-            || self.dtype == MerkleTreeNodeType::VNode
-        {
+        if self.dtype == MerkleTreeNodeType::VNode {
+            // Binary search implementation
+            let target_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            match self.children.binary_search_by(|child| {
+                log::debug!("child: {}", child);
+                let child_name = match child.dtype {
+                    MerkleTreeNodeType::Dir => child.dir().map(|d| d.name),
+                    MerkleTreeNodeType::File => child.file().map(|f| f.name),
+                    _ => Ok("".to_string()),
+                };
+                log::debug!(
+                    "child_name: {:?} target_name: {:?}",
+                    child_name,
+                    target_name
+                );
+                child_name.unwrap_or("".to_string()).cmp(&target_name)
+            }) {
+                Ok(index) => {
+                    let child = &self.children[index];
+                    if child.dtype == MerkleTreeNodeType::Dir {
+                        let dir_node = child.dir()?;
+                        return child.get_by_path_helper(&traversed_path.join(dir_node.name), path);
+                    } else {
+                        return child.get_by_path_helper(&traversed_path, path);
+                    }
+                }
+                Err(_) => return Ok(None),
+            }
+        }
+
+        if self.dtype == MerkleTreeNodeType::Commit || self.dtype == MerkleTreeNodeType::Dir {
             for child in &self.children {
                 if child.dtype == MerkleTreeNodeType::Dir {
                     let dir_node = child.dir()?;
@@ -218,8 +255,43 @@ impl MerkleTreeNodeData {
                 }
             }
         }
-
         Ok(None)
+        /*
+        if self.dtype == MerkleTreeNodeType::Commit
+            || self.dtype == MerkleTreeNodeType::Dir
+            || self.dtype == MerkleTreeNodeType::VNode
+        {
+            // Binary search implementation
+            let target_name = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            match self.children.binary_search_by(|child| {
+                log::debug!("child: {}", child);
+                let child_name = match child.dtype {
+                    MerkleTreeNodeType::Dir => child.dir().map(|d| d.name),
+                    MerkleTreeNodeType::File => child.file().map(|f| f.name),
+                    _ => Ok("".to_string()),
+                };
+                log::debug!("child_name: {:?} target_name: {:?}", child_name, target_name);
+                child_name.unwrap_or("".to_string()).cmp(&target_name)
+            }) {
+                Ok(index) => {
+                    let child = &self.children[index];
+                    if child.dtype == MerkleTreeNodeType::Dir {
+                        let dir_node = child.dir()?;
+                        child.get_by_path_helper(&traversed_path.join(dir_node.name), path)
+                    } else {
+                        child.get_by_path_helper(&traversed_path, path)
+                    }
+                }
+                Err(_) => Ok(None),
+            }
+        } else {
+            Ok(None)
+        }
+        */
     }
 
     pub fn to_node(&self) -> Result<MerkleTreeNode, OxenError> {

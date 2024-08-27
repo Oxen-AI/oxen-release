@@ -352,14 +352,7 @@ pub async fn pull_entries_to_versions_dir(
     progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let to_working_dir = false;
-    pull_entries(
-        remote_repo,
-        entries,
-        dst,
-        to_working_dir,
-        progress_bar,
-    )
-    .await?;
+    pull_entries(remote_repo, entries, dst, to_working_dir, progress_bar).await?;
     Ok(())
 }
 
@@ -370,13 +363,6 @@ pub async fn pull_entries_to_working_dir(
     progress_bar: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {
     let to_working_dir = true;
-    pull_entries(
-        remote_repo,
-        entries,
-        dst,
-        to_working_dir,
-        progress_bar,
-    )
-    .await?;
+    pull_entries(remote_repo, entries, dst, to_working_dir, progress_bar).await?;
     Ok(())
 }

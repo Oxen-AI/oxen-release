@@ -1,3 +1,4 @@
+use filetime::FileTime;
 use glob::glob;
 use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
@@ -6,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use tokio::time::Duration;
 
-use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
 
@@ -18,7 +19,7 @@ use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
 
-use super::index::merkle_tree::node::MerkleTreeNodeData;
+use super::index::merkle_tree::node::{FileNode, MerkleTreeNodeData};
 use super::index::merkle_tree::CommitMerkleTree;
 use crate::model::MerkleTreeNodeType;
 
@@ -113,13 +114,15 @@ fn add_files(
         } else if path.is_file() {
             // Process the file here
             let entry = add_file(repo, &maybe_head_commit, path)?;
-            total.total_files += 1;
-            total.total_bytes += entry.num_bytes;
-            total
-                .data_type_counts
-                .entry(entry.data_type)
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
+            if let Some(entry) = entry {
+                total.total_files += 1;
+                total.total_bytes += entry.num_bytes;
+                total
+                    .data_type_counts
+                    .entry(entry.data_type)
+                    .and_modify(|count| *count += 1)
+                    .or_insert(1);
+            }
         }
     }
 
@@ -133,8 +136,7 @@ fn process_dir(
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
 
-    let m = MultiProgress::new();
-    let progress_1 = m.add(ProgressBar::new_spinner());
+    let progress_1 = Arc::new(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
 
@@ -153,37 +155,15 @@ fn process_dir(
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
-    let file_counter = Arc::new(AtomicU64::new(0));
+    let added_file_counter = Arc::new(AtomicU64::new(0));
+    let unchanged_file_counter = Arc::new(AtomicU64::new(0));
+    let progress_1_clone = Arc::clone(&progress_1);
 
     let walk_dir = WalkDirGeneric::<(usize, EntryMetaData)>::new(&path).process_read_dir(
         move |_depth, dir, state, children| {
-            // 1. Custom sort
-            // children.sort_by(|a, b| match (a, b) {
-            //     (Ok(a), Ok(b)) => a.file_name.cmp(&b.file_name),
-            //     (Ok(_), Err(_)) => Ordering::Less,
-            //     (Err(_), Ok(_)) => Ordering::Greater,
-            //     (Err(_), Err(_)) => Ordering::Equal,
-            // });
-            // 2. Custom filter
-            // children.retain(|dir_entry_result| {
-            //     dir_entry_result.as_ref().map(|dir_entry| {
-            //         dir_entry.file_name
-            //             .to_str()
-            //             .map(|s| s.starts_with('.'))
-            //             .unwrap_or(false)
-            //     }).unwrap_or(false)
-            // });
-            // 3. Custom skip
-            // children.iter_mut().for_each(|dir_entry_result| {
-            //     if let Ok(dir_entry) = dir_entry_result {
-            //         if dir_entry.depth == 2 {
-            //             dir_entry.read_children_path = None;
-            //         }
-            //     }
-            // });
-            // 4. Custom state
             let byte_counter_clone = Arc::clone(&byte_counter);
-            let file_counter_clone = Arc::clone(&file_counter);
+            let added_file_counter_clone = Arc::clone(&added_file_counter);
+            let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
             let num_children = children.len();
             progress_1.set_message(format!(
@@ -192,8 +172,8 @@ fn process_dir(
             ));
             *state += 1;
 
-            // Load the directory
-            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &path).unwrap();
+            let dir_path = util::fs::path_relative_to_dir(&dir, &repo_path).unwrap();
+            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
 
             // Curious why this is only < 300% CPU usage
             children.par_iter_mut().for_each(|dir_entry_result| {
@@ -204,18 +184,24 @@ fn process_dir(
                     let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
                     progress_1.set_message(format!(
-                        "🐂 Adding {} files ({}) {:.2} MB/s",
-                        file_counter_clone.load(Ordering::Relaxed),
+                        "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                        added_file_counter_clone.load(Ordering::Relaxed),
+                        unchanged_file_counter_clone.load(Ordering::Relaxed),
                         bytesize::ByteSize::b(total_bytes),
                         mbps
                     ));
                     match process_add_file(&repo_path, &versions_path, &staged_db, &dir_node, &path)
                     {
-                        Ok(entry) => {
-                            byte_counter_clone.fetch_add(entry.num_bytes, Ordering::Relaxed);
-                            file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                        Ok(Some(entry)) => {
+                            if entry.data_type != EntryDataType::Dir {
+                                byte_counter_clone.fetch_add(entry.num_bytes, Ordering::Relaxed);
+                                added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                            }
 
                             dir_entry.client_state = entry;
+                        }
+                        Ok(None) => {
+                            unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
                         }
                         Err(e) => {
                             log::error!("Error adding file: {:?}", e);
@@ -233,6 +219,13 @@ fn process_dir(
     };
     for dir_entry in walk_dir.into_iter().flatten() {
         cumulative_stats.total_bytes += dir_entry.client_state.num_bytes;
+
+        if dir_entry.client_state.data_type != EntryDataType::Dir
+            && dir_entry.client_state.status != StagedEntryStatus::Unmodified
+        {
+            cumulative_stats.total_files += 1;
+        }
+
         cumulative_stats
             .data_type_counts
             .entry(dir_entry.client_state.data_type)
@@ -243,9 +236,9 @@ fn process_dir(
         //     cumulative_stats.total_files,
         //     bytesize::ByteSize::b(cumulative_stats.total_bytes)
         // ));
-
-        cumulative_stats.total_files += 1;
     }
+
+    progress_1_clone.finish_and_clear();
 
     Ok(cumulative_stats)
 }
@@ -263,18 +256,22 @@ fn maybe_load_directory(
     }
 }
 
-fn dir_node_has_file(
+fn get_file_node(
     dir_node: &Option<MerkleTreeNodeData>,
-    path: &Path,
-) -> Result<bool, OxenError> {
+    path: impl AsRef<Path>,
+) -> Result<Option<FileNode>, OxenError> {
     if let Some(node) = dir_node {
         if let Some(node) = node.get_by_path(path)? {
-            Ok(node.dtype == MerkleTreeNodeType::File)
+            if node.dtype == MerkleTreeNodeType::File {
+                Ok(Some(node.file()?))
+            } else {
+                Ok(None)
+            }
         } else {
-            Ok(false)
+            Ok(None)
         }
     } else {
-        Ok(false)
+        Ok(None)
     }
 }
 
@@ -282,7 +279,7 @@ fn add_file(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
-) -> Result<EntryMetaData, OxenError> {
+) -> Result<Option<EntryMetaData>, OxenError> {
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -315,83 +312,148 @@ fn process_add_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     maybe_dir_node: &Option<MerkleTreeNodeData>,
     path: &Path,
-) -> Result<EntryMetaData, OxenError> {
+) -> Result<Option<EntryMetaData>, OxenError> {
     let relative_path = util::fs::path_relative_to_dir(path, &repo_path)?;
     let full_path = repo_path.join(&relative_path);
-    let entry = if full_path.is_file() {
-        // If we can't hash - nothing downstream will work, so panic!
-        let (hash, num_bytes) = util::hasher::get_hash_and_size(&full_path)
-            .unwrap_or_else(|_| panic!("Could not hash file: {:?}", full_path));
-        let data_type = util::fs::file_data_type(&full_path);
-        // println!("path {:?} hash {} num_bytes {} data_type {:?}", path, hash, num_bytes, data_type);
+    if !full_path.is_file() {
+        // If it's not a file - no need to add it
+        // We handle directories by traversing the parents of files below
+        return Ok(Some(EntryMetaData {
+            hash: MerkleHash::new(0),
+            num_bytes: 0,
+            data_type: EntryDataType::Dir,
+            status: StagedEntryStatus::Unmodified,
+            last_modified_seconds: 0,
+            last_modified_nanoseconds: 0,
+        }));
+    }
 
-        // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-        let dir_prefix_len = 2;
-        let dir_name = format!("{:x}", hash);
-        let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-        let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-        let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
+    // Check if the file is already in the head commit
+    let file_path = relative_path.file_name().unwrap();
+    let maybe_file_node = get_file_node(maybe_dir_node, &file_path)?;
 
-        if !dst_dir.exists() {
-            util::fs::create_dir_all(&dst_dir).unwrap();
-        }
-
-        let dst = dst_dir.join("data");
-        util::fs::copy(&full_path, &dst).unwrap();
-
-        // Check if the file is already in the head commit
-        let is_file_in_head_commit = dir_node_has_file(maybe_dir_node, &relative_path)?;
-        let status = if is_file_in_head_commit {
-            StagedEntryStatus::Modified
-        } else {
-            StagedEntryStatus::Added
-        };
-
-        let entry = EntryMetaData {
-            hash: MerkleHash::new(hash),
-            data_type,
-            num_bytes,
-            status,
-        };
-
-        let mut buf = Vec::new();
-        entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        staged_db
-            .put(relative_path.to_str().unwrap(), &buf)
-            .unwrap();
-
-        // Add all the parent dirs to the staged db
-        let mut parent_path = relative_path.to_path_buf();
-        while let Some(parent) = parent_path.parent() {
-            let relative_path = util::fs::path_relative_to_dir(&parent, &repo_path).unwrap();
-
-            let dir_entry = EntryMetaData {
-                data_type: EntryDataType::Dir,
-                ..Default::default()
-            };
-
-            let mut buf = Vec::new();
-            dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-            staged_db
-                .put(relative_path.to_str().unwrap(), &buf)
-                .unwrap();
-
-            parent_path = parent.to_path_buf();
-
-            if relative_path == Path::new("") {
-                break;
+    // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
+    let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
+        // first check if the file timestamp is different
+        let metadata = std::fs::metadata(path)?;
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        log::debug!("path: {:?}", path);
+        log::debug!(
+            "file_node.last_modified_seconds: {}",
+            file_node.last_modified_seconds
+        );
+        log::debug!(
+            "file_node.last_modified_nanoseconds: {}",
+            file_node.last_modified_nanoseconds
+        );
+        log::debug!("mtime.unix_seconds(): {}", mtime.unix_seconds());
+        log::debug!("mtime.nanoseconds(): {}", mtime.nanoseconds());
+        log::debug!(
+            "has_different_modification_time: {}",
+            has_different_modification_time(&file_node, &mtime)
+        );
+        log::debug!("-----------------------------------");
+        if has_different_modification_time(&file_node, &mtime) {
+            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+            if file_node.hash.to_u128() != hash {
+                (
+                    StagedEntryStatus::Modified,
+                    MerkleHash::new(hash),
+                    file_node.num_bytes,
+                    mtime,
+                )
+            } else {
+                (
+                    StagedEntryStatus::Unmodified,
+                    MerkleHash::new(hash),
+                    file_node.num_bytes,
+                    mtime,
+                )
             }
+        } else {
+            (
+                StagedEntryStatus::Unmodified,
+                file_node.hash,
+                file_node.num_bytes,
+                mtime,
+            )
         }
-
-        entry
     } else {
-        let entry = EntryMetaData {
+        let metadata = std::fs::metadata(path)?;
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+        (
+            StagedEntryStatus::Added,
+            MerkleHash::new(hash),
+            metadata.len(),
+            mtime,
+        )
+    };
+
+    // Don't have to add the file to the staged db if it hasn't changed
+    if status == StagedEntryStatus::Unmodified {
+        return Ok(None);
+    }
+
+    // Get the data type of the file
+    let data_type = util::fs::file_data_type(&full_path);
+
+    // Add the file to the versions db
+    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+    let dir_prefix_len = 2;
+    let dir_name = hash.to_string();
+    let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
+    let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
+    let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
+
+    if !dst_dir.exists() {
+        util::fs::create_dir_all(&dst_dir).unwrap();
+    }
+
+    let dst = dst_dir.join("data");
+    util::fs::copy(&full_path, &dst).unwrap();
+
+    let entry = EntryMetaData {
+        hash,
+        data_type,
+        num_bytes,
+        status,
+        last_modified_seconds: mtime.unix_seconds(),
+        last_modified_nanoseconds: mtime.nanoseconds(),
+    };
+
+    let mut buf = Vec::new();
+    entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+    staged_db
+        .put(relative_path.to_str().unwrap(), &buf)
+        .unwrap();
+
+    // Add all the parent dirs to the staged db
+    let mut parent_path = relative_path.to_path_buf();
+    while let Some(parent) = parent_path.parent() {
+        let relative_path = util::fs::path_relative_to_dir(&parent, &repo_path).unwrap();
+
+        let dir_entry = EntryMetaData {
             data_type: EntryDataType::Dir,
             ..Default::default()
         };
 
-        entry
-    };
+        let mut buf = Vec::new();
+        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        staged_db
+            .put(relative_path.to_str().unwrap(), &buf)
+            .unwrap();
 
-    Ok(entry)
+        parent_path = parent.to_path_buf();
+
+        if relative_path == Path::new("") {
+            break;
+        }
+    }
+    Ok(Some(entry))
+}
+
+pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {
+    node.last_modified_nanoseconds != time.nanoseconds()
+        || node.last_modified_seconds != time.unix_seconds()
 }

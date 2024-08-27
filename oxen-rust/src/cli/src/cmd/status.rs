@@ -78,7 +78,7 @@ impl RunCmd for StatusCmd {
         let repository = LocalRepository::from_dir(&repo_dir)?;
         check_repo_migration_needed(&repository)?;
 
-        let directory = directory.unwrap_or(repository.path.clone());
+        let directory = directory.unwrap_or(PathBuf::from(""));
         let repo_status = repositories::status_from_dir(&repository, &directory)?;
 
         if let Some(current_branch) = repositories::branches::current_branch(&repository)? {
@@ -87,11 +87,12 @@ impl RunCmd for StatusCmd {
                 current_branch.name, current_branch.commit_id
             );
         } else {
-            let head = repositories::commits::head_commit(&repository)?;
-            println!(
-                "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
-                head.id, head.message
-            );
+            if let Some(head) = repositories::commits::head_commit_maybe(&repository)? {
+                println!(
+                    "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
+                    head.id, head.message
+                );
+            }
         }
 
         repo_status.print_with_params(&opts);

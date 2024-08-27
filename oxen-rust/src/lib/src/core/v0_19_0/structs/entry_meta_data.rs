@@ -9,6 +9,8 @@ pub struct EntryMetaData {
     pub num_bytes: u64,
     pub data_type: EntryDataType,
     pub status: StagedEntryStatus,
+    pub last_modified_seconds: i64,
+    pub last_modified_nanoseconds: u32,
 }
 
 impl Default for EntryMetaData {
@@ -17,7 +19,9 @@ impl Default for EntryMetaData {
             hash: MerkleHash::new(0),
             num_bytes: 0,
             data_type: EntryDataType::Binary,
-            status: StagedEntryStatus::Added,
+            status: StagedEntryStatus::Unmodified,
+            last_modified_seconds: 0,
+            last_modified_nanoseconds: 0,
         }
     }
 }

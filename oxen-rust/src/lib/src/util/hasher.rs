@@ -93,6 +93,17 @@ pub fn hash_file_contents_with_retry(path: &Path) -> Result<String, OxenError> {
     }
 }
 
+pub fn get_hash_given_metadata(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<u128, OxenError> {
+    if metadata.len() < 1_000_000_000 {
+        hash_small_file_contents(path)
+    } else {
+        hash_large_file_contents(path)
+    }
+}
+
 pub fn get_hash_and_size(path: &Path) -> Result<(u128, u64), OxenError> {
     // If file is < 1GB, one-shot hash for speed
     // If file is > 1GB, stream hash to avoid memory overage issues

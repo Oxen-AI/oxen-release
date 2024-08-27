@@ -242,6 +242,8 @@ fn node_data_to_entry(
                 num_bytes: dir_node.num_bytes,
                 status: StagedEntryStatus::Unmodified,
                 last_commit_id: dir_node.last_commit_id,
+                last_modified_seconds: dir_node.last_modified_seconds,
+                last_modified_nanoseconds: dir_node.last_modified_nanoseconds,
             }))
         }
         MerkleTreeNodeType::File => {
@@ -253,6 +255,8 @@ fn node_data_to_entry(
                 num_bytes: file_node.num_bytes,
                 status: StagedEntryStatus::Unmodified,
                 last_commit_id: file_node.last_commit_id,
+                last_modified_seconds: file_node.last_modified_seconds,
+                last_modified_nanoseconds: file_node.last_modified_nanoseconds,
             }))
         }
         _ => Ok(None),
@@ -591,8 +595,8 @@ fn r_create_dir_node(
                         } else {
                             commit_id
                         },
-                        last_modified_seconds: 0,
-                        last_modified_nanoseconds: 0,
+                        last_modified_seconds: entry.last_modified_seconds,
+                        last_modified_nanoseconds: entry.last_modified_nanoseconds,
                         chunk_hashes: chunks,
                         data_type: entry.data_type.clone(),
                         mime_type: "".to_string(),
