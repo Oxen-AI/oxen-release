@@ -199,16 +199,14 @@ mod tests {
             )
             .await?;
 
-            if df
+            if !df
                 .data_frame
                 .unwrap()
                 .view
                 .schema
                 .fields
                 .iter()
-                .enumerate()
-                .find(|(_index, field)| field.name == column_name)
-                .is_none()
+                .any(|field| field.name == column_name)
             {
                 panic!("Column {} does not exist in the data frame", column_name);
             }
@@ -358,15 +356,14 @@ mod tests {
             )
             .await?;
 
-            if let None = df
+            if !df
                 .data_frame
                 .unwrap()
                 .view
                 .schema
                 .fields
                 .iter()
-                .enumerate()
-                .find(|(_index, field)| field.name == "files")
+                .any(|field| field.name == "files")
             {
                 panic!("Column {} doesn't exist in the data frame", "files");
             }
