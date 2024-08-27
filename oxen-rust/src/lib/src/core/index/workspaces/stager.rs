@@ -35,9 +35,7 @@ fn list_staged_entries(
     let mod_entries = list_files(workspace)?;
 
     for path in mod_entries {
-        if Path::new(".") == directory.as_ref() {
-            status.modified_files.push(path.to_owned());
-        } else if path.starts_with(directory.as_ref()) {
+        if Path::new(".") == directory.as_ref() || path.starts_with(directory.as_ref()) {
             status.modified_files.push(path.to_owned());
         }
     }
