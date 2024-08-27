@@ -206,7 +206,8 @@ mod tests {
                 .schema
                 .fields
                 .iter()
-                .enumerate().any(|(_index, field)| field.name == column_name)
+                .enumerate()
+                .any(|(_index, field)| field.name == column_name)
             {
                 panic!("Column {} does not exist in the data frame", column_name);
             }
@@ -364,7 +365,8 @@ mod tests {
                 .fields
                 .iter()
                 .enumerate()
-                .find(|(_index, field)| field.name == "files").is_none()
+                .find(|(_index, field)| field.name == "files")
+                .is_none()
             {
                 panic!("Column {} doesn't exist in the data frame", "files");
             }
