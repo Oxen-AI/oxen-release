@@ -785,7 +785,7 @@ impl Stager {
             // Also add as removed to staged schema db
             if util::fs::is_tabular(path) {
                 // Get schema for this file
-                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id)?;
+                let schema_reader = SchemaReader::new(&self.repository, &entry.commit_id, None)?;
                 let schema = schema_reader.get_schema_for_file(path)?;
                 if let Some(schema) = schema {
                     let staged_schema = StagedSchema {
@@ -1015,7 +1015,7 @@ impl Stager {
         // Add all untracked files and modified files
         let (dir_paths, total) = self.list_unstaged_files_in_dir(dir);
         // log::debug!("Stager.add_dir {:?} -> {}", dir, total);
-        let schema_reader = SchemaReader::new(&self.repository, &entry_reader.commit_id)?;
+        let schema_reader = SchemaReader::new(&self.repository, &entry_reader.commit_id, None)?;
         // println!("Adding files in directory: {short_path:?}");
         let size: u64 = unsafe { std::mem::transmute(total) };
         let msg = format!("Adding directory {short_path:?}");
@@ -1668,7 +1668,7 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
-            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &commit.id, None)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
@@ -1706,7 +1706,7 @@ mod tests {
             // Create entry_reader with no commits
             let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id, None)?;
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
@@ -1729,7 +1729,7 @@ mod tests {
             // Create entry_reader with no commits
             let head_commit = CommitReader::new(&stager.repository)?.head_commit()?;
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &head_commit.id, None)?;
             // Make sure we have a valid file
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
@@ -1744,7 +1744,7 @@ mod tests {
             stager.unstage()?;
 
             // try to add it again
-            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &commit.id, None)?;
             let entry_reader = CommitEntryReader::new(&repo, &commit)?;
             stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
@@ -1761,7 +1761,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             let hello_file = PathBuf::from("non-existant.txt");
             if stager
                 .add_file(&hello_file, &entry_reader, &schema_reader)
@@ -1780,7 +1780,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             let hello_file = test::add_txt_file_to_dir(&stager.repository.path, "Hello 1")?;
             stager.add_file(&hello_file, &entry_reader, &schema_reader)?;
 
@@ -1823,7 +1823,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             // Write two files to directories
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data").join("deeper");
@@ -1870,7 +1870,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
 
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
@@ -1893,7 +1893,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello World")?;
             let relative_path = util::fs::path_relative_to_dir(&hello_file, repo_path)?;
@@ -1916,7 +1916,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let sub_dir = repo_path.join("training_data");
@@ -1945,7 +1945,7 @@ mod tests {
         test::run_empty_stager_test(|stager, _repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let training_data_dir = PathBuf::from("training_data");
@@ -2039,7 +2039,7 @@ mod tests {
         test::run_empty_stager_test(|stager, repo| {
             // Create entry_reader with no commits
             let entry_reader = CommitEntryReader::new_from_head(&stager.repository)?;
-            let schema_reader = SchemaReader::new_from_head(&stager.repository)?;
+            let schema_reader = SchemaReader::new_from_head(&stager.repository, None)?;
             let repo_path = &stager.repository.path;
             let hello_file = test::add_txt_file_to_dir(repo_path, "Hello 1")?;
 
@@ -2130,7 +2130,7 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitEntryReader::new(&repo, &commit)?;
-            let schema_reader = SchemaReader::new(&repo, &commit.id)?;
+            let schema_reader = SchemaReader::new(&repo, &commit.id, None)?;
             // Write two files to a sub directory
             let repo_path = &stager.repository.path;
             let annotations_dir = PathBuf::from("annotations");
@@ -2284,7 +2284,7 @@ mod tests {
             let commit_reader = CommitReader::new(&repo)?;
             let commit = commit_reader.head_commit()?;
             let entry_reader = CommitEntryReader::new(&stager.repository, &commit)?;
-            let schema_reader = SchemaReader::new(&stager.repository, &commit.id)?;
+            let schema_reader = SchemaReader::new(&stager.repository, &commit.id, None)?;
 
             // Create 2 sub directories, one with  Write two files to a sub directory
             let repo_path = &stager.repository.path;

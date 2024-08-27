@@ -645,8 +645,8 @@ pub fn read_unsynced_schemas(
     last_commit: &Commit,
     this_commit: &Commit,
 ) -> Result<Vec<SchemaEntry>, OxenError> {
-    let this_schema_reader = SchemaReader::new(local_repo, &this_commit.id)?;
-    let last_schema_reader = SchemaReader::new(local_repo, &last_commit.id)?;
+    let this_schema_reader = SchemaReader::new(local_repo, &this_commit.id, None)?;
+    let last_schema_reader = SchemaReader::new(local_repo, &last_commit.id, None)?;
 
     let this_schemas = this_schema_reader.list_schema_entries()?;
     let last_schemas = last_schema_reader.list_schema_entries()?;
@@ -676,7 +676,7 @@ pub fn list_tabular_files_in_repo(
     local_repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<Vec<MetadataEntry>, OxenError> {
-    let schema_reader = core::index::SchemaReader::new(local_repo, &commit.id)?;
+    let schema_reader = core::index::SchemaReader::new(local_repo, &commit.id, None)?;
     let schemas = schema_reader.list_schemas()?;
 
     let mut meta_entries: Vec<MetadataEntry> = vec![];
