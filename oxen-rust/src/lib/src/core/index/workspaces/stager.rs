@@ -14,7 +14,11 @@ fn files_db_path(workspace: &Workspace) -> PathBuf {
 }
 
 pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<StagedData, OxenError> {
-    log::debug!("workspaces::stager::status for workspace {:?} and directory {:?}", workspace.id, directory.as_ref());
+    log::debug!(
+        "workspaces::stager::status for workspace {:?} and directory {:?}",
+        workspace.id,
+        directory.as_ref()
+    );
 
     let mut status = StagedData::empty();
     list_staged_entries(workspace, directory.as_ref(), &mut status)?;
@@ -23,7 +27,11 @@ pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<Stag
 
 // Modifications to files are staged in a separate DB and applied on commit,
 // so we fetch them from the mod_stager
-fn list_staged_entries(workspace: &Workspace, directory: impl AsRef<Path>, status: &mut StagedData) -> Result<(), OxenError> {
+fn list_staged_entries(
+    workspace: &Workspace,
+    directory: impl AsRef<Path>,
+    status: &mut StagedData,
+) -> Result<(), OxenError> {
     let mod_entries = list_files(workspace)?;
 
     for path in mod_entries {
