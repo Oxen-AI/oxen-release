@@ -6,6 +6,7 @@ use std::path::{Path, PathBuf};
 use crate::constants::{DIRS_DIR, FILES_DIR, MODS_DIR, OXEN_HIDDEN_DIR, SCHEMAS_DIR, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::{path_db, str_json_db};
+use crate::core::index::SchemaReader;
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
 use crate::model::{StagedData, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema};
@@ -139,13 +140,28 @@ fn list_staged_files(
 }
 
 pub fn list_schemas(workspace: &Workspace) -> Result<HashMap<PathBuf, StagedSchema>, OxenError> {
+    // schema reader to see if we already have schema metadata for the file
+    let schema_reader = SchemaReader::new(&workspace.base_repo, &workspace.commit.id, None)?;
     let db_path = schemas_db_path(workspace);
     log::debug!("list_schemas from files_db_path {db_path:?}");
     let opts = db::key_val::opts::default();
     let db: DBWithThreadMode<SingleThreaded> = rocksdb::DBWithThreadMode::open(&opts, db_path)?;
     let mut schemas: HashMap<PathBuf, StagedSchema> = HashMap::new();
-    for (path, schema) in path_db::list_path_entries(&db, Path::new(""))? {
-        schemas.insert(path, schema);
+    let path_schemas: Vec<(PathBuf, StagedSchema)> =
+        path_db::list_path_entries(&db, Path::new(""))?;
+    for (path, schema) in path_schemas {
+        if let Some(workspace_schema) = schema_reader.get_schema_for_file(&path)? {
+            log::debug!(
+                "list_schemas update from workspace_schema: {:?}",
+                workspace_schema
+            );
+            let mut schema = schema.clone();
+            schema.schema.update_metadata_from_schema(&workspace_schema);
+            schemas.insert(path, schema);
+        } else {
+            log::debug!("list_schemas insert from schema: {:?}", schema);
+            schemas.insert(path, schema);
+        }
     }
     Ok(schemas)
 }
