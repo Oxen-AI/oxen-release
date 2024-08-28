@@ -1369,6 +1369,12 @@ impl Stager {
             status: StagedEntryStatus::Added,
         };
 
+        log::debug!(
+            "add_staged_entry_to_db adding schema {:?} to db {:?}",
+            staged_schema,
+            self.schemas_db.path()
+        );
+
         path_db::put(&self.schemas_db, path, &staged_schema)?;
         Ok(())
     }
