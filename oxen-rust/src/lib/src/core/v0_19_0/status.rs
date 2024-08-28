@@ -1,5 +1,6 @@
 use crate::constants::STAGED_DIR;
 use crate::core::db;
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::v0_19_0::structs::{EntryMetaData, EntryMetaDataWithPath};
 use crate::error::OxenError;
 use crate::model::{
@@ -34,7 +35,7 @@ pub fn status_from_dir(
     read_progress.enable_steady_tick(Duration::from_millis(100));
 
 
-    let untracked_files = find_untracked_files(repo, &dir, &read_progress)?;
+    let untracked_files = find_untracked_paths(repo, &dir, &read_progress)?;
     for file in untracked_files {
         log::debug!("untracked file: {}", file.display());
         staged_data.untracked_files.push(file);
@@ -147,7 +148,7 @@ pub fn read_staged_entries_below_path(
     Ok((dir_entries, total_entries))
 }
 
-fn find_untracked_files(
+fn find_untracked_paths(
     repo: &LocalRepository,
     start_path: impl AsRef<Path>,
     progress: &ProgressBar,
@@ -172,6 +173,12 @@ fn find_untracked_files(
             progress.set_message(format!("Checking {} untracked files", total_files));
 
             let path = path?.path();
+
+            // Skip hidden files
+            if path.starts_with(OXEN_HIDDEN_DIR) {
+                continue;
+            }
+
             let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
             if !is_untracked(&path, &maybe_tree)? {
                 log::debug!("adding candidate from dir {:?}", path);
