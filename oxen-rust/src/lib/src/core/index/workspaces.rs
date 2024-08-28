@@ -105,7 +105,7 @@ pub fn commit(
     let status = index::workspaces::stager::status(workspace, &root_path)?;
     status.print_stdout();
 
-    // log::debug!("got branch status: {:#?}", &status);
+    log::debug!("got branch status: {:#?}", &status);
 
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();

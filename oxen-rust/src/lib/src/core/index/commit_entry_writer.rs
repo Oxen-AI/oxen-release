@@ -311,12 +311,20 @@ impl CommitEntryWriter {
         log::debug!("commit_schemas got {} schemas", staged_schemas.len());
 
         let schema_writer = SchemaWriter::new(&self.repository, &commit.id)?;
-        for (_path, staged_schema) in staged_schemas.iter() {
+        for (path, staged_schema) in staged_schemas.iter() {
+            log::debug!(
+                "commit_schemas considering path {:?} schema {:?}",
+                path,
+                staged_schema
+            );
             if staged_schema.status == StagedEntryStatus::Removed {
                 schema_writer.delete_schema(&staged_schema.schema)?;
                 // schema_writer.delete_schema_for_file(path, &staged_schema.schema)?;
             } else if !schema_writer.has_schema(&staged_schema.schema) {
+                log::debug!("commit_schemas adding schema {:?}", staged_schema);
                 schema_writer.put_schema(&staged_schema.schema)?;
+            } else {
+                log::debug!("commit_schemas schema already exists {:?}", staged_schema);
             }
         }
 
