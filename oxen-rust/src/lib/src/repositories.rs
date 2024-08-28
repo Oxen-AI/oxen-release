@@ -36,6 +36,7 @@ pub mod rm;
 pub mod schemas;
 pub mod status;
 pub mod tree;
+pub mod restore;
 
 pub use add::add;
 pub use checkout::checkout;
