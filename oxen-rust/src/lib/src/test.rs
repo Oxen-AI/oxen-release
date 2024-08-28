@@ -614,7 +614,7 @@ where
     };
 
     // Cleanup Local
-    // util::fs::remove_dir_all(path)?;
+    util::fs::remove_dir_all(path)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result);
