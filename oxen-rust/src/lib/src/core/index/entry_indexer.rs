@@ -564,7 +564,7 @@ impl EntryIndexer {
         commit: &Commit,
         mut limit: usize,
     ) -> Result<Vec<SchemaEntry>, OxenError> {
-        let schema_reader = SchemaReader::new(&self.repository, &commit.id, None)?;
+        let schema_reader = SchemaReader::new(&self.repository, &commit.id)?;
         let schemas = schema_reader.list_schema_entries()?;
 
         if limit == 0 {

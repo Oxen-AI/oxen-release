@@ -17,36 +17,38 @@ pub enum SchemaReader {
 }
 
 impl SchemaReader {
-    pub fn new(
-        repository: &LocalRepository,
-        commit_id: &str,
-        workspace: Option<&Workspace>,
-    ) -> Result<Self, OxenError> {
-        match workspace {
-            Some(workspace) => Ok(SchemaReader::DuckDB(DuckDBSchemaReader::new(
-                repository,
-                commit_id,
-                workspace.clone(),
-            )?)),
-            None => Ok(SchemaReader::Objects(ObjectsSchemaReader::new(
-                repository, commit_id,
-            )?)),
-        }
+    pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<Self, OxenError> {
+        Ok(SchemaReader::Objects(ObjectsSchemaReader::new(
+            repository, commit_id,
+        )?))
     }
 
-    pub fn new_from_head(
+    pub fn new_from_workspace(
         repository: &LocalRepository,
-        workspace: Option<&Workspace>,
+        commit_id: &str,
+        workspace: &Workspace,
     ) -> Result<Self, OxenError> {
-        match workspace {
-            Some(workspace) => Ok(SchemaReader::DuckDB(DuckDBSchemaReader::new_from_head(
-                repository,
-                workspace.clone(),
-            )?)),
-            None => Ok(SchemaReader::Objects(ObjectsSchemaReader::new_from_head(
-                repository,
-            )?)),
-        }
+        Ok(SchemaReader::DuckDB(DuckDBSchemaReader::new(
+            repository,
+            commit_id,
+            workspace.clone(),
+        )?))
+    }
+
+    pub fn new_from_head(repository: &LocalRepository) -> Result<Self, OxenError> {
+        Ok(SchemaReader::Objects(ObjectsSchemaReader::new_from_head(
+            repository,
+        )?))
+    }
+
+    pub fn new_from_head_with_workspace(
+        repository: &LocalRepository,
+        workspace: &Workspace,
+    ) -> Result<Self, OxenError> {
+        Ok(SchemaReader::DuckDB(DuckDBSchemaReader::new_from_head(
+            repository,
+            workspace.clone(),
+        )?))
     }
 
     pub fn get_schema_for_file<P: AsRef<Path>>(
