@@ -13,8 +13,8 @@ use crate::model::{
     Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, StagedEntryStatus, Workspace,
 };
 
+use crate::util;
 use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
-use crate::{command, util};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
@@ -268,9 +268,8 @@ impl CommitWriter {
 
         // Have to recompute staged data
         log::debug!("recomputing status for workspace...");
-        let staged_data = command::status(&workspace.workspace_repo)?;
-
-        staged_data.print_stdout();
+        let root_path = PathBuf::from("");
+        let staged_data = index::workspaces::stager::status(workspace, &root_path)?;
 
         Ok(staged_data)
     }
