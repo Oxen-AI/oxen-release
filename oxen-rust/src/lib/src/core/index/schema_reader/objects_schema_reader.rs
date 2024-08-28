@@ -159,6 +159,7 @@ impl ObjectsSchemaReader {
                         self.r_list_schemas(dir_node, path_vals)?;
                     }
                     TreeObjectChild::Schema { path, hash, .. } => {
+                        log::debug!("r_list_schemas() got schema path {:?} hash", path);
                         let stripped_path = path.strip_prefix(SCHEMAS_TREE_PREFIX).unwrap();
                         let found_schema = self.get_schema_by_hash(hash)?;
                         path_vals.insert(stripped_path.to_path_buf(), found_schema);
@@ -236,10 +237,12 @@ impl ObjectsSchemaReader {
         schema_ref: impl AsRef<str>,
     ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
         let all_schemas = self.list_schemas()?;
+        log::debug!("list_schemas_for_ref all schemas {}", all_schemas.len());
 
         let mut found_schemas: HashMap<PathBuf, Schema> = HashMap::new();
-
         for (path, schema) in all_schemas.iter() {
+            log::debug!("list_schemas_for_ref path {:?}", path);
+            log::debug!("list_schemas_for_ref schema {:?}", schema);
             if path.to_string_lossy() == schema_ref.as_ref()
                 || schema.hash == schema_ref.as_ref()
                 || schema.name == Some(schema_ref.as_ref().to_string())
