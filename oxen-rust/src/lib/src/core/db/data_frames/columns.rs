@@ -9,12 +9,14 @@ use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
 use crate::core::v0_10_0::index::workspaces::data_frames::column_changes_db;
+use crate::model::schema::DataType;
 use crate::model::Schema;
 use crate::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
-use crate::view::data_frames::DataFrameColumnChange;
+use crate::view::data_frames::{ColumnChange, DataFrameColumnChange};
 use crate::{constants::TABLE_NAME, error::OxenError};
 
 use super::df_db;
+
 pub fn add_column(
     conn: &duckdb::Connection,
     new_column: &NewColumn,
@@ -58,28 +60,57 @@ pub fn update_column(
 
 pub fn record_column_change(
     column_changes_path: &Path,
-    column_name: String,
-    column_data_type: Option<String>,
     operation: String,
-    new_name: Option<String>,
-    new_data_type: Option<String>,
+    column_before: Option<ColumnChange>,
+    column_after: Option<ColumnChange>,
 ) -> Result<(), OxenError> {
-    let change = DataFrameColumnChange {
-        column_name,
-        column_data_type,
-        operation,
-        new_name,
-        new_data_type,
-    };
-
     let opts = db::key_val::opts::default();
     let db = DB::open(&opts, dunce::simplified(column_changes_path))?;
+
+    if operation == "deleted" {
+        if let Some(column) = &column_before {
+            if let Some(previous_change) =
+                column_changes_db::get_data_frame_column_change(
+                    &db,
+                    &column.column_name,
+                )?
+            {
+                if previous_change.operation == "added" {
+                    // If we're deleting a previously added column, just remove the change
+                    return revert_column_changes(&db, &column.column_name);
+                }
+            }
+        }
+    }
+
+    println!("column_before: {:?}", column_before);
+
+    let change = DataFrameColumnChange {
+        operation,
+        column_before: column_before.clone(),
+        column_after: column_after.clone(),
+    };
+
+    let _ = maybe_revert_column_changes(&db, column_before);
+    let _ = maybe_revert_column_changes(&db, column_after);
 
     column_changes_db::write_data_frame_column_change(&change, &db)
 }
 
-pub fn revert_column_changes(db: DB, column_name: String) -> Result<(), OxenError> {
-    column_changes_db::delete_data_frame_column_changes(&db, &column_name)
+pub fn maybe_revert_column_changes(db: &DB, column: Option<ColumnChange>) -> Result<(), OxenError> {
+    if let Some(column) = column {
+        column_changes_db::get_data_frame_column_change(db, &column.column_name)
+            .and_then(|change_opt| match change_opt {
+                Some(_) => revert_column_changes(db, &column.column_name.to_owned()),
+                None => Ok(()),
+            })
+    } else {
+        Ok(())
+    }
+}
+
+pub fn revert_column_changes(db: &DB, column_name: &str) -> Result<(), OxenError> {
+    column_changes_db::delete_data_frame_column_changes(db, column_name)
 }
 
 pub fn polar_insert_column(
@@ -88,9 +119,10 @@ pub fn polar_insert_column(
     new_column: &NewColumn,
 ) -> Result<DataFrame, OxenError> {
     let table_name = table_name.as_ref();
+    let data_type = DataType::from_string(&new_column.data_type).to_sql();
     let sql = format!(
         "ALTER TABLE {} ADD COLUMN {} {}",
-        table_name, new_column.name, new_column.data_type
+        table_name, new_column.name, data_type
     );
     conn.execute(&sql, [])?;
 
@@ -133,9 +165,11 @@ pub fn polar_update_column(
     let mut sql_commands = Vec::new();
 
     if let Some(ref new_data_type) = column_to_update.new_data_type {
+        let data_type = DataType::from_string(new_data_type).to_sql();
+
         let update_type_sql = format!(
             "ALTER TABLE {} ALTER COLUMN {} TYPE {}",
-            table_name, column_to_update.name, new_data_type
+            table_name, column_to_update.name, data_type
         );
         sql_commands.push(update_type_sql);
     }

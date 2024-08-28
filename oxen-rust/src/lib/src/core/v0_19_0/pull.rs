@@ -8,7 +8,7 @@ use crate::core;
 use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::index::versioner;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::Entry;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::CommitEntry;
 use crate::model::{
     LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteBranch, RemoteRepository,
@@ -19,6 +19,8 @@ use crate::util;
 
 use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
+
+use std::str::FromStr;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let rb = RemoteBranch::default();
@@ -45,8 +47,8 @@ pub async fn pull_remote_branch(
     println!("🐂 oxen pull {} {}", remote, branch);
 
     let remote = repo
-        .get_remote(&remote)
-        .ok_or(OxenError::remote_not_set(&remote))?;
+        .get_remote(remote)
+        .ok_or(OxenError::remote_not_set(remote))?;
 
     let remote_data_view = match api::client::repositories::get_repo_data_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
@@ -107,7 +109,7 @@ pub async fn pull_remote_repo(
 
     // Download the commit history
     // Check what our HEAD commit is locally
-    if let Some(head_commit) = repositories::commits::head_commit_maybe(&repo)? {
+    if let Some(head_commit) = repositories::commits::head_commit_maybe(repo)? {
         // Download the commits between the head commit and the remote branch commit
         let base_commit_id = head_commit.id;
         let head_commit_id = &remote_branch.commit_id;
@@ -131,7 +133,7 @@ pub async fn pull_remote_repo(
     let directory = PathBuf::from("");
     r_download_entries(repo, remote_repo, &commit_node, &directory, &pull_progress).await?;
 
-    let ref_writer = RefWriter::new(&repo)?;
+    let ref_writer = RefWriter::new(repo)?;
     if opts.should_update_head {
         // Make sure head is pointing to that branch
         ref_writer.set_head(&remote_branch.name);
@@ -144,7 +146,7 @@ pub async fn pull_remote_repo(
         "🐂 oxen pulled {} ({} files) in {}",
         bytesize::ByteSize::b(pull_progress.get_num_bytes()),
         pull_progress.get_num_files(),
-        humantime::format_duration(duration).to_string()
+        humantime::format_duration(duration)
     );
 
     Ok(())
@@ -168,7 +170,7 @@ async fn r_download_entries(
             Box::pin(r_download_entries(
                 repo,
                 remote_repo,
-                &child,
+                child,
                 &new_directory,
                 pull_progress,
             ))

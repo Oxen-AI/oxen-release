@@ -4,6 +4,8 @@ use liboxen::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{LocalRepository, MerkleHash};
 
+use std::str::FromStr;
+
 use crate::cmd::RunCmd;
 pub const NAME: &str = "node";
 pub struct NodeCmd;
@@ -26,7 +28,7 @@ impl RunCmd for NodeCmd {
         let node_hash = args.get_one::<String>("node").expect("Must supply node");
 
         let repository = LocalRepository::from_current_dir()?;
-        let node_hash = MerkleHash::from_str(&node_hash)?;
+        let node_hash = MerkleHash::from_str(node_hash)?;
         let node = CommitMerkleTree::read_node(&repository, &node_hash, false)?;
 
         println!("{:?}", node);

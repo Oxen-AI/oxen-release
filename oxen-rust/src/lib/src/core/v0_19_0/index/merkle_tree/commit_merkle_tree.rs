@@ -18,6 +18,8 @@ use crate::model::{Commit, EntryDataType, MetadataEntry};
 use crate::model::{MerkleHash, MerkleTreeNodeType};
 use crate::util;
 
+use std::str::FromStr;
+
 use super::node::DirNode;
 
 pub struct CommitMerkleTree {
@@ -42,7 +44,7 @@ impl CommitMerkleTree {
     ) -> PathBuf {
         util::fs::oxen_hidden_dir(&repo.path)
             .join(Path::new(HISTORY_DIR))
-            .join(&commit_id.to_string())
+            .join(commit_id.to_string())
             .join(DIR_HASHES_DIR)
     }
 
@@ -103,10 +105,10 @@ impl CommitMerkleTree {
             if let Some(node) = CommitMerkleTree::read_node(repo, &node_hash, false)? {
                 Ok(Some(node.dir()?))
             } else {
-                return Ok(None);
+                Ok(None)
             }
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 
@@ -125,7 +127,7 @@ impl CommitMerkleTree {
             // Read the node at depth 2 to get VNodes and Sub-Files/Dirs
             CommitMerkleTree::read_depth(repo, &node_hash, 2)
         } else {
-            return Ok(None);
+            Ok(None)
         }
     }
 
@@ -157,8 +159,8 @@ impl CommitMerkleTree {
             return Ok(None);
         }
 
-        let mut node = MerkleTreeNodeData::from_hash(repo, &hash)?;
-        let mut node_db = MerkleNodeDB::open_read_only(repo, &hash)?;
+        let mut node = MerkleTreeNodeData::from_hash(repo, hash)?;
+        let mut node_db = MerkleNodeDB::open_read_only(repo, hash)?;
 
         CommitMerkleTree::read_children_until_depth(repo, &mut node_db, &mut node, depth)?;
         Ok(Some(node))
@@ -180,7 +182,7 @@ impl CommitMerkleTree {
                 Ok((key, value)) => {
                     let key = str::from_utf8(&key)?;
                     let value = str::from_utf8(&value)?;
-                    let hash = MerkleHash::from_str(&value)?;
+                    let hash = MerkleHash::from_str(value)?;
                     dir_hashes.insert(key.to_string(), hash);
                 }
                 _ => {
@@ -201,7 +203,7 @@ impl CommitMerkleTree {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
 
         let mut nodes = HashMap::new();
-        for path in paths.into_iter() {
+        for path in paths.iter() {
             // Skip to the nodes
             let Some(hash) = dir_hashes.get(path.to_str().unwrap()) else {
                 return Err(OxenError::basic_str(format!(
@@ -279,7 +281,7 @@ impl CommitMerkleTree {
         let mut children = Vec::new();
         for child in &node.children {
             if child.dtype == MerkleTreeNodeType::VNode {
-                children.extend(child.children.iter().map(|c| c.clone()));
+                children.extend(child.children.iter().cloned());
             }
         }
         Ok(children)

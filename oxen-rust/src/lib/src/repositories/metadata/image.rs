@@ -45,7 +45,7 @@ fn image_to_colorspace(colorspace: &image::ColorType) -> ImgColorSpace {
 #[cfg(test)]
 mod tests {
 
-    use crate::model::entries::entry_data_type::EntryDataType;
+    use crate::model::entry::entry_data_type::EntryDataType;
     use crate::model::metadata::generic_metadata::GenericMetadata;
     use crate::model::metadata::metadata_image::ImgColorSpace;
     use crate::model::metadata::MetadataImage;

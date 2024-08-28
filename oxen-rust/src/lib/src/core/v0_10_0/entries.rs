@@ -29,6 +29,8 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use std::str::FromStr;
+
 pub fn get_directory(
     repo: &LocalRepository,
     commit: &Commit,

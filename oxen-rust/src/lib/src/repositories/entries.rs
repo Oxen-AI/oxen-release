@@ -4,10 +4,9 @@
 use crate::core;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_19_0::index::merkle_tree::node::DirNode;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::{DFOpts, PaginateOpts};

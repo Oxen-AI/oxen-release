@@ -27,7 +27,7 @@ impl MerkleTreeNodeData {
         let dtype = node_db.dtype;
         let parent_id = node_db.parent_id;
         Ok(MerkleTreeNodeData {
-            hash: hash.clone(),
+            hash: *hash,
             dtype,
             data: node_db.data(),
             parent_id,
@@ -71,7 +71,7 @@ impl MerkleTreeNodeData {
     pub fn list_dir_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut dirs = Vec::new();
         let current_path = Path::new("");
-        self.list_dir_paths_helper(&current_path, &mut dirs)?;
+        self.list_dir_paths_helper(current_path, &mut dirs)?;
         Ok(dirs)
     }
 
@@ -232,7 +232,7 @@ impl MerkleTreeNodeData {
                         let dir_node = child.dir()?;
                         return child.get_by_path_helper(&traversed_path.join(dir_node.name), path);
                     } else {
-                        return child.get_by_path_helper(&traversed_path, path);
+                        return child.get_by_path_helper(traversed_path, path);
                     }
                 }
                 Err(_) => return Ok(None),
@@ -248,10 +248,8 @@ impl MerkleTreeNodeData {
                     {
                         return Ok(Some(node));
                     }
-                } else {
-                    if let Some(node) = child.get_by_path_helper(&traversed_path, path)? {
-                        return Ok(Some(node));
-                    }
+                } else if let Some(node) = child.get_by_path_helper(traversed_path, path)? {
+                    return Ok(Some(node));
                 }
             }
         }

@@ -5,7 +5,7 @@ use std::io::Write;
 use std::path::Path;
 
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::{CommitEntry, LocalRepository, Schema};
 use crate::util;
 

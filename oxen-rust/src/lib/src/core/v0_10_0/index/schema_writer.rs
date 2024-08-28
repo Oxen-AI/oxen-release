@@ -7,7 +7,8 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::path::Path;
 use std::str;
 
-use crate::core::v0_10_0::index::SchemaReader;
+use crate::core::v0_10_0::index::schema_reader::objects_schema_reader;
+
 use crate::model::LocalRepository;
 
 use super::versioner;
@@ -19,7 +20,8 @@ pub struct SchemaWriter {
 
 impl SchemaWriter {
     pub fn new(repository: &LocalRepository, commit_id: &str) -> Result<SchemaWriter, OxenError> {
-        let db_path = SchemaReader::schemas_db_dir(repository, commit_id);
+        let db_path =
+            objects_schema_reader::ObjectsSchemaReader::schemas_db_dir(repository, commit_id);
         let opts = db::key_val::opts::default();
         if !db_path.exists() {
             std::fs::create_dir_all(&db_path)?;
@@ -28,7 +30,8 @@ impl SchemaWriter {
                 DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
         }
 
-        let schema_files_db_path = SchemaReader::schema_files_db_dir(repository, commit_id);
+        let schema_files_db_path =
+            objects_schema_reader::ObjectsSchemaReader::schema_files_db_dir(repository, commit_id);
         if !schema_files_db_path.exists() {
             std::fs::create_dir_all(&schema_files_db_path)?;
             // open it then lose scope to close it

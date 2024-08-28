@@ -21,7 +21,7 @@ pub fn add(workspace: &Workspace, filepath: &Path) -> Result<PathBuf, OxenError>
     log::debug!("core::v0_10_0::index::workspaces::files::add adding file {filepath:?}");
     // Add a schema_reader to stager.add_file for?
 
-    let schema_reader = SchemaReader::new(repo, &commit.id)?;
+    let schema_reader = SchemaReader::new_from_workspace(workspace_repo, &commit.id, workspace)?;
 
     stager.add_file(filepath.as_ref(), &reader, &schema_reader)?;
     log::debug!("done adding file in the stager");

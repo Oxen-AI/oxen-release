@@ -160,6 +160,7 @@ fn build_compare_schema_diff(
                 name: col.clone(),
                 dtype: dtype.dtype().to_string(),
                 metadata: None,
+                changes: None,
             })
         })
         .collect::<Result<Vec<Field>, OxenError>>()?;
@@ -173,6 +174,7 @@ fn build_compare_schema_diff(
                 name: col.clone(),
                 dtype: dtype.dtype().to_string(),
                 metadata: None,
+                changes: None,
             })
         })
         .collect::<Result<Vec<Field>, OxenError>>()?;
@@ -349,7 +351,7 @@ fn add_diff_status_column(
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
                         let out: StringChunked = s_a
-                            .into_iter()
+                            .iter()
                             .map(|row| {
                                 let key_left = row.get(0).ok();
                                 let key_right = row.get(1).ok();

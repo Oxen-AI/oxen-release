@@ -25,6 +25,8 @@ use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
 use crate::{constants, repositories, util};
 
+use std::str::FromStr;
+
 pub struct OptimizeMerkleTreesMigration;
 impl Migrate for OptimizeMerkleTreesMigration {
     fn name(&self) -> &'static str {
@@ -187,13 +189,13 @@ fn migrate_merkle_tree(
     let parent_ids = commit
         .parent_ids
         .iter()
-        .map(|id| MerkleHash::from_str(&id).unwrap())
+        .map(|id| MerkleHash::from_str(id).unwrap())
         .collect();
 
     // Create the root commit
     let node = CommitNode {
         hash: commit_id,
-        parent_ids: parent_ids,
+        parent_ids,
         message: commit.message.clone(),
         author: commit.author.clone(),
         email: commit.email.clone(),
@@ -546,7 +548,7 @@ fn write_dir_child(
     let node = DirNode {
         dtype: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
-        hash: hash.clone(),
+        hash: *hash,
         num_bytes,
         last_commit_id: MerkleHash::new(last_commit_id),
         last_modified_seconds,
@@ -620,7 +622,7 @@ fn write_file_node(
 
     let val = FileNode {
         name: file_name.to_owned(),
-        hash: hash.clone(),
+        hash: *hash,
         num_bytes,
         chunk_type: FileChunkType::SingleFile,
         storage_backend: FileStorageType::Disk,

@@ -53,6 +53,7 @@ pub fn enhance_schema_with_oxen_cols(schema: &Schema) -> Result<Schema, OxenErro
                 DataType::String.to_string()
             },
             metadata: None,
+            changes: None,
         })
         .collect();
 

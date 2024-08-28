@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub mod columns;
 
@@ -9,9 +10,21 @@ pub struct DataFramePayload {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct DataFrameColumnChange {
+    pub operation: String,
+    pub column_before: Option<ColumnChange>,
+    pub column_after: Option<ColumnChange>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ColumnChange {
     pub column_name: String,
     pub column_data_type: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct DataFrameRowChange {
+    pub row_id: String,
     pub operation: String,
-    pub new_name: Option<String>,
-    pub new_data_type: Option<String>,
+    pub value: Value,
+    pub new_value: Option<Value>,
 }

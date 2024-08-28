@@ -1,5 +1,6 @@
 use duckdb::ToSql;
 use polars::prelude::*;
+use serde_json::json;
 use std::fs::File;
 use std::num::NonZeroUsize;
 
@@ -570,6 +571,44 @@ pub fn value_to_tosql(value: AnyValue) -> Box<dyn ToSql> {
         AnyValue::Float64(f) => Box::new(f),
         AnyValue::Boolean(b) => Box::new(b),
         AnyValue::Null => Box::new(None::<i32>),
+        AnyValue::List(l) => {
+            let json_array = match l.dtype() {
+                polars::prelude::DataType::Int64 => {
+                    let vec: Vec<i64> = l.i64().unwrap().into_iter().flatten().collect();
+                    json!(vec)
+                }
+                polars::prelude::DataType::Int32 => {
+                    let vec: Vec<i32> = l.i32().unwrap().into_iter().flatten().collect();
+                    json!(vec)
+                }
+                polars::prelude::DataType::Float64 => {
+                    let vec: Vec<f64> = l.f64().unwrap().into_iter().flatten().collect();
+                    json!(vec)
+                }
+                polars::prelude::DataType::Float32 => {
+                    let vec: Vec<f32> = l.f32().unwrap().into_iter().flatten().collect();
+                    json!(vec)
+                }
+                polars::prelude::DataType::String => {
+                    let vec: Vec<String> = l
+                        .str()
+                        .unwrap()
+                        .into_iter()
+                        .flatten()
+                        .map(|s| s.to_string())
+                        .collect();
+                    json!(vec)
+                }
+                polars::prelude::DataType::Boolean => {
+                    let vec: Vec<bool> = l.bool().unwrap().into_iter().flatten().collect();
+                    json!(vec)
+                }
+                dtype => {
+                    panic!("Unsupported dtype: {:?}", dtype)
+                }
+            };
+            Box::new(json_array.to_string())
+        }
         other => panic!("Unsupported dtype: {:?}", other),
     }
 }
@@ -599,7 +638,7 @@ pub fn df_hash_rows(df: DataFrame) -> Result<DataFrame, OxenError> {
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
                         let out: StringChunked = s_a
-                            .into_iter()
+                            .iter()
                             // .par_bridge() // not sure why this is breaking
                             .map(|row| {
                                 // log::debug!("row: {:?}", row);
@@ -668,7 +707,7 @@ pub fn df_hash_rows_on_cols(
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
                         let out: StringChunked = s_a
-                            .into_iter()
+                            .iter()
                             .map(|row| {
                                 pb.inc(1);
                                 let mut buffer: Vec<u8> = vec![];

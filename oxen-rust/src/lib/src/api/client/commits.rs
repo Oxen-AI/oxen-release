@@ -10,7 +10,7 @@ use crate::core::v0_10_0::index::{
 };
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
-use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::fs::oxen_hidden_dir;
@@ -1204,8 +1204,8 @@ mod tests {
     use crate::core::v0_10_0::index::CommitDBReader;
     use crate::error::OxenError;
 
-    use crate::model::entries::commit_entry::Entry;
-    use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+    use crate::model::entry::commit_entry::Entry;
+    use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
     use crate::opts::PaginateOpts;
     use crate::repositories;
     use crate::test;

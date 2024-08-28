@@ -1,4 +1,4 @@
-use crate::model::entries::commit_entry::Entry;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::Commit;
 
 #[derive(Debug)]

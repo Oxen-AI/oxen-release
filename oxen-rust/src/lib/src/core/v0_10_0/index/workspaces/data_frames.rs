@@ -3,8 +3,8 @@ use polars::frame::DataFrame;
 
 use sql_query_builder::{Delete, Select};
 
-use crate::constants::MODS_DIR;
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
+use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::df::tabular;
@@ -17,13 +17,14 @@ use crate::model::diff::tabular_diff::{
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Commit, CommitEntry, LocalRepository, Workspace};
+use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::repositories;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 pub mod column_changes_db;
+pub mod row_changes_db;
 pub mod columns;
 pub mod rows;
 
@@ -37,6 +38,7 @@ pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -47,6 +49,7 @@ pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
@@ -57,10 +60,22 @@ pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> Pat
     let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
     workspace
         .dir()
+        .join(OXEN_HIDDEN_DIR)
         .join(MODS_DIR)
         .join("duckdb")
         .join(path_hash)
         .join("column_changes")
+}
+
+pub fn row_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
+    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
+    workspace
+        .dir()
+        .join(OXEN_HIDDEN_DIR)
+        .join(MODS_DIR)
+        .join("duckdb")
+        .join(path_hash)
+        .join("row_changes")
 }
 
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {
@@ -76,7 +91,17 @@ pub fn get_queryable_data_frame_workspace(
     path: &PathBuf,
     commit: &Commit,
 ) -> Result<Workspace, OxenError> {
-    if !util::fs::is_tabular(path) {
+    let entry_reader = CommitEntryReader::new(repo, commit)?;
+
+    let entry = entry_reader
+        .get_entry(path)?
+        .ok_or_else(|| OxenError::basic_str("Entry not found"))?;
+
+    let version_path = util::fs::version_path(repo, &entry);
+
+    let data_type = util::fs::file_data_type(&version_path);
+
+    if data_type != EntryDataType::Tabular {
         return Err(OxenError::basic_str(
             "File format not supported, must be tabular.",
         ));
@@ -185,10 +210,7 @@ pub fn query(
     let conn = df_db::get_connection(db_path)?;
 
     // Get the schema of this commit entry
-    let repo = &workspace.base_repo;
-    let commit = &workspace.commit;
-    let schema = repositories::schemas::get_by_path_from_ref(repo, &commit.id, path)?
-        .ok_or_else(|| OxenError::resource_not_found(path.to_string_lossy()))?;
+    let schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
     // Enrich w/ oxen cols
     let full_schema = workspace_df_db::enhance_schema_with_oxen_cols(&schema)?;

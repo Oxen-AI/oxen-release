@@ -5,11 +5,10 @@ use std::sync::Arc;
 use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::Entry;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{
     Branch, Commit, CommitEntry, LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteRepository,
 };
-use crate::util::progress_bar::oxen_progress_bar_with_msg;
 use crate::{api, repositories};
 
 use core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
@@ -44,8 +43,8 @@ pub async fn push_remote_branch(
     );
 
     let remote = repo
-        .get_remote(&remote)
-        .ok_or(OxenError::remote_not_set(&remote))?;
+        .get_remote(remote)
+        .ok_or(OxenError::remote_not_set(remote))?;
 
     let remote_repo = match api::client::repositories::get_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
@@ -58,7 +57,7 @@ pub async fn push_remote_branch(
     println!(
         "🐂 pushed {} in {}",
         bytesize::ByteSize::b(num_bytes),
-        humantime::format_duration(duration).to_string()
+        humantime::format_duration(duration)
     );
     Ok(local_branch)
 }
@@ -111,7 +110,7 @@ async fn push_to_new_branch(
     //       And could be a good signal that we are done pushing
 
     // Create the remote branch from the commit
-    api::client::branches::create_from_commit(remote_repo, &branch.name, &commit).await?;
+    api::client::branches::create_from_commit(remote_repo, &branch.name, commit).await?;
 
     Ok(())
 }
@@ -206,7 +205,7 @@ async fn push_files(
     }
 
     log::debug!("pushing {} entries", entries.len());
-    core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &entries, &commit, progress)
+    core::v0_10_0::index::pusher::push_entries(repo, remote_repo, &entries, commit, progress)
         .await?;
     Ok(())
 }

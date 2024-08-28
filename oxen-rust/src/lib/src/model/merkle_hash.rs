@@ -11,15 +11,6 @@ impl MerkleHash {
         Self(hash)
     }
 
-    pub fn from_str(s: &str) -> Result<Self, OxenError> {
-        let hash = u128::from_str_radix(s, 16)?;
-        Ok(Self(hash))
-    }
-
-    pub fn to_string(&self) -> String {
-        format!("{:x}", self.0)
-    }
-
     pub fn to_le_bytes(&self) -> [u8; 16] {
         self.0.to_le_bytes()
     }
@@ -29,9 +20,18 @@ impl MerkleHash {
     }
 }
 
+impl std::str::FromStr for MerkleHash {
+    type Err = OxenError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let hash = u128::from_str_radix(s, 16)?;
+        Ok(Self(hash))
+    }
+}
+
 impl fmt::Display for MerkleHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.to_string())
+        write!(f, "{:x}", self.0)
     }
 }
 
