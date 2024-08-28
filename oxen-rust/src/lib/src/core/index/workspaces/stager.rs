@@ -8,9 +8,7 @@ use crate::core::db;
 use crate::core::db::key_val::{path_db, str_json_db};
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
-use crate::model::{
-    StagedData, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema,
-};
+use crate::model::{StagedData, StagedDirStats, StagedEntry, StagedEntryStatus, StagedSchema};
 
 fn files_db_path(workspace: &Workspace) -> PathBuf {
     workspace
