@@ -11,6 +11,7 @@ pub mod index;
 pub mod init;
 pub mod pull;
 pub mod push;
+pub mod restore;
 pub mod status;
 
 pub use add::add;
