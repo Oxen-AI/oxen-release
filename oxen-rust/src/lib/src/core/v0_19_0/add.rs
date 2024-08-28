@@ -24,21 +24,13 @@ use super::index::merkle_tree::CommitMerkleTree;
 use crate::model::MerkleTreeNodeType;
 
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct CumulativeStats {
     total_files: usize,
     total_bytes: u64,
     data_type_counts: HashMap<EntryDataType, usize>,
 }
 
-impl Default for CumulativeStats {
-    fn default() -> Self {
-        CumulativeStats {
-            total_files: 0,
-            total_bytes: 0,
-            data_type_counts: HashMap::new(),
-        }
-    }
-}
 
 impl AddAssign<CumulativeStats> for CumulativeStats {
     fn add_assign(&mut self, other: CumulativeStats) {
@@ -81,7 +73,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
         "🐂 oxen added {} files ({}) in {}",
         stats.total_files,
         bytesize::ByteSize::b(stats.total_bytes),
-        humantime::format_duration(duration).to_string()
+        humantime::format_duration(duration)
     );
 
     Ok(())
@@ -172,7 +164,7 @@ fn process_dir(
             ));
             *state += 1;
 
-            let dir_path = util::fs::path_relative_to_dir(&dir, &repo_path).unwrap();
+            let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
             let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
 
             // Curious why this is only < 300% CPU usage
@@ -249,7 +241,7 @@ fn maybe_load_directory(
     path: &Path,
 ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
     if let Some(head_commit) = maybe_head_commit {
-        let dir_node = CommitMerkleTree::dir_from_path_with_children(repo, &head_commit, path)?;
+        let dir_node = CommitMerkleTree::dir_from_path_with_children(repo, head_commit, path)?;
         Ok(dir_node)
     } else {
         Ok(None)
@@ -294,7 +286,7 @@ fn add_file(
         let path = util::fs::path_relative_to_dir(path, &repo_path)?;
         let parent_path = path.parent().unwrap_or(Path::new(""));
         maybe_dir_node =
-            CommitMerkleTree::dir_from_path_with_children(repo, &head_commit, parent_path)?;
+            CommitMerkleTree::dir_from_path_with_children(repo, head_commit, parent_path)?;
     }
 
     process_add_file(
@@ -313,7 +305,7 @@ fn process_add_file(
     maybe_dir_node: &Option<MerkleTreeNodeData>,
     path: &Path,
 ) -> Result<Option<EntryMetaData>, OxenError> {
-    let relative_path = util::fs::path_relative_to_dir(path, &repo_path)?;
+    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
     if !full_path.is_file() {
         // If it's not a file - no need to add it
@@ -330,7 +322,7 @@ fn process_add_file(
 
     // Check if the file is already in the head commit
     let file_path = relative_path.file_name().unwrap();
-    let maybe_file_node = get_file_node(maybe_dir_node, &file_path)?;
+    let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
 
     // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
     let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
@@ -431,7 +423,7 @@ fn process_add_file(
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
     while let Some(parent) = parent_path.parent() {
-        let relative_path = util::fs::path_relative_to_dir(&parent, &repo_path).unwrap();
+        let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
 
         let dir_entry = EntryMetaData {
             data_type: EntryDataType::Dir,

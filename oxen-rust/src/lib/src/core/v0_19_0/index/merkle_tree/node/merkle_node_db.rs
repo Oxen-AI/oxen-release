@@ -144,7 +144,7 @@ impl MerkleNodeLookup {
 
         // Will loop until we hit an EOF error
         // let mut i = 0;
-        while let Ok(_) = cursor.read_exact(&mut dtype_buffer) {
+        while cursor.read_exact(&mut dtype_buffer).is_ok() {
             // log::debug!("MerkleNodeLookup.load() --reading-- {}", i);
 
             let data_type = u8::from_le_bytes(dtype_buffer);
@@ -311,7 +311,7 @@ impl MerkleNodeDB {
             num_children: 0,
             dtype,
             node_id: MerkleHash::new(0),
-            parent_id: parent_id.map(|id| MerkleHash::new(id)),
+            parent_id: parent_id.map(MerkleHash::new),
             data_offset: 0,
         })
     }

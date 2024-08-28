@@ -77,7 +77,7 @@ fn create_from_branch(
     repo: &LocalRepository,
     data: &BranchNewFromBranchName,
 ) -> Result<HttpResponse, OxenHttpError> {
-    let maybe_new_branch = repositories::branches::get_by_name(&repo, &data.new_name)?;
+    let maybe_new_branch = repositories::branches::get_by_name(repo, &data.new_name)?;
     if let Some(branch) = maybe_new_branch {
         let view = BranchResponse {
             status: StatusMessage::resource_found(),
@@ -86,10 +86,10 @@ fn create_from_branch(
         return Ok(HttpResponse::Ok().json(view));
     }
 
-    let from_branch = repositories::branches::get_by_name(&repo, &data.from_name)?
+    let from_branch = repositories::branches::get_by_name(repo, &data.from_name)?
         .ok_or(OxenHttpError::NotFound)?;
 
-    let new_branch = repositories::branches::create(&repo, &data.new_name, from_branch.commit_id)?;
+    let new_branch = repositories::branches::create(repo, &data.new_name, from_branch.commit_id)?;
 
     Ok(HttpResponse::Ok().json(BranchResponse {
         status: StatusMessage::resource_created(),
@@ -101,7 +101,7 @@ fn create_from_commit(
     repo: &LocalRepository,
     data: &BranchNewFromCommitId,
 ) -> Result<HttpResponse, OxenHttpError> {
-    let new_branch = repositories::branches::create(&repo, &data.new_name, &data.commit_id)?;
+    let new_branch = repositories::branches::create(repo, &data.new_name, &data.commit_id)?;
 
     Ok(HttpResponse::Ok().json(BranchResponse {
         status: StatusMessage::resource_created(),

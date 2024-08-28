@@ -71,7 +71,7 @@ pub async fn create_node(
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
 
     // Upload the node
-    let uri = format!("/tree/nodes");
+    let uri = "/tree/nodes".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))

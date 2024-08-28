@@ -90,7 +90,7 @@ pub fn create(
     let name = name.as_ref();
     let commit_id = commit_id.as_ref();
     let ref_writer = RefWriter::new(repo)?;
-    if repositories::commits::commit_id_exists(repo, &commit_id)? {
+    if repositories::commits::commit_id_exists(repo, commit_id)? {
         ref_writer.create_branch(name, commit_id)
     } else {
         Err(OxenError::commit_id_does_not_exist(commit_id))

@@ -17,6 +17,8 @@ use flate2::Compression;
 use std::path::Path;
 use tar::Archive;
 
+use std::str::FromStr;
+
 use liboxen::model::{MerkleHash, MerkleTreeNode};
 use liboxen::repositories;
 use liboxen::view::tree::nodes::{
@@ -273,14 +275,14 @@ fn r_compress_tree(
         log::debug!("Tree node {} exists, adding to tarball", hash);
         tar.append_dir_all(&tar_subdir, node_dir)?;
 
-        let Some(node) = repositories::tree::get_node_by_id(&repository, &hash)? else {
+        let Some(node) = repositories::tree::get_node_by_id(repository, hash)? else {
             return Err(OxenError::basic_str(format!("Node {} not found", hash)));
         };
 
         let has_children = node.has_children();
         log::debug!("Got node {} has children {}", node, has_children);
         if has_children {
-            let children = repositories::tree::child_hashes(&repository, &hash)?;
+            let children = repositories::tree::child_hashes(repository, hash)?;
             for child in children {
                 r_compress_tree(repository, &child, tar)?;
             }

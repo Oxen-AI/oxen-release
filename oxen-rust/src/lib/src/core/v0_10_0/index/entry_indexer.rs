@@ -8,7 +8,6 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashSet;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
@@ -21,8 +20,8 @@ use crate::core::v0_10_0::index::{self, puller, versioner, Merger, Stager};
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader};
 
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
-use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{
     Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
@@ -50,7 +49,7 @@ impl EntryIndexer {
         pusher::push(&self.repository, src, dst).await
     }
 
-    pub async fn pull(&self, rb: &RemoteBranch, mut opts: PullOpts) -> Result<(), OxenError> {
+    pub async fn pull(&self, rb: &RemoteBranch, opts: PullOpts) -> Result<(), OxenError> {
         println!("🐂 oxen pull {} {}", rb.remote, rb.branch);
 
         let remote = self
@@ -122,10 +121,10 @@ impl EntryIndexer {
         }
 
         let mut commit = if opts.should_pull_all {
-            self.pull_all(&remote_repo, rb, opts.should_update_head)
+            self.pull_all(remote_repo, rb, opts.should_update_head)
                 .await?
         } else {
-            self.pull_one(&remote_repo, rb, opts.should_update_head)
+            self.pull_one(remote_repo, rb, opts.should_update_head)
                 .await?
         };
 

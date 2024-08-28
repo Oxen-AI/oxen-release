@@ -18,6 +18,7 @@ use liboxen::view::entries::{PaginatedMetadataEntries, PaginatedMetadataEntriesR
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{constants, core::v0_10_0::index};
+use liboxen::core::v0_10_0::index::workspaces;
 
 pub mod columns;
 pub mod rows;
@@ -56,11 +57,16 @@ pub async fn get_by_resource(
         return Ok(HttpResponse::Ok().json(response));
     }
 
+    let staged_db_path =
+        workspaces::data_frames::duckdb_path(&workspace, &file_path);
+
+    let conn = df_db::get_connection(staged_db_path)?;
+
     let count = index::workspaces::data_frames::count(&workspace, &file_path)?;
 
     let df = index::workspaces::data_frames::query(&workspace, &file_path, &opts)?;
 
-    let mut df_schema = Schema::from_polars(&df.schema());
+    let mut df_schema = df_db::get_schema(&conn, TABLE_NAME)?;
 
     let is_indexed = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
@@ -79,7 +85,14 @@ pub async fn get_by_resource(
 
     df_schema.update_metadata_from_schema(&og_schema);
 
-    let df_views = JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
+    let mut df_views =
+        JsonDataFrameViews::from_df_and_opts_unpaginated(df, df_schema, count, &opts);
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
 
     let response = WorkspaceJsonDataFrameViewResponse {
         status: StatusMessage::resource_found(),
@@ -182,7 +195,13 @@ pub async fn diff(
 
     df_schema.update_metadata_from_schema(&og_schema);
 
-    let df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
+    let mut df_views = JsonDataFrameViews::from_df_and_opts(diff_df, df_schema, &opts);
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
 
     let resource = ResourceVersion {
         path: file_path.to_string_lossy().to_string(),

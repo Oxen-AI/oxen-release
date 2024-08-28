@@ -8,7 +8,7 @@ use crate::api;
 use crate::constants::AVG_CHUNK_SIZE;
 use crate::core::v0_19_0::structs::PullProgress;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::Entry;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::RemoteRepository;
 use crate::repositories;
 use crate::util::concurrency;
@@ -185,7 +185,7 @@ async fn pull_large_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
-        let progress_bar = Arc::clone(&progress_bar);
+        let progress_bar = Arc::clone(progress_bar);
         tokio::spawn(async move {
             loop {
                 let (remote_repo, entry, _dst, download_path) = queue.pop().await;
@@ -207,7 +207,7 @@ async fn pull_large_entries(
                 {
                     Ok(_) => {
                         // log::debug!("Downloaded large entry {:?} to versions dir", remote_path);
-                        progress_bar.add_bytes(entry.num_bytes() as u64);
+                        progress_bar.add_bytes(entry.num_bytes());
                         progress_bar.add_files(1);
                     }
                     Err(err) => {
@@ -284,7 +284,7 @@ async fn pull_small_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
-        let progress_bar = Arc::clone(&progress_bar);
+        let progress_bar = Arc::clone(progress_bar);
         tokio::spawn(async move {
             loop {
                 let (remote_repo, chunk, path) = queue.pop().await;

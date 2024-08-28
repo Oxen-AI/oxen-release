@@ -7,8 +7,10 @@ use crate::model::{Commit, LocalRepository, MerkleHash, User};
 use crate::opts::PaginateOpts;
 use crate::repositories;
 use crate::view::PaginatedCommits;
+
 use std::path::PathBuf;
 use std::str;
+use std::str::FromStr;
 
 use super::index::merkle_tree::CommitMerkleTree;
 
@@ -95,7 +97,7 @@ fn root_commit_recursive(
             root_commit_recursive(repo, parent_id)?;
         }
     }
-    return Err(OxenError::basic_str("No root commit found".to_string()));
+    Err(OxenError::basic_str("No root commit found"))
 }
 
 pub fn get_by_id(
@@ -108,7 +110,7 @@ pub fn get_by_id(
 }
 
 pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<Commit>, OxenError> {
-    let Some(commit_data) = CommitMerkleTree::read_node(repo, &hash, false)? else {
+    let Some(commit_data) = CommitMerkleTree::read_node(repo, hash, false)? else {
         return Ok(None);
     };
     let commit = commit_data.commit()?;

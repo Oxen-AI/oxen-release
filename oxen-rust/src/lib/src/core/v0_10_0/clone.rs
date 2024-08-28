@@ -1,6 +1,6 @@
 use crate::config::repository_config::RepositoryConfig;
 use crate::constants::{
-    DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, MIN_OXEN_VERSION, REPO_CONFIG_FILENAME,
+    DEFAULT_REMOTE_NAME, REPO_CONFIG_FILENAME,
 };
 
 use crate::core::v0_10_0::index::EntryIndexer;

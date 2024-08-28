@@ -1,6 +1,5 @@
 //! Legacy pull logic for oxen v0.10.0 and above
 
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
@@ -81,5 +80,5 @@ pub async fn pull_remote_repo(
     opts: &PullOpts,
 ) -> Result<(), OxenError> {
     let indexer = EntryIndexer::new(repo)?;
-    indexer.pull_remote_repo(remote_repo, &rb, opts).await
+    indexer.pull_remote_repo(remote_repo, rb, opts).await
 }

@@ -11,6 +11,7 @@ use std::path::Path;
 use crate::model::RemoteRepository;
 use crate::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 
+pub mod columns;
 pub mod rows;
 
 #[derive(Serialize, Deserialize)]

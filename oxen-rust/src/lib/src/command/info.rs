@@ -4,7 +4,7 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::entries::metadata_entry::CLIMetadataEntry;
+use crate::model::entry::metadata_entry::CLIMetadataEntry;
 use crate::model::LocalRepository;
 use crate::opts::InfoOpts;
 use crate::{repositories, util};

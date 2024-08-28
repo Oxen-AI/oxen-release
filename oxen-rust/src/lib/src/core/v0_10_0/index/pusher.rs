@@ -2,11 +2,11 @@
 //!
 
 use crate::api::client::commits::ChunkParams;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
-use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::repositories::entries::compute_generic_entries_size;
 use crate::util::concurrency;
-use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
+use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg};
 use crate::{core, repositories};
 
 use flate2::write::GzEncoder;
@@ -27,7 +27,6 @@ use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
 use crate::core::v0_19_0::structs::push_progress::PushProgress;
-use crate::util::progress_bar::oxen_progress_bar;
 use crate::{api, util};
 
 pub async fn push(
@@ -1148,7 +1147,7 @@ async fn bundle_and_send_small_entries(
 
                 for entry in &chunk {
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-                    let version_path = util::fs::version_path_for_entry(&repo, &entry);
+                    let version_path = util::fs::version_path_for_entry(&repo, entry);
                     let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                     tar.append_path_with_name(version_path, name).unwrap();

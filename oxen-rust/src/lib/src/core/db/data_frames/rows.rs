@@ -1,18 +1,25 @@
+use std::path::Path;
+
 use duckdb::arrow::array::RecordBatch;
 use duckdb::ToSql;
 use polars::frame::DataFrame;
+use rocksdb::DB;
+use serde_json::Value;
 use sql::Select;
 // use sql::Select;
 use sql_query_builder as sql;
 
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, OXEN_ID_COL};
 
+use crate::core::db;
 use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
 use crate::core::df::tabular;
+use crate::core::v0_10_0::index::workspaces::data_frames::row_changes_db;
 use crate::model::schema::Schema;
 use crate::model::staged_row_status::StagedRowStatus;
+use crate::view::data_frames::DataFrameRowChange;
 use crate::{constants::TABLE_NAME, error::OxenError};
 use polars::prelude::*; // or use polars::lazy::*; if you're working in a lazy context
 
@@ -163,7 +170,6 @@ fn get_hash_and_status_for_modification(
 ) -> Result<(String, String), OxenError> {
     let schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
     let col_names = schema.fields_names();
-
     let old_status = old_row.column(DIFF_STATUS_COL)?.get(0)?;
     let old_status = old_status
         .get_str()
@@ -273,4 +279,38 @@ pub fn insert_polars_df(
     }
 
     Ok(result_df)
+}
+
+pub fn record_row_change(
+    row_changes_path: &Path,
+    row_id: String,
+    operation: String,
+    value: Value,
+    new_value: Option<Value>,
+) -> Result<(), OxenError> {
+    let change = DataFrameRowChange {
+        row_id: row_id.to_owned(),
+        operation,
+        value,
+        new_value,
+    };
+
+    let opts = db::key_val::opts::default();
+    let db = DB::open(&opts, dunce::simplified(row_changes_path))?;
+
+    maybe_revert_row_changes(&db, row_id.to_owned())?;
+
+    row_changes_db::write_data_frame_row_change(&change, &db)
+}
+
+pub fn maybe_revert_row_changes(db: &DB, row_id: String) -> Result<(), OxenError> {
+    match row_changes_db::get_data_frame_row_change(db, &row_id) {
+        Ok(None) => revert_row_changes(db, row_id),
+        Ok(Some(_)) => Ok(()),
+        Err(e) => Err(e),
+    }
+}
+
+pub fn revert_row_changes(db: &DB, row_id: String) -> Result<(), OxenError> {
+    row_changes_db::delete_data_frame_row_changes(db, &row_id)
 }

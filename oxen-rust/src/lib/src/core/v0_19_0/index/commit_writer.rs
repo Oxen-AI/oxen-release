@@ -139,7 +139,7 @@ pub fn commit_with_cfg(
 
     let mut existing_nodes: HashMap<PathBuf, MerkleTreeNodeData> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
-        existing_nodes = CommitMerkleTree::load_nodes(&repo, &commit, &directories)?;
+        existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
     }
 
     // TODO: Second commit
@@ -157,17 +157,17 @@ pub fn commit_with_cfg(
         message: message.to_string(),
         author: cfg.name.clone(),
         email: cfg.email.clone(),
-        timestamp: timestamp,
+        timestamp,
     };
     let commit_id = compute_commit_id(&new_commit)?;
 
     let node = CommitNode {
         hash: commit_id,
-        parent_ids: parent_ids,
+        parent_ids,
         message: message.to_string(),
         author: cfg.name.clone(),
         email: cfg.email.clone(),
-        timestamp: timestamp,
+        timestamp,
         ..Default::default()
     };
 
@@ -181,7 +181,7 @@ pub fn commit_with_cfg(
     let mut parent_id: Option<MerkleHash> = None;
     if let Some(commit) = &maybe_head_commit {
         parent_id = Some(commit.hash()?);
-        let dir_hashes = CommitMerkleTree::dir_hashes(&repo, &commit)?;
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         for (path, hash) in dir_hashes {
             str_val_db::put(&dir_hash_db, path, &hash.to_string())?;
         }
@@ -189,7 +189,7 @@ pub fn commit_with_cfg(
 
     let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
     write_commit_entries(
-        &repo,
+        repo,
         &maybe_head_commit,
         commit_id,
         &mut commit_db,
@@ -221,7 +221,6 @@ pub fn commit_with_cfg(
         humantime::format_duration(Duration::from_millis(
             start_time.elapsed().as_millis() as u64
         ))
-        .to_string()
     );
 
     Ok(node.to_commit())
@@ -267,11 +266,10 @@ fn get_node_dir_children(
     base_dir: impl AsRef<Path>,
     node: &MerkleTreeNodeData,
 ) -> Result<HashSet<EntryMetaDataWithPath>, OxenError> {
-    let dir_children = CommitMerkleTree::node_files_and_folders(&node)?;
+    let dir_children = CommitMerkleTree::node_files_and_folders(node)?;
     let children = dir_children
         .into_iter()
-        .map(|child| node_data_to_entry(&base_dir, &child))
-        .flatten()
+        .flat_map(|child| node_data_to_entry(&base_dir, &child))
         .flatten()
         .collect();
 
@@ -299,7 +297,7 @@ fn split_into_vnodes(
         // Lookup children in the existing merkle tree
         if let Some(existing_node) = existing_nodes.get(directory) {
             log::debug!("got existing node for {:?}", directory);
-            children = get_node_dir_children(&directory, &existing_node)?;
+            children = get_node_dir_children(directory, existing_node)?;
             log::debug!(
                 "got {} existing children for dir {:?}",
                 children.len(),
@@ -640,7 +638,7 @@ fn get_children(
         }
     }
 
-    return Ok(children);
+    Ok(children)
 }
 
 fn compute_dir_node(

@@ -5,7 +5,7 @@ use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
 use crate::core::v0_19_0::structs::PullProgress;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::Entry;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
 use crate::{api, constants};

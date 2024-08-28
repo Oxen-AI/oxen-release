@@ -21,7 +21,7 @@ pub fn list_missing_file_hashes(
     let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
         return Err(OxenError::basic_str(format!("Node {} not found", hash)));
     };
-    Ok(node.list_missing_file_hashes(repo)?)
+    node.list_missing_file_hashes(repo)
 }
 
 pub fn child_hashes(

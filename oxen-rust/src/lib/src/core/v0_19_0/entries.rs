@@ -61,7 +61,7 @@ pub fn get_directory(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<DirNode>, OxenError> {
-    let node = CommitMerkleTree::dir_without_children(repo, &commit, path)?;
+    let node = CommitMerkleTree::dir_without_children(repo, commit, path)?;
     let Some(node) = node else {
         return Ok(None);
     };
