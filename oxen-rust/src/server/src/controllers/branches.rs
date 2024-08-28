@@ -271,7 +271,7 @@ pub async fn list_entry_versions(
     for (commit, entry) in commits_with_versions {
         // For each version, get the schema hash if one exists.
         let maybe_schema_hash = if util::fs::is_tabular(&entry.path) {
-            let schema_reader = SchemaReader::new(&repo, &commit.id, None)?;
+            let schema_reader = SchemaReader::new(&repo, &commit.id)?;
             let maybe_schema = schema_reader.get_schema_for_file(&entry.path)?;
             match maybe_schema {
                 Some(schema) => Some(schema.hash),

@@ -141,7 +141,7 @@ fn list_staged_files(
 
 pub fn list_schemas(workspace: &Workspace) -> Result<HashMap<PathBuf, StagedSchema>, OxenError> {
     // schema reader to see if we already have schema metadata for the file
-    let schema_reader = SchemaReader::new(&workspace.base_repo, &workspace.commit.id, None)?;
+    let schema_reader = SchemaReader::new(&workspace.base_repo, &workspace.commit.id)?;
     let db_path = schemas_db_path(workspace);
     log::debug!("list_schemas from files_db_path {db_path:?}");
     let opts = db::key_val::opts::default();

@@ -14,14 +14,14 @@ pub fn list(
     if let Some(commit_id) = commit_id {
         if let Some(commit) = api::local::commits::commit_from_branch_or_commit_id(repo, commit_id)?
         {
-            let schema_reader = SchemaReader::new(repo, &commit.id, None)?;
+            let schema_reader = SchemaReader::new(repo, &commit.id)?;
             schema_reader.list_schemas()
         } else {
             Err(OxenError::commit_id_does_not_exist(commit_id))
         }
     } else {
         let head_commit = api::local::commits::head_commit(repo)?;
-        let schema_reader = SchemaReader::new(repo, &head_commit.id, None)?;
+        let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
         schema_reader.list_schemas()
     }
 }
@@ -34,7 +34,7 @@ pub fn list_from_ref(
     let revision = revision.as_ref();
     log::debug!("list_from_ref() listing for ref: {:?}", schema_ref.as_ref());
     if let Some(commit) = api::local::revisions::get(repo, revision)? {
-        let schema_reader = SchemaReader::new(repo, &commit.id, None)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
         schema_reader.list_schemas_for_ref(schema_ref)
     } else {
         Err(OxenError::revision_not_found(revision.into()))
@@ -48,7 +48,7 @@ pub fn get_by_path(
     let path = path.as_ref();
     log::debug!("here's our repo path: {:?}", repo.path);
     let commit = api::local::commits::head_commit(repo)?;
-    let schema_reader = SchemaReader::new(repo, &commit.id, None)?;
+    let schema_reader = SchemaReader::new(repo, &commit.id)?;
     schema_reader.get_schema_for_file(path)
 }
 
@@ -63,7 +63,7 @@ pub fn get_by_path_from_ref(
     log::debug!("Getting schema for {:?} at revision {}", path, revision);
     if let Some(commit) = api::local::revisions::get(repo, revision)? {
         log::debug!("Got commit {:?} at revision {}", commit.id, revision);
-        let schema_reader = SchemaReader::new(repo, &commit.id, None)?;
+        let schema_reader = SchemaReader::new(repo, &commit.id)?;
         schema_reader.get_schema_for_file(path)
     } else {
         Err(OxenError::revision_not_found(revision.into()))
