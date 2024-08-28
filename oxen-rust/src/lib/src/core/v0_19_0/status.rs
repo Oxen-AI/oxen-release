@@ -6,7 +6,7 @@ use crate::model::{
     EntryDataType, LocalRepository, MerkleHash, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus, SummarizedStagedDirStats,
 };
-use crate::util;
+use crate::{repositories, util};
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rocksdb::{DBWithThreadMode, IteratorMode, SingleThreaded};
@@ -15,6 +15,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::str;
 use std::time::Duration;
+
+use super::index::merkle_tree::node::MerkleTreeNodeData;
+use super::index::merkle_tree::CommitMerkleTree;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     status_from_dir(repo, Path::new(""))
@@ -25,6 +28,18 @@ pub fn status_from_dir(
     dir: impl AsRef<Path>,
 ) -> Result<StagedData, OxenError> {
     let mut staged_data = StagedData::empty();
+
+    let read_progress = ProgressBar::new_spinner();
+    read_progress.set_style(ProgressStyle::default_spinner());
+    read_progress.enable_steady_tick(Duration::from_millis(100));
+
+
+    let untracked_files = find_untracked_files(repo, &dir, &read_progress)?;
+    for file in untracked_files {
+        log::debug!("untracked file: {}", file.display());
+        staged_data.untracked_files.push(file);
+    }
+
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
@@ -36,11 +51,7 @@ pub fn status_from_dir(
     let db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
 
-    let read_progress = ProgressBar::new_spinner();
-    read_progress.set_style(ProgressStyle::default_spinner());
-    read_progress.enable_steady_tick(Duration::from_millis(100));
-
-    let (dir_entries, _) = read_staged_entries_below_path(&db, dir, &read_progress)?;
+    let (dir_entries, _) = read_staged_entries_below_path(&db, &dir, &read_progress)?;
     read_progress.finish_and_clear();
 
     let mut summarized_dir_stats = SummarizedStagedDirStats {
@@ -134,4 +145,51 @@ pub fn read_staged_entries_below_path(
     }
 
     Ok((dir_entries, total_entries))
+}
+
+fn find_untracked_files(
+    repo: &LocalRepository,
+    start_path: impl AsRef<Path>,
+    progress: &ProgressBar,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let mut untracked_files = Vec::new();
+    let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
+
+    let maybe_tree = if let Some(head_commit) = maybe_head_commit {
+        CommitMerkleTree::read_node(repo, &head_commit.hash()?, true)?
+    } else {
+        None
+    };
+
+    // Recursively walk the current start_path and see if there are any files that are not in the current tree
+    log::debug!("finding untracked files in {:?}", start_path.as_ref());
+    let read_dir = std::fs::read_dir(start_path);
+    if read_dir.is_ok() {
+        // Files in working directory as candidates
+        let mut total_files = 0;
+        for path in read_dir? {
+            total_files += 1;
+            progress.set_message(format!("Checking {} untracked files", total_files));
+
+            let path = path?.path();
+            let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+            if !is_untracked(&path, &maybe_tree)? {
+                log::debug!("adding candidate from dir {:?}", path);
+                untracked_files.push(path);
+            }
+        }
+    }
+
+    return Ok(untracked_files);
+}
+
+fn is_untracked(path: impl AsRef<Path>, root: &Option<MerkleTreeNodeData>) -> Result<bool, OxenError> {
+    log::debug!("checking is_untracked for {:?}", path.as_ref());
+    let Some(root) = root else {
+        // If we don't have a tree, the path is untracked
+        return Ok(true);
+    };
+
+    // If the path is not in the tree, it is untracked
+    Ok(root.get_by_path(path)?.is_none())
 }
