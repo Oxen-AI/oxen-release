@@ -1269,7 +1269,7 @@ mod tests {
                     assert!(commit_history_dir.exists());
 
                     // make sure we can successfully open the db and read entries
-                    let entries = repositories::entries::list_for_commit(&cloned_repo, &commit);
+                    let entries = repositories::entries::list_for_commit(&cloned_repo, commit);
                     assert!(entries.is_ok());
                 }
 

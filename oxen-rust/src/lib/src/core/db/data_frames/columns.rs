@@ -70,10 +70,7 @@ pub fn record_column_change(
     if operation == "deleted" {
         if let Some(column) = &column_before {
             if let Some(previous_change) =
-                column_changes_db::get_data_frame_column_change(
-                    &db,
-                    &column.column_name,
-                )?
+                column_changes_db::get_data_frame_column_change(&db, &column.column_name)?
             {
                 if previous_change.operation == "added" {
                     // If we're deleting a previously added column, just remove the change
@@ -99,11 +96,12 @@ pub fn record_column_change(
 
 pub fn maybe_revert_column_changes(db: &DB, column: Option<ColumnChange>) -> Result<(), OxenError> {
     if let Some(column) = column {
-        column_changes_db::get_data_frame_column_change(db, &column.column_name)
-            .and_then(|change_opt| match change_opt {
+        column_changes_db::get_data_frame_column_change(db, &column.column_name).and_then(
+            |change_opt| match change_opt {
                 Some(_) => revert_column_changes(db, &column.column_name.to_owned()),
                 None => Ok(()),
-            })
+            },
+        )
     } else {
         Ok(())
     }

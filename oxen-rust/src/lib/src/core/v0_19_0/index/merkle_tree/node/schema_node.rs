@@ -45,13 +45,13 @@ impl TMerkleTreeNode for SchemaNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for SchemaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SchemaNode({})", self.hash.to_string())
+        write!(f, "SchemaNode({})", self.hash)
     }
 }
 
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for SchemaNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "SchemaNode({})", self.hash.to_string())
+        write!(f, "SchemaNode({})", self.hash)
     }
 }

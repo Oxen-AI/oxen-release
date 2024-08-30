@@ -40,13 +40,13 @@ impl TMerkleTreeNode for FileChunkNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({})", self.hash.to_string())
+        write!(f, "FileChunkNode({})", self.hash)
     }
 }
 
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({})", self.hash.to_string())
+        write!(f, "FileChunkNode({})", self.hash)
     }
 }

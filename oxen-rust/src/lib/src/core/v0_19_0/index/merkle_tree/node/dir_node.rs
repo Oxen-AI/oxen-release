@@ -79,7 +79,7 @@ impl TMerkleTreeNode for DirNode {}
 impl fmt::Debug for DirNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "DirNode")?;
-        writeln!(f, "\thash: {}", self.hash.to_string())?;
+        writeln!(f, "\thash: {}", self.hash)?;
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
         writeln!(f, "\tdata_type_counts: {:?}", self.data_type_counts)?;
@@ -96,7 +96,7 @@ impl fmt::Display for DirNode {
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
             self.num_files(),
-            self.last_commit_id.to_string()
+            self.last_commit_id
         )
     }
 }

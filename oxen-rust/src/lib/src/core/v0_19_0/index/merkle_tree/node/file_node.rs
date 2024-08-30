@@ -76,7 +76,7 @@ impl TMerkleTreeNode for FileNode {}
 impl fmt::Debug for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "FileNode")?;
-        writeln!(f, "\thash: {}", self.hash.to_string())?;
+        writeln!(f, "\thash: {}", self.hash)?;
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
         writeln!(f, "\tdata_type: {:?}", self.data_type)?;
@@ -97,7 +97,7 @@ impl fmt::Display for FileNode {
             "\"{}\" ({}) (commit {})",
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
-            self.last_commit_id.to_string()
+            self.last_commit_id
         )
     }
 }

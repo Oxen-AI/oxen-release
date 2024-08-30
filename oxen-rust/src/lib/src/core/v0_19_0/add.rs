@@ -23,14 +23,12 @@ use super::index::merkle_tree::node::{FileNode, MerkleTreeNodeData};
 use super::index::merkle_tree::CommitMerkleTree;
 use crate::model::MerkleTreeNodeType;
 
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
     total_files: usize,
     total_bytes: u64,
     data_type_counts: HashMap<EntryDataType, usize>,
 }
-
 
 impl AddAssign<CumulativeStats> for CumulativeStats {
     fn add_assign(&mut self, other: CumulativeStats) {
@@ -427,6 +425,7 @@ fn process_add_file(
 
         let dir_entry = EntryMetaData {
             data_type: EntryDataType::Dir,
+            status: StagedEntryStatus::Added,
             ..Default::default()
         };
 
