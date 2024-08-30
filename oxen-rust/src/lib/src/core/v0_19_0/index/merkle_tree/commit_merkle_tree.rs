@@ -24,7 +24,7 @@ use super::node::DirNode;
 
 pub struct CommitMerkleTree {
     pub root: MerkleTreeNodeData,
-    pub dir_hashes: HashMap<String, MerkleHash>,
+    pub dir_hashes: HashMap<PathBuf, MerkleHash>,
 }
 
 impl CommitMerkleTree {
@@ -66,7 +66,7 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path.to_str().unwrap()).cloned();
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
         let root = if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -98,7 +98,7 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path.to_str().unwrap()).cloned();
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -120,7 +120,7 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
-        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path.to_str().unwrap()).cloned();
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -170,7 +170,7 @@ impl CommitMerkleTree {
     pub fn dir_hashes(
         repo: &LocalRepository,
         commit: &Commit,
-    ) -> Result<HashMap<String, MerkleHash>, OxenError> {
+    ) -> Result<HashMap<PathBuf, MerkleHash>, OxenError> {
         let node_db_dir = CommitMerkleTree::dir_hash_db_path(repo, commit);
         let opts = db::key_val::opts::default();
         let node_db: DBWithThreadMode<MultiThreaded> =
@@ -183,7 +183,7 @@ impl CommitMerkleTree {
                     let key = str::from_utf8(&key)?;
                     let value = str::from_utf8(&value)?;
                     let hash = MerkleHash::from_str(value)?;
-                    dir_hashes.insert(key.to_string(), hash);
+                    dir_hashes.insert(PathBuf::from(key), hash);
                 }
                 _ => {
                     return Err(OxenError::basic_str(
@@ -205,7 +205,7 @@ impl CommitMerkleTree {
         let mut nodes = HashMap::new();
         for path in paths.iter() {
             // Skip to the nodes
-            let Some(hash) = dir_hashes.get(path.to_str().unwrap()) else {
+            let Some(hash) = dir_hashes.get(path) else {
                 return Err(OxenError::basic_str(format!(
                     "Dir hash not found for path: {:?}",
                     path
@@ -214,8 +214,8 @@ impl CommitMerkleTree {
             log::debug!("Loading node for path: {:?} hash: {}", path, hash);
             let Some(node) = CommitMerkleTree::read_depth(repo, hash, 2)? else {
                 return Err(OxenError::basic_str(format!(
-                    "Merkle tree hash not found for parent: '{}'",
-                    path.to_str().unwrap()
+                    "Merkle tree hash not found for parent: {:?}",
+                    path
                 )));
             };
             nodes.insert(path.clone(), node);
@@ -294,16 +294,13 @@ impl CommitMerkleTree {
     /// This uses the dir_hashes db to skip right to a file in the tree
     fn read_file(
         repo: &LocalRepository,
-        dir_hashes: &HashMap<String, MerkleHash>,
+        dir_hashes: &HashMap<PathBuf, MerkleHash>,
         path: impl AsRef<Path>,
     ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
         // Get the directory from the path
         let path = path.as_ref();
         let parent_path = path.parent().unwrap();
         let file_name = path.file_name().unwrap().to_str().unwrap();
-
-        // TODO: This is ugly, abstract lookup of initial dir out
-        let parent_path_str = parent_path.to_str().unwrap();
 
         log::debug!(
             "read_file path {:?} parent_path {:?} file_name {:?}",
@@ -313,18 +310,18 @@ impl CommitMerkleTree {
         );
 
         // Look up the directory hash
-        let node_hash: Option<MerkleHash> = dir_hashes.get(parent_path_str).cloned();
+        let node_hash: Option<MerkleHash> = dir_hashes.get(parent_path).cloned();
         let Some(node_hash) = node_hash else {
             return Err(OxenError::basic_str(format!(
-                "Merkle tree hash not found for parent: '{}'",
-                parent_path_str
+                "Merkle tree hash not found for parent: {:?}",
+                parent_path
             )));
         };
 
         let Some(vnodes) = CommitMerkleTree::read_node(repo, &node_hash, false)? else {
             return Err(OxenError::basic_str(format!(
-                "Merkle tree hash not found for parent: '{}'",
-                parent_path_str
+                "Merkle tree hash not found for parent: {:?}",
+                parent_path
             )));
         };
         log::debug!("read_file got {} vnodes children", vnodes.children.len());
@@ -351,8 +348,8 @@ impl CommitMerkleTree {
                 log::debug!("Found file in VNode! {:?}", vnode);
                 let Some(children) = CommitMerkleTree::read_node(repo, &node.hash, false)? else {
                     return Err(OxenError::basic_str(format!(
-                        "Merkle tree hash not found for parent: '{}'",
-                        parent_path_str
+                        "Merkle tree hash not found for parent: {:?}",
+                        parent_path
                     )));
                 };
 
@@ -372,8 +369,8 @@ impl CommitMerkleTree {
         }
 
         Err(OxenError::basic_str(format!(
-            "Merkle tree vnode not found for path: `{}`",
-            parent_path_str
+            "Merkle tree vnode not found for path: {:?}",
+            parent_path
         )))
     }
 
@@ -454,7 +451,7 @@ impl CommitMerkleTree {
         let children: Vec<(MerkleHash, MerkleTreeNodeData)> = node_db.map()?;
         log::debug!("read_children_from_node Got {} children", children.len());
 
-        for (key, child) in children {
+        for (_key, child) in children {
             let mut child = child.to_owned();
             // log::debug!("read_children_from_node child: {} -> {}", key, child);
             match &child.dtype {
@@ -761,11 +758,11 @@ mod tests {
 
             // Should have ["", "files", "files/dir_0", "files/dir_1", "files/dir_2"]
             assert_eq!(dir_hashes.len(), 5);
-            assert!(dir_hashes.contains_key(&"".to_string()));
-            assert!(dir_hashes.contains_key(&"files".to_string()));
-            assert!(dir_hashes.contains_key(&"files/dir_0".to_string()));
-            assert!(dir_hashes.contains_key(&"files/dir_1".to_string()));
-            assert!(dir_hashes.contains_key(&"files/dir_2".to_string()));
+            assert!(dir_hashes.contains_key(&PathBuf::from("")));
+            assert!(dir_hashes.contains_key(&PathBuf::from("files")));
+            assert!(dir_hashes.contains_key(&PathBuf::from("files/dir_0")));
+            assert!(dir_hashes.contains_key(&PathBuf::from("files/dir_1")));
+            assert!(dir_hashes.contains_key(&PathBuf::from("files/dir_2")));
 
             // Only load the root and files/dir_1
             let paths_to_load: Vec<PathBuf> =
@@ -778,7 +775,7 @@ mod tests {
                 CommitMerkleTree::print_node_depth(&node, 1);
                 assert!(node.dtype == MerkleTreeNodeType::Dir);
                 assert!(node.parent_id.is_some());
-                assert!(node.children.len() > 0);
+                assert!(!node.children.is_empty());
                 let dir = node.dir().unwrap();
                 assert!(dir.num_files() > 0);
             }

@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use time::OffsetDateTime;
 
+use crate::core::v0_10_0::index::workspaces;
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
 use crate::model::Commit;
@@ -10,7 +11,6 @@ use crate::model::NewCommit;
 use crate::model::NewCommitBody;
 use crate::repositories;
 use crate::util;
-use crate::core::v0_10_0::index::workspaces;
 
 use super::CommitWriter;
 

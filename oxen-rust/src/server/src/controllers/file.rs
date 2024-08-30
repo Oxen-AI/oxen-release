@@ -42,12 +42,7 @@ pub async fn get(
     let object_reader = get_object_reader(&repo, &commit.id)?;
     let path = &resource.path;
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-        let cder = CommitDirEntryReader::new(
-            &repo,
-            &commit.id,
-            parent,
-            object_reader.clone(),
-        )?;
+        let cder = CommitDirEntryReader::new(&repo, &commit.id, parent, object_reader.clone())?;
         entry = cder.get_entry(file_name)?;
     }
 

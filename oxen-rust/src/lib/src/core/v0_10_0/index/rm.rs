@@ -179,7 +179,6 @@ fn remove_staged_dir(repo: &LocalRepository, path: &Path) -> Result<(), OxenErro
 mod tests {
     use std::path::Path;
 
-    use crate::command;
     use crate::core::v0_10_0::index::rm;
     use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;

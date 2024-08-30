@@ -24,8 +24,8 @@ use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 pub mod column_changes_db;
-pub mod row_changes_db;
 pub mod columns;
+pub mod row_changes_db;
 pub mod rows;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
@@ -526,7 +526,6 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::command;
     use crate::config::UserConfig;
     use crate::constants::OXEN_ID_COL;
     use crate::core::v0_10_0::index::workspaces;

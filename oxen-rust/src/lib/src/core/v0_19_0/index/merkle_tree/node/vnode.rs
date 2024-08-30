@@ -35,7 +35,7 @@ impl MerkleTreeNodeIdType for VNode {
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for VNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "VNode({})", self.hash.to_string())
+        write!(f, "VNode({})", self.hash)
     }
 }
 

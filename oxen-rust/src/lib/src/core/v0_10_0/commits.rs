@@ -688,7 +688,7 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;

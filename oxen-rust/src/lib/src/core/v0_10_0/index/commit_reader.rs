@@ -147,7 +147,7 @@ impl CommitReader {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+
     use crate::constants::INITIAL_COMMIT_MSG;
     use crate::core::v0_10_0::index::CommitReader;
     use crate::error::OxenError;

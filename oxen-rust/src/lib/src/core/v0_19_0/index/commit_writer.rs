@@ -183,7 +183,11 @@ pub fn commit_with_cfg(
         parent_id = Some(commit.hash()?);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         for (path, hash) in dir_hashes {
-            str_val_db::put(&dir_hash_db, path, &hash.to_string())?;
+            if let Some(path_str) = path.to_str() {
+                str_val_db::put(&dir_hash_db, path_str, &hash.to_string())?;
+            } else {
+                log::error!("Failed to convert path to string: {:?}", path);
+            }
         }
     }
 
@@ -312,6 +316,7 @@ fn split_into_vnodes(
         for child in new_children.iter() {
             // Overwrite the existing child
             log::debug!("replacing child {:?} with {:?}", child.path, child);
+            // if add or modify, replace the child
             children.replace(child.clone());
         }
 
@@ -810,7 +815,7 @@ mod tests {
             assert_eq!(dir_node.unwrap().name, "");
 
             // Make sure dir node has one child, the VNode
-            let vnode_data = dir_node_data.children.iter().next().unwrap();
+            let vnode_data = dir_node_data.children.first().unwrap();
             let vnode = vnode_data.vnode();
             assert!(vnode.is_ok());
 
@@ -819,15 +824,15 @@ mod tests {
             assert_eq!(vnode_children.len(), 3);
 
             // Check that files.csv is in the merkle tree
-            let has_paths_csv = tree.has_path(&Path::new("files.csv"))?;
+            let has_paths_csv = tree.has_path(Path::new("files.csv"))?;
             assert!(has_paths_csv);
 
             // Check that README.md is in the merkle tree
-            let has_readme = tree.has_path(&Path::new("README.md"))?;
+            let has_readme = tree.has_path(Path::new("README.md"))?;
             assert!(has_readme);
 
             // Check that files/dir_0/file0.txt is in the merkle tree
-            let has_path0 = tree.has_path(&Path::new("files/dir_0/file0.txt"))?;
+            let has_path0 = tree.has_path(Path::new("files/dir_0/file0.txt"))?;
             assert!(has_path0);
 
             Ok(())
@@ -842,7 +847,7 @@ mod tests {
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("all_files/dir_0/new_file.txt");
-            util::fs::create_dir_all(&new_file.parent().unwrap())?;
+            util::fs::create_dir_all(new_file.parent().unwrap())?;
             util::fs::write_to_path(&new_file, "New file")?;
             repositories::add(&repo, &repo.path)?;
 
@@ -856,7 +861,7 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            let has_path0 = tree.has_path(&Path::new("all_files/dir_0/new_file.txt"))?;
+            let has_path0 = tree.has_path(Path::new("all_files/dir_0/new_file.txt"))?;
             assert!(has_path0);
 
             Ok(())
@@ -871,7 +876,7 @@ mod tests {
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("files/dir_0/new_file.txt");
-            util::fs::create_dir_all(&new_file.parent().unwrap())?;
+            util::fs::create_dir_all(new_file.parent().unwrap())?;
             util::fs::write_to_path(&new_file, "New file")?;
             repositories::add(&repo, &new_file)?;
 
@@ -885,7 +890,7 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            let has_path0 = tree.has_path(&Path::new("files/dir_0/new_file.txt"))?;
+            let has_path0 = tree.has_path(Path::new("files/dir_0/new_file.txt"))?;
             assert!(has_path0);
 
             Ok(())
@@ -911,7 +916,7 @@ mod tests {
             first_tree.print();
 
             // Get the original root dir file count
-            let original_root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let original_root_node = first_tree.get_by_path(Path::new(""))?.unwrap();
             let original_root_dir = original_root_node.dir()?;
             let original_root_dir_file_count = original_root_dir.num_files();
 
@@ -938,7 +943,7 @@ mod tests {
             second_tree.print();
 
             // Make sure the root dir file count is the same
-            let updated_root_dir = second_tree.get_by_path(&Path::new(""))?;
+            let updated_root_dir = second_tree.get_by_path(Path::new(""))?;
             let updated_root_dir = updated_root_dir.unwrap().dir()?;
             let updated_root_dir_file_count = updated_root_dir.num_files();
             assert_eq!(updated_root_dir_file_count, original_root_dir_file_count);
@@ -966,7 +971,7 @@ mod tests {
             first_tree.print();
 
             // Count the number of files in the files/dir_1 dir
-            let original_dir_1_node = first_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let original_dir_1_node = first_tree.get_by_path(Path::new("files/dir_1"))?;
             let original_dir_1_node = original_dir_1_node.unwrap().dir()?;
             let original_dir_1_file_count = original_dir_1_node.num_files();
 
@@ -991,25 +996,25 @@ mod tests {
 
             assert_eq!(second_tree.total_vnodes(), 5);
 
-            assert!(!first_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
-            assert!(second_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
+            assert!(!first_tree.has_path(Path::new("files/dir_1/new_file.txt"))?);
+            assert!(second_tree.has_path(Path::new("files/dir_1/new_file.txt"))?);
 
             // Make sure the last commit id is updated on new_file.txt
-            let updated_node = second_tree.get_by_path(&Path::new("files/dir_1/new_file.txt"))?;
+            let updated_node = second_tree.get_by_path(Path::new("files/dir_1/new_file.txt"))?;
             assert!(updated_node.is_some());
             let updated_file_node = updated_node.unwrap().file()?;
             let updated_commit_id = updated_file_node.last_commit_id.to_string();
             assert_eq!(updated_commit_id, second_commit.id);
 
             // Make sure that last commit id is not updated on other files in the dir
-            let other_file_node = second_tree.get_by_path(&Path::new("files/dir_1/file7.txt"))?;
+            let other_file_node = second_tree.get_by_path(Path::new("files/dir_1/file7.txt"))?;
             assert!(other_file_node.is_some());
             let other_file_node = other_file_node.unwrap().file()?;
             let other_commit_id = other_file_node.last_commit_id.to_string();
             assert_eq!(other_commit_id, first_commit.id);
 
             // Make sure last commit is updated on the dir
-            let dir_node = second_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let dir_node = second_tree.get_by_path(Path::new("files/dir_1"))?;
             assert!(dir_node.is_some());
             let dir_node = dir_node.unwrap().dir()?;
             let dir_commit_id = dir_node.last_commit_id.to_string();
@@ -1017,15 +1022,15 @@ mod tests {
 
             // Make sure the hashes of the directories are valid
             // We should update the hashes of dir_1 and all it's parents, but none of the siblings
-            let first_tree_dir_1 = first_tree.get_by_path(&Path::new("files/dir_1"))?;
-            let second_tree_dir_1 = second_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let first_tree_dir_1 = first_tree.get_by_path(Path::new("files/dir_1"))?;
+            let second_tree_dir_1 = second_tree.get_by_path(Path::new("files/dir_1"))?;
             assert!(first_tree_dir_1.is_some());
             assert!(second_tree_dir_1.is_some());
             assert!(first_tree_dir_1.unwrap().hash != second_tree_dir_1.unwrap().hash);
 
             // Make sure there is one vnode in each dir
-            let first_tree_vnodes = first_tree.get_vnodes_for_dir(&Path::new("files/dir_1"))?;
-            let second_tree_vnodes = second_tree.get_vnodes_for_dir(&Path::new("files/dir_1"))?;
+            let first_tree_vnodes = first_tree.get_vnodes_for_dir(Path::new("files/dir_1"))?;
+            let second_tree_vnodes = second_tree.get_vnodes_for_dir(Path::new("files/dir_1"))?;
             assert_eq!(first_tree_vnodes.len(), 1);
             assert_eq!(second_tree_vnodes.len(), 1);
 
@@ -1033,8 +1038,8 @@ mod tests {
             assert!(first_tree_vnodes[0].hash != second_tree_vnodes[0].hash);
 
             // Siblings should be the same
-            let first_tree_dir_0 = first_tree.get_by_path(&Path::new("files/dir_0"))?;
-            let second_tree_dir_0 = second_tree.get_by_path(&Path::new("files/dir_0"))?;
+            let first_tree_dir_0 = first_tree.get_by_path(Path::new("files/dir_0"))?;
+            let second_tree_dir_0 = second_tree.get_by_path(Path::new("files/dir_0"))?;
             assert!(first_tree_dir_0.is_some());
             assert!(second_tree_dir_0.is_some());
             assert_eq!(
@@ -1043,15 +1048,15 @@ mod tests {
             );
 
             // Parent should be updated
-            let first_tree_files = first_tree.get_by_path(&Path::new("files"))?;
-            let second_tree_files = second_tree.get_by_path(&Path::new("files"))?;
+            let first_tree_files = first_tree.get_by_path(Path::new("files"))?;
+            let second_tree_files = second_tree.get_by_path(Path::new("files"))?;
             assert!(first_tree_files.is_some());
             assert!(second_tree_files.is_some());
             assert!(first_tree_files.unwrap().hash != second_tree_files.unwrap().hash);
 
             // Root should be updated
-            let first_tree_root = first_tree.get_by_path(&Path::new(""))?;
-            let second_tree_root = second_tree.get_by_path(&Path::new(""))?;
+            let first_tree_root = first_tree.get_by_path(Path::new(""))?;
+            let second_tree_root = second_tree.get_by_path(Path::new(""))?;
             assert!(first_tree_root.is_some());
             assert!(second_tree_root.is_some());
             assert!(first_tree_root.unwrap().hash != second_tree_root.unwrap().hash);
@@ -1059,7 +1064,7 @@ mod tests {
             // Read the first tree again, and make sure the file count of the files/dir_1 is the same as the first time we read it
             let first_tree_again = CommitMerkleTree::from_commit(&repo, &first_commit)?;
             first_tree_again.print();
-            let dir_1_node_again = first_tree_again.get_by_path(&Path::new("files/dir_1"))?;
+            let dir_1_node_again = first_tree_again.get_by_path(Path::new("files/dir_1"))?;
             let dir_1_node_again = dir_1_node_again.unwrap().dir()?;
             let dir_1_file_count_again = dir_1_node_again.num_files();
             assert_eq!(original_dir_1_file_count, dir_1_file_count_again);
@@ -1089,16 +1094,16 @@ mod tests {
             first_tree.print();
 
             // Make sure we have the correct number of vnodes
-            let root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let root_node = first_tree.get_by_path(Path::new(""))?.unwrap();
             // The root dir should have one vnode because there are only 3 files/dirs (README.md, files.csv, files)
             assert_eq!(root_node.num_vnodes(), 1);
 
             // Both dir_0 and dir_1 should have 3 vnodes each (vnode size is 5 and there will be 12 and 13 files respectively)
             // 12 / 5 = 2.4 -> 3 vnodes
             // 13 / 5 = 2.6 -> 3 vnodes
-            let dir_0_node = first_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            let dir_0_node = first_tree.get_by_path(Path::new("files/dir_0"))?.unwrap();
             assert_eq!(dir_0_node.num_vnodes(), 3);
-            let dir_1_node = first_tree.get_by_path(&Path::new("files/dir_1"))?.unwrap();
+            let dir_1_node = first_tree.get_by_path(Path::new("files/dir_1"))?.unwrap();
             assert_eq!(dir_1_node.num_vnodes(), 3);
 
             // Add a news files
@@ -1150,13 +1155,13 @@ mod tests {
             first_tree.print();
 
             // Make sure we have the correct number of vnodes
-            let root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let root_node = first_tree.get_by_path(Path::new(""))?.unwrap();
             // The root dir should have one vnode because there are only 3 files/dirs (README.md, files.csv, files)
             assert_eq!(root_node.num_vnodes(), 1);
 
             // There should only be 3 vnodes in the dir
             // 20 / 6 = 3.333 -> 4 vnodes
-            let dir_0_node = first_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            let dir_0_node = first_tree.get_by_path(Path::new("files/dir_0"))?.unwrap();
             assert_eq!(dir_0_node.num_vnodes(), 4);
 
             // Add a news file
@@ -1178,7 +1183,7 @@ mod tests {
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
 
-            let second_dir_0_node = second_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            let second_dir_0_node = second_tree.get_by_path(Path::new("files/dir_0"))?.unwrap();
             assert_eq!(second_dir_0_node.num_vnodes(), 4);
 
             // Make sure 3 of the vnodes have the same hash as the first vnode
@@ -1216,7 +1221,7 @@ mod tests {
             let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
             first_tree.print();
 
-            let original_readme_node = first_tree.get_by_path(&Path::new("README.md"))?;
+            let original_readme_node = first_tree.get_by_path(Path::new("README.md"))?;
             assert!(original_readme_node.is_some());
             let original_readme_node = original_readme_node.unwrap();
             let original_readme_hash = original_readme_node.hash;
@@ -1241,7 +1246,7 @@ mod tests {
             second_tree.print();
 
             // Make sure the README.md hash is different
-            let updated_readme_node = second_tree.get_by_path(&Path::new("README.md"))?;
+            let updated_readme_node = second_tree.get_by_path(Path::new("README.md"))?;
             assert!(updated_readme_node.is_some());
             let updated_readme_node = updated_readme_node.unwrap();
             let updated_readme_hash = updated_readme_node.hash;

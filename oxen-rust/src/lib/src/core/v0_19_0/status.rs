@@ -1,6 +1,6 @@
+use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::STAGED_DIR;
 use crate::core::db;
-use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core::v0_19_0::structs::{EntryMetaData, EntryMetaDataWithPath};
 use crate::error::OxenError;
 use crate::model::{
@@ -33,7 +33,6 @@ pub fn status_from_dir(
     let read_progress = ProgressBar::new_spinner();
     read_progress.set_style(ProgressStyle::default_spinner());
     read_progress.enable_steady_tick(Duration::from_millis(100));
-
 
     let untracked_files = find_untracked_paths(repo, &dir, &read_progress)?;
     for file in untracked_files {
@@ -187,10 +186,13 @@ fn find_untracked_paths(
         }
     }
 
-    return Ok(untracked_files);
+    Ok(untracked_files)
 }
 
-fn is_untracked(path: impl AsRef<Path>, root: &Option<MerkleTreeNodeData>) -> Result<bool, OxenError> {
+fn is_untracked(
+    path: impl AsRef<Path>,
+    root: &Option<MerkleTreeNodeData>,
+) -> Result<bool, OxenError> {
     log::debug!("checking is_untracked for {:?}", path.as_ref());
     let Some(root) = root else {
         // If we don't have a tree, the path is untracked
