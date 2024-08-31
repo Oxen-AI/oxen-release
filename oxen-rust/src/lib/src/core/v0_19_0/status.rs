@@ -258,6 +258,13 @@ fn find_untracked_and_modified_paths(
                     continue;
                 }
 
+                if let Some(staged_db) = staged_db {
+                    let key = relative_path.to_str().unwrap();
+                    if staged_db.get(key.as_bytes())?.is_some() {
+                        continue;
+                    }
+                }
+
                 let file_name = path
                     .file_name()
                     .ok_or(OxenError::basic_str("path has no file name"))?;
@@ -275,13 +282,6 @@ fn find_untracked_and_modified_paths(
                     }
                 } else {
                     log::debug!("find_untracked_and_modified_paths adding untracked candidate from dir {:?}", relative_path);
-                    if let Some(staged_db) = staged_db {
-                        let key = relative_path.to_str().unwrap();
-                        if staged_db.get(key.as_bytes())?.is_some() {
-                            continue;
-                        }
-                    }
-
                     if path.is_file() {
                         staged_data.untracked_files.push(relative_path);
                     } else if path.is_dir() {
