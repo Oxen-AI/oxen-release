@@ -91,7 +91,7 @@ pub fn commit_with_cfg(
 
     // Read all the staged entries
     let (dir_entries, total_changes) =
-        status::read_staged_entries(&staged_db, &commit_progress_bar)?;
+        status::read_staged_entries(repo, &staged_db, &commit_progress_bar)?;
 
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
