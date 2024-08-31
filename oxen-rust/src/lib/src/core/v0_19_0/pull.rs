@@ -10,17 +10,17 @@ use crate::core::v0_10_0::index::versioner;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::CommitEntry;
-use crate::model::{
-    LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteBranch, RemoteRepository,
-};
+use crate::model::{LocalRepository, MerkleHash, RemoteBranch, RemoteRepository};
 use crate::opts::PullOpts;
 use crate::repositories;
 use crate::util;
 
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
+use crate::model::merkle_tree::node::MerkleTreeNodeData;
 
 use std::str::FromStr;
+
+use crate::model::merkle_tree::node::EMerkleTreeNode;
 
 pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     let rb = RemoteBranch::default();
@@ -161,9 +161,8 @@ async fn r_download_entries(
 ) -> Result<(), OxenError> {
     for child in &node.children {
         let mut new_directory = directory.clone();
-        if node.dtype == MerkleTreeNodeType::Dir {
-            let dir_node = node.dir()?;
-            new_directory.push(dir_node.name);
+        if let EMerkleTreeNode::Directory(dir_node) = &child.node {
+            new_directory.push(&dir_node.name);
         }
 
         if child.has_children() {
@@ -178,21 +177,20 @@ async fn r_download_entries(
         }
     }
 
-    if node.dtype == MerkleTreeNodeType::VNode {
+    if let EMerkleTreeNode::VNode(_) = &node.node {
         // Figure out which entries need to be downloaded
         let mut missing_entries: Vec<Entry> = vec![];
         let missing_hashes = repositories::tree::list_missing_file_hashes(repo, &node.hash)?;
 
         for child in &node.children {
-            if child.dtype == MerkleTreeNodeType::File {
+            if let EMerkleTreeNode::File(file_node) = &child.node {
                 if !missing_hashes.contains(&child.hash) {
                     continue;
                 }
 
-                let file_node = child.file()?;
                 missing_entries.push(Entry::CommitEntry(CommitEntry {
                     commit_id: file_node.last_commit_id.to_string(),
-                    path: directory.join(file_node.name),
+                    path: directory.join(&file_node.name),
                     hash: child.hash.to_string(),
                     num_bytes: file_node.num_bytes,
                     last_modified_seconds: file_node.last_modified_seconds,

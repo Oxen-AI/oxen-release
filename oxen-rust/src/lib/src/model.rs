@@ -10,9 +10,7 @@ pub mod diff;
 pub mod entry;
 pub mod file;
 pub mod merge_conflict;
-pub mod merkle_hash;
-pub mod merkle_tree_node;
-pub mod merkle_tree_node_type;
+pub mod merkle_tree;
 pub mod metadata;
 pub mod namespace;
 pub mod object_id;
@@ -86,6 +84,7 @@ pub use crate::model::remote_dataset::RemoteDataset;
 pub use crate::model::workspace::Workspace;
 
 // Merkle Tree Node
-pub use crate::model::merkle_hash::MerkleHash;
-pub use crate::model::merkle_tree_node::{MerkleTreeNode, MerkleTreeNodeIdType, TMerkleTreeNode};
-pub use crate::model::merkle_tree_node_type::MerkleTreeNodeType;
+pub use crate::model::merkle_tree::merkle_hash::MerkleHash;
+pub use crate::model::merkle_tree::node_type::{
+    MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode,
+};

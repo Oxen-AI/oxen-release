@@ -16,14 +16,12 @@ use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::refs::RefWriter;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
-use crate::core::v0_19_0::index::merkle_tree::node::{
-    FileChunkType, FileNode, FileStorageType, VNode,
-};
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::index::MerkleNodeDB;
 use crate::core::v0_19_0::status;
 use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::{FileChunkType, FileNode, FileStorageType, VNode};
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::NewCommit;
@@ -32,8 +30,8 @@ use crate::model::{Commit, EntryDataType, LocalRepository, StagedEntryStatus};
 
 use crate::{repositories, util};
 
-use super::merkle_tree::node::MerkleTreeNodeData;
-use super::merkle_tree::node::{CommitNode, DirNode};
+use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::{CommitNode, DirNode};
 
 #[derive(Clone)]
 pub struct EntryVNode {
@@ -235,7 +233,7 @@ fn node_data_to_entry(
     node: &MerkleTreeNodeData,
 ) -> Result<Option<EntryMetaDataWithPath>, OxenError> {
     let base_dir = base_dir.as_ref();
-    match node.dtype {
+    match node.node.dtype() {
         MerkleTreeNodeType::Dir => {
             let dir_node = node.dir()?;
             Ok(Some(EntryMetaDataWithPath {
@@ -745,7 +743,7 @@ mod tests {
     use std::collections::HashSet;
     use std::path::Path;
 
-    use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+    use crate::core::v0_19_0::index::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::MerkleHash;

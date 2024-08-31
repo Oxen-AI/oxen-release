@@ -19,9 +19,8 @@ use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
 
-use super::index::merkle_tree::node::{FileNode, MerkleTreeNodeData};
-use super::index::merkle_tree::CommitMerkleTree;
-use crate::model::MerkleTreeNodeType;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNodeData};
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
@@ -252,8 +251,8 @@ fn get_file_node(
 ) -> Result<Option<FileNode>, OxenError> {
     if let Some(node) = dir_node {
         if let Some(node) = node.get_by_path(path)? {
-            if node.dtype == MerkleTreeNodeType::File {
-                Ok(Some(node.file()?))
+            if let EMerkleTreeNode::File(file_node) = &node.node {
+                Ok(Some(file_node.clone()))
             } else {
                 Ok(None)
             }

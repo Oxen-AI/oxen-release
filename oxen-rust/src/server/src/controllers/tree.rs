@@ -5,8 +5,8 @@ use futures_util::stream::StreamExt as _;
 use liboxen::constants::NODES_DIR;
 use liboxen::constants::OXEN_HIDDEN_DIR;
 use liboxen::constants::TREE_DIR;
-use liboxen::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_path;
-use liboxen::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_prefix;
+use liboxen::core::v0_19_0::index::merkle_node_db::node_db_path;
+use liboxen::core::v0_19_0::index::merkle_node_db::node_db_prefix;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::view::MerkleHashesResponse;
@@ -19,7 +19,8 @@ use tar::Archive;
 
 use std::str::FromStr;
 
-use liboxen::model::{MerkleHash, MerkleTreeNode};
+use liboxen::model::merkle_tree::node::EMerkleTreeNode;
+use liboxen::model::MerkleHash;
 use liboxen::repositories;
 use liboxen::view::tree::nodes::{
     CommitNodeResponse, DirNodeResponse, FileNodeResponse, VNodeResponse,
@@ -279,9 +280,8 @@ fn r_compress_tree(
             return Err(OxenError::basic_str(format!("Node {} not found", hash)));
         };
 
-        let has_children = node.has_children();
-        log::debug!("Got node {} has children {}", node, has_children);
-        if has_children {
+        log::debug!("Got node {:?} is leaf {:?}", node.dtype(), node.is_leaf());
+        if !node.is_leaf() {
             let children = repositories::tree::child_hashes(repository, hash)?;
             for child in children {
                 r_compress_tree(repository, &child, tar)?;
@@ -292,21 +292,21 @@ fn r_compress_tree(
     Ok(())
 }
 
-fn node_to_json(node: MerkleTreeNode) -> actix_web::Result<HttpResponse, OxenHttpError> {
+fn node_to_json(node: EMerkleTreeNode) -> actix_web::Result<HttpResponse, OxenHttpError> {
     match node {
-        MerkleTreeNode::File(file) => Ok(HttpResponse::Ok().json(FileNodeResponse {
+        EMerkleTreeNode::File(file) => Ok(HttpResponse::Ok().json(FileNodeResponse {
             status: StatusMessage::resource_found(),
             node: file,
         })),
-        MerkleTreeNode::Directory(dir) => Ok(HttpResponse::Ok().json(DirNodeResponse {
+        EMerkleTreeNode::Directory(dir) => Ok(HttpResponse::Ok().json(DirNodeResponse {
             status: StatusMessage::resource_found(),
             node: dir,
         })),
-        MerkleTreeNode::Commit(commit) => Ok(HttpResponse::Ok().json(CommitNodeResponse {
+        EMerkleTreeNode::Commit(commit) => Ok(HttpResponse::Ok().json(CommitNodeResponse {
             status: StatusMessage::resource_found(),
             node: commit,
         })),
-        MerkleTreeNode::VNode(vnode) => Ok(HttpResponse::Ok().json(VNodeResponse {
+        EMerkleTreeNode::VNode(vnode) => Ok(HttpResponse::Ok().json(VNodeResponse {
             status: StatusMessage::resource_found(),
             node: vnode,
         })),

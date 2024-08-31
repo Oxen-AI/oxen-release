@@ -6,21 +6,17 @@ use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
 use crate::core::db;
-use crate::core::v0_19_0::index::merkle_tree::MerkleNodeDB;
 
-use crate::core::v0_10_0::index::CommitReader;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
+use crate::core::v0_19_0::index::MerkleNodeDB;
+
+use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode};
+
 use crate::error::OxenError;
-use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::metadata::MetadataDir;
-use crate::model::LocalRepository;
-use crate::model::{Commit, EntryDataType, MetadataEntry};
-use crate::model::{MerkleHash, MerkleTreeNodeType};
+use crate::model::{Commit, LocalRepository, MerkleHash, MerkleTreeNodeType};
 use crate::util;
 
 use std::str::FromStr;
-
-use super::node::DirNode;
 
 pub struct CommitMerkleTree {
     pub root: MerkleTreeNodeData,
@@ -270,17 +266,17 @@ impl CommitMerkleTree {
     pub fn node_files_and_folders(
         node: &MerkleTreeNodeData,
     ) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
-        if node.dtype != MerkleTreeNodeType::Dir {
+        if let EMerkleTreeNode::Directory(_) = &node.node {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node is not a directory: '{:?}'",
-                node.dtype
+                node.node.dtype()
             )));
         }
 
         // The dir node will have vnode children
         let mut children = Vec::new();
         for child in &node.children {
-            if child.dtype == MerkleTreeNodeType::VNode {
+            if let EMerkleTreeNode::VNode(_) = &child.node {
                 children.extend(child.children.iter().cloned());
             }
         }
@@ -328,7 +324,7 @@ impl CommitMerkleTree {
         for node in vnodes.children.into_iter() {
             let file_path_hash = util::hasher::hash_path_name(path);
             log::debug!("Node Hash: {:?} -> {}", path, file_path_hash);
-            log::debug!("Is in VNode? {:?}", node.dtype);
+            log::debug!("Is in VNode? {:?}", node.node.dtype());
 
             // TODO: More robust type matching
             let vnode = node.vnode()?;
@@ -356,8 +352,8 @@ impl CommitMerkleTree {
                 log::debug!("Num children {:?}", children.children.len());
 
                 for child in children.children.into_iter() {
-                    log::debug!("Got child {:?}", child.dtype);
-                    if child.dtype == MerkleTreeNodeType::File {
+                    log::debug!("Got child {:?}", child.node.dtype());
+                    if let EMerkleTreeNode::File(_) = &child.node {
                         let file = child.file()?;
                         log::debug!("Got file {:?}", file.name);
                         if file.name == file_name {
@@ -380,7 +376,7 @@ impl CommitMerkleTree {
         node: &mut MerkleTreeNodeData,
         depth: i32,
     ) -> Result<(), OxenError> {
-        let dtype = node.dtype;
+        let dtype = node.node.dtype();
         log::debug!(
             "read_children_until_depth tree_db_dir: {:?} dtype {:?}",
             node_db.path(),
@@ -400,7 +396,7 @@ impl CommitMerkleTree {
         for (key, child) in children {
             let mut child = child.to_owned();
             log::debug!("read_children_until_depth child: {} -> {}", key, child);
-            match &child.dtype {
+            match &child.node.dtype() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
@@ -434,7 +430,7 @@ impl CommitMerkleTree {
         node: &mut MerkleTreeNodeData,
         recurse: bool,
     ) -> Result<(), OxenError> {
-        let dtype = node.dtype;
+        let dtype = node.node.dtype();
         log::debug!(
             "read_children_from_node tree_db_dir: {:?} dtype {:?}",
             node_db.path(),
@@ -454,7 +450,7 @@ impl CommitMerkleTree {
         for (_key, child) in children {
             let mut child = child.to_owned();
             // log::debug!("read_children_from_node child: {} -> {}", key, child);
-            match &child.dtype {
+            match &child.node.dtype() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit
                 | MerkleTreeNodeType::Dir
@@ -479,176 +475,6 @@ impl CommitMerkleTree {
             }
         }
 
-        Ok(())
-    }
-
-    pub fn dir(
-        repo: &LocalRepository,
-        node: &MerkleTreeNodeData,
-        search_directory: impl AsRef<Path>,
-    ) -> Result<Option<MetadataEntry>, OxenError> {
-        let commit_reader = CommitReader::new(repo)?;
-
-        let mut entry: Option<MetadataEntry> = None;
-        let search_directory = search_directory.as_ref();
-        let current_directory = PathBuf::from("");
-        CommitMerkleTree::p_dir(
-            &commit_reader,
-            node,
-            search_directory,
-            current_directory,
-            &mut entry,
-        )?;
-        Ok(entry)
-    }
-
-    fn p_dir(
-        commit_reader: &CommitReader,
-        node: &MerkleTreeNodeData,
-        search_directory: impl AsRef<Path>,
-        current_directory: impl AsRef<Path>,
-        entry: &mut Option<MetadataEntry>,
-    ) -> Result<(), OxenError> {
-        let search_directory = search_directory.as_ref();
-        let current_directory = current_directory.as_ref();
-        for child in &node.children {
-            match &child.dtype {
-                MerkleTreeNodeType::Commit | MerkleTreeNodeType::VNode => {
-                    CommitMerkleTree::p_dir(
-                        commit_reader,
-                        child,
-                        search_directory,
-                        current_directory,
-                        entry,
-                    )?;
-                }
-                MerkleTreeNodeType::Dir => {
-                    let child_dir = child.dir().unwrap();
-                    let current_directory = current_directory.join(&child_dir.name);
-                    if current_directory == search_directory {
-                        let commit_id = child_dir.last_commit_id.to_string();
-                        let commit = commit_reader.get_commit_by_id(&commit_id)?;
-                        let metadata = MetadataEntry {
-                            filename: child_dir.name.clone(),
-                            is_dir: true,
-                            latest_commit: commit,
-                            resource: None,
-                            size: child_dir.num_bytes,
-                            data_type: EntryDataType::Dir,
-                            mime_type: "".to_string(),
-                            extension: "".to_string(),
-                            metadata: None,
-                            is_queryable: None,
-                        };
-                        *entry = Some(metadata);
-                    }
-                    CommitMerkleTree::p_dir(
-                        commit_reader,
-                        child,
-                        search_directory,
-                        current_directory,
-                        entry,
-                    )?;
-                }
-                _ => {}
-            }
-        }
-        Ok(())
-    }
-
-    pub fn dir_entries(
-        repo: &LocalRepository,
-        node: &MerkleTreeNodeData,
-        search_directory: impl AsRef<Path>,
-    ) -> Result<Vec<MetadataEntry>, OxenError> {
-        let commit_reader = CommitReader::new(repo)?;
-        let mut entries: Vec<MetadataEntry> = Vec::new();
-        let current_directory = PathBuf::from("");
-        CommitMerkleTree::p_dir_entries(
-            &commit_reader,
-            node,
-            search_directory,
-            current_directory,
-            &mut entries,
-        )?;
-        Ok(entries)
-    }
-
-    fn p_dir_entries(
-        commit_reader: &CommitReader,
-        node: &MerkleTreeNodeData,
-        search_directory: impl AsRef<Path>,
-        current_directory: impl AsRef<Path>,
-        entries: &mut Vec<MetadataEntry>,
-    ) -> Result<(), OxenError> {
-        let search_directory = search_directory.as_ref();
-        let current_directory = current_directory.as_ref();
-        for child in &node.children {
-            match &child.dtype {
-                MerkleTreeNodeType::Commit | MerkleTreeNodeType::VNode => {
-                    CommitMerkleTree::p_dir_entries(
-                        commit_reader,
-                        child,
-                        search_directory,
-                        current_directory,
-                        entries,
-                    )?;
-                }
-                MerkleTreeNodeType::Dir => {
-                    let child_dir = child.dir().unwrap();
-                    if current_directory == search_directory && !child_dir.name.is_empty() {
-                        let commit_id = child_dir.last_commit_id.to_string();
-                        let commit = commit_reader.get_commit_by_id(&commit_id)?;
-                        let data_types = child_dir.data_types();
-                        let metadata = MetadataEntry {
-                            filename: child_dir.name.clone(),
-                            is_dir: true,
-                            latest_commit: commit,
-                            resource: None,
-                            size: child_dir.num_bytes,
-                            data_type: EntryDataType::Dir,
-                            mime_type: "inode/directory".to_string(),
-                            extension: "".to_string(),
-                            metadata: Some(GenericMetadata::MetadataDir(MetadataDir::new(
-                                data_types,
-                            ))),
-                            is_queryable: None,
-                        };
-                        entries.push(metadata);
-                    }
-                    let current_directory = current_directory.join(&child_dir.name);
-                    CommitMerkleTree::p_dir_entries(
-                        commit_reader,
-                        child,
-                        search_directory,
-                        current_directory,
-                        entries,
-                    )?;
-                }
-                MerkleTreeNodeType::File => {
-                    let child_file = child.file().unwrap();
-                    if current_directory == search_directory {
-                        let commit_id = child_file.last_commit_id.to_string();
-                        let commit = commit_reader.get_commit_by_id(&commit_id)?;
-
-                        let metadata = MetadataEntry {
-                            filename: child_file.name.clone(),
-                            is_dir: false,
-                            latest_commit: commit,
-                            resource: None,
-                            size: child_file.num_bytes,
-                            data_type: child_file.data_type,
-                            mime_type: child_file.mime_type,
-                            extension: child_file.extension,
-                            metadata: None,
-                            is_queryable: None,
-                        };
-                        entries.push(metadata);
-                    }
-                }
-                _ => {}
-            }
-        }
         Ok(())
     }
 
@@ -695,7 +521,7 @@ mod tests {
 
     use std::path::PathBuf;
 
-    use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+    use crate::core::v0_19_0::index::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::MerkleTreeNodeType;
@@ -773,7 +599,7 @@ mod tests {
             for (_, node) in loaded_nodes {
                 println!("node: {}", node);
                 CommitMerkleTree::print_node_depth(&node, 1);
-                assert!(node.dtype == MerkleTreeNodeType::Dir);
+                assert!(node.node.dtype() == MerkleTreeNodeType::Dir);
                 assert!(node.parent_id.is_some());
                 assert!(!node.children.is_empty());
                 let dir = node.dir().unwrap();

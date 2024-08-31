@@ -58,12 +58,15 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use crate::constants;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::model::MerkleHash;
-use crate::model::{MerkleTreeNodeType, TMerkleTreeNode};
 use crate::util;
+
+use crate::model::merkle_tree::node::{
+    CommitNode, DirNode, EMerkleTreeNode, FileChunkNode, FileNode, MerkleTreeNodeData,
+    MerkleTreeNodeType, SchemaNode, TMerkleTreeNode, VNode,
+};
 
 const NODE_FILE: &str = "node";
 const CHILDREN_FILE: &str = "children";
@@ -217,6 +220,27 @@ impl MerkleNodeDB {
         }
 
         self.data.to_owned()
+    }
+
+    pub fn node(&self) -> Result<EMerkleTreeNode, OxenError> {
+        Self::to_node(self.dtype, &self.data())
+    }
+
+    pub fn to_node(dtype: MerkleTreeNodeType, data: &[u8]) -> Result<EMerkleTreeNode, OxenError> {
+        match dtype {
+            MerkleTreeNodeType::Commit => {
+                Ok(EMerkleTreeNode::Commit(CommitNode::deserialize(data)?))
+            }
+            MerkleTreeNodeType::Dir => Ok(EMerkleTreeNode::Directory(DirNode::deserialize(data)?)),
+            MerkleTreeNodeType::File => Ok(EMerkleTreeNode::File(FileNode::deserialize(data)?)),
+            MerkleTreeNodeType::VNode => Ok(EMerkleTreeNode::VNode(VNode::deserialize(data)?)),
+            MerkleTreeNodeType::Schema => {
+                Ok(EMerkleTreeNode::Schema(SchemaNode::deserialize(data)?))
+            }
+            MerkleTreeNodeType::FileChunk => Ok(EMerkleTreeNode::FileChunk(
+                FileChunkNode::deserialize(data)?,
+            )),
+        }
     }
 
     pub fn path(&self) -> PathBuf {
@@ -495,8 +519,7 @@ impl MerkleNodeDB {
             let node = MerkleTreeNodeData {
                 parent_id: Some(parent_id),
                 hash: MerkleHash::new(*hash),
-                dtype,
-                data,
+                node: Self::to_node(dtype, &data)?,
                 children: Vec::new(),
             };
             // log::debug!("Loaded node {:?}", node);

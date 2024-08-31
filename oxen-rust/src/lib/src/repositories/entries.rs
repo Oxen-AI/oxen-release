@@ -3,10 +3,10 @@
 
 use crate::core;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_19_0::index::merkle_tree::node::DirNode;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::merkle_tree::node::DirNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::{DFOpts, PaginateOpts};
@@ -63,7 +63,8 @@ pub fn list_directory_w_version(
             core::v0_10_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
+            todo!()
+            // core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
     }
 }

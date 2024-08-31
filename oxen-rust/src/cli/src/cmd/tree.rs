@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::core::db;
 use liboxen::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
-use liboxen::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use liboxen::core::v0_19_0::index::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository, MerkleHash};
 use liboxen::repositories;

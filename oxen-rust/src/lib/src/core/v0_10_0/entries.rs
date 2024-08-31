@@ -2,8 +2,8 @@
 //!
 
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_19_0::index::merkle_tree::node::DirNode;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::DirNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::MerkleHash;
