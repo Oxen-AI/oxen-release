@@ -12,21 +12,19 @@ use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
 use crate::util;
 
 #[derive(Clone, Eq)]
-pub struct MerkleTreeNodeData {
+pub struct MerkleTreeNode {
     pub hash: MerkleHash,
-    // pub dtype: MerkleTreeNodeType,
-    // pub data: Vec<u8>,
     pub node: EMerkleTreeNode,
     pub parent_id: Option<MerkleHash>,
-    pub children: Vec<MerkleTreeNodeData>,
+    pub children: Vec<MerkleTreeNode>,
 }
 
-impl MerkleTreeNodeData {
+impl MerkleTreeNode {
     /// Create an empty root node with a hash
     pub fn from_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Self, OxenError> {
         let node_db = MerkleNodeDB::open_read_only(repo, hash)?;
         let parent_id = node_db.parent_id;
-        Ok(MerkleTreeNodeData {
+        Ok(MerkleTreeNode {
             hash: *hash,
             node: node_db.node()?,
             parent_id,
@@ -114,7 +112,7 @@ impl MerkleTreeNodeData {
     }
 
     /// Get all files and dirs in a directory
-    pub fn get_all_children(&self) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
+    pub fn get_all_children(&self) -> Result<Vec<MerkleTreeNode>, OxenError> {
         let mut children = Vec::new();
         for child in &self.children {
             children.push(child.clone());
@@ -129,7 +127,7 @@ impl MerkleTreeNodeData {
     pub fn get_vnodes_for_dir(
         &self,
         path: impl AsRef<Path>,
-    ) -> Result<Vec<MerkleTreeNodeData>, OxenError> {
+    ) -> Result<Vec<MerkleTreeNode>, OxenError> {
         let path = path.as_ref();
         let Some(node) = self.get_by_path(path)? else {
             return Err(OxenError::basic_str(format!(
@@ -155,10 +153,7 @@ impl MerkleTreeNodeData {
     }
 
     /// Search for a file node by path
-    pub fn get_by_path(
-        &self,
-        path: impl AsRef<Path>,
-    ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+    pub fn get_by_path(&self, path: impl AsRef<Path>) -> Result<Option<MerkleTreeNode>, OxenError> {
         let path = path.as_ref();
         let traversed_path = Path::new("");
         self.get_by_path_helper(traversed_path, path)
@@ -168,7 +163,7 @@ impl MerkleTreeNodeData {
         &self,
         traversed_path: &Path,
         path: &Path,
-    ) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+    ) -> Result<Option<MerkleTreeNode>, OxenError> {
         log::debug!(
             "get_by_path_helper {} traversed_path: {:?} path: {:?}",
             self,
@@ -328,7 +323,7 @@ impl MerkleTreeNodeData {
             Ok(commit_node.clone())
         } else {
             Err(OxenError::basic_str(format!(
-                "MerkleTreeNodeData::commit called on non-commit node"
+                "MerkleTreeNode::commit called on non-commit node"
             )))
         }
     }
@@ -338,7 +333,7 @@ impl MerkleTreeNodeData {
             Ok(vnode.clone())
         } else {
             Err(OxenError::basic_str(format!(
-                "MerkleTreeNodeData::vnode called on non-vnode node"
+                "MerkleTreeNode::vnode called on non-vnode node"
             )))
         }
     }
@@ -348,7 +343,7 @@ impl MerkleTreeNodeData {
             Ok(dir_node.clone())
         } else {
             Err(OxenError::basic_str(format!(
-                "MerkleTreeNodeData::dir called on non-dir node"
+                "MerkleTreeNode::dir called on non-dir node"
             )))
         }
     }
@@ -358,7 +353,7 @@ impl MerkleTreeNodeData {
             Ok(file_node.clone())
         } else {
             Err(OxenError::basic_str(format!(
-                "MerkleTreeNodeData::file called on non-file node"
+                "MerkleTreeNode::file called on non-file node"
             )))
         }
     }
@@ -368,7 +363,7 @@ impl MerkleTreeNodeData {
             Ok(file_chunk_node.clone())
         } else {
             Err(OxenError::basic_str(format!(
-                "MerkleTreeNodeData::file_chunk called on non-file_chunk node"
+                "MerkleTreeNode::file_chunk called on non-file_chunk node"
             )))
         }
     }
@@ -378,14 +373,14 @@ impl MerkleTreeNodeData {
             Ok(schema_node.clone())
         } else {
             Err(OxenError::basic_str(format!(
-                "MerkleTreeNodeData::schema called on non-schema node"
+                "MerkleTreeNode::schema called on non-schema node"
             )))
         }
     }
 }
 
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
-impl fmt::Debug for MerkleTreeNodeData {
+impl fmt::Debug for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "[{:?}]", self.node.dtype())?;
         writeln!(f, "hash: {}", self.hash)?;
@@ -409,7 +404,7 @@ impl fmt::Debug for MerkleTreeNodeData {
 }
 
 /// Display is used for single line output with println!("{}", node)
-impl fmt::Display for MerkleTreeNodeData {
+impl fmt::Display for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.node {
             EMerkleTreeNode::Commit(commit) => {
@@ -448,13 +443,13 @@ impl fmt::Display for MerkleTreeNodeData {
     }
 }
 
-impl PartialEq for MerkleTreeNodeData {
+impl PartialEq for MerkleTreeNode {
     fn eq(&self, other: &Self) -> bool {
         self.hash == other.hash
     }
 }
 
-impl Hash for MerkleTreeNodeData {
+impl Hash for MerkleTreeNode {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.hash.to_u128().hash(state);
     }

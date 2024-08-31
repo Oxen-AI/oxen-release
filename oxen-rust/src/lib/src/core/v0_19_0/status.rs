@@ -21,7 +21,7 @@ use std::time::Duration;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
-use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     status_from_dir(repo, Path::new(""))
@@ -298,8 +298,8 @@ fn find_untracked_and_modified_paths(
 
 fn maybe_get_child_node(
     path: impl AsRef<Path>,
-    dir_node: &Option<MerkleTreeNodeData>,
-) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+    dir_node: &Option<MerkleTreeNode>,
+) -> Result<Option<MerkleTreeNode>, OxenError> {
     log::debug!("checking is_untracked for {:?}", path.as_ref());
     let Some(node) = dir_node else {
         return Ok(None);
@@ -308,7 +308,7 @@ fn maybe_get_child_node(
     node.get_by_path(path)
 }
 
-fn is_modified(node: &MerkleTreeNodeData, path: impl AsRef<Path>) -> Result<bool, OxenError> {
+fn is_modified(node: &MerkleTreeNode, path: impl AsRef<Path>) -> Result<bool, OxenError> {
     // Check the file timestamps vs the commit timestamps
     let metadata = std::fs::metadata(path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);

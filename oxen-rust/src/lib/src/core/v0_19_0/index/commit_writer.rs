@@ -30,7 +30,7 @@ use crate::model::{Commit, EntryDataType, LocalRepository, StagedEntryStatus};
 
 use crate::{repositories, util};
 
-use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::merkle_tree::node::{CommitNode, DirNode};
 
 #[derive(Clone)]
@@ -135,7 +135,7 @@ pub fn commit_with_cfg(
         .map(|path| path.to_path_buf())
         .collect::<Vec<_>>();
 
-    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNodeData> = HashMap::new();
+    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
         existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
     }
@@ -230,7 +230,7 @@ pub fn commit_with_cfg(
 
 fn node_data_to_entry(
     base_dir: impl AsRef<Path>,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
 ) -> Result<Option<EntryMetaDataWithPath>, OxenError> {
     let base_dir = base_dir.as_ref();
     match node.node.dtype() {
@@ -266,7 +266,7 @@ fn node_data_to_entry(
 
 fn get_node_dir_children(
     base_dir: impl AsRef<Path>,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
 ) -> Result<HashSet<EntryMetaDataWithPath>, OxenError> {
     let dir_children = CommitMerkleTree::node_files_and_folders(node)?;
     let children = dir_children
@@ -282,7 +282,7 @@ fn get_node_dir_children(
 fn split_into_vnodes(
     repo: &LocalRepository,
     entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
-    existing_nodes: &HashMap<PathBuf, MerkleTreeNodeData>,
+    existing_nodes: &HashMap<PathBuf, MerkleTreeNode>,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
@@ -602,6 +602,7 @@ fn r_create_dir_node(
                         data_type: entry.data_type.clone(),
                         mime_type: "".to_string(),
                         extension: "".to_string(),
+                        metadata: None,
                         dtype: MerkleTreeNodeType::File,
                     };
                     // if let Some(vnode_db) = &mut maybe_vnode_db {

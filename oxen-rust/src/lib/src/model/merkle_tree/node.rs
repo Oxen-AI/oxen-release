@@ -5,7 +5,7 @@ pub mod dir_node;
 pub mod file_chunk_node;
 pub mod file_node;
 pub mod file_node_types;
-pub mod merkle_tree_node_data;
+pub mod merkle_tree_node;
 pub mod schema_node;
 pub mod vnode;
 
@@ -14,7 +14,7 @@ pub use dir_node::DirNode;
 pub use file_chunk_node::FileChunkNode;
 pub use file_node::FileNode;
 pub use file_node_types::{FileChunkType, FileStorageType};
-pub use merkle_tree_node_data::MerkleTreeNodeData;
+pub use merkle_tree_node::MerkleTreeNode;
 pub use schema_node::SchemaNode;
 pub use vnode::VNode;
 

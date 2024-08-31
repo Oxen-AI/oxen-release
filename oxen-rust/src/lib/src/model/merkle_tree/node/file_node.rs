@@ -4,13 +4,14 @@
 
 use super::file_node_types::{FileChunkType, FileStorageType};
 use crate::error::OxenError;
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{
     EntryDataType, MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct FileNode {
     pub dtype: MerkleTreeNodeType,
 
@@ -29,6 +30,10 @@ pub struct FileNode {
 
     // Data Type
     pub data_type: EntryDataType,
+
+    // Metadata
+    pub metadata: Option<GenericMetadata>,
+
     // Mime Type
     pub mime_type: String,
     // Extension
@@ -59,6 +64,7 @@ impl Default for FileNode {
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
             data_type: EntryDataType::Binary,
+            metadata: None,
             mime_type: "".to_string(),
             extension: "".to_string(),
             chunk_hashes: vec![],
@@ -88,6 +94,7 @@ impl fmt::Debug for FileNode {
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
         writeln!(f, "\tdata_type: {:?}", self.data_type)?;
+        writeln!(f, "\tmetadata: {:?}", self.metadata)?;
         writeln!(f, "\tmime_type: {}", self.mime_type)?;
         writeln!(f, "\textension: {}", self.extension)?;
         writeln!(f, "\tchunk_hashes: {:?}", self.chunk_hashes)?;
@@ -109,3 +116,11 @@ impl fmt::Display for FileNode {
         )
     }
 }
+
+impl PartialEq for FileNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl Eq for FileNode {}
