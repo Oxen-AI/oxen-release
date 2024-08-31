@@ -3,7 +3,6 @@ use crate::constants::STAGED_DIR;
 use crate::core::db;
 use crate::core::v0_19_0::structs::{EntryMetaData, EntryMetaDataWithPath};
 use crate::error::OxenError;
-use crate::model::MerkleTreeNodeType;
 use crate::model::{
     EntryDataType, LocalRepository, MerkleHash, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus, SummarizedStagedDirStats,
@@ -20,8 +19,9 @@ use std::path::PathBuf;
 use std::str;
 use std::time::Duration;
 
-use super::index::merkle_tree::node::MerkleTreeNodeData;
-use super::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::MerkleTreeNodeData;
 
 pub fn status(repo: &LocalRepository) -> Result<StagedData, OxenError> {
     status_from_dir(repo, Path::new(""))
@@ -89,6 +89,7 @@ pub fn status_from_dir(
                     stats.num_files_staged += 1;
                 }
                 _ => {
+                    // TODO: It's not always added. It could be modified.
                     let staged_entry = StagedEntry {
                         hash: entry.hash.to_string(),
                         status: StagedEntryStatus::Added,
@@ -312,15 +313,13 @@ fn is_modified(node: &MerkleTreeNodeData, path: impl AsRef<Path>) -> Result<bool
     let metadata = std::fs::metadata(path)?;
     let mtime = FileTime::from_last_modification_time(&metadata);
 
-    let (node_modified_seconds, node_modified_nanoseconds) = match node.dtype {
-        MerkleTreeNodeType::File => {
-            let file = node.file()?;
+    let (node_modified_seconds, node_modified_nanoseconds) = match &node.node {
+        EMerkleTreeNode::File(file) => {
             let node_modified_seconds = file.last_modified_seconds;
             let node_modified_nanoseconds = file.last_modified_nanoseconds;
             (node_modified_seconds, node_modified_nanoseconds)
         }
-        MerkleTreeNodeType::Dir => {
-            let dir = node.dir()?;
+        EMerkleTreeNode::Directory(dir) => {
             let node_modified_seconds = dir.last_modified_seconds;
             let node_modified_nanoseconds = dir.last_modified_nanoseconds;
             (node_modified_seconds, node_modified_nanoseconds)

@@ -6,14 +6,13 @@ use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
-use crate::model::{
-    Branch, Commit, CommitEntry, LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteRepository,
-};
+use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MerkleHash, RemoteRepository};
 use crate::{api, repositories};
 
-use core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
-use core::v0_19_0::index::merkle_tree::CommitMerkleTree;
-use core::v0_19_0::structs::push_progress::PushProgress;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::structs::push_progress::PushProgress;
+use crate::model::merkle_tree::node::MerkleTreeNodeData;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let Some(current_branch) = repositories::branches::current_branch(repo)? else {
@@ -142,7 +141,7 @@ async fn r_push_node(
         log::debug!("Creating node on the server: {}", node);
 
         // If node is a commit, we need to push the dir hashes too
-        if node.dtype == MerkleTreeNodeType::Commit {
+        if let EMerkleTreeNode::Commit(_) = &node.node {
             api::client::commits::post_commit_dir_hashes_to_server(repo, remote_repo, commit)
                 .await?;
         }
@@ -151,7 +150,7 @@ async fn r_push_node(
     }
 
     // If the node is not a VNode, it does not have file children, so we can return
-    if node.dtype != MerkleTreeNodeType::VNode {
+    if let EMerkleTreeNode::VNode(_) = &node.node {
         return Ok(());
     }
 
@@ -187,15 +186,13 @@ async fn push_files(
     // Get all the entries
     let mut entries: Vec<Entry> = Vec::new();
     for child in &node.children {
-        if child.dtype == MerkleTreeNodeType::File {
+        if let EMerkleTreeNode::File(file_node) = &child.node {
             if !hashes.contains(&child.hash) {
                 continue;
             }
-
-            let file_node = child.file()?;
             entries.push(Entry::CommitEntry(CommitEntry {
                 commit_id: file_node.last_commit_id.to_string(),
-                path: PathBuf::from(file_node.name),
+                path: PathBuf::from(&file_node.name),
                 hash: child.hash.to_string(),
                 num_bytes: file_node.num_bytes,
                 last_modified_seconds: file_node.last_modified_seconds,

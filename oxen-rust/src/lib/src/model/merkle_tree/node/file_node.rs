@@ -3,6 +3,7 @@
 //!
 
 use super::file_node_types::{FileChunkType, FileStorageType};
+use crate::error::OxenError;
 use crate::model::{
     EntryDataType, MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode,
 };
@@ -38,6 +39,13 @@ pub struct FileNode {
 
     pub chunk_type: FileChunkType, // How the data is stored on disk
     pub storage_backend: FileStorageType, // Where the file is stored in the backend
+}
+
+impl FileNode {
+    pub fn deserialize(data: &[u8]) -> Result<FileNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing file node: {e}")))
+    }
 }
 
 impl Default for FileNode {

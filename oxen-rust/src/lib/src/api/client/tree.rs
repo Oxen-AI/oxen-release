@@ -8,10 +8,10 @@ use std::time;
 
 use crate::api::client;
 use crate::constants::{NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
-use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_path;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::MerkleTreeNodeData;
 use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};

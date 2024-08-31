@@ -15,10 +15,10 @@ use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
-use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::MerkleNodeDB;
+use crate::core::v0_19_0::index::MerkleNodeDB;
 // use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
-use crate::core::v0_19_0::index::merkle_tree::node::*;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::*;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::{Commit, LocalRepository};

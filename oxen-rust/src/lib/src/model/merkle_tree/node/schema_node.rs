@@ -2,6 +2,7 @@
 //! that is stored in on disk
 //!
 
+use crate::error::OxenError;
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -18,6 +19,13 @@ pub struct SchemaNode {
     //   * type
     pub dtype: MerkleTreeNodeType,
     pub hash: MerkleHash,
+}
+
+impl SchemaNode {
+    pub fn deserialize(data: &[u8]) -> Result<SchemaNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing schema node: {e}")))
+    }
 }
 
 impl Default for SchemaNode {

@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::str;
 use std::str::FromStr;
 
-use super::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 
 pub fn commit(repo: &LocalRepository, message: impl AsRef<str>) -> Result<Commit, OxenError> {
     super::index::commit_writer::commit(repo, message)

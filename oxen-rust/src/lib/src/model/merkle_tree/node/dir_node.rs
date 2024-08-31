@@ -6,9 +6,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 
-use crate::view::DataTypeCount;
-
+use crate::error::OxenError;
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
+use crate::view::DataTypeCount;
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct DirNode {
@@ -45,6 +45,11 @@ impl DirNode {
                 count: *v,
             })
             .collect()
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<DirNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing dir node: {e}")))
     }
 }
 
