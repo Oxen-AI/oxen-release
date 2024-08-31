@@ -10,7 +10,7 @@ use crate::core::df::{pretty_print, sql};
 
 use crate::error::OxenError;
 use crate::io::chunk_reader::ChunkReader;
-use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::schema::DataType;
 use crate::model::{DataFrameSize, LocalRepository};
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
@@ -986,7 +986,7 @@ pub fn copy_df_add_row_num(
 
 pub fn show_node(
     repo: LocalRepository,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let file_node = node.file()?;

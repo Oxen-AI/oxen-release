@@ -12,7 +12,7 @@ use crate::{api, repositories};
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::v0_19_0::structs::push_progress::PushProgress;
-use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let Some(current_branch) = repositories::branches::current_branch(repo)? else {
@@ -118,7 +118,7 @@ async fn r_push_node(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Recursively push the node and all its children
@@ -179,7 +179,7 @@ async fn push_files(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     hashes: &HashSet<MerkleHash>,
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {

@@ -64,7 +64,7 @@ use crate::model::MerkleHash;
 use crate::util;
 
 use crate::model::merkle_tree::node::{
-    CommitNode, DirNode, EMerkleTreeNode, FileChunkNode, FileNode, MerkleTreeNodeData,
+    CommitNode, DirNode, EMerkleTreeNode, FileChunkNode, FileNode, MerkleTreeNode,
     MerkleTreeNodeType, SchemaNode, TMerkleTreeNode, VNode,
 };
 
@@ -486,7 +486,7 @@ impl MerkleNodeDB {
     }
     */
 
-    pub fn map(&mut self) -> Result<Vec<(MerkleHash, MerkleTreeNodeData)>, OxenError> {
+    pub fn map(&mut self) -> Result<Vec<(MerkleHash, MerkleTreeNode)>, OxenError> {
         // log::debug!("Loading merkle node db map");
         let Some(lookup) = self.lookup.as_ref() else {
             return Err(OxenError::basic_str("Must call open before reading"));
@@ -497,13 +497,13 @@ impl MerkleNodeDB {
 
         // Parse the node parent id
         let data_type = MerkleTreeNodeType::from_u8(lookup.data_type);
-        let parent_id = MerkleTreeNodeData::deserialize_id(&lookup.data, data_type)?;
+        let parent_id = MerkleTreeNode::deserialize_id(&lookup.data, data_type)?;
 
         let mut file_data = Vec::new();
         children_file.read_to_end(&mut file_data)?;
         // log::debug!("Loading merkle node db map got {} bytes", file_data.len());
 
-        let mut ret: Vec<(MerkleHash, MerkleTreeNodeData)> = Vec::new();
+        let mut ret: Vec<(MerkleHash, MerkleTreeNode)> = Vec::new();
         ret.reserve(lookup.num_children as usize);
 
         let mut cursor = std::io::Cursor::new(file_data);
@@ -516,7 +516,7 @@ impl MerkleNodeDB {
             let mut data = vec![0; *len as usize];
             cursor.read_exact(&mut data)?;
             let dtype = MerkleTreeNodeType::from_u8(*dtype);
-            let node = MerkleTreeNodeData {
+            let node = MerkleTreeNode {
                 parent_id: Some(parent_id),
                 hash: MerkleHash::new(*hash),
                 node: Self::to_node(dtype, &data)?,

@@ -16,7 +16,7 @@ use crate::repositories;
 use crate::util;
 
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
-use crate::model::merkle_tree::node::MerkleTreeNodeData;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 
 use std::str::FromStr;
 
@@ -155,7 +155,7 @@ pub async fn pull_remote_repo(
 async fn r_download_entries(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     directory: &PathBuf,
     pull_progress: &Arc<PullProgress>,
 ) -> Result<(), OxenError> {

@@ -633,6 +633,7 @@ fn write_file_node(
         data_type,
         mime_type,
         extension,
+        metadata: None,
         dtype: MerkleTreeNodeType::File,
     };
     node_db.add_child(&val)?;

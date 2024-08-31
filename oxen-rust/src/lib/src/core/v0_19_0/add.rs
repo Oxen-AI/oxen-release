@@ -20,7 +20,7 @@ use crate::{repositories, util};
 use std::ops::AddAssign;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNodeData};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
@@ -236,7 +236,7 @@ fn maybe_load_directory(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
-) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+) -> Result<Option<MerkleTreeNode>, OxenError> {
     if let Some(head_commit) = maybe_head_commit {
         let dir_node = CommitMerkleTree::dir_from_path_with_children(repo, head_commit, path)?;
         Ok(dir_node)
@@ -246,7 +246,7 @@ fn maybe_load_directory(
 }
 
 fn get_file_node(
-    dir_node: &Option<MerkleTreeNodeData>,
+    dir_node: &Option<MerkleTreeNode>,
     path: impl AsRef<Path>,
 ) -> Result<Option<FileNode>, OxenError> {
     if let Some(node) = dir_node {
@@ -299,7 +299,7 @@ fn process_add_file(
     repo_path: &Path,
     versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
-    maybe_dir_node: &Option<MerkleTreeNodeData>,
+    maybe_dir_node: &Option<MerkleTreeNode>,
     path: &Path,
 ) -> Result<Option<EntryMetaData>, OxenError> {
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
