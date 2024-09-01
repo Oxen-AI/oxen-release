@@ -1,3 +1,6 @@
+//! TODO: this is depreciated as of v0.19.0 and should be removed
+//!
+
 use crate::core::v0_10_0::index::CommitReader;
 use crate::model::metadata::to_duckdb_sql::ToDuckDBSql;
 use crate::model::schema::{DataType, Field};
@@ -130,5 +133,11 @@ impl ToDuckDBSql for DirMetadataItem {
             &self.extension,
             &self.is_dir,
         ]
+    }
+}
+
+impl std::fmt::Display for DirMetadataItem {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "DirMetadataItem({})", self.path)
     }
 }

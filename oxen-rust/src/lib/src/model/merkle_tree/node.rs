@@ -18,6 +18,7 @@ pub use merkle_tree_node::MerkleTreeNode;
 pub use schema_node::SchemaNode;
 pub use vnode::VNode;
 
+use crate::model::metadata::generic_metadata::GenericMetadata;
 pub use crate::model::{MerkleTreeNodeType, TMerkleTreeNode};
 use serde::{Deserialize, Serialize};
 
@@ -40,6 +41,13 @@ impl EMerkleTreeNode {
             EMerkleTreeNode::Schema(_) => MerkleTreeNodeType::Schema,
             EMerkleTreeNode::FileChunk(_) => MerkleTreeNodeType::FileChunk,
             EMerkleTreeNode::Commit(_) => MerkleTreeNodeType::Commit,
+        }
+    }
+
+    pub fn metadata(&self) -> &Option<GenericMetadata> {
+        match self {
+            EMerkleTreeNode::File(file) => &file.metadata,
+            _ => &None,
         }
     }
 

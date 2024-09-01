@@ -23,9 +23,10 @@ impl Display for StagedMerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "StagedMerkleTreeNode {{ hash: {}, data_type: {:?}, name: {:?}, status: {:?} }}",
+            "StagedMerkleTreeNode {{ hash: {}, data_type: {:?}, metadata: {:?}, name: {:?}, status: {:?} }}",
             self.node.hash,
             self.node.node.dtype(),
+            self.node.node.metadata(),
             self.node.maybe_path(),
             self.status
         )

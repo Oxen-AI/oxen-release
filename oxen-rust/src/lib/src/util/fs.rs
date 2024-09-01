@@ -396,7 +396,15 @@ pub fn read_lines_file(file: &File) -> Vec<String> {
     lines
 }
 
-pub fn read_first_line<P: AsRef<Path>>(path: P) -> Result<String, OxenError> {
+pub fn read_first_n_bytes(path: impl AsRef<Path>, n: usize) -> Result<Vec<u8>, OxenError> {
+    let mut file = File::open(path.as_ref())?;
+    let mut buffer = vec![0; n];
+    let bytes_read = file.read(&mut buffer)?;
+    buffer.truncate(bytes_read);
+    Ok(buffer)
+}
+
+pub fn read_first_line(path: impl AsRef<Path>) -> Result<String, OxenError> {
     let file = File::open(path.as_ref())?;
     read_first_line_from_file(&file)
 }
@@ -845,8 +853,8 @@ pub fn is_audio(path: &Path) -> bool {
 }
 
 pub fn is_utf8(path: &Path) -> bool {
-    if let Ok(line) = read_first_line(path) {
-        from_utf8(line.as_bytes()).is_ok()
+    if let Ok(bytes) = read_first_n_bytes(path, 1024) {
+        from_utf8(&bytes).is_ok()
     } else {
         false
     }
@@ -898,7 +906,10 @@ pub fn data_type_from_extension(path: &Path) -> EntryDataType {
 
 pub fn file_mime_type(path: &Path) -> String {
     match infer::get_from_path(path) {
-        Ok(Some(kind)) => String::from(kind.mime_type()),
+        Ok(Some(kind)) => {
+            log::debug!("file_mime_type {:?} {}", path, kind.mime_type());
+            String::from(kind.mime_type())
+        }
         _ => {
             if is_markdown(path) {
                 String::from("text/markdown")
@@ -955,6 +966,11 @@ pub fn datatype_from_mimetype(path: &Path, mime_type: &str) -> EntryDataType {
         "audio/x-ape" => EntryDataType::Audio,
 
         mime_type => {
+            log::debug!(
+                "datatype_from_mimetype trying to infer {:?} {}",
+                path,
+                mime_type
+            );
             // Catch text and dataframe types from file extension
             if is_tabular(path) {
                 EntryDataType::Tabular

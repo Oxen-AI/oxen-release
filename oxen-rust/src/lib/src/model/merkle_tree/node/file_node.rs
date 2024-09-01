@@ -100,6 +100,14 @@ impl fmt::Debug for FileNode {
         writeln!(f, "\tchunk_hashes: {:?}", self.chunk_hashes)?;
         writeln!(f, "\tchunk_type: {:?}", self.chunk_type)?;
         writeln!(f, "\tstorage_backend: {:?}", self.storage_backend)?;
+        writeln!(f, "\tlast_commit_id: {}", self.last_commit_id)?;
+        writeln!(f, "\tlast_modified_seconds: {}", self.last_modified_seconds)?;
+        writeln!(
+            f,
+            "\tlast_modified_nanoseconds: {}",
+            self.last_modified_nanoseconds
+        )?;
+        writeln!(f, "\tmetadata: {:?}", self.metadata)?;
         Ok(())
     }
 }
@@ -113,7 +121,11 @@ impl fmt::Display for FileNode {
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
             self.last_commit_id
-        )
+        )?;
+        if let Some(metadata) = &self.metadata {
+            write!(f, " {}", metadata)?;
+        }
+        Ok(())
     }
 }
 

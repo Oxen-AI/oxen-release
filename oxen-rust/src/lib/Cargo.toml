@@ -100,6 +100,7 @@ rocksdb = { version = "0.22.0", default-features = false, features = [
     "snappy",
     "zstd",
     "zlib",
+    "multi-threaded-cf",
 ] }
 serde = { version = "1.0.136", features = ["derive"] }
 serde_derive = "1.0"
