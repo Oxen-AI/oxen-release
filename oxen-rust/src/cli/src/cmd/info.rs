@@ -4,8 +4,8 @@ use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use std::path::PathBuf;
 
-use liboxen::command;
 use liboxen::opts::InfoOpts;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "info";
@@ -51,7 +51,7 @@ impl RunCmd for InfoCmd {
         let output_as_json = args.get_flag("json");
 
         let opts = InfoOpts {
-            path,
+            path: path.clone(),
             revision,
             verbose,
             output_as_json,
@@ -59,7 +59,7 @@ impl RunCmd for InfoCmd {
 
         // Look up from the current dir for .oxen directory
         let repository = LocalRepository::from_current_dir()?;
-        let metadata = command::info(&repository, opts.to_owned())?;
+        let metadata = repositories::metadata::get_cli(&repository, &path, &path)?;
 
         if opts.output_as_json {
             let json = serde_json::to_string(&metadata)?;
