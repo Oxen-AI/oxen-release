@@ -110,6 +110,7 @@ rocksdb = { version = "0.22.0", default-features = false, features = [
     "snappy",
     "zstd",
     "zlib",
+    "multi-threaded-cf",
 ] }
 sanitize-filename = "0.5.0"
 serde = { version = "1.0.188", features = ["derive"] }

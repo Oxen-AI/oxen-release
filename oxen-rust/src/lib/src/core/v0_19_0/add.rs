@@ -1,11 +1,13 @@
 use filetime::FileTime;
 use glob::glob;
-use jwalk::WalkDirGeneric;
+// use jwalk::WalkDirGeneric;
 use rayon::prelude::*;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
+use walkdir::WalkDir;
 
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
@@ -151,85 +153,74 @@ fn process_dir(
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
     let progress_1_clone = Arc::clone(&progress_1);
 
-    // TODO: Why is this stalling?
-    let walk_dir = WalkDirGeneric::<(usize, StagedMerkleTreeNode)>::new(&path).process_read_dir(
-        move |_depth, dir, state, children| {
-            let byte_counter_clone = Arc::clone(&byte_counter);
-            let added_file_counter_clone = Arc::clone(&added_file_counter);
-            let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
-
-            let num_children = children.len();
-            progress_1.set_message(format!(
-                "Processing dir [{:?}] with {} entries",
-                dir, num_children
-            ));
-            *state += 1;
-
-            let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
-            let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
-
-            // Curious why this is only < 300% CPU usage
-            children.par_iter_mut().for_each(|dir_entry_result| {
-                if let Ok(dir_entry) = dir_entry_result {
-                    let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-                    let path = dir_entry.path();
-                    let duration = start.elapsed().as_secs_f32();
-                    let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
-
-                    progress_1.set_message(format!(
-                        "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                        added_file_counter_clone.load(Ordering::Relaxed),
-                        unchanged_file_counter_clone.load(Ordering::Relaxed),
-                        bytesize::ByteSize::b(total_bytes),
-                        mbps
-                    ));
-                    match process_add_file(&repo_path, &versions_path, &staged_db, &dir_node, &path)
-                    {
-                        Ok(Some(node)) => {
-                            if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                                byte_counter_clone
-                                    .fetch_add(file_node.num_bytes, Ordering::Relaxed);
-                                added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                            }
-
-                            dir_entry.client_state = node;
-                        }
-                        Ok(None) => {
-                            unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                        }
-                        Err(e) => {
-                            log::error!("Error adding file: {:?}", e);
-                        }
-                    }
-                }
-            });
-        },
-    );
-
     let mut cumulative_stats = CumulativeStats {
         total_files: 0,
         total_bytes: 0,
         data_type_counts: HashMap::new(),
     };
-    for dir_entry in walk_dir.into_iter().flatten() {
-        let staged_node = dir_entry.client_state;
-        let node = staged_node.node.node;
 
-        if let EMerkleTreeNode::File(file_node) = &node {
-            let data_type = file_node.data_type.clone();
-            cumulative_stats.total_bytes += file_node.num_bytes;
-            cumulative_stats
-                .data_type_counts
-                .entry(data_type)
-                .and_modify(|count| *count += 1)
-                .or_insert(1);
-        }
+    let walker = WalkDir::new(&path).into_iter();
+    for entry in walker.filter_entry(|e| e.file_type().is_dir()) {
+        let entry = entry.unwrap();
+        let dir = entry.path();
 
-        if node.dtype() != MerkleTreeNodeType::Dir
-            && staged_node.status != StagedEntryStatus::Unmodified
-        {
-            cumulative_stats.total_files += 1;
-        }
+        let byte_counter_clone = Arc::clone(&byte_counter);
+        let added_file_counter_clone = Arc::clone(&added_file_counter);
+        let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
+
+        let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
+        let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
+        let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+
+        // Curious why this is only < 300% CPU usage
+        std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
+            if let Ok(dir_entry) = dir_entry_result {
+                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
+                let path = dir_entry.path();
+                let duration = start.elapsed().as_secs_f32();
+                let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+
+                progress_1.set_message(format!(
+                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                    added_file_counter_clone.load(Ordering::Relaxed),
+                    unchanged_file_counter_clone.load(Ordering::Relaxed),
+                    bytesize::ByteSize::b(total_bytes),
+                    mbps
+                ));
+
+                let seen_dirs_clone = Arc::clone(&seen_dirs);
+                match process_add_file(
+                    &repo_path,
+                    &versions_path,
+                    &staged_db,
+                    &dir_node,
+                    &path,
+                    &seen_dirs_clone,
+                ) {
+                    Ok(Some(node)) => {
+                        if let EMerkleTreeNode::File(file_node) = &node.node.node {
+                            byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
+                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                            cumulative_stats.total_bytes += file_node.num_bytes;
+                            cumulative_stats
+                                .data_type_counts
+                                .entry(file_node.data_type.clone())
+                                .and_modify(|count| *count += 1)
+                                .or_insert(1);
+                            if node.status != StagedEntryStatus::Unmodified {
+                                cumulative_stats.total_files += 1;
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                    }
+                    Err(e) => {
+                        log::error!("Error adding file: {:?}", e);
+                    }
+                }
+            }
+        });
     }
 
     progress_1_clone.finish_and_clear();
@@ -291,12 +282,14 @@ fn add_file(
             CommitMerkleTree::dir_from_path_with_children(repo, head_commit, parent_path)?;
     }
 
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
         &repo_path,
         &versions_path,
         &staged_db,
         &maybe_dir_node,
         path,
+        &seen_dirs,
     )
 }
 
@@ -306,6 +299,7 @@ fn process_add_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     maybe_dir_node: &Option<MerkleTreeNode>,
     path: &Path,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
@@ -387,6 +381,7 @@ fn process_add_file(
 
     // Get the data type of the file
     let data_type = util::fs::file_data_type(&full_path);
+    let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
 
     // Add the file to the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
@@ -413,6 +408,7 @@ fn process_add_file(
             num_bytes,
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
+            metadata,
             ..Default::default()
         }),
     };
@@ -424,20 +420,26 @@ fn process_add_file(
 
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
+    let mut seen_dirs = seen_dirs.lock().unwrap();
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
+        parent_path = parent.to_path_buf();
+
+        let relative_path_str = relative_path.to_str().unwrap();
+        if !seen_dirs.insert(relative_path.to_owned()) {
+            // Don't write the same dir twice
+            continue;
+        }
+
         let dir_entry = StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir_from_path(&relative_path),
         };
 
+        log::debug!("writing dir to staged db: {}", dir_entry);
         let mut buf = Vec::new();
         dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        staged_db
-            .put(relative_path.to_str().unwrap(), &buf)
-            .unwrap();
-
-        parent_path = parent.to_path_buf();
+        staged_db.put(relative_path_str, &buf).unwrap();
 
         if relative_path == Path::new("") {
             break;

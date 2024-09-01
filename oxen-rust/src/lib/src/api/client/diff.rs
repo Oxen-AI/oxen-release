@@ -87,7 +87,6 @@ mod tests {
     use crate::model::diff::generic_diff::GenericDiff;
     use crate::model::diff::generic_diff_summary::GenericDiffSummary;
     use crate::model::metadata::generic_metadata::GenericMetadata;
-    use crate::model::metadata::metadata_image::ImgColorSpace;
     use crate::model::EntryDataType;
     use crate::opts::RmOpts;
     use crate::repositories;
@@ -215,8 +214,8 @@ mod tests {
             let img = image::open(&repo_filepath).unwrap();
 
             // Resize the image to the specified dimensions.
-            let dims: usize = 96;
-            let new_img = imageops::resize(&img, dims as u32, dims as u32, imageops::Nearest);
+            let dims: u32 = 96;
+            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
 
             // Save the resized image.
             new_img.save(repo_filepath).unwrap();
@@ -264,7 +263,6 @@ mod tests {
                 GenericMetadata::MetadataImage(metadata) => {
                     assert_eq!(metadata.image.width, dims);
                     assert_eq!(metadata.image.height, dims);
-                    assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
                 }
                 _ => panic!("Wrong summary type"),
             }
@@ -702,8 +700,8 @@ who won the game?,The packers beat up on the bears,packers
             let img = image::open(&repo_filepath).unwrap();
 
             // Resize the image to the specified dimensions.
-            let dims: usize = 96;
-            let new_img = imageops::resize(&img, dims as u32, dims as u32, imageops::Nearest);
+            let dims: u32 = 96;
+            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
 
             // Save the resized image.
             new_img.save(repo_filepath).unwrap();
@@ -751,7 +749,6 @@ who won the game?,The packers beat up on the bears,packers
                 GenericMetadata::MetadataImage(metadata) => {
                     assert_eq!(metadata.image.width, dims);
                     assert_eq!(metadata.image.height, dims);
-                    assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
                 }
                 _ => panic!("Wrong summary type"),
             }

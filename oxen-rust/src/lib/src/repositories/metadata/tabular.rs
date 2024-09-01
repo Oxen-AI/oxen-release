@@ -11,7 +11,8 @@ use std::path::Path;
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataTabular, OxenError> {
     let path = path.as_ref();
     let size = tabular::get_size(path)?;
-    Ok(MetadataTabular::new(size.width, size.height))
+    let schema = tabular::get_schema(path)?;
+    Ok(MetadataTabular::new(size.width, size.height, schema))
 }
 
 #[cfg(test)]
