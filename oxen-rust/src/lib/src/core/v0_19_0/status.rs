@@ -1,11 +1,11 @@
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::constants::STAGED_DIR;
 use crate::core::db;
-use crate::core::v0_19_0::structs::{EntryMetaData, EntryMetaDataWithPath};
+use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::{
-    EntryDataType, LocalRepository, MerkleHash, StagedData, StagedDirStats, StagedEntry,
-    StagedEntryStatus, SummarizedStagedDirStats,
+    LocalRepository, StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
+    SummarizedStagedDirStats,
 };
 use crate::{repositories, util};
 
@@ -83,18 +83,27 @@ pub fn status_from_dir(
             status: StagedEntryStatus::Added,
         };
         for entry in entries {
-            log::debug!("dir_entries entry: {:?}", entry);
-            match entry.data_type {
-                EntryDataType::Dir => {
+            log::debug!("dir_entries entry: {}", entry);
+            match &entry.node.node {
+                EMerkleTreeNode::Directory(_) => {
                     stats.num_files_staged += 1;
                 }
-                _ => {
+                EMerkleTreeNode::File(node) => {
                     // TODO: It's not always added. It could be modified.
+                    log::debug!("dir_entries entry: {}", entry);
                     let staged_entry = StagedEntry {
-                        hash: entry.hash.to_string(),
+                        hash: node.hash.to_string(),
                         status: StagedEntryStatus::Added,
                     };
-                    staged_data.staged_files.insert(entry.path, staged_entry);
+                    staged_data
+                        .staged_files
+                        .insert(PathBuf::from(&node.name), staged_entry);
+                }
+                _ => {
+                    return Err(OxenError::basic_str(format!(
+                        "status_from_dir found unexpected node type: {:?}",
+                        entry.node
+                    )));
                 }
             }
         }
@@ -110,7 +119,7 @@ pub fn read_staged_entries(
     repo: &LocalRepository,
     db: &DBWithThreadMode<SingleThreaded>,
     read_progress: &ProgressBar,
-) -> Result<(HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, u64), OxenError> {
+) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
     read_staged_entries_below_path(repo, db, Path::new(""), read_progress)
 }
 
@@ -119,11 +128,11 @@ pub fn read_staged_entries_below_path(
     db: &DBWithThreadMode<SingleThreaded>,
     start_path: impl AsRef<Path>,
     read_progress: &ProgressBar,
-) -> Result<(HashMap<PathBuf, Vec<EntryMetaDataWithPath>>, u64), OxenError> {
+) -> Result<(HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, u64), OxenError> {
     let start_path = start_path.as_ref();
     let mut total_entries = 0;
     let iter = db.iterator(IteratorMode::Start);
-    let mut dir_entries: HashMap<PathBuf, Vec<EntryMetaDataWithPath>> = HashMap::new();
+    let mut dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>> = HashMap::new();
     for item in iter {
         match item {
             // key = file path
@@ -131,19 +140,8 @@ pub fn read_staged_entries_below_path(
             Ok((key, value)) => {
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
-                let entry: EntryMetaData = rmp_serde::from_slice(&value).unwrap();
+                let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
                 log::debug!("read_staged_entries key {} entry: {}", key, entry);
-
-                let entry_w_path = EntryMetaDataWithPath {
-                    path: path.to_path_buf(),
-                    hash: entry.hash,
-                    num_bytes: entry.num_bytes,
-                    data_type: entry.data_type,
-                    status: entry.status,
-                    last_commit_id: MerkleHash::new(0),
-                    last_modified_seconds: entry.last_modified_seconds,
-                    last_modified_nanoseconds: entry.last_modified_nanoseconds,
-                };
 
                 if let Some(parent) = path.parent() {
                     log::debug!(
@@ -159,14 +157,14 @@ pub fn read_staged_entries_below_path(
                         dir_entries
                             .entry(parent.to_path_buf())
                             .or_default()
-                            .push(entry_w_path);
+                            .push(entry);
                     }
                 } else {
                     log::debug!("read_staged_entries root {:?}", path);
                     dir_entries
                         .entry(PathBuf::from(""))
                         .or_default()
-                        .push(entry_w_path);
+                        .push(entry);
                 }
 
                 total_entries += 1;

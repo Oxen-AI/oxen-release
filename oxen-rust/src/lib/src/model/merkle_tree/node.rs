@@ -19,8 +19,9 @@ pub use schema_node::SchemaNode;
 pub use vnode::VNode;
 
 pub use crate::model::{MerkleTreeNodeType, TMerkleTreeNode};
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug, Deserialize, Serialize)]
 pub enum EMerkleTreeNode {
     File(FileNode),
     Directory(DirNode),

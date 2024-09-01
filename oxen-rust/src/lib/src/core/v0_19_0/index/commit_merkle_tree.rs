@@ -261,7 +261,7 @@ impl CommitMerkleTree {
     }
 
     pub fn node_files_and_folders(node: &MerkleTreeNode) -> Result<Vec<MerkleTreeNode>, OxenError> {
-        if let EMerkleTreeNode::Directory(_) = &node.node {
+        if MerkleTreeNodeType::Dir != node.node.dtype() {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node is not a directory: '{:?}'",
                 node.node.dtype()
