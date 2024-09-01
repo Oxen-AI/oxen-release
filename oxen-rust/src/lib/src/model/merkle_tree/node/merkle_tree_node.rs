@@ -11,7 +11,9 @@ use crate::error::OxenError;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
 use crate::util;
 
-#[derive(Clone, Eq)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Eq, Deserialize, Serialize)]
 pub struct MerkleTreeNode {
     pub hash: MerkleHash,
     pub node: EMerkleTreeNode,
@@ -67,6 +69,74 @@ impl MerkleTreeNode {
         count
     }
 
+    /// Create a default DirNode with none of the metadata fields set
+    pub fn default_dir() -> MerkleTreeNode {
+        MerkleTreeNode {
+            hash: MerkleHash::new(0),
+            node: EMerkleTreeNode::Directory(DirNode::default()),
+            parent_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// Create a default DirNode with the given path
+    pub fn default_dir_from_path(path: impl AsRef<Path>) -> MerkleTreeNode {
+        let mut dir_node = DirNode::default();
+        let dir_str = path.as_ref().to_str().unwrap().to_string();
+        // let dir_hash = util::hasher::hash_buffer_128bit(&dir_str.as_bytes());
+        dir_node.name = dir_str;
+        MerkleTreeNode {
+            hash: MerkleHash::new(0),
+            node: EMerkleTreeNode::Directory(dir_node),
+            parent_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// Create a default FileNode with none of the metadata fields set
+    pub fn default_file() -> MerkleTreeNode {
+        MerkleTreeNode {
+            hash: MerkleHash::new(0),
+            node: EMerkleTreeNode::File(FileNode::default()),
+            parent_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// Create a MerkleTreeNode from a FileNode
+    pub fn from_file(file_node: FileNode) -> MerkleTreeNode {
+        MerkleTreeNode {
+            hash: file_node.hash,
+            node: EMerkleTreeNode::File(file_node),
+            parent_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    /// Create a MerkleTreeNode from a DirNode
+    pub fn from_dir(dir_node: DirNode) -> MerkleTreeNode {
+        MerkleTreeNode {
+            hash: dir_node.hash,
+            node: EMerkleTreeNode::Directory(dir_node),
+            parent_id: None,
+            children: Vec::new(),
+        }
+    }
+
+    pub fn maybe_path(&self) -> Result<PathBuf, OxenError> {
+        if let EMerkleTreeNode::Directory(dir_node) = &self.node {
+            return Ok(PathBuf::from(dir_node.name.clone()));
+        }
+        if let EMerkleTreeNode::File(file_node) = &self.node {
+            return Ok(PathBuf::from(file_node.name.clone()));
+        }
+        Err(OxenError::basic_str(format!(
+            "MerkleTreeNode::maybe_path called on non-file or non-dir node: {:?}",
+            self
+        )))
+    }
+
+    /// List all the directories in the tree
     pub fn list_dir_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut dirs = Vec::new();
         let current_path = Path::new("");
@@ -136,7 +206,7 @@ impl MerkleTreeNode {
             )));
         };
 
-        if let EMerkleTreeNode::Directory(_) = &node.node {
+        if MerkleTreeNodeType::Dir != node.node.dtype() {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree node is not a directory: '{:?}'",
                 path
@@ -403,6 +473,12 @@ impl fmt::Debug for MerkleTreeNode {
     }
 }
 
+impl Default for MerkleTreeNode {
+    fn default() -> Self {
+        Self::default_dir()
+    }
+}
+
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for MerkleTreeNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -452,5 +528,8 @@ impl PartialEq for MerkleTreeNode {
 impl Hash for MerkleTreeNode {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.hash.to_u128().hash(state);
+        if let Ok(path) = self.maybe_path() {
+            path.hash(state);
+        }
     }
 }

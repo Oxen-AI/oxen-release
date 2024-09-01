@@ -98,6 +98,7 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+ "walkdir",
  "words-count",
  "xxhash-rust",
 ]
@@ -3159,6 +3160,7 @@ dependencies = [
  "url",
  "urlencoding",
  "uuid",
+ "walkdir",
  "words-count",
  "xxhash-rust",
 ]
