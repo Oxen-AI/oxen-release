@@ -8,6 +8,7 @@ pub mod commits;
 pub mod entries;
 pub mod index;
 pub mod init;
+pub mod metadata;
 pub mod pull;
 pub mod push;
 pub mod rm;
