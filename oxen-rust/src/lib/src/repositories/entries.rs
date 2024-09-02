@@ -63,8 +63,7 @@ pub fn list_directory_w_version(
             core::v0_10_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
         MinOxenVersion::V0_19_0 => {
-            todo!()
-            // core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
+            core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
     }
 }

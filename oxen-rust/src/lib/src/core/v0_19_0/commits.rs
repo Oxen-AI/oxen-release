@@ -105,7 +105,9 @@ pub fn get_by_id(
     commit_id_str: impl AsRef<str>,
 ) -> Result<Option<Commit>, OxenError> {
     let commit_id_str = commit_id_str.as_ref();
-    let commit_id = MerkleHash::from_str(commit_id_str)?;
+    let Ok(commit_id) = MerkleHash::from_str(commit_id_str) else {
+        return Ok(None);
+    };
     get_by_hash(repo, &commit_id)
 }
 

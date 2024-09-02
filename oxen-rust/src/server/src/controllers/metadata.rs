@@ -51,6 +51,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     Ok(HttpResponse::Ok().json(meta))
 }
 
+/// TODO: Depreciate this API
 pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -134,6 +135,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     Ok(HttpResponse::Ok().json(response))
 }
 
+/// TODO: Depreciate this API
 pub async fn agg_dir(
     req: HttpRequest,
     query: web::Query<AggregateQuery>,
