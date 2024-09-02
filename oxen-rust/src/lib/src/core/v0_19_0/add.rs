@@ -234,7 +234,7 @@ fn maybe_load_directory(
     path: &Path,
 ) -> Result<Option<MerkleTreeNode>, OxenError> {
     if let Some(head_commit) = maybe_head_commit {
-        let dir_node = CommitMerkleTree::dir_from_path_with_children(repo, head_commit, path)?;
+        let dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, path)?;
         Ok(dir_node)
     } else {
         Ok(None)
@@ -278,8 +278,7 @@ fn add_file(
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, &repo_path)?;
         let parent_path = path.parent().unwrap_or(Path::new(""));
-        maybe_dir_node =
-            CommitMerkleTree::dir_from_path_with_children(repo, head_commit, parent_path)?;
+        maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
     }
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));

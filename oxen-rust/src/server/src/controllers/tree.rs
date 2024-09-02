@@ -19,7 +19,7 @@ use tar::Archive;
 
 use std::str::FromStr;
 
-use liboxen::model::merkle_tree::node::EMerkleTreeNode;
+use liboxen::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use liboxen::model::MerkleHash;
 use liboxen::repositories;
 use liboxen::view::tree::nodes::{
@@ -280,7 +280,11 @@ fn r_compress_tree(
             return Err(OxenError::basic_str(format!("Node {} not found", hash)));
         };
 
-        log::debug!("Got node {:?} is leaf {:?}", node.dtype(), node.is_leaf());
+        log::debug!(
+            "Got node {:?} is leaf {:?}",
+            node.node.dtype(),
+            node.is_leaf()
+        );
         if !node.is_leaf() {
             let children = repositories::tree::child_hashes(repository, hash)?;
             for child in children {
@@ -292,8 +296,8 @@ fn r_compress_tree(
     Ok(())
 }
 
-fn node_to_json(node: EMerkleTreeNode) -> actix_web::Result<HttpResponse, OxenHttpError> {
-    match node {
+fn node_to_json(node: MerkleTreeNode) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    match node.node {
         EMerkleTreeNode::File(file) => Ok(HttpResponse::Ok().json(FileNodeResponse {
             status: StatusMessage::resource_found(),
             node: file,

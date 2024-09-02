@@ -58,6 +58,7 @@ pub fn get_directory(
         last_modified_seconds: entry.last_modified_seconds,
         last_modified_nanoseconds: entry.last_modified_nanoseconds,
         data_type_counts: HashMap::new(),
+        data_type_sizes: HashMap::new(),
     };
     Ok(Some(node))
 }

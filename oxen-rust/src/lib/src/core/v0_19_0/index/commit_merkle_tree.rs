@@ -90,7 +90,7 @@ impl CommitMerkleTree {
         repo: &LocalRepository,
         commit: &Commit,
         path: impl AsRef<Path>,
-    ) -> Result<Option<DirNode>, OxenError> {
+    ) -> Result<Option<MerkleTreeNode>, OxenError> {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
@@ -98,17 +98,13 @@ impl CommitMerkleTree {
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
-            if let Some(node) = CommitMerkleTree::read_node(repo, &node_hash, false)? {
-                Ok(Some(node.dir()?))
-            } else {
-                Ok(None)
-            }
+            CommitMerkleTree::read_node(repo, &node_hash, false)
         } else {
             Ok(None)
         }
     }
 
-    pub fn dir_from_path_with_children(
+    pub fn dir_with_children(
         repo: &LocalRepository,
         commit: &Commit,
         path: impl AsRef<Path>,

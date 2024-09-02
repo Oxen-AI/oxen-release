@@ -668,15 +668,18 @@ fn compute_dir_node(
     hasher.update(path.to_str().unwrap().as_bytes());
 
     let mut num_bytes = 0;
-    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+    let mut data_type_counts: HashMap<String, u64> = HashMap::new();
+    let mut data_type_sizes: HashMap<String, u64> = HashMap::new();
 
     // Collect the previous commit counts
     if let Some(head_commit) = maybe_head_commit {
         if let Ok(Some(old_dir_node)) =
             CommitMerkleTree::dir_without_children(repo, head_commit, &path)
         {
+            let old_dir_node = old_dir_node.dir().unwrap();
             num_bytes = old_dir_node.num_bytes;
             data_type_counts = old_dir_node.data_type_counts;
+            data_type_sizes = old_dir_node.data_type_sizes;
         };
     }
 
@@ -710,12 +713,18 @@ fn compute_dir_node(
                                 *data_type_counts
                                     .entry(file_node.data_type.to_string())
                                     .or_insert(0) += 1;
+                                *data_type_sizes
+                                    .entry(file_node.data_type.to_string())
+                                    .or_insert(0) += file_node.num_bytes;
                             }
                             StagedEntryStatus::Removed => {
                                 num_bytes -= file_node.num_bytes;
                                 *data_type_counts
                                     .entry(file_node.data_type.to_string())
                                     .or_insert(1) -= 1;
+                                *data_type_sizes
+                                    .entry(file_node.data_type.to_string())
+                                    .or_insert(0) -= file_node.num_bytes;
                             }
                             _ => {
                                 // Do nothing
@@ -751,6 +760,7 @@ fn compute_dir_node(
         last_modified_seconds: 0,
         last_modified_nanoseconds: 0,
         data_type_counts,
+        data_type_sizes,
     };
     Ok(node)
 }

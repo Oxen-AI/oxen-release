@@ -28,11 +28,12 @@ pub struct DirNode {
     pub last_modified_seconds: i64,
     pub last_modified_nanoseconds: u32,
     // Recursive file counts in the directory
-    pub data_type_counts: HashMap<String, usize>,
+    pub data_type_counts: HashMap<String, u64>,
+    pub data_type_sizes: HashMap<String, u64>,
 }
 
 impl DirNode {
-    pub fn num_files(&self) -> usize {
+    pub fn num_files(&self) -> u64 {
         // sum up the data type counts
         self.data_type_counts.values().sum()
     }
@@ -42,7 +43,7 @@ impl DirNode {
             .iter()
             .map(|(k, v)| DataTypeCount {
                 data_type: k.clone(),
-                count: *v,
+                count: *v as usize,
             })
             .collect()
     }
@@ -64,6 +65,7 @@ impl Default for DirNode {
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
             data_type_counts: HashMap::new(),
+            data_type_sizes: HashMap::new(),
         }
     }
 }
@@ -88,6 +90,7 @@ impl fmt::Debug for DirNode {
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
         writeln!(f, "\tdata_type_counts: {:?}", self.data_type_counts)?;
+        writeln!(f, "\tdata_type_sizes: {:?}", self.data_type_sizes)?;
         Ok(())
     }
 }
