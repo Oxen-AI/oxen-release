@@ -130,7 +130,7 @@ impl CommitMerkleTree {
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
         log::debug!("Read node hash [{}]", hash);
         if !MerkleNodeDB::exists(repo, hash) {
-            log::debug!("Merkle node db does not exist for hash: {}", hash);
+            log::debug!("read_node merkle node db does not exist for hash: {}", hash);
             return Ok(None);
         }
 
@@ -145,9 +145,12 @@ impl CommitMerkleTree {
         hash: &MerkleHash,
         depth: i32,
     ) -> Result<Option<MerkleTreeNode>, OxenError> {
-        log::debug!("Read node hash [{}]", hash);
+        log::debug!("Read depth {} node hash [{}]", depth, hash);
         if !MerkleNodeDB::exists(repo, hash) {
-            log::debug!("Merkle node db does not exist for hash: {}", hash);
+            log::debug!(
+                "read_depth merkle node db does not exist for hash: {}",
+                hash
+            );
             return Ok(None);
         }
 

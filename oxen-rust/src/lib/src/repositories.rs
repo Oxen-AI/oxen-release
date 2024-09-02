@@ -407,8 +407,8 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
-                root_hash: None,
                 timestamp,
+                root_hash: None,
             };
             let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
             let _repo = repositories::create(sync_dir, repo_new)?;

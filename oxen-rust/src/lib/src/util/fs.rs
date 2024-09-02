@@ -100,29 +100,13 @@ pub fn version_path_for_commit_id(
     }
 }
 
-pub fn resized_path_for_commit_id(
+pub fn resized_path_for_hash(
     repo: &LocalRepository,
-    commit_id: &str,
-    filepath: &Path,
+    hash: &MerkleHash,
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    match repositories::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match repositories::entries::get_commit_entry(repo, &commit, filepath)? {
-            Some(entry) => resized_path_for_commit_entry(repo, &entry, width, height),
-            None => Err(OxenError::path_does_not_exist(filepath)),
-        },
-        None => Err(OxenError::revision_not_found(commit_id.into())),
-    }
-}
-
-pub fn resized_path_for_commit_entry(
-    repo: &LocalRepository,
-    entry: &CommitEntry,
-    width: Option<u32>,
-    height: Option<u32>,
-) -> Result<PathBuf, OxenError> {
-    let path = version_path(repo, entry);
+    let path = version_path_from_hash(repo, hash);
     let extension = path.extension().unwrap().to_str().unwrap();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());

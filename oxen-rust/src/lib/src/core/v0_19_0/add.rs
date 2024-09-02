@@ -13,7 +13,7 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
 
-use crate::constants::{FILES_DIR, STAGED_DIR, VERSIONS_DIR};
+use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::model::{Commit, EntryDataType, MerkleHash, MerkleTreeNodeType, StagedEntryStatus};
@@ -160,7 +160,8 @@ fn process_dir(
     };
 
     let walker = WalkDir::new(&path).into_iter();
-    for entry in walker.filter_entry(|e| e.file_type().is_dir()) {
+    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
+    {
         let entry = entry.unwrap();
         let dir = entry.path();
 

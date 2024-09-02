@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use crate::constants::{CACHE_DIR, DIRS_DIR, HISTORY_DIR};
+use crate::core;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
@@ -109,7 +110,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
         // TODO: do not copy pasta this code
         for entry in entries {
             let Some(entry_commit) =
-                repositories::entries::get_latest_commit_for_entry(&commit_entry_readers, &entry)?
+                core::v0_10_0::entries::get_latest_commit_for_entry(&commit_entry_readers, &entry)?
             else {
                 log::debug!(
                     "No commit found for entry {:?} in dir {:?}",
@@ -175,7 +176,7 @@ pub fn compute(repo: &LocalRepository, commit: &Commit) -> Result<(), OxenError>
             );
 
             for entry in entries {
-                let Some(entry_commit) = repositories::entries::get_latest_commit_for_entry(
+                let Some(entry_commit) = core::v0_10_0::entries::get_latest_commit_for_entry(
                     &commit_entry_readers,
                     &entry,
                 )?
