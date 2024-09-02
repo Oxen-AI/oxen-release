@@ -115,16 +115,16 @@ impl MerkleNodeLookup {
         let mut buffer = [0u8; 1]; // u8 is 1 byte
         cursor.read_exact(&mut buffer)?;
         let node_data_type = u8::from_le_bytes(buffer);
-        log::debug!(
-            "MerkleNodeLookup.load() data_type: {:?}",
-            MerkleTreeNodeType::from_u8(node_data_type)
-        );
+        // log::debug!(
+        //     "MerkleNodeLookup.load() data_type: {:?}",
+        //     MerkleTreeNodeType::from_u8(node_data_type)
+        // );
 
         // Read the parent id
         let mut buffer = [0u8; 16]; // u128 is 16 bytes
         cursor.read_exact(&mut buffer)?;
         let parent_id = u128::from_le_bytes(buffer);
-        log::debug!("MerkleNodeLookup.load() parent_id: {:x}", parent_id);
+        // log::debug!("MerkleNodeLookup.load() parent_id: {:x}", parent_id);
 
         // Read the length of the node data
         let mut buffer = [0u8; 4]; // u32 is 4 bytes
@@ -176,11 +176,11 @@ impl MerkleNodeLookup {
         }
 
         let num_children = offsets.len() as u64;
-        log::debug!(
-            "MerkleNodeLookup.load() parent_id {:x} num_children {}",
-            parent_id,
-            num_children
-        );
+        // log::debug!(
+        //     "MerkleNodeLookup.load() parent_id {:x} num_children {}",
+        //     parent_id,
+        //     num_children
+        // );
         Ok(Self {
             data_type: node_data_type,
             parent_id,

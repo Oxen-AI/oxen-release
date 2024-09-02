@@ -192,6 +192,21 @@ impl error::ResponseError for OxenHttpError {
                             repo
                         )))
                     }
+                    OxenError::ResourceNotFound(resource) => {
+                        log::debug!("Resource not found: {}", resource);
+
+                        let error_json = json!({
+                            "error": {
+                                "type": MSG_RESOURCE_NOT_FOUND,
+                                "title": "Resource not found",
+                                "detail": format!("Could not find path: {}", resource)
+                            },
+                            "status": STATUS_ERROR,
+                            "status_message": MSG_RESOURCE_NOT_FOUND,
+                        });
+
+                        HttpResponse::NotFound().json(error_json)
+                    }
                     OxenError::ParsedResourceNotFound(resource) => {
                         log::debug!("Resource not found: {}", resource);
 

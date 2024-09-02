@@ -7,7 +7,9 @@ use crate::core;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MerkleHash, RemoteRepository};
+use crate::model::{
+    Branch, Commit, CommitEntry, LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteRepository,
+};
 use crate::{api, repositories};
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
@@ -96,6 +98,8 @@ async fn push_remote_repo(
     // Notify the server that we are done pushing
     api::client::repositories::post_push(&remote_repo, &local_branch, &commit.id).await?;
 
+    progress.finish();
+
     Ok(root_dir.num_bytes)
 }
 
@@ -156,13 +160,14 @@ async fn r_push_node(
     }
 
     // If the node is not a VNode, it does not have file children, so we can return
-    if let EMerkleTreeNode::VNode(_) = &node.node {
+    if MerkleTreeNodeType::VNode != node.node.dtype() {
         return Ok(());
     }
 
     // Find the missing files on the server
     // If we just created the node, all files will be missing
     // If the server has the node, but some of the files are missing, we need to push them
+    log::debug!("listing missing file hashes for {}", node);
     let missing_file_hashes =
         api::client::tree::list_missing_file_hashes(remote_repo, &node.hash).await?;
 

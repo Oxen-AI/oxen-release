@@ -55,6 +55,11 @@ pub async fn list_missing_file_hashes(
     let hash = MerkleHash::from_str(&hash_str)?;
 
     let hashes = repositories::tree::list_missing_file_hashes(&repository, &hash)?;
+    log::debug!(
+        "list_missing_file_hashes {} got {} hashes",
+        hash,
+        hashes.len()
+    );
     Ok(HttpResponse::Ok().json(MerkleHashesResponse {
         status: StatusMessage::resource_found(),
         hashes,

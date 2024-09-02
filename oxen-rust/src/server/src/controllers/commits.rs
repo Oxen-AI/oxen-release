@@ -638,13 +638,6 @@ pub async fn upload_chunk(
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
-    let commit_reader = CommitReader::new(&repo)?;
-
-    let commit = match commit_reader.get_commit_by_id(&commit_id)? {
-        Some(commit) => commit,
-        None => repositories::commits::head_commit(&repo)?,
-    };
-
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
     let id = query.hash.clone();
     let size = query.total_size;
@@ -652,7 +645,7 @@ pub async fn upload_chunk(
     let total_chunks = query.total_chunks;
 
     log::debug!(
-        "upload_chunk got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
+        "upload_chunk {commit_id} got chunk {chunk_num}/{total_chunks} of upload {id} of total size {size}"
     );
 
     // Create a tmp dir for this upload
@@ -701,10 +694,7 @@ pub async fn upload_chunk(
                         query.filename.to_owned(),
                     );
 
-                    Ok(HttpResponse::Ok().json(CommitResponse {
-                        status: StatusMessage::resource_created(),
-                        commit: commit.to_owned(),
-                    }))
+                    Ok(HttpResponse::Ok().json(StatusMessage::resource_created()))
                 }
                 Err(err) => {
                     log::error!(
@@ -1009,13 +999,6 @@ pub async fn upload(
     let commit_id = path_param(&req, "commit_id")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
-    // Match commit as either the provided commit id if it exists, or the head commit of the repo otherwise.
-
-    // let commit = match repositories::commits::get_by_id(&repo, &commit_id)? {
-    //     Some(commit) => commit,
-    //     None => repositories::commits::head_commit(&repo)?,
-    // };
-
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
 
     // Read bytes from body
@@ -1211,56 +1194,61 @@ fn unpack_tree_tarball(tmp_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) 
 
 fn unpack_entry_tarball(hidden_dir: &Path, archive: &mut Archive<GzDecoder<&[u8]>>) {
     // Unpack and compute HASH and save next to the file to speed up computation later
-    // log::debug!("unpack_entry_tarball hidden_dir {:?}", hidden_dir);
+    log::debug!("unpack_entry_tarball hidden_dir {:?}", hidden_dir);
 
     match archive.entries() {
         Ok(entries) => {
             for file in entries {
-                if let Ok(mut file) = file {
-                    // Why hash now? To make sure everything synced properly
-                    // When we want to check is_synced, it is expensive to rehash everything
-                    // But since upload is network bound already, hashing here makes sense, and we will just
-                    // load the HASH file later
-                    let path = file.path().unwrap();
-                    let mut version_path = PathBuf::from(hidden_dir);
-                    // log::debug!("unpack_entry_tarball path {:?}", path);
+                match file {
+                    Ok(mut file) => {
+                        // Why hash now? To make sure everything synced properly
+                        // When we want to check is_synced, it is expensive to rehash everything
+                        // But since upload is network bound already, hashing here makes sense, and we will just
+                        // load the HASH file later
+                        let path = file.path().unwrap();
+                        let mut version_path = PathBuf::from(hidden_dir);
+                        log::debug!("unpack_entry_tarball path {:?}", path);
 
-                    if path.starts_with("versions") && path.to_string_lossy().contains("files") {
-                        // Unpack version files to common name (data.extension) regardless of the name sent from the client
-                        let new_path = util::fs::replace_file_name_keep_extension(
-                            &path,
-                            VERSION_FILE_NAME.to_owned(),
-                        );
-                        version_path.push(new_path);
-                        // log::debug!("unpack_entry_tarball version_path {:?}", version_path);
+                        if path.starts_with("versions") && path.to_string_lossy().contains("files")
+                        {
+                            // Unpack version files to common name (data.extension) regardless of the name sent from the client
+                            let new_path = util::fs::replace_file_name_keep_extension(
+                                &path,
+                                VERSION_FILE_NAME.to_owned(),
+                            );
+                            version_path.push(new_path);
+                            // log::debug!("unpack_entry_tarball version_path {:?}", version_path);
 
-                        if let Some(parent) = version_path.parent() {
-                            if !parent.exists() {
-                                std::fs::create_dir_all(parent)
-                                    .expect("Could not create parent dir");
+                            if let Some(parent) = version_path.parent() {
+                                if !parent.exists() {
+                                    std::fs::create_dir_all(parent)
+                                        .expect("Could not create parent dir");
+                                }
                             }
-                        }
-                        file.unpack(&version_path).unwrap();
-                        // log::debug!("unpack_entry_tarball unpacked! {:?}", version_path);
+                            file.unpack(&version_path).unwrap();
+                            // log::debug!("unpack_entry_tarball unpacked! {:?}", version_path);
 
-                        let hash_dir = version_path.parent().unwrap();
-                        let hash_file = hash_dir.join(HASH_FILE);
-                        let hash = util::hasher::hash_file_contents(&version_path).unwrap();
-                        util::fs::write_to_path(&hash_file, &hash)
-                            .expect("Could not write hash file");
-                    } else if path.starts_with(OBJECTS_DIR) {
-                        let temp_objects_dir = hidden_dir.join("tmp");
-                        if !temp_objects_dir.exists() {
-                            std::fs::create_dir_all(&temp_objects_dir).unwrap();
-                        }
+                            let hash_dir = version_path.parent().unwrap();
+                            let hash_file = hash_dir.join(HASH_FILE);
+                            let hash = util::hasher::hash_file_contents(&version_path).unwrap();
+                            util::fs::write_to_path(&hash_file, &hash)
+                                .expect("Could not write hash file");
+                        } else if path.starts_with(OBJECTS_DIR) {
+                            let temp_objects_dir = hidden_dir.join("tmp");
+                            if !temp_objects_dir.exists() {
+                                std::fs::create_dir_all(&temp_objects_dir).unwrap();
+                            }
 
-                        file.unpack_in(&temp_objects_dir).unwrap();
-                    } else {
-                        // For non-version files, use filename sent by client
-                        file.unpack_in(hidden_dir).unwrap();
+                            file.unpack_in(&temp_objects_dir).unwrap();
+                        } else {
+                            // For non-version files, use filename sent by client
+                            file.unpack_in(hidden_dir).unwrap();
+                        }
                     }
-                } else {
-                    log::error!("Could not unpack file in archive...");
+                    Err(err) => {
+                        log::error!("Could not unpack file in archive...");
+                        log::error!("Err: {:?}", err);
+                    }
                 }
             }
         }
