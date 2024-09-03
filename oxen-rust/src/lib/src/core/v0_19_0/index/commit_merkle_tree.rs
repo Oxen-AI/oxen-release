@@ -288,13 +288,12 @@ impl CommitMerkleTree {
     }
 
     /// Get the root directory node given a commit node
-    pub fn get_root_dir_from_commit(
-        node: &MerkleTreeNodeData,
-    ) -> Result<&MerkleTreeNodeData, OxenError> {
-        if node.dtype != MerkleTreeNodeType::Commit {
-            return Err(OxenError::basic_str(
-                "Expected a commit node, but got a different type",
-            ));
+    pub fn get_root_dir_from_commit(node: &MerkleTreeNode) -> Result<&MerkleTreeNode, OxenError> {
+        if node.node.dtype() != MerkleTreeNodeType::Commit {
+            return Err(OxenError::basic_str(format!(
+                "Expected a commit node, but got: '{:?}'",
+                node.node.dtype()
+            )));
         }
 
         // A commit node should have exactly one child, which is the root directory
@@ -305,10 +304,11 @@ impl CommitMerkleTree {
         }
 
         let root_dir = &node.children[0];
-        if root_dir.dtype != MerkleTreeNodeType::Dir {
-            return Err(OxenError::basic_str(
-                "The child of a commit node should be a directory",
-            ));
+        if root_dir.node.dtype() != MerkleTreeNodeType::Dir {
+            return Err(OxenError::basic_str(format!(
+                "The child of a commit node should be a directory, but got: '{:?}'",
+                root_dir.node.dtype()
+            )));
         }
 
         Ok(root_dir)
