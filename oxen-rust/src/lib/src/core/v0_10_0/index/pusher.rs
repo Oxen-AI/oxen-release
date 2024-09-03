@@ -2,11 +2,11 @@
 //!
 
 use crate::api::client::commits::ChunkParams;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
-use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::repositories::entries::compute_generic_entries_size;
 use crate::util::concurrency;
-use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg, ProgressBarType};
+use crate::util::progress_bar::{oxen_progress_bar_with_msg, spinner_with_msg};
 use crate::{core, repositories};
 
 use flate2::write::GzEncoder;
@@ -26,7 +26,7 @@ use crate::core::v0_10_0::index::{self, CommitReader, Merger};
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, LocalRepository, RemoteBranch, RemoteRepository};
 
-use crate::util::progress_bar::oxen_progress_bar;
+use crate::core::v0_19_0::structs::push_progress::PushProgress;
 use crate::{api, util};
 
 pub async fn push(
@@ -311,7 +311,7 @@ async fn get_commit_objects_to_sync(
 
         // Early return to avoid checking for remote commits: if full local history and no remote branch,
         // push full local branch history.
-        if core::v0_10_0::commit::commit_history_is_complete(local_repo, local_commit) {
+        if core::v0_10_0::commits::commit_history_is_complete(local_repo, local_commit) {
             return repositories::commits::list_from(local_repo, &local_commit.id);
         }
 
@@ -621,7 +621,7 @@ async fn push_missing_commit_dbs(
                 let (local_repo, remote_repo, commits, bar) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
                 for commit in &commits {
-                    match api::client::commits::post_commit_db_to_server(
+                    match api::client::commits::post_commit_dir_hashes_to_server(
                         &local_repo,
                         &remote_repo,
                         commit,
@@ -730,7 +730,7 @@ async fn push_missing_commit_entries(
             entries: unsynced_entries,
         };
 
-        let bar = oxen_progress_bar(total_size, ProgressBarType::Bytes);
+        let bar = PushProgress::new();
         push_entries(
             local_repo,
             remote_repo,
@@ -752,7 +752,7 @@ pub async fn push_entries(
     remote_repo: &RemoteRepository,
     entries: &[Entry],
     commit: &Commit,
-    bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     log::debug!(
         "PUSH ENTRIES {} -> {} -> '{}'",
@@ -783,7 +783,7 @@ pub async fn push_entries(
         larger_entries,
         commit,
         AVG_CHUNK_SIZE,
-        bar,
+        progress,
     );
     let small_entries_sync = bundle_and_send_small_entries(
         local_repo,
@@ -791,7 +791,7 @@ pub async fn push_entries(
         smaller_entries,
         commit,
         AVG_CHUNK_SIZE,
-        bar,
+        progress,
     );
 
     match tokio::join!(large_entries_sync, small_entries_sync) {
@@ -817,20 +817,14 @@ async fn chunk_and_send_large_entries(
     entries: Vec<Entry>,
     commit: &Commit,
     chunk_size: u64,
-    bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     if entries.is_empty() {
         return Ok(());
     }
 
     use tokio::time::sleep;
-    type PieceOfWork = (
-        Entry,
-        LocalRepository,
-        Commit,
-        RemoteRepository,
-        Arc<ProgressBar>,
-    );
+    type PieceOfWork = (Entry, LocalRepository, Commit, RemoteRepository);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -843,7 +837,6 @@ async fn chunk_and_send_large_entries(
                 local_repo.to_owned(),
                 commit.to_owned(),
                 remote_repo.to_owned(),
-                bar.to_owned(),
             )
         })
         .collect();
@@ -864,9 +857,10 @@ async fn chunk_and_send_large_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
+        let bar = Arc::clone(progress);
         tokio::spawn(async move {
             loop {
-                let (entry, repo, commit, remote_repo, bar) = queue.pop().await;
+                let (entry, repo, commit, remote_repo) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
 
                 upload_large_file_chunks(entry, repo, commit, remote_repo, chunk_size, &bar).await;
@@ -895,7 +889,7 @@ async fn upload_large_file_chunks(
     commit: Commit,
     remote_repo: RemoteRepository,
     chunk_size: u64,
-    bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) {
     // Open versioned file
     let version_path = util::fs::version_path_for_entry(&repo, &entry);
@@ -931,10 +925,6 @@ async fn upload_large_file_chunks(
     // We should only read N chunks at a time so that
     // the whole file does not get read into memory
     let sub_chunk_size = constants::DEFAULT_NUM_WORKERS;
-
-    // Just get the progress bar on the screen
-    bar.enable_steady_tick(Duration::from_secs(1));
-    bar.inc(0);
 
     let mut total_chunk_idx = 0;
     let mut processed_chunk_idx = 0;
@@ -1072,7 +1062,7 @@ async fn upload_large_file_chunks(
             .for_each(|b| async {
                 match b {
                     Ok(_) => {
-                        bar.inc(chunk_size);
+                        progress.add_bytes(chunk_size);
                     }
                     Err(err) => {
                         log::error!("Error uploading chunk: {:?}", err)
@@ -1083,6 +1073,7 @@ async fn upload_large_file_chunks(
 
         log::debug!("upload_large_file_chunks Subchunk {i}/{num_sub_chunks} tasks done. :-)");
     }
+    progress.add_files(1);
 }
 
 /// Sends entries in tarballs of size ~chunk size
@@ -1092,7 +1083,7 @@ async fn bundle_and_send_small_entries(
     entries: Vec<Entry>,
     commit: &Commit,
     avg_chunk_size: u64,
-    bar: &Arc<ProgressBar>,
+    progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     if entries.is_empty() {
         return Ok(());
@@ -1109,13 +1100,7 @@ async fn bundle_and_send_small_entries(
 
     // Split into chunks, zip up, and post to server
     use tokio::time::sleep;
-    type PieceOfWork = (
-        Vec<Entry>,
-        LocalRepository,
-        Commit,
-        RemoteRepository,
-        Arc<ProgressBar>,
-    );
+    type PieceOfWork = (Vec<Entry>, LocalRepository, Commit, RemoteRepository);
     type TaskQueue = deadqueue::limited::Queue<PieceOfWork>;
     type FinishedTaskQueue = deadqueue::limited::Queue<bool>;
 
@@ -1128,7 +1113,6 @@ async fn bundle_and_send_small_entries(
                 local_repo.to_owned(),
                 commit.to_owned(),
                 remote_repo.to_owned(),
-                bar.to_owned(),
             )
         })
         .collect();
@@ -1144,9 +1128,10 @@ async fn bundle_and_send_small_entries(
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
+        let bar = Arc::clone(progress);
         tokio::spawn(async move {
             loop {
-                let (chunk, repo, commit, remote_repo, bar) = queue.pop().await;
+                let (chunk, repo, commit, remote_repo) = queue.pop().await;
                 log::debug!("worker[{}] processing task...", worker);
 
                 let enc = GzEncoder::new(Vec::new(), Compression::default());
@@ -1160,9 +1145,9 @@ async fn bundle_and_send_small_entries(
                     }
                 };
 
-                for entry in chunk.into_iter() {
+                for entry in &chunk {
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
-                    let version_path = util::fs::version_path_for_entry(&repo, &entry);
+                    let version_path = util::fs::version_path_for_entry(&repo, entry);
                     let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
                     tar.append_path_with_name(version_path, name).unwrap();
@@ -1208,7 +1193,8 @@ async fn bundle_and_send_small_entries(
                         log::error!("Error uploading chunk: {:?}", err)
                     }
                 }
-                bar.inc(chunk_size);
+                bar.add_bytes(chunk_size);
+                bar.add_files(chunk.len() as u64);
                 finished_queue.pop().await;
             }
         });

@@ -48,7 +48,7 @@ use crate::model::{Branch, LocalRepository};
 /// # }
 /// ```
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::push::push(repo).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::push::push(repo).await,
     }
@@ -60,7 +60,7 @@ pub async fn push_remote_branch(
     remote: impl AsRef<str>,
     branch_name: impl AsRef<str>,
 ) -> Result<Branch, OxenError> {
-    match repo.version() {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::push::push_remote_branch(repo, remote, branch_name).await
         }
@@ -96,6 +96,12 @@ mod tests {
             let train_dir = repo.path.join("train");
             let num_files = util::fs::rcount_files_in_dir(&train_dir);
             repositories::add(&repo, &train_dir)?;
+
+            // Write a README.md file
+            let readme_path = repo.path.join("README.md");
+            let readme_path = test::write_txt_file_to_path(readme_path, "Ready to train 🏋️‍♂️")?;
+            repositories::add(&repo, &readme_path)?;
+
             // Commit the train dir
             let commit = repositories::commit(&repo, "Adding training data")?;
 
@@ -117,6 +123,17 @@ mod tests {
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
+            // Make sure we can download the file
+            let readme_path = repo.path.join("README.md");
+            let download_path = repo.path.join("README_2.md");
+            api::client::entries::download_entry(&remote_repo, "README.md", &download_path, "main")
+                .await?;
+
+            // Make sure the file is the same
+            let readme_1_contents = util::fs::read_from_path(&download_path)?;
+            let readme_2_contents = util::fs::read_from_path(&readme_path)?;
+            assert_eq!(readme_1_contents, readme_2_contents);
+
             api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
@@ -125,7 +142,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError> {
+    async fn test_command_push_check_is_synced_one_commit() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits_async(|repo| async {
             let mut repo = repo;
 
@@ -147,9 +164,6 @@ mod tests {
 
             // Push it real good
             repositories::push(&repo).await?;
-
-            // Sleep so it can unpack...
-            std::thread::sleep(std::time::Duration::from_secs(2));
 
             let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?
@@ -536,9 +550,11 @@ mod tests {
 
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
-                let first_cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
-                        .await?;
+                let first_cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &first_repo_dir.join("first_repo"),
+                )
+                .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
@@ -740,9 +756,11 @@ mod tests {
 
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
-                let first_cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &first_repo_dir.join("first_repo"))
-                        .await?;
+                let first_cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &first_repo_dir.join("first_repo"),
+                )
+                .await?;
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
@@ -924,7 +942,7 @@ mod tests {
                     assert!(result.is_ok());
 
                     // Pull should succeed
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // Push should now succeed
                     repositories::push(&user_b_repo).await?;
@@ -995,7 +1013,7 @@ mod tests {
                     assert!(first_push_result.is_err());
 
                     // Pull should succeed
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     // There should be conflicts
                     let status = repositories::status(&user_b_repo)?;
@@ -1125,7 +1143,7 @@ mod tests {
                 assert!(second_push_again.is_err());
 
                 // Pull A should succeed
-                let pull_a = command::pull(&user_a_repo).await;
+                let pull_a = repositories::pull(&user_a_repo).await;
                 assert!(pull_a.is_ok());
 
                 // There should be conflicts in A
@@ -1219,12 +1237,12 @@ mod tests {
                     let result = repositories::push(&user_b_repo).await;
                     assert!(result.is_ok());
 
-                    command::pull(&user_b_repo).await?;
+                    repositories::pull(&user_b_repo).await?;
 
                     repositories::push(&user_b_repo).await?;
 
                     // Full pull
-                    command::pull_all(&user_b_repo).await?;
+                    repositories::pull_all(&user_b_repo).await?;
 
                     // Push should now succeed
                     repositories::push(&user_b_repo).await?;
@@ -1252,9 +1270,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1337,9 +1357,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1408,9 +1430,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1475,9 +1499,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);
@@ -1609,9 +1635,11 @@ mod tests {
             // Clone Repo to User A
             test::run_empty_dir_test_async(|user_a_repo_dir| async move {
                 let user_a_repo_dir_copy = user_a_repo_dir.clone();
-                let user_a_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &user_a_repo_dir.join("new_repo"))
-                        .await?;
+                let user_a_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &user_a_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Log out all files in this directory with fs
                 let files = util::fs::rlist_paths_in_dir(&user_a_repo_dir);

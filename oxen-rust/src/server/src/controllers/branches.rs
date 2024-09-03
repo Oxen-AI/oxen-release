@@ -8,12 +8,13 @@ use actix_web::{web, HttpRequest, HttpResponse};
 
 use liboxen::core::v0_10_0::index::{Merger, SchemaReader};
 use liboxen::error::OxenError;
+use liboxen::model::LocalRepository;
 use liboxen::util::{self, paginate};
 use liboxen::view::entries::ResourceVersion;
 use liboxen::view::{
-    BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
-    CommitEntryVersion, CommitResponse, ListBranchesResponse, PaginatedEntryVersions,
-    PaginatedEntryVersionsResponse, StatusMessage,
+    BranchLockResponse, BranchNewFromBranchName, BranchNewFromCommitId, BranchRemoteMerge,
+    BranchResponse, BranchUpdate, CommitEntryVersion, CommitResponse, ListBranchesResponse,
+    PaginatedEntryVersions, PaginatedEntryVersionsResponse, StatusMessage,
 };
 use liboxen::{constants, repositories};
 
@@ -50,19 +51,33 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     Ok(HttpResponse::Ok().json(view))
 }
 
-pub async fn create_from_or_get(
-    req: HttpRequest,
-    body: String,
-) -> Result<HttpResponse, OxenHttpError> {
+pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
     let repo_name = path_param(&req, "repo_name")?;
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let data: BranchNewFromExisting = serde_json::from_str(&body)?;
+    // Try to deserialize the body into a BranchNewFromBranchName
+    let data: Result<BranchNewFromBranchName, serde_json::Error> = serde_json::from_str(&body);
+    if let Ok(data) = data {
+        return create_from_branch(&repo, &data);
+    }
 
-    let maybe_new_branch = repositories::branches::get_by_name(&repo, &data.new_name)?;
+    // Try to deserialize the body into a BranchNewFromCommitId
+    let data: Result<BranchNewFromCommitId, serde_json::Error> = serde_json::from_str(&body);
+    if let Ok(data) = data {
+        return create_from_commit(&repo, &data);
+    }
+
+    Ok(HttpResponse::BadRequest().json(StatusMessage::error("Invalid request body")))
+}
+
+fn create_from_branch(
+    repo: &LocalRepository,
+    data: &BranchNewFromBranchName,
+) -> Result<HttpResponse, OxenHttpError> {
+    let maybe_new_branch = repositories::branches::get_by_name(repo, &data.new_name)?;
     if let Some(branch) = maybe_new_branch {
         let view = BranchResponse {
             status: StatusMessage::resource_found(),
@@ -71,10 +86,22 @@ pub async fn create_from_or_get(
         return Ok(HttpResponse::Ok().json(view));
     }
 
-    let from_branch = repositories::branches::get_by_name(&repo, &data.from_name)?
+    let from_branch = repositories::branches::get_by_name(repo, &data.from_name)?
         .ok_or(OxenHttpError::NotFound)?;
 
-    let new_branch = repositories::branches::create(&repo, &data.new_name, from_branch.commit_id)?;
+    let new_branch = repositories::branches::create(repo, &data.new_name, from_branch.commit_id)?;
+
+    Ok(HttpResponse::Ok().json(BranchResponse {
+        status: StatusMessage::resource_created(),
+        branch: new_branch,
+    }))
+}
+
+fn create_from_commit(
+    repo: &LocalRepository,
+    data: &BranchNewFromCommitId,
+) -> Result<HttpResponse, OxenHttpError> {
+    let new_branch = repositories::branches::create(repo, &data.new_name, &data.commit_id)?;
 
     Ok(HttpResponse::Ok().json(BranchResponse {
         status: StatusMessage::resource_created(),
@@ -322,7 +349,7 @@ mod tests {
     use liboxen::util;
     use liboxen::view::http::STATUS_SUCCESS;
     use liboxen::view::{
-        BranchNewFromExisting, BranchResponse, CommitResponse, ListBranchesResponse,
+        BranchNewFromBranchName, BranchResponse, CommitResponse, ListBranchesResponse,
     };
 
     use crate::controllers;
@@ -425,14 +452,14 @@ mod tests {
 
         let new_name = "My-Branch-Name";
 
-        let params = BranchNewFromExisting {
+        let params = BranchNewFromBranchName {
             new_name: new_name.to_string(),
             from_name: DEFAULT_BRANCH_NAME.to_string(),
         };
         let uri = format!("/oxen/{namespace}/{name}/branches");
         let req = test::repo_request(&sync_dir, queue, &uri, namespace, name);
 
-        let resp = controllers::branches::create_from_or_get(req, serde_json::to_string(&params)?)
+        let resp = controllers::branches::create(req, serde_json::to_string(&params)?)
             .await
             .map_err(|_err| OxenError::basic_str("OxenHttpError - could not create branch"))?;
         assert_eq!(resp.status(), http::StatusCode::OK);

@@ -162,6 +162,9 @@ pub const NUM_HTTP_RETRIES: u64 = 10;
 /// Number of workers
 pub const DEFAULT_NUM_WORKERS: usize = 8;
 
+/// Default vnode size
+pub const DEFAULT_VNODE_SIZE: u64 = 10_000;
+
 /// Pagination page size of 10
 pub const DEFAULT_PAGE_SIZE: usize = 100;
 /// Pagination page number of 1

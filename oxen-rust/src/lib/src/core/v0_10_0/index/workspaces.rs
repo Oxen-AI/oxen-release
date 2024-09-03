@@ -1,14 +1,14 @@
+use std::path::PathBuf;
+
 use time::OffsetDateTime;
 
-use crate::core::v0_10_0::index::CommitEntryReader;
-use crate::core::v0_10_0::index::Stager;
+use crate::core::v0_10_0::index::workspaces;
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
 use crate::model::Commit;
 use crate::model::LocalRepository;
 use crate::model::NewCommit;
 use crate::model::NewCommitBody;
-use crate::model::StagedData;
 use crate::repositories;
 use crate::util;
 
@@ -105,9 +105,11 @@ pub fn commit(
         return Err(OxenError::workspace_behind(branch));
     }
 
-    let status = status_for_workspace(workspace)?;
+    let root_path = PathBuf::from("");
+    let status = workspaces::stager::status(workspace, &root_path)?;
+    status.print();
 
-    // log::debug!("got branch status: {:#?}", &status);
+    log::debug!("got branch status: {:#?}", &status);
 
     let commit_writer = CommitWriter::new(repo)?;
     let timestamp = OffsetDateTime::now_utc();
@@ -129,19 +131,6 @@ pub fn commit(
     delete(workspace)?;
 
     Ok(commit)
-}
-
-fn status_for_workspace(workspace: &Workspace) -> Result<StagedData, OxenError> {
-    let repo = &workspace.base_repo;
-    let workspace_repo = &workspace.workspace_repo;
-    let commit = &workspace.commit;
-
-    let stager = Stager::new(workspace_repo)?;
-    let reader = CommitEntryReader::new(repo, commit)?;
-    let status = stager.status(&reader)?;
-    status.print();
-
-    Ok(status)
 }
 
 #[cfg(test)]

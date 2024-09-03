@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use crate::core::df::tabular;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::DFOpts;
@@ -39,7 +39,7 @@ pub fn df_revision(
         format!("Revision {} not found", revision.as_ref()),
     ))?;
     let path = input.as_ref();
-    let tree = CommitMerkleTree::from_path(repo, &commit, path)?;
+    let tree = CommitMerkleTree::from_path(repo, &commit, path, false)?;
     let mut df = tabular::show_node(repo.clone(), &tree.root, opts.clone())?;
 
     if let Some(output) = opts.output {

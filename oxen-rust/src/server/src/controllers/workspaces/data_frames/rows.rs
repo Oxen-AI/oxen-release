@@ -5,10 +5,13 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
+use liboxen::core::v0_10_0::index::workspaces::data_frames::rows::UpdateResult;
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
-use liboxen::view::json_data_frame_view::{JsonDataFrameRowResponse, JsonDataFrameSource};
+use liboxen::view::json_data_frame_view::{
+    BatchUpdateResponse, JsonDataFrameRowResponse, JsonDataFrameSource,
+};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
 use liboxen::{core::v0_10_0::index, repositories};
 
@@ -58,11 +61,14 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
     let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
+
     let response = JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
             source: row_df_source,
             view: row_df_view,
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
@@ -101,6 +107,7 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
             source: row_df_source,
             view: row_df_view,
         },
+        diff: None,
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_found(),
@@ -154,6 +161,8 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let row_index = index::workspaces::data_frames::rows::get_row_idx(&modified_row)?;
     let row_id = index::workspaces::data_frames::rows::get_row_id(&modified_row)?;
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
+
     log::debug!("Modified row in controller is {:?}", modified_row);
     let schema = Schema::from_polars(&modified_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -161,6 +170,7 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
             source: JsonDataFrameSource::from_df(&modified_row, &schema),
             view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_updated(),
@@ -183,7 +193,8 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = index::workspaces::get(&repo, workspace_id)?;
 
-    let df = index::workspaces::data_frames::rows::delete(&workspace, file_path, &row_id)?;
+    let df = index::workspaces::data_frames::rows::delete(&workspace, &file_path, &row_id)?;
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
     let schema = Schema::from_polars(&df.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -191,6 +202,7 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
             source: JsonDataFrameSource::from_df(&df, &schema),
             view: JsonDataFrameView::from_df_opts(df, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_deleted(),
@@ -221,6 +233,8 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let row_index = index::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
     let row_id = index::workspaces::data_frames::rows::get_row_id(&restored_row)?;
 
+    let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
+
     log::debug!("Restored row in controller is {:?}", restored_row);
     let schema = Schema::from_polars(&restored_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
@@ -228,6 +242,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
             source: JsonDataFrameSource::from_df(&restored_row, &schema),
             view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
         },
+        diff: Some(diff),
         commit: None,
         derived_resource: None,
         status: StatusMessage::resource_updated(),
@@ -235,4 +250,60 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         row_id,
         row_index,
     }))
+}
+
+pub async fn batch_update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let workspace_id = path_param(&req, "workspace_id")?;
+
+    let repo = get_repo(&app_data.path, &namespace, &repo_name)?;
+
+    let file_path = PathBuf::from(path_param(&req, "path")?);
+    let Ok(data) = String::from_utf8(bytes.to_vec()) else {
+        return Err(OxenHttpError::BadRequest(
+            "Could not parse bytes as utf8".to_string().into(),
+        ));
+    };
+
+    let json_value: serde_json::Value = serde_json::from_str(&data)?;
+    let data = if let Some(data_obj) = json_value.get("data") {
+        data_obj
+    } else {
+        &json_value
+    };
+
+    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    log::debug!(
+        "update row repo {}/{} -> {}/{:?}",
+        namespace,
+        repo_name,
+        workspace_id,
+        file_path
+    );
+
+    let modified_rows =
+        index::workspaces::data_frames::rows::batch_update(&workspace, &file_path, data)?;
+
+    let mut responses = Vec::new();
+
+    for modified_row in modified_rows {
+        let response = match modified_row {
+            UpdateResult::Success(row_id, _data_frame) => BatchUpdateResponse {
+                row_id,
+                code: 200,
+                error: None,
+            },
+            UpdateResult::Error(row_id, error) => BatchUpdateResponse {
+                row_id,
+                code: 500,
+                error: Some(error.to_string()),
+            },
+        };
+        responses.push(response);
+    }
+
+    Ok(HttpResponse::Ok().json(responses))
 }

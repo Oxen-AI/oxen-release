@@ -4,6 +4,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::error::OxenError;
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
 use std::fmt;
@@ -13,6 +14,13 @@ pub struct FileChunkNode {
     pub data: Vec<u8>,
     pub dtype: MerkleTreeNodeType,
     pub hash: MerkleHash,
+}
+
+impl FileChunkNode {
+    pub fn deserialize(data: &[u8]) -> Result<FileChunkNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing file chunk node: {e}")))
+    }
 }
 
 impl Default for FileChunkNode {
@@ -40,13 +48,13 @@ impl TMerkleTreeNode for FileChunkNode {}
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({})", self.hash.to_string())
+        write!(f, "FileChunkNode({})", self.hash)
     }
 }
 
 /// Display is used for single line output with println!("{}", node)
 impl fmt::Display for FileChunkNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "FileChunkNode({})", self.hash.to_string())
+        write!(f, "FileChunkNode({})", self.hash)
     }
 }

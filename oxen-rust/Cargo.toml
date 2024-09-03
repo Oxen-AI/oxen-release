@@ -37,7 +37,7 @@ async-tar = "0.4.2"
 async-trait = "0.1.80"
 arrow-json = "52.2.0"
 bincode = "1.3.3"
-blocking = "=1.3.1"
+blocking = "1.6.1"
 bytecount = "0.6.3"
 bytes = "1.5.0"
 bytesize = "1.3.0"
@@ -110,6 +110,7 @@ rocksdb = { version = "0.22.0", default-features = false, features = [
     "snappy",
     "zstd",
     "zlib",
+    "multi-threaded-cf",
 ] }
 sanitize-filename = "0.5.0"
 serde = { version = "1.0.188", features = ["derive"] }
@@ -133,6 +134,7 @@ unicode-truncate = "1.1.0"
 url = "2.4.1"
 urlencoding = "2.1.3"
 uuid = { version = "1.4.1", features = ["serde", "v4"] }
+walkdir = "2.5.0"
 words-count = "0.1.6"
 xxhash-rust = { version = "0.8.7", features = ["xxh3"] }
 mockito = "1.1.0"

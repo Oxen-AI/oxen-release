@@ -24,9 +24,22 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let repo = get_repo(&app_data.path, namespace.clone(), repo_name.clone())?;
     let file_path = PathBuf::from(path_param(&req, "path")?);
 
-    let new_column: NewColumn = serde_json::from_str(&body).map_err(|_err| {
+    let mut body_json: Value = serde_json::from_str(&body).map_err(|_err| {
         OxenHttpError::BadRequest("Failed to parse NewColumn from request body".into())
     })?;
+
+    if let Some(obj) = body_json.as_object_mut() {
+        if obj.contains_key("dtype") {
+            let dtype_value = obj.remove("dtype").unwrap(); // Safe to unwrap because we just checked it exists
+            obj.insert("data_type".to_string(), dtype_value);
+        }
+    } else {
+        return Err(OxenHttpError::BadRequest(
+            "Request body is not a valid JSON object".into(),
+        ));
+    }
+
+    let new_column: NewColumn = serde_json::from_value(body_json)?;
 
     log::info!(
         "create column {namespace}/{repo_name} for file {:?} on in workspace id {}",
@@ -54,11 +67,19 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
     let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
+    let mut df_views = JsonDataFrameViews {
+        source: column_df_source,
+        view: column_df_view,
+    };
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
+
     let response = JsonDataFrameColumnResponse {
-        data_frame: JsonDataFrameViews {
-            source: column_df_source,
-            view: column_df_view,
-        },
+        data_frame: df_views,
         diff: Some(diff),
         commit: None,
         derived_resource: None,
@@ -107,13 +128,21 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
 
+    let mut df_views = JsonDataFrameViews {
+        source: column_df_source,
+        view: column_df_view,
+    };
+
     let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
+
     let response = JsonDataFrameColumnResponse {
-        data_frame: JsonDataFrameViews {
-            source: column_df_source,
-            view: column_df_view,
-        },
+        data_frame: df_views,
         diff: Some(diff),
         commit: None,
         derived_resource: None,
@@ -140,6 +169,15 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     })?;
 
     if let Some(obj) = body_json.as_object_mut() {
+        if obj.contains_key("name") {
+            let name_value = obj.remove("name").unwrap(); // Safe to unwrap because we just checked it exists
+            obj.insert("new_name".to_string(), name_value);
+        }
+        if obj.contains_key("dtype") {
+            let dtype_value = obj.remove("dtype").unwrap(); // Safe to unwrap because we just checked it exists
+            obj.insert("new_data_type".to_string(), dtype_value);
+        }
+
         obj.insert("name".to_string(), json!(column_name));
     } else {
         return Err(OxenHttpError::BadRequest(
@@ -178,13 +216,21 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
 
+    let mut df_views = JsonDataFrameViews {
+        source: column_df_source,
+        view: column_df_view,
+    };
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
+
     let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
     let response = JsonDataFrameColumnResponse {
-        data_frame: JsonDataFrameViews {
-            source: column_df_source,
-            view: column_df_view,
-        },
+        data_frame: df_views,
         diff: Some(diff),
         commit: None,
         derived_resource: None,
@@ -226,13 +272,22 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
-    log::debug!("Restored column in controller is {:?}", restored_column);
     let schema = Schema::from_polars(&restored_column.schema());
+    log::debug!("Restored column in controller is {:?}", restored_column);
+
+    let mut df_views = JsonDataFrameViews {
+        source: JsonDataFrameSource::from_df(&restored_column, &schema),
+        view: JsonDataFrameView::from_df_opts(restored_column, schema, &DFOpts::empty()),
+    };
+
+    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+        &workspace,
+        &file_path,
+        &mut df_views,
+    )?;
+
     Ok(HttpResponse::Ok().json(JsonDataFrameColumnResponse {
-        data_frame: JsonDataFrameViews {
-            source: JsonDataFrameSource::from_df(&restored_column, &schema),
-            view: JsonDataFrameView::from_df_opts(restored_column, schema, &DFOpts::empty()),
-        },
+        data_frame: df_views,
         diff: Some(diff),
         commit: None,
         derived_resource: None,

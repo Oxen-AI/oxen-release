@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::core::db;
 use liboxen::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, ObjectDBReader};
-use liboxen::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use liboxen::core::v0_19_0::index::CommitMerkleTree;
 use liboxen::error::OxenError;
 use liboxen::model::{Commit, LocalRepository, MerkleHash};
 use liboxen::repositories;
@@ -10,6 +10,8 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
+
+use std::str::FromStr;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "tree";
@@ -106,7 +108,7 @@ impl RunCmd for TreeCmd {
 
 impl TreeCmd {
     fn print_node(&self, repo: &LocalRepository, node: &str, depth: i32) -> Result<(), OxenError> {
-        let node_hash = MerkleHash::from_str(&node)?;
+        let node_hash = MerkleHash::from_str(node)?;
         let tree = CommitMerkleTree::read_node(repo, &node_hash, true)?.unwrap();
         CommitMerkleTree::print_node_depth(&tree, depth);
 
@@ -122,7 +124,7 @@ impl TreeCmd {
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
         let tree = if let Some(path) = path {
-            CommitMerkleTree::from_path(repo, commit, path)?
+            CommitMerkleTree::from_path(repo, commit, path, true)?
         } else {
             CommitMerkleTree::from_commit(repo, commit)?
         };

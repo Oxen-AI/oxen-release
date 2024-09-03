@@ -1,7 +1,6 @@
-use crate::config::repository_config::DEFAULT_VNODE_SIZE;
 use crate::config::RepositoryConfig;
 use crate::constants::SHALLOW_FLAG;
-use crate::constants::{self, MIN_OXEN_VERSION};
+use crate::constants::{self, DEFAULT_VNODE_SIZE, MIN_OXEN_VERSION};
 use crate::core::versions::MinOxenVersion;
 use crate::error;
 use crate::error::OxenError;
@@ -95,13 +94,17 @@ impl LocalRepository {
         LocalRepository::from_dir(&repo_dir)
     }
 
-    pub fn version(&self) -> MinOxenVersion {
+    pub fn min_version(&self) -> MinOxenVersion {
         match MinOxenVersion::or_earliest(self.min_version.clone()) {
             Ok(version) => version,
             Err(err) => {
                 panic!("Invalid repo version\n{}", err)
             }
         }
+    }
+
+    pub fn set_min_version(&mut self, version: MinOxenVersion) {
+        self.min_version = Some(version.to_string());
     }
 
     pub fn remotes(&self) -> &Vec<Remote> {

@@ -116,7 +116,7 @@ pub fn add_n_files_m_dirs(
     let readme_file = repo.path.join("README.md");
     util::fs::write_to_path(&readme_file, format!("Repo with {} files", num_files))?;
 
-    repositories::add(&repo, &readme_file)?;
+    repositories::add(repo, &readme_file)?;
 
     // Write files.csv
     let files_csv = repo.path.join("files.csv");
@@ -141,8 +141,8 @@ pub fn add_n_files_m_dirs(
         util::fs::write_to_path(&file_file, format!("File {}", i))?;
     }
 
-    repositories::add(&repo, &files_csv)?;
-    repositories::add(&repo, &files_dir)?;
+    repositories::add(repo, &files_csv)?;
+    repositories::add(repo, &files_dir)?;
 
     Ok(())
 }

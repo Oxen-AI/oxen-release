@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use crate::constants::{self, DEFAULT_REMOTE_NAME, HISTORY_DIR};
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
+use crate::core::v0_19_0::structs::PullProgress;
 use crate::core::{self, db};
 
 use crate::core::refs::RefWriter;
@@ -19,8 +20,8 @@ use crate::core::v0_10_0::index::{self, puller, versioner, Merger, Stager};
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader};
 
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
-use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{
     Branch, Commit, CommitEntry, LocalRepository, RemoteBranch, RemoteRepository, StagedData,
 };
@@ -48,8 +49,8 @@ impl EntryIndexer {
         pusher::push(&self.repository, src, dst).await
     }
 
-    pub async fn pull(&self, rb: &RemoteBranch, mut opts: PullOpts) -> Result<(), OxenError> {
-        println!("🐂 Oxen pull {} {}", rb.remote, rb.branch);
+    pub async fn pull(&self, rb: &RemoteBranch, opts: PullOpts) -> Result<(), OxenError> {
+        println!("🐂 oxen pull {} {}", rb.remote, rb.branch);
 
         let remote = self
             .repository
@@ -79,6 +80,16 @@ impl EntryIndexer {
         }
 
         let remote_repo = RemoteRepository::from_data_view(&remote_data_view, &remote);
+        self.pull_remote_repo(&remote_repo, rb, &opts).await
+    }
+
+    pub async fn pull_remote_repo(
+        &self,
+        remote_repo: &RemoteRepository,
+        rb: &RemoteBranch,
+        opts: &PullOpts,
+    ) -> Result<(), OxenError> {
+        let mut opts = opts.clone();
 
         // original head commit, only applies to pulling commits after initial clone
         let maybe_head_commit = repositories::commits::head_commit(&self.repository);
@@ -104,16 +115,16 @@ impl EntryIndexer {
         // If our local branch is currently completely synced (from a clone or pull --all), we should
         // override the opts and pull all commits
         if let Some(ref commit) = head_commit {
-            if core::v0_10_0::commit::commit_history_is_complete(&self.repository, commit) {
+            if core::v0_10_0::commits::commit_history_is_complete(&self.repository, commit) {
                 opts.should_pull_all = true;
             }
         }
 
         let mut commit = if opts.should_pull_all {
-            self.pull_all(&remote_repo, rb, opts.should_update_head)
+            self.pull_all(remote_repo, rb, opts.should_update_head)
                 .await?
         } else {
-            self.pull_one(&remote_repo, rb, opts.should_update_head)
+            self.pull_one(remote_repo, rb, opts.should_update_head)
                 .await?
         };
 
@@ -188,7 +199,7 @@ impl EntryIndexer {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::error!("pull_all error: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                core::v0_10_0::commit::commit_with_no_files(
+                core::v0_10_0::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )?
@@ -250,7 +261,7 @@ impl EntryIndexer {
                 // if no commit objects, means repo is empty, so instantiate the local repo
                 log::debug!("pull_one empty repo: {}", err);
                 eprintln!("warning: You appear to have cloned an empty repository. Initializing with an empty commit.");
-                core::v0_10_0::commit::commit_with_no_files(
+                core::v0_10_0::commits::commit_with_no_files(
                     &self.repository,
                     constants::INITIAL_COMMIT_MSG,
                 )
@@ -356,8 +367,10 @@ impl EntryIndexer {
 
         let mut missing_commits = Vec::new();
         for remote_commit in remote_commits {
-            if !(core::v0_10_0::commit::commit_history_db_exists(&self.repository, &remote_commit)?)
-            {
+            if !(core::v0_10_0::commits::commit_history_db_exists(
+                &self.repository,
+                &remote_commit,
+            )?) {
                 // log::debug!("Missing commit {}", remote_commit.id);
                 missing_commits.push(remote_commit);
             } else {
@@ -593,6 +606,7 @@ impl EntryIndexer {
         api::client::commits::download_objects_db_to_repo(&self.repository, remote_repo).await?;
         Ok(())
     }
+
     pub async fn pull_entries_for_commits(
         &self,
         remote_repo: &RemoteRepository,
@@ -656,8 +670,15 @@ impl EntryIndexer {
         });
 
         log::debug!("about to pull the entires to the versions dir");
-        puller::pull_entries_to_versions_dir(remote_repo, &all_entries, &self.repository.path)
-            .await?;
+        let progress_bar = PullProgress::new();
+
+        puller::pull_entries_to_versions_dir(
+            remote_repo,
+            &all_entries,
+            &self.repository.path,
+            &progress_bar,
+        )
+        .await?;
 
         // Get full length of all entries arrays in unsynced_entries
         let mut entries_to_unpack: usize = 0;
@@ -716,14 +737,20 @@ impl EntryIndexer {
         let n_entries_to_pull = entries.len();
         log::debug!("got {} entries to pull", n_entries_to_pull);
 
-        // PUll all the entries to the versions dir and then hydrate them into the working dir
-        puller::pull_entries_to_versions_dir(remote_repo, &entries, &self.repository.path).await?;
+        // Pull all the entries to the versions dir and then hydrate them into the working dir
+        let progress_bar = PullProgress::new();
+        puller::pull_entries_to_versions_dir(
+            remote_repo,
+            &entries,
+            &self.repository.path,
+            &progress_bar,
+        )
+        .await?;
 
         let entries_to_unpack = entries.len();
 
-        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
-
         println!("🐂 Unpacking files...");
+        let bar = oxen_progress_bar(entries_to_unpack as u64, ProgressBarType::Counter);
         self.unpack_version_files_to_working_dir(&commit, &entries, &bar)?;
 
         if limit == 0 {

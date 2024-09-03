@@ -27,19 +27,19 @@ pub fn get_object_reader(
     commit_id: &str,
 ) -> Result<Arc<ObjectDBReader>, OxenError> {
     let key = format!("{:?}_{}", repo.path, commit_id,);
-    log::debug!("get_object_reader LRU key {}", key);
+    // log::debug!("get_object_reader LRU key {}", key);
 
     let mut cache = OBJECT_READER_LRU.write().unwrap();
 
-    log::debug!("get_object_reader LRU cache size {:?}", cache.len());
+    // log::debug!("get_object_reader LRU cache size {:?}", cache.len());
 
     if let Some(cder) = cache.get(&key) {
-        log::debug!("get_object_reader found in LRU {}", key);
+        // log::debug!("get_object_reader found in LRU {}", key);
         Ok(cder.clone())
     } else {
-        log::debug!("get_object_reader not found in LRU {}", key);
+        // log::debug!("get_object_reader not found in LRU {}", key);
         let cder = ObjectDBReader::new(repo, commit_id)?;
-        log::debug!("get_object_reader looking up entry {}", key);
+        // log::debug!("get_object_reader looking up entry {}", key);
         cache.put(key, cder.clone());
         Ok(cder)
     }

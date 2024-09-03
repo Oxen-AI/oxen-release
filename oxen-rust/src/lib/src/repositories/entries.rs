@@ -3,10 +3,10 @@
 
 use crate::core;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::{Entry, SchemaEntry};
+use crate::model::entry::commit_entry::{Entry, SchemaEntry};
+use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::{DFOpts, PaginateOpts};
@@ -21,12 +21,36 @@ use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::v0_10_0::index::{ObjectDBReader, SchemaReader};
 use crate::model::{
-    Commit, CommitEntry, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
+    Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+
+/// Get a directory object for a commit
+pub fn get_directory(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<DirNode>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_directory(repo, commit, path),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_directory(repo, commit, path),
+    }
+}
+
+/// Get a file node for a commit
+pub fn get_file(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<FileNode>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_file(repo, commit, path),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_file(repo, commit, path),
+    }
+}
 
 /// List all the entries within a directory given a specific commit
 pub fn list_directory(
@@ -35,7 +59,7 @@ pub fn list_directory(
     revision: impl AsRef<str>,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
-    list_directory_w_version(repo, directory, revision, paginate_opts, repo.version())
+    list_directory_w_version(repo, directory, revision, paginate_opts, repo.min_version())
 }
 
 /// Force a version when listing a repo
@@ -51,7 +75,16 @@ pub fn list_directory_w_version(
             core::v0_10_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
+            let revision = revision.as_ref().to_string();
+            let commit = repositories::revisions::get(repo, &revision)?;
+            let parsed_resource = ParsedResource {
+                path: directory.as_ref().to_path_buf(),
+                commit: commit.clone(),
+                branch: None,
+                version: PathBuf::from(&revision),
+                resource: PathBuf::from(&revision).join(&directory),
+            };
+            core::v0_19_0::entries::list_directory(repo, directory, &parsed_resource, paginate_opts)
         }
     }
 }
@@ -61,259 +94,22 @@ pub fn list_directory_w_version(
 pub fn get_meta_entry(
     repo: &LocalRepository,
     commit: &Commit,
-    path: &Path,
-) -> Result<MetadataEntry, OxenError> {
-    let object_reader = get_object_reader(repo, &commit.id)?;
-    let entry_reader =
-        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
-    let commit_reader = CommitReader::new(repo)?;
-    let mut commits = commit_reader.history_from_commit_id(&commit.id)?;
-    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
-
-    // Check if the path is a dir or is the root
-    if entry_reader.has_dir(path) || path == Path::new("") {
-        log::debug!("get_meta_entry found dir: {:?}", path);
-        meta_entry_from_dir(
-            repo,
-            object_reader,
-            commit,
-            path,
-            &commit_reader,
-            &commit.id,
-        )
-    } else {
-        log::debug!("get_meta_entry has file: {:?}", path);
-
-        let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
-        let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
-        let dir_entry_reader =
-            CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
-
-        // load all commit entry readers once
-        let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
-
-        for c in commits {
-            let object_reader = get_object_reader(repo, &c.id)?;
-            let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
-            commit_entry_readers.push((c.clone(), reader));
-        }
-
-        let entry = dir_entry_reader
-            .get_entry(base_name)?
-            .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
-        meta_entry_from_commit_entry(repo, &entry, &commit_entry_readers, &commit.id)
-    }
-}
-
-/// Get a DirEntry summing up the size of all files in a directory
-/// and finding the latest commit within the directory
-pub fn meta_entry_from_dir(
-    repo: &LocalRepository,
-    object_reader: Arc<ObjectDBReader>,
-    commit: &Commit,
-    path: &Path,
-    commit_reader: &CommitReader,
-    revision: &str,
-) -> Result<MetadataEntry, OxenError> {
-    // We cache the latest commit and size for each file in the directory after commit
-    let latest_commit_path = cachers::repo_size::dir_latest_commit_path(repo, commit, path);
-    // log::debug!(
-    //     "meta_entry_from_dir {:?} latest_commit_path: {:?}",
-    //     path,
-    //     latest_commit_path
-    // );
-
-    let latest_commit_id = util::fs::read_from_path(latest_commit_path)?;
-    let latest_commit = commit_reader.get_commit_by_id(&latest_commit_id)?;
-
-    let total_size_path = cachers::repo_size::dir_size_path(repo, commit, path);
-    let total_size = match util::fs::read_from_path(total_size_path) {
-        Ok(total_size_str) => total_size_str
-            .parse::<u64>()
-            .map_err(|_| OxenError::basic_str("Could not get cached total size of dir"))?,
-        Err(_) => {
-            // cache failed, go compute it
-            compute_dir_size(repo, object_reader.clone(), commit, path)?
-        }
-    };
-
-    let dir_metadata = repositories::entries::get_dir_entry_metadata(repo, commit, path)?;
-
-    let base_name = path.file_name().unwrap_or(std::ffi::OsStr::new(""));
-    return Ok(MetadataEntry {
-        filename: String::from(base_name.to_string_lossy()),
-        is_dir: true,
-        size: total_size,
-        latest_commit,
-        data_type: EntryDataType::Dir,
-        mime_type: "inode/directory".to_string(),
-        extension: util::fs::file_extension(path),
-        resource: Some(ParsedResource {
-            commit: Some(commit.clone()),
-            branch: None,
-            version: PathBuf::from(revision),
-            path: path.to_path_buf(),
-            resource: PathBuf::from(revision).join(path),
-        }),
-        metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
-        is_queryable: None,
-    });
-}
-
-fn compute_dir_size(
-    repo: &LocalRepository,
-    object_reader: Arc<ObjectDBReader>,
-    commit: &Commit,
-    path: &Path,
-) -> Result<u64, OxenError> {
-    let entry_reader =
-        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
-    let mut total_size: u64 = 0;
-    // This lists all the committed dirs
-    let dirs = entry_reader.list_dirs()?;
-    let object_reader = get_object_reader(repo, &commit.id)?;
-    for dir in dirs {
-        // Have to make sure we are in a subset of the dir (not really a tree structure)
-        if dir.starts_with(path) {
-            let entry_reader =
-                CommitDirEntryReader::new(repo, &commit.id, &dir, object_reader.clone())?;
-            for entry in entry_reader.list_entries()? {
-                total_size += entry.num_bytes;
-            }
-        }
-    }
-    Ok(total_size)
-}
-
-pub fn get_commit_history_path(
-    commits: &[(Commit, CommitDirEntryReader)],
     path: impl AsRef<Path>,
-) -> Result<Vec<Commit>, OxenError> {
-    let os_path = OsPath::from(path.as_ref()).to_pathbuf();
-    let path = os_path
-        .file_name()
-        .ok_or(OxenError::file_has_no_name(&path))?;
-
-    // log::debug!("get_commit_history_path: checking path {:?}", path);
-
-    let mut latest_hash: Option<String> = None;
-    let mut history: Vec<Commit> = Vec::new();
-
-    for (commit, entry_reader) in commits.iter().rev() {
-        if let Some(old_entry) = entry_reader.get_entry(path)? {
-            if latest_hash.is_none() {
-                // This is the first encountered entry; set it as the baseline for comparison.
-                // log::debug!("get_commit_history_path: first entry {:?}", commit);
-                latest_hash = Some(old_entry.hash.clone());
-                history.push(commit.clone()); // Include the first commit as the starting point of history
-            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
-                // A change in hash is detected, indicating an edit. Include this commit in history.
-                // log::debug!("get_commit_history_path: new entry {:?}", commit);
-                latest_hash = Some(old_entry.hash.clone());
-                history.push(commit.clone());
-            }
-        }
-    }
-
-    history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-
-    Ok(history)
-}
-
-pub fn get_latest_commit_for_entry(
-    commits: &[(Commit, CommitDirEntryReader)],
-    entry: &CommitEntry,
-) -> Result<Option<Commit>, OxenError> {
-    get_latest_commit_for_path(commits, &entry.path)
-}
-
-pub fn get_latest_commit_for_path(
-    commits: &[(Commit, CommitDirEntryReader)],
-    path: &Path,
-) -> Result<Option<Commit>, OxenError> {
-    let os_path = OsPath::from(path).to_pathbuf();
-    let path = os_path
-        .file_name()
-        .ok_or(OxenError::file_has_no_name(path))?;
-    let mut latest_hash: Option<String> = None;
-    // Store the commit from the previous iteration. Initialized as None.
-    let mut previous_commit: Option<Commit> = None;
-
-    for (commit, entry_reader) in commits.iter().rev() {
-        if let Some(old_entry) = entry_reader.get_entry(path)? {
-            if latest_hash.is_none() {
-                // This is the first encountered entry, setting it as the baseline for comparison.
-                latest_hash = Some(old_entry.hash.clone());
-            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
-                // A change is detected, return the previous commit which introduced the change.
-                return Ok(previous_commit);
-            }
-            // Update previous_commit after the check, so it holds the commit before the change was detected.
-            previous_commit = Some(commit.clone());
-        }
-    }
-
-    // If no change was detected (all entries have the same hash), or the entry was not found,
-    // return None or consider returning the oldest commit if previous_commit has been set.
-    Ok(previous_commit)
-}
-
-pub fn meta_entry_from_commit_entry(
-    repo: &LocalRepository,
-    entry: &CommitEntry,
-    commit_entry_readers: &[(Commit, CommitDirEntryReader)],
-    revision: &str,
 ) -> Result<MetadataEntry, OxenError> {
-    log::debug!("meta_entry_from_commit_entry: {:?}", entry.path);
-    let size = util::fs::version_file_size(repo, entry)?;
-    let Some(latest_commit) = get_latest_commit_for_entry(commit_entry_readers, entry)? else {
-        log::error!("No latest commit for entry: {:?}", entry.path);
-        return Err(OxenError::basic_str(format!(
-            "No latest commit for entry: {:?}",
-            entry.path
-        )));
-    };
-
-    let base_name = entry
-        .path
-        .file_name()
-        .ok_or(OxenError::file_has_no_name(&entry.path))?;
-
-    let version_path = util::fs::version_path(repo, entry);
-
-    let data_type = util::fs::file_data_type(&version_path);
-
-    let is_indexed = if data_type == EntryDataType::Tabular {
-        Some(
-            index::workspaces::data_frames::is_queryable_data_frame_indexed(
-                repo,
-                &entry.path,
-                &latest_commit,
-            )?,
-        )
-    } else {
-        None
-    };
-
-    return Ok(MetadataEntry {
-        filename: String::from(base_name.to_string_lossy()),
-        is_dir: false,
-        size,
-        latest_commit: Some(latest_commit.clone()),
-        data_type,
-        mime_type: util::fs::file_mime_type(&version_path),
-        extension: util::fs::file_extension(&version_path),
-        resource: Some(ParsedResource {
-            commit: Some(latest_commit.clone()),
-            branch: None,
-            version: PathBuf::from(revision),
-            path: entry.path.clone(),
-            resource: PathBuf::from(revision).join(entry.path.clone()),
-        }),
-        // Not applicable for files YET, but we will also compute this metadata
-        metadata: None,
-        is_queryable: is_indexed,
-    });
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_meta_entry(repo, commit, &path),
+        MinOxenVersion::V0_19_0 => {
+            let path = path.as_ref();
+            let parsed_resource = ParsedResource {
+                path: path.to_path_buf(),
+                commit: Some(commit.clone()),
+                branch: None,
+                version: PathBuf::from(&commit.id),
+                resource: PathBuf::from(&commit.id).join(&path),
+            };
+            core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
+        }
+    }
 }
 
 /// Commit entries are always files, not directories. Will return None if the path is a directory.
@@ -326,7 +122,10 @@ pub fn get_commit_entry(
     reader.get_entry(path)
 }
 
-pub fn list_all(repo: &LocalRepository, commit: &Commit) -> Result<Vec<CommitEntry>, OxenError> {
+pub fn list_for_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<CommitEntry>, OxenError> {
     let reader = CommitEntryReader::new(repo, commit)?;
     reader.list_entries()
 }
@@ -575,7 +374,7 @@ pub fn list_tabular_files_in_repo(
                 commit_entry_readers.push((commit.clone(), reader));
             }
 
-            let metadata = meta_entry_from_commit_entry(
+            let metadata = core::v0_10_0::entries::meta_entry_from_commit_entry(
                 local_repo,
                 &entry.unwrap(),
                 &commit_entry_readers,
@@ -615,7 +414,7 @@ mod tests {
             repositories::add(&repo, file_to_add)?;
             let commit = repositories::commit(&repo, "Adding labels file")?;
 
-            let entries = repositories::entries::list_all(&repo, &commit)?;
+            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 1);
 
             Ok(())

@@ -15,15 +15,17 @@ use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
-use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::MerkleNodeDB;
+use crate::core::v0_19_0::index::MerkleNodeDB;
 // use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
-use crate::core::v0_19_0::index::merkle_tree::node::*;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::*;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::{Commit, LocalRepository};
 use crate::util::progress_bar::{oxen_progress_bar, spinner_with_msg, ProgressBarType};
 use crate::{constants, repositories, util};
+
+use std::str::FromStr;
 
 pub struct OptimizeMerkleTreesMigration;
 impl Migrate for OptimizeMerkleTreesMigration {
@@ -187,13 +189,13 @@ fn migrate_merkle_tree(
     let parent_ids = commit
         .parent_ids
         .iter()
-        .map(|id| MerkleHash::from_str(&id).unwrap())
+        .map(|id| MerkleHash::from_str(id).unwrap())
         .collect();
 
     // Create the root commit
     let node = CommitNode {
         hash: commit_id,
-        parent_ids: parent_ids,
+        parent_ids,
         message: commit.message.clone(),
         author: commit.author.clone(),
         email: commit.email.clone(),
@@ -464,7 +466,8 @@ fn write_dir_child(
     let mut last_commit_timestamp: OffsetDateTime = OffsetDateTime::from_unix_timestamp(0).unwrap();
     let mut last_modified_seconds = 0;
     let mut last_modified_nanoseconds = 0;
-    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+    let mut data_type_counts: HashMap<String, u64> = HashMap::new();
+    let mut data_type_sizes: HashMap<String, u64> = HashMap::new();
 
     let mut entries_processed = 0;
 
@@ -522,9 +525,13 @@ fn write_dir_child(
             let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
             let data_type_str = format!("{}", data_type);
             data_type_counts
-                .entry(data_type_str)
+                .entry(data_type_str.clone())
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
+            data_type_sizes
+                .entry(data_type_str.clone())
+                .and_modify(|size| *size += entry.num_bytes)
+                .or_insert(entry.num_bytes);
 
             if last_modified_seconds < entry.last_modified_seconds {
                 last_modified_seconds = entry.last_modified_seconds;
@@ -546,12 +553,13 @@ fn write_dir_child(
     let node = DirNode {
         dtype: MerkleTreeNodeType::Dir,
         name: file_name.to_owned(),
-        hash: hash.clone(),
+        hash: *hash,
         num_bytes,
         last_commit_id: MerkleHash::new(last_commit_id),
         last_modified_seconds,
         last_modified_nanoseconds,
         data_type_counts,
+        data_type_sizes,
     };
     println!("Writing dir node {:?} to {:?}", node, node_db.path());
     node_db.add_child(&node)?;
@@ -620,7 +628,7 @@ fn write_file_node(
 
     let val = FileNode {
         name: file_name.to_owned(),
-        hash: hash.clone(),
+        hash: *hash,
         num_bytes,
         chunk_type: FileChunkType::SingleFile,
         storage_backend: FileStorageType::Disk,
@@ -631,6 +639,7 @@ fn write_file_node(
         data_type,
         mime_type,
         extension,
+        metadata: None,
         dtype: MerkleTreeNodeType::File,
     };
     node_db.add_child(&val)?;

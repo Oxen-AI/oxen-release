@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+use crate::constants::DEFAULT_VNODE_SIZE;
 use crate::error::OxenError;
 use crate::model::Remote;
 use crate::util;
-
-pub const DEFAULT_VNODE_SIZE: u64 = 10_000;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RepositoryConfig {

@@ -5,12 +5,20 @@
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+use crate::error::OxenError;
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
 #[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
 pub struct VNode {
     pub hash: MerkleHash,
     pub dtype: MerkleTreeNodeType,
+}
+
+impl VNode {
+    pub fn deserialize(data: &[u8]) -> Result<VNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing vnode: {e}")))
+    }
 }
 
 impl Default for VNode {
@@ -35,7 +43,7 @@ impl MerkleTreeNodeIdType for VNode {
 /// Debug is used for verbose multi-line output with println!("{:?}", node)
 impl fmt::Debug for VNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "VNode({})", self.hash.to_string())
+        write!(f, "VNode({})", self.hash)
     }
 }
 

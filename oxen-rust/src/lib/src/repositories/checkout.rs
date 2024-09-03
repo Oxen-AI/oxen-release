@@ -541,9 +541,11 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
-                        .await?;
+                let cloned_repo = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &new_repo_dir.join("new_repo"),
+                )
+                .await?;
 
                 // Make sure we have all the commit objects
                 let cloned_commits = repositories::commits::list_all(&cloned_repo)?;
@@ -605,7 +607,8 @@ mod tests {
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo"))
+                        .await?;
 
                 let commits = repositories::commits::list(&cloned_repo)?;
                 // iterate over commits in reverse order and checkout each one
@@ -717,7 +720,7 @@ mod tests {
                 // Create a new branch after cloning (so we have to fetch the new commit from the remote)
 
                 let branch_name = "test-branch";
-                api::client::branches::create_from_or_get(
+                api::client::branches::create_from_branch(
                     &remote_repo,
                     branch_name,
                     DEFAULT_BRANCH_NAME,
@@ -749,7 +752,7 @@ mod tests {
         test::run_training_data_fully_sync_remote(|_local_repo, remote_repo| async move {
             // Create additional branch on remote repo before clone
             let branch_name = "test-branch";
-            api::client::branches::create_from_or_get(
+            api::client::branches::create_from_branch(
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,

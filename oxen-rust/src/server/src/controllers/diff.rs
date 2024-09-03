@@ -825,7 +825,7 @@ fn group_dir_diffs_by_dir(dir_diffs: Vec<(PathBuf, DiffEntryStatus)>) -> Vec<Dir
 
 #[cfg(test)]
 mod tests {
-    use liboxen::{command, error::OxenError, repositories};
+    use liboxen::{error::OxenError, repositories};
 
     use crate::test;
 

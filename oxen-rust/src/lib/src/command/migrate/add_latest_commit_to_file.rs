@@ -3,7 +3,11 @@ use std::path::Path;
 use super::Migrate;
 
 use crate::core::cache::cachers;
+<<<<<<< HEAD
 use crate::core::index::{CommitEntryReader, CommitReader, ObjectDBReader};
+=======
+use crate::core::v0_10_0::index::{CommitEntryReader, CommitReader, ObjectDBReader};
+>>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 
