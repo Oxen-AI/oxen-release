@@ -17,7 +17,7 @@ use crate::core::db::data_frames::workspace_df_db::{
 };
 use crate::core::df::tabular;
 use crate::core::v0_10_0::index::workspaces::data_frames::row_changes_db;
-use crate::model::schema::Schema;
+use crate::model::data_frame::schema::Schema;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::{constants::TABLE_NAME, error::OxenError};

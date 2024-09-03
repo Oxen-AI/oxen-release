@@ -9,7 +9,7 @@ use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::refs::RefWriter;
 
 use crate::error::OxenError;
-use crate::model::schema::Field;
+use crate::model::data_frame::schema::Field;
 use crate::model::RepoNew;
 use crate::model::Schema;
 use crate::model::{LocalRepository, RemoteRepository};

@@ -9,7 +9,7 @@ use crate::core::db::data_frames::workspace_df_db::{
     full_staged_table_schema, schema_without_oxen_cols,
 };
 use crate::core::v0_10_0::index::workspaces::data_frames::column_changes_db;
-use crate::model::schema::DataType;
+use crate::model::data_frame::schema::DataType;
 use crate::model::Schema;
 use crate::view::data_frames::columns::{ColumnToDelete, ColumnToUpdate, NewColumn};
 use crate::view::data_frames::{ColumnChange, DataFrameColumnChange};

@@ -29,6 +29,7 @@ pub mod branches;
 pub mod checkout;
 pub mod clone;
 pub mod commits;
+pub mod data_frames;
 pub mod diffs;
 pub mod entries;
 pub mod init;
