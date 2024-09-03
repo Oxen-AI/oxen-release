@@ -189,7 +189,7 @@ pub async fn commits_db_status(req: HttpRequest) -> actix_web::Result<HttpRespon
     }))
 }
 
-/// TODO: Depreciate this
+/// TODO: Depreciate this after v0.19.0
 pub async fn entries_status(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;

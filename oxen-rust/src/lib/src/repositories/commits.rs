@@ -196,7 +196,7 @@ pub fn list_with_missing_entries(
             core::v0_10_0::commits::list_with_missing_entries(repo, commit_id)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::list_with_missing_entries(repo, commit_id)
+            panic!("list_with_missing_entries not needed in v0.19.0");
         }
     }
 }
