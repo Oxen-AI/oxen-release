@@ -26,6 +26,7 @@ use crate::constants::TREE_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
 use crate::model::MerkleHash;
@@ -100,14 +101,14 @@ pub fn version_path_for_commit_id(
     }
 }
 
-pub fn resized_path_for_hash(
+pub fn resized_path_for_file_node(
     repo: &LocalRepository,
-    hash: &MerkleHash,
+    file_node: &FileNode,
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    let path = version_path_from_hash(repo, hash);
-    let extension = path.extension().unwrap().to_str().unwrap();
+    let path = version_path_from_hash(repo, &file_node.hash);
+    let extension = file_node.extension.clone();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
     let resized_path = path.parent().unwrap().join(format!(

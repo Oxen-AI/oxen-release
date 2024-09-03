@@ -54,10 +54,20 @@ impl CommitMerkleTree {
         Ok(Self { root, dir_hashes })
     }
 
+    pub fn from_path_recursive(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+    ) -> Result<Self, OxenError> {
+        let load_recursive = true;
+        CommitMerkleTree::from_path(repo, commit, path, load_recursive)
+    }
+
     pub fn from_path(
         repo: &LocalRepository,
         commit: &Commit,
         path: impl AsRef<Path>,
+        load_recursive: bool,
     ) -> Result<Self, OxenError> {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
@@ -66,12 +76,12 @@ impl CommitMerkleTree {
         let root = if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
-            CommitMerkleTree::read_node(repo, &node_hash, true)?.ok_or(OxenError::basic_str(
-                format!(
+            CommitMerkleTree::read_node(repo, &node_hash, load_recursive)?.ok_or(
+                OxenError::basic_str(format!(
                     "Merkle tree hash not found for parent: '{}'",
                     node_path.to_str().unwrap()
-                ),
-            ))?
+                )),
+            )?
         } else {
             // We are skipping to a file in the tree using the dir_hashes db
             log::debug!("Look up file 📄 {:?}", node_path);
@@ -308,60 +318,19 @@ impl CommitMerkleTree {
             )));
         };
 
-        let Some(vnodes) = CommitMerkleTree::read_node(repo, &node_hash, false)? else {
+        // Read the directory node at depth 2 to get all the vnodes and their children
+        let Some(dir_node) = CommitMerkleTree::read_depth(repo, &node_hash, 2)? else {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree hash not found for parent: {:?}",
                 parent_path
             )));
         };
-        log::debug!("read_file got {} vnodes children", vnodes.children.len());
-        for node in vnodes.children.into_iter() {
-            let file_path_hash = util::hasher::hash_path_name(path);
-            log::debug!("Node Hash: {:?} -> {}", path, file_path_hash);
-            log::debug!("Is in VNode? {:?}", node.node.dtype());
+        log::debug!(
+            "read_file got {} dir_node children",
+            dir_node.children.len()
+        );
 
-            // TODO: More robust type matching
-            let vnode = node.vnode()?;
-            let children = &node.children;
-            log::debug!("Num VNode children {:?}", children.len());
-
-            // Find the bucket based on number of children
-            let total_children = children.len();
-            let num_vnodes = (total_children as f32 / repo.vnode_size() as f32).ceil() as u128;
-            let hash_int = node.hash;
-            let bucket = hash_int.to_u128() % num_vnodes;
-
-            log::warn!("Make sure we calc correct bucket: {}", bucket);
-
-            // Check if we are in the correct bucket
-            if bucket == vnode.hash.to_u128() {
-                log::debug!("Found file in VNode! {:?}", vnode);
-                let Some(children) = CommitMerkleTree::read_node(repo, &node.hash, false)? else {
-                    return Err(OxenError::basic_str(format!(
-                        "Merkle tree hash not found for parent: {:?}",
-                        parent_path
-                    )));
-                };
-
-                log::debug!("Num children {:?}", children.children.len());
-
-                for child in children.children.into_iter() {
-                    log::debug!("Got child {:?}", child.node.dtype());
-                    if let EMerkleTreeNode::File(_) = &child.node {
-                        let file = child.file()?;
-                        log::debug!("Got file {:?}", file.name);
-                        if file.name == file_name {
-                            return Ok(Some(child));
-                        }
-                    }
-                }
-            }
-        }
-
-        Err(OxenError::basic_str(format!(
-            "Merkle tree vnode not found for path: {:?}",
-            parent_path
-        )))
+        dir_node.get_by_path(path)
     }
 
     fn read_children_until_depth(
@@ -372,7 +341,8 @@ impl CommitMerkleTree {
     ) -> Result<(), OxenError> {
         let dtype = node.node.dtype();
         log::debug!(
-            "read_children_until_depth tree_db_dir: {:?} dtype {:?}",
+            "read_children_until_depth {} tree_db_dir: {:?} dtype {:?}",
+            depth,
             node_db.path(),
             dtype
         );
@@ -385,11 +355,20 @@ impl CommitMerkleTree {
         }
 
         let children: Vec<(MerkleHash, MerkleTreeNode)> = node_db.map()?;
-        log::debug!("read_children_until_depth Got {} children", children.len());
+        log::debug!(
+            "read_children_until_depth {} Got {} children",
+            depth,
+            children.len()
+        );
 
         for (key, child) in children {
             let mut child = child.to_owned();
-            log::debug!("read_children_until_depth child: {} -> {}", key, child);
+            log::debug!(
+                "read_children_until_depth {} child: {} -> {}",
+                depth,
+                key,
+                child
+            );
             match &child.node.dtype() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit

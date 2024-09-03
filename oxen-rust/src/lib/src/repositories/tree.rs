@@ -10,10 +10,18 @@ pub fn get_node_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,
 ) -> Result<Option<MerkleTreeNode>, OxenError> {
-    let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
-        return Ok(None);
-    };
-    Ok(Some(node))
+    let load_recursive = false;
+    CommitMerkleTree::read_node(repo, hash, load_recursive)
+}
+
+pub fn get_node_by_path(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<MerkleTreeNode>, OxenError> {
+    let load_recursive = false;
+    let node = CommitMerkleTree::from_path(repo, commit, path, load_recursive)?;
+    Ok(Some(node.root))
 }
 
 pub fn get_dir_with_children(

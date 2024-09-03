@@ -42,9 +42,9 @@ pub async fn get(
     if img_resize.width.is_some() || img_resize.height.is_some() {
         log::debug!("img_resize {:?}", img_resize);
 
-        let resized_path = util::fs::resized_path_for_hash(
+        let resized_path = util::fs::resized_path_for_file_node(
             &repo,
-            &entry.hash,
+            &entry,
             img_resize.width,
             img_resize.height,
         )?;

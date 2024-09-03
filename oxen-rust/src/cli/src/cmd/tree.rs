@@ -124,7 +124,7 @@ impl TreeCmd {
     ) -> Result<(), OxenError> {
         let load_start = Instant::now(); // Start timing
         let tree = if let Some(path) = path {
-            CommitMerkleTree::from_path(repo, commit, path)?
+            CommitMerkleTree::from_path(repo, commit, path, true)?
         } else {
             CommitMerkleTree::from_commit(repo, commit)?
         };
