@@ -1,16 +1,13 @@
 use crate::core::refs::RefReader;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::{commits, restore};
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
 use crate::repositories;
 use crate::util;
 
 use std::path::Path;
-
-use super::index::merkle_tree::node::{
-    FileChunkType, FileNode, FileStorageType, MerkleTreeNodeData,
-};
 
 pub fn list_entry_versions_for_commit(
     local_repo: &LocalRepository,
@@ -70,7 +67,7 @@ pub async fn set_working_repo_to_commit(
 
 fn r_restore_missing_or_modified_files(
     repo: &LocalRepository,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     path: &Path,
 ) -> Result<(), OxenError> {
     // Recursively iterate through the tree, checking each file against the working repo
@@ -78,7 +75,7 @@ fn r_restore_missing_or_modified_files(
     // If the file is in the working repo, but the hash does not match, overwrite the file in the working repo with the file from the commit
     // If the file is in the working repo, and the hash matches, do nothing
 
-    match &node.dtype {
+    match &node.node.dtype() {
         MerkleTreeNodeType::File => {
             let file_node = node.file().unwrap();
             let rel_path = path.join(file_node.name.clone());
