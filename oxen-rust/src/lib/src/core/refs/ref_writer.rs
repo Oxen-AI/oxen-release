@@ -136,7 +136,6 @@ impl RefWriter {
 
     pub fn list_branches(&self) -> Result<Vec<Branch>, OxenError> {
         let mut branch_names: Vec<Branch> = vec![];
-        let head_ref = self.read_head_ref()?;
         let iter = self.refs_db.iterator(IteratorMode::Start);
         for item in iter {
             match item {
@@ -179,7 +178,6 @@ impl RefWriter {
     }
 
     pub fn get_branch_by_name(&self, name: &str) -> Result<Option<Branch>, OxenError> {
-        let head_commit_id = self.head_commit_id()?;
         match self.get_commit_id_for_branch(name) {
             Ok(Some(commit_id)) => Ok(Some(Branch {
                 name: name.to_string(),

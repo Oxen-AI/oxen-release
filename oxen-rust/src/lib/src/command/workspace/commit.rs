@@ -56,7 +56,8 @@ mod tests {
 
             test::run_empty_dir_test_async(|repo_dir| async move {
                 let cloned_repo =
-                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo")).await?;
+                    repositories::clone_url(&remote_repo.remote.url, &repo_dir.join("new_repo"))
+                        .await?;
 
                 // Remote stage row
                 let path = test::test_nlp_classification_csv();
@@ -124,7 +125,7 @@ mod tests {
     //         let main_path = "images/folder";
     //         let identifier = UserConfig::identifier()?;
 
-    //         api::client::branches::create_from_or_get(&remote_repo, new_branch, main_branch)
+    //         api::client::branches::create_from_branch(&remote_repo, new_branch, main_branch)
     //             .await?;
     //         // assert_eq!(branch.name, branch_name);
 

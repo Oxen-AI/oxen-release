@@ -4,13 +4,13 @@ use crate::constants::{
 };
 
 use crate::core::db::{self};
-use crate::core::v0_10_0::commit::merge_objects_dbs;
+use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{
     CommitDBReader, CommitEntryWriter, CommitReader, CommitWriter, Merger,
 };
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
-use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
 use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::fs::oxen_hidden_dir;
@@ -506,7 +506,7 @@ pub async fn download_commit_entries_db_to_repo(
     commit_id: &str,
 ) -> Result<PathBuf, OxenError> {
     let hidden_dir = util::fs::oxen_hidden_dir(&local_repo.path);
-    download_commit_entries_db_to_path(remote_repo, commit_id, hidden_dir).await
+    download_dir_hashes_db_to_path(remote_repo, commit_id, hidden_dir).await
 }
 
 pub async fn download_objects_db_to_path(
@@ -573,7 +573,7 @@ pub async fn download_objects_db_to_repo(
     Ok(())
 }
 
-pub async fn download_commit_entries_db_to_path(
+pub async fn download_dir_hashes_db_to_path(
     remote_repo: &RemoteRepository,
     commit_id: &str,
     path: impl AsRef<Path>,
@@ -581,7 +581,7 @@ pub async fn download_commit_entries_db_to_path(
     let uri = format!("/commits/{commit_id}/commit_db");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!(
-        "calling download_commit_entries_db_to_path for commit {}",
+        "calling download_dir_hashes_db_to_path for commit {}",
         commit_id
     );
     log::debug!("{} downloading from {}", current_function!(), url);
@@ -868,7 +868,7 @@ pub async fn post_tree_objects_to_server(
     .await
 }
 
-pub async fn post_commit_db_to_server(
+pub async fn post_commit_dir_hashes_to_server(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
@@ -1204,8 +1204,8 @@ mod tests {
     use crate::core::v0_10_0::index::CommitDBReader;
     use crate::error::OxenError;
 
-    use crate::model::entries::commit_entry::Entry;
-    use crate::model::entries::unsynced_commit_entry::UnsyncedCommitEntries;
+    use crate::model::entry::commit_entry::Entry;
+    use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
     use crate::opts::PaginateOpts;
     use crate::repositories;
     use crate::test;

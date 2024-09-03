@@ -86,8 +86,7 @@ impl RunCmd for StatusCmd {
                 "On branch {} -> {}\n",
                 current_branch.name, current_branch.commit_id
             );
-        } else {
-            let head = repositories::commits::head_commit(&repository)?;
+        } else if let Some(head) = repositories::commits::head_commit_maybe(&repository)? {
             println!(
                 "You are in 'detached HEAD' state.\nHEAD is now at {} {}\n",
                 head.id, head.message

@@ -18,7 +18,7 @@ use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, StagedDirEntryDB,
 };
 use crate::error::OxenError;
-use crate::model::entries::entry_status::EntryStatus;
+use crate::model::entry::entry_status::EntryStatus;
 use crate::model::schema::staged_schema;
 use crate::model::schema::staged_schema::StagedSchema;
 use crate::repositories;
@@ -1365,6 +1365,12 @@ impl Stager {
             schema,
             status: StagedEntryStatus::Added,
         };
+
+        log::debug!(
+            "add_staged_entry_to_db adding schema {:?} to db {:?}",
+            staged_schema,
+            self.schemas_db.path()
+        );
 
         path_db::put(&self.schemas_db, path, &staged_schema)?;
         Ok(())

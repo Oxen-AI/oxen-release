@@ -9,6 +9,8 @@ use crate::error::OxenError;
 use crate::view::workspaces::WorkspaceCommit;
 use core::convert::Into;
 
+use std::str::FromStr;
+
 /// NewCommitBody is used to parse the json into a Commit from the API
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct NewCommitBody {

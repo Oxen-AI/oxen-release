@@ -1,13 +1,13 @@
 use crate::api::client;
 use crate::config::UserConfig;
 use crate::constants::{AVG_CHUNK_SIZE, DEFAULT_BRANCH_NAME, OBJECTS_DIR, OXEN_HIDDEN_DIR};
-use crate::core::v0_10_0::commit::merge_objects_dbs;
+use crate::core::v0_10_0::commits::merge_objects_dbs;
 use crate::core::v0_10_0::index::{puller, CommitEntryReader, ObjectDBReader};
+use crate::core::v0_19_0::structs::PullProgress;
 use crate::error::OxenError;
-use crate::model::entries::commit_entry::Entry;
+use crate::model::entry::commit_entry::Entry;
 use crate::model::{MetadataEntry, NewCommitBody, RemoteRepository};
 use crate::opts::UploadOpts;
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::{api, constants};
 use crate::{current_function, util};
 
@@ -16,12 +16,10 @@ use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
 use futures_util::TryStreamExt;
-use indicatif::ProgressBar;
 use std::fs::{self};
 use std::io::prelude::*;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 /// Returns the metadata given a file path
 pub async fn get_entry(
@@ -57,7 +55,7 @@ pub async fn upload_entries(
     }
 
     let branch_name = if let Some(branch) = &opts.branch {
-        api::client::branches::create_from_or_get(remote_repo, branch, DEFAULT_BRANCH_NAME).await?;
+        api::client::branches::create_from_branch(remote_repo, branch, DEFAULT_BRANCH_NAME).await?;
         branch.to_owned()
     } else {
         DEFAULT_BRANCH_NAME.to_string()
@@ -156,12 +154,8 @@ pub async fn download_dir(
         .join(&remote_repo.namespace)
         .join(&remote_repo.name);
     let repo_cache_dir = repo_dir.join(OXEN_HIDDEN_DIR);
-    api::client::commits::download_commit_entries_db_to_path(
-        remote_repo,
-        commit_id,
-        &repo_cache_dir,
-    )
-    .await?;
+    api::client::commits::download_dir_hashes_db_to_path(remote_repo, commit_id, &repo_cache_dir)
+        .await?;
 
     let local_objects_dir = repo_cache_dir.join(OBJECTS_DIR);
     let tmp_objects_dir =
@@ -185,7 +179,8 @@ pub async fn download_dir(
     let entries: Vec<Entry> = entries.into_iter().map(Entry::from).collect();
 
     // Pull all the entries
-    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path).await?;
+    let pull_progress = PullProgress::new();
+    puller::pull_entries_to_working_dir(remote_repo, &entries, local_path, &pull_progress).await?;
 
     Ok(())
 }
@@ -198,14 +193,12 @@ pub async fn download_file(
     revision: impl AsRef<str>,
 ) -> Result<(), OxenError> {
     if entry.size > AVG_CHUNK_SIZE {
-        let bar = oxen_progress_bar(entry.size, ProgressBarType::Bytes);
         download_large_entry(
             remote_repo,
             &remote_path,
             &local_path,
             &revision,
             entry.size,
-            bar,
         )
         .await
     } else {
@@ -260,7 +253,6 @@ pub async fn download_large_entry(
     local_path: impl AsRef<Path>,
     revision: impl AsRef<str>,
     num_bytes: u64,
-    bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     // Read chunks
     let chunk_size = AVG_CHUNK_SIZE;
@@ -344,7 +336,7 @@ pub async fn download_large_entry(
         .for_each(|b| async {
             match b {
                 Ok(s) => {
-                    bar.inc(s);
+                    log::debug!("Downloaded chunk {:?}", s);
                 }
                 Err(err) => {
                     log::error!("Error uploading chunk: {:?}", err)

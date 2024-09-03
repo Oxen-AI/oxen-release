@@ -1,17 +1,22 @@
+use async_compression::futures::bufread::GzipDecoder;
+use async_tar::Archive;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use futures_util::TryStreamExt;
 use std::collections::HashSet;
 use std::time;
 
 use crate::api::client;
 use crate::constants::{NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
-use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_path;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
+use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};
 
+/// Check if a node exists in the remote repository merkle tree by hash
 pub async fn has_node(
     repository: &RemoteRepository,
     node_id: MerkleHash,
@@ -37,10 +42,11 @@ pub async fn has_node(
     }
 }
 
+/// Upload a node to the remote repository merkle tree
 pub async fn create_node(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
 ) -> Result<(), OxenError> {
     // Compress the node
     let node_dir = node_db_path(local_repo, &node.hash);
@@ -65,21 +71,136 @@ pub async fn create_node(
     let buffer: Vec<u8> = tar.into_inner()?.finish()?;
 
     // Upload the node
-    let uri = format!("/tree/nodes");
+    let uri = "/tree/nodes".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::builder_for_url(&url)?
         .timeout(time::Duration::from_secs(120))
         .build()?;
 
     let size = buffer.len() as u64;
-    println!(
+    log::debug!(
         "uploading node of size {} to {}",
         bytesize::ByteSize::b(size),
         url
     );
     let res = client.post(&url).body(buffer.to_owned()).send().await?;
     let body = client::parse_json_body(&url, res).await?;
-    println!("upload node complete {}", body);
+    log::debug!("upload node complete {}", body);
+
+    Ok(())
+}
+
+/// Download a node from the remote repository merkle tree by hash
+pub async fn download_node(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    node_id: &MerkleHash,
+) -> Result<MerkleTreeNode, OxenError> {
+    let node_hash_str = node_id.to_string();
+    let uri = format!("/tree/nodes/{node_hash_str}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading node {} from {}", node_hash_str, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked node {}", node_hash_str);
+
+    // We just downloaded, so unwrap is safe
+    let node = CommitMerkleTree::read_node(local_repo, node_id, false)?.unwrap();
+
+    log::debug!("read node {}", node);
+
+    Ok(node)
+}
+
+/// Download a tree from the remote repository merkle tree by hash
+pub async fn download_tree(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    hash: &MerkleHash,
+) -> Result<MerkleTreeNode, OxenError> {
+    let hash_str = hash.to_string();
+    let uri = format!("/tree/all/{hash_str}/download");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading tree {} from {}", hash_str, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked tree {}", hash_str);
+
+    // We just downloaded, so unwrap is safe
+    let node = CommitMerkleTree::read_node(local_repo, hash, true)?.unwrap();
+
+    log::debug!("read tree root {}", node);
+
+    Ok(node)
+}
+
+pub async fn download_commits_between(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    base_id: impl AsRef<str>,
+    head_id: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let base_id = base_id.as_ref();
+    let head_id = head_id.as_ref();
+    let base_head = format!("{base_id}..{head_id}");
+    let uri = format!("/tree/commits/{base_head}/download");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading commits {} from {}", base_head, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked commits {}", base_head);
+
+    Ok(())
+}
+
+pub async fn download_commits_from(
+    local_repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    base_id: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let base_id = base_id.as_ref();
+    let uri = format!("/tree/commits/{base_id}/download");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    log::debug!("downloading commits {} from {}", base_id, url);
+
+    node_download_request(local_repo, &url).await?;
+
+    log::debug!("unpacked commits {}", base_id);
+
+    Ok(())
+}
+
+async fn node_download_request(
+    local_repo: &LocalRepository,
+    url: impl AsRef<str>,
+) -> Result<(), OxenError> {
+    let url = url.as_ref();
+    let client = client::new_for_url(url)?;
+    let res = client.get(url).send().await?;
+    let reader = res
+        .bytes_stream()
+        .map_err(|e| futures::io::Error::new(futures::io::ErrorKind::Other, e))
+        .into_async_read();
+    let decoder = GzipDecoder::new(futures::io::BufReader::new(reader));
+    let archive = Archive::new(decoder);
+
+    // The remote tar packs it in TREE_DIR/NODES_DIR
+    // So this will unpack it in OXEN_HIDDEN_DIR/TREE_DIR/NODES_DIR
+    let full_unpacked_path = local_repo.path.join(OXEN_HIDDEN_DIR);
+
+    // create the temp path if it doesn't exist
+    if !full_unpacked_path.exists() {
+        std::fs::create_dir_all(&full_unpacked_path)?;
+    }
+
+    archive.unpack(&full_unpacked_path).await?;
 
     Ok(())
 }

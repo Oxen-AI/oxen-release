@@ -3,9 +3,12 @@ use polars::frame::DataFrame;
 
 use polars::prelude::NamedFrom;
 use polars::series::Series;
+use rocksdb::DB;
+use serde_json::Value;
 use sql_query_builder::Select;
 
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
+use crate::core::db;
 use crate::opts::DFOpts;
 
 use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
@@ -16,8 +19,12 @@ use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{CommitEntry, LocalRepository, Workspace};
 use crate::util;
+use crate::view::data_frames::DataFrameRowChange;
+use crate::view::JsonDataFrameView;
 
 use std::path::Path;
+
+use super::row_changes_db::get_all_data_frame_row_changes;
 
 /// Get a single row by the _oxen_id val
 pub fn get_by_id(
@@ -75,12 +82,28 @@ pub fn add(
 ) -> Result<DataFrame, OxenError> {
     let file_path = file_path.as_ref();
     let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
+    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, file_path);
+
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
     let df = tabular::parse_json_to_df(data)?;
 
-    let result = rows::append_row(&conn, &df)?;
+    let mut result = rows::append_row(&conn, &df)?;
+
+    let oxen_id_col = result
+        .column("_oxen_id")
+        .expect("Column _oxen_id not found");
+
+    let last_idx = oxen_id_col.len() - 1;
+    let last_value = oxen_id_col.get(last_idx)?;
+
+    let row_id = last_value.to_string().trim_matches('"').to_string();
+
+    let row = JsonDataFrameView::json_from_df(&mut result);
+
+    rows::record_row_change(&row_changes_path, row_id, "added".to_owned(), row, None)?;
+
     workspaces::stager::add(workspace, file_path)?;
 
     Ok(result)
@@ -114,6 +137,9 @@ pub fn restore_row_in_db(
     let row_id = row_id.as_ref();
     let db_path = workspaces::data_frames::duckdb_path(workspace, &entry.path);
     let conn = df_db::get_connection(db_path)?;
+    let opts = db::key_val::opts::default();
+    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, &entry.path);
+    let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
 
     // Get the row by id
     let row = get_by_id(workspace, &entry.path, row_id)?;
@@ -129,6 +155,7 @@ pub fn restore_row_in_db(
         StagedRowStatus::Added => {
             // Row is added, just delete it
             log::debug!("restore_row() row is added, deleting");
+            rows::revert_row_changes(&db, row_id.to_owned())?;
             rows::delete_row(&conn, row_id)?
         }
         StagedRowStatus::Modified | StagedRowStatus::Removed => {
@@ -136,6 +163,7 @@ pub fn restore_row_in_db(
             log::debug!("restore_row() row is modified, deleting");
             let mut insert_row =
                 prepare_modified_or_removed_row(&workspace.base_repo, entry, &row)?;
+            rows::revert_row_changes(&db, row_id.to_owned())?;
             rows::modify_row(&conn, &mut insert_row, row_id)?
         }
         StagedRowStatus::Unchanged => {
@@ -208,10 +236,22 @@ pub fn delete(
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let db_path = workspaces::data_frames::duckdb_path(workspace, path);
-    let deleted_row = {
+    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, path);
+
+    let mut deleted_row = {
         let conn = df_db::get_connection(db_path)?;
         rows::delete_row(&conn, row_id)?
     };
+
+    let row = JsonDataFrameView::json_from_df(&mut deleted_row);
+
+    rows::record_row_change(
+        &row_changes_path,
+        row_id.to_owned(),
+        "deleted".to_owned(),
+        row,
+        None,
+    )?;
 
     // We track that the file has been modified
     workspaces::stager::add(workspace, path)?;
@@ -239,22 +279,82 @@ pub fn update(
     let path = path.as_ref();
     let db_path = workspaces::data_frames::duckdb_path(workspace, path);
     let conn = df_db::get_connection(db_path)?;
+    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, path);
 
     let mut df = tabular::parse_json_to_df(data)?;
 
-    let result = rows::modify_row(&conn, &mut df, row_id)?;
+    let mut row = get_by_id(workspace, path, row_id)?;
+
+    let mut result = rows::modify_row(&conn, &mut df, row_id)?;
+
+    let row_before = JsonDataFrameView::json_from_df(&mut row);
+
+    let row_after = JsonDataFrameView::json_from_df(&mut result);
+
+    rows::record_row_change(
+        &row_changes_path,
+        row_id.to_owned(),
+        "updated".to_owned(),
+        row_before,
+        Some(row_after),
+    )?;
 
     workspaces::stager::add(workspace, path)?;
 
-    // TODO: Better way of tracking when a file is restored to its original state without diffing
-    //       this could be really slow
     let diff = workspaces::data_frames::diff(workspace, path)?;
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            // Restored to original state == delete file from staged db
             workspaces::stager::rm(workspace, path)?;
         }
     }
 
     Ok(result)
+}
+
+#[derive(Debug)]
+pub enum UpdateResult {
+    Success(String, DataFrame),
+    Error(String, OxenError),
+}
+
+pub fn batch_update(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    data: &Value,
+) -> Result<Vec<UpdateResult>, OxenError> {
+    let path = path.as_ref();
+    if let Some(array) = data.as_array() {
+        let results: Result<Vec<UpdateResult>, OxenError> = array
+            .iter()
+            .map(|obj| {
+                let row_id = obj
+                    .get("row_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| OxenError::basic_str("Missing row_id"))?
+                    .to_owned();
+                let value = obj
+                    .get("value")
+                    .ok_or_else(|| OxenError::basic_str("Missing value"))?;
+
+                match update(workspace, path, &row_id, value) {
+                    Ok(data_frame) => Ok(UpdateResult::Success(row_id, data_frame)),
+                    Err(e) => Ok(UpdateResult::Error(row_id, e)),
+                }
+            })
+            .collect();
+
+        results
+    } else {
+        Err(OxenError::basic_str("Data is not an array"))
+    }
+}
+
+pub fn get_row_diff(
+    workspace: &Workspace,
+    file_path: impl AsRef<Path>,
+) -> Result<Vec<DataFrameRowChange>, OxenError> {
+    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, file_path);
+    let opts = db::key_val::opts::default();
+    let db = DB::open_for_read_only(&opts, dunce::simplified(&row_changes_path), false)?;
+    get_all_data_frame_row_changes(&db)
 }

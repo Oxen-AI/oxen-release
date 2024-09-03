@@ -1,9 +1,9 @@
-//! # oxen kvdb-inspect
+//! # oxen db list
 //!
-//! Print out values from a rocksdb key value database
+//! Print out values from an oxen database
 //!
 
-use crate::core::v0_19_0::structs::EntryMetaData;
+use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::util::progress_bar::spinner_with_msg;
 
@@ -47,11 +47,11 @@ pub fn list(path: impl AsRef<Path>, limit: Option<usize>) -> Result<(), OxenErro
                 };
 
                 // try deserialize as ComputedEntryFields
-                let val: Result<EntryMetaData, rmp_serde::decode::Error> =
+                let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> =
                     rmp_serde::from_slice(&value);
                 match val {
                     Ok(val) => {
-                        println!("{key}\t{val:?}");
+                        println!("{key}\t{val}");
                     }
                     Err(_) => {
                         if let Ok(val) = str::from_utf8(&value) {

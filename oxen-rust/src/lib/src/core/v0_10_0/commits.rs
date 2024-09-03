@@ -8,6 +8,7 @@ use crate::repositories;
 use crate::constants::{
     HISTORY_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, TREE_DIR,
 };
+use crate::core;
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{self, TreeObject};
@@ -29,6 +30,8 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+
+use super::index::Merger;
 
 pub fn commit(repo: &LocalRepository, message: &str) -> Result<Commit, OxenError> {
     let status = status::status_without_untracked(repo)?;
@@ -312,6 +315,18 @@ pub fn list_from(
     }
 }
 
+/// List the history between two commits
+pub fn list_between(
+    repo: &LocalRepository,
+    base: &Commit,
+    head: &Commit,
+) -> Result<Vec<Commit>, OxenError> {
+    let merger = Merger::new(repo)?;
+    let reader = CommitReader::new(repo)?;
+    let commits = merger.list_commits_between_commits(&reader, base, head)?;
+    Ok(commits)
+}
+
 /// Retrieve entries with filepaths matching a provided glob pattern
 pub fn search_entries(
     repo: &LocalRepository,
@@ -547,7 +562,7 @@ fn list_by_file(
     path: &Path,
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
 ) -> Result<Vec<Commit>, OxenError> {
-    repositories::entries::get_commit_history_path(commit_entry_readers, path)
+    core::v0_10_0::entries::get_commit_history_path(commit_entry_readers, path)
 }
 
 fn paginate_and_format_results(
@@ -674,7 +689,7 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
@@ -710,9 +725,11 @@ mod tests {
 
             // Clone with the --all flag
             test::run_empty_dir_test_async(|new_repo_dir| async move {
-                let clone =
-                    repositories::clone_url(&remote_repo.remote.url, &new_repo_dir.join("new_repo"))
-                        .await?;
+                let clone = repositories::clone_url(
+                    &remote_repo.remote.url,
+                    &new_repo_dir.join("new_repo"),
+                )
+                .await?;
                 // Get head commit of deep_clone repo
                 let head_commit = repositories::commits::head_commit(&clone)?;
                 assert!(!commit_history_is_complete(&clone, &head_commit));

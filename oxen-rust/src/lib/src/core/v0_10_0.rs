@@ -4,12 +4,17 @@
 pub mod add;
 pub mod branches;
 pub mod cache;
-pub mod commit;
+pub mod clone;
+pub mod commits;
 pub mod entries;
 pub mod index;
 pub mod init;
+pub mod metadata;
+pub mod pull;
 pub mod push;
 pub mod status;
 
 pub use add::add;
+pub use clone::clone_repo;
 pub use init::init;
+pub use pull::{pull, pull_all, pull_remote_branch, pull_shallow};

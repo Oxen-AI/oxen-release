@@ -2,6 +2,7 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
+use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::repositories;
 use liboxen::util;
@@ -11,7 +12,8 @@ use liboxen::view::repository::{
     RepositoryDataTypesView, RepositoryStatsResponse, RepositoryStatsView,
 };
 use liboxen::view::{
-    ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView, StatusMessage,
+    DataTypeCount, ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView,
+    StatusMessage,
 };
 
 use liboxen::model::RepoNew;
@@ -31,6 +33,7 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
         .map(|repo| RepositoryView {
             name: repo.dirname(),
             namespace: namespace.to_string(),
+            min_version: Some(repo.min_version().to_string()),
         })
         .collect();
     let view = ListRepositoryResponse {
@@ -46,7 +49,26 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let name = path_param(&req, "repo_name")?;
 
     // Get the repository or return error
-    let _repository = get_repo(&app_data.path, &namespace, &name)?;
+    let repository = get_repo(&app_data.path, &namespace, &name)?;
+    let mut size: u64 = 0;
+    let mut data_types: Vec<DataTypeCount> = vec![];
+
+    // If we have a commit on the main branch, we can get the size and data types from the commit
+    if let Ok(Some(commit)) = repositories::revisions::get(&repository, DEFAULT_BRANCH_NAME) {
+        if let Some(dir_node) =
+            repositories::entries::get_directory(&repository, &commit, PathBuf::from(""))?
+        {
+            size = dir_node.num_bytes;
+            data_types = dir_node
+                .data_type_counts
+                .into_iter()
+                .map(|(data_type, count)| DataTypeCount {
+                    data_type,
+                    count: count as usize,
+                })
+                .collect();
+        }
+    }
 
     // Return the repository view
     Ok(HttpResponse::Ok().json(RepositoryDataTypesResponse {
@@ -55,10 +77,9 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
         repository: RepositoryDataTypesView {
             namespace,
             name,
-            // Right now these get enriched in the hub
-            // Hacking around it to not show in CLI unless you go through hub for now
-            size: 0,
-            data_types: vec![],
+            size,
+            data_types,
+            min_version: Some(repository.min_version().to_string()),
         },
     }))
 }
@@ -190,6 +211,8 @@ pub async fn transfer_namespace(
     let data: NamespaceView = serde_json::from_str(&body)?;
     let to_namespace = data.namespace;
     repositories::transfer_namespace(&app_data.path, &name, &from_namespace, &to_namespace)?;
+    let repo =
+        repositories::get_by_namespace_and_name(&app_data.path, &to_namespace, &name)?.unwrap();
 
     // Return repository view under new namespace
     Ok(HttpResponse::Ok().json(RepositoryResponse {
@@ -198,6 +221,7 @@ pub async fn transfer_namespace(
         repository: RepositoryView {
             namespace: to_namespace,
             name,
+            min_version: Some(repo.min_version().to_string()),
         },
     }))
 }

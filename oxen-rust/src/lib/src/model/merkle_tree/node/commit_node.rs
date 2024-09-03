@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 use time::OffsetDateTime;
 
+use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode};
 
@@ -27,6 +28,11 @@ impl CommitNode {
             timestamp: self.timestamp.to_owned(),
             root_hash: None,
         }
+    }
+
+    pub fn deserialize(data: &[u8]) -> Result<CommitNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing commit: {e}")))
     }
 }
 

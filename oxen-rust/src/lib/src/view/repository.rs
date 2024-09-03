@@ -8,6 +8,7 @@ use std::str::FromStr;
 pub struct RepositoryView {
     pub namespace: String,
     pub name: String,
+    pub min_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -23,6 +24,7 @@ pub struct RepositoryDataTypesView {
     pub name: String,
     pub size: u64,
     pub data_types: Vec<DataTypeCount>,
+    pub min_version: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -85,6 +87,7 @@ impl RepositoryView {
         RepositoryView {
             namespace: repository.namespace.clone(),
             name: repository.name,
+            min_version: repository.min_version,
         }
     }
 }

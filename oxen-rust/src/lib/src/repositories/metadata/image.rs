@@ -2,23 +2,22 @@
 //!
 
 use crate::error::OxenError;
-use crate::model::metadata::metadata_image::{ImgColorSpace, MetadataImage};
+use crate::model::metadata::metadata_image::MetadataImage;
 
-use image::GenericImageView;
+use std::fs::File;
+
+use image::ImageReader;
+use std::io::BufReader;
 use std::path::Path;
 
 /// Detects the image metadata for the given file.
 pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> {
-    match image::open(path) {
-        Ok(img) => {
-            let (width, height) = img.dimensions();
-            let color_space = image_to_colorspace(&img.color());
-            Ok(MetadataImage::new(
-                width as usize,
-                height as usize,
-                color_space,
-            ))
-        }
+    let file = File::open(path)?;
+    let reader = BufReader::new(file);
+    let reader = ImageReader::new(reader).with_guessed_format()?;
+
+    match reader.into_dimensions() {
+        Ok((width, height)) => Ok(MetadataImage::new(width, height)),
         Err(e) => {
             log::error!("Could not get image metadata {:?}", e);
             Err(OxenError::basic_str("Could not get image metadata"))
@@ -26,28 +25,11 @@ pub fn get_metadata(path: impl AsRef<Path>) -> Result<MetadataImage, OxenError> 
     }
 }
 
-fn image_to_colorspace(colorspace: &image::ColorType) -> ImgColorSpace {
-    match colorspace {
-        image::ColorType::L8 => ImgColorSpace::Grayscale,
-        image::ColorType::La8 => ImgColorSpace::GrayscaleAlpha,
-        image::ColorType::Rgb8 => ImgColorSpace::RGB,
-        image::ColorType::Rgba8 => ImgColorSpace::RGBA,
-        image::ColorType::L16 => ImgColorSpace::Grayscale16,
-        image::ColorType::La16 => ImgColorSpace::GrayscaleAlpha16,
-        image::ColorType::Rgb16 => ImgColorSpace::Rgb16,
-        image::ColorType::Rgba16 => ImgColorSpace::Rgba16,
-        image::ColorType::Rgb32F => ImgColorSpace::Rgb32F,
-        image::ColorType::Rgba32F => ImgColorSpace::Rgba32F,
-        _ => ImgColorSpace::Unknown,
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
-    use crate::model::entries::entry_data_type::EntryDataType;
+    use crate::model::entry::entry_data_type::EntryDataType;
     use crate::model::metadata::generic_metadata::GenericMetadata;
-    use crate::model::metadata::metadata_image::ImgColorSpace;
     use crate::model::metadata::MetadataImage;
     use crate::repositories;
     use crate::test;
@@ -69,7 +51,6 @@ mod tests {
 
         assert_eq!(metadata.image.width, 499);
         assert_eq!(metadata.image.height, 375);
-        assert_eq!(metadata.image.color_space, ImgColorSpace::RGB);
     }
 
     #[test]
@@ -88,7 +69,6 @@ mod tests {
 
         assert_eq!(metadata.image.width, 499);
         assert_eq!(metadata.image.height, 375);
-        assert_eq!(metadata.image.color_space, ImgColorSpace::RGBA);
     }
 
     #[test]
@@ -108,7 +88,6 @@ mod tests {
 
         assert_eq!(metadata.image.width, 499);
         assert_eq!(metadata.image.height, 375);
-        assert_eq!(metadata.image.color_space, ImgColorSpace::Grayscale);
     }
 
     #[test]
@@ -127,6 +106,5 @@ mod tests {
 
         assert_eq!(metadata.image.width, 28);
         assert_eq!(metadata.image.height, 28);
-        assert_eq!(metadata.image.color_space, ImgColorSpace::Grayscale);
     }
 }

@@ -37,7 +37,7 @@ use std::path::Path;
 /// # }
 /// ```
 pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
-    add_with_version(repo, path, repo.version())
+    add_with_version(repo, path, repo.min_version())
 }
 
 pub fn add_with_version(
