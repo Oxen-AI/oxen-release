@@ -2,7 +2,9 @@ use crate::error::OxenError;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::{Commit, EntryDataType, LocalRepository, MerkleHash, MetadataEntry};
+use crate::model::{
+    Commit, EntryDataType, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
+};
 use crate::opts::PaginateOpts;
 use crate::repositories;
 use crate::view::entries::ResourceVersion;
@@ -65,17 +67,17 @@ pub fn get_file_merkle_tree_node(
 pub fn list_directory(
     repo: &LocalRepository,
     directory: impl AsRef<Path>,
-    revision: impl AsRef<str>,
+    parsed_resource: &ParsedResource,
     paginate_opts: &PaginateOpts,
 ) -> Result<PaginatedDirEntries, OxenError> {
     let directory = directory.as_ref();
-    let revision = revision.as_ref();
+    let revision = parsed_resource.version.to_str().unwrap_or("").to_string();
     let page = paginate_opts.page_num;
     let page_size = paginate_opts.page_size;
 
     let resource = Some(ResourceVersion {
         path: directory.to_str().unwrap().to_string(),
-        version: revision.to_string(),
+        version: revision.clone(),
     });
 
     log::debug!(
@@ -84,7 +86,9 @@ pub fn list_directory(
         revision
     );
 
-    let commit = repositories::revisions::get(repo, revision)?
+    let commit = parsed_resource
+        .commit
+        .clone()
         .ok_or(OxenError::revision_not_found(revision.into()))?;
 
     log::debug!("list_directory commit {}", commit);
@@ -103,9 +107,11 @@ pub fn list_directory(
     // Found commits is used to cache the commits so that we don't have
     // to read them from disk again while looping over entries
     let mut found_commits: HashMap<MerkleHash, Commit> = HashMap::new();
-    let dir_entry = dir_node_to_metadata_entry(repo, &dir, &mut found_commits)?;
+    let dir_entry =
+        dir_node_to_metadata_entry(repo, &dir, parsed_resource, &mut found_commits, false)?;
     log::debug!("list_directory dir_entry {:?}", dir_entry);
-    let entries: Vec<MetadataEntry> = dir_entries(repo, &dir, directory, &mut found_commits)?;
+    let entries: Vec<MetadataEntry> =
+        dir_entries(repo, &dir, directory, parsed_resource, &mut found_commits)?;
     let total_pages = 1;
     let total_entries = entries.len();
 
@@ -125,18 +131,30 @@ pub fn list_directory(
 
 pub fn get_meta_entry(
     repo: &LocalRepository,
-    commit: &Commit,
+    parsed_resource: &ParsedResource,
     path: &Path,
 ) -> Result<MetadataEntry, OxenError> {
-    let node = repositories::tree::get_dir_without_children(repo, commit, path)?;
+    let commit = parsed_resource
+        .commit
+        .clone()
+        .ok_or(OxenError::parsed_resource_not_found(
+            parsed_resource.clone(),
+        ))?;
+    let node = repositories::tree::get_dir_without_children(repo, &commit, path)?;
 
     if let Some(node) = node {
-        let metadata = dir_node_to_metadata_entry(repo, &node, &mut HashMap::new())?;
+        let metadata =
+            dir_node_to_metadata_entry(repo, &node, parsed_resource, &mut HashMap::new(), false)?;
         Ok(metadata.unwrap())
     } else {
-        let file_node = get_file_merkle_tree_node(repo, commit, path)?;
+        let file_node = get_file_merkle_tree_node(repo, &commit, path)?;
         if let Some(file_node) = file_node {
-            let metadata = file_node_to_metadata_entry(repo, &file_node, &mut HashMap::new())?;
+            let metadata = file_node_to_metadata_entry(
+                repo,
+                &file_node,
+                parsed_resource,
+                &mut HashMap::new(),
+            )?;
             Ok(metadata.unwrap())
         } else {
             Err(OxenError::resource_not_found(path.to_str().unwrap()))
@@ -148,6 +166,7 @@ pub fn dir_entries(
     repo: &LocalRepository,
     dir: &MerkleTreeNode,
     search_directory: impl AsRef<Path>,
+    parsed_resource: &ParsedResource,
     found_commits: &mut HashMap<MerkleHash, Commit>,
 ) -> Result<Vec<MetadataEntry>, OxenError> {
     log::debug!(
@@ -162,6 +181,7 @@ pub fn dir_entries(
         dir,
         &search_directory,
         &current_directory,
+        parsed_resource,
         found_commits,
         &mut entries,
     )?;
@@ -171,7 +191,11 @@ pub fn dir_entries(
 fn dir_node_to_metadata_entry(
     repo: &LocalRepository,
     node: &MerkleTreeNode,
+    parsed_resource: &ParsedResource,
     found_commits: &mut HashMap<MerkleHash, Commit>,
+    // Should append resource is because at the top level we don't want to append the resource
+    // but when we recurse we do
+    should_append_resource: bool,
 ) -> Result<Option<MetadataEntry>, OxenError> {
     let EMerkleTreeNode::Directory(dir_node) = &node.node else {
         return Ok(None);
@@ -184,12 +208,17 @@ fn dir_node_to_metadata_entry(
     }
 
     let commit = found_commits.get(&dir_node.last_commit_id).unwrap();
+    let mut parsed_resource = parsed_resource.clone();
+    if should_append_resource {
+        parsed_resource.resource = parsed_resource.resource.join(&dir_node.name);
+        parsed_resource.path = parsed_resource.path.join(&dir_node.name);
+    }
 
     Ok(Some(MetadataEntry {
         filename: dir_node.name.clone(),
         is_dir: true,
         latest_commit: Some(commit.clone()),
-        resource: None,
+        resource: Some(parsed_resource.clone()),
         size: dir_node.num_bytes,
         data_type: EntryDataType::Dir,
         mime_type: "inode/directory".to_string(),
@@ -204,6 +233,7 @@ fn dir_node_to_metadata_entry(
 fn file_node_to_metadata_entry(
     repo: &LocalRepository,
     node: &MerkleTreeNode,
+    parsed_resource: &ParsedResource,
     found_commits: &mut HashMap<MerkleHash, Commit>,
 ) -> Result<Option<MetadataEntry>, OxenError> {
     let EMerkleTreeNode::File(file_node) = &node.node else {
@@ -218,11 +248,15 @@ fn file_node_to_metadata_entry(
 
     let commit = found_commits.get(&file_node.last_commit_id).unwrap();
 
+    let mut parsed_resource = parsed_resource.clone();
+    parsed_resource.resource = parsed_resource.resource.join(&file_node.name);
+    parsed_resource.path = parsed_resource.path.join(&file_node.name);
+
     Ok(Some(MetadataEntry {
         filename: file_node.name.clone(),
         is_dir: false,
         latest_commit: Some(commit.clone()),
-        resource: None,
+        resource: Some(parsed_resource.clone()),
         size: file_node.num_bytes,
         data_type: file_node.data_type.clone(),
         mime_type: file_node.mime_type.clone(),
@@ -237,6 +271,7 @@ fn p_dir_entries(
     node: &MerkleTreeNode,
     search_directory: impl AsRef<Path>,
     current_directory: impl AsRef<Path>,
+    parsed_resource: &ParsedResource,
     found_commits: &mut HashMap<MerkleHash, Commit>,
     entries: &mut Vec<MetadataEntry>,
 ) -> Result<(), OxenError> {
@@ -256,6 +291,7 @@ fn p_dir_entries(
                     child,
                     search_directory,
                     current_directory,
+                    parsed_resource,
                     found_commits,
                     entries,
                 )?;
@@ -268,7 +304,13 @@ fn p_dir_entries(
                     child_dir.name
                 );
                 if current_directory == search_directory && !child_dir.name.is_empty() {
-                    let metadata = dir_node_to_metadata_entry(repo, child, found_commits)?;
+                    let metadata = dir_node_to_metadata_entry(
+                        repo,
+                        child,
+                        parsed_resource,
+                        found_commits,
+                        true,
+                    )?;
                     entries.push(metadata.unwrap());
                 }
                 let current_directory = current_directory.join(&child_dir.name);
@@ -277,6 +319,7 @@ fn p_dir_entries(
                     child,
                     search_directory,
                     current_directory,
+                    parsed_resource,
                     found_commits,
                     entries,
                 )?;
@@ -290,7 +333,8 @@ fn p_dir_entries(
                 );
 
                 if current_directory == search_directory {
-                    let metadata = file_node_to_metadata_entry(repo, child, found_commits)?;
+                    let metadata =
+                        file_node_to_metadata_entry(repo, child, parsed_resource, found_commits)?;
                     entries.push(metadata.unwrap());
                 }
             }

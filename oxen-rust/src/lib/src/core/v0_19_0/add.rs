@@ -380,7 +380,8 @@ fn process_add_file(
     }
 
     // Get the data type of the file
-    let data_type = util::fs::file_data_type(&full_path);
+    let mime_type = util::fs::file_mime_type(path);
+    let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
     let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
 
     // Add the file to the versions db
@@ -398,6 +399,10 @@ fn process_add_file(
     let dst = dst_dir.join("data");
     util::fs::copy(&full_path, &dst).unwrap();
 
+    let file_extension = relative_path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
     let entry = StagedMerkleTreeNode {
         status,
@@ -409,6 +414,8 @@ fn process_add_file(
             last_modified_seconds: mtime.unix_seconds(),
             last_modified_nanoseconds: mtime.nanoseconds(),
             metadata,
+            extension: file_extension.to_string(),
+            mime_type: mime_type.clone(),
             ..Default::default()
         }),
     };

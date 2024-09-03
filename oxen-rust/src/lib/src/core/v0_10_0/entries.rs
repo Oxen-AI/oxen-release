@@ -221,8 +221,9 @@ pub fn list_directory(
 pub fn get_meta_entry(
     repo: &LocalRepository,
     commit: &Commit,
-    path: &Path,
+    path: impl AsRef<Path>,
 ) -> Result<MetadataEntry, OxenError> {
+    let path = path.as_ref();
     let object_reader = get_object_reader(repo, &commit.id)?;
     let entry_reader =
         CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
