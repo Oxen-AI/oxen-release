@@ -287,6 +287,33 @@ impl CommitMerkleTree {
         Ok(children)
     }
 
+    /// Get the root directory node given a commit node
+    pub fn get_root_dir_from_commit(
+        node: &MerkleTreeNodeData,
+    ) -> Result<&MerkleTreeNodeData, OxenError> {
+        if node.dtype != MerkleTreeNodeType::Commit {
+            return Err(OxenError::basic_str(
+                "Expected a commit node, but got a different type",
+            ));
+        }
+
+        // A commit node should have exactly one child, which is the root directory
+        if node.children.len() != 1 {
+            return Err(OxenError::basic_str(
+                "Commit node should have exactly one child (root directory)",
+            ));
+        }
+
+        let root_dir = &node.children[0];
+        if root_dir.dtype != MerkleTreeNodeType::Dir {
+            return Err(OxenError::basic_str(
+                "The child of a commit node should be a directory",
+            ));
+        }
+
+        Ok(root_dir)
+    }
+
     pub fn total_vnodes(&self) -> usize {
         self.root.total_vnodes()
     }
