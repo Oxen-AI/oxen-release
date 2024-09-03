@@ -75,7 +75,16 @@ pub fn list_directory_w_version(
             core::v0_10_0::entries::list_directory(repo, directory, revision, paginate_opts)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::entries::list_directory(repo, directory, revision, paginate_opts)
+            let revision = revision.as_ref().to_string();
+            let commit = repositories::revisions::get(repo, &revision)?;
+            let parsed_resource = ParsedResource {
+                path: directory.as_ref().to_path_buf(),
+                commit: commit.clone(),
+                branch: None,
+                version: PathBuf::from(&revision),
+                resource: PathBuf::from(&revision).join(&directory),
+            };
+            core::v0_19_0::entries::list_directory(repo, directory, &parsed_resource, paginate_opts)
         }
     }
 }
@@ -85,11 +94,21 @@ pub fn list_directory_w_version(
 pub fn get_meta_entry(
     repo: &LocalRepository,
     commit: &Commit,
-    path: &Path,
+    path: impl AsRef<Path>,
 ) -> Result<MetadataEntry, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_meta_entry(repo, commit, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_meta_entry(repo, commit, path),
+        MinOxenVersion::V0_10_0 => core::v0_10_0::entries::get_meta_entry(repo, commit, &path),
+        MinOxenVersion::V0_19_0 => {
+            let path = path.as_ref();
+            let parsed_resource = ParsedResource {
+                path: path.to_path_buf(),
+                commit: Some(commit.clone()),
+                branch: None,
+                version: PathBuf::from(&commit.id),
+                resource: PathBuf::from(&commit.id).join(&path),
+            };
+            core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
+        }
     }
 }
 
