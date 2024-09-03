@@ -3,6 +3,7 @@ use clap::{Arg, Command};
 
 use liboxen::command;
 use liboxen::error::OxenError;
+use liboxen::model::data_frame::schema::Schema;
 use liboxen::model::LocalRepository;
 
 use crate::cmd::RunCmd;
@@ -42,7 +43,7 @@ impl RunCmd for SchemasListCmd {
         } else if schemas.is_empty() {
             eprintln!("{}", OxenError::no_schemas_committed());
         } else {
-            let result = liboxen::model::schema::Schema::schemas_to_string(schemas);
+            let result = Schema::schemas_to_string(schemas);
             println!("{result}");
         }
 

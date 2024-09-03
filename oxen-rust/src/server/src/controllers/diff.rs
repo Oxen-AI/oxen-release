@@ -7,6 +7,7 @@ use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
 use liboxen::core::v0_10_0::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
+use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
 use liboxen::model::diff::dir_diff_summary::{DirDiffSummary, DirDiffSummaryImpl};
 use liboxen::model::diff::generic_diff_summary::GenericDiffSummary;
@@ -20,7 +21,7 @@ use liboxen::view::compare::{
 };
 use liboxen::view::compare::{TabularCompareBody, TabularCompareTargetBody};
 use liboxen::view::diff::{DirDiffStatus, DirDiffTreeSummary, DirTreeDiffResponse};
-use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource, JsonDataFrameSource};
+use liboxen::view::json_data_frame_view::{DFResourceType, DerivedDFResource};
 use liboxen::view::message::OxenMessage;
 use liboxen::view::{
     CompareEntriesResponse, JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse,
@@ -641,7 +642,7 @@ pub async fn get_derived_df(
                 view_schema.clone(),
             );
 
-            let source_df = JsonDataFrameSource {
+            let source_df = DataFrameSchemaSize {
                 schema: og_schema,
                 size: source_size,
             };

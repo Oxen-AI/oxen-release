@@ -88,9 +88,10 @@ pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, Oxe
 
 pub fn get_queryable_data_frame_workspace(
     repo: &LocalRepository,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
     commit: &Commit,
 ) -> Result<Workspace, OxenError> {
+    let path = path.as_ref();
     let entry_reader = CommitEntryReader::new(repo, commit)?;
 
     let entry = entry_reader

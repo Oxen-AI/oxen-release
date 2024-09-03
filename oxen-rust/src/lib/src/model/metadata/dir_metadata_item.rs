@@ -2,8 +2,8 @@
 //!
 
 use crate::core::v0_10_0::index::CommitReader;
+use crate::model::data_frame::schema::{DataType, Field};
 use crate::model::metadata::to_duckdb_sql::ToDuckDBSql;
-use crate::model::schema::{DataType, Field};
 use crate::model::LocalRepository;
 use crate::model::Schema;
 use crate::model::{Commit, CommitEntry};

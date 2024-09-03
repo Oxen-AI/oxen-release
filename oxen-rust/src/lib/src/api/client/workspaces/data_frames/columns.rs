@@ -148,7 +148,7 @@ mod tests {
     use crate::config::UserConfig;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
-    use crate::model::schema::field::Changes;
+    use crate::model::data_frame::schema::field::Changes;
     use crate::opts::DFOpts;
     use crate::test;
 

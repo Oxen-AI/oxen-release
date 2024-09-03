@@ -18,9 +18,9 @@ use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, Merger, StagedDirEntryDB,
 };
 use crate::error::OxenError;
+use crate::model::data_frame::schema::staged_schema;
+use crate::model::data_frame::schema::staged_schema::StagedSchema;
 use crate::model::entry::entry_status::EntryStatus;
-use crate::model::schema::staged_schema;
-use crate::model::schema::staged_schema::StagedSchema;
 use crate::repositories;
 
 use indicatif::ProgressStyle;
@@ -28,7 +28,7 @@ use jwalk::WalkDirGeneric;
 
 use crate::opts::DFOpts;
 
-use crate::model::schema;
+use crate::model::data_frame::schema;
 use crate::model::{
     CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus,
