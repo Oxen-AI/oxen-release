@@ -2,8 +2,9 @@
 //!
 
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_19_0::index::merkle_tree::node::DirNode;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::DirNode;
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::MerkleHash;
@@ -31,6 +32,8 @@ use std::sync::Arc;
 
 use std::str::FromStr;
 
+/// Legacy function to get a directory node for a commit
+/// DEPRECIATED: Use `repositories::entries::get_directory` instead.
 pub fn get_directory(
     repo: &LocalRepository,
     commit: &Commit,
@@ -58,6 +61,44 @@ pub fn get_directory(
         last_modified_seconds: entry.last_modified_seconds,
         last_modified_nanoseconds: entry.last_modified_nanoseconds,
         data_type_counts: HashMap::new(),
+        data_type_sizes: HashMap::new(),
+    };
+    Ok(Some(node))
+}
+
+/// Legacy function to get a file node for a commit
+/// DEPRECIATED: Use `repositories::entries::get_file` instead.
+pub fn get_file(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<FileNode>, OxenError> {
+    let path = path.as_ref();
+    let mut entry: Option<CommitEntry> = None;
+    // Try to get the parent of the file path, if it exists to get the proper CommitDirEntryReader
+    if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
+        let object_reader = get_object_reader(&repo, &commit.id)?;
+        let cder = CommitDirEntryReader::new(&repo, &commit.id, parent, object_reader.clone())?;
+        entry = cder.get_entry(file_name)?;
+    }
+
+    let entry = entry.ok_or(OxenError::path_does_not_exist(path))?;
+
+    let node = FileNode {
+        dtype: MerkleTreeNodeType::File,
+        name: entry
+            .path
+            .file_name()
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string(),
+        hash: MerkleHash::from_str(&entry.hash)?,
+        num_bytes: entry.num_bytes,
+        last_commit_id: MerkleHash::from_str(&entry.commit_id)?,
+        last_modified_seconds: entry.last_modified_seconds,
+        last_modified_nanoseconds: entry.last_modified_nanoseconds,
+        ..FileNode::default()
     };
     Ok(Some(node))
 }
@@ -175,6 +216,54 @@ pub fn list_directory(
         total_pages,
         total_entries: total,
     })
+}
+
+pub fn get_meta_entry(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<MetadataEntry, OxenError> {
+    let path = path.as_ref();
+    let object_reader = get_object_reader(repo, &commit.id)?;
+    let entry_reader =
+        CommitEntryReader::new_from_commit_id(repo, &commit.id, object_reader.clone())?;
+    let commit_reader = CommitReader::new(repo)?;
+    let mut commits = commit_reader.history_from_commit_id(&commit.id)?;
+    commits.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
+
+    // Check if the path is a dir or is the root
+    if entry_reader.has_dir(path) || path == Path::new("") {
+        log::debug!("get_meta_entry found dir: {:?}", path);
+        meta_entry_from_dir(
+            repo,
+            object_reader,
+            commit,
+            path,
+            &commit_reader,
+            &commit.id,
+        )
+    } else {
+        log::debug!("get_meta_entry has file: {:?}", path);
+
+        let parent = path.parent().ok_or(OxenError::file_has_no_parent(path))?;
+        let base_name = path.file_name().ok_or(OxenError::file_has_no_name(path))?;
+        let dir_entry_reader =
+            CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
+
+        // load all commit entry readers once
+        let mut commit_entry_readers: Vec<(Commit, CommitDirEntryReader)> = Vec::new();
+
+        for c in commits {
+            let object_reader = get_object_reader(repo, &c.id)?;
+            let reader = CommitDirEntryReader::new(repo, &c.id, parent, object_reader.clone())?;
+            commit_entry_readers.push((c.clone(), reader));
+        }
+
+        let entry = dir_entry_reader
+            .get_entry(base_name)?
+            .ok_or(OxenError::entry_does_not_exist_in_commit(path, &commit.id))?;
+        meta_entry_from_commit_entry(repo, &entry, &commit_entry_readers, &commit.id)
+    }
 }
 
 pub fn get_dir_entry_metadata(
@@ -450,4 +539,39 @@ pub fn meta_entry_from_dir(
         metadata: Some(GenericMetadata::MetadataDir(dir_metadata)),
         is_queryable: None,
     });
+}
+
+pub fn get_commit_history_path(
+    commits: &[(Commit, CommitDirEntryReader)],
+    path: impl AsRef<Path>,
+) -> Result<Vec<Commit>, OxenError> {
+    let os_path = OsPath::from(path.as_ref()).to_pathbuf();
+    let path = os_path
+        .file_name()
+        .ok_or(OxenError::file_has_no_name(&path))?;
+
+    // log::debug!("get_commit_history_path: checking path {:?}", path);
+
+    let mut latest_hash: Option<String> = None;
+    let mut history: Vec<Commit> = Vec::new();
+
+    for (commit, entry_reader) in commits.iter().rev() {
+        if let Some(old_entry) = entry_reader.get_entry(path)? {
+            if latest_hash.is_none() {
+                // This is the first encountered entry; set it as the baseline for comparison.
+                // log::debug!("get_commit_history_path: first entry {:?}", commit);
+                latest_hash = Some(old_entry.hash.clone());
+                history.push(commit.clone()); // Include the first commit as the starting point of history
+            } else if latest_hash.as_ref() != Some(&old_entry.hash) {
+                // A change in hash is detected, indicating an edit. Include this commit in history.
+                // log::debug!("get_commit_history_path: new entry {:?}", commit);
+                latest_hash = Some(old_entry.hash.clone());
+                history.push(commit.clone());
+            }
+        }
+    }
+
+    history.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+
+    Ok(history)
 }

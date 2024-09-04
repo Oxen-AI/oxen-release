@@ -4,10 +4,14 @@
 //!
 
 use crate::constants;
+use crate::constants::DEFAULT_BRANCH_NAME;
 use crate::core;
 use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::index::CommitEntryReader;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::DataTypeStat;
 use crate::model::EntryDataType;
 use crate::model::RepoStats;
@@ -18,12 +22,14 @@ use jwalk::WalkDir;
 use std::collections::HashMap;
 use std::fs::File;
 use std::path::Path;
+use std::str::FromStr;
 
 pub mod add;
 pub mod branches;
 pub mod checkout;
 pub mod clone;
 pub mod commits;
+pub mod data_frames;
 pub mod diffs;
 pub mod entries;
 pub mod init;
@@ -33,7 +39,6 @@ pub mod pull;
 pub mod push;
 pub mod revisions;
 pub mod rm;
-pub mod schemas;
 pub mod status;
 pub mod tree;
 pub mod restore;
@@ -89,6 +94,52 @@ pub fn get_commit_stats_from_id(
 }
 
 pub fn get_repo_stats(repo: &LocalRepository) -> RepoStats {
+    match repo.min_version() {
+        MinOxenVersion::V0_19_0 => get_repo_stats_v0_19_0(repo),
+        MinOxenVersion::V0_10_0 => get_repo_stats_v0_10_0(repo),
+    }
+}
+
+fn get_repo_stats_v0_19_0(repo: &LocalRepository) -> RepoStats {
+    let mut data_size: u64 = 0;
+    let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
+
+    match revisions::get(repo, DEFAULT_BRANCH_NAME) {
+        Ok(Some(commit)) => {
+            let dir = CommitMerkleTree::dir_without_children(repo, &commit, Path::new(""))
+                .unwrap()
+                .unwrap();
+            log::debug!("dir: {:?}", dir);
+            if let EMerkleTreeNode::Directory(dir_node) = dir.node {
+                data_size = dir_node.num_bytes;
+                for data_type_count in dir_node.data_types() {
+                    let data_type = EntryDataType::from_str(&data_type_count.data_type).unwrap();
+                    let count = data_type_count.count;
+                    let size = dir_node
+                        .data_type_sizes
+                        .get(&data_type_count.data_type)
+                        .unwrap();
+                    let data_type_stat = DataTypeStat {
+                        data_size: *size,
+                        data_type: data_type.to_owned(),
+                        file_count: count,
+                    };
+                    data_types.insert(data_type, data_type_stat);
+                }
+            }
+        }
+        _ => {
+            log::debug!("Error getting main branch commit");
+        }
+    }
+
+    RepoStats {
+        data_size,
+        data_types,
+    }
+}
+
+fn get_repo_stats_v0_10_0(repo: &LocalRepository) -> RepoStats {
     let mut data_size: u64 = 0;
     let mut data_types: HashMap<EntryDataType, DataTypeStat> = HashMap::new();
 
@@ -357,8 +408,8 @@ mod tests {
                 message: String::from(constants::INITIAL_COMMIT_MSG),
                 author: String::from("Ox"),
                 email: String::from("ox@oxen.ai"),
-                root_hash: None,
                 timestamp,
+                root_hash: None,
             };
             let repo_new = RepoNew::from_root_commit(namespace, name, root_commit);
             let _repo = repositories::create(sync_dir, repo_new)?;

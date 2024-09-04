@@ -96,6 +96,12 @@ mod tests {
             let train_dir = repo.path.join("train");
             let num_files = util::fs::rcount_files_in_dir(&train_dir);
             repositories::add(&repo, &train_dir)?;
+
+            // Write a README.md file
+            let readme_path = repo.path.join("README.md");
+            let readme_path = test::write_txt_file_to_path(readme_path, "Ready to train 🏋️‍♂️")?;
+            repositories::add(&repo, &readme_path)?;
+
             // Commit the train dir
             let commit = repositories::commit(&repo, "Adding training data")?;
 
@@ -117,6 +123,17 @@ mod tests {
             assert_eq!(entries.total_entries, num_files);
             assert_eq!(entries.entries.len(), num_files);
 
+            // Make sure we can download the file
+            let readme_path = repo.path.join("README.md");
+            let download_path = repo.path.join("README_2.md");
+            api::client::entries::download_entry(&remote_repo, "README.md", &download_path, "main")
+                .await?;
+
+            // Make sure the file is the same
+            let readme_1_contents = util::fs::read_from_path(&download_path)?;
+            let readme_2_contents = util::fs::read_from_path(&readme_path)?;
+            assert_eq!(readme_1_contents, readme_2_contents);
+
             api::client::repositories::delete(&remote_repo).await?;
 
             future::ok::<(), OxenError>(()).await
@@ -125,7 +142,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_command_push_one_commit_check_is_synced() -> Result<(), OxenError> {
+    async fn test_command_push_check_is_synced_one_commit() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits_async(|repo| async {
             let mut repo = repo;
 
@@ -147,9 +164,6 @@ mod tests {
 
             // Push it real good
             repositories::push(&repo).await?;
-
-            // Sleep so it can unpack...
-            std::thread::sleep(std::time::Duration::from_secs(2));
 
             let is_synced = api::client::commits::commit_is_synced(&remote_repo, &commit.id)
                 .await?

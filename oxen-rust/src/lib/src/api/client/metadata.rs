@@ -35,7 +35,7 @@ mod tests {
     use crate::model::EntryDataType;
     use crate::test;
     use crate::view::MetadataEntryResponse;
-    use crate::{api, command, repositories};
+    use crate::{api, repositories};
 
     use std::path::Path;
 

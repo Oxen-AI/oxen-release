@@ -7,7 +7,10 @@
 //! to know how to deserialize the node type
 //!
 
+use crate::model::merkle_tree::merkle_hash::MerkleHash;
+
 use serde::{Deserialize, Serialize};
+use std::fmt::{Debug, Display};
 
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize, Copy)]
 pub enum MerkleTreeNodeType {
@@ -43,3 +46,10 @@ impl MerkleTreeNodeType {
         }
     }
 }
+
+pub trait MerkleTreeNodeIdType {
+    fn dtype(&self) -> MerkleTreeNodeType;
+    fn hash(&self) -> MerkleHash;
+}
+
+pub trait TMerkleTreeNode: MerkleTreeNodeIdType + Serialize + Debug + Display {}

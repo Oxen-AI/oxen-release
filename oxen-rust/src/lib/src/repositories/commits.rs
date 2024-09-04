@@ -5,7 +5,7 @@
 
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository};
+use crate::model::{Commit, LocalRepository, MerkleHash};
 use crate::opts::PaginateOpts;
 use crate::util;
 use crate::view::{PaginatedCommits, StatusMessage};
@@ -83,7 +83,15 @@ pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     }
 }
 
-/// Get a commit by it's hash
+/// Get a commit by it's MerkleHash
+pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<Commit>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::get_by_id(repo, &hash.to_string()),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_by_hash(repo, hash),
+    }
+}
+
+/// Get a commit by it's string hash
 pub fn get_by_id(
     repo: &LocalRepository,
     commit_id: impl AsRef<str>,
@@ -201,7 +209,7 @@ pub fn list_with_missing_entries(
             core::v0_10_0::commits::list_with_missing_entries(repo, commit_id)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::commits::list_with_missing_entries(repo, commit_id)
+            panic!("list_with_missing_entries not needed in v0.19.0");
         }
     }
 }

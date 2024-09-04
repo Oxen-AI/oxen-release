@@ -283,8 +283,8 @@ impl OxenError {
         OxenError::basic_str(err)
     }
 
-    pub fn schema_does_not_exist(schema_ref: impl AsRef<str>) -> OxenError {
-        let err = format!("Schema does not exist {:?}", schema_ref.as_ref());
+    pub fn schema_does_not_exist(path: impl AsRef<Path>) -> OxenError {
+        let err = format!("Schema does not exist {:?}", path.as_ref());
         OxenError::basic_str(err)
     }
 

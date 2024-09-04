@@ -16,29 +16,28 @@ use crate::constants::{HEAD_FILE, STAGED_DIR};
 use crate::core::db;
 use crate::core::db::key_val::str_val_db;
 use crate::core::refs::RefWriter;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleNodeDB;
-use crate::core::v0_19_0::index::merkle_tree::node::{
-    FileChunkType, FileNode, FileStorageType, VNode,
-};
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::index::MerkleNodeDB;
 use crate::core::v0_19_0::status;
-use crate::core::v0_19_0::structs::EntryMetaDataWithPath;
+use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::VNode;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::NewCommit;
 use crate::model::User;
-use crate::model::{Commit, EntryDataType, LocalRepository, StagedEntryStatus};
+use crate::model::{Commit, LocalRepository, StagedEntryStatus};
 
 use crate::{repositories, util};
 
-use super::merkle_tree::node::MerkleTreeNodeData;
-use super::merkle_tree::node::{CommitNode, DirNode};
+use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::{CommitNode, DirNode};
 
 #[derive(Clone)]
 pub struct EntryVNode {
     pub id: MerkleHash,
-    pub entries: Vec<EntryMetaDataWithPath>,
+    pub entries: Vec<StagedMerkleTreeNode>,
 }
 
 impl EntryVNode {
@@ -91,7 +90,7 @@ pub fn commit_with_cfg(
 
     // Read all the staged entries
     let (dir_entries, total_changes) =
-        status::read_staged_entries(&staged_db, &commit_progress_bar)?;
+        status::read_staged_entries(repo, &staged_db, &commit_progress_bar)?;
 
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
@@ -137,7 +136,7 @@ pub fn commit_with_cfg(
         .map(|path| path.to_path_buf())
         .collect::<Vec<_>>();
 
-    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNodeData> = HashMap::new();
+    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
     if let Some(commit) = &maybe_head_commit {
         existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
     }
@@ -183,7 +182,11 @@ pub fn commit_with_cfg(
         parent_id = Some(commit.hash()?);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         for (path, hash) in dir_hashes {
-            str_val_db::put(&dir_hash_db, path, &hash.to_string())?;
+            if let Some(path_str) = path.to_str() {
+                str_val_db::put(&dir_hash_db, path_str, &hash.to_string())?;
+            } else {
+                log::error!("Failed to convert path to string: {:?}", path);
+            }
         }
     }
 
@@ -226,36 +229,28 @@ pub fn commit_with_cfg(
     Ok(node.to_commit())
 }
 
-fn node_data_to_entry(
+fn node_data_to_staged_node(
     base_dir: impl AsRef<Path>,
-    node: &MerkleTreeNodeData,
-) -> Result<Option<EntryMetaDataWithPath>, OxenError> {
+    node: &MerkleTreeNode,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let base_dir = base_dir.as_ref();
-    match node.dtype {
+    match node.node.dtype() {
         MerkleTreeNodeType::Dir => {
-            let dir_node = node.dir()?;
-            Ok(Some(EntryMetaDataWithPath {
-                path: base_dir.join(dir_node.name),
-                data_type: EntryDataType::Dir,
-                hash: node.hash,
-                num_bytes: dir_node.num_bytes,
+            let mut dir_node = node.dir()?;
+            let path = base_dir.join(dir_node.name);
+            dir_node.name = path.to_str().unwrap().to_string();
+            Ok(Some(StagedMerkleTreeNode {
                 status: StagedEntryStatus::Unmodified,
-                last_commit_id: dir_node.last_commit_id,
-                last_modified_seconds: dir_node.last_modified_seconds,
-                last_modified_nanoseconds: dir_node.last_modified_nanoseconds,
+                node: MerkleTreeNode::from_dir(dir_node),
             }))
         }
         MerkleTreeNodeType::File => {
-            let file_node = node.file()?;
-            Ok(Some(EntryMetaDataWithPath {
-                path: base_dir.join(file_node.name),
-                data_type: file_node.data_type,
-                hash: node.hash,
-                num_bytes: file_node.num_bytes,
+            let mut file_node = node.file()?;
+            let path = base_dir.join(file_node.name);
+            file_node.name = path.to_str().unwrap().to_string();
+            Ok(Some(StagedMerkleTreeNode {
                 status: StagedEntryStatus::Unmodified,
-                last_commit_id: file_node.last_commit_id,
-                last_modified_seconds: file_node.last_modified_seconds,
-                last_modified_nanoseconds: file_node.last_modified_nanoseconds,
+                node: MerkleTreeNode::from_file(file_node),
             }))
         }
         _ => Ok(None),
@@ -264,12 +259,12 @@ fn node_data_to_entry(
 
 fn get_node_dir_children(
     base_dir: impl AsRef<Path>,
-    node: &MerkleTreeNodeData,
-) -> Result<HashSet<EntryMetaDataWithPath>, OxenError> {
+    node: &MerkleTreeNode,
+) -> Result<HashSet<StagedMerkleTreeNode>, OxenError> {
     let dir_children = CommitMerkleTree::node_files_and_folders(node)?;
     let children = dir_children
         .into_iter()
-        .flat_map(|child| node_data_to_entry(&base_dir, &child))
+        .flat_map(|child| node_data_to_staged_node(&base_dir, &child))
         .flatten()
         .collect();
 
@@ -279,8 +274,8 @@ fn get_node_dir_children(
 // This should return the directory to vnode mapping that we need to update
 fn split_into_vnodes(
     repo: &LocalRepository,
-    entries: &HashMap<PathBuf, Vec<EntryMetaDataWithPath>>,
-    existing_nodes: &HashMap<PathBuf, MerkleTreeNodeData>,
+    entries: &HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+    existing_nodes: &HashMap<PathBuf, MerkleTreeNode>,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
@@ -307,20 +302,38 @@ fn split_into_vnodes(
             log::debug!("no existing node for {:?}", directory);
         };
 
+        log::debug!("new_children {}", new_children.len());
+
         // Update the children with the new entries from status
         // TODO: Handle updates and deletes, this is pure addition right now
         for child in new_children.iter() {
+            log::debug!(
+                "new_child {:?} {:?}",
+                child.node.node.dtype(),
+                child.node.maybe_path().unwrap()
+            );
             // Overwrite the existing child
-            log::debug!("replacing child {:?} with {:?}", child.path, child);
-            children.replace(child.clone());
+            // if add or modify, replace the child
+            if let Ok(path) = child.node.maybe_path() {
+                if path != PathBuf::from("") {
+                    log::debug!(
+                        "replacing child {:?} {:?} with {:?} {:?}",
+                        child.node.node.dtype(),
+                        path,
+                        child.node.node.dtype(),
+                        child.node.maybe_path().unwrap()
+                    );
+                    children.replace(child.clone());
+                }
+            }
         }
 
         // Log the children
         for child in children.iter() {
             log::debug!(
-                "  child {:?} has {:?} bytes and status {:?}",
-                child.path,
-                child.num_bytes,
+                "  child populated {:?} {:?} status {:?}",
+                child.node.node.dtype(),
+                child.node.maybe_path().unwrap(),
                 child.status
             );
         }
@@ -345,7 +358,7 @@ fn split_into_vnodes(
 
         // Split entries into vnodes
         for child in children.into_iter() {
-            let bucket = child.hash.to_u128() % num_vnodes;
+            let bucket = child.node.hash.to_u128() % num_vnodes;
             vnode_children[bucket as usize].entries.push(child.clone());
         }
 
@@ -353,7 +366,12 @@ fn split_into_vnodes(
         for vnode in vnode_children.iter_mut() {
             // Sort the entries in the vnode by path
             // to make searching for entries faster
-            vnode.entries.sort_by(|a, b| a.path.cmp(&b.path));
+            vnode.entries.sort_by(|a, b| {
+                a.node
+                    .maybe_path()
+                    .unwrap()
+                    .cmp(&b.node.maybe_path().unwrap())
+            });
 
             // Compute hash for the vnode
             let mut vnode_hasher = xxhash_rust::xxh3::Xxh3::new();
@@ -363,7 +381,7 @@ fn split_into_vnodes(
 
             let mut has_new_entries = false;
             for entry in vnode.entries.iter() {
-                vnode_hasher.update(&entry.hash.to_le_bytes());
+                vnode_hasher.update(&entry.node.hash.to_le_bytes());
                 if entry.status != StagedEntryStatus::Unmodified {
                     has_new_entries = true;
                 }
@@ -392,9 +410,9 @@ fn split_into_vnodes(
             log::debug!("  vnode {} has {} entries", vnode.id, vnode.entries.len());
             for entry in vnode.entries.iter() {
                 log::debug!(
-                    "    entry {:?} has {:?} bytes with status {:?}",
-                    entry.path,
-                    entry.num_bytes,
+                    "    entry {:?} {} with status {:?}",
+                    entry.node.node.dtype(),
+                    entry.node.maybe_path().unwrap().to_str().unwrap(),
                     entry.status
                 );
             }
@@ -462,6 +480,8 @@ fn r_create_dir_node(
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
 
+    log::debug!("r_create_dir_node entries.keys() {:?}", entries.keys());
+
     let Some(vnodes) = entries.get(&path) else {
         let err_msg = format!(
             "r_create_dir_node No entries found for directory {:?}",
@@ -499,22 +519,19 @@ fn r_create_dir_node(
             maybe_dir_db.as_ref().map(|db| db.node_id),
         )?;
         for entry in vnode.entries.iter() {
-            log::debug!(
-                "Processing entry {:?} [{:?}] in vnode {}",
-                entry.path,
-                entry.data_type,
-                vnode.id
-            );
-            match entry.data_type {
-                EntryDataType::Dir => {
+            log::debug!("Processing entry {} in vnode {}", entry.node, vnode.id);
+            match &entry.node.node {
+                EMerkleTreeNode::Directory(node) => {
                     // If the dir has updates, we need a new dir db
-                    let dir_node = if entries.contains_key(&entry.path) {
+                    let dir_path = entry.node.maybe_path().unwrap();
+                    log::debug!("Processing dir node {:?}", dir_path);
+                    let dir_node = if entries.contains_key(&dir_path) {
                         let dir_node = compute_dir_node(
                             repo,
                             maybe_head_commit,
                             commit_id,
                             entries,
-                            &entry.path,
+                            &dir_path,
                         )?;
 
                         // if let Some(vnode_db) = &mut maybe_vnode_db {
@@ -545,15 +562,15 @@ fn r_create_dir_node(
                             &mut child_db,
                             dir_hash_db,
                             entries,
-                            &entry.path,
+                            &dir_path,
                             total_written,
                         )?;
                         dir_node
                     } else {
-                        log::debug!("r_create_dir_node skipping {:?}", entry.path);
+                        log::debug!("r_create_dir_node skipping {:?}", dir_path);
                         // Look up the old dir node and reference it
                         let old_dir_node =
-                            CommitMerkleTree::read_node(repo, &entry.hash, false)?.unwrap();
+                            CommitMerkleTree::read_node(repo, &node.hash, false)?.unwrap();
                         let dir_node = old_dir_node.dir()?;
 
                         // if let Some(vnode_db) = &mut maybe_vnode_db {
@@ -566,51 +583,48 @@ fn r_create_dir_node(
                     // Always write the dir hash to the dir_hashes db
                     str_val_db::put(
                         dir_hash_db,
-                        entry.path.to_str().unwrap(),
+                        dir_path.to_str().unwrap(),
                         &dir_node.hash.to_string(),
                     )?;
                 }
-                _ => {
-                    let file_name = entry.path.file_name().unwrap_or_default().to_str().unwrap();
+                EMerkleTreeNode::File(file_node) => {
+                    let mut file_node = file_node.clone();
+                    let file_path = PathBuf::from(&file_node.name);
+                    let file_name = file_path.file_name().unwrap().to_str().unwrap();
 
                     log::debug!(
                         "Processing file {:?} in vnode {} in commit {}",
-                        entry.path,
+                        path,
                         vnode.id,
                         commit_id
                     );
 
                     // Just single file chunk for now
-                    let chunks = vec![entry.hash.to_u128()];
-                    let file_node = FileNode {
-                        name: file_name.to_owned(),
-                        hash: entry.hash,
-                        num_bytes: entry.num_bytes,
-                        chunk_type: FileChunkType::SingleFile,
-                        storage_backend: FileStorageType::Disk,
-                        last_commit_id: if entry.status == StagedEntryStatus::Unmodified {
-                            entry.last_commit_id
-                        } else {
-                            commit_id
-                        },
-                        last_modified_seconds: entry.last_modified_seconds,
-                        last_modified_nanoseconds: entry.last_modified_nanoseconds,
-                        chunk_hashes: chunks,
-                        data_type: entry.data_type.clone(),
-                        mime_type: "".to_string(),
-                        extension: "".to_string(),
-                        dtype: MerkleTreeNodeType::File,
+                    let chunks = vec![file_node.hash.to_u128()];
+                    file_node.chunk_hashes = chunks;
+                    file_node.last_commit_id = if entry.status == StagedEntryStatus::Unmodified {
+                        file_node.last_commit_id
+                    } else {
+                        commit_id
                     };
+                    file_node.name = file_name.to_string();
+
                     // if let Some(vnode_db) = &mut maybe_vnode_db {
                     log::debug!(
-                        "Adding file {:?} to vnode {} in commit {}",
-                        entry.path,
+                        "Adding file {} to vnode {} in commit {}",
+                        file_name,
                         vnode.id,
                         commit_id
                     );
                     vnode_db.add_child(&file_node)?;
                     *total_written += 1;
                     // }
+                }
+                _ => {
+                    return Err(OxenError::basic_str(format!(
+                        "r_create_dir_node found unexpected node type: {:?}",
+                        entry.node
+                    )));
                 }
             }
         }
@@ -654,15 +668,18 @@ fn compute_dir_node(
     hasher.update(path.to_str().unwrap().as_bytes());
 
     let mut num_bytes = 0;
-    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+    let mut data_type_counts: HashMap<String, u64> = HashMap::new();
+    let mut data_type_sizes: HashMap<String, u64> = HashMap::new();
 
     // Collect the previous commit counts
     if let Some(head_commit) = maybe_head_commit {
         if let Ok(Some(old_dir_node)) =
             CommitMerkleTree::dir_without_children(repo, head_commit, &path)
         {
+            let old_dir_node = old_dir_node.dir().unwrap();
             num_bytes = old_dir_node.num_bytes;
             data_type_counts = old_dir_node.data_type_counts;
+            data_type_sizes = old_dir_node.data_type_sizes;
         };
     }
 
@@ -683,30 +700,42 @@ fn compute_dir_node(
         for vnode in vnodes.iter() {
             for entry in vnode.entries.iter() {
                 log::debug!("Aggregating entry {}", entry);
-                match entry.data_type {
-                    EntryDataType::Dir => {
-                        log::debug!("No need to aggregate {:?}", entry.path);
+                match &entry.node.node {
+                    EMerkleTreeNode::Directory(node) => {
+                        log::debug!("No need to aggregate dir {}", node.name);
                     }
-                    _ => {
-                        hasher.update(&entry.hash.to_le_bytes());
+                    EMerkleTreeNode::File(file_node) => {
+                        hasher.update(&file_node.hash.to_le_bytes());
 
                         match entry.status {
                             StagedEntryStatus::Added => {
-                                num_bytes += entry.num_bytes;
+                                num_bytes += file_node.num_bytes;
                                 *data_type_counts
-                                    .entry(entry.data_type.to_string())
+                                    .entry(file_node.data_type.to_string())
                                     .or_insert(0) += 1;
+                                *data_type_sizes
+                                    .entry(file_node.data_type.to_string())
+                                    .or_insert(0) += file_node.num_bytes;
                             }
                             StagedEntryStatus::Removed => {
-                                num_bytes -= entry.num_bytes;
+                                num_bytes -= file_node.num_bytes;
                                 *data_type_counts
-                                    .entry(entry.data_type.to_string())
+                                    .entry(file_node.data_type.to_string())
                                     .or_insert(1) -= 1;
+                                *data_type_sizes
+                                    .entry(file_node.data_type.to_string())
+                                    .or_insert(0) -= file_node.num_bytes;
                             }
                             _ => {
                                 // Do nothing
                             }
                         }
+                    }
+                    _ => {
+                        return Err(OxenError::basic_str(format!(
+                            "compute_dir_node found unexpected node type: {:?}",
+                            entry.node
+                        )));
                     }
                 }
             }
@@ -731,6 +760,7 @@ fn compute_dir_node(
         last_modified_seconds: 0,
         last_modified_nanoseconds: 0,
         data_type_counts,
+        data_type_sizes,
     };
     Ok(node)
 }
@@ -740,7 +770,7 @@ mod tests {
     use std::collections::HashSet;
     use std::path::Path;
 
-    use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+    use crate::core::v0_19_0::index::CommitMerkleTree;
     use crate::core::versions::MinOxenVersion;
     use crate::error::OxenError;
     use crate::model::MerkleHash;
@@ -810,7 +840,7 @@ mod tests {
             assert_eq!(dir_node.unwrap().name, "");
 
             // Make sure dir node has one child, the VNode
-            let vnode_data = dir_node_data.children.iter().next().unwrap();
+            let vnode_data = dir_node_data.children.first().unwrap();
             let vnode = vnode_data.vnode();
             assert!(vnode.is_ok());
 
@@ -819,15 +849,15 @@ mod tests {
             assert_eq!(vnode_children.len(), 3);
 
             // Check that files.csv is in the merkle tree
-            let has_paths_csv = tree.has_path(&Path::new("files.csv"))?;
+            let has_paths_csv = tree.has_path(Path::new("files.csv"))?;
             assert!(has_paths_csv);
 
             // Check that README.md is in the merkle tree
-            let has_readme = tree.has_path(&Path::new("README.md"))?;
+            let has_readme = tree.has_path(Path::new("README.md"))?;
             assert!(has_readme);
 
             // Check that files/dir_0/file0.txt is in the merkle tree
-            let has_path0 = tree.has_path(&Path::new("files/dir_0/file0.txt"))?;
+            let has_path0 = tree.has_path(Path::new("files/dir_0/file0.txt"))?;
             assert!(has_path0);
 
             Ok(())
@@ -842,7 +872,7 @@ mod tests {
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("all_files/dir_0/new_file.txt");
-            util::fs::create_dir_all(&new_file.parent().unwrap())?;
+            util::fs::create_dir_all(new_file.parent().unwrap())?;
             util::fs::write_to_path(&new_file, "New file")?;
             repositories::add(&repo, &repo.path)?;
 
@@ -856,7 +886,7 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            let has_path0 = tree.has_path(&Path::new("all_files/dir_0/new_file.txt"))?;
+            let has_path0 = tree.has_path(Path::new("all_files/dir_0/new_file.txt"))?;
             assert!(has_path0);
 
             Ok(())
@@ -871,7 +901,7 @@ mod tests {
 
             // Add a new file to files/dir_0/
             let new_file = repo.path.join("files/dir_0/new_file.txt");
-            util::fs::create_dir_all(&new_file.parent().unwrap())?;
+            util::fs::create_dir_all(new_file.parent().unwrap())?;
             util::fs::write_to_path(&new_file, "New file")?;
             repositories::add(&repo, &new_file)?;
 
@@ -885,7 +915,7 @@ mod tests {
             let tree = CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.print();
 
-            let has_path0 = tree.has_path(&Path::new("files/dir_0/new_file.txt"))?;
+            let has_path0 = tree.has_path(Path::new("files/dir_0/new_file.txt"))?;
             assert!(has_path0);
 
             Ok(())
@@ -911,7 +941,7 @@ mod tests {
             first_tree.print();
 
             // Get the original root dir file count
-            let original_root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let original_root_node = first_tree.get_by_path(Path::new(""))?.unwrap();
             let original_root_dir = original_root_node.dir()?;
             let original_root_dir_file_count = original_root_dir.num_files();
 
@@ -938,7 +968,7 @@ mod tests {
             second_tree.print();
 
             // Make sure the root dir file count is the same
-            let updated_root_dir = second_tree.get_by_path(&Path::new(""))?;
+            let updated_root_dir = second_tree.get_by_path(Path::new(""))?;
             let updated_root_dir = updated_root_dir.unwrap().dir()?;
             let updated_root_dir_file_count = updated_root_dir.num_files();
             assert_eq!(updated_root_dir_file_count, original_root_dir_file_count);
@@ -966,7 +996,7 @@ mod tests {
             first_tree.print();
 
             // Count the number of files in the files/dir_1 dir
-            let original_dir_1_node = first_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let original_dir_1_node = first_tree.get_by_path(Path::new("files/dir_1"))?;
             let original_dir_1_node = original_dir_1_node.unwrap().dir()?;
             let original_dir_1_file_count = original_dir_1_node.num_files();
 
@@ -991,25 +1021,25 @@ mod tests {
 
             assert_eq!(second_tree.total_vnodes(), 5);
 
-            assert!(!first_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
-            assert!(second_tree.has_path(&Path::new("files/dir_1/new_file.txt"))?);
+            assert!(!first_tree.has_path(Path::new("files/dir_1/new_file.txt"))?);
+            assert!(second_tree.has_path(Path::new("files/dir_1/new_file.txt"))?);
 
             // Make sure the last commit id is updated on new_file.txt
-            let updated_node = second_tree.get_by_path(&Path::new("files/dir_1/new_file.txt"))?;
+            let updated_node = second_tree.get_by_path(Path::new("files/dir_1/new_file.txt"))?;
             assert!(updated_node.is_some());
             let updated_file_node = updated_node.unwrap().file()?;
             let updated_commit_id = updated_file_node.last_commit_id.to_string();
             assert_eq!(updated_commit_id, second_commit.id);
 
             // Make sure that last commit id is not updated on other files in the dir
-            let other_file_node = second_tree.get_by_path(&Path::new("files/dir_1/file7.txt"))?;
+            let other_file_node = second_tree.get_by_path(Path::new("files/dir_1/file7.txt"))?;
             assert!(other_file_node.is_some());
             let other_file_node = other_file_node.unwrap().file()?;
             let other_commit_id = other_file_node.last_commit_id.to_string();
             assert_eq!(other_commit_id, first_commit.id);
 
             // Make sure last commit is updated on the dir
-            let dir_node = second_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let dir_node = second_tree.get_by_path(Path::new("files/dir_1"))?;
             assert!(dir_node.is_some());
             let dir_node = dir_node.unwrap().dir()?;
             let dir_commit_id = dir_node.last_commit_id.to_string();
@@ -1017,15 +1047,15 @@ mod tests {
 
             // Make sure the hashes of the directories are valid
             // We should update the hashes of dir_1 and all it's parents, but none of the siblings
-            let first_tree_dir_1 = first_tree.get_by_path(&Path::new("files/dir_1"))?;
-            let second_tree_dir_1 = second_tree.get_by_path(&Path::new("files/dir_1"))?;
+            let first_tree_dir_1 = first_tree.get_by_path(Path::new("files/dir_1"))?;
+            let second_tree_dir_1 = second_tree.get_by_path(Path::new("files/dir_1"))?;
             assert!(first_tree_dir_1.is_some());
             assert!(second_tree_dir_1.is_some());
             assert!(first_tree_dir_1.unwrap().hash != second_tree_dir_1.unwrap().hash);
 
             // Make sure there is one vnode in each dir
-            let first_tree_vnodes = first_tree.get_vnodes_for_dir(&Path::new("files/dir_1"))?;
-            let second_tree_vnodes = second_tree.get_vnodes_for_dir(&Path::new("files/dir_1"))?;
+            let first_tree_vnodes = first_tree.get_vnodes_for_dir(Path::new("files/dir_1"))?;
+            let second_tree_vnodes = second_tree.get_vnodes_for_dir(Path::new("files/dir_1"))?;
             assert_eq!(first_tree_vnodes.len(), 1);
             assert_eq!(second_tree_vnodes.len(), 1);
 
@@ -1033,8 +1063,8 @@ mod tests {
             assert!(first_tree_vnodes[0].hash != second_tree_vnodes[0].hash);
 
             // Siblings should be the same
-            let first_tree_dir_0 = first_tree.get_by_path(&Path::new("files/dir_0"))?;
-            let second_tree_dir_0 = second_tree.get_by_path(&Path::new("files/dir_0"))?;
+            let first_tree_dir_0 = first_tree.get_by_path(Path::new("files/dir_0"))?;
+            let second_tree_dir_0 = second_tree.get_by_path(Path::new("files/dir_0"))?;
             assert!(first_tree_dir_0.is_some());
             assert!(second_tree_dir_0.is_some());
             assert_eq!(
@@ -1043,15 +1073,15 @@ mod tests {
             );
 
             // Parent should be updated
-            let first_tree_files = first_tree.get_by_path(&Path::new("files"))?;
-            let second_tree_files = second_tree.get_by_path(&Path::new("files"))?;
+            let first_tree_files = first_tree.get_by_path(Path::new("files"))?;
+            let second_tree_files = second_tree.get_by_path(Path::new("files"))?;
             assert!(first_tree_files.is_some());
             assert!(second_tree_files.is_some());
             assert!(first_tree_files.unwrap().hash != second_tree_files.unwrap().hash);
 
             // Root should be updated
-            let first_tree_root = first_tree.get_by_path(&Path::new(""))?;
-            let second_tree_root = second_tree.get_by_path(&Path::new(""))?;
+            let first_tree_root = first_tree.get_by_path(Path::new(""))?;
+            let second_tree_root = second_tree.get_by_path(Path::new(""))?;
             assert!(first_tree_root.is_some());
             assert!(second_tree_root.is_some());
             assert!(first_tree_root.unwrap().hash != second_tree_root.unwrap().hash);
@@ -1059,7 +1089,7 @@ mod tests {
             // Read the first tree again, and make sure the file count of the files/dir_1 is the same as the first time we read it
             let first_tree_again = CommitMerkleTree::from_commit(&repo, &first_commit)?;
             first_tree_again.print();
-            let dir_1_node_again = first_tree_again.get_by_path(&Path::new("files/dir_1"))?;
+            let dir_1_node_again = first_tree_again.get_by_path(Path::new("files/dir_1"))?;
             let dir_1_node_again = dir_1_node_again.unwrap().dir()?;
             let dir_1_file_count_again = dir_1_node_again.num_files();
             assert_eq!(original_dir_1_file_count, dir_1_file_count_again);
@@ -1089,16 +1119,16 @@ mod tests {
             first_tree.print();
 
             // Make sure we have the correct number of vnodes
-            let root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let root_node = first_tree.get_by_path(Path::new(""))?.unwrap();
             // The root dir should have one vnode because there are only 3 files/dirs (README.md, files.csv, files)
             assert_eq!(root_node.num_vnodes(), 1);
 
             // Both dir_0 and dir_1 should have 3 vnodes each (vnode size is 5 and there will be 12 and 13 files respectively)
             // 12 / 5 = 2.4 -> 3 vnodes
             // 13 / 5 = 2.6 -> 3 vnodes
-            let dir_0_node = first_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            let dir_0_node = first_tree.get_by_path(Path::new("files/dir_0"))?.unwrap();
             assert_eq!(dir_0_node.num_vnodes(), 3);
-            let dir_1_node = first_tree.get_by_path(&Path::new("files/dir_1"))?.unwrap();
+            let dir_1_node = first_tree.get_by_path(Path::new("files/dir_1"))?.unwrap();
             assert_eq!(dir_1_node.num_vnodes(), 3);
 
             // Add a news files
@@ -1150,13 +1180,13 @@ mod tests {
             first_tree.print();
 
             // Make sure we have the correct number of vnodes
-            let root_node = first_tree.get_by_path(&Path::new(""))?.unwrap();
+            let root_node = first_tree.get_by_path(Path::new(""))?.unwrap();
             // The root dir should have one vnode because there are only 3 files/dirs (README.md, files.csv, files)
             assert_eq!(root_node.num_vnodes(), 1);
 
             // There should only be 3 vnodes in the dir
             // 20 / 6 = 3.333 -> 4 vnodes
-            let dir_0_node = first_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            let dir_0_node = first_tree.get_by_path(Path::new("files/dir_0"))?.unwrap();
             assert_eq!(dir_0_node.num_vnodes(), 4);
 
             // Add a news file
@@ -1178,7 +1208,7 @@ mod tests {
             let second_tree = CommitMerkleTree::from_commit(&repo, &second_commit)?;
             second_tree.print();
 
-            let second_dir_0_node = second_tree.get_by_path(&Path::new("files/dir_0"))?.unwrap();
+            let second_dir_0_node = second_tree.get_by_path(Path::new("files/dir_0"))?.unwrap();
             assert_eq!(second_dir_0_node.num_vnodes(), 4);
 
             // Make sure 3 of the vnodes have the same hash as the first vnode
@@ -1216,7 +1246,7 @@ mod tests {
             let first_tree = CommitMerkleTree::from_commit(&repo, &first_commit)?;
             first_tree.print();
 
-            let original_readme_node = first_tree.get_by_path(&Path::new("README.md"))?;
+            let original_readme_node = first_tree.get_by_path(Path::new("README.md"))?;
             assert!(original_readme_node.is_some());
             let original_readme_node = original_readme_node.unwrap();
             let original_readme_hash = original_readme_node.hash;
@@ -1241,7 +1271,7 @@ mod tests {
             second_tree.print();
 
             // Make sure the README.md hash is different
-            let updated_readme_node = second_tree.get_by_path(&Path::new("README.md"))?;
+            let updated_readme_node = second_tree.get_by_path(Path::new("README.md"))?;
             assert!(updated_readme_node.is_some());
             let updated_readme_node = updated_readme_node.unwrap();
             let updated_readme_hash = updated_readme_node.hash;

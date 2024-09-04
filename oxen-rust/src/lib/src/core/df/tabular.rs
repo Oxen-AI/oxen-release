@@ -8,11 +8,12 @@ use crate::constants;
 use crate::core::df::filter::DFLogicalOp;
 use crate::core::df::{pretty_print, sql};
 
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::error::OxenError;
 use crate::io::chunk_reader::ChunkReader;
-use crate::model::schema::DataType;
-use crate::model::{DataFrameSize, LocalRepository};
+use crate::model::data_frame::data_frame_size::DataFrameSize;
+use crate::model::data_frame::schema::DataType;
+use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::LocalRepository;
 use crate::opts::{CountLinesOpts, DFOpts, PaginateOpts};
 use crate::util::fs;
 use crate::util::hasher;
@@ -750,6 +751,52 @@ fn sniff_db_csv_delimiter(path: impl AsRef<Path>, opts: &DFOpts) -> Result<u8, O
     }
 }
 
+pub fn read_df_with_extension(
+    path: impl AsRef<Path>,
+    extension: impl AsRef<str>,
+    opts: &DFOpts,
+) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let extension = extension.as_ref();
+    if !path.exists() {
+        return Err(OxenError::entry_does_not_exist(path));
+    }
+
+    let df = match extension {
+        "ndjson" => read_df_jsonl(path),
+        "jsonl" => read_df_jsonl(path),
+        "json" => read_df_json(path),
+        "csv" | "data" => {
+            let delimiter = sniff_db_csv_delimiter(path, &opts)?;
+            read_df_csv(path, delimiter)
+        }
+        "tsv" => read_df_csv(path, b'\t'),
+        "parquet" => read_df_parquet(path),
+        "arrow" => {
+            if opts.sql.is_some() {
+                return Err(OxenError::basic_str(
+                    "Error: SQL queries are not supported for .arrow files",
+                ));
+            }
+            read_df_arrow(path)
+        }
+        _ => {
+            let err = format!(
+                "Could not load data frame with path: {path:?} and extension: {extension:?}"
+            );
+            Err(OxenError::basic_str(err))
+        }
+    }?;
+
+    // log::debug!("Read finished");
+    if opts.has_transform() {
+        let df = transform_new(df, opts.clone())?;
+        Ok(df.collect()?)
+    } else {
+        Ok(df.collect()?)
+    }
+}
+
 pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     if !path.exists() {
@@ -757,38 +804,12 @@ pub fn read_df(path: impl AsRef<Path>, opts: DFOpts) -> Result<DataFrame, OxenEr
     }
 
     let extension = path.extension().and_then(OsStr::to_str);
-    let err = format!("Unknown file type read_df {path:?} -> {extension:?}");
+    let err = format!("Could not load data frame with path: {path:?} and extension: {extension:?}");
 
-    let df = match extension {
-        Some(extension) => match extension {
-            "ndjson" => read_df_jsonl(path),
-            "jsonl" => read_df_jsonl(path),
-            "json" => read_df_json(path),
-            "csv" | "data" => {
-                let delimiter = sniff_db_csv_delimiter(path, &opts)?;
-                read_df_csv(path, delimiter)
-            }
-            "tsv" => read_df_csv(path, b'\t'),
-            "parquet" => read_df_parquet(path),
-            "arrow" => {
-                if opts.sql.is_some() {
-                    return Err(OxenError::basic_str(
-                        "Error: SQL queries are not supported for .arrow files",
-                    ));
-                }
-                read_df_arrow(path)
-            }
-            _ => Err(OxenError::basic_str(err)),
-        },
-        None => Err(OxenError::basic_str(err)),
-    }?;
-
-    // log::debug!("Read finished");
-    if opts.has_transform() {
-        let df = transform_new(df, opts)?;
-        Ok(df.collect()?)
+    if let Some(extension) = extension {
+        read_df_with_extension(path, extension, &opts)
     } else {
-        Ok(df.collect()?)
+        Err(OxenError::basic_str(err))
     }
 }
 
@@ -986,7 +1007,7 @@ pub fn copy_df_add_row_num(
 
 pub fn show_node(
     repo: LocalRepository,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     opts: DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let file_node = node.file()?;

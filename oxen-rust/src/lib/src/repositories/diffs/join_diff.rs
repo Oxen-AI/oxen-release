@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
+use crate::model::data_frame::schema::Field;
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
     TabularDiffSummary, TabularSchemaDiff,
 };
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
-use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::view::compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,

@@ -8,6 +8,7 @@ use crate::repositories;
 use crate::constants::{
     HISTORY_DIR, OBJECT_DIRS_DIR, OBJECT_FILES_DIR, OBJECT_SCHEMAS_DIR, OBJECT_VNODES_DIR, TREE_DIR,
 };
+use crate::core;
 use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::tree_db::{self, TreeObject};
@@ -561,7 +562,7 @@ fn list_by_file(
     path: &Path,
     commit_entry_readers: &[(Commit, CommitDirEntryReader)],
 ) -> Result<Vec<Commit>, OxenError> {
-    repositories::entries::get_commit_history_path(commit_entry_readers, path)
+    core::v0_10_0::entries::get_commit_history_path(commit_entry_readers, path)
 }
 
 fn paginate_and_format_results(
@@ -688,7 +689,7 @@ pub fn merge_objects_dbs(repo_objects_dir: &Path, tmp_objects_dir: &Path) -> Res
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;

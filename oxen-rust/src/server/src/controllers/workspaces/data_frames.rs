@@ -7,6 +7,7 @@ use crate::params::{app_data, df_opts_query, path_param, DFOptsQuery, PageNumQue
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::constants::TABLE_NAME;
 use liboxen::core::db::data_frames::{df_db, workspace_df_db};
+use liboxen::core::v0_10_0::index::workspaces;
 use liboxen::error::OxenError;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
@@ -18,7 +19,6 @@ use liboxen::view::entries::{PaginatedMetadataEntries, PaginatedMetadataEntriesR
 use liboxen::view::json_data_frame_view::WorkspaceJsonDataFrameViewResponse;
 use liboxen::view::{JsonDataFrameViewResponse, JsonDataFrameViews, StatusMessage};
 use liboxen::{constants, core::v0_10_0::index};
-use liboxen::core::v0_10_0::index::workspaces;
 
 pub mod columns;
 pub mod rows;
@@ -57,8 +57,7 @@ pub async fn get_by_resource(
         return Ok(HttpResponse::Ok().json(response));
     }
 
-    let staged_db_path =
-        workspaces::data_frames::duckdb_path(&workspace, &file_path);
+    let staged_db_path = workspaces::data_frames::duckdb_path(&workspace, &file_path);
 
     let conn = df_db::get_connection(staged_db_path)?;
 
@@ -76,8 +75,11 @@ pub async fn get_by_resource(
     };
 
     let og_schema = if let Some(schema) =
-        repositories::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, &resource.path)?
-    {
+        repositories::data_frames::schemas::get_by_path_from_revision(
+            &repo,
+            &workspace.commit.id,
+            &resource.path,
+        )? {
         schema
     } else {
         Schema::from_polars(&df.schema())
@@ -186,8 +188,11 @@ pub async fn diff(
     };
 
     let og_schema = if let Some(schema) =
-        repositories::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, resource.path)?
-    {
+        repositories::data_frames::schemas::get_by_path_from_revision(
+            &repo,
+            &workspace.commit.id,
+            resource.path,
+        )? {
         schema
     } else {
         Schema::from_polars(&df.schema())

@@ -470,14 +470,14 @@ impl StagedData {
 
             self.__collapse_outputs(
                 &dirs,
-                |(path, size)| {
+                |(path, _size)| {
                     let path_str = path.to_str().unwrap();
                     let num_spaces = max_dir_len - path_str.len();
                     vec![
-                        format!("  {}/ {}", path_str, StagedData::spaces(num_spaces))
+                        format!("  {}/ {}\n", path_str, StagedData::spaces(num_spaces))
                             .red()
                             .bold(),
-                        format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
+                        // format!("({} {})\n", size, StagedData::item_str_plural(*size)).normal(),
                     ]
                 },
                 outputs,

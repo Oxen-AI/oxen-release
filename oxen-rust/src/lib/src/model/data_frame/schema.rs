@@ -354,8 +354,8 @@ mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
 
-    use crate::model::schema::Field;
-    use crate::model::schema::Schema;
+    use crate::model::data_frame::schema::Field;
+    use crate::model::data_frame::schema::Schema;
 
     #[test]
     fn test_schemas_to_string_one_field() {

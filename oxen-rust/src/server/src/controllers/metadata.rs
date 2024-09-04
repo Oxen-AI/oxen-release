@@ -4,11 +4,12 @@ use crate::params::{app_data, parse_resource, path_param, AggregateQuery};
 
 use liboxen::core;
 use liboxen::error::OxenError;
+use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::DataFrameSize;
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::opts::DFOpts;
 use liboxen::view::entries::ResourceVersion;
-use liboxen::view::json_data_frame_view::JsonDataFrameSource;
+
 use liboxen::view::{
     JsonDataFrame, JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews,
     MetadataEntryResponse, Pagination, StatusMessage,
@@ -51,6 +52,7 @@ pub async fn file(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     Ok(HttpResponse::Ok().json(meta))
 }
 
+/// TODO: Depreciate this API
 pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -101,7 +103,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
 
     let df = JsonDataFrame::from_df(&mut sliced_df);
 
-    let source_df = JsonDataFrameSource {
+    let source_df = DataFrameSchemaSize {
         schema: df.schema.clone(),
         size: full_size,
     };
@@ -134,6 +136,7 @@ pub async fn dir(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpEr
     Ok(HttpResponse::Ok().json(response))
 }
 
+/// TODO: Depreciate this API
 pub async fn agg_dir(
     req: HttpRequest,
     query: web::Query<AggregateQuery>,
@@ -185,7 +188,7 @@ pub async fn agg_dir(
         };
 
         let df = JsonDataFrame::from_df(&mut df);
-        let full_df = JsonDataFrameSource {
+        let full_df = DataFrameSchemaSize {
             schema: df.schema.clone(),
             size: df.full_size.clone(),
         };

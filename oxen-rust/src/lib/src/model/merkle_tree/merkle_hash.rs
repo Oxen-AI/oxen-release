@@ -37,7 +37,7 @@ impl fmt::Display for MerkleHash {
 
 impl fmt::Debug for MerkleHash {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MerkleHash({})", self.to_string())
+        write!(f, "MerkleHash({})", self)
     }
 }
 

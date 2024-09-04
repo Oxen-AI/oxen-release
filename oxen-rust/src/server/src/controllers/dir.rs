@@ -48,7 +48,6 @@ mod tests {
     use actix_web::{web, App};
     use std::path::Path;
 
-    
     use liboxen::error::OxenError;
     use liboxen::repositories;
     use liboxen::util;

@@ -1,7 +1,5 @@
 use crate::config::repository_config::RepositoryConfig;
-use crate::constants::{
-    DEFAULT_REMOTE_NAME, REPO_CONFIG_FILENAME,
-};
+use crate::constants::{DEFAULT_REMOTE_NAME, REPO_CONFIG_FILENAME};
 
 use crate::core::v0_10_0::index::EntryIndexer;
 use crate::error::OxenError;
