@@ -8,8 +8,8 @@ use crate::core::db::data_frames::{columns, df_db};
 use crate::core::v0_10_0::index::workspaces;
 use crate::core::v0_10_0::index::workspaces::data_frames::column_changes_db;
 use crate::error::OxenError;
-use crate::model::schema::field::{Changes, PreviousField};
-use crate::model::schema::Field;
+use crate::model::data_frame::schema::field::{Changes, PreviousField};
+use crate::model::data_frame::schema::Field;
 use crate::model::Workspace;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,

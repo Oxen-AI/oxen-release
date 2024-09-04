@@ -7,8 +7,8 @@ use crate::constants::{
 
 use crate::core::df::tabular;
 use crate::error::OxenError;
-use crate::model::schema::Field;
-use crate::model::Schema;
+use crate::model::data_frame::schema::Field;
+use crate::model::data_frame::schema::Schema;
 use crate::opts::DFOpts;
 use crate::{model, util};
 use arrow_json::writer::JsonArray;
@@ -106,7 +106,7 @@ pub fn get_schema(
         let (column_name, data_type) = row?;
         fields.push(Field::new(
             &column_name,
-            model::schema::DataType::from_sql(data_type).as_str(),
+            model::data_frame::schema::DataType::from_sql(data_type).as_str(),
         ));
     }
 
@@ -138,7 +138,7 @@ pub fn get_schema_excluding_cols(
         let (column_name, data_type) = row?;
         fields.push(Field::new(
             &column_name,
-            model::schema::DataType::from_sql(data_type).as_str(),
+            model::data_frame::schema::DataType::from_sql(data_type).as_str(),
         ));
     }
 
