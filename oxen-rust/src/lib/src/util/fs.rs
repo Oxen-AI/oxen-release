@@ -1133,7 +1133,8 @@ pub fn p_count_files_in_dir_w_progress(dir: &Path, pb: Option<ProgressBar>) -> u
     count
 }
 
-pub fn count_files_in_dir_with_progress(dir: &Path) -> usize {
+pub fn count_files_in_dir_with_progress(dir: impl AsRef<Path>) -> usize {
+    let dir = dir.as_ref();
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()

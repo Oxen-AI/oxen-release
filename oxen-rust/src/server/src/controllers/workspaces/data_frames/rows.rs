@@ -7,11 +7,10 @@ use crate::params::{app_data, path_param};
 use actix_web::{web::Bytes, HttpRequest, HttpResponse};
 use liboxen::core::v0_10_0::index::workspaces::data_frames::rows::UpdateResult;
 use liboxen::error::OxenError;
+use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
-use liboxen::view::json_data_frame_view::{
-    BatchUpdateResponse, JsonDataFrameRowResponse, JsonDataFrameSource,
-};
+use liboxen::view::json_data_frame_view::{BatchUpdateResponse, JsonDataFrameRowResponse};
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
 use liboxen::{core::v0_10_0::index, repositories};
 
@@ -58,7 +57,7 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
-    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
+    let row_df_source = DataFrameSchemaSize::from_df(&row_df, &row_schema);
     let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
 
     let diff = index::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
@@ -99,7 +98,7 @@ pub async fn get(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let opts = DFOpts::empty();
     let row_schema = Schema::from_polars(&row_df.schema().clone());
-    let row_df_source = JsonDataFrameSource::from_df(&row_df, &row_schema);
+    let row_df_source = DataFrameSchemaSize::from_df(&row_df, &row_schema);
     let row_df_view = JsonDataFrameView::from_df_opts(row_df, row_schema, &opts);
 
     let response = JsonDataFrameRowResponse {
@@ -167,7 +166,7 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
     let schema = Schema::from_polars(&modified_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
-            source: JsonDataFrameSource::from_df(&modified_row, &schema),
+            source: DataFrameSchemaSize::from_df(&modified_row, &schema),
             view: JsonDataFrameView::from_df_opts(modified_row, schema, &DFOpts::empty()),
         },
         diff: Some(diff),
@@ -199,7 +198,7 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let schema = Schema::from_polars(&df.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
-            source: JsonDataFrameSource::from_df(&df, &schema),
+            source: DataFrameSchemaSize::from_df(&df, &schema),
             view: JsonDataFrameView::from_df_opts(df, schema, &DFOpts::empty()),
         },
         diff: Some(diff),
@@ -239,7 +238,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let schema = Schema::from_polars(&restored_row.schema());
     Ok(HttpResponse::Ok().json(JsonDataFrameRowResponse {
         data_frame: JsonDataFrameViews {
-            source: JsonDataFrameSource::from_df(&restored_row, &schema),
+            source: DataFrameSchemaSize::from_df(&restored_row, &schema),
             view: JsonDataFrameView::from_df_opts(restored_row, schema, &DFOpts::empty()),
         },
         diff: Some(diff),

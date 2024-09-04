@@ -6,12 +6,14 @@ use crate::params::{app_data, path_param};
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::core::v0_10_0::index;
+use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::Schema;
+
 use liboxen::opts::DFOpts;
 use liboxen::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
-use liboxen::view::json_data_frame_view::{JsonDataFrameColumnResponse, JsonDataFrameSource};
+use liboxen::view::json_data_frame_view::JsonDataFrameColumnResponse;
 use liboxen::view::{JsonDataFrameView, JsonDataFrameViews, StatusMessage};
 use serde_json::{json, Value};
 
@@ -63,7 +65,7 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
-    let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
+    let column_df_source = DataFrameSchemaSize::from_df(&column_df, &column_schema);
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
     let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
@@ -125,7 +127,7 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
-    let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
+    let column_df_source = DataFrameSchemaSize::from_df(&column_df, &column_schema);
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
 
     let mut df_views = JsonDataFrameViews {
@@ -213,7 +215,7 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
-    let column_df_source = JsonDataFrameSource::from_df(&column_df, &column_schema);
+    let column_df_source = DataFrameSchemaSize::from_df(&column_df, &column_schema);
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
 
     let mut df_views = JsonDataFrameViews {
@@ -276,7 +278,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("Restored column in controller is {:?}", restored_column);
 
     let mut df_views = JsonDataFrameViews {
-        source: JsonDataFrameSource::from_df(&restored_column, &schema),
+        source: DataFrameSchemaSize::from_df(&restored_column, &schema),
         view: JsonDataFrameView::from_df_opts(restored_column, schema, &DFOpts::empty()),
     };
 
