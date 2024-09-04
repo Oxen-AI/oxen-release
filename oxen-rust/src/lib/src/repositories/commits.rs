@@ -3,13 +3,13 @@
 //! Create, read, and list commits
 //!
 
-use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::opts::PaginateOpts;
 use crate::util;
 use crate::view::{PaginatedCommits, StatusMessage};
+use crate::{core, resource};
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -116,6 +116,19 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_all(repo),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_all(repo),
+    }
+}
+
+// Source
+pub fn get_commit_or_head<S: AsRef<str>>(
+    repo: &LocalRepository,
+    commit_id_or_branch_name: Option<S>,
+) -> Result<Commit, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => resource::get_commit_or_head(repo, commit_id_or_branch_name),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::commits::get_commit_or_head(repo, commit_id_or_branch_name)
+        }
     }
 }
 

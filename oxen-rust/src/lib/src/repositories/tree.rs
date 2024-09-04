@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNode};
@@ -12,6 +13,16 @@ pub fn get_node_by_id(
         return Ok(None);
     };
     Ok(Some(node.to_node()?))
+}
+
+pub fn get_node_data_by_id(
+    repo: &LocalRepository,
+    hash: &MerkleHash,
+) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+    let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
+        return Ok(None);
+    };
+    Ok(Some(node))
 }
 
 pub fn list_missing_file_hashes(
