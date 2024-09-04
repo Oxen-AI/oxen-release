@@ -162,7 +162,7 @@ mod tests {
     use crate::model::NewCommitBody;
     use crate::opts::CloneOpts;
     use crate::{api, constants};
-    use crate::{command, repositories, test};
+    use crate::{repositories, test};
 
     use std::path::Path;
 

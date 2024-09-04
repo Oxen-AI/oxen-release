@@ -24,8 +24,8 @@ use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
 pub mod column_changes_db;
-pub mod row_changes_db;
 pub mod columns;
+pub mod row_changes_db;
 pub mod rows;
 
 pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
@@ -88,9 +88,10 @@ pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, Oxe
 
 pub fn get_queryable_data_frame_workspace(
     repo: &LocalRepository,
-    path: &PathBuf,
+    path: impl AsRef<Path>,
     commit: &Commit,
 ) -> Result<Workspace, OxenError> {
+    let path = path.as_ref();
     let entry_reader = CommitEntryReader::new(repo, commit)?;
 
     let entry = entry_reader
@@ -526,7 +527,6 @@ mod tests {
 
     use serde_json::json;
 
-    use crate::command;
     use crate::config::UserConfig;
     use crate::constants::OXEN_ID_COL;
     use crate::core::v0_10_0::index::workspaces;

@@ -5,13 +5,13 @@
 
 use std::path::Path;
 
+use crate::api;
 use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Remote, RemoteRepository};
 use crate::opts::CloneOpts;
-use crate::api;
 
 pub async fn clone(opts: &CloneOpts) -> Result<LocalRepository, OxenError> {
     match clone_remote(opts).await {

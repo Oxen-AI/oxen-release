@@ -22,6 +22,7 @@ rocksdb = { version = "0.22.0", default-features = false, features = [
     "snappy",
     "zstd",
     "zlib",
+    "multi-threaded-cf",
 ] }
 time = { version = "0.3.20", features = ["serde"] }
 tokio = { version = "1", features = ["full"] }

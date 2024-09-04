@@ -1521,7 +1521,7 @@ impl CommitEntryWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::command;
+
     use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
     use crate::repositories;

@@ -9,7 +9,7 @@ use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core::refs::RefWriter;
 
 use crate::error::OxenError;
-use crate::model::schema::Field;
+use crate::model::data_frame::schema::Field;
 use crate::model::RepoNew;
 use crate::model::Schema;
 use crate::model::{LocalRepository, RemoteRepository};
@@ -869,15 +869,6 @@ where
     populate_dir_with_training_data(&repo_dir)?;
     // Add all the files
     repositories::add(&repo, &repo.path)?;
-
-    // Make it easy to find these schemas during testing
-    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schemas::set_name(
-        &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
-        "text_classification",
-    )?;
-
     log::debug!("about to commit this repo");
     repositories::commit(&repo, "adding all data baby")?;
     log::debug!("successfully committed the repo");
@@ -934,15 +925,6 @@ where
     create_bounding_box_csv(&repo.path)?;
     // Add all the files
     repositories::add(&repo, &repo.path)?;
-
-    // Make it easy to find these schemas during testing
-    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schemas::set_name(
-        &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
-        "text_classification",
-    )?;
-
     repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
@@ -974,15 +956,6 @@ where
     // Add all the files
     create_bounding_box_csv(&repo.path)?;
     repositories::add(&repo, &repo.path)?;
-
-    // Make it easy to find these schemas during testing
-    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schemas::set_name(
-        &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
-        "text_classification",
-    )?;
-
     repositories::commit(&repo, "adding all data baby")?;
 
     // Run test to see if it panic'd
@@ -1077,14 +1050,6 @@ where
 
     // Add all the files
     repositories::add(&repo, &repo.path)?;
-    // Make it easy to find these schemas during testing
-    command::schemas::set_name(&repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schemas::set_name(
-        &repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
-        "text_classification",
-    )?;
-
     repositories::commit(&repo, "adding all data baby")?;
     // Run test to see if it panic'd
     let result = std::panic::catch_unwind(|| match test(repo) {
@@ -1110,14 +1075,6 @@ fn add_all_data_to_repo(repo: &LocalRepository) -> Result<(), OxenError> {
     repositories::add(repo, repo.path.join("nlp"))?;
     repositories::add(repo, repo.path.join("labels.txt"))?;
     repositories::add(repo, repo.path.join("README.md"))?;
-
-    // Make it easy to find these schemas during testing
-    command::schemas::set_name(repo, "b821946753334c083124fd563377d795", "bounding_box")?;
-    command::schemas::set_name(
-        repo,
-        "34a3b58f5471d7ae9580ebcf2582be2f",
-        "text_classification",
-    )?;
 
     Ok(())
 }

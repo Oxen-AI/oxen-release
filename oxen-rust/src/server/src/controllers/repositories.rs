@@ -62,7 +62,10 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
             data_types = dir_node
                 .data_type_counts
                 .into_iter()
-                .map(|(data_type, count)| DataTypeCount { data_type, count })
+                .map(|(data_type, count)| DataTypeCount {
+                    data_type,
+                    count: count as usize,
+                })
                 .collect();
         }
     }

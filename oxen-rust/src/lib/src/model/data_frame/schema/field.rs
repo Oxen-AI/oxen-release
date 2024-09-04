@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::model::schema::DataType;
+use crate::model::data_frame::schema::DataType;
 
 use super::CustomDataType;
 

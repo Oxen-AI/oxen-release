@@ -78,7 +78,7 @@ impl RunCmd for StatusCmd {
         let repository = LocalRepository::from_dir(&repo_dir)?;
         check_repo_migration_needed(&repository)?;
 
-        let directory = directory.unwrap_or(PathBuf::from(""));
+        let directory = directory.unwrap_or(repository.path.clone());
         let repo_status = repositories::status_from_dir(&repository, &directory)?;
 
         if let Some(current_branch) = repositories::branches::current_branch(&repository)? {

@@ -114,11 +114,11 @@ impl LegacySchemaReader {
         Ok(path_vals)
     }
 
-    pub fn list_schemas_for_ref(
+    pub fn list_schemas_for_path(
         &self,
-        schema_ref: impl AsRef<str>,
+        path: impl AsRef<Path>,
     ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-        let schema_ref = schema_ref.as_ref();
+        let path = path.as_ref();
         // This is a map of paths to schema hashes
         let paths_to_hashes: HashMap<String, String> = str_val_db::hash_map(&self.schema_files_db)?;
 
@@ -130,9 +130,7 @@ impl LegacySchemaReader {
             .iter()
             .map(|(k, v)| (PathBuf::from(k), hash_to_schemas.get(v).unwrap().clone()))
             .filter(|(k, v)| {
-                k.to_string_lossy() == schema_ref
-                    || v.hash == schema_ref
-                    || v.name == Some(schema_ref.to_string())
+                k.to_string_lossy() == path.to_string_lossy() || v.hash == path.to_string_lossy()
             })
             .collect();
         Ok(path_vals)

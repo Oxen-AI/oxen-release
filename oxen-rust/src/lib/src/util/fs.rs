@@ -26,6 +26,7 @@ use crate::constants::TREE_DIR;
 use crate::constants::VERSION_FILE_NAME;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
 use crate::model::MerkleHash;
@@ -100,30 +101,14 @@ pub fn version_path_for_commit_id(
     }
 }
 
-pub fn resized_path_for_commit_id(
+pub fn resized_path_for_file_node(
     repo: &LocalRepository,
-    commit_id: &str,
-    filepath: &Path,
+    file_node: &FileNode,
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    match repositories::commits::get_by_id(repo, commit_id)? {
-        Some(commit) => match repositories::entries::get_commit_entry(repo, &commit, filepath)? {
-            Some(entry) => resized_path_for_commit_entry(repo, &entry, width, height),
-            None => Err(OxenError::path_does_not_exist(filepath)),
-        },
-        None => Err(OxenError::revision_not_found(commit_id.into())),
-    }
-}
-
-pub fn resized_path_for_commit_entry(
-    repo: &LocalRepository,
-    entry: &CommitEntry,
-    width: Option<u32>,
-    height: Option<u32>,
-) -> Result<PathBuf, OxenError> {
-    let path = version_path(repo, entry);
-    let extension = path.extension().unwrap().to_str().unwrap();
+    let path = version_path_from_hash(repo, &file_node.hash);
+    let extension = file_node.extension.clone();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());
     let resized_path = path.parent().unwrap().join(format!(
@@ -408,7 +393,15 @@ pub fn read_lines_file(file: &File) -> Vec<String> {
     lines
 }
 
-pub fn read_first_line<P: AsRef<Path>>(path: P) -> Result<String, OxenError> {
+pub fn read_first_n_bytes(path: impl AsRef<Path>, n: usize) -> Result<Vec<u8>, OxenError> {
+    let mut file = File::open(path.as_ref())?;
+    let mut buffer = vec![0; n];
+    let bytes_read = file.read(&mut buffer)?;
+    buffer.truncate(bytes_read);
+    Ok(buffer)
+}
+
+pub fn read_first_line(path: impl AsRef<Path>) -> Result<String, OxenError> {
     let file = File::open(path.as_ref())?;
     read_first_line_from_file(&file)
 }
@@ -857,8 +850,8 @@ pub fn is_audio(path: &Path) -> bool {
 }
 
 pub fn is_utf8(path: &Path) -> bool {
-    if let Ok(line) = read_first_line(path) {
-        from_utf8(line.as_bytes()).is_ok()
+    if let Ok(bytes) = read_first_n_bytes(path, 1024) {
+        from_utf8(&bytes).is_ok()
     } else {
         false
     }
@@ -910,7 +903,10 @@ pub fn data_type_from_extension(path: &Path) -> EntryDataType {
 
 pub fn file_mime_type(path: &Path) -> String {
     match infer::get_from_path(path) {
-        Ok(Some(kind)) => String::from(kind.mime_type()),
+        Ok(Some(kind)) => {
+            log::debug!("file_mime_type {:?} {}", path, kind.mime_type());
+            String::from(kind.mime_type())
+        }
         _ => {
             if is_markdown(path) {
                 String::from("text/markdown")
@@ -967,6 +963,11 @@ pub fn datatype_from_mimetype(path: &Path, mime_type: &str) -> EntryDataType {
         "audio/x-ape" => EntryDataType::Audio,
 
         mime_type => {
+            log::debug!(
+                "datatype_from_mimetype trying to infer {:?} {}",
+                path,
+                mime_type
+            );
             // Catch text and dataframe types from file extension
             if is_tabular(path) {
                 EntryDataType::Tabular
@@ -1144,7 +1145,8 @@ pub fn p_count_files_in_dir_w_progress(dir: &Path, pb: Option<ProgressBar>) -> u
     count
 }
 
-pub fn count_files_in_dir_with_progress(dir: &Path) -> usize {
+pub fn count_files_in_dir_with_progress(dir: impl AsRef<Path>) -> usize {
+    let dir = dir.as_ref();
     let pb = ProgressBar::new_spinner();
     pb.set_style(
         ProgressStyle::default_spinner()

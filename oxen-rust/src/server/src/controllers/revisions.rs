@@ -31,7 +31,6 @@ mod tests {
 
     use actix_web::body::to_bytes;
 
-    
     use liboxen::error::OxenError;
     use liboxen::repositories;
     use liboxen::util;

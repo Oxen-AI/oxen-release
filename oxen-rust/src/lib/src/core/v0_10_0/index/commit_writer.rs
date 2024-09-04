@@ -14,8 +14,8 @@ use crate::model::{
     Branch, Commit, CommitEntry, NewCommit, StagedData, StagedEntry, StagedEntryStatus, Workspace,
 };
 
-use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 use crate::util;
+use crate::util::progress_bar::{oxen_progress_bar, ProgressBarType};
 
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};

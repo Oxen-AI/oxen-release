@@ -15,10 +15,10 @@ use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::{
     CommitDirEntryReader, CommitEntryReader, CommitReader, ObjectDBReader,
 };
-use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::MerkleNodeDB;
+use crate::core::v0_19_0::index::MerkleNodeDB;
 // use crate::core::v2::index::file_chunker::{ChunkShardManager, FileChunker};
-use crate::core::v0_19_0::index::merkle_tree::node::*;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::*;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::{Commit, LocalRepository};
@@ -466,7 +466,8 @@ fn write_dir_child(
     let mut last_commit_timestamp: OffsetDateTime = OffsetDateTime::from_unix_timestamp(0).unwrap();
     let mut last_modified_seconds = 0;
     let mut last_modified_nanoseconds = 0;
-    let mut data_type_counts: HashMap<String, usize> = HashMap::new();
+    let mut data_type_counts: HashMap<String, u64> = HashMap::new();
+    let mut data_type_sizes: HashMap<String, u64> = HashMap::new();
 
     let mut entries_processed = 0;
 
@@ -524,9 +525,13 @@ fn write_dir_child(
             let data_type = util::fs::datatype_from_mimetype(&version_path, &mime_type);
             let data_type_str = format!("{}", data_type);
             data_type_counts
-                .entry(data_type_str)
+                .entry(data_type_str.clone())
                 .and_modify(|count| *count += 1)
                 .or_insert(1);
+            data_type_sizes
+                .entry(data_type_str.clone())
+                .and_modify(|size| *size += entry.num_bytes)
+                .or_insert(entry.num_bytes);
 
             if last_modified_seconds < entry.last_modified_seconds {
                 last_modified_seconds = entry.last_modified_seconds;
@@ -554,6 +559,7 @@ fn write_dir_child(
         last_modified_seconds,
         last_modified_nanoseconds,
         data_type_counts,
+        data_type_sizes,
     };
     println!("Writing dir node {:?} to {:?}", node, node_db.path());
     node_db.add_child(&node)?;
@@ -633,6 +639,7 @@ fn write_file_node(
         data_type,
         mime_type,
         extension,
+        metadata: None,
         dtype: MerkleTreeNodeType::File,
     };
     node_db.add_child(&val)?;

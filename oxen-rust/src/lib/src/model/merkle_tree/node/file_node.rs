@@ -3,13 +3,15 @@
 //!
 
 use super::file_node_types::{FileChunkType, FileStorageType};
+use crate::error::OxenError;
+use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{
     EntryDataType, MerkleHash, MerkleTreeNodeIdType, MerkleTreeNodeType, TMerkleTreeNode,
 };
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct FileNode {
     pub dtype: MerkleTreeNodeType,
 
@@ -28,6 +30,10 @@ pub struct FileNode {
 
     // Data Type
     pub data_type: EntryDataType,
+
+    // Metadata
+    pub metadata: Option<GenericMetadata>,
+
     // Mime Type
     pub mime_type: String,
     // Extension
@@ -38,6 +44,13 @@ pub struct FileNode {
 
     pub chunk_type: FileChunkType, // How the data is stored on disk
     pub storage_backend: FileStorageType, // Where the file is stored in the backend
+}
+
+impl FileNode {
+    pub fn deserialize(data: &[u8]) -> Result<FileNode, OxenError> {
+        rmp_serde::from_slice(data)
+            .map_err(|e| OxenError::basic_str(format!("Error deserializing file node: {e}")))
+    }
 }
 
 impl Default for FileNode {
@@ -51,6 +64,7 @@ impl Default for FileNode {
             last_modified_seconds: 0,
             last_modified_nanoseconds: 0,
             data_type: EntryDataType::Binary,
+            metadata: None,
             mime_type: "".to_string(),
             extension: "".to_string(),
             chunk_hashes: vec![],
@@ -76,15 +90,24 @@ impl TMerkleTreeNode for FileNode {}
 impl fmt::Debug for FileNode {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         writeln!(f, "FileNode")?;
-        writeln!(f, "\thash: {}", self.hash.to_string())?;
+        writeln!(f, "\thash: {}", self.hash)?;
         writeln!(f, "\tname: {}", self.name)?;
         writeln!(f, "\tnum_bytes: {}", bytesize::ByteSize::b(self.num_bytes))?;
         writeln!(f, "\tdata_type: {:?}", self.data_type)?;
+        writeln!(f, "\tmetadata: {:?}", self.metadata)?;
         writeln!(f, "\tmime_type: {}", self.mime_type)?;
         writeln!(f, "\textension: {}", self.extension)?;
         writeln!(f, "\tchunk_hashes: {:?}", self.chunk_hashes)?;
         writeln!(f, "\tchunk_type: {:?}", self.chunk_type)?;
         writeln!(f, "\tstorage_backend: {:?}", self.storage_backend)?;
+        writeln!(f, "\tlast_commit_id: {}", self.last_commit_id)?;
+        writeln!(f, "\tlast_modified_seconds: {}", self.last_modified_seconds)?;
+        writeln!(
+            f,
+            "\tlast_modified_nanoseconds: {}",
+            self.last_modified_nanoseconds
+        )?;
+        writeln!(f, "\tmetadata: {:?}", self.metadata)?;
         Ok(())
     }
 }
@@ -97,7 +120,19 @@ impl fmt::Display for FileNode {
             "\"{}\" ({}) (commit {})",
             self.name,
             bytesize::ByteSize::b(self.num_bytes),
-            self.last_commit_id.to_string()
-        )
+            self.last_commit_id
+        )?;
+        if let Some(metadata) = &self.metadata {
+            write!(f, " {}", metadata)?;
+        }
+        Ok(())
     }
 }
+
+impl PartialEq for FileNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.hash == other.hash
+    }
+}
+
+impl Eq for FileNode {}

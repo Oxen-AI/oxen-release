@@ -138,7 +138,7 @@ impl RefReader {
             match item {
                 Ok((key, value)) => match (str::from_utf8(&key), str::from_utf8(&value)) {
                     (Ok(key_str), Ok(value)) => {
-                        if let Some(head_ref) = &maybe_head_ref {
+                        if maybe_head_ref.is_some() {
                             let ref_name = String::from(key_str);
                             let id = String::from(value);
                             branch_names.push(Branch {

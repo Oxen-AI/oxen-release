@@ -43,11 +43,11 @@ pub async fn mergability(
 #[cfg(test)]
 mod tests {
 
+    use crate::api;
     use crate::constants::DEFAULT_REMOTE_NAME;
     use crate::error::OxenError;
     use crate::repositories;
     use crate::test;
-    use crate::{api, command};
 
     #[tokio::test]
     async fn test_remote_merger_no_commits() -> Result<(), OxenError> {

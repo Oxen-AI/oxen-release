@@ -6,14 +6,15 @@ use crate::constants::DEFAULT_REMOTE_NAME;
 use crate::core;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::{
     Branch, Commit, CommitEntry, LocalRepository, MerkleHash, MerkleTreeNodeType, RemoteRepository,
 };
 use crate::{api, repositories};
 
-use core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
-use core::v0_19_0::index::merkle_tree::CommitMerkleTree;
-use core::v0_19_0::structs::push_progress::PushProgress;
+use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::structs::push_progress::PushProgress;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let Some(current_branch) = repositories::branches::current_branch(repo)? else {
@@ -74,6 +75,9 @@ async fn push_remote_repo(
         ));
     };
 
+    // Notify the server that we are starting a push
+    api::client::repositories::pre_push(&remote_repo, &local_branch, &commit.id).await?;
+
     // Figure out which nodes we need to push
     let tree = CommitMerkleTree::from_commit(repo, &commit)?;
     // There should always be a root dir, so unwrap is safe
@@ -90,6 +94,11 @@ async fn push_remote_repo(
             push_to_new_branch(repo, remote_repo, local_branch, &commit, &tree, &progress).await?
         }
     }
+
+    // Notify the server that we are done pushing
+    api::client::repositories::post_push(&remote_repo, &local_branch, &commit.id).await?;
+
+    progress.finish();
 
     Ok(root_dir.num_bytes)
 }
@@ -119,7 +128,7 @@ async fn r_push_node(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Recursively push the node and all its children
@@ -142,7 +151,7 @@ async fn r_push_node(
         log::debug!("Creating node on the server: {}", node);
 
         // If node is a commit, we need to push the dir hashes too
-        if node.dtype == MerkleTreeNodeType::Commit {
+        if let EMerkleTreeNode::Commit(_) = &node.node {
             api::client::commits::post_commit_dir_hashes_to_server(repo, remote_repo, commit)
                 .await?;
         }
@@ -151,13 +160,14 @@ async fn r_push_node(
     }
 
     // If the node is not a VNode, it does not have file children, so we can return
-    if node.dtype != MerkleTreeNodeType::VNode {
+    if MerkleTreeNodeType::VNode != node.node.dtype() {
         return Ok(());
     }
 
     // Find the missing files on the server
     // If we just created the node, all files will be missing
     // If the server has the node, but some of the files are missing, we need to push them
+    log::debug!("listing missing file hashes for {}", node);
     let missing_file_hashes =
         api::client::tree::list_missing_file_hashes(remote_repo, &node.hash).await?;
 
@@ -180,22 +190,20 @@ async fn push_files(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     commit: &Commit,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
     hashes: &HashSet<MerkleHash>,
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
     // Get all the entries
     let mut entries: Vec<Entry> = Vec::new();
     for child in &node.children {
-        if child.dtype == MerkleTreeNodeType::File {
+        if let EMerkleTreeNode::File(file_node) = &child.node {
             if !hashes.contains(&child.hash) {
                 continue;
             }
-
-            let file_node = child.file()?;
             entries.push(Entry::CommitEntry(CommitEntry {
                 commit_id: file_node.last_commit_id.to_string(),
-                path: PathBuf::from(file_node.name),
+                path: PathBuf::from(&file_node.name),
                 hash: child.hash.to_string(),
                 num_bytes: file_node.num_bytes,
                 last_modified_seconds: file_node.last_modified_seconds,

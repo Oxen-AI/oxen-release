@@ -8,10 +8,10 @@ use std::time;
 
 use crate::api::client;
 use crate::constants::{NODES_DIR, OXEN_HIDDEN_DIR, TREE_DIR};
-use crate::core::v0_19_0::index::merkle_tree::node::merkle_node_db::node_db_path;
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{LocalRepository, MerkleHash, RemoteRepository};
 use crate::view::{MerkleHashesResponse, StatusMessage};
 use crate::{api, util};
@@ -46,7 +46,7 @@ pub async fn has_node(
 pub async fn create_node(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    node: &MerkleTreeNodeData,
+    node: &MerkleTreeNode,
 ) -> Result<(), OxenError> {
     // Compress the node
     let node_dir = node_db_path(local_repo, &node.hash);
@@ -95,7 +95,7 @@ pub async fn download_node(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     node_id: &MerkleHash,
-) -> Result<MerkleTreeNodeData, OxenError> {
+) -> Result<MerkleTreeNode, OxenError> {
     let node_hash_str = node_id.to_string();
     let uri = format!("/tree/nodes/{node_hash_str}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
@@ -119,7 +119,7 @@ pub async fn download_tree(
     local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     hash: &MerkleHash,
-) -> Result<MerkleTreeNodeData, OxenError> {
+) -> Result<MerkleTreeNode, OxenError> {
     let hash_str = hash.to_string();
     let uri = format!("/tree/all/{hash_str}/download");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
