@@ -9,6 +9,8 @@ use crate::{repositories, util};
 
 use std::path::Path;
 
+pub mod schemas;
+
 pub fn get_slice(
     repo: &LocalRepository,
     commit: &Commit,

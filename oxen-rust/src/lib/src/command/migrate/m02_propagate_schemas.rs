@@ -92,7 +92,7 @@ pub fn propagate_schemas_up(repo: &LocalRepository) -> Result<(), OxenError> {
 
     for current_commit in &all_commits {
         for parent_commit_id in &current_commit.parent_ids {
-            let schemas = repositories::schemas::list(repo, Some(parent_commit_id))?;
+            let schemas = repositories::data_frames::schemas::list(repo, Some(parent_commit_id))?;
             let schema_writer = SchemaWriter::new(repo, &current_commit.id)?;
 
             for (path, schema) in schemas {

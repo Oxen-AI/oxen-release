@@ -75,8 +75,11 @@ pub async fn get_by_resource(
     };
 
     let og_schema = if let Some(schema) =
-        repositories::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, &resource.path)?
-    {
+        repositories::data_frames::schemas::get_by_path_from_revision(
+            &repo,
+            &workspace.commit.id,
+            &resource.path,
+        )? {
         schema
     } else {
         Schema::from_polars(&df.schema())
@@ -185,8 +188,11 @@ pub async fn diff(
     };
 
     let og_schema = if let Some(schema) =
-        repositories::schemas::get_by_path_from_ref(&repo, &workspace.commit.id, resource.path)?
-    {
+        repositories::data_frames::schemas::get_by_path_from_revision(
+            &repo,
+            &workspace.commit.id,
+            resource.path,
+        )? {
         schema
     } else {
         Schema::from_polars(&df.schema())
