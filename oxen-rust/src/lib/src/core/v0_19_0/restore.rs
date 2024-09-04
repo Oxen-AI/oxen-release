@@ -1,16 +1,17 @@
 use std::path::Path;
 
 use crate::error::OxenError;
-use crate::model::{Commit, CommitEntry, LocalRepository, MerkleHash};
+use crate::model::merkle_tree::node::FileNode;
+use crate::model::{Commit, CommitEntry, LocalRepository};
 use crate::util;
 
 // TODO: probably need to pass a data node here instead of a hash to get the metadata
 pub fn restore_file(
     repo: &LocalRepository,
-    hash: &MerkleHash,
+    file_node: &FileNode,
     dst_path: &Path,
 ) -> Result<(), OxenError> {
-    let version_path = util::fs::version_path_from_hash(repo, hash);
+    let version_path = util::fs::version_path_from_hash(repo, &file_node.hash);
     if !version_path.exists() {
         return Err(OxenError::basic_str(&format!(
             "Source file not found in versions directory: {:?}",

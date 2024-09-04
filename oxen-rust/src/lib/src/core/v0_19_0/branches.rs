@@ -1,4 +1,3 @@
-use crate::core::refs::RefReader;
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::{commits, restore};
 use crate::error::OxenError;
@@ -55,13 +54,71 @@ pub async fn set_working_repo_to_commit(
 
     let tree = CommitMerkleTree::from_commit(repo, commit)?;
 
-    // Cleanup removed files
-
-    // Restore missing or modified files
+    cleanup_removed_files(repo, &tree)?;
     r_restore_missing_or_modified_files(repo, &tree.root, Path::new(""))?;
 
-    // Remove untracked directories
+    Ok(())
+}
 
+fn cleanup_removed_files(
+    repo: &LocalRepository,
+    target_tree: &CommitMerkleTree,
+) -> Result<(), OxenError> {
+    // Get the head commit, and the merkle tree for that commit
+    // Compare the nodes in the head tree to the nodes in the target tree
+    // If the file node is in the head tree, but not in the target tree, remove it
+    let head_commit = commits::head_commit(repo)?;
+    log::debug!("head_commit {:?}", head_commit.id);
+
+    let head_tree = CommitMerkleTree::from_commit(repo, &head_commit)?;
+    let head_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&head_tree.root)?;
+
+    r_remove_if_not_in_target(repo, &head_root_dir_node, &target_tree, Path::new(""))?;
+
+    Ok(())
+}
+
+fn r_remove_if_not_in_target(
+    repo: &LocalRepository,
+    head_node: &MerkleTreeNode,
+    target_tree: &CommitMerkleTree,
+    current_path: &Path,
+) -> Result<(), OxenError> {
+    log::debug!(
+        "r_remove_if_not_in_target head_node: {:?} current_path: {:?}",
+        head_node.hash,
+        current_path
+    );
+    match &head_node.node.dtype() {
+        MerkleTreeNodeType::File => {
+            let file_node = head_node.file()?;
+            let file_path = current_path.join(&file_node.name);
+            if target_tree.get_by_path(&file_path)?.is_none() {
+                let full_path = repo.path.join(&file_path);
+                if full_path.exists() {
+                    log::debug!("Removing file: {:?}", file_path);
+                    std::fs::remove_file(full_path)?;
+                }
+            }
+        }
+        MerkleTreeNodeType::Dir => {
+            // TODO: can we also check if the directory is in the target tree,
+            // and potentially remove the whole directory?
+            let dir_node = head_node.dir()?;
+            let dir_path = current_path.join(&dir_node.name);
+            let children = CommitMerkleTree::node_files_and_folders(head_node)?;
+            for child in children {
+                r_remove_if_not_in_target(repo, &child, target_tree, &dir_path)?;
+            }
+            // Remove directory if it's empty
+            let full_dir_path = repo.path.join(&dir_path);
+            if full_dir_path.exists() && full_dir_path.read_dir()?.next().is_none() {
+                log::debug!("Removing empty directory: {:?}", dir_path);
+                std::fs::remove_dir(full_dir_path)?;
+            }
+        }
+        _ => {}
+    }
     Ok(())
 }
 
@@ -78,18 +135,18 @@ fn r_restore_missing_or_modified_files(
     match &node.node.dtype() {
         MerkleTreeNodeType::File => {
             let file_node = node.file().unwrap();
-            let rel_path = path.join(file_node.name.clone());
+            let rel_path = path.join(&file_node.name);
             let full_path = repo.path.join(&rel_path);
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
-                restore::restore_file(repo, &file_node.hash, &rel_path)?;
+                restore::restore_file(repo, &file_node, &rel_path)?;
             } else {
                 // File exists, check if it needs to be updated
                 let current_hash = util::hasher::hash_file_contents(&full_path)?;
                 if current_hash != file_node.hash.to_string() {
                     log::debug!("Updating modified file: {:?}", rel_path);
-                    restore::restore_file(repo, &file_node.hash, &rel_path)?;
+                    restore::restore_file(repo, &file_node, &rel_path)?;
                 }
             }
         }
