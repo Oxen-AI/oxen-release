@@ -306,6 +306,7 @@ fn split_into_vnodes(
 
         // Update the children with the new entries from status
         // TODO: Handle updates and deletes, this is pure addition right now
+        // TODO: Re-implement rm commits
         for child in new_children.iter() {
             log::debug!(
                 "new_child {:?} {:?}",
@@ -314,16 +315,25 @@ fn split_into_vnodes(
             );
             // Overwrite the existing child
             // if add or modify, replace the child
+            // if remove, remove the child
             if let Ok(path) = child.node.maybe_path() {
                 if path != PathBuf::from("") {
-                    log::debug!(
-                        "replacing child {:?} {:?} with {:?} {:?}",
-                        child.node.node.dtype(),
-                        path,
-                        child.node.node.dtype(),
-                        child.node.maybe_path().unwrap()
-                    );
-                    children.replace(child.clone());
+                    match child.status {
+                        StagedEntryStatus::Removed => {
+                            log::debug!("removing child {:?} {:?}", child, path);
+                            children.remove(&child);            
+                        } 
+                        _ => {
+                            log::debug!(
+                                "replacing child {:?} {:?} with {:?} {:?}",
+                                child.node.node.dtype(),
+                                path,
+                                child.node.node.dtype(),
+                                child.node.maybe_path().unwrap()
+                            );
+                            children.replace(child.clone());
+                        }
+                    }
                 }
             }
         }
