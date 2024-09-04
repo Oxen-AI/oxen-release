@@ -1136,21 +1136,19 @@ impl Stager {
 
     pub fn get_staged_schema(
         &self,
-        schema_ref: impl AsRef<str>,
-    ) -> Result<HashMap<PathBuf, schema::Schema>, OxenError> {
-        let schema_ref = schema_ref.as_ref().replace('\\', "/"); // windows
-        let mut results = HashMap::new();
-        for (path, staged_schema) in
+        path: impl AsRef<Path>,
+    ) -> Result<Option<schema::Schema>, OxenError> {
+        let path = path.as_ref();
+        for (path_str, staged_schema) in
             str_json_db::hash_map::<MultiThreaded, StagedSchema>(&self.schemas_db)?
         {
-            if staged_schema.schema.hash == schema_ref
-                || staged_schema.schema.name == Some(schema_ref.to_string())
-                || path == schema_ref
+            if staged_schema.schema.hash == path.to_string_lossy()
+                || path_str == path.to_string_lossy()
             {
-                results.insert(PathBuf::from(path), staged_schema.schema);
+                return Ok(Some(staged_schema.schema));
             }
         }
-        Ok(results)
+        Ok(None)
     }
 
     pub fn get_staged_schema_by_path(
@@ -1471,7 +1469,7 @@ impl Stager {
         }
         log::debug!("couldn't find, calling get_by_path");
 
-        repositories::schemas::get_by_path(&self.repository, path)
+        repositories::data_frames::schemas::get_by_path(&self.repository, path)
     }
 
     fn maybe_get_existing_schema_from_reader(
@@ -1491,16 +1489,13 @@ impl Stager {
     }
 
     /// Remove a staged schema
-    pub fn rm_schema(&self, schema_ref: impl AsRef<str>) -> Result<(), OxenError> {
-        let schema_ref = schema_ref.as_ref();
-        for (path, staged) in path_db::list_path_entries::<MultiThreaded, StagedSchema>(
+    pub fn rm_schema(&self, path: impl AsRef<Path>) -> Result<(), OxenError> {
+        let path = path.as_ref();
+        for (path_from_db, _) in path_db::list_path_entries::<MultiThreaded, StagedSchema>(
             &self.schemas_db,
             Path::new(""),
         )? {
-            if staged.schema.hash == schema_ref
-                || staged.schema.name == Some(String::from(schema_ref))
-                || path == Path::new(schema_ref)
-            {
+            if path_from_db == path {
                 path_db::delete(&self.schemas_db, path)?;
             }
         }

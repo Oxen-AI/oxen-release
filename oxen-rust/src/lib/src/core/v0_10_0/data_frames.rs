@@ -8,11 +8,11 @@ use crate::error::OxenError;
 use crate::model::data_frame::schema::Schema;
 use crate::model::data_frame::{DataFrameSchemaSize, DataFrameSlice, DataFrameSliceSchemas};
 use crate::model::{Commit, CommitEntry, DataFrameSize, LocalRepository, Workspace};
-use crate::repositories;
-
 use crate::opts::DFOpts;
-
+use crate::repositories;
 use crate::util;
+
+pub mod schemas;
 
 use std::path::Path;
 
@@ -56,7 +56,7 @@ pub fn get_slice(
 
     // Try to get the schema from the merkle tree
     let og_schema = if let Some(schema) =
-        repositories::schemas::get_by_path_from_ref(&repo, &commit.id, &path)?
+        repositories::data_frames::schemas::get_by_path_from_revision(&repo, &commit.id, &path)?
     {
         schema
     } else {
@@ -143,8 +143,11 @@ fn handle_sql_querying(
         let df = sql::query_df(sql, &mut conn)?;
 
         let source_schema = if let Some(schema) =
-            repositories::schemas::get_by_path_from_ref(repo, &workspace.commit.id, &path)?
-        {
+            repositories::data_frames::schemas::get_by_path_from_revision(
+                repo,
+                &workspace.commit.id,
+                &path,
+            )? {
             schema
         } else {
             Schema::from_polars(&df.schema())

@@ -1,10 +1,10 @@
 use async_trait::async_trait;
 use clap::{Arg, Command};
 
-use liboxen::command;
 use liboxen::error::OxenError;
 use liboxen::model::data_frame::schema::Schema;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "list";
@@ -33,9 +33,9 @@ impl RunCmd for SchemasListCmd {
 
         let repository = LocalRepository::from_current_dir()?;
         let schemas = if staged {
-            command::schemas::list_staged(&repository)?
+            repositories::data_frames::schemas::list_staged(&repository)?
         } else {
-            command::schemas::list(&repository, None)?
+            repositories::data_frames::schemas::list(&repository, None)?
         };
 
         if schemas.is_empty() && staged {

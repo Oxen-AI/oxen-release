@@ -39,7 +39,6 @@ pub mod pull;
 pub mod push;
 pub mod revisions;
 pub mod rm;
-pub mod schemas;
 pub mod status;
 pub mod tree;
 

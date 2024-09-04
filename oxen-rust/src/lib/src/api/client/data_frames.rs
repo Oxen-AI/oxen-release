@@ -166,14 +166,18 @@ mod tests {
                 "root": "images"
             });
 
-            command::schemas::add_column_metadata(
+            repositories::data_frames::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
                 &column_name,
                 &column_metadata,
             )?;
 
-            command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
+            repositories::data_frames::schemas::add_schema_metadata(
+                &local_repo,
+                schema_ref,
+                &schema_metadata,
+            )?;
 
             repositories::commit(&local_repo, "add test.csv schema metadata")?;
 
@@ -480,8 +484,12 @@ mod tests {
                     "values": [0, 1, 2]
                 }
             );
-            command::schemas::add_schema_metadata(&local_repo, schema_ref, &schema_metadata)?;
-            command::schemas::add_column_metadata(
+            repositories::data_frames::schemas::add_schema_metadata(
+                &local_repo,
+                schema_ref,
+                &schema_metadata,
+            )?;
+            repositories::data_frames::schemas::add_column_metadata(
                 &local_repo,
                 schema_ref,
                 &column_name,

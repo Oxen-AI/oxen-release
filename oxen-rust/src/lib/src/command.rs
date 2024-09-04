@@ -15,7 +15,6 @@ pub mod merge;
 pub mod migrate;
 pub mod restore;
 pub mod save;
-pub mod schemas;
 pub mod workspace;
 
 pub use crate::command::df::{df, schema};
