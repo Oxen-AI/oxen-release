@@ -104,7 +104,7 @@ impl MerkleTreeNodeData {
         for child in &self.children {
             if child.dtype == MerkleTreeNodeType::File {
                 // Check if the file exists in the versions directory
-                let file_path = util::fs::version_path_from_hash(repo, &child.hash);
+                let file_path = util::fs::version_path_from_hash(repo, &child.hash.to_string());
                 if !file_path.exists() {
                     missing_hashes.insert(child.hash);
                 }

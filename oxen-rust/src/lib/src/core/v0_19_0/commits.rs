@@ -26,6 +26,19 @@ pub fn commit_with_user(
     super::index::commit_writer::commit_with_user(repo, message, user)
 }
 
+pub fn get_commit_or_head<S: AsRef<str>>(
+    repo: &LocalRepository,
+    commit_id_or_branch_name: Option<S>,
+) -> Result<Commit, OxenError> {
+    if let Some(commit_id_or_branch_name) = commit_id_or_branch_name {
+        let commit = get_by_id(repo, commit_id_or_branch_name)?;
+        if let Some(commit) = commit {
+            return Ok(commit);
+        }
+    }
+    head_commit(repo)
+}
+
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let ref_reader = RefReader::new(repo)?;
     let branches = ref_reader.list_branches()?;
@@ -68,6 +81,7 @@ pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 
 pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     let head_commit_id = head_commit_id(repo)?;
+    log::debug!("head_commit: head_commit_id: {:?}", head_commit_id);
     let commit_data = CommitMerkleTree::read_node(repo, &head_commit_id, false)?.ok_or(
         OxenError::basic_str(format!(
             "Merkle tree node not found for head commit: '{}'",

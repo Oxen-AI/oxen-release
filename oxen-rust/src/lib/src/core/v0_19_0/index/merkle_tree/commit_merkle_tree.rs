@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str;
 
+use polars::prelude::full;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
@@ -13,8 +14,8 @@ use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
 use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
-use crate::model::LocalRepository;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
+use crate::model::{LocalRepository, ParsedResource};
 use crate::model::{MerkleHash, MerkleTreeNodeType};
 use crate::util;
 
@@ -66,7 +67,9 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        println!("dir_hashes: {:?}", dir_hashes);
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path.to_str().unwrap()).cloned();
+        log::debug!("node_hash: {:?}", node_hash);
         let root = if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -167,6 +170,8 @@ impl CommitMerkleTree {
     }
 
     /// The dir hashes allow you to skip to a directory in the tree
+    ///
+    /// HERE HERE
     pub fn dir_hashes(
         repo: &LocalRepository,
         commit: &Commit,
@@ -321,7 +326,7 @@ impl CommitMerkleTree {
             )));
         };
 
-        let Some(vnodes) = CommitMerkleTree::read_node(repo, &node_hash, false)? else {
+        let Some(vnodes) = CommitMerkleTree::read_depth(repo, &node_hash, 2)? else {
             return Err(OxenError::basic_str(format!(
                 "Merkle tree hash not found for parent: '{}'",
                 parent_path_str
@@ -347,25 +352,25 @@ impl CommitMerkleTree {
             log::warn!("Make sure we calc correct bucket: {}", bucket);
 
             // Check if we are in the correct bucket
-            if bucket == vnode.hash.to_u128() {
-                log::debug!("Found file in VNode! {:?}", vnode);
-                let Some(children) = CommitMerkleTree::read_node(repo, &node.hash, false)? else {
-                    return Err(OxenError::basic_str(format!(
-                        "Merkle tree hash not found for parent: '{}'",
-                        parent_path_str
-                    )));
-                };
+            log::debug!("Found file in VNode! {:?}", vnode);
+            let Some(children) = CommitMerkleTree::read_node(repo, &node.hash, false)? else {
+                return Err(OxenError::basic_str(format!(
+                    "Merkle tree hash not found for parent: '{}'",
+                    parent_path_str
+                )));
+            };
 
-                log::debug!("Num children {:?}", children.children.len());
+            log::debug!("Num children {:?}", children.children.len());
 
-                for child in children.children.into_iter() {
-                    log::debug!("Got child {:?}", child.dtype);
-                    if child.dtype == MerkleTreeNodeType::File {
-                        let file = child.file()?;
-                        log::debug!("Got file {:?}", file.name);
-                        if file.name == file_name {
-                            return Ok(Some(child));
-                        }
+            for child in children.children.into_iter() {
+                log::debug!("Got child {:?}", child.dtype);
+                if child.dtype == MerkleTreeNodeType::File {
+                    let file = child.file()?;
+                    log::debug!("Got file.name {:?}", file.name);
+                    log::debug!("Got file_name {:?}", file_name);
+                    log::debug!("file.name == file_name: {:?}", file.name == file_name);
+                    if file.name == file_name {
+                        return Ok(Some(child));
                     }
                 }
             }
@@ -559,6 +564,7 @@ impl CommitMerkleTree {
         Ok(())
     }
 
+    // HERE HERE
     pub fn dir_entries(
         repo: &LocalRepository,
         node: &MerkleTreeNodeData,
@@ -633,12 +639,38 @@ impl CommitMerkleTree {
                     if current_directory == search_directory {
                         let commit_id = child_file.last_commit_id.to_string();
                         let commit = commit_reader.get_commit_by_id(&commit_id)?;
+                        let full_path = current_directory.join(&child_file.name);
+                        let resource = ParsedResource {
+                            commit: commit.clone(),
+                            branch: None,
+                            path: full_path.clone(),
+                            version: PathBuf::from(
+                                &commit
+                                    .clone()
+                                    .ok_or(OxenError::basic_str(format!(
+                                        "Commit id not found for file: {}",
+                                        child_file.name.to_string()
+                                    )))?
+                                    .id
+                                    .clone(),
+                            ),
+                            resource: PathBuf::from(
+                                commit
+                                    .clone()
+                                    .ok_or(OxenError::basic_str(format!(
+                                        "Commit id not found for file: {}",
+                                        child_file.name
+                                    )))?
+                                    .id,
+                            )
+                            .join(full_path),
+                        };
 
                         let metadata = MetadataEntry {
                             filename: child_file.name.clone(),
                             is_dir: false,
                             latest_commit: commit,
-                            resource: None,
+                            resource: Some(resource),
                             size: child_file.num_bytes,
                             data_type: child_file.data_type,
                             mime_type: child_file.mime_type,

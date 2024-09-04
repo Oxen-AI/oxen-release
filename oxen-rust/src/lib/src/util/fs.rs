@@ -190,7 +190,15 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
 }
 
-pub fn version_path_from_hash(repo: &LocalRepository, hash: &MerkleHash) -> PathBuf {
+pub fn version_path_from_node(repo: &LocalRepository, file_hash: &str, path: &Path) -> PathBuf {
+    version_path_from_hash_and_file(
+        &repo.path,
+        file_hash.to_string().clone(),
+        path.to_path_buf(),
+    )
+}
+
+pub fn version_path_from_hash(repo: &LocalRepository, hash: &str) -> PathBuf {
     version_path_from_hash_and_file(&repo.path, hash.to_string(), PathBuf::new())
 }
 
@@ -227,6 +235,10 @@ pub fn version_path_from_hash_and_file(
     filename: PathBuf,
 ) -> PathBuf {
     let version_dir = version_dir_from_hash(dst, hash);
+    log::debug!(
+        "version_path_from_hash_and_file version_dir {:?}",
+        version_dir
+    );
     let extension = extension_from_path(&filename);
     if extension.is_empty() {
         version_dir.join(VERSION_FILE_NAME)

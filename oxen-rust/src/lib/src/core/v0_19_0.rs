@@ -10,6 +10,7 @@ pub mod index;
 pub mod init;
 pub mod pull;
 pub mod push;
+pub mod restore;
 pub mod rm;
 pub mod status;
 pub mod structs;
