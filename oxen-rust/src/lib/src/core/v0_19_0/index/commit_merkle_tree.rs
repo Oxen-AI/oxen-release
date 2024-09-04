@@ -211,10 +211,7 @@ impl CommitMerkleTree {
         for path in paths.iter() {
             // Skip to the nodes
             let Some(hash) = dir_hashes.get(path) else {
-                return Err(OxenError::basic_str(format!(
-                    "Dir hash not found for path: {:?}",
-                    path
-                )));
+                continue;
             };
             log::debug!("Loading node for path: {:?} hash: {}", path, hash);
             let Some(node) = CommitMerkleTree::read_depth(repo, hash, 2)? else {
