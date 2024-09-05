@@ -56,7 +56,7 @@ pub fn get_slice(
 
     // Try to get the schema from the merkle tree
     let og_schema = if let Some(schema) =
-        repositories::data_frames::schemas::get_by_path_from_revision(&repo, &commit.id, &path)?
+        repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?
     {
         schema
     } else {
@@ -143,11 +143,8 @@ fn handle_sql_querying(
         let df = sql::query_df(sql, &mut conn)?;
 
         let source_schema = if let Some(schema) =
-            repositories::data_frames::schemas::get_by_path_from_revision(
-                repo,
-                &workspace.commit.id,
-                &path,
-            )? {
+            repositories::data_frames::schemas::get_by_path(repo, &workspace.commit, &path)?
+        {
             schema
         } else {
             Schema::from_polars(&df.schema())

@@ -9,8 +9,12 @@ use std::path::PathBuf;
 use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::Stager;
 
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Schema};
+use crate::model::merkle_tree::node::EMerkleTreeNode;
+use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::{Commit, LocalRepository, Schema};
 use crate::repositories;
 use crate::util;
 
@@ -18,28 +22,48 @@ use std::path::Path;
 
 pub fn list(
     repo: &LocalRepository,
-    commit_id: Option<&str>,
+    commit: &Commit,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    todo!()
+    let tree = CommitMerkleTree::from_commit(repo, commit)?;
+    let mut schemas = HashMap::new();
+    r_list_schemas(repo, tree.root, PathBuf::new(), &mut schemas)?;
+    Ok(schemas)
+}
+
+fn r_list_schemas(
+    repo: &LocalRepository,
+    node: MerkleTreeNode,
+    current_path: impl AsRef<Path>,
+    schemas: &mut HashMap<PathBuf, Schema>,
+) -> Result<(), OxenError> {
+    for child in node.children {
+        match &child.node {
+            EMerkleTreeNode::VNode(_) => {
+                let child_path = current_path.as_ref();
+                r_list_schemas(repo, child, child_path, schemas)?;
+            }
+            EMerkleTreeNode::Directory(dir_node) => {
+                let child_path = current_path.as_ref().join(&dir_node.name);
+                r_list_schemas(repo, child, child_path, schemas)?;
+            }
+            EMerkleTreeNode::File(file_node) => match &file_node.metadata {
+                Some(GenericMetadata::MetadataTabular(metadata)) => {
+                    let child_path = current_path.as_ref().join(&file_node.name);
+                    schemas.insert(child_path, metadata.tabular.schema.clone());
+                }
+                _ => {}
+            },
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 pub fn get_by_path(
     repo: &LocalRepository,
+    commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
-    todo!()
-}
-
-/// Get a schema for a specific revision
-pub fn get_by_path_from_revision(
-    repo: &LocalRepository,
-    revision: impl AsRef<str>,
-    path: impl AsRef<Path>,
-) -> Result<Option<Schema>, OxenError> {
-    todo!()
-}
-
-pub fn get_by_hash(repo: &LocalRepository, hash: String) -> Result<Option<Schema>, OxenError> {
     todo!()
 }
 
@@ -71,11 +95,6 @@ pub fn show(
     staged: bool,
     verbose: bool,
 ) -> Result<String, OxenError> {
-    todo!()
-}
-
-/// Set the name of a schema
-pub fn set_name(repo: &LocalRepository, hash: &str, val: &str) -> Result<(), OxenError> {
     todo!()
 }
 
