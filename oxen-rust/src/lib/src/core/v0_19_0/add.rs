@@ -166,7 +166,7 @@ fn process_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-        
+
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
@@ -348,16 +348,17 @@ fn process_add_file(
 
             // Find node to remove
             let file_path = relative_path.file_name().unwrap();
-            let node: MerkleTreeNode = if let Some(node) = get_file_node(maybe_dir_node, file_path)? {
-                MerkleTreeNode::from_file(node)
+            let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
+                MerkleTreeNode::from_file(file_node)
             } else {
                 let error = format!("File {relative_path:?} must be committed to use `oxen rm`");
                 return Err(OxenError::basic_str(error));
             };
-
+            
+            // clone won't be necessary after refactor
             let entry = StagedMerkleTreeNode {
                 status: StagedEntryStatus::Removed,
-                node,
+                node: node.clone(),
             };
 
                 
