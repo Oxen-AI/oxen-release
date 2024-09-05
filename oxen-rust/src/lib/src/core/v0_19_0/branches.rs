@@ -1,5 +1,5 @@
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
-use crate::core::v0_19_0::{commits, restore};
+use crate::core::v0_19_0::{commits, pull, restore};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
@@ -21,8 +21,6 @@ pub async fn checkout(repo: &LocalRepository, branch_name: &str) -> Result<(), O
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
 
     checkout_commit_id(repo, &branch.commit_id).await?;
-    // Pull changes if needed
-    // TODO
 
     Ok(())
 }
@@ -34,8 +32,12 @@ pub async fn checkout_commit_id(
     let commit = repositories::commits::get_by_id(repo, &commit_id)?
         .ok_or(OxenError::commit_id_does_not_exist(&commit_id))?;
 
+    // Pull entries if needed
+    pull::maybe_pull_missing_entries(repo, &commit).await?;
+
     // Set working repo to commit
     set_working_repo_to_commit(repo, &commit).await?;
+
     Ok(())
 }
 
