@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::core::v0_19_0::index::merkle_tree::node::MerkleTreeNodeData;
-use crate::core::v0_19_0::index::merkle_tree::CommitMerkleTree;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, LocalRepository, MerkleHash};
@@ -57,7 +56,7 @@ pub fn get_dir_without_children(
 pub fn get_node_data_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,
-) -> Result<Option<MerkleTreeNodeData>, OxenError> {
+) -> Result<Option<MerkleTreeNode>, OxenError> {
     let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
         return Ok(None);
     };

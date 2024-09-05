@@ -37,11 +37,11 @@ pub mod merge;
 pub mod metadata;
 pub mod pull;
 pub mod push;
+pub mod restore;
 pub mod revisions;
 pub mod rm;
 pub mod status;
 pub mod tree;
-pub mod restore;
 
 pub use add::add;
 pub use checkout::checkout;

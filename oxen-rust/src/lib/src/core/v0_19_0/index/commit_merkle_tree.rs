@@ -10,16 +10,15 @@ use crate::core::db;
 
 use crate::core::v0_19_0::index::MerkleNodeDB;
 
-use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode};
+use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 
 use crate::error::OxenError;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, EntryDataType, MetadataEntry};
-use crate::model::{Commit, LocalRepository, MerkleHash, MerkleTreeNodeType};
-use crate::model::{LocalRepository, ParsedResource};
-use crate::model::{MerkleHash, MerkleTreeNodeType};
+use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
+
 use crate::util;
 
 use std::str::FromStr;
@@ -110,7 +109,9 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        log::debug!("dir_without_children: dir_hashes: {:?}", dir_hashes);
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+        log::debug!("dir_without_children: node_hash: {:?}", node_hash);
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -297,6 +298,42 @@ impl CommitMerkleTree {
 
     pub fn total_vnodes(&self) -> usize {
         self.root.total_vnodes()
+    }
+
+    pub fn dir_entries(dir: &MerkleTreeNode) -> Result<Vec<FileNode>, OxenError> {
+        match &dir.node {
+            EMerkleTreeNode::Directory(_) => {
+                let mut file_entries = Vec::new();
+                log::debug!("dir_children: dir: {:?}", dir.children);
+
+                for child in &dir.children {
+                    match &child.node {
+                        EMerkleTreeNode::VNode(_) => {
+                            // VNode: collect immediate file children
+                            file_entries.extend(child.children.iter().filter_map(|grandchild| {
+                                if let EMerkleTreeNode::File(file_node) = &grandchild.node {
+                                    Some(file_node.clone())
+                                } else {
+                                    None
+                                }
+                            }));
+                        }
+                        EMerkleTreeNode::Directory(_) => {
+                            // Recursively collect files from subdirectories
+                            let sub_entries = Self::dir_entries(child)?;
+                            file_entries.extend(sub_entries);
+                        }
+                        _ => {} // Ignore other node types
+                    }
+                }
+
+                Ok(file_entries)
+            }
+            _ => Err(OxenError::basic_str(format!(
+                "Expected directory node, but got {:?}",
+                dir.node.dtype()
+            ))),
+        }
     }
 
     /// This uses the dir_hashes db to skip right to a file in the tree

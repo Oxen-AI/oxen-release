@@ -107,7 +107,7 @@ pub fn resized_path_for_file_node(
     width: Option<u32>,
     height: Option<u32>,
 ) -> Result<PathBuf, OxenError> {
-    let path = version_path_from_hash(repo, &file_node.hash);
+    let path = version_path_from_hash(repo, &file_node.hash.to_string());
     let extension = file_node.extension.clone();
     let width = width.map(|w| w.to_string());
     let height = height.map(|w| w.to_string());

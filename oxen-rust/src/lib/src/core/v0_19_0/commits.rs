@@ -32,11 +32,16 @@ pub fn get_commit_or_head<S: AsRef<str>>(
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
     if let Some(commit_id_or_branch_name) = commit_id_or_branch_name {
+        log::debug!(
+            "get_commit_or_head: commit_id_or_branch_name: {:?}",
+            commit_id_or_branch_name.as_ref()
+        );
         let commit = get_by_id(repo, commit_id_or_branch_name)?;
         if let Some(commit) = commit {
             return Ok(commit);
         }
     }
+    log::debug!("get_commit_or_head: calling head_commit");
     head_commit(repo)
 }
 
