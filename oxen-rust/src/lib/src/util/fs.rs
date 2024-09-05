@@ -1403,6 +1403,19 @@ pub fn is_glob_path(path: impl AsRef<Path>) -> bool {
         .any(|c| path.as_ref().to_str().unwrap_or_default().contains(*c))
 }
 
+
+pub fn remove_paths(src: &Path) -> Result<(), OxenError> {
+
+    if src.is_dir() {
+        log::debug!("Calling remove_dir_all: {src:?}");
+        remove_dir_all(src)
+    } else {
+        log::debug!("Calling remove_file: {src:?}");
+        remove_file(src)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     use crate::constants::{self, VERSION_FILE_NAME};

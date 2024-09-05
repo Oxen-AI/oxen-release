@@ -5,8 +5,14 @@ use crate::repositories;
 use crate::util;
 use crate::constants;
 use crate::core::db;
-use crate::core::v0_19_0::add;
-use core::time::Duration;
+
+
+use crate::core;
+use tokio::time::Duration;
+
+use crate::core::v0_19_0::add::CumulativeStats;
+
+
 
 use crate::model::Commit;
 use crate::model::StagedEntryStatus;
@@ -47,15 +53,16 @@ fn remove_files(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     let start = std::time::Instant::now();
     let path: &Path = opts.path.as_ref();
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts.recursive)?;
+    println!("paths: {:?}", paths);
 
     // TODO: Handle intermittent failure
     // TODO: Accurately calculate # of files removed for remove_staged
     if opts.staged {
 
-        for path in paths {
+        for path in &paths {
 
             if path.is_dir() {
-                //remove_staged_dir(path.as_ref(), repo)?;
+               // remove_staged_dir(path.as_ref(), repo)?;
             }
             
             remove_staged_file(path.as_ref(), repo)?;
@@ -65,16 +72,17 @@ fn remove_files(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
         
     } else {
 
-        let stats = core::v0_19_0::add::add_files(repo, paths);
+        let mut stats = core::v0_19_0::add::add_files(repo, &paths)?;
         
         // Stop the timer, and round the duration to the nearest second
         let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
         log::debug!("---END--- oxen rm: {:?} duration: {:?}", path, duration);
 
+        // TODO: Add function to CumulativeStats to output that print statement 
         println!(
             "🐂 oxen removed {} files ({}) in {}",
-            stats.total_files,
-            bytesize::ByteSize::b(stats.total_bytes),
+            0, // stats.total_files,
+            0, // bytesize::ByteSize::b(stats.total_bytes),
             humantime::format_duration(duration)
         );
     }
@@ -97,7 +105,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, recursive: bool) -> Resu
                     log::debug!("REMOVING: {full_path:?}");
                     if full_path.exists() {
                         // user might have removed dir manually before using `oxen rm`
-                        util::fs::remove_dir_all(&full_path)?;
+                        util::fs::remove_paths(&full_path)?;
                     }
                     paths.insert(full_path);
                 }
@@ -107,7 +115,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, recursive: bool) -> Resu
                 log::debug!("REMOVING: {full_path:?}");
                 if full_path.exists() {
         
-                    util::fs::remove_dir_all(&full_path)?;
+                    util::fs::remove_paths(&full_path)?;
                 };
                 paths.insert(path.to_owned());
             }
@@ -126,7 +134,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, recursive: bool) -> Resu
 
                     if full_path.exists() {
                         
-                        util::fs::remove_file(&full_path)?;
+                        util::fs::remove_paths(&full_path)?;
                     } 
 
                     paths.insert(full_path);
@@ -137,7 +145,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, recursive: bool) -> Resu
                 log::debug!("REMOVING: {full_path:?}");
                 if full_path.exists() {
         
-                    util::fs::remove_dir_all(&full_path)?;
+                    util::fs::remove_paths(&full_path)?;
                 };
                 paths.insert(path.to_owned());
             }
@@ -158,12 +166,13 @@ fn remove_staged_file(
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-   
+
+    log::debug!("Deleting entry: {relative_path:?}");
     staged_db.delete(relative_path.to_str().unwrap())?;
     Ok(())
 }
 
-
+/*
 fn rm_staged_dir(
     repo: &LocalRepository,
     path: PathBuf,
@@ -173,7 +182,6 @@ fn rm_staged_dir(
     let path = path.clone();
     let repo = repo.clone();
     let repo_path = repo.path.clone();
-    let maybe_head_commit = maybe_head_commit.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -190,14 +198,6 @@ fn rm_staged_dir(
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
     let progress_1_clone = Arc::clone(&progress_1);
 
-
-    let mut cumulative_stats = CumulativeStats {
-        total_files: 0,
-        total_bytes: 0,
-        data_type_counts: HashMap::new(),
-    };
-
-
     let walker = WalkDir::new(&path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
@@ -211,7 +211,6 @@ fn rm_staged_dir(
 
 
         let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
-        let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
 
@@ -274,7 +273,7 @@ fn rm_staged_dir(
 
     Ok(cumulative_stats)
 }
-
+*/
 
 
 
