@@ -5,7 +5,8 @@ use crate::repositories;
 use crate::util;
 use crate::constants;
 use crate::core::db;
-
+use crate::core::v0_19_0::add;
+use core::time::Duration;
 
 use crate::model::Commit;
 use crate::model::StagedEntryStatus;
@@ -38,23 +39,23 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     }    
     */
 
-    remove_files(repo, opts); 
+    remove_files(repo, opts)
 }
 
 fn remove_files(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
 
     let start = std::time::Instant::now();
     let path: &Path = opts.path.as_ref();
-    let paths: HashSet<PathBuf> = parse_glob_path(path, true)?;
+    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts.recursive)?;
 
     // TODO: Handle intermittent failure
-
+    // TODO: Accurately calculate # of files removed for remove_staged
     if opts.staged {
 
         for path in paths {
 
             if path.is_dir() {
-                remove_staged_dir(path.as_ref(), repo)?;
+                //remove_staged_dir(path.as_ref(), repo)?;
             }
             
             remove_staged_file(path.as_ref(), repo)?;
@@ -82,7 +83,7 @@ fn remove_files(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 }
 
 // This function is extracted out to check for directories occurs if opts.recursive isn't set 
-fn parse_glob_path(path: &Path, recursive: &bool) -> Result<HashSet<PathBuf>, OxenError> {
+fn parse_glob_path(path: &Path, repo: &LocalRepository, recursive: bool) -> Result<HashSet<PathBuf>, OxenError> {
     
     let mut paths: HashSet<PathBuf> = HashSet::new();
 
@@ -92,13 +93,13 @@ fn parse_glob_path(path: &Path, recursive: &bool) -> Result<HashSet<PathBuf>, Ox
                 // Match against any untracked entries in the current dir
                 // Remove matched paths from repo
                 for entry in glob(path_str)? {
-                    let full_path = repo.path.join(entry);
+                    let full_path = repo.path.join(entry?);
                     log::debug!("REMOVING: {full_path:?}");
                     if full_path.exists() {
                         // user might have removed dir manually before using `oxen rm`
                         util::fs::remove_dir_all(&full_path)?;
                     }
-                    paths.insert(entry?);
+                    paths.insert(full_path);
                 }
             } else {
                 // Non-glob path
@@ -118,7 +119,7 @@ fn parse_glob_path(path: &Path, recursive: &bool) -> Result<HashSet<PathBuf>, Ox
 
                 for entry in glob(path_str)? {
 
-                    let full_path = repo.path.join(entry);
+                    let full_path = repo.path.join(entry?);
 
                     // TODO: throw error if full_path matches a dir in the merkle tree
                     log::debug!("REMOVING: {full_path:?}");
@@ -128,7 +129,7 @@ fn parse_glob_path(path: &Path, recursive: &bool) -> Result<HashSet<PathBuf>, Ox
                         util::fs::remove_file(&full_path)?;
                     } 
 
-                    paths.insert(entry?);
+                    paths.insert(full_path);
                 }
             } else {
                 // Non-glob path
