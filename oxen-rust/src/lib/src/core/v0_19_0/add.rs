@@ -341,10 +341,12 @@ fn process_add_file(
     let full_path = repo_path.join(&relative_path);
 
     // TODO: Refactor to share code between additions & removals
+    println!("Check if file");
     if !full_path.is_file() {
 
         // Handle removed files
         if !full_path.exists() {
+            println!("Added file did not exist. Staging removed entry");
 
             // Find node to remove
             let file_path = relative_path.file_name().unwrap();
