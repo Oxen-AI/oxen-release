@@ -1135,7 +1135,8 @@ mod tests {
                 assert!(status.is_clean());
 
                 // Make sure that the schema gets pulled
-                let schemas = repositories::data_frames::schemas::list(&repo, None)?;
+                let commit = repositories::commits::head_commit(&cloned_repo)?;
+                let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
                 assert!(!schemas.is_empty());
 
                 api::client::repositories::delete(&remote_repo).await?;
@@ -1159,7 +1160,8 @@ mod tests {
             let og_df = tabular::read_df(&file_path, DFOpts::empty())?;
             let og_sentiment_contents = util::fs::read_from_path(&file_path)?;
 
-            let schemas = repositories::data_frames::schemas::list(&repo, None)?;
+            let commit = repositories::commits::head_commit(&repo)?;
+            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
             let num_schemas = schemas.len();
 
             // Set the proper remote
@@ -1197,7 +1199,8 @@ mod tests {
                 assert!(status.is_clean());
 
                 // Make sure we grab the same amount of schemas
-                let pulled_schemas = repositories::data_frames::schemas::list(&repo, None)?;
+                let head_commit = repositories::commits::head_commit(&cloned_repo)?;
+                let pulled_schemas = repositories::data_frames::schemas::list(&repo, &head_commit)?;
                 assert_eq!(pulled_schemas.len(), num_schemas);
 
                 api::client::repositories::delete(&remote_repo).await?;

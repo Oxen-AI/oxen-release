@@ -15,7 +15,6 @@ use std::{collections::HashMap, fmt, path::PathBuf};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Schema {
-    pub name: Option<String>,
     pub hash: String,
     pub fields: Vec<Field>,
     // Optional string metadata on the schema, to allow for user driven features.
@@ -24,31 +23,20 @@ pub struct Schema {
 
 impl PartialEq for Schema {
     fn eq(&self, other: &Schema) -> bool {
-        self.name == other.name && self.hash == other.hash && self.fields == other.fields
+        self.hash == other.hash && self.fields == other.fields
     }
 }
 
 impl Schema {
     pub fn empty() -> Self {
         Schema {
-            name: None,
             hash: "".to_string(),
             fields: vec![],
             metadata: None,
         }
     }
-    pub fn new(name: impl AsRef<str>, fields: Vec<Field>) -> Schema {
+    pub fn new(fields: Vec<Field>) -> Schema {
         Schema {
-            name: Some(name.as_ref().to_string()),
-            hash: Schema::hash_fields(&fields),
-            fields: fields.to_owned(),
-            metadata: None,
-        }
-    }
-
-    pub fn from_fields(fields: Vec<Field>) -> Schema {
-        Schema {
-            name: None,
             hash: Schema::hash_fields(&fields),
             fields: fields.to_owned(),
             metadata: None,
@@ -76,17 +64,16 @@ impl Schema {
         }
 
         Schema {
-            name: None,
             hash: Schema::hash_fields(&fields),
             fields,
             metadata: None,
         }
     }
 
-    /// Checks if the provided schema matches this schema given a hash, path, and name
+    /// Checks if the provided schema matches this schema given a hash or path
     pub fn matches_ref(&self, schema_ref: impl AsRef<str>) -> bool {
         let schema_ref = schema_ref.as_ref();
-        self.hash == schema_ref || self.name.as_ref().unwrap_or(&"".to_string()) == schema_ref
+        self.hash == schema_ref
     }
 
     /// Add metadata to a column
@@ -272,7 +259,6 @@ impl Schema {
         }
 
         Schema {
-            name: None,
             hash: Schema::hash_fields(&fields),
             fields,
             metadata: None,
@@ -281,7 +267,7 @@ impl Schema {
 
     pub fn schemas_to_string(schemas: HashMap<PathBuf, Schema>) -> String {
         let mut table = comfy_table::Table::new();
-        table.set_header(vec!["path", "name", "hash", "fields"]);
+        table.set_header(vec!["path", "hash", "fields"]);
 
         // Sort by path
         let mut schemas: Vec<(PathBuf, Schema)> = schemas.into_iter().collect();
@@ -289,21 +275,11 @@ impl Schema {
 
         for (path, schema) in schemas.iter() {
             let fields_str = Field::fields_to_string_with_limit(&schema.fields);
-            if let Some(name) = &schema.name {
-                table.add_row(vec![
-                    path.to_string_lossy(),
-                    name.into(),
-                    schema.hash.clone().into(),
-                    fields_str.into(),
-                ]);
-            } else {
-                table.add_row(vec![
-                    path.to_string_lossy(),
-                    "?".into(),
-                    schema.hash.clone().into(),
-                    fields_str.into(),
-                ]);
-            }
+            table.add_row(vec![
+                path.to_string_lossy(),
+                schema.hash.clone().into(),
+                fields_str.into(),
+            ]);
         }
         table.to_string()
     }
@@ -315,7 +291,7 @@ impl Schema {
 
     pub fn verbose_str(&self) -> String {
         let mut table = comfy_table::Table::new();
-        table.set_header(vec!["name", "dtype", "metadata"]);
+        table.set_header(vec!["dtype", "metadata"]);
 
         for field in self.fields.iter() {
             let mut row = vec![field.name.to_string(), field.dtype.to_string()];
@@ -363,7 +339,6 @@ mod tests {
         schemas.insert(
             PathBuf::from("file.csv"),
             Schema {
-                name: Some("bounding_box".to_string()),
                 hash: "1234".to_string(),
                 fields: vec![Field::new("file", "")],
                 metadata: None,
@@ -389,7 +364,6 @@ mod tests {
         schemas.insert(
             PathBuf::from("another/file.csv"),
             Schema {
-                name: Some("bounding_box".to_string()),
                 hash: "1234".to_string(),
                 fields: vec![
                     Field::new("file", "str"),
@@ -423,7 +397,6 @@ mod tests {
         schemas.insert(
             PathBuf::from("numero_uno.csv"),
             Schema {
-                name: Some("bounding_box".to_string()),
                 hash: "1234".to_string(),
                 fields: vec![
                     Field::new("file", "str"),
@@ -438,7 +411,6 @@ mod tests {
         schemas.insert(
             PathBuf::from("numero_dos.csv"),
             Schema {
-                name: None,
                 hash: "5432".to_string(),
                 fields: vec![Field::new("file", "str"), Field::new("x", "i64")],
                 metadata: None,
@@ -450,13 +422,13 @@ mod tests {
         assert_eq!(
             table,
             r"
-+----------------+--------------+------+----------------+
-| path           | name         | hash | fields         |
-+=======================================================+
-| numero_dos.csv | ?            | 5432 | [file, x]      |
-|----------------+--------------+------+----------------|
-| numero_uno.csv | bounding_box | 1234 | [file, ..., h] |
-+----------------+--------------+------+----------------+"
++----------------+------+----------------+
+| path           | hash | fields         |
++========================================+
+| numero_dos.csv | 5432 | [file, x]      |
+|----------------+------+----------------|
+| numero_uno.csv | 1234 | [file, ..., h] |
++----------------+------+----------------+"
                 .trim()
         )
     }

@@ -10,50 +10,32 @@ use crate::core;
 use crate::core::versions::MinOxenVersion;
 
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Schema};
+use crate::model::{Commit, LocalRepository, Schema};
 
 use std::path::Path;
 
 pub fn list(
     repo: &LocalRepository,
-    commit_id: Option<&str>,
+    commit: &Commit,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::list(repo, commit_id),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::list(repo, commit_id),
+        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::list(repo, &commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::list(repo, &commit),
     }
 }
 
 pub fn get_by_path(
     repo: &LocalRepository,
-    path: impl AsRef<Path>,
-) -> Result<Option<Schema>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::get_by_path(repo, path),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::get_by_path(repo, path),
-    }
-}
-
-/// Get a schema for a specific revision
-pub fn get_by_path_from_revision(
-    repo: &LocalRepository,
-    revision: impl AsRef<str>,
+    commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::data_frames::schemas::get_by_path_from_revision(repo, revision, path)
+            core::v0_10_0::data_frames::schemas::get_by_path(repo, commit, path)
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::data_frames::schemas::get_by_path_from_revision(repo, revision, path)
+            core::v0_19_0::data_frames::schemas::get_by_path(repo, commit, path)
         }
-    }
-}
-
-pub fn get_by_hash(repo: &LocalRepository, hash: String) -> Result<Option<Schema>, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::get_by_hash(repo, hash),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::get_by_hash(repo, hash),
     }
 }
 
@@ -148,13 +130,15 @@ mod tests {
     #[test]
     fn test_command_schema_list() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
-            let schemas = repositories::data_frames::schemas::list(&repo, None)?;
+            let commit = repositories::commits::head_commit(&repo)?;
+            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
             assert_eq!(schemas.len(), 7);
             let path = PathBuf::from("annotations")
                 .join("train")
                 .join("bounding_box.csv");
 
-            let schema = repositories::data_frames::schemas::get_by_path(&repo, &path)?.unwrap();
+            let schema =
+                repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?.unwrap();
             assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
@@ -181,10 +165,6 @@ mod tests {
             let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 0);
 
-            // Make sure no schemas are committed
-            let schemas = repositories::data_frames::schemas::list(&repo, None)?;
-            assert_eq!(schemas.len(), 0);
-
             // Schema should be staged when added
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -199,10 +179,8 @@ mod tests {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }
 
-            // name the schema when staged
-            let schema_ref = "b821946753334c083124fd563377d795";
             // Schema should be committed after commit
-            repositories::commit(&repo, "Adding bounding box schema")?;
+            let commit = repositories::commit(&repo, "Adding bounding box schema")?;
 
             // Make sure no schemas are staged after commit
             let status = repositories::status(&repo)?;
@@ -212,7 +190,8 @@ mod tests {
                 .join("bounding_box.csv");
 
             // Fetch schema from HEAD commit
-            let schema = repositories::data_frames::schemas::get_by_path(&repo, &path)?.unwrap();
+            let schema =
+                repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?.unwrap();
             assert_eq!(schema.hash, "b821946753334c083124fd563377d795");
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
@@ -239,10 +218,6 @@ mod tests {
             let status = repositories::status(&repo)?;
             assert_eq!(status.staged_schemas.len(), 0);
 
-            // Make sure no schemas are committed
-            let schemas = repositories::data_frames::schemas::list(&repo, None)?;
-            assert_eq!(schemas.len(), 0);
-
             // Schema should be staged when added
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -257,9 +232,6 @@ mod tests {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }
 
-            // name the schema when staged
-            let schema_ref = "b821946753334c083124fd563377d795";
-
             // Schema should be committed after commit
             repositories::commit(&repo, "Adding bounding box schema")?;
 
@@ -271,11 +243,8 @@ mod tests {
             let commit = repositories::commit(&repo, "Changing the README")?;
 
             // Fetch schema from HEAD commit, it should still be there in all it's glory
-            let maybe_schema = repositories::data_frames::schemas::get_by_path_from_revision(
-                &repo,
-                commit.id,
-                &bbox_filename,
-            )?;
+            let maybe_schema =
+                repositories::data_frames::schemas::get_by_path(&repo, &commit, &bbox_filename)?;
             assert!(maybe_schema.is_some());
 
             let schema = maybe_schema.unwrap();
@@ -347,6 +316,7 @@ mod tests {
                 .expect("Expected to find updated schema");
             let schema =
                 repositories::data_frames::schemas::get_staged(&repo, &bbox_path)?.unwrap();
+            assert_eq!(updated_schema.hash, schema.hash);
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
@@ -429,10 +399,10 @@ mod tests {
                 "task": "bounding_box",
                 "description": "detect some bounding boxes"
             });
-            repositories::data_frames::schemas::add_schema_metadata(&repo, &bbox_path, &metadata)?;
+            repositories::data_frames::schemas::add_schema_metadata(&repo, &bbox_file, &metadata)?;
 
             let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_path)?.unwrap();
+                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
             assert_eq!(schema.metadata, Some(metadata));
 
             Ok(())
@@ -466,19 +436,19 @@ mod tests {
             });
             repositories::data_frames::schemas::add_schema_metadata(
                 &repo,
-                &bbox_path,
+                &bbox_file,
                 &schema_metadata,
             )?;
             // Make sure to do this last for this test, because then we get str instead of path as the dtype_override
             repositories::data_frames::schemas::add_column_metadata(
                 &repo,
-                &bbox_path,
+                &bbox_file,
                 column_name,
                 &column_metadata,
             )?;
 
             let schema =
-                repositories::data_frames::schemas::get_staged(&repo, &bbox_path)?.unwrap();
+                repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
             assert_eq!(schema.metadata, Some(schema_metadata));
             assert_eq!(schema.fields[0].metadata, Some(column_metadata));
 
@@ -530,12 +500,11 @@ mod tests {
             repositories::add(&repo, &bbox_path)?;
             let commit = repositories::commit(&repo, "Adding bounding box file")?;
 
-            let schemas = repositories::data_frames::schemas::list(&repo, Some(&commit.id))?;
+            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
             for (path, schema) in schemas.iter() {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }
 
-            let path = util::fs::path_relative_to_dir(&bbox_path, &repo.path)?;
             // Add the schema
             let metadata = json!({
                 "root": "images"
@@ -557,7 +526,7 @@ mod tests {
             let commit = repositories::commit(&repo, "Adding metadata to file column")?;
 
             // List the committed schemas
-            let schemas = repositories::data_frames::schemas::list(&repo, Some(&commit.id))?;
+            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
             assert_eq!(schemas.len(), 1);
             // assert_eq!(schema_ref, schemas.keys().next().unwrap().to_string_lossy());
             let schema = schemas.values().next().unwrap();
@@ -586,7 +555,7 @@ mod tests {
             repositories::add(&repo, &bbox_path)?;
             let commit = repositories::commit(&repo, "Adding bounding box file")?;
 
-            let schemas = repositories::data_frames::schemas::list(&repo, Some(&commit.id))?;
+            let schemas = repositories::data_frames::schemas::list(&repo, &commit)?;
             for (path, schema) in schemas.iter() {
                 println!("GOT SCHEMA {path:?} -> {schema:?}");
             }
@@ -683,6 +652,7 @@ mod tests {
 
             let schema =
                 repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
+            assert_eq!(updated_schema.hash, schema.hash);
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");
@@ -722,6 +692,7 @@ mod tests {
                 .expect("Expected to find updated schema");
             let schema =
                 repositories::data_frames::schemas::get_staged(&repo, &bbox_file)?.unwrap();
+            assert_eq!(updated_schema.hash, schema.hash);
             assert_eq!(schema.fields.len(), 6);
             assert_eq!(schema.fields[0].name, "file");
             assert_eq!(schema.fields[0].dtype, "str");

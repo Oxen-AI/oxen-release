@@ -1541,7 +1541,7 @@ pub fn schema_bounding_box() -> Schema {
         Field::new("width", "f32"),
         Field::new("height", "f32"),
     ];
-    Schema::new("bounding_box", fields)
+    Schema::new(fields)
 }
 
 pub fn add_random_bbox_to_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, OxenError> {
