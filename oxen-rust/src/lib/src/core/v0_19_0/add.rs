@@ -91,7 +91,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
 }
 
 
-fn add_files(
+pub fn add_files(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
 ) -> Result<CumulativeStats, OxenError> {
@@ -166,7 +166,7 @@ fn process_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-
+        
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
@@ -340,32 +340,43 @@ fn process_add_file(
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
 
-
+    // TODO: Refactor to share code between additions & removals
     if !full_path.is_file() {
 
-
+        // Handle removed files
         if !full_path.exists() {
-            // Handle staging removed file
+
+            // Find node to remove
             let file_path = relative_path.file_name().unwrap();
-            let file_node: MerkleTreeNode = if let Some(node) = get_file_node(maybe_dir_node, file_path)? {
+            let node: MerkleTreeNode = if let Some(node) = get_file_node(maybe_dir_node, file_path)? {
                 MerkleTreeNode::from_file(node)
             } else {
                 let error = format!("File {relative_path:?} must be committed to use `oxen rm`");
                 return Err(OxenError::basic_str(error));
             };
 
-
             let entry = StagedMerkleTreeNode {
                 status: StagedEntryStatus::Removed,
-                node: file_node,
+                node,
             };
 
+                
+            // Remove the file from the versions db
+            // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+            let dir_prefix_len = 2;
+            let dir_name = node.hash.to_string();
+            let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
+            let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
+            let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
+            let dst = dst_dir.join("data");
+            util::fs::remove_dir_all(&dst);
+
+            // Write removed node to staged db
             log::debug!("writing file to staged db: {}", entry);
             write_file_with_parents(entry.clone(), &relative_path, repo_path, staged_db, seen_dirs);
             return Ok(Some(entry));
         }
-
 
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
@@ -374,9 +385,6 @@ fn process_add_file(
             node: MerkleTreeNode::default_dir(),
         }));
     }
-
-
-
 
     // Check if the file is already in the head commit
     let file_path = relative_path.file_name().unwrap();
@@ -500,7 +508,6 @@ fn process_add_file(
     Ok(Some(entry))
 }
 
-
 fn write_file_with_parents(entry: StagedMerkleTreeNode,
     relative_path: &Path,
     repo_path: &Path,
@@ -547,7 +554,6 @@ fn write_file_with_parents(entry: StagedMerkleTreeNode,
         }
     }
 }
-
 
 pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {
     node.last_modified_nanoseconds != time.nanoseconds()
