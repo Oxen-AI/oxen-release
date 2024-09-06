@@ -241,7 +241,7 @@ pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> 
         name,
         branch_lock_file.display()
     );
-    // Branch is locked if file eixsts
+    // Branch is locked if file exists
     Ok(branch_lock_file.exists())
 }
 
