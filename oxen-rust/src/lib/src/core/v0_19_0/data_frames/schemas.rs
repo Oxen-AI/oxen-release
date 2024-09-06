@@ -73,7 +73,17 @@ pub fn get_by_path(
     commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
-    todo!()
+    let path = path.as_ref();
+    let node = repositories::tree::get_file_by_path(repo, commit, &path)?;
+    let Some(node) = node else {
+        return Err(OxenError::path_does_not_exist(&path));
+    };
+
+    let Some(GenericMetadata::MetadataTabular(metadata)) = &node.metadata else {
+        return Err(OxenError::path_does_not_exist(&path));
+    };
+
+    Ok(Some(metadata.tabular.schema.clone()))
 }
 
 /// Get a staged schema
@@ -179,13 +189,19 @@ pub fn add_column_metadata(
     };
 
     // Update the column metadata
+    let mut results = HashMap::new();
     match &mut file_node.metadata {
         Some(GenericMetadata::MetadataTabular(m)) => {
+            log::debug!("add_column_metadata: {m:?}");
             for f in m.tabular.schema.fields.iter_mut() {
+                log::debug!("add_column_metadata: checking column {f:?} == {column}");
+
                 if f.name == column {
+                    log::debug!("add_column_metadata: found column {f:?}");
                     f.metadata = Some(metadata.to_owned());
                 }
             }
+            results.insert(path.to_path_buf(), m.tabular.schema.clone());
         }
         _ => {
             return Err(OxenError::path_does_not_exist(path));
@@ -203,7 +219,7 @@ pub fn add_column_metadata(
         .serialize(&mut Serializer::new(&mut buf))
         .unwrap();
     db.put(key.as_bytes(), &buf)?;
-    Ok(HashMap::new())
+    Ok(results)
 }
 
 fn get_staged_db(repo: &LocalRepository) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {

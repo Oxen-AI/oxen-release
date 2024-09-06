@@ -17,6 +17,10 @@ pub use list::SchemasListCmd;
 
 pub mod rm;
 pub use rm::SchemasRmCmd;
+
+pub mod show;
+pub use show::SchemasShowCmd;
+
 pub struct SchemasCmd;
 
 #[async_trait]
@@ -94,6 +98,7 @@ impl SchemasCmd {
             Box::new(SchemasAddCmd),
             Box::new(SchemasListCmd),
             Box::new(SchemasRmCmd),
+            Box::new(SchemasShowCmd),
         ];
         let mut runners: HashMap<String, Box<dyn RunCmd>> = HashMap::new();
         for cmd in commands {

@@ -11,6 +11,7 @@ use crate::core::versions::MinOxenVersion;
 
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Schema};
+use crate::repositories;
 
 use std::path::Path;
 
@@ -65,14 +66,39 @@ pub fn show(
     staged: bool,
     verbose: bool,
 ) -> Result<String, OxenError> {
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::data_frames::schemas::show(repo, path, staged, verbose)
+    let path = path.as_ref();
+    let schema = if staged {
+        get_staged(repo, path)?
+    } else {
+        match repositories::commits::head_commit_maybe(repo)? {
+            Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, &path)?,
+            None => None,
         }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::data_frames::schemas::show(repo, path, staged, verbose)
-        }
+    };
+
+    log::debug!("show: {schema:?}");
+    let Some(schema) = schema else {
+        return Err(OxenError::schema_does_not_exist(path));
+    };
+
+    let mut results = String::new();
+    if verbose {
+        let verbose_str = schema.verbose_str();
+        results.push_str(&format!(
+            "{} {}\n{}\n",
+            path.to_string_lossy(),
+            schema.hash,
+            verbose_str
+        ));
+    } else {
+        results.push_str(&format!(
+            "{}\t{}\t{}",
+            path.to_string_lossy(),
+            schema.hash,
+            schema
+        ))
     }
+    Ok(results)
 }
 
 /// Remove a schema override from the staging area, TODO: Currently undefined behavior for non-staged schemas
