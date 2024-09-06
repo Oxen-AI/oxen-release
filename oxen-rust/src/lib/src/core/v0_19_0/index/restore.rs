@@ -31,7 +31,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     log::debug!("restore::restore: got commit {:?}", commit.id);
     log::debug!("restore::restore: got path {:?}", path);
 
-    let dir = CommitMerkleTree::dir_with_children(repo, &commit, &path)?;
+    let dir = CommitMerkleTree::dir_with_children_recursive(repo, &commit, &path)?;
 
     match dir {
         Some(dir) => {
@@ -117,11 +117,16 @@ fn restore_dir(
     path: &PathBuf,
 ) -> Result<(), OxenError> {
     log::debug!("restore::restore_dir: start");
-    let file_nodes = CommitMerkleTree::dir_entries(&dir)?;
-    log::debug!("restore::restore_dir: got {} entries", file_nodes.len());
+    // Change the return type to include both FileNode and PathBuf
+    let file_nodes_with_paths = CommitMerkleTree::dir_entries_with_paths(&dir, path)?;
+    log::debug!(
+        "restore::restore_dir: got {} entries",
+        file_nodes_with_paths.len()
+    );
 
     let msg = format!("Restoring Directory: {:?}", dir);
-    let bar = util::progress_bar::oxen_progress_bar_with_msg(file_nodes.len() as u64, &msg);
+    let bar =
+        util::progress_bar::oxen_progress_bar_with_msg(file_nodes_with_paths.len() as u64, &msg);
 
     let mut existing_files = HashSet::new();
     if let Ok(entries) = fs::read_dir(path) {
@@ -133,22 +138,23 @@ fn restore_dir(
         );
     }
 
-    file_nodes.iter().for_each(|file_node| {
-        let file_path = path.join(&file_node.name);
-        existing_files.remove(&file_path);
+    file_nodes_with_paths
+        .iter()
+        .for_each(|(file_node, file_path)| {
+            existing_files.remove(file_path);
 
-        match restore_file(repo, file_node, &file_path) {
-            Ok(_) => log::debug!("restore::restore_dir: entry restored successfully"),
-            Err(e) => {
-                log::error!(
-                    "restore::restore_dir: error restoring file {:?}: {:?}",
-                    file_node.name,
-                    e
-                );
+            match restore_file(repo, file_node, file_path) {
+                Ok(_) => log::debug!("restore::restore_dir: entry restored successfully"),
+                Err(e) => {
+                    log::error!(
+                        "restore::restore_dir: error restoring file {:?}: {:?}",
+                        file_path,
+                        e
+                    );
+                }
             }
-        }
-        bar.inc(1);
-    });
+            bar.inc(1);
+        });
 
     for file_to_remove in existing_files {
         fs::remove_file(file_to_remove)?;

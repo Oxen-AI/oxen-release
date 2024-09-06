@@ -140,6 +140,25 @@ impl CommitMerkleTree {
         }
     }
 
+    pub fn dir_with_children_recursive(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<MerkleTreeNode>, OxenError> {
+        let node_path = path.as_ref();
+        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+        if let Some(node_hash) = node_hash {
+            // We are reading a node with children
+            log::debug!("Look up dir 🗂️ {:?}", node_path);
+            // Read the node at depth 2 to get VNodes and Sub-Files/Dirs
+            CommitMerkleTree::read_node(repo, &node_hash, true)
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn read_node(
         repo: &LocalRepository,
         hash: &MerkleHash,
@@ -300,40 +319,70 @@ impl CommitMerkleTree {
         self.root.total_vnodes()
     }
 
-    pub fn dir_entries(dir: &MerkleTreeNode) -> Result<Vec<FileNode>, OxenError> {
-        match &dir.node {
-            EMerkleTreeNode::Directory(_) => {
-                let mut file_entries = Vec::new();
-                log::debug!("dir_children: dir: {:?}", dir.children);
+    pub fn dir_entries(node: &MerkleTreeNode) -> Result<Vec<FileNode>, OxenError> {
+        let mut file_entries = Vec::new();
 
-                for child in &dir.children {
+        match &node.node {
+            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                for child in &node.children {
                     match &child.node {
-                        EMerkleTreeNode::VNode(_) => {
-                            // VNode: collect immediate file children
-                            file_entries.extend(child.children.iter().filter_map(|grandchild| {
-                                if let EMerkleTreeNode::File(file_node) = &grandchild.node {
-                                    Some(file_node.clone())
-                                } else {
-                                    None
-                                }
-                            }));
+                        EMerkleTreeNode::File(file_node) => {
+                            file_entries.push(file_node.clone());
                         }
-                        EMerkleTreeNode::Directory(_) => {
-                            // Recursively collect files from subdirectories
-                            let sub_entries = Self::dir_entries(child)?;
-                            file_entries.extend(sub_entries);
+                        EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                            file_entries.extend(Self::dir_entries(child)?);
                         }
-                        _ => {} // Ignore other node types
+                        _ => {}
                     }
                 }
-
                 Ok(file_entries)
             }
+            EMerkleTreeNode::File(file_node) => Ok(vec![file_node.clone()]),
             _ => Err(OxenError::basic_str(format!(
-                "Expected directory node, but got {:?}",
-                dir.node.dtype()
+                "Unexpected node type: {:?}",
+                node.node.dtype()
             ))),
         }
+    }
+
+    pub fn dir_entries_with_paths(
+        node: &MerkleTreeNode,
+        base_path: &PathBuf,
+    ) -> Result<Vec<(FileNode, PathBuf)>, OxenError> {
+        let mut entries = Vec::new();
+
+        match &node.node {
+            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                for child in &node.children {
+                    match &child.node {
+                        EMerkleTreeNode::File(file_node) => {
+                            let file_path = base_path.join(&file_node.name);
+                            entries.push((file_node.clone(), file_path));
+                        }
+                        EMerkleTreeNode::Directory(dir_node) => {
+                            let new_base_path = base_path.join(&dir_node.name);
+                            entries.extend(Self::dir_entries_with_paths(child, &new_base_path)?);
+                        }
+                        EMerkleTreeNode::VNode(_vnode) => {
+                            entries.extend(Self::dir_entries_with_paths(child, base_path)?);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            EMerkleTreeNode::File(file_node) => {
+                let file_path = base_path.join(&file_node.name);
+                entries.push((file_node.clone(), file_path));
+            }
+            _ => {
+                return Err(OxenError::basic_str(format!(
+                    "Unexpected node type: {:?}",
+                    node.node.dtype()
+                )))
+            }
+        }
+
+        Ok(entries)
     }
 
     /// This uses the dir_hashes db to skip right to a file in the tree
