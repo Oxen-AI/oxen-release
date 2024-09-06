@@ -83,7 +83,10 @@ mod tests {
             // Write to file
             let hello_filename = "hello.txt";
             let hello_file = repo.path.join(hello_filename);
+            println!("point 1");
             util::fs::write_to_path(&hello_file, "Hello World")?;
+
+            println!("point 2");
 
             // Track the file
             repositories::add(&repo, &hello_file)?;
@@ -93,11 +96,14 @@ mod tests {
             // Remove the file from disk
             util::fs::remove_file(&hello_file)?;
 
+            println!("point 3");
+
             // Check that it doesn't exist, then it does after we restore it
             assert!(!hello_file.exists());
+            println!("point 4");
             // Restore takes the filename not the full path to the test repo
             // ie: "hello.txt" instead of data/test/runs/repo_data/test/runs_fc1544ab-cd55-4344-aa13-5360dc91d0fe/hello.txt
-            command::restore(&repo, RestoreOpts::from_path(hello_filename))?;
+            repositories::restore::restore(&repo, RestoreOpts::from_path(hello_filename))?;
             assert!(hello_file.exists());
 
             Ok(())
