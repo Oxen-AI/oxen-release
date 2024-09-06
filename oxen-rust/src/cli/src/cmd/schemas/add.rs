@@ -44,7 +44,7 @@ impl RunCmd for SchemasAddCmd {
     async fn run(&self, args: &clap::ArgMatches) -> Result<(), OxenError> {
         // Parse Args
         // Path
-        let path = args.get_one::<String>("PATH").map(|p| Path::new(p));
+        let path = args.get_one::<String>("PATH").map(Path::new);
 
         // Flags
         let column = args.get_one::<String>("column");

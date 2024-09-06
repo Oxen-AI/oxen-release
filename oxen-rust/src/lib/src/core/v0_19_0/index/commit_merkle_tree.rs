@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use polars::prelude::full;
 use rocksdb::{DBWithThreadMode, IteratorMode, MultiThreaded};
 
 use crate::constants::{DIR_HASHES_DIR, HISTORY_DIR};
@@ -10,13 +9,11 @@ use crate::core::db;
 
 use crate::core::v0_19_0::index::MerkleNodeDB;
 
-use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode};
+use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 
 use crate::error::OxenError;
-use crate::model::metadata::generic_metadata::GenericMetadata;
-use crate::model::metadata::MetadataDir;
-use crate::model::{Commit, EntryDataType, MetadataEntry};
+use crate::model::Commit;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
 
 use crate::util;

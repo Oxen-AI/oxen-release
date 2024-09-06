@@ -1,23 +1,19 @@
-use rocksdb::{DBWithThreadMode, MultiThreaded, SingleThreaded, WriteBatch};
+use rocksdb::{DBWithThreadMode, SingleThreaded, WriteBatch};
 use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
 use crate::constants::STAGED_DIR;
-use crate::core::db::key_val::path_db;
 use crate::core::db::{self};
-use crate::core::v0_10_0::index::CommitEntryReader;
-use crate::core::v0_10_0::index::Stager;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{
-    Commit, CommitEntry, LocalRepository, MerkleHash, MetadataEntry, ParsedResource,
+    Commit, LocalRepository,
 };
 use crate::opts::RestoreOpts;
 use crate::util;
-use crate::{repositories, resource};
+use crate::repositories;
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     log::debug!("restore::restore: start");

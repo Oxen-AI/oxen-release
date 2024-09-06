@@ -29,7 +29,6 @@ use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::metadata_image::ImgResize;
 use crate::model::Commit;
-use crate::model::MerkleHash;
 use crate::model::Schema;
 use crate::model::{CommitEntry, EntryDataType, LocalRepository};
 use crate::opts::CountLinesOpts;

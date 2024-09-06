@@ -16,7 +16,7 @@ use serde::Serialize;
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
-use crate::model::{Commit, EntryDataType, MerkleHash, MerkleTreeNodeType, StagedEntryStatus};
+use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;

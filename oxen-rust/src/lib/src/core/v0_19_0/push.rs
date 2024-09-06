@@ -76,7 +76,7 @@ async fn push_remote_repo(
     };
 
     // Notify the server that we are starting a push
-    api::client::repositories::pre_push(&remote_repo, &local_branch, &commit.id).await?;
+    api::client::repositories::pre_push(remote_repo, local_branch, &commit.id).await?;
 
     // Figure out which nodes we need to push
     let tree = CommitMerkleTree::from_commit(repo, &commit)?;
@@ -96,7 +96,7 @@ async fn push_remote_repo(
     }
 
     // Notify the server that we are done pushing
-    api::client::repositories::post_push(&remote_repo, &local_branch, &commit.id).await?;
+    api::client::repositories::post_push(remote_repo, local_branch, &commit.id).await?;
 
     progress.finish();
 

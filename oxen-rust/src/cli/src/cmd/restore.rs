@@ -6,7 +6,7 @@ use std::env;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RestoreOpts;
-use liboxen::{command, repositories};
+use liboxen::repositories;
 use std::path::PathBuf;
 
 use crate::cmd::RunCmd;
