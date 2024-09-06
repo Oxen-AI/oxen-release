@@ -291,7 +291,7 @@ impl Schema {
 
     pub fn verbose_str(&self) -> String {
         let mut table = comfy_table::Table::new();
-        table.set_header(vec!["dtype", "metadata"]);
+        table.set_header(vec!["name", "dtype", "metadata"]);
 
         for field in self.fields.iter() {
             let mut row = vec![field.name.to_string(), field.dtype.to_string()];
