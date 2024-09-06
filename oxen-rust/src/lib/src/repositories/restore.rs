@@ -438,6 +438,7 @@ mod tests {
         })
     }
 
+    // FAILS BECAUSE OF STATUS IT SEEMS LIKE
     #[test]
     fn test_wildcard_restore_nested_nlp_dir() -> Result<(), OxenError> {
         test::run_training_data_repo_test_no_commits(|repo| {
@@ -487,6 +488,7 @@ mod tests {
         })
     }
 
+    // FAILS BECAUSE OF search entries in commit
     #[tokio::test]
     async fn test_wildcard_restore_deleted_and_present() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|repo| async move {
@@ -565,6 +567,7 @@ mod tests {
         .await
     }
 
+    // FAILS BECAUSE OF STATUS IT SEEMS LIKE
     #[tokio::test]
     async fn test_restore_staged_schemas_with_wildcard() -> Result<(), OxenError> {
         test::run_training_data_repo_test_fully_committed(|repo| {
