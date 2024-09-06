@@ -9,12 +9,13 @@ use crate::core::refs::RefWriter;
 use crate::core::v0_10_0::index::versioner;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::Entry;
-use crate::model::CommitEntry;
+use crate::model::{Commit, CommitEntry};
 use crate::model::{LocalRepository, MerkleHash, RemoteBranch, RemoteRepository};
 use crate::opts::PullOpts;
 use crate::repositories;
 use crate::util;
 
+use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::structs::pull_progress::PullProgress;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 
@@ -148,6 +149,46 @@ pub async fn pull_remote_repo(
         pull_progress.get_num_files(),
         humantime::format_duration(duration)
     );
+
+    Ok(())
+}
+
+pub async fn maybe_pull_missing_entries(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<(), OxenError> {
+    // If we don't have a remote, there are no missing entries, so return
+    let rb = RemoteBranch::default();
+    let remote = repo.get_remote(&rb.remote);
+    let Some(remote) = remote else {
+        log::debug!("No remote, no missing entries to fetch");
+        return Ok(());
+    };
+
+    let commit_merkle_tree = CommitMerkleTree::from_commit(repo, commit)?;
+
+    let remote_repo = match api::client::repositories::get_by_remote(&remote).await {
+        Ok(Some(repo)) => repo,
+        Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
+        Err(err) => return Err(err),
+    };
+
+    // TODO: what should we print here? If there is nothing to pull, we
+    // shouldn't show the PullProgress
+
+    // Keep track of how many bytes we have downloaded
+    let pull_progress = PullProgress::new();
+
+    // Recursively download the entries
+    let directory = PathBuf::from("");
+    r_download_entries(
+        repo,
+        &remote_repo,
+        &commit_merkle_tree.root,
+        &directory,
+        &pull_progress,
+    )
+    .await?;
 
     Ok(())
 }
