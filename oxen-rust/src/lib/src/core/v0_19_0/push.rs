@@ -53,11 +53,10 @@ pub async fn push_remote_branch(
         Err(err) => return Err(err),
     };
 
-    let num_bytes = push_remote_repo(repo, &remote_repo, &local_branch).await?;
+    push_remote_repo(repo, &remote_repo, &local_branch).await?;
     let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
     println!(
-        "🐂 pushed {} in {}",
-        bytesize::ByteSize::b(num_bytes),
+        "🐂 push complete 🎉 took {}",
         humantime::format_duration(duration)
     );
     Ok(local_branch)
@@ -67,7 +66,7 @@ async fn push_remote_repo(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     local_branch: &Branch,
-) -> Result<u64, OxenError> {
+) -> Result<(), OxenError> {
     // Get the commit from the branch
     let Some(commit) = repositories::commits::get_by_id(repo, &local_branch.commit_id)? else {
         return Err(OxenError::revision_not_found(
@@ -78,11 +77,6 @@ async fn push_remote_repo(
     // Notify the server that we are starting a push
     api::client::repositories::pre_push(&remote_repo, &local_branch, &commit.id).await?;
 
-    // Figure out which nodes we need to push
-    let tree = CommitMerkleTree::from_commit(repo, &commit)?;
-    // There should always be a root dir, so unwrap is safe
-    let root_dir = tree.root.children.first().unwrap().dir()?;
-
     let progress = PushProgress::new();
 
     // Check if the remote branch exists, and either push to it or create a new one
@@ -90,9 +84,7 @@ async fn push_remote_repo(
         Some(remote_branch) => {
             push_to_existing_branch(repo, remote_repo, local_branch, &remote_branch).await?
         }
-        None => {
-            push_to_new_branch(repo, remote_repo, local_branch, &commit, &tree, &progress).await?
-        }
+        None => push_to_new_branch(repo, remote_repo, local_branch, &commit, &progress).await?,
     }
 
     // Notify the server that we are done pushing
@@ -100,7 +92,7 @@ async fn push_remote_repo(
 
     progress.finish();
 
-    Ok(root_dir.num_bytes)
+    Ok(())
 }
 
 async fn push_to_new_branch(
@@ -108,11 +100,25 @@ async fn push_to_new_branch(
     remote_repo: &RemoteRepository,
     branch: &Branch,
     commit: &Commit,
-    tree: &CommitMerkleTree,
     progress: &Arc<PushProgress>,
 ) -> Result<(), OxenError> {
+    // We need to find all the commits that need to be pushed
+    let history = repositories::commits::list_from(repo, &commit.id)?;
+    let node_hashes = history
+        .iter()
+        .map(|c| c.hash().unwrap())
+        .collect::<HashSet<MerkleHash>>();
+
+    let missing_node_hashes = repositories::tree::list_missing_node_hashes(repo, &node_hashes)?;
+    let commits = history
+        .iter()
+        .filter(|c| missing_node_hashes.contains(&c.hash().unwrap()));
+
     // Push each node, and all their file children
-    r_push_node(repo, remote_repo, commit, &tree.root, progress).await?;
+    for commit in commits {
+        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+        r_push_node(repo, remote_repo, &commit, &tree.root, progress).await?;
+    }
 
     // TODO: Do we want a final API call to send the commit?
     //       This might be needed for the hub to set the latest commit
