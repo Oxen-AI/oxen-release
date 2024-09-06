@@ -198,27 +198,14 @@ mod tests {
             let bbox_file = annotations_dir.join("train").join("bounding_box.csv");
             let bbox_path = repo.path.join(bbox_file);
 
-            println!("bbox_path: {:?}", bbox_path);
+            let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
 
-            let og_bbox_contents = match util::fs::read_from_path(&bbox_path) {
-                Ok(contents) => contents,
-                Err(e) => {
-                    println!("Error reading file: {:?}", e);
-                    println!("File exists: {}", bbox_path.exists());
-                    println!("File metadata: {:?}", bbox_path.metadata());
-                    return Err(e.into());
-                }
-            };
-
-            println!("debug point 1");
             util::fs::remove_file(&bbox_path)?;
-            println!("debug point 2");
 
             // Modify another file
             let readme_file = annotations_dir.join("README.md");
             let readme_path = repo.path.join(readme_file);
             let og_readme_contents = util::fs::read_from_path(&readme_path)?;
-            println!("debug point 3");
 
             let readme_path = test::append_line_txt_file(readme_path, "Adding s'more")?;
 
@@ -230,7 +217,6 @@ mod tests {
 
             // Make sure the removed file is restored
             let restored_contents = util::fs::read_from_path(&bbox_path)?;
-            println!("debug point 4");
             assert_eq!(og_bbox_contents, restored_contents);
 
             // Make sure the modified file is restored
@@ -254,6 +240,8 @@ mod tests {
 
             let og_contents = util::fs::read_from_path(&bbox_path)?;
             util::fs::remove_file(&bbox_path)?;
+
+            println!("restoring {:?}", bbox_file);
 
             repositories::restore::restore(
                 &repo,

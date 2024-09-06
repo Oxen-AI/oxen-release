@@ -424,7 +424,7 @@ impl CommitMerkleTree {
             dir_node.children.len()
         );
 
-        dir_node.get_by_path(path)
+        dir_node.get_by_path(file_name)
     }
 
     fn read_children_until_depth(
