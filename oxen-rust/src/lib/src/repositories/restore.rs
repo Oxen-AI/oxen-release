@@ -48,7 +48,7 @@ use crate::util;
 /// util::fs::remove_file(hello_path)?;
 ///
 /// // Restore the file
-/// command::restore(&repo, RestoreOpts::from_path_ref(hello_name, commit.id))?;
+/// repositories::restore::restore(&repo, RestoreOpts::from_path_ref(hello_name, commit.id))?;
 ///
 /// # util::fs::remove_dir_all(base_dir)?;
 /// # Ok(())
@@ -83,10 +83,7 @@ mod tests {
             // Write to file
             let hello_filename = "hello.txt";
             let hello_file = repo.path.join(hello_filename);
-            println!("point 1");
             util::fs::write_to_path(&hello_file, "Hello World")?;
-
-            println!("point 2");
 
             // Track the file
             repositories::add(&repo, &hello_file)?;
@@ -96,11 +93,8 @@ mod tests {
             // Remove the file from disk
             util::fs::remove_file(&hello_file)?;
 
-            println!("point 3");
-
             // Check that it doesn't exist, then it does after we restore it
             assert!(!hello_file.exists());
-            println!("point 4");
             // Restore takes the filename not the full path to the test repo
             // ie: "hello.txt" instead of data/test/runs/repo_data/test/runs_fc1544ab-cd55-4344-aa13-5360dc91d0fe/hello.txt
             repositories::restore::restore(&repo, RestoreOpts::from_path(hello_filename))?;
@@ -136,7 +130,7 @@ mod tests {
             repositories::commit(&repo, "Changing to french")?;
 
             // Restore from the first commit
-            command::restore(
+            repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(hello_filename, first_mod_commit.id),
             )?;
@@ -204,24 +198,39 @@ mod tests {
             let bbox_file = annotations_dir.join("train").join("bounding_box.csv");
             let bbox_path = repo.path.join(bbox_file);
 
-            let og_bbox_contents = util::fs::read_from_path(&bbox_path)?;
+            println!("bbox_path: {:?}", bbox_path);
+
+            let og_bbox_contents = match util::fs::read_from_path(&bbox_path) {
+                Ok(contents) => contents,
+                Err(e) => {
+                    println!("Error reading file: {:?}", e);
+                    println!("File exists: {}", bbox_path.exists());
+                    println!("File metadata: {:?}", bbox_path.metadata());
+                    return Err(e.into());
+                }
+            };
+
+            println!("debug point 1");
             util::fs::remove_file(&bbox_path)?;
+            println!("debug point 2");
 
             // Modify another file
             let readme_file = annotations_dir.join("README.md");
             let readme_path = repo.path.join(readme_file);
             let og_readme_contents = util::fs::read_from_path(&readme_path)?;
+            println!("debug point 3");
 
             let readme_path = test::append_line_txt_file(readme_path, "Adding s'more")?;
 
             // Restore the directory
-            command::restore(
+            repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(annotations_dir, last_commit.id.clone()),
             )?;
 
             // Make sure the removed file is restored
             let restored_contents = util::fs::read_from_path(&bbox_path)?;
+            println!("debug point 4");
             assert_eq!(og_bbox_contents, restored_contents);
 
             // Make sure the modified file is restored
@@ -246,7 +255,7 @@ mod tests {
             let og_contents = util::fs::read_from_path(&bbox_path)?;
             util::fs::remove_file(&bbox_path)?;
 
-            command::restore(
+            repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
             )?;
@@ -275,7 +284,7 @@ mod tests {
             let mut df = tabular::read_df(&bbox_path, opts)?;
             tabular::write_df(&mut df, &bbox_path)?;
 
-            command::restore(
+            repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
             )?;
@@ -305,7 +314,7 @@ mod tests {
             let new_contents = format!("{og_contents}\nnew 0");
             util::fs::write_to_path(&bbox_path, new_contents)?;
 
-            command::restore(
+            repositories::restore::restore(
                 &repo,
                 RestoreOpts::from_path_ref(bbox_file, last_commit.id.clone()),
             )?;
@@ -337,7 +346,7 @@ mod tests {
             status.print();
 
             // Remove from staged
-            command::restore(&repo, RestoreOpts::from_staged_path(bbox_file))?;
+            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(bbox_file))?;
 
             // Make sure is unstaged
             let status = repositories::status(&repo)?;
@@ -366,7 +375,7 @@ mod tests {
             util::fs::remove_file(&ann_path)?;
 
             // Restore from commit
-            command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
+            repositories::restore::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
 
             // Make sure is same size
             let restored_df = tabular::read_df(&ann_path, DFOpts::empty())?;
@@ -398,7 +407,7 @@ mod tests {
             util::fs::remove_file(&ann_path)?;
 
             // Restore from commit
-            command::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
+            repositories::restore::restore(&repo, RestoreOpts::from_path_ref(ann_file, commit.id))?;
 
             // Make sure is same size
             let restored_df = tabular::read_df(&ann_path, DFOpts::empty())?;
@@ -428,7 +437,7 @@ mod tests {
             status.print();
 
             // Remove from staged
-            command::restore(&repo, RestoreOpts::from_staged_path(relative_path))?;
+            repositories::restore::restore(&repo, RestoreOpts::from_staged_path(relative_path))?;
 
             // Make sure is unstaged
             let status = repositories::status(&repo)?;
@@ -538,7 +547,7 @@ mod tests {
                 is_remote: false,
             };
 
-            command::restore(&repo, restore_opts)?;
+            repositories::restore::restore(&repo, restore_opts)?;
 
             let status = repositories::status(&repo)?;
 
@@ -553,7 +562,7 @@ mod tests {
                 is_remote: false,
             };
 
-            command::restore(&repo, restore_opts)?;
+            repositories::restore::restore(&repo, restore_opts)?;
 
             let status = repositories::status(&repo)?;
 
@@ -613,7 +622,7 @@ mod tests {
                 is_remote: false,
             };
 
-            command::restore(&repo, restore_opts)?;
+            repositories::restore::restore(&repo, restore_opts)?;
 
             let status = repositories::status(&repo)?;
             assert_eq!(status.staged_files.len(), 0);
