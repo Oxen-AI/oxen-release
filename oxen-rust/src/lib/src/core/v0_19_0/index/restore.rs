@@ -82,13 +82,26 @@ fn restore_staged(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenE
             }
             log::debug!("restore::restore_staged: prepared to clear all staged entries");
         } else {
-            // Remove specific staged entry
-            let key = opts.path.to_string_lossy().into_owned();
-            batch.delete(key);
-            log::debug!(
-                "restore::restore_staged: prepared to remove staged entry for path {:?}",
-                opts.path
-            );
+            // Remove specific staged entry or entries under a directory
+            let prefix = opts.path.to_string_lossy().into_owned();
+            for result in db.iterator(rocksdb::IteratorMode::From(
+                prefix.as_bytes(),
+                rocksdb::Direction::Forward,
+            )) {
+                if let Ok((key, _)) = result {
+                    let key_str = String::from_utf8_lossy(&key);
+                    // if prefix is a file, it will also return true on starts_with
+                    if key_str.starts_with(&prefix) {
+                        batch.delete(&key);
+                        log::debug!(
+                            "restore::restore_staged: prepared to remove staged entry for path {:?}",
+                            key_str
+                        );
+                    } else {
+                        break; // Stop when we've passed all entries with the given prefix
+                    }
+                }
+            }
         }
 
         db.write(batch)?;
