@@ -767,7 +767,7 @@ pub fn read_df_with_extension(
         "jsonl" => read_df_jsonl(path),
         "json" => read_df_json(path),
         "csv" | "data" => {
-            let delimiter = sniff_db_csv_delimiter(path, &opts)?;
+            let delimiter = sniff_db_csv_delimiter(path, opts)?;
             read_df_csv(path, delimiter)
         }
         "tsv" => read_df_csv(path, b'\t'),

@@ -77,8 +77,8 @@ pub fn get_file(
     let mut entry: Option<CommitEntry> = None;
     // Try to get the parent of the file path, if it exists to get the proper CommitDirEntryReader
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-        let object_reader = get_object_reader(&repo, &commit.id)?;
-        let cder = CommitDirEntryReader::new(&repo, &commit.id, parent, object_reader.clone())?;
+        let object_reader = get_object_reader(repo, &commit.id)?;
+        let cder = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
         entry = cder.get_entry(file_name)?;
     }
 
