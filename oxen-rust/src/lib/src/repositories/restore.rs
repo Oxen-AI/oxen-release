@@ -346,6 +346,7 @@ mod tests {
 
     #[test]
     fn test_restore_data_frame_with_duplicates() -> Result<(), OxenError> {
+        // THIS ONE FAILS BECAUSE OF THE REPOSITOROIES::COMMIT, IT DOESN'T GET TO RESTORE
         test::run_training_data_repo_test_fully_committed(|repo| {
             let ann_file = Path::new("nlp")
                 .join("classification")
@@ -379,6 +380,7 @@ mod tests {
 
     #[test]
     fn test_restore_bounding_box_data_frame() -> Result<(), OxenError> {
+        // THIS ONE FAILS BECAUSE OF THE REPOSITOROIES::COMMIT, IT DOESN'T GET TO RESTORE
         test::run_training_data_repo_test_fully_committed(|repo| {
             let ann_file = Path::new("annotations")
                 .join("train")
