@@ -12,6 +12,7 @@ pub mod init;
 pub mod metadata;
 pub mod pull;
 pub mod push;
+pub mod restore;
 pub mod rm;
 pub mod status;
 pub mod structs;
