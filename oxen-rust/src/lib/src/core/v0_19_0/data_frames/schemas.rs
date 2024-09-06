@@ -6,14 +6,23 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
+use rmp_serde::Serializer;
+use rocksdb::DBWithThreadMode;
+use rocksdb::MultiThreaded;
+use serde::Serialize;
+
+use crate::constants;
+use crate::core::db;
 use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::Stager;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::StagedEntryStatus;
 use crate::model::{Commit, LocalRepository, Schema};
 use crate::repositories;
 use crate::util;
@@ -109,7 +118,42 @@ pub fn add_schema_metadata(
     path: impl AsRef<Path>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    todo!()
+    let db = get_staged_db(repo)?;
+    let path = path.as_ref();
+
+    // Get the FileNode from the CommitMerkleTree
+    let Some(commit) = repositories::commits::head_commit_maybe(repo)? else {
+        return Err(OxenError::basic_str(
+            "Cannot add metadata, no commits found.",
+        ));
+    };
+
+    let Some(mut file_node) = repositories::tree::get_file_by_path(repo, &commit, path)? else {
+        return Err(OxenError::path_does_not_exist(path));
+    };
+
+    // Update the metadata
+    match &mut file_node.metadata {
+        Some(GenericMetadata::MetadataTabular(m)) => {
+            m.tabular.schema.metadata = Some(metadata.to_owned());
+        }
+        _ => {
+            return Err(OxenError::path_does_not_exist(path));
+        }
+    }
+
+    let staged_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Modified,
+        node: MerkleTreeNode::from_file(file_node),
+    };
+
+    let key = path.to_string_lossy();
+    let mut buf = Vec::new();
+    staged_entry
+        .serialize(&mut Serializer::new(&mut buf))
+        .unwrap();
+    db.put(key.as_bytes(), &buf)?;
+    Ok(HashMap::new())
 }
 
 /// Add metadata to a specific column
@@ -119,5 +163,62 @@ pub fn add_column_metadata(
     column: impl AsRef<str>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    todo!()
+    let db = get_staged_db(repo)?;
+    let path = path.as_ref();
+    let column = column.as_ref();
+
+    // Get the FileNode from the CommitMerkleTree
+    let Some(commit) = repositories::commits::head_commit_maybe(repo)? else {
+        return Err(OxenError::basic_str(
+            "Cannot add metadata, no commits found.",
+        ));
+    };
+
+    let Some(mut file_node) = repositories::tree::get_file_by_path(repo, &commit, path)? else {
+        return Err(OxenError::path_does_not_exist(path));
+    };
+
+    // Update the column metadata
+    match &mut file_node.metadata {
+        Some(GenericMetadata::MetadataTabular(m)) => {
+            for f in m.tabular.schema.fields.iter_mut() {
+                if f.name == column {
+                    f.metadata = Some(metadata.to_owned());
+                }
+            }
+        }
+        _ => {
+            return Err(OxenError::path_does_not_exist(path));
+        }
+    }
+
+    let staged_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Modified,
+        node: MerkleTreeNode::from_file(file_node),
+    };
+
+    let key = path.to_string_lossy();
+    let mut buf = Vec::new();
+    staged_entry
+        .serialize(&mut Serializer::new(&mut buf))
+        .unwrap();
+    db.put(key.as_bytes(), &buf)?;
+    Ok(HashMap::new())
+}
+
+fn get_staged_db(repo: &LocalRepository) -> Result<DBWithThreadMode<MultiThreaded>, OxenError> {
+    let path = staged_db_path(&repo.path)?;
+    let opts = db::key_val::opts::default();
+    let db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&path))?;
+    Ok(db)
+}
+
+pub fn staged_db_path(path: &Path) -> Result<PathBuf, OxenError> {
+    let path = util::fs::oxen_hidden_dir(path).join(Path::new(constants::STAGED_DIR));
+    log::debug!("staged_db_path {:?}", path);
+    if !path.exists() {
+        std::fs::create_dir_all(&path)?;
+    }
+    Ok(path)
 }
