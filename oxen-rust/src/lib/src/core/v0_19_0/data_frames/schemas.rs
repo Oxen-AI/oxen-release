@@ -8,8 +8,10 @@ use std::path::PathBuf;
 
 use rmp_serde::Serializer;
 use rocksdb::DBWithThreadMode;
+use rocksdb::IteratorMode;
 use rocksdb::MultiThreaded;
 use serde::Serialize;
+use std::str;
 
 use crate::constants;
 use crate::core::db;
@@ -89,12 +91,69 @@ pub fn get_staged(
     repo: &LocalRepository,
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
-    todo!()
+    let path = path.as_ref();
+    let key = path.to_string_lossy();
+    // log::debug!("str_json_db::get({:?}) from db {:?}", key, db.path());
+    let db = get_staged_db(repo)?;
+    let bytes = key.as_bytes();
+    match db.get(bytes) {
+        Ok(Some(value)) => {
+            let schema = db_val_to_schema(&value)?;
+            return Ok(Some(schema));
+        }
+        _ => {
+            log::debug!("could not get staged schema");
+            Ok(None)
+        }
+    }
 }
 
 /// List all the staged schemas
 pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    todo!()
+    let db = get_staged_db(repo)?;
+    let mut results = HashMap::new();
+
+    let iter = db.iterator(IteratorMode::Start);
+    for item in iter {
+        match item {
+            Ok((key, value)) => {
+                let key = str::from_utf8(&key)?;
+                // try deserialize
+                let schema = db_val_to_schema(&value)?;
+                results.insert(PathBuf::from(key), schema);
+            }
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
+    }
+
+    Ok(results)
+}
+
+fn db_val_to_schema(data: &[u8]) -> Result<Schema, OxenError> {
+    let val: Result<StagedMerkleTreeNode, rmp_serde::decode::Error> = rmp_serde::from_slice(data);
+    match val {
+        Ok(val) => match &val.node.node {
+            EMerkleTreeNode::File(file_node) => match &file_node.metadata {
+                Some(GenericMetadata::MetadataTabular(m)) => {
+                    return Ok(m.tabular.schema.to_owned());
+                }
+                _ => {
+                    log::error!("File node metadata must be tabular.");
+                }
+            },
+            _ => {
+                log::error!("Merkle tree node type must be file.");
+            }
+        },
+        Err(err) => {
+            log::error!("Error deserializing tabular metadata: {:?}", err);
+        }
+    }
+    Err(OxenError::basic_str("Cannot get schema"))
 }
 
 /// Remove a schema override from the staging area, TODO: Currently undefined behavior for non-staged schemas
