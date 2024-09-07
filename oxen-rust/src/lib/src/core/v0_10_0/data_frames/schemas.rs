@@ -50,16 +50,6 @@ pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, O
     stager.list_staged_schemas()
 }
 
-/// Get the current schema for a given schema path
-pub fn get_from_head(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-) -> Result<Option<Schema>, OxenError> {
-    let path = path.as_ref();
-    let commit = repositories::commits::head_commit(repo)?;
-    repositories::data_frames::schemas::get_by_path(repo, &commit, path)
-}
-
 /// Get a string representation of the schema given a schema ref
 pub fn show(
     repo: &LocalRepository,
