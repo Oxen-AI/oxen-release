@@ -13,8 +13,6 @@ use serde::Serialize;
 
 use crate::constants;
 use crate::core::db;
-use crate::core::v0_10_0::index::SchemaReader;
-use crate::core::v0_10_0::index::Stager;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
@@ -99,27 +97,18 @@ pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, O
     todo!()
 }
 
-/// Get the current schema for a given schema ref
-pub fn get_from_head(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    todo!()
-}
-
-/// Get a string representation of the schema given a schema ref
-pub fn show(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-    staged: bool,
-    verbose: bool,
-) -> Result<String, OxenError> {
-    todo!()
-}
-
 /// Remove a schema override from the staging area, TODO: Currently undefined behavior for non-staged schemas
 pub fn rm(repo: &LocalRepository, path: impl AsRef<Path>, staged: bool) -> Result<(), OxenError> {
-    todo!()
+    if !staged {
+        panic!("Undefined behavior for non-staged schemas")
+    }
+
+    let path = path.as_ref();
+    let db = get_staged_db(repo)?;
+    let key = path.to_string_lossy();
+    db.delete(&key.as_bytes())?;
+
+    Ok(())
 }
 
 /// Add metadata to the schema
@@ -128,8 +117,8 @@ pub fn add_schema_metadata(
     path: impl AsRef<Path>,
     metadata: &serde_json::Value,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    let db = get_staged_db(repo)?;
     let path = path.as_ref();
+    let db = get_staged_db(repo)?;
 
     // Get the FileNode from the CommitMerkleTree
     let Some(commit) = repositories::commits::head_commit_maybe(repo)? else {
