@@ -136,7 +136,7 @@ fn handle_sql_querying(
     }
 
     if let (Some(sql), Some(workspace)) = (opts.sql.clone(), workspace) {
-        let db_path = index::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
+        let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
         let mut conn = df_db::get_connection(db_path)?;
 
         let mut slice_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;

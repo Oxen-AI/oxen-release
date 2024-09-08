@@ -1,5 +1,6 @@
 pub mod data_frame_size;
 pub mod schema;
+pub mod update_result;
 
 use crate::model::data_frame::data_frame_size::DataFrameSize;
 use crate::model::data_frame::schema::Schema;

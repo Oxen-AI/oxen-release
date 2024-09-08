@@ -41,6 +41,7 @@ pub mod revisions;
 pub mod rm;
 pub mod status;
 pub mod tree;
+pub mod workspaces;
 
 pub use add::add;
 pub use checkout::checkout;

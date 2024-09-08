@@ -3,20 +3,99 @@ use crate::api::client;
 use crate::error::OxenError;
 use crate::model::RemoteRepository;
 
-use std::path::Path;
-
 use crate::view::FilePathsResponse;
 
 use bytesize::ByteSize;
 use pluralizer::pluralize;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+
+use crate::core::oxenignore;
+use crate::model::LocalRepository;
+use crate::opts::AddOpts;
+use crate::util;
 
 pub async fn add(
+    local_repo: &LocalRepository,
     remote_repo: &RemoteRepository,
-    workspace_id: &str,
-    directory_name: &str,
-    path: PathBuf,
+    workspace_id: impl AsRef<str>,
+    path: impl AsRef<Path>,
+    opts: &AddOpts,
+) -> Result<(), OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let path = path.as_ref();
+
+    // * make sure file is not in .oxenignore
+    let ignore = oxenignore::create(local_repo);
+    if let Some(ignore) = ignore {
+        if ignore.matched(path, path.is_dir()).is_ignore() {
+            return Ok(());
+        }
+    }
+
+    let (remote_directory, resolved_path) = resolve_remote_add_file_path(local_repo, path, opts)?;
+    let directory_name = remote_directory.to_string_lossy().to_string();
+
+    log::debug!(
+        "repositories::workspaces::add Resolved path: {:?}",
+        resolved_path
+    );
+    log::debug!(
+        "repositories::workspaces::add Remote directory: {:?}",
+        remote_directory
+    );
+    log::debug!(
+        "repositories::workspaces::add Directory name: {:?}",
+        directory_name
+    );
+
+    let result = post_file(&remote_repo, workspace_id, &directory_name, resolved_path).await?;
+
+    println!("{}", result.to_string_lossy());
+
+    Ok(())
+}
+
+/// Returns (remote_directory, resolved_path)
+fn resolve_remote_add_file_path(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+    opts: &AddOpts,
+) -> Result<(PathBuf, PathBuf), OxenError> {
+    let path = path.as_ref();
+    match dunce::canonicalize(path) {
+        Ok(path) => {
+            if util::fs::file_exists_in_directory(&repo.path, &path) {
+                // Path is in the repo, so we get the remote directory from the repo path
+                let relative_to_repo = util::fs::path_relative_to_dir(&path, &repo.path)?;
+                let remote_directory = relative_to_repo
+                    .parent()
+                    .ok_or_else(|| OxenError::file_has_no_parent(&path))?;
+                Ok((remote_directory.to_path_buf(), path))
+            } else if opts.directory.is_some() {
+                // We have to get the remote directory from the opts
+                Ok((opts.directory.clone().unwrap(), path))
+            } else {
+                return Err(OxenError::workspace_add_file_not_in_repo(path));
+            }
+        }
+        Err(err) => {
+            log::error!("Err: {err:?}");
+            Err(OxenError::entry_does_not_exist(path))
+        }
+    }
+}
+
+pub async fn post_file(
+    remote_repo: &RemoteRepository,
+    workspace_id: impl AsRef<str>,
+    directory: impl AsRef<Path>,
+    path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let directory = directory.as_ref();
+    let path = path.as_ref();
+    let directory_name = directory.to_string_lossy();
+
     let uri = format!("/workspaces/{workspace_id}/files/{directory_name}");
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
@@ -185,7 +264,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::add(
+            let result = api::client::workspaces::files::post_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -282,7 +361,7 @@ mod tests {
 
             let file_to_post = test::test_img_file();
             let directory_name = "data";
-            let result = api::client::workspaces::files::add(
+            let result = api::client::workspaces::files::post_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -364,7 +443,7 @@ mod tests {
             assert_eq!(workspace.id, workspace_id);
 
             let path = test::test_1k_parquet();
-            let result = api::client::workspaces::files::add(
+            let result = api::client::workspaces::files::post_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,
@@ -411,7 +490,7 @@ mod tests {
 
             let directory_name = "images";
             let path = test::test_img_file();
-            let result = api::client::workspaces::files::add(
+            let result = api::client::workspaces::files::post_file(
                 &remote_repo,
                 &workspace_id,
                 directory_name,

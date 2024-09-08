@@ -15,9 +15,11 @@ use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
 use crate::core::df::tabular;
 use crate::core::v0_10_0::index::workspaces;
 use crate::error::OxenError;
+use crate::model::data_frame::update_result::UpdateResult;
 use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{CommitEntry, LocalRepository, Workspace};
+use crate::repositories;
 use crate::util;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::view::JsonDataFrameView;
@@ -34,7 +36,7 @@ pub fn get_by_id(
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
     let row_id = row_id.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("get_row_by_id() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -81,8 +83,9 @@ pub fn add(
     data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
     let file_path = file_path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
-    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, file_path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
+    let row_changes_path =
+        repositories::workspaces::data_frames::row_changes_path(workspace, file_path);
 
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
@@ -135,10 +138,11 @@ pub fn restore_row_in_db(
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     let row_id = row_id.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, &entry.path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &entry.path);
     let conn = df_db::get_connection(db_path)?;
     let opts = db::key_val::opts::default();
-    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, &entry.path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, &entry.path);
     let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
 
     // Get the row by id
@@ -235,8 +239,8 @@ pub fn delete(
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, path);
-    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let row_changes_path = repositories::workspaces::data_frames::row_changes_path(workspace, path);
 
     let mut deleted_row = {
         let conn = df_db::get_connection(db_path)?;
@@ -277,9 +281,9 @@ pub fn update(
     data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     let conn = df_db::get_connection(db_path)?;
-    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, path);
+    let row_changes_path = repositories::workspaces::data_frames::row_changes_path(workspace, path);
 
     let mut df = tabular::parse_json_to_df(data)?;
 
@@ -309,12 +313,6 @@ pub fn update(
     }
 
     Ok(result)
-}
-
-#[derive(Debug)]
-pub enum UpdateResult {
-    Success(String, DataFrame),
-    Error(String, OxenError),
 }
 
 pub fn batch_update(
@@ -353,7 +351,8 @@ pub fn get_row_diff(
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
 ) -> Result<Vec<DataFrameRowChange>, OxenError> {
-    let row_changes_path = workspaces::data_frames::row_changes_path(workspace, file_path);
+    let row_changes_path =
+        repositories::workspaces::data_frames::row_changes_path(workspace, file_path);
     let opts = db::key_val::opts::default();
     let db = DB::open_for_read_only(&opts, dunce::simplified(&row_changes_path), false)?;
     get_all_data_frame_row_changes(&db)

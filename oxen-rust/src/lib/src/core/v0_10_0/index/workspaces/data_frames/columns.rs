@@ -11,6 +11,7 @@ use crate::error::OxenError;
 use crate::model::data_frame::schema::field::{Changes, PreviousField};
 use crate::model::data_frame::schema::Field;
 use crate::model::Workspace;
+use crate::repositories;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
@@ -27,8 +28,9 @@ pub fn add(
     new_column: &NewColumn,
 ) -> Result<DataFrame, OxenError> {
     let file_path = file_path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
-    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
     log::debug!("add_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
     let result = columns::add_column(&conn, new_column)?;
@@ -56,8 +58,9 @@ pub fn delete(
     column_to_delete: &ColumnToDelete,
 ) -> Result<DataFrame, OxenError> {
     let file_path = file_path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
-    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
     log::debug!("delete_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
 
@@ -94,8 +97,9 @@ pub fn update(
     column_to_update: &ColumnToUpdate,
 ) -> Result<DataFrame, OxenError> {
     let file_path = file_path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
-    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
     log::debug!("update_column() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(&db_path)?;
 
@@ -143,8 +147,9 @@ pub fn restore(
     column_to_restore: &ColumnToRestore,
 ) -> Result<DataFrame, OxenError> {
     let file_path = file_path.as_ref();
-    let db_path = workspaces::data_frames::duckdb_path(workspace, file_path);
-    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
 
     let opts = db::key_val::opts::default();
     let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
@@ -280,7 +285,8 @@ pub fn get_column_diff(
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
 ) -> Result<Vec<DataFrameColumnChange>, OxenError> {
-    let column_changes_path = workspaces::data_frames::column_changes_path(workspace, file_path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
     let opts = db::key_val::opts::default();
     let db = DB::open_for_read_only(&opts, dunce::simplified(&column_changes_path), false)?;
     get_all_data_frame_column_changes(&db)
@@ -292,7 +298,7 @@ pub fn decorate_fields_with_column_diffs(
     df_views: &mut JsonDataFrameViews,
 ) -> Result<(), OxenError> {
     let column_changes_path =
-        workspaces::data_frames::column_changes_path(workspace, file_path.as_ref());
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path.as_ref());
     let opts = db::key_val::opts::default();
     let db_open_result = DB::open_for_read_only(
         &opts,
