@@ -66,6 +66,14 @@ pub fn status_from_dir(
     let (dir_entries, _) = read_staged_entries_below_path(repo, &db, &dir, &read_progress)?;
     read_progress.finish_and_clear();
 
+    status_from_dir_entries(dir_entries)
+}
+
+pub fn status_from_dir_entries(
+    dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+) -> Result<StagedData, OxenError> {
+    let mut staged_data = StagedData::empty();
+
     let mut summarized_dir_stats = SummarizedStagedDirStats {
         num_files_staged: 0,
         total_files: 0,

@@ -9,7 +9,8 @@ use crate::repositories;
 use crate::util;
 
 // Stages a file in a specified directory
-pub fn add(workspace: &Workspace, filepath: &Path) -> Result<PathBuf, OxenError> {
+pub fn add(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<PathBuf, OxenError> {
+    let filepath = filepath.as_ref();
     let repo = &workspace.base_repo;
     let workspace_repo = &workspace.workspace_repo;
     let commit = &workspace.commit;
@@ -30,14 +31,16 @@ pub fn add(workspace: &Workspace, filepath: &Path) -> Result<PathBuf, OxenError>
     Ok(relative_path)
 }
 
-pub fn has_file(workspace: &Workspace, filepath: &Path) -> Result<bool, OxenError> {
+pub fn has_file(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<bool, OxenError> {
+    let filepath = filepath.as_ref();
     // Stager will be in the new repo workspace
     let stager = Stager::new(&workspace.workspace_repo)?;
     stager.has_staged_file(filepath)
 }
 
-pub fn delete_file(workspace: &Workspace, filepath: &Path) -> Result<(), OxenError> {
+pub fn delete_file(workspace: &Workspace, filepath: impl AsRef<Path>) -> Result<(), OxenError> {
     // Stager will be in the repo workspace
+    let filepath = filepath.as_ref();
     let workspace_repo = &workspace.workspace_repo;
     let stager = Stager::new(workspace_repo)?;
     stager.remove_staged_file(filepath)?;

@@ -9,11 +9,13 @@ use std::path::Path;
 
 pub async fn list(
     remote_repo: &RemoteRepository,
-    workspace_id: &str,
-    path: &Path,
+    workspace_id: impl AsRef<str>,
+    path: impl AsRef<Path>,
     page: usize,
     page_size: usize,
 ) -> Result<RemoteStagedStatus, OxenError> {
+    let workspace_id = workspace_id.as_ref();
+    let path = path.as_ref();
     let path_str = path.to_str().unwrap();
     let uri =
         format!("/workspaces/{workspace_id}/changes/{path_str}?page={page}&page_size={page_size}");

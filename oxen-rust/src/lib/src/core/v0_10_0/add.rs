@@ -2,7 +2,8 @@ use glob::glob;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
-use crate::core::v0_10_0::index::{oxenignore, CommitEntryReader, SchemaReader, Stager};
+use crate::core::oxenignore;
+use crate::core::v0_10_0::index::{CommitEntryReader, SchemaReader, Stager};
 use crate::util;
 use crate::{error::OxenError, model::LocalRepository, repositories};
 

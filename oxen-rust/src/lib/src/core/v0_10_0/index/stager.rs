@@ -10,8 +10,8 @@ use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
 use crate::core::merge::merge_conflict_reader::MergeConflictReader;
+use crate::core::oxenignore;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_10_0::index::oxenignore;
 use crate::core::v0_10_0::index::ObjectDBReader;
 use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::{
@@ -1637,9 +1637,9 @@ impl Stager {
 
 #[cfg(test)]
 mod tests {
+    use crate::core::oxenignore;
     use crate::core::v0_10_0::index::{
-        oxenignore, CommitDBReader, CommitEntryReader, CommitReader, CommitWriter, SchemaReader,
-        Stager,
+        CommitDBReader, CommitEntryReader, CommitReader, CommitWriter, SchemaReader, Stager,
     };
     use crate::error::OxenError;
     use crate::model::LocalRepository;

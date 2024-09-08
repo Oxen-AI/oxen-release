@@ -2,11 +2,12 @@ use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
 use liboxen::api;
-use liboxen::command;
 use liboxen::constants::DEFAULT_HOST;
 use liboxen::constants::DEFAULT_REMOTE_NAME;
 use liboxen::error::OxenError;
 use liboxen::opts::UploadOpts;
+use liboxen::repositories;
+
 use std::path::PathBuf;
 
 use crate::helpers::check_remote_version_blocking;
@@ -113,7 +114,7 @@ impl RunCmd for UploadCmd {
                 ..opts
             };
 
-            command::workspace::upload(&remote_repo, &opts).await?;
+            repositories::workspaces::upload(&remote_repo, &opts).await?;
         } else {
             eprintln!("Repository does not exist {}", name);
         }

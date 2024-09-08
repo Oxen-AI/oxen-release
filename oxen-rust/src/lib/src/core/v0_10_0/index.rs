@@ -16,7 +16,6 @@ pub mod legacy_commit_entry_reader;
 pub mod legacy_schema_reader;
 pub mod merger;
 pub mod object_db_reader;
-pub mod oxenignore;
 pub mod puller;
 pub mod pusher;
 pub mod ref_db_reader;
