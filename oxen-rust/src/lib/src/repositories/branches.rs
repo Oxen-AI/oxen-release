@@ -40,7 +40,10 @@ pub fn get_by_name_or_current(
     } else {
         match repositories::branches::current_branch(repo)? {
             Some(branch) => Ok(branch),
-            None => Err(OxenError::must_be_on_valid_branch()),
+            None => {
+                log::error!("get_by_name_or_current No current branch found");
+                Err(OxenError::must_be_on_valid_branch())
+            }
         }
     }
 }
@@ -371,6 +374,7 @@ pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(
         ref_writer.set_head(new_name);
         Ok(())
     } else {
+        log::error!("rename_current_branch No current branch found");
         Err(OxenError::must_be_on_valid_branch())
     }
 }

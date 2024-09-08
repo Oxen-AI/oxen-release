@@ -26,6 +26,7 @@ use crate::model::merkle_tree::node::VNode;
 use crate::model::MerkleHash;
 use crate::model::MerkleTreeNodeType;
 use crate::model::NewCommit;
+use crate::model::NewCommitBody;
 use crate::model::User;
 use crate::model::{Commit, LocalRepository, StagedEntryStatus};
 
@@ -91,12 +92,61 @@ pub fn commit_with_cfg(
     // Read all the staged entries
     let (dir_entries, total_changes) =
         status::read_staged_entries(repo, &staged_db, &commit_progress_bar)?;
+    commit_progress_bar.set_message(format!("Committing {} changes", total_changes));
 
     // let mut dir_tree = entries_to_dir_tree(&dir_entries)?;
     // dir_tree.print();
 
     // log::debug!("🫧======================🫧");
 
+    let new_commit = NewCommitBody {
+        message: message.to_string(),
+        author: cfg.name.clone(),
+        email: cfg.email.clone(),
+    };
+    let branch = repositories::branches::current_branch(repo)?;
+    let maybe_branch_name = branch.map(|b| b.name);
+    let commit = commit_dir_entries(
+        repo,
+        dir_entries,
+        &new_commit,
+        &staged_db_path,
+        &commit_progress_bar,
+    )?;
+
+    // Write HEAD file and update branch
+    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
+    log::debug!("Looking for HEAD file at {:?}", head_path);
+    let ref_writer = RefWriter::new(repo)?;
+    let commit_id = commit.id.to_owned();
+    let branch_name = maybe_branch_name.unwrap_or(DEFAULT_BRANCH_NAME.to_string());
+    if !head_path.exists() {
+        log::debug!("HEAD file does not exist, creating new branch");
+        ref_writer.set_head(&branch_name);
+        ref_writer.set_branch_commit_id(&branch_name, &commit_id)?;
+    }
+    ref_writer.set_head_commit_id(&commit_id)?;
+
+    // Print that we finished
+    println!(
+        "🐂 commit {} in {}",
+        commit.id,
+        humantime::format_duration(Duration::from_millis(
+            start_time.elapsed().as_millis() as u64
+        ))
+    );
+
+    Ok(commit)
+}
+
+pub fn commit_dir_entries(
+    repo: &LocalRepository,
+    dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+    new_commit: &NewCommitBody,
+    staged_db_path: impl AsRef<Path>,
+    commit_progress_bar: &ProgressBar,
+) -> Result<Commit, OxenError> {
+    let message = &new_commit.message;
     // if the HEAD file exists, we have parents
     // otherwise this is the first commit
     let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
@@ -113,24 +163,6 @@ pub fn commit_with_cfg(
         parent_ids.push(parent.hash()?);
     }
 
-    // agg_stats(&repo, &maybe_head_commit, &mut dir_tree, &dir_entries)?;
-    // dir_tree.print();
-
-    /*
-    Load all the merkle tree nodes that are in the staged dir entries. Then traverse up their
-    parent directories and update the merkle tree nodes for those directories until you get to the root.
-
-    For example - if we only modified files/dir_1/file_1.txt, then we need to update
-    the merkle tree nodes for files/dir_1 and files and the root dir and commit node.
-
-    But if we only modified README.md, then we only need to update the merkle tree nodes for the root dir and
-    commit node.
-    */
-
-    // Next - just load the merkle tree nodes that match the dir_entries map
-    //        we can traverse and update their parents if they exist
-    //        if they don't exist, we need to create them
-
     let directories = dir_entries
         .keys()
         .map(|path| path.to_path_buf())
@@ -141,11 +173,6 @@ pub fn commit_with_cfg(
         existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
     }
 
-    // TODO: Second commit
-    //       - Find the vnodes we need to copy/modify
-    //       - Write new vnodes for updated/added/deleted files
-    // Right now it is just making a new commit with the staged files, not connecting them to the merkle tree
-
     // Sort children and split into VNodes
     let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
 
@@ -154,8 +181,8 @@ pub fn commit_with_cfg(
     let new_commit = NewCommit {
         parent_ids: parent_ids.iter().map(|id| id.to_string()).collect(),
         message: message.to_string(),
-        author: cfg.name.clone(),
-        email: cfg.email.clone(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
         timestamp,
     };
     let commit_id = compute_commit_id(&new_commit)?;
@@ -164,14 +191,13 @@ pub fn commit_with_cfg(
         hash: commit_id,
         parent_ids,
         message: message.to_string(),
-        author: cfg.name.clone(),
-        email: cfg.email.clone(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
         timestamp,
         ..Default::default()
     };
 
-    commit_progress_bar.set_message(format!("Commiting {} changes", total_changes));
-
+    let opts = db::key_val::opts::default();
     let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
     let dir_hash_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
@@ -201,30 +227,8 @@ pub fn commit_with_cfg(
     )?;
     commit_progress_bar.finish_and_clear();
 
-    // Write HEAD file and update branch
-    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
-    log::debug!("Looking for HEAD file at {:?}", head_path);
-    let ref_writer = RefWriter::new(repo)?;
-    let commit_id = commit_id.to_string();
-    if !head_path.exists() {
-        log::debug!("HEAD file does not exist, creating new branch");
-        let branch_name = DEFAULT_BRANCH_NAME;
-        ref_writer.set_head(branch_name);
-        ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
-    }
-    ref_writer.set_head_commit_id(&commit_id)?;
-
     // Clear the staged db
     util::fs::remove_dir_all(&staged_db_path)?;
-
-    // Print that we finished
-    println!(
-        "🐂 commit {} in {}",
-        commit_id,
-        humantime::format_duration(Duration::from_millis(
-            start_time.elapsed().as_millis() as u64
-        ))
-    );
 
     Ok(node.to_commit())
 }

@@ -18,6 +18,7 @@ use crate::model::merkle_tree::node::MerkleTreeNode;
 
 pub async fn push(repo: &LocalRepository) -> Result<Branch, OxenError> {
     let Some(current_branch) = repositories::branches::current_branch(repo)? else {
+        log::debug!("Push, no current branch found");
         return Err(OxenError::must_be_on_valid_branch());
     };
     push_remote_branch(repo, DEFAULT_REMOTE_NAME, current_branch.name).await
