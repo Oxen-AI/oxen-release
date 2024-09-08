@@ -60,6 +60,7 @@ impl RunCmd for WorkspaceCommitCmd {
         println!("Committing to remote with message: {message}");
         let branch = repositories::branches::current_branch(&repo)?;
         if branch.is_none() {
+            log::error!("Workspace commit No current branch found");
             return Err(OxenError::must_be_on_valid_branch());
         }
         let branch = branch.unwrap();
