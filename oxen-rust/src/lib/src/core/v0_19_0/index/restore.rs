@@ -8,12 +8,10 @@ use crate::core::db::{self};
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
-use crate::model::{
-    Commit, LocalRepository,
-};
+use crate::model::{Commit, LocalRepository};
 use crate::opts::RestoreOpts;
-use crate::util;
 use crate::repositories;
+use crate::util;
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
     log::debug!("restore::restore: start");
@@ -195,7 +193,7 @@ fn do_restore_file(
     log::debug!("restore::restore_regular: got entry resource");
 
     let file_hash = file_node.hash;
-
+    let last_modified_seconds = file_node.last_modified_seconds;
     log::debug!("restore::restore_regular: got file hash {:?}", file_hash);
 
     let version_path = util::fs::version_path_from_node(repo, &file_hash.to_string(), path);
@@ -212,6 +210,18 @@ fn do_restore_file(
     log::debug!("restore::restore_regular: version_path {:?}", version_path);
     log::debug!("restore::restore_regular: working_path {:?}", working_path);
     util::fs::copy(version_path, working_path.clone())?;
+    let last_modified = std::time::SystemTime::UNIX_EPOCH
+        + std::time::Duration::from_secs(
+            last_modified_seconds
+                .try_into()
+                .map_err(|e: std::num::TryFromIntError| OxenError::basic_str(&e.to_string()))?,
+        );
+    filetime::set_file_mtime(
+        &working_path,
+        filetime::FileTime::from_system_time(last_modified),
+    )?;
+
+    log::debug!("restore::restore_regular: set updated time from tree");
     log::debug!("restore::restore_regular: end");
     Ok(())
 }

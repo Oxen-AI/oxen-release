@@ -48,7 +48,9 @@ impl MerkleTreeNode {
     pub fn total_vnodes(&self) -> usize {
         let mut count = 0;
         for child in &self.children {
-            if let EMerkleTreeNode::VNode(_) = child.node { count += 1 }
+            if let EMerkleTreeNode::VNode(_) = child.node {
+                count += 1
+            }
             count += child.total_vnodes();
         }
         count
@@ -58,7 +60,9 @@ impl MerkleTreeNode {
     pub fn num_vnodes(&self) -> u128 {
         let mut count = 0;
         for child in &self.children {
-            if let EMerkleTreeNode::VNode(_) = child.node { count += 1 }
+            if let EMerkleTreeNode::VNode(_) = child.node {
+                count += 1
+            }
         }
         count
     }
@@ -386,7 +390,9 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::Commit(commit_node) = &self.node {
             Ok(commit_node.clone())
         } else {
-            Err(OxenError::basic_str("MerkleTreeNode::commit called on non-commit node"))
+            Err(OxenError::basic_str(
+                "MerkleTreeNode::commit called on non-commit node",
+            ))
         }
     }
 
@@ -394,7 +400,9 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::VNode(vnode) = &self.node {
             Ok(vnode.clone())
         } else {
-            Err(OxenError::basic_str("MerkleTreeNode::vnode called on non-vnode node"))
+            Err(OxenError::basic_str(
+                "MerkleTreeNode::vnode called on non-vnode node",
+            ))
         }
     }
 
@@ -402,7 +410,9 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::Directory(dir_node) = &self.node {
             Ok(dir_node.clone())
         } else {
-            Err(OxenError::basic_str("MerkleTreeNode::dir called on non-dir node"))
+            Err(OxenError::basic_str(
+                "MerkleTreeNode::dir called on non-dir node",
+            ))
         }
     }
 
@@ -410,7 +420,9 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::File(file_node) = &self.node {
             Ok(file_node.clone())
         } else {
-            Err(OxenError::basic_str("MerkleTreeNode::file called on non-file node"))
+            Err(OxenError::basic_str(
+                "MerkleTreeNode::file called on non-file node",
+            ))
         }
     }
 
@@ -418,7 +430,9 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::FileChunk(file_chunk_node) = &self.node {
             Ok(file_chunk_node.clone())
         } else {
-            Err(OxenError::basic_str("MerkleTreeNode::file_chunk called on non-file_chunk node"))
+            Err(OxenError::basic_str(
+                "MerkleTreeNode::file_chunk called on non-file_chunk node",
+            ))
         }
     }
 
@@ -426,7 +440,9 @@ impl MerkleTreeNode {
         if let EMerkleTreeNode::Schema(schema_node) = &self.node {
             Ok(schema_node.clone())
         } else {
-            Err(OxenError::basic_str("MerkleTreeNode::schema called on non-schema node"))
+            Err(OxenError::basic_str(
+                "MerkleTreeNode::schema called on non-schema node",
+            ))
         }
     }
 }

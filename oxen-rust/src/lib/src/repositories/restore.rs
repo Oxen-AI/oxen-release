@@ -3,14 +3,11 @@
 //! Restore a file to a previous version
 //!
 
-
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
-
-
 
 /// # Restore a removed file that was committed
 ///
@@ -62,7 +59,6 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
 
-    
     use crate::core::df::tabular;
     use crate::error::OxenError;
     use crate::opts::DFOpts;

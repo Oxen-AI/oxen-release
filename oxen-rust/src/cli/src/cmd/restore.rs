@@ -43,7 +43,6 @@ impl RunCmd for RestoreCmd {
     }
 
     async fn run(&self, args: &ArgMatches) -> Result<(), OxenError> {
-        println!("this is restore");
         let path = args.get_one::<String>("PATH").expect("required");
 
         let opts = if let Some(source) = args.get_one::<String>("source") {

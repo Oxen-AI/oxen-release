@@ -201,7 +201,9 @@ fn dir_node_to_metadata_entry(
         return Ok(None);
     };
 
-    if let std::collections::hash_map::Entry::Vacant(e) = found_commits.entry(dir_node.last_commit_id) {
+    if let std::collections::hash_map::Entry::Vacant(e) =
+        found_commits.entry(dir_node.last_commit_id)
+    {
         let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id)?
             .ok_or(OxenError::resource_not_found(dir_node.name.clone()))?;
         e.insert(commit);
@@ -240,7 +242,9 @@ fn file_node_to_metadata_entry(
         return Ok(None);
     };
 
-    if let std::collections::hash_map::Entry::Vacant(e) = found_commits.entry(file_node.last_commit_id) {
+    if let std::collections::hash_map::Entry::Vacant(e) =
+        found_commits.entry(file_node.last_commit_id)
+    {
         let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id)?
             .ok_or(OxenError::resource_not_found(file_node.name.clone()))?;
         e.insert(commit);
