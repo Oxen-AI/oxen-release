@@ -54,6 +54,16 @@ pub fn get_dir_without_children(
     CommitMerkleTree::dir_without_children(repo, commit, path)
 }
 
+pub fn get_node_data_by_id(
+    repo: &LocalRepository,
+    hash: &MerkleHash,
+) -> Result<Option<MerkleTreeNode>, OxenError> {
+    let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
+        return Ok(None);
+    };
+    Ok(Some(node))
+}
+
 pub fn list_missing_file_hashes(
     repo: &LocalRepository,
     hash: &MerkleHash,

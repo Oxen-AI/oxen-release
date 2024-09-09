@@ -122,13 +122,13 @@ pub fn add_schema_metadata(
     };
 
     schema.metadata = Some(metadata.to_owned());
-    stager.update_schema_for_path(&path, &schema)?;
+    stager.update_schema_for_path(path, &schema)?;
     results.insert(path.to_path_buf(), schema);
 
-    let staged_schema = stager.get_staged_schema(&path)?;
+    let staged_schema = stager.get_staged_schema(path)?;
     if let Some(mut staged_schema) = staged_schema {
         staged_schema.metadata = Some(metadata.to_owned());
-        stager.update_schema_for_path(&path, &staged_schema)?;
+        stager.update_schema_for_path(path, &staged_schema)?;
         results.insert(path.to_path_buf(), staged_schema);
     }
     Ok(results)
@@ -159,7 +159,7 @@ pub fn add_column_metadata(
     );
 
     let stager = Stager::new(repo)?;
-    let staged_schemas = stager.get_staged_schema(&path)?;
+    let staged_schemas = stager.get_staged_schema(path)?;
 
     if let Some(staged_schemas) = staged_schemas {
         all_schemas.insert(path.to_path_buf(), staged_schemas);

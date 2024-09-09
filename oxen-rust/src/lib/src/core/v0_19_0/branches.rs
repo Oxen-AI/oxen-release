@@ -1,7 +1,7 @@
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
 use crate::core::v0_19_0::{commits, pull, restore};
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
 use crate::repositories;
 use crate::util;
@@ -142,13 +142,13 @@ fn r_restore_missing_or_modified_files(
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
-                restore::restore_file(repo, &file_node, &rel_path)?;
+                restore_file(repo, &file_node, &rel_path)?;
             } else {
                 // File exists, check if it needs to be updated
                 let current_hash = util::hasher::hash_file_contents(&full_path)?;
                 if current_hash != file_node.hash.to_string() {
                     log::debug!("Updating modified file: {:?}", rel_path);
-                    restore::restore_file(repo, &file_node, &rel_path)?;
+                    restore_file(repo, &file_node, &rel_path)?;
                 }
             }
         }
@@ -172,5 +172,30 @@ fn r_restore_missing_or_modified_files(
             ));
         }
     }
+    Ok(())
+}
+
+pub fn restore_file(
+    repo: &LocalRepository,
+    file_node: &FileNode,
+    dst_path: &Path,
+) -> Result<(), OxenError> {
+    let version_path = util::fs::version_path_from_hash(repo, &file_node.hash.to_string());
+    if !version_path.exists() {
+        return Err(OxenError::basic_str(&format!(
+            "Source file not found in versions directory: {:?}",
+            version_path
+        )));
+    }
+
+    let working_path = repo.path.join(dst_path);
+    if let Some(parent) = dst_path.parent() {
+        util::fs::create_dir_all(parent)?;
+    }
+
+    util::fs::copy(version_path, working_path.clone())?;
+    // TODO: set file metadata
+    // Previous version used:
+    // CommitEntryWriter::set_file_timestamps(repo, path, entry, files_db)?;
     Ok(())
 }

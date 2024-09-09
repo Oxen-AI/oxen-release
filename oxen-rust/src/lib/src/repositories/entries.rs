@@ -102,7 +102,7 @@ pub fn get_meta_entry(
                 commit: Some(commit.clone()),
                 branch: None,
                 version: PathBuf::from(&commit.id),
-                resource: PathBuf::from(&commit.id).join(&path),
+                resource: PathBuf::from(&commit.id).join(path),
             };
             core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
         }

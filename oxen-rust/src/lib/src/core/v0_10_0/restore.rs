@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-use crate::core::v0_19_0::index;
+use crate::core::v0_10_0::index::{self, CommitEntryReader};
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RestoreOpts;
@@ -12,6 +12,7 @@ use glob::Pattern;
 use crate::util;
 
 pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenError> {
+    let commit = repositories::commits::head_commit(repo)?;
     let path = &opts.path;
     let mut paths: HashSet<PathBuf> = HashSet::new();
 
@@ -19,7 +20,9 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
             let pattern = Pattern::new(path_str)?;
-            let staged_data = repositories::status::status(repo)?;
+            let stager = index::Stager::new(repo)?;
+            let commit_reader = CommitEntryReader::new(repo, &commit)?;
+            let staged_data = stager.status(&commit_reader)?;
 
             // If --staged, only operate on staged files
             if opts.staged {
@@ -51,7 +54,7 @@ pub fn restore(repo: &LocalRepository, opts: RestoreOpts) -> Result<(), OxenErro
     for path in paths {
         let mut opts = opts.clone();
         opts.path = path;
-        index::restore::restore(repo, opts)?;
+        index::restore(repo, opts)?;
     }
 
     Ok(())

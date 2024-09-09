@@ -23,19 +23,18 @@ pub fn get_slice(
     opts: &DFOpts,
 ) -> Result<DataFrameSlice, OxenError> {
     let path = path.as_ref();
-    let entry_reader = CommitEntryReader::new(&repo, &commit)?;
+    let entry_reader = CommitEntryReader::new(repo, commit)?;
     let entry = entry_reader
-        .get_entry(&path)?
-        .ok_or(OxenError::path_does_not_exist(&path))?;
+        .get_entry(path)?
+        .ok_or(OxenError::path_does_not_exist(path))?;
 
-    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &path)?;
+    let version_path = util::fs::version_path_for_commit_id(repo, &commit.id, path)?;
     log::debug!("view_from Reading version file {:?}", version_path);
 
-    let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
+    let data_frame_size = cachers::df_size::get_cache_for_version(repo, commit, &version_path)?;
     log::debug!("view_from got data frame size {:?}", data_frame_size);
 
-    let handle_sql_result =
-        handle_sql_querying(&repo, &commit, &path, &opts, &entry, &data_frame_size);
+    let handle_sql_result = handle_sql_querying(repo, commit, path, opts, &entry, &data_frame_size);
     if let Ok(response) = handle_sql_result {
         return Ok(response);
     }
@@ -52,7 +51,7 @@ pub fn get_slice(
 
     log::debug!("Scanning df with height: {}", height);
 
-    let mut df = tabular::scan_df(&version_path, &opts, height)?;
+    let mut df = tabular::scan_df(&version_path, opts, height)?;
 
     // Try to get the schema from the merkle tree
     let og_schema = if let Some(schema) =
