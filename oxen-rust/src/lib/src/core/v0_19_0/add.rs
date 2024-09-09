@@ -91,13 +91,14 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
 }
 
 
-pub fn add_files(
+fn add_files(
     repo: &LocalRepository,
     paths: &HashSet<PathBuf>,
 ) -> Result<CumulativeStats, OxenError> {
     // To start, let's see how fast we can simply loop through all the paths
     // and and copy them into an index.
 
+    println!("Add files");
 
     // Create the versions dir if it doesn't exist
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
@@ -105,10 +106,8 @@ pub fn add_files(
         util::fs::create_dir_all(versions_path)?;
     }
 
-
     // Lookup the head commit
     let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
-
 
     let mut total = CumulativeStats {
         total_files: 0,
@@ -116,10 +115,13 @@ pub fn add_files(
         data_type_counts: HashMap::new(),
     };
     for path in paths {
+        println!("path is {path:?} in container {paths:?}");
         if path.is_dir() {
-            total += process_dir(repo, &maybe_head_commit, path.clone())?;
-        } else if path.is_file() {
-            // Process the file here
+            total += add_dir(repo, &maybe_head_commit, path.clone())?;
+         
+        } else {
+         
+            println!("found is_file()");
             let entry = add_file(repo, &maybe_head_commit, path)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
@@ -133,21 +135,38 @@ pub fn add_files(
                         .or_insert(1);
                 }
             }
-        }
+        } 
     }
 
 
     Ok(total)
 }
 
-
-fn process_dir(
+pub fn add_dir(    
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
-    let start = std::time::Instant::now();
 
+    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
+        .join(VERSIONS_DIR)
+        .join(FILES_DIR);
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    process_add_dir(repo, maybe_head_commit, staged_db, path)
+}
+
+
+fn process_add_dir(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    path: PathBuf,
+) -> Result<CumulativeStats, OxenError> {
+    let start = std::time::Instant::now();
 
     let progress_1 = Arc::new(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
@@ -158,14 +177,6 @@ fn process_dir(
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
     let repo_path = repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
 
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
@@ -294,11 +305,12 @@ fn get_file_node(
 }
 
 
-fn add_file(
+pub fn add_file(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    println!("Made it to add_file");
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -328,7 +340,7 @@ fn add_file(
     )
 }
 
-
+// Need to ensure this function never gets called with a non-existant path unless that path has intentionally been removed
 fn process_add_file(
     repo_path: &Path,
     versions_path: &Path,
@@ -340,7 +352,6 @@ fn process_add_file(
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
 
-    // TODO: Refactor to share code between additions & removals
     println!("Check if file");
     if !full_path.is_file() {
 
@@ -350,6 +361,8 @@ fn process_add_file(
 
             // Find node to remove
             let file_path = relative_path.file_name().unwrap();
+
+            // TODO: This might be buggy. What if we add a dir but also a file within the dir? will this throw an error then?
             let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
                 MerkleTreeNode::from_file(file_node)
             } else {
@@ -357,13 +370,11 @@ fn process_add_file(
                 return Err(OxenError::basic_str(error));
             };
             
-            // clone won't be necessary after refactor
             let entry = StagedMerkleTreeNode {
                 status: StagedEntryStatus::Removed,
                 node: node.clone(),
             };
-
-                
+   
             // Remove the file from the versions db
             // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
             let dir_prefix_len = 2;
@@ -390,119 +401,119 @@ fn process_add_file(
     }
 
     // Check if the file is already in the head commit
-    let file_path = relative_path.file_name().unwrap();
-    let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
+        let file_path = relative_path.file_name().unwrap();
+        let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
 
 
-    // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
-    let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
-        // first check if the file timestamp is different
-        let metadata = std::fs::metadata(path)?;
-        let mtime = FileTime::from_last_modification_time(&metadata);
-        log::debug!("path: {:?}", path);
-        log::debug!(
-            "file_node.last_modified_seconds: {}",
-            file_node.last_modified_seconds
-        );
-        log::debug!(
-            "file_node.last_modified_nanoseconds: {}",
-            file_node.last_modified_nanoseconds
-        );
-        log::debug!("mtime.unix_seconds(): {}", mtime.unix_seconds());
-        log::debug!("mtime.nanoseconds(): {}", mtime.nanoseconds());
-        log::debug!(
-            "has_different_modification_time: {}",
-            has_different_modification_time(&file_node, &mtime)
-        );
-        log::debug!("-----------------------------------");
-        if has_different_modification_time(&file_node, &mtime) {
-            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
-            if file_node.hash.to_u128() != hash {
-                (
-                    StagedEntryStatus::Modified,
-                    MerkleHash::new(hash),
-                    file_node.num_bytes,
-                    mtime,
-                )
+        // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
+        let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
+            // first check if the file timestamp is different
+            let metadata = std::fs::metadata(path)?;
+            let mtime = FileTime::from_last_modification_time(&metadata);
+            log::debug!("path: {:?}", path);
+            log::debug!(
+                "file_node.last_modified_seconds: {}",
+                file_node.last_modified_seconds
+            );
+            log::debug!(
+                "file_node.last_modified_nanoseconds: {}",
+                file_node.last_modified_nanoseconds
+            );
+            log::debug!("mtime.unix_seconds(): {}", mtime.unix_seconds());
+            log::debug!("mtime.nanoseconds(): {}", mtime.nanoseconds());
+            log::debug!(
+                "has_different_modification_time: {}",
+                has_different_modification_time(&file_node, &mtime)
+            );
+            log::debug!("-----------------------------------");
+            if has_different_modification_time(&file_node, &mtime) {
+                let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+                if file_node.hash.to_u128() != hash {
+                    (
+                        StagedEntryStatus::Modified,
+                        MerkleHash::new(hash),
+                        file_node.num_bytes,
+                        mtime,
+                    )
+                } else {
+                    (
+                        StagedEntryStatus::Unmodified,
+                        MerkleHash::new(hash),
+                        file_node.num_bytes,
+                        mtime,
+                    )
+                }
             } else {
                 (
                     StagedEntryStatus::Unmodified,
-                    MerkleHash::new(hash),
+                    file_node.hash,
                     file_node.num_bytes,
                     mtime,
                 )
             }
         } else {
+            let metadata = std::fs::metadata(path)?;
+            let mtime = FileTime::from_last_modification_time(&metadata);
+            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             (
-                StagedEntryStatus::Unmodified,
-                file_node.hash,
-                file_node.num_bytes,
+                StagedEntryStatus::Added,
+                MerkleHash::new(hash),
+                metadata.len(),
                 mtime,
             )
+        };
+
+
+        // Don't have to add the file to the staged db if it hasn't changed
+        if status == StagedEntryStatus::Unmodified {
+            return Ok(None);
         }
-    } else {
-        let metadata = std::fs::metadata(path)?;
-        let mtime = FileTime::from_last_modification_time(&metadata);
-        let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
-        (
-            StagedEntryStatus::Added,
-            MerkleHash::new(hash),
-            metadata.len(),
-            mtime,
-        )
-    };
 
 
-    // Don't have to add the file to the staged db if it hasn't changed
-    if status == StagedEntryStatus::Unmodified {
-        return Ok(None);
-    }
+        // Get the data type of the file
+        let mime_type = util::fs::file_mime_type(path);
+        let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+        let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
 
 
-    // Get the data type of the file
-    let mime_type = util::fs::file_mime_type(path);
-    let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-    let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
+        // Add the file to the versions db
+        // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+        let dir_prefix_len = 2;
+        let dir_name = hash.to_string();
+        let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
+        let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
+        let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
 
-    // Add the file to the versions db
-    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-    let dir_prefix_len = 2;
-    let dir_name = hash.to_string();
-    let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-    let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-    let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
+        if !dst_dir.exists() {
+            util::fs::create_dir_all(&dst_dir).unwrap();
+        }
 
 
-    if !dst_dir.exists() {
-        util::fs::create_dir_all(&dst_dir).unwrap();
-    }
+        let dst = dst_dir.join("data");
+        util::fs::copy(&full_path, &dst).unwrap();
 
 
-    let dst = dst_dir.join("data");
-    util::fs::copy(&full_path, &dst).unwrap();
-
-
-    let file_extension = relative_path
-        .extension()
-        .unwrap_or_default()
-        .to_string_lossy();
-    let relative_path_str = relative_path.to_str().unwrap();
-    let entry = StagedMerkleTreeNode {
-        status,
-        node: MerkleTreeNode::from_file(FileNode {
-            hash,
-            name: relative_path_str.to_string(),
-            data_type,
-            num_bytes,
-            last_modified_seconds: mtime.unix_seconds(),
-            last_modified_nanoseconds: mtime.nanoseconds(),
-            metadata,
-            extension: file_extension.to_string(),
-            mime_type: mime_type.clone(),
-            ..Default::default()
-        }),
-    };
+        let file_extension = relative_path
+            .extension()
+            .unwrap_or_default()
+            .to_string_lossy();
+        let relative_path_str = relative_path.to_str().unwrap();
+        let entry = StagedMerkleTreeNode {
+            status,
+            node: MerkleTreeNode::from_file(FileNode {
+                hash,
+                name: relative_path_str.to_string(),
+                data_type,
+                num_bytes,
+                last_modified_seconds: mtime.unix_seconds(),
+                last_modified_nanoseconds: mtime.nanoseconds(),
+                metadata,
+                extension: file_extension.to_string(),
+                mime_type: mime_type.clone(),
+                ..Default::default()
+            }),
+        };
 
 
     log::debug!("writing file to staged db: {}", entry);
