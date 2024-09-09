@@ -3,10 +3,10 @@ use crate::core::db;
 use crate::core::merge::db_path;
 pub use crate::core::merge::merge_conflict_db_reader::MergeConflictDBReader;
 use crate::core::merge::merge_conflict_writer;
+use crate::core::oxenignore;
 use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::index::{
-    oxenignore, CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, SchemaReader,
-    Stager,
+    CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, SchemaReader, Stager,
 };
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};

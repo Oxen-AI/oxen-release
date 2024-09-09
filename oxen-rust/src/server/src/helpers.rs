@@ -25,7 +25,7 @@ pub fn get_redis_connection() -> Result<r2d2::Pool<redis::Client>, OxenError> {
 
     // First, ping redis to see if available - builder retries infinitely and spews error messages
     let mut test_conn = redis_client.get_connection()?;
-    redis::cmd("ECHO").arg("test").query(&mut test_conn)?;
+    let _: () = redis::cmd("ECHO").arg("test").query(&mut test_conn)?;
 
     // If echo test didn't error, init the builder
     let pool = r2d2::Pool::builder().build(redis_client)?;

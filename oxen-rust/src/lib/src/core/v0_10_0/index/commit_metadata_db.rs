@@ -38,7 +38,7 @@ pub fn select(
     let directory = directory.as_ref();
     let conn = df_db::get_connection(db_path(repo, commit))?;
     let s = DirMetadataItem::schema();
-    let table_name = s.name.unwrap();
+    let table_name = "metadata";
     let fields: Vec<String> = s.fields.iter().map(|f| f.name.to_owned()).collect();
 
     let stmt = sql::Select::new()
@@ -63,7 +63,7 @@ pub fn full_size(
     dirs.push(directory.to_path_buf());
 
     let s = DirMetadataItem::schema();
-    let table_name = s.name.unwrap();
+    let table_name = "metadata";
     let num_cols = s.fields.len();
 
     let conn = df_db::get_connection(db_path(repo, commit))?;

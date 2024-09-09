@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use clap::{Arg, Command};
 
@@ -35,7 +37,11 @@ impl RunCmd for SchemasListCmd {
         let schemas = if staged {
             repositories::data_frames::schemas::list_staged(&repository)?
         } else {
-            repositories::data_frames::schemas::list(&repository, None)?
+            let mut schemas = HashMap::new();
+            if let Some(commit) = repositories::commits::head_commit_maybe(&repository)? {
+                schemas = repositories::data_frames::schemas::list(&repository, &commit)?
+            }
+            schemas
         };
 
         if schemas.is_empty() && staged {

@@ -639,7 +639,9 @@ where
     // Write all the files
     create_bounding_box_csv(&local_repo.path)?;
     repositories::add(&local_repo, &local_repo.path)?;
+    log::debug!("about to commit bounding box csv");
     repositories::commit(&local_repo, "Adding bounding box csv")?;
+    log::debug!("successfully committed bounding box csv");
 
     // Set the proper remote
     let remote = repo_remote_url_from(&local_repo.dirname());
@@ -1541,7 +1543,7 @@ pub fn schema_bounding_box() -> Schema {
         Field::new("width", "f32"),
         Field::new("height", "f32"),
     ];
-    Schema::new("bounding_box", fields)
+    Schema::new(fields)
 }
 
 pub fn add_random_bbox_to_file<P: AsRef<Path>>(path: P) -> Result<PathBuf, OxenError> {

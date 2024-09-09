@@ -1,7 +1,10 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use time::OffsetDateTime;
 
+use crate::constants;
+use crate::constants::OXEN_HIDDEN_DIR;
+use crate::core::v0_10_0::cache::commit_cacher;
 use crate::core::v0_10_0::index::workspaces;
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
@@ -18,44 +21,37 @@ pub mod data_frames;
 pub mod files;
 pub mod stager;
 
-pub fn get(repo: &LocalRepository, workspace_id: impl AsRef<str>) -> Result<Workspace, OxenError> {
-    Workspace::new(repo, workspace_id)
-}
+pub fn init_workspace_repo(
+    repo: &LocalRepository,
+    workspace_dir: impl AsRef<Path>,
+) -> Result<LocalRepository, OxenError> {
+    let workspace_dir = workspace_dir.as_ref();
+    let oxen_hidden_dir = repo.path.join(OXEN_HIDDEN_DIR);
+    let workspace_hidden_dir = workspace_dir.join(OXEN_HIDDEN_DIR);
+    log::debug!("init_workspace_repo {workspace_hidden_dir:?}");
+    util::fs::create_dir_all(&workspace_hidden_dir)?;
 
-pub fn list(repo: &LocalRepository) -> Result<Vec<Workspace>, OxenError> {
-    Workspace::list(repo)
-}
+    let dirs_to_copy = vec![
+        constants::COMMITS_DIR,
+        constants::HISTORY_DIR,
+        constants::REFS_DIR,
+        constants::HEAD_FILE,
+        constants::OBJECTS_DIR,
+    ];
 
-pub fn create(
-    base_repo: &LocalRepository,
-    commit: &Commit,
-    workspace_id: impl AsRef<str>,
-    is_editable: bool,
-) -> Result<Workspace, OxenError> {
-    // here we set is_editable to true by default because only editable workspaces are created in this endpoint for now
-    Workspace::create(base_repo, commit, workspace_id, is_editable)
-}
+    for dir in dirs_to_copy {
+        let oxen_dir = oxen_hidden_dir.join(dir);
+        let target_dir = workspace_hidden_dir.join(dir);
 
-pub fn delete(workspace: &Workspace) -> Result<(), OxenError> {
-    let workspace_id = workspace.id.to_string();
-    let workspace_dir = workspace.dir();
-    if !workspace_dir.exists() {
-        return Err(OxenError::workspace_not_found(workspace_id.into()));
+        log::debug!("init_workspace_repo copying {dir} dir {oxen_dir:?} -> {target_dir:?}");
+        if oxen_dir.is_dir() {
+            util::fs::copy_dir_all(oxen_dir, target_dir)?;
+        } else {
+            util::fs::copy(oxen_dir, target_dir)?;
+        }
     }
 
-    log::debug!(
-        "workspace::delete cleaning up workspace dir: {:?}",
-        workspace_dir
-    );
-    match util::fs::remove_dir_all(&workspace_dir) {
-        Ok(_) => log::debug!(
-            "workspace::delete removed workspace dir: {:?}",
-            workspace_dir
-        ),
-        Err(e) => log::error!("workspace::delete error removing workspace dir: {:?}", e),
-    }
-
-    Ok(())
+    LocalRepository::new(workspace_dir)
 }
 
 pub fn commit(
@@ -128,84 +124,27 @@ pub fn commit(
     repositories::branches::update(repo, &branch.name, &commit.id)?;
 
     // Cleanup workspace on commit
-    delete(workspace)?;
+    repositories::workspaces::delete(workspace)?;
+
+    // Kick off post commit actions
+    let force = false;
+    match commit_cacher::run_all(&repo, &commit, force) {
+        Ok(_) => {
+            log::debug!(
+                "Success processing commit {:?} on repo {:?}",
+                commit,
+                repo.path
+            );
+        }
+        Err(err) => {
+            log::error!(
+                "Could not process commit {:?} on repo {:?}: {}",
+                commit,
+                repo.path,
+                err
+            );
+        }
+    }
 
     Ok(commit)
-}
-
-#[cfg(test)]
-mod tests {
-    use std::path::Path;
-
-    use crate::config::UserConfig;
-    use crate::constants::DEFAULT_BRANCH_NAME;
-    use crate::core::v0_10_0::index::workspaces;
-    use crate::error::OxenError;
-    use crate::model::NewCommitBody;
-    use crate::repositories;
-    use crate::test;
-    use crate::util;
-
-    #[test]
-    fn test_remote_stager_stage_file() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            // Stage file contents
-            let commit = repositories::commits::head_commit(&repo)?;
-            let directory = Path::new("data/");
-            let filename = Path::new("Readme.md");
-            let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
-            let workspaces_dir = workspace.dir();
-            let full_dir = workspaces_dir.join(directory);
-            let full_path = full_dir.join(filename);
-            let entry_contents = "Hello World";
-            std::fs::create_dir_all(full_dir)?;
-            util::fs::write_to_path(&full_path, entry_contents)?;
-
-            workspaces::files::add(&workspace, &full_path)?;
-
-            // Verify staged data
-            let staged_data = workspaces::stager::status(&workspace, directory)?;
-            staged_data.print();
-            assert_eq!(staged_data.staged_files.len(), 1);
-
-            Ok(())
-        })
-    }
-
-    #[test]
-    fn test_workspace_commit() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test(|repo| {
-            // Stage file contents
-            let commit = repositories::commits::head_commit(&repo)?;
-            let directory = Path::new("data/");
-            let filename = Path::new("Readme.md");
-            let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
-            let workspace_dir = workspace.dir();
-            let full_dir = workspace_dir.join(directory);
-            let full_path = full_dir.join(filename);
-            let entry_contents = "Hello World";
-            std::fs::create_dir_all(full_dir)?;
-            util::fs::write_to_path(&full_path, entry_contents)?;
-            workspaces::files::add(&workspace, &full_path)?;
-
-            let og_commits = repositories::commits::list(&repo)?;
-            let new_commit = NewCommitBody {
-                author: String::from("Test User"),
-                email: String::from("test@oxen.ai"),
-                message: String::from("I am committing this workspace's data"),
-            };
-            workspaces::commit(&workspace, &new_commit, DEFAULT_BRANCH_NAME)?;
-
-            for commit in og_commits.iter() {
-                println!("OG commit: {commit:#?}");
-            }
-
-            let new_commits = repositories::commits::list(&repo)?;
-            assert_eq!(og_commits.len() + 1, new_commits.len());
-
-            Ok(())
-        })
-    }
 }

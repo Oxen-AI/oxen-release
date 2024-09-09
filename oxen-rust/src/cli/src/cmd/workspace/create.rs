@@ -1,10 +1,11 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use liboxen::command;
+use liboxen::api;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
+use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "create";
@@ -46,7 +47,11 @@ impl RunCmd for WorkspaceCreateCmd {
             return Err(OxenError::basic_str("Must supply workspace_id"));
         };
 
-        command::workspace::create(&repo, &branch_name, &workspace_id).await?;
+        let remote_repo = api::client::repositories::get_default_remote(&repo).await?;
+        let workspace =
+            api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
+
+        println!("Workspace created: {:?}", workspace.commit.id);
 
         Ok(())
     }
