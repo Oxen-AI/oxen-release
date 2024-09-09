@@ -20,40 +20,77 @@ use crate::util;
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    let commit = repositories::commits::head_commit(repo)?;
-    let path = &opts.path;
 
-    let mut paths: HashSet<PathBuf> = HashSet::new();
-    if let Some(path_str) = path.to_str() {
-        if util::fs::is_glob_path(path_str) {
-            // Match against any entries in the current dir, excluding .oxen
-            for entry in glob(path_str)? {
-                let entry = entry?;
-                if !entry.starts_with(OXEN_HIDDEN_DIR) {
-                    paths.insert(entry);
-                }
-            }
-            let pattern_entries = repositories::commits::search_entries(repo, &commit, path_str)?;
-            paths.extend(pattern_entries);
-        } else {
-            paths.insert(path.to_owned());
-        }
-    }
+    let path: &Path = opts.path.as_ref();
+    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts);
 
-    for path in paths {
-        let opts = RmOpts::from_path_opts(path, opts);
-        p_rm(repo, &opts).await?;
-    }
-
+    
     Ok(())
 }
 
-async fn p_rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+async fn p_rm(paths: &HashSet<PathBuf>, &repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::rm(repo, opts).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::rm(repo, opts).await,
+        MinOxenVersion::V0_10_0 =>  {
+            for path in paths {
+                let opts = RmOpts::from_path_opts(path, opts);
+                core::v0_10_0::index::rm(repo, opts).await;
+            }
+        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::rm(paths, repo, opts).await,
     }
 }
+
+// Collect paths for removal. Returns error if dir found and -r not set
+fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result<HashSet<PathBuf>, OxenError> {
+    
+    let mut paths: HashSet<PathBuf> = HashSet::new();
+    println!("Parse glob path");
+
+    if opts.recursive {
+        if let Some(path_str) = path.to_str() {
+            if util::fs::is_glob_path(path_str) {
+                // Match against any untracked entries in the current dir
+
+                for entry in glob(path_str)? {
+                    let full_path = repo.path.join(entry?);
+                    paths.insert(full_path);
+                }
+            } else {
+                // Non-glob path
+                let full_path = repo.path.join(path);
+                paths.insert(path.to_owned());
+            }
+        }
+    } else {
+        if let Some(path_str) = path.to_str() {
+            if util::fs::is_glob_path(path_str) {
+                for entry in glob(path_str)? {
+
+                    if entry.is_dir() {
+                        let error = format!("`oxen rm` on directory {path:?} requires -r");
+                        return Err(OxenError::basic_str(error));
+                    }
+
+                    let full_path = repo.path.join(entry?);
+                    paths.insert(full_path);
+                }
+            } else {
+                // Non-glob path
+
+                if path.is_dir() {
+                    let error = format!("`oxen rm` on directory {path:?} requires -r");
+                    return Err(OxenError::basic_str(error));
+                }
+
+                let full_path = repo.path.join(path);
+                paths.insert(full_path.to_owned());
+            }
+        }
+    }
+
+    Ok(paths)
+}
+
 
 #[cfg(test)]
 mod tests {
