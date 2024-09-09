@@ -4,7 +4,6 @@ use polars::frame::DataFrame;
 use sql_query_builder::{Delete, Select};
 
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
-use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::df::tabular;
@@ -28,58 +27,8 @@ pub mod columns;
 pub mod row_changes_db;
 pub mod rows;
 
-pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
-    let commit_path = previous_commit_ref_path(workspace, path);
-    let commit_id = util::fs::read_from_path(commit_path)?;
-    Ok(commit_id != workspace.commit.id)
-}
-
-pub fn previous_commit_ref_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspace
-        .dir()
-        .join(OXEN_HIDDEN_DIR)
-        .join(MODS_DIR)
-        .join("duckdb")
-        .join(path_hash)
-        .join("COMMIT_ID")
-}
-
-pub fn duckdb_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspace
-        .dir()
-        .join(OXEN_HIDDEN_DIR)
-        .join(MODS_DIR)
-        .join("duckdb")
-        .join(path_hash)
-        .join("db")
-}
-
-pub fn column_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspace
-        .dir()
-        .join(OXEN_HIDDEN_DIR)
-        .join(MODS_DIR)
-        .join("duckdb")
-        .join(path_hash)
-        .join("column_changes")
-}
-
-pub fn row_changes_path(workspace: &Workspace, path: impl AsRef<Path>) -> PathBuf {
-    let path_hash = util::hasher::hash_str(path.as_ref().to_string_lossy());
-    workspace
-        .dir()
-        .join(OXEN_HIDDEN_DIR)
-        .join(MODS_DIR)
-        .join("duckdb")
-        .join(path_hash)
-        .join("row_changes")
-}
-
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {
-    let db_path = duckdb_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     let conn = df_db::get_connection(db_path)?;
 
     let count = df_db::count(&conn, TABLE_NAME)?;
@@ -108,14 +57,14 @@ pub fn get_queryable_data_frame_workspace(
         ));
     }
 
-    let workspaces = index::workspaces::list(repo)?;
+    let workspaces = repositories::workspaces::list(repo)?;
 
     for workspace in workspaces {
         // Ensure the workspace is not editable and matches the commit ID of the resource
         if !workspace.is_editable && workspace.commit == *commit {
             // Construct the path to the DuckDB resource within the workspace
             let workspace_file_db_path =
-                index::workspaces::data_frames::duckdb_path(&workspace, path);
+                repositories::workspaces::data_frames::duckdb_path(&workspace, path);
 
             // Check if the DuckDB file exists in the workspace's directory
             if workspace_file_db_path.exists() {
@@ -130,8 +79,8 @@ pub fn get_queryable_data_frame_workspace(
 
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
-    path: &PathBuf,
     commit: &Commit,
+    path: &PathBuf,
 ) -> Result<bool, OxenError> {
     match index::workspaces::data_frames::get_queryable_data_frame_workspace(repo, path, commit) {
         Ok(_workspace) => Ok(true),
@@ -159,7 +108,7 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
         None => return Err(OxenError::resource_not_found(path.to_string_lossy())),
     };
 
-    let db_path = duckdb_path(workspace, &entry.path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &entry.path);
 
     let Some(parent) = db_path.parent() else {
         return Err(OxenError::basic_str(format!(
@@ -193,7 +142,8 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
     add_row_status_cols(&conn)?;
 
     // Save the current commit id so we know if the branch has advanced
-    let commit_path = previous_commit_ref_path(workspace, path);
+    let commit_path =
+        repositories::workspaces::data_frames::previous_commit_ref_path(workspace, path);
     util::fs::write_to_path(commit_path, &commit.id)?;
 
     Ok(())
@@ -205,7 +155,7 @@ pub fn query(
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
     let path = path.as_ref();
-    let db_path = duckdb_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("query_staged_df() got db_path: {:?}", db_path);
 
     let conn = df_db::get_connection(db_path)?;
@@ -244,7 +194,7 @@ fn add_row_status_cols(conn: &Connection) -> Result<(), OxenError> {
 
 pub fn unindex(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
     let path = path.as_ref();
-    let db_path = duckdb_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     let conn = df_db::get_connection(db_path)?;
     df_db::drop_table(&conn, TABLE_NAME)?;
 
@@ -253,7 +203,7 @@ pub fn unindex(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), Oxen
 
 pub fn is_indexed(workspace: &Workspace, path: &Path) -> Result<bool, OxenError> {
     log::debug!("checking dataset is indexed for {:?}", path);
-    let db_path = duckdb_path(workspace, path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
     log::debug!("getting conn at path {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
 
@@ -276,7 +226,7 @@ pub fn diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffResult,
         return Err(OxenError::basic_str("Dataset is not indexed"));
     };
 
-    let db_path = duckdb_path(workspace, entry.path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, entry.path);
 
     let conn = df_db::get_connection(db_path)?;
 
@@ -320,7 +270,7 @@ pub fn extract_dataset_to_versions_dir(
 ) -> Result<(), OxenError> {
     let repo = &workspace.base_repo;
     let version_path = util::fs::version_path(repo, entry);
-    let db_path = duckdb_path(workspace, entry.path.clone());
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, entry.path.clone());
     let conn = df_db::get_connection(db_path)?;
 
     log::debug!("extracting to versions path: {:?}", version_path);
@@ -375,7 +325,7 @@ pub fn extract_to_working_dir(
     let workspace_repo = &workspace.workspace_repo;
 
     let working_path = workspace_repo.path.join(entry.path.clone());
-    let db_path = duckdb_path(workspace, entry.path.clone());
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, entry.path.clone());
     let conn = df_db::get_connection(db_path)?;
     // Match on the extension
     if !working_path.exists() {
@@ -549,7 +499,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -595,7 +545,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -672,7 +622,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -760,7 +710,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -841,7 +791,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -914,7 +864,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -977,7 +927,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -1060,7 +1010,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");
@@ -1141,7 +1091,7 @@ mod tests {
             let branch = repositories::branches::create_checkout(&repo, branch_name)?;
             let commit = repositories::commits::get_by_id(&repo, &branch.commit_id)?.unwrap();
             let workspace_id = UserConfig::identifier()?;
-            let workspace = workspaces::create(&repo, &commit, workspace_id, true)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, true)?;
             let file_path = Path::new("annotations")
                 .join("train")
                 .join("bounding_box.csv");

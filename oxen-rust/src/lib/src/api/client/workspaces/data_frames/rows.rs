@@ -227,12 +227,14 @@ mod tests {
 
     use crate::api;
     use crate::config::UserConfig;
-    use crate::constants;
     use crate::constants::DEFAULT_BRANCH_NAME;
+    use crate::constants::{self, OXEN_ID_COL};
     use crate::error::OxenError;
     use crate::opts::DFOpts;
+    use crate::repositories;
     use crate::test;
     use crate::view::json_data_frame_view::JsonDataFrameRowResponse;
+    use polars::prelude::AnyValue;
 
     use std::path::Path;
 
@@ -576,6 +578,79 @@ mod tests {
 
             assert_eq!(data.get("_oxen_diff_status").unwrap(), "modified");
             Ok(remote_repo)
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_remote_stage_delete_row_clears_remote_status() -> Result<(), OxenError> {
+        if std::env::consts::OS == "windows" {
+            return Ok(());
+        };
+        test::run_training_data_fully_sync_remote(|_, remote_repo| async move {
+            let remote_repo_copy = remote_repo.clone();
+
+            test::run_empty_dir_test_async(|repo_dir| async move {
+                let repo_dir = repo_dir.join("new_repo");
+
+                let cloned_repo =
+                    repositories::shallow_clone_url(&remote_repo.remote.url, &repo_dir).await?;
+
+                // Remote add row
+                let path = test::test_nlp_classification_csv();
+
+                // Index dataset
+                let workspace_id = "my_workspace";
+                api::client::workspaces::create(&remote_repo, DEFAULT_BRANCH_NAME, &workspace_id)
+                    .await?;
+                api::client::workspaces::data_frames::index(&remote_repo, workspace_id, &path)
+                    .await?;
+
+                let mut opts = DFOpts::empty();
+                opts.add_row =
+                    Some("{\"text\": \"I am a new row\", \"label\": \"neutral\"}".to_string());
+                // Grab ID from the row we just added
+                let df =
+                    repositories::workspaces::df(&cloned_repo, workspace_id, &path, opts).await?;
+                let uuid = match df.column(OXEN_ID_COL).unwrap().get(0).unwrap() {
+                    AnyValue::String(s) => s.to_string(),
+                    _ => panic!("Expected string"),
+                };
+
+                // Make sure it is listed as modified
+                let directory = Path::new("");
+                let status = api::client::workspaces::changes::list(
+                    &remote_repo,
+                    workspace_id,
+                    directory,
+                    constants::DEFAULT_PAGE_NUM,
+                    constants::DEFAULT_PAGE_SIZE,
+                )
+                .await?;
+                assert_eq!(status.added_files.entries.len(), 1);
+
+                // Delete it
+                let mut delete_opts = DFOpts::empty();
+                delete_opts.delete_row = Some(uuid);
+                repositories::workspaces::df(&cloned_repo, workspace_id, &path, delete_opts)
+                    .await?;
+
+                // Now status should be empty
+                let status = api::client::workspaces::changes::list(
+                    &remote_repo,
+                    workspace_id,
+                    directory,
+                    constants::DEFAULT_PAGE_NUM,
+                    constants::DEFAULT_PAGE_SIZE,
+                )
+                .await?;
+                assert_eq!(status.added_files.entries.len(), 0);
+
+                Ok(repo_dir)
+            })
+            .await?;
+
+            Ok(remote_repo_copy)
         })
         .await
     }

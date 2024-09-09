@@ -37,6 +37,7 @@ use liboxen::view::http::MSG_INTERNAL_SERVER_ERROR;
 use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
 use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
+use liboxen::view::tree::merkle_hashes::MerkleHashes;
 use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
 use os_path::OsPath;
 
@@ -150,6 +151,26 @@ pub async fn list_all(
     let paginated_commits = repositories::commits::list_all_paginated(&repo, pagination)?;
 
     Ok(HttpResponse::Ok().json(paginated_commits))
+}
+
+pub async fn list_missing(
+    req: HttpRequest,
+    body: String,
+) -> actix_web::Result<HttpResponse, OxenHttpError> {
+    let app_data = app_data(&req)?;
+    let namespace = path_param(&req, "namespace")?;
+    let repo_name = path_param(&req, "repo_name")?;
+    let repo = get_repo(&app_data.path, namespace, repo_name)?;
+
+    // Parse commit ids from a body and return the missing ids
+    let data: Result<MerkleHashes, serde_json::Error> = serde_json::from_str(&body);
+    let Ok(merkle_hashes) = data else {
+        return Ok(HttpResponse::BadRequest().json(StatusMessage::error("Invalid JSON")));
+    };
+
+    let missing_commits =
+        repositories::tree::list_missing_node_hashes(&repo, &merkle_hashes.hashes)?;
+    Ok(HttpResponse::Ok().json(missing_commits))
 }
 
 pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {

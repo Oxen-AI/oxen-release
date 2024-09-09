@@ -37,12 +37,10 @@ pub fn get_connection(path: impl AsRef<Path>) -> Result<duckdb::Connection, Oxen
 /// Create a table in a duckdb database based on an oxen schema.
 pub fn create_table_if_not_exists(
     conn: &duckdb::Connection,
+    name: impl AsRef<str>,
     schema: &Schema,
 ) -> Result<String, OxenError> {
-    match &schema.name {
-        Some(table_name) => p_create_table_if_not_exists(conn, table_name, &schema.fields),
-        None => Err(OxenError::basic_str("Schema name is required")),
-    }
+    p_create_table_if_not_exists(conn, name, &schema.fields)
 }
 
 /// Drop a table in a duckdb database.
@@ -110,7 +108,7 @@ pub fn get_schema(
         ));
     }
 
-    Ok(Schema::new(table_name, fields))
+    Ok(Schema::new(fields))
 }
 
 // Get the schema from the table excluding specified columns - useful for virtual cols like .oxen.diff.status
@@ -142,7 +140,7 @@ pub fn get_schema_excluding_cols(
         ));
     }
 
-    Ok(Schema::new(table_name, fields))
+    Ok(Schema::new(fields))
 }
 
 /// Query number of rows in a table.
@@ -550,9 +548,10 @@ mod tests {
             let conn = get_connection(db_file)?;
             // bounding_box -> min_x, min_y, width, height
             let schema = test::schema_bounding_box();
-            create_table_if_not_exists(&conn, &schema)?;
+            let table_name = "bounding_box";
+            create_table_if_not_exists(&conn, table_name, &schema)?;
 
-            let num_entries = count(&conn, schema.name.unwrap())?;
+            let num_entries = count(&conn, table_name)?;
             assert_eq!(num_entries, 0);
 
             Ok(())
@@ -566,10 +565,10 @@ mod tests {
             let conn = get_connection(db_file)?;
             // bounding_box -> min_x, min_y, width, height
             let schema = test::schema_bounding_box();
-            create_table_if_not_exists(&conn, &schema)?;
+            let table_name = "bounding_box";
+            create_table_if_not_exists(&conn, table_name, &schema)?;
 
-            let name = &schema.name.clone().unwrap();
-            let found_schema = get_schema(&conn, name)?;
+            let found_schema = get_schema(&conn, table_name)?;
             assert_eq!(found_schema, schema);
 
             Ok(())

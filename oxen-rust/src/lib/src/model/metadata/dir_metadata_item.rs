@@ -42,7 +42,7 @@ impl DirMetadataItem {
             Field::new("extension", DataType::String.to_string().as_str()),
             Field::new("is_dir", DataType::Boolean.to_string().as_str()),
         ];
-        Schema::new("metadata", fields)
+        Schema::new(fields)
     }
 
     pub fn from_dir(dir: &Path, commit: &Commit) -> Self {

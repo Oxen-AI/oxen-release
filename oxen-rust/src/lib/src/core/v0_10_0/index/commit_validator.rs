@@ -144,9 +144,9 @@ fn new_r_validate_complete_merkle_node(
                 .strip_prefix(constants::SCHEMAS_TREE_PREFIX)?
                 .to_path_buf();
 
-            let maybe_schema = repositories::data_frames::schemas::get_by_path_from_revision(
+            let maybe_schema = repositories::data_frames::schemas::get_by_path(
                 repository,
-                &commit.id,
+                &commit,
                 schema_path.clone(),
             )?;
 
@@ -392,9 +392,9 @@ fn r_validate_changed_parts_of_merkle_node(
                 .strip_prefix(constants::SCHEMAS_TREE_PREFIX)?
                 .to_path_buf();
 
-            let maybe_schema = repositories::data_frames::schemas::get_by_path_from_revision(
+            let maybe_schema = repositories::data_frames::schemas::get_by_path(
                 repository,
-                &commit.id,
+                &commit,
                 schema_path.clone(),
             )?;
 

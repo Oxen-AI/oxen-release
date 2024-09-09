@@ -236,10 +236,7 @@ impl CommitMerkleTree {
         for path in paths.iter() {
             // Skip to the nodes
             let Some(hash) = dir_hashes.get(path) else {
-                return Err(OxenError::basic_str(format!(
-                    "Dir hash not found for path: {:?}",
-                    path
-                )));
+                continue;
             };
             log::debug!("Loading node for path: {:?} hash: {}", path, hash);
             let Some(node) = CommitMerkleTree::read_depth(repo, hash, 2)? else {
@@ -310,6 +307,33 @@ impl CommitMerkleTree {
             }
         }
         Ok(children)
+    }
+
+    /// Get the root directory node given a commit node
+    pub fn get_root_dir_from_commit(node: &MerkleTreeNode) -> Result<&MerkleTreeNode, OxenError> {
+        if node.node.dtype() != MerkleTreeNodeType::Commit {
+            return Err(OxenError::basic_str(format!(
+                "Expected a commit node, but got: '{:?}'",
+                node.node.dtype()
+            )));
+        }
+
+        // A commit node should have exactly one child, which is the root directory
+        if node.children.len() != 1 {
+            return Err(OxenError::basic_str(
+                "Commit node should have exactly one child (root directory)",
+            ));
+        }
+
+        let root_dir = &node.children[0];
+        if root_dir.node.dtype() != MerkleTreeNodeType::Dir {
+            return Err(OxenError::basic_str(format!(
+                "The child of a commit node should be a directory, but got: '{:?}'",
+                root_dir.node.dtype()
+            )));
+        }
+
+        Ok(root_dir)
     }
 
     pub fn total_vnodes(&self) -> usize {
