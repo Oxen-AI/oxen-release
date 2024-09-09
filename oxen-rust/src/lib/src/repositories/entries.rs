@@ -9,15 +9,15 @@ use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::MetadataDir;
 use crate::opts::{DFOpts, PaginateOpts};
-use crate::view::DataTypeCount;
 use crate::repositories;
+use crate::view::DataTypeCount;
 use rayon::prelude::*;
 
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
 use crate::core::v0_10_0::index;
-use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::core::v0_10_0::index::SchemaReader;
+use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
