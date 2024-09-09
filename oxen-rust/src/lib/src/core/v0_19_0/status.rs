@@ -179,7 +179,7 @@ pub fn read_staged_entries_below_path(
                         start_path
                     );
                     let relative_start_path =
-                        util::fs::path_relative_to_dir(&start_path, &repo.path)?;
+                        util::fs::path_relative_to_dir(start_path, &repo.path)?;
                     if relative_start_path == PathBuf::from("")
                         || parent.starts_with(&relative_start_path)
                     {
@@ -240,7 +240,7 @@ fn find_untracked_and_modified_paths(
     // Files in working directory as candidates
     let mut total_files = 0;
     for candidate_dir in &candidate_dirs {
-        let relative_dir = util::fs::path_relative_to_dir(&candidate_dir, &repo.path)?;
+        let relative_dir = util::fs::path_relative_to_dir(candidate_dir, &repo.path)?;
         log::debug!(
             "find_untracked_and_modified_paths finding untracked files in {:?} relative {:?}",
             candidate_dir,
@@ -296,7 +296,7 @@ fn find_untracked_and_modified_paths(
                 let file_name = path
                     .file_name()
                     .ok_or(OxenError::basic_str("path has no file name"))?;
-                if let Some(node) = maybe_get_child_node(&file_name, &dir_node)? {
+                if let Some(node) = maybe_get_child_node(file_name, &dir_node)? {
                     log::debug!(
                         "find_untracked_and_modified_paths checking if modified {:?}",
                         relative_path
