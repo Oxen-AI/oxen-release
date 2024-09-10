@@ -10,7 +10,7 @@ use crate::core::db;
 use crate::core::v0_19_0::index::MerkleNodeDB;
 
 use crate::model::merkle_tree::node::MerkleTreeNode;
-use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode};
+use crate::model::merkle_tree::node::EMerkleTreeNode;
 
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, MerkleHash, MerkleTreeNodeType};

@@ -3,14 +3,12 @@ use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 use crate::repositories;
 use crate::util;
-use crate::constants;
 use crate::core::db;
 
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use crate::model::merkle_tree::node::FileNode;
 use crate::core::v0_19_0::index::CommitMerkleTree;
-use crate::core;
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
@@ -25,14 +23,12 @@ use crate::model::Commit;
 use crate::model::StagedEntryStatus;
 use crate::constants::VERSIONS_DIR;
 use crate::constants::STAGED_DIR;
-use crate::model::EntryDataType;
 
 
 use rmp_serde::Serializer;
 use serde::Serialize;
 
 
-use glob::glob;
 use std::collections::HashSet;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -61,11 +57,11 @@ pub async fn rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts)
     // TODO: Accurately calculate stats for remove_staged
     if opts.staged {
 
-        return remove_staged(repo, &paths);
+        return remove_staged(repo, paths);
         
     }
 
-    remove(paths, repo, opts);
+    remove(paths, repo, opts)
 }
 
 fn remove(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
@@ -180,9 +176,9 @@ fn remove_staged(
         println!("path: {:?}", path);
 
         if path.is_dir() {
-            remove_staged_dir(&repo, &path, &staged_db)?;
+            remove_staged_dir(repo, path, &staged_db)?;
         } else {
-            remove_staged_file(&repo, &path, &staged_db)?; 
+            remove_staged_file(repo, path, &staged_db)?; 
         }  
     }
 
@@ -230,7 +226,7 @@ fn remove_staged_dir(
 
                 let path = dir_entry.path();
 
-                if (path.is_dir()) {
+                if path.is_dir() {
                     remove_staged_dir(repo, &path, staged_db);
                 }
                 remove_staged_file(repo, &path, staged_db);  
@@ -539,8 +535,8 @@ fn process_remove_dir(
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_remove_file_and_parents(
                     &repo_path,
-                    &versions_path,
-                    &staged_db,
+                    versions_path,
+                    staged_db,
                     &dir_node,
                     &path,
                     &seen_dirs_clone,

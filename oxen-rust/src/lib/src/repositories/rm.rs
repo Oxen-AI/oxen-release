@@ -5,13 +5,11 @@
 
 use std::collections::HashSet;
 
-use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::repositories;
 use std::path::{Path, PathBuf};
 
 use glob::glob;
@@ -35,12 +33,12 @@ async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -
         MinOxenVersion::V0_10_0 =>  {
             for path in paths {
                 let opts = RmOpts::from_path_opts(path, opts);
-                core::v0_10_0::index::rm(&repo, &opts).await?;
+                core::v0_10_0::index::rm(repo, &opts).await?;
             }
         }
         MinOxenVersion::V0_19_0 => {
             println!("v19");
-            core::v0_19_0::rm(paths, &repo, &opts).await?;
+            core::v0_19_0::rm(paths, repo, opts).await?;
         }
     }
     Ok(())
@@ -68,31 +66,29 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result
                 paths.insert(path.to_owned());
             }
         }
-    } else {
-        if let Some(path_str) = path.to_str() {
-            if util::fs::is_glob_path(path_str) {
-                for entry in glob(path_str)? {
+    } else if let Some(path_str) = path.to_str() {
+        if util::fs::is_glob_path(path_str) {
+            for entry in glob(path_str)? {
 
-                    let full_path = repo.path.join(entry?);
+                let full_path = repo.path.join(entry?);
 
-                    if full_path.is_dir() {
-                        let error = format!("`oxen rm` on directory {path:?} requires -r");
-                        return Err(OxenError::basic_str(error));
-                    }
-
-                    paths.insert(full_path);
-                }
-            } else {
-                // Non-glob path
-
-                if path.is_dir() {
+                if full_path.is_dir() {
                     let error = format!("`oxen rm` on directory {path:?} requires -r");
                     return Err(OxenError::basic_str(error));
                 }
 
-                let full_path = repo.path.join(path);
-                paths.insert(full_path.to_owned());
+                paths.insert(full_path);
             }
+        } else {
+            // Non-glob path
+
+            if path.is_dir() {
+                let error = format!("`oxen rm` on directory {path:?} requires -r");
+                return Err(OxenError::basic_str(error));
+            }
+
+            let full_path = repo.path.join(path);
+            paths.insert(full_path.to_owned());
         }
     }
 
