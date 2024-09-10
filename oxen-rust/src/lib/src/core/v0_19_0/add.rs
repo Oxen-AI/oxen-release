@@ -18,7 +18,7 @@ use serde::Serialize;
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
-use crate::model::{Commit, EntryDataType, MerkleHash, MerkleTreeNodeType, StagedEntryStatus};
+use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
@@ -236,8 +236,8 @@ fn process_add_dir(
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
                     &repo_path,
-                    &versions_path,
-                    &staged_db,
+                    versions_path,
+                    staged_db,
                     &dir_node,
                     &path,
                     &seen_dirs_clone,

@@ -11,7 +11,7 @@ use crate::view::entries::ResourceVersion;
 use crate::view::PaginatedDirEntries;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use super::index::CommitMerkleTree;
 
@@ -61,7 +61,7 @@ pub fn get_file_merkle_tree_node(
     };
 
     let file_node = parent_node.get_by_path(file_name)?;
-    return Ok(file_node);
+    Ok(file_node)
 }
 
 pub fn list_directory(
@@ -180,7 +180,7 @@ pub fn dir_entries(
         repo,
         dir,
         &search_directory,
-        &current_directory,
+        current_directory,
         parsed_resource,
         found_commits,
         &mut entries,
@@ -201,10 +201,10 @@ fn dir_node_to_metadata_entry(
         return Ok(None);
     };
 
-    if !found_commits.contains_key(&dir_node.last_commit_id) {
+    if let std::collections::hash_map::Entry::Vacant(e) = found_commits.entry(dir_node.last_commit_id) {
         let commit = repositories::commits::get_by_hash(repo, &dir_node.last_commit_id)?
             .ok_or(OxenError::resource_not_found(dir_node.name.clone()))?;
-        found_commits.insert(dir_node.last_commit_id, commit);
+        e.insert(commit);
     }
 
     let commit = found_commits.get(&dir_node.last_commit_id).unwrap();
@@ -240,10 +240,10 @@ fn file_node_to_metadata_entry(
         return Ok(None);
     };
 
-    if !found_commits.contains_key(&file_node.last_commit_id) {
+    if let std::collections::hash_map::Entry::Vacant(e) = found_commits.entry(file_node.last_commit_id) {
         let commit = repositories::commits::get_by_hash(repo, &file_node.last_commit_id)?
             .ok_or(OxenError::resource_not_found(file_node.name.clone()))?;
-        found_commits.insert(file_node.last_commit_id, commit);
+        e.insert(commit);
     }
 
     let commit = found_commits.get(&file_node.last_commit_id).unwrap();

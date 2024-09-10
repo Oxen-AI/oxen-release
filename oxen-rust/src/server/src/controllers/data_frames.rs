@@ -4,28 +4,17 @@ use crate::params::df_opts_query::{self, DFOptsQuery};
 use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::constants;
-use liboxen::constants::DUCKDB_DF_TABLE_NAME;
-use liboxen::core::db::data_frames::df_db;
-use liboxen::core::v0_10_0::cache::cachers;
-use liboxen::core::v0_10_0::index::CommitEntryReader;
-use liboxen::error::{OxenError, PathBufError};
-use liboxen::model::data_frame::DataFrameSchemaSize;
-use liboxen::model::{
-    Commit, CommitEntry, DataFrameSize, LocalRepository, ParsedResource, Schema, Workspace,
-};
+use liboxen::error::PathBufError;
 use liboxen::opts::df_opts::DFOptsView;
 use liboxen::repositories;
 use liboxen::view::entries::ResourceVersion;
 
 use actix_web::{web, HttpRequest, HttpResponse};
-use liboxen::core::df::{sql, tabular};
 use liboxen::opts::{DFOpts, PaginateOpts};
 use liboxen::view::{
     JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, Pagination, StatusMessage,
 };
 
-use liboxen::util;
-use polars::frame::DataFrame;
 
 use liboxen::core::v0_10_0::index;
 use uuid::Uuid;
