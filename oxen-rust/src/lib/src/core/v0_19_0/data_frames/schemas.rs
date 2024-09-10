@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema};
 

@@ -34,8 +34,7 @@ pub fn get_slice(
     let data_frame_size = cachers::df_size::get_cache_for_version(repo, commit, &version_path)?;
     log::debug!("view_from got data frame size {:?}", data_frame_size);
 
-    let handle_sql_result =
-        handle_sql_querying(repo, commit, path, opts, &entry, &data_frame_size);
+    let handle_sql_result = handle_sql_querying(repo, commit, path, opts, &entry, &data_frame_size);
     if let Ok(response) = handle_sql_result {
         return Ok(response);
     }
