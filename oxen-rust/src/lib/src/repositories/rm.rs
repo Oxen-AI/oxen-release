@@ -28,7 +28,6 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
 }
 
 async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    println!("Hi: {}",repo.min_version());
     match repo.min_version() {
         MinOxenVersion::V0_10_0 =>  {
             for path in paths {
@@ -37,7 +36,6 @@ async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -
             }
         }
         MinOxenVersion::V0_19_0 => {
-            println!("v19");
             core::v0_19_0::rm(paths, repo, opts).await?;
         }
     }
@@ -49,7 +47,6 @@ async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -
 fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result<HashSet<PathBuf>, OxenError> {
     
     let mut paths: HashSet<PathBuf> = HashSet::new();
-    println!("Parse glob path");
 
     if opts.recursive | opts.staged {
         if let Some(path_str) = path.to_str() {
@@ -92,7 +89,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result
         }
     }
 
-    println!("Got: {paths:?}");
+    log::debug!("parse_glob_paths: {paths:?}");
     Ok(paths)
 }
 
