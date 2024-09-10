@@ -117,7 +117,7 @@ fn add_files(
     for path in paths {
         println!("path is {path:?} in container {paths:?}");
         if path.is_dir() {
-            total += process_dir(repo, &maybe_head_commit, path.clone())?;
+            total += add_dir(repo, &maybe_head_commit, path.clone())?;
          
         // TODO: Revert this to check .is_file, add third case for removed files from the merkle tree
         } else {
@@ -143,13 +143,12 @@ fn add_files(
     Ok(total)
 }
 
-fn process_dir(
+pub fn add_dir(    
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
-    
-    let start = std::time::Instant::now();
+
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -157,6 +156,19 @@ fn process_dir(
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
+}
+
+
+fn process_add_dir(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    versions_path: &Path,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    path: PathBuf,
+) -> Result<CumulativeStats, OxenError> {
+    let start = std::time::Instant::now();
 
     let progress_1 = Arc::new(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
