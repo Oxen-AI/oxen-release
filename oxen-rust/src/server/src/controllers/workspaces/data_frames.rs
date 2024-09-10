@@ -226,7 +226,7 @@ pub async fn put(req: HttpRequest, body: String) -> Result<HttpResponse, OxenHtt
     let is_indexed = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
     if !is_indexed && to_index {
-        repositories::workspaces::data_frames::index(&workspace, &file_path)?;
+        repositories::workspaces::data_frames::index(&repo, &workspace, &file_path)?;
     } else if is_indexed && !to_index {
         repositories::workspaces::data_frames::unindex(&workspace, &file_path)?;
     }
