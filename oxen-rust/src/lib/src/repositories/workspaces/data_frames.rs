@@ -1,7 +1,9 @@
 use polars::frame::DataFrame;
 
 use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR, TABLE_NAME};
+use crate::core;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Workspace};
 use crate::opts::DFOpts;
@@ -19,20 +21,49 @@ pub fn is_behind(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, 
     Ok(commit_id != workspace.commit.id)
 }
 
-pub fn is_indexed(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
-    todo!()
+pub fn is_indexed(workspace: &Workspace, path: &Path) -> Result<bool, OxenError> {
+    log::debug!("checking dataset is indexed for {:?}", path);
+    let db_path = duckdb_path(workspace, path);
+    log::debug!("getting conn at path {:?}", db_path);
+    let conn = df_db::get_connection(db_path)?;
+
+    let table_exists = df_db::table_exists(&conn, TABLE_NAME)?;
+    log::debug!("dataset_is_indexed() got table_exists: {:?}", table_exists);
+    Ok(table_exists)
 }
 
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
-    commit: &Commit,
     path: &PathBuf,
+    commit: &Commit,
 ) -> Result<bool, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::index::workspaces::data_frames::is_queryable_data_frame_indexed(
+                repo, commit, path,
+            )
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::is_queryable_data_frame_indexed(
+                repo, commit, path,
+            )
+        }
+    }
 }
 
-pub fn index(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
-    todo!()
+pub fn index(
+    repo: &LocalRepository,
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::index::workspaces::data_frames::index(workspace, path.as_ref())
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::index(workspace, path.as_ref())
+        }
+    }
 }
 
 pub fn unindex(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {

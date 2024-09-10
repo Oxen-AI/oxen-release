@@ -7,6 +7,8 @@ use crate::constants::{
 
 use crate::core::df::tabular;
 use crate::error::OxenError;
+use std::io::{BufReader, Read};
+
 use crate::model::data_frame::schema::Field;
 use crate::model::data_frame::schema::Schema;
 use crate::opts::DFOpts;
@@ -16,6 +18,7 @@ use arrow_json::WriterBuilder;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
+use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
 
@@ -316,6 +319,14 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
     log::debug!("df_db:index_file() at path {:?}", path);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
+    println!("extension {:?}", extension);
+    println!(
+        "
+
+
+
+    "
+    );
     match extension {
         "csv" => {
             let query = format!(
@@ -356,9 +367,12 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
 
 // TODO: We will eventually want to parse the actual type, not just the extension.
 // For now, just treat the extension as law
-pub fn index_file_with_id(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenError> {
+pub fn index_file_with_id(
+    path: &Path,
+    conn: &duckdb::Connection,
+    extension: &str,
+) -> Result<(), OxenError> {
     log::debug!("df_db:index_file() at path {:?} into path {:?}", path, conn);
-    let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
     let counter = "counter";
     // Drop sequence if exists

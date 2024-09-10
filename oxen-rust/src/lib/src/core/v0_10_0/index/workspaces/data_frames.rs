@@ -133,7 +133,9 @@ pub fn index(workspace: &Workspace, path: &Path) -> Result<(), OxenError> {
         version_path
     );
 
-    df_db::index_file_with_id(&version_path, &conn)?;
+    let extension: &str = &util::fs::extension_from_path(path);
+
+    df_db::index_file_with_id(&version_path, &conn, extension)?;
     log::debug!(
         "core::v0_10_0::index::workspaces::data_frames::index({:?}) finished!",
         entry.path
