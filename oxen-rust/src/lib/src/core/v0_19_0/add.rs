@@ -9,11 +9,9 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
-
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
-
 
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
@@ -23,10 +21,8 @@ use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
 use std::ops::AddAssign;
 
-
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
-
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
@@ -34,7 +30,6 @@ pub struct CumulativeStats {
     pub total_bytes: u64,
     pub data_type_counts: HashMap<EntryDataType, usize>,
 }
-
 
 impl AddAssign<CumulativeStats> for CumulativeStats {
     fn add_assign(&mut self, other: CumulativeStats) {
@@ -46,12 +41,10 @@ impl AddAssign<CumulativeStats> for CumulativeStats {
     }
 }
 
-
 pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
     // Collect paths that match the glob pattern either:
     // 1. In the repo working directory (untracked or modified files)
     // 2. In the commit entry db (removed files)
-
 
     // Start a timer
     let start = std::time::Instant::now();
@@ -69,14 +62,11 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
         }
     }
 
-
     let stats = add_files(repo, &paths)?;
-
 
     // Stop the timer, and round the duration to the nearest second
     let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
     log::debug!("---END--- oxen add: {:?} duration: {:?}", path, duration);
-
 
     // oxen staged?
     println!(
@@ -86,10 +76,8 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
         humantime::format_duration(duration)
     );
 
-
     Ok(())
 }
-
 
 fn add_files(
     repo: &LocalRepository,
@@ -115,16 +103,11 @@ fn add_files(
         data_type_counts: HashMap::new(),
     };
     for path in paths {
-
         log::debug!("path is {path:?}");
 
         if path.is_dir() {
-
             total += add_dir(repo, &maybe_head_commit, path.clone())?;
-
         } else if path.is_file() {
-         
-
             let entry = add_file(repo, &maybe_head_commit, path)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
@@ -139,19 +122,17 @@ fn add_files(
                 }
             }
             // TODO: Handle adding removed files
-        } 
+        }
     }
-
 
     Ok(total)
 }
 
-pub fn add_dir(    
+pub fn add_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
-
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -162,7 +143,6 @@ pub fn add_dir(
 
     process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
 }
-
 
 fn process_add_dir(
     repo: &LocalRepository,
@@ -177,7 +157,6 @@ fn process_add_dir(
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
 
-
     let path = path.clone();
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
@@ -190,13 +169,11 @@ fn process_add_dir(
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
     let progress_1_clone = Arc::clone(&progress_1);
 
-
     let mut cumulative_stats = CumulativeStats {
         total_files: 0,
         total_bytes: 0,
         data_type_counts: HashMap::new(),
     };
-
 
     let walker = WalkDir::new(&path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
@@ -206,16 +183,13 @@ fn process_add_dir(
 
         log::debug!("Entry is: {entry:?}");
 
-
         let byte_counter_clone = Arc::clone(&byte_counter);
         let added_file_counter_clone = Arc::clone(&added_file_counter);
         let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
-
         let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
         let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-
 
         // Curious why this is only < 300% CPU usage
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
@@ -226,7 +200,6 @@ fn process_add_dir(
                 let duration = start.elapsed().as_secs_f32();
                 let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
-
                 progress_1.set_message(format!(
                     "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
                     added_file_counter_clone.load(Ordering::Relaxed),
@@ -234,7 +207,6 @@ fn process_add_dir(
                     bytesize::ByteSize::b(total_bytes),
                     mbps
                 ));
-
 
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
@@ -271,13 +243,10 @@ fn process_add_dir(
         });
     }
 
-
     progress_1_clone.finish_and_clear();
-
 
     Ok(cumulative_stats)
 }
-
 
 fn maybe_load_directory(
     repo: &LocalRepository,
@@ -291,7 +260,6 @@ fn maybe_load_directory(
         Ok(None)
     }
 }
-
 
 fn get_file_node(
     dir_node: &Option<MerkleTreeNode>,
@@ -312,7 +280,6 @@ fn get_file_node(
     }
 }
 
-
 pub fn add_file(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
@@ -328,14 +295,12 @@ pub fn add_file(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-
     let mut maybe_dir_node = None;
     if let Some(head_commit) = maybe_head_commit {
         let path = util::fs::path_relative_to_dir(path, &repo_path)?;
         let parent_path = path.parent().unwrap_or(Path::new(""));
         maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
     }
-
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
@@ -362,7 +327,6 @@ fn process_add_file(
     let full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
-
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
         return Ok(Some(StagedMerkleTreeNode {
@@ -372,130 +336,120 @@ fn process_add_file(
     }
 
     // Check if the file is already in the head commit
-        let file_path = relative_path.file_name().unwrap();
-        let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
+    let file_path = relative_path.file_name().unwrap();
+    let maybe_file_node = get_file_node(maybe_dir_node, file_path)?;
 
-
-        // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
-        let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
-            // first check if the file timestamp is different
-            let metadata = std::fs::metadata(path)?;
-            let mtime = FileTime::from_last_modification_time(&metadata);
-            log::debug!("path: {:?}", path);
-            log::debug!(
-                "file_node.last_modified_seconds: {}",
-                file_node.last_modified_seconds
-            );
-            log::debug!(
-                "file_node.last_modified_nanoseconds: {}",
-                file_node.last_modified_nanoseconds
-            );
-            log::debug!("mtime.unix_seconds(): {}", mtime.unix_seconds());
-            log::debug!("mtime.nanoseconds(): {}", mtime.nanoseconds());
-            log::debug!(
-                "has_different_modification_time: {}",
-                has_different_modification_time(&file_node, &mtime)
-            );
-            log::debug!("-----------------------------------");
-            if has_different_modification_time(&file_node, &mtime) {
-                let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
-                if file_node.hash.to_u128() != hash {
-                    (
-                        StagedEntryStatus::Modified,
-                        MerkleHash::new(hash),
-                        file_node.num_bytes,
-                        mtime,
-                    )
-                } else {
-                    (
-                        StagedEntryStatus::Unmodified,
-                        MerkleHash::new(hash),
-                        file_node.num_bytes,
-                        mtime,
-                    )
-                }
+    // This is ugly - but makes sure we don't have to rehash the file if it hasn't changed
+    let (status, hash, num_bytes, mtime) = if let Some(file_node) = maybe_file_node {
+        // first check if the file timestamp is different
+        let metadata = std::fs::metadata(path)?;
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        log::debug!("path: {:?}", path);
+        log::debug!(
+            "file_node.last_modified_seconds: {}",
+            file_node.last_modified_seconds
+        );
+        log::debug!(
+            "file_node.last_modified_nanoseconds: {}",
+            file_node.last_modified_nanoseconds
+        );
+        log::debug!("mtime.unix_seconds(): {}", mtime.unix_seconds());
+        log::debug!("mtime.nanoseconds(): {}", mtime.nanoseconds());
+        log::debug!(
+            "has_different_modification_time: {}",
+            has_different_modification_time(&file_node, &mtime)
+        );
+        log::debug!("-----------------------------------");
+        if has_different_modification_time(&file_node, &mtime) {
+            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+            if file_node.hash.to_u128() != hash {
+                (
+                    StagedEntryStatus::Modified,
+                    MerkleHash::new(hash),
+                    file_node.num_bytes,
+                    mtime,
+                )
             } else {
                 (
                     StagedEntryStatus::Unmodified,
-                    file_node.hash,
+                    MerkleHash::new(hash),
                     file_node.num_bytes,
                     mtime,
                 )
             }
         } else {
-            let metadata = std::fs::metadata(path)?;
-            let mtime = FileTime::from_last_modification_time(&metadata);
-            let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             (
-                StagedEntryStatus::Added,
-                MerkleHash::new(hash),
-                metadata.len(),
+                StagedEntryStatus::Unmodified,
+                file_node.hash,
+                file_node.num_bytes,
                 mtime,
             )
-        };
-
-
-        // Don't have to add the file to the staged db if it hasn't changed
-        if status == StagedEntryStatus::Unmodified {
-            return Ok(None);
         }
+    } else {
+        let metadata = std::fs::metadata(path)?;
+        let mtime = FileTime::from_last_modification_time(&metadata);
+        let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
+        (
+            StagedEntryStatus::Added,
+            MerkleHash::new(hash),
+            metadata.len(),
+            mtime,
+        )
+    };
 
+    // Don't have to add the file to the staged db if it hasn't changed
+    if status == StagedEntryStatus::Unmodified {
+        return Ok(None);
+    }
 
-        // Get the data type of the file
-        let mime_type = util::fs::file_mime_type(path);
-        let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
-        let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
+    // Get the data type of the file
+    let mime_type = util::fs::file_mime_type(path);
+    let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+    let metadata = repositories::metadata::get_file_metadata(&full_path, &data_type)?;
 
+    // Add the file to the versions db
+    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+    let dir_prefix_len = 2;
+    let dir_name = hash.to_string();
+    let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
+    let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
+    let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
-        // Add the file to the versions db
-        // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-        let dir_prefix_len = 2;
-        let dir_name = hash.to_string();
-        let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-        let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-        let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
+    if !dst_dir.exists() {
+        util::fs::create_dir_all(&dst_dir).unwrap();
+    }
 
+    let dst = dst_dir.join("data");
+    util::fs::copy(&full_path, &dst).unwrap();
 
-        if !dst_dir.exists() {
-            util::fs::create_dir_all(&dst_dir).unwrap();
-        }
-
-
-        let dst = dst_dir.join("data");
-        util::fs::copy(&full_path, &dst).unwrap();
-
-
-        let file_extension = relative_path
-            .extension()
-            .unwrap_or_default()
-            .to_string_lossy();
-        let relative_path_str = relative_path.to_str().unwrap();
-        let entry = StagedMerkleTreeNode {
-            status,
-            node: MerkleTreeNode::from_file(FileNode {
-                hash,
-                name: relative_path_str.to_string(),
-                data_type,
-                num_bytes,
-                last_modified_seconds: mtime.unix_seconds(),
-                last_modified_nanoseconds: mtime.nanoseconds(),
-                metadata,
-                extension: file_extension.to_string(),
-                mime_type: mime_type.clone(),
-                ..Default::default()
-            }),
-        };
-
+    let file_extension = relative_path
+        .extension()
+        .unwrap_or_default()
+        .to_string_lossy();
+    let relative_path_str = relative_path.to_str().unwrap();
+    let entry = StagedMerkleTreeNode {
+        status,
+        node: MerkleTreeNode::from_file(FileNode {
+            hash,
+            name: relative_path_str.to_string(),
+            data_type,
+            num_bytes,
+            last_modified_seconds: mtime.unix_seconds(),
+            last_modified_nanoseconds: mtime.nanoseconds(),
+            metadata,
+            extension: file_extension.to_string(),
+            mime_type: mime_type.clone(),
+            ..Default::default()
+        }),
+    };
 
     log::debug!("writing file to staged db: {}", entry);
-   
+
     let mut buf = Vec::new();
     entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
 
-
     let relative_path_str = relative_path.to_str().unwrap();
     staged_db.put(relative_path_str, &buf).unwrap();
-
 
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
@@ -503,7 +457,6 @@ fn process_add_file(
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
         parent_path = parent.to_path_buf();
-
 
         let relative_path_str = relative_path.to_str().unwrap();
         if !seen_dirs.insert(relative_path.to_owned()) {
@@ -516,12 +469,10 @@ fn process_add_file(
             node: MerkleTreeNode::default_dir_from_path(&relative_path),
         };
 
-
         log::debug!("writing dir to staged db: {}", dir_entry);
         let mut buf = Vec::new();
         dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
         staged_db.put(relative_path_str, &buf).unwrap();
-
 
         if relative_path == Path::new("") {
             break;
@@ -531,11 +482,7 @@ fn process_add_file(
     Ok(Some(entry))
 }
 
-
 pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {
     node.last_modified_nanoseconds != time.nanoseconds()
         || node.last_modified_seconds != time.unix_seconds()
 }
-
-
-

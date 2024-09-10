@@ -321,8 +321,8 @@ fn split_into_vnodes(
                     match child.status {
                         StagedEntryStatus::Removed => {
                             log::debug!("removing child {:?} {:?}", child, path);
-                            children.remove(child);            
-                        } 
+                            children.remove(child);
+                        }
                         _ => {
                             log::debug!(
                                 "replacing child {:?} {:?} with {:?} {:?}",

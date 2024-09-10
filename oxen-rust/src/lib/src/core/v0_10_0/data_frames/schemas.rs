@@ -168,11 +168,8 @@ pub fn add_schema_metadata(
 
     let mut results = HashMap::new();
     let stager = Stager::new(repo)?;
-    let schema = repositories::data_frames::schemas::get_by_path_from_revision(
-        repo,
-        &head_commit.id,
-        path,
-    )?;
+    let schema =
+        repositories::data_frames::schemas::get_by_path_from_revision(repo, &head_commit.id, path)?;
 
     let Some(mut schema) = schema else {
         return Err(OxenError::schema_does_not_exist(path));
@@ -203,11 +200,8 @@ pub fn add_column_metadata(
     let head_commit = repositories::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
-    let schema = repositories::data_frames::schemas::get_by_path_from_revision(
-        repo,
-        &head_commit.id,
-        path,
-    )?;
+    let schema =
+        repositories::data_frames::schemas::get_by_path_from_revision(repo, &head_commit.id, path)?;
 
     let mut all_schemas: HashMap<PathBuf, Schema> = HashMap::new();
     if let Some(schema) = schema {

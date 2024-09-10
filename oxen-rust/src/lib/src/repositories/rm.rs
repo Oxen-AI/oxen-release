@@ -18,18 +18,21 @@ use crate::util;
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-
     let path: &Path = opts.path.as_ref();
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
 
     p_rm(&paths, repo, opts).await?;
-    
+
     Ok(())
 }
 
-async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+async fn p_rm(
+    paths: &HashSet<PathBuf>,
+    repo: &LocalRepository,
+    opts: &RmOpts,
+) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 =>  {
+        MinOxenVersion::V0_10_0 => {
             for path in paths {
                 let opts = RmOpts::from_path_opts(path, opts);
                 core::v0_10_0::index::rm(repo, &opts).await?;
@@ -44,8 +47,11 @@ async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -
 
 // TODO: Should removing dirs from staged require -r?
 // Collect paths for removal. Returns error if dir found and -r not set
-fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result<HashSet<PathBuf>, OxenError> {
-    
+fn parse_glob_path(
+    path: &Path,
+    repo: &LocalRepository,
+    opts: &RmOpts,
+) -> Result<HashSet<PathBuf>, OxenError> {
     let mut paths: HashSet<PathBuf> = HashSet::new();
 
     if opts.recursive | opts.staged {
@@ -66,7 +72,6 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result
     } else if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
             for entry in glob(path_str)? {
-
                 let full_path = repo.path.join(entry?);
 
                 if full_path.is_dir() {
@@ -92,7 +97,6 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result
     log::debug!("parse_glob_paths: {paths:?}");
     Ok(paths)
 }
-
 
 #[cfg(test)]
 mod tests {
