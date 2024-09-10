@@ -98,7 +98,7 @@ fn add_files(
     // To start, let's see how fast we can simply loop through all the paths
     // and and copy them into an index.
 
-    println!("Add files");
+    log::debug!("add files");
 
     // Create the versions dir if it doesn't exist
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
@@ -115,14 +115,16 @@ fn add_files(
         data_type_counts: HashMap::new(),
     };
     for path in paths {
-        println!("path is {path:?} in container {paths:?}");
+
+        log::debug!("path is {path:?}");
+
         if path.is_dir() {
+
             total += add_dir(repo, &maybe_head_commit, path.clone())?;
+
+        } else if path.is_file() {
          
-        // TODO: Revert this to check .is_file, add third case for removed files from the merkle tree
-        } else {
-         
-            println!("found is_file()");
+
             let entry = add_file(repo, &maybe_head_commit, path)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
@@ -136,6 +138,7 @@ fn add_files(
                         .or_insert(1);
                 }
             }
+            // TODO: Handle adding removed files
         } 
     }
 
@@ -201,7 +204,7 @@ fn process_add_dir(
         let entry = entry.unwrap();
         let dir = entry.path();
 
-        println!("Entry is: {entry:?}");
+        log::debug!("Entry is: {entry:?}");
 
 
         let byte_counter_clone = Arc::clone(&byte_counter);
@@ -217,7 +220,7 @@ fn process_add_dir(
         // Curious why this is only < 300% CPU usage
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
             if let Ok(dir_entry) = dir_entry_result {
-                println!("Dir Entry is: {dir_entry:?}");
+                log::debug!("Dir Entry is: {dir_entry:?}");
                 let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                 let path = dir_entry.path();
                 let duration = start.elapsed().as_secs_f32();
@@ -315,7 +318,7 @@ pub fn add_file(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    println!("Made it to add_file");
+    log::debug!("add_file");
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -354,10 +357,10 @@ fn process_add_file(
     path: &Path,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    log::debug!("process_add_file");
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
 
-    println!("Check if file");
     if !full_path.is_file() {
 
         // If it's not a file - no need to add it

@@ -42,8 +42,6 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 pub async fn rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
    
-    println!("rm start");
-
     if repo.is_shallow_clone() {
             return Err(OxenError::repo_is_shallow());
     }
@@ -67,7 +65,7 @@ pub async fn rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts)
 fn remove(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
 
     let start = std::time::Instant::now();
-    println!("paths: {:?}", paths);
+    log::debug!("paths: {:?}", paths);
 
     let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
     let mut total = CumulativeStats {
@@ -77,7 +75,6 @@ fn remove(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Re
     };
 
     // TODO: Right now, this will delete the file even if oxen rm fails. Is that an issue?
-    println!("Not Staged: {:?}", paths);
     for path in paths {
 
         // Remove dirs
@@ -173,7 +170,7 @@ fn remove_staged(
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for path in paths {
-        println!("path: {:?}", path);
+        log::debug!("path: {:?}", path);
 
         if path.is_dir() {
             remove_staged_dir(repo, path, &staged_db)?;
@@ -196,7 +193,7 @@ fn remove_staged_file(
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
 
-    println!("Deleting entry: {relative_path:?}");
+    log::debug!("Deleting entry: {relative_path:?}");
     staged_db.delete(relative_path.to_str().unwrap())?;
 
     Ok(())
@@ -209,19 +206,19 @@ fn remove_staged_dir(
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
 
-    println!("REMOVE STAGED DIR with path {path:?}");
+    log::debug!("remove staged dir: {path:?}");
 
     let path = path.clone();
 
     let walker = WalkDir::new(&path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
-        println!("entry: {entry:?}");
+        log::debug!("entry: {entry:?}");
         let entry = entry.unwrap();
         let dir = entry.path();
 
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
-            println!("dir_entry_result: {dir_entry_result:?}");
+            log::debug!("dir_entry_result: {dir_entry_result:?}");
             if let Ok(dir_entry) = dir_entry_result {
 
                 let path = dir_entry.path();
@@ -232,7 +229,7 @@ fn remove_staged_dir(
                 remove_staged_file(repo, &path, staged_db);  
             }
         });
-        println!("Deleting entry: {dir:?}");
+        log::debug!("Deleting entry: {dir:?}");
         staged_db.delete(dir.to_str().unwrap())?;
     }
 
@@ -245,7 +242,7 @@ pub fn remove_file(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    println!("Made it to remove_file");
+
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -285,7 +282,6 @@ pub fn process_remove_file(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
 
-    println!("Process Remove file)");
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
 
@@ -316,7 +312,6 @@ pub fn process_remove_file(
     util::fs::remove_dir_all(&dst);
 
     // Write removed node to staged db
-    println!("Staged entry: {staged_entry}");
     log::debug!("writing removed file to staged db: {}", staged_entry);
     let mut buf = Vec::new();
     staged_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
@@ -449,7 +444,6 @@ pub fn remove_dir(
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
-    println!("remove dir");
 
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -503,7 +497,7 @@ fn process_remove_dir(
         let entry = entry.unwrap();
         let dir = entry.path();
 
-        println!("Entry is: {entry:?}");
+        log::debug!("Entry is: {entry:?}");
 
         let byte_counter_clone = Arc::clone(&byte_counter);
         let removed_file_counter_clone = Arc::clone(&removed_file_counter);
@@ -516,7 +510,7 @@ fn process_remove_dir(
         // Curious why this is only < 300% CPU usage
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
             if let Ok(dir_entry) = dir_entry_result {
-                println!("Dir Entry is: {dir_entry:?}");
+                log::debug!("Dir Entry is: {dir_entry:?}");
                 let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                 let path = dir_entry.path();
                 let duration = start.elapsed().as_secs_f32();
@@ -543,7 +537,6 @@ fn process_remove_dir(
                 ) {
                     Ok(Some(node)) => {
                         if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                            println!("Found file_node");
                             byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
                             removed_file_counter_clone.fetch_add(1, Ordering::Relaxed);
                             cumulative_stats.total_bytes += file_node.num_bytes;
@@ -554,6 +547,7 @@ fn process_remove_dir(
                                 .or_insert(1);
                         }
                     }
+                    // TODO: Error handling
                     Err(e) => {
                         log::error!("Error adding file: {:?}", e);
                     }
