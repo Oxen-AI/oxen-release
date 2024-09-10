@@ -1,10 +1,7 @@
 use async_trait::async_trait;
 use clap::Command;
-use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::util;
-use std::env;
 
 use liboxen::repositories;
 

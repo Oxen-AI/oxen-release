@@ -1,7 +1,6 @@
 use crate::helpers::check_repo_migration_needed;
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
-use std::env;
 
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
@@ -61,8 +60,7 @@ impl RunCmd for RestoreCmd {
             }
         };
 
-        let repo_dir = env::current_dir().unwrap();
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
 
         check_repo_migration_needed(&repository)?;
         repositories::restore::restore(&repository, opts)?;
