@@ -6,7 +6,7 @@ use liboxen::model::LocalRepository;
 use liboxen::util;
 use std::env;
 
-use liboxen::command;
+use liboxen::repositories;
 
 use crate::helpers::{
     check_remote_version_blocking, check_repo_migration_needed, get_host_from_repo,
@@ -27,17 +27,12 @@ impl RunCmd for FetchCmd {
     }
 
     async fn run(&self, _args: &clap::ArgMatches) -> Result<(), OxenError> {
-        // Look up from the current dir for .oxen directory
-        let current_dir = env::current_dir().unwrap();
-        let repo_dir = util::fs::get_repo_root(&current_dir)
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
         let host = get_host_from_repo(&repository)?;
 
         check_repo_migration_needed(&repository)?;
         check_remote_version_blocking(host.clone()).await?;
-        command::fetch(&repository).await?;
+        repositories::fetch(&repository).await?;
         Ok(())
     }
 }

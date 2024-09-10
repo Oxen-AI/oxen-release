@@ -727,7 +727,7 @@ mod tests {
                 )
                 .await?;
 
-                command::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo).await?;
 
                 // Checkout the new branch
                 repositories::checkout(&cloned_repo, branch_name).await?;

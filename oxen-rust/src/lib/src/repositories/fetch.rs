@@ -4,9 +4,11 @@
 //!
 
 use crate::api;
-use crate::core::v0_10_0::index::EntryIndexer;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, RemoteBranch};
+use crate::opts::PullOpts;
 use crate::repositories;
 
 /// # Fetch the remote branches and objects
@@ -44,16 +46,29 @@ pub async fn fetch_remote(
     }
 
     // Pull the new branches
-    let indexer = EntryIndexer::new(repo)?;
     for branch in branches_to_create {
         println!("Fetch remote branch: {}/{}", remote_name, branch.name);
+
         let rb = RemoteBranch {
             remote: remote.name.to_owned(),
             branch: branch.name.to_owned(),
         };
-        indexer
-            .pull_most_recent_commit_object(&remote_repo, &rb, false)
-            .await?;
+
+        match repo.min_version() {
+            MinOxenVersion::V0_10_0 => {
+                let indexer = core::v0_10_0::index::EntryIndexer::new(repo)?;
+                indexer
+                    .pull_most_recent_commit_object(&remote_repo, &rb, false)
+                    .await?;
+            }
+            MinOxenVersion::V0_19_0 => {
+                let opts = &PullOpts {
+                    should_pull_all: false,
+                    should_update_head: false,
+                };
+                core::v0_19_0::pull::pull_remote_repo(&repo, &remote_repo, &rb, opts).await?;
+            }
+        }
     }
 
     Ok(vec![])
@@ -101,7 +116,7 @@ mod tests {
 
                 assert_eq!(1, branches.len());
 
-                command::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo).await?;
 
                 let branches = repositories::branches::list(&cloned_repo)?;
                 assert_eq!(3, branches.len());

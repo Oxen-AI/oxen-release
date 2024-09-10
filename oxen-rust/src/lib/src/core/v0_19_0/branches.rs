@@ -139,6 +139,8 @@ fn r_restore_missing_or_modified_files(
             let file_node = node.file().unwrap();
             let rel_path = path.join(&file_node.name);
             let full_path = repo.path.join(&rel_path);
+            // TODO: just use use versioner::should_unpack_entry here
+            // use crate::core::v0_10_0::index::versioner;
             if !full_path.exists() {
                 // File doesn't exist, restore it
                 log::debug!("Restoring missing file: {:?}", rel_path);
