@@ -492,7 +492,7 @@ fn process_remove_dir(
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
     let byte_counter = Arc::new(AtomicU64::new(0));
-    let added_file_counter = Arc::new(AtomicU64::new(0));
+    let removed_file_counter = Arc::new(AtomicU64::new(0));
     let unchanged_file_counter = Arc::new(AtomicU64::new(0));
     let progress_1_clone = Arc::clone(&progress_1);
 
@@ -513,28 +513,12 @@ fn process_remove_dir(
         println!("Entry is: {entry:?}");
 
         let byte_counter_clone = Arc::clone(&byte_counter);
-        let added_file_counter_clone = Arc::clone(&added_file_counter);
+        let removed_file_counter_clone = Arc::clone(&removed_file_counter);
         let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
 
         let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
         let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-        
-        /*
-        let staged_entry = StagedMerkleTreeNode {
-            status: StagedEntryStatus::Removed,
-            node: dir_node.clone(),
-        };
-
-        // Write removed node to staged db
-        log::debug!("writing removed file to staged db: {}", staged_entry);
-        let mut buf = Vec::new();
-        staged_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-
-
-        let relative_path_str = relative_path.to_str().unwrap();
-        staged_db.put(relative_path_str, &buf).unwrap();
-        */
 
         // Curious why this is only < 300% CPU usage
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
@@ -547,8 +531,8 @@ fn process_remove_dir(
 
 
                 progress_1.set_message(format!(
-                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                    added_file_counter_clone.load(Ordering::Relaxed),
+                    "🐂 remove {} files, {} unchanged ({}) {:.2} MB/s",
+                    removed_file_counter_clone.load(Ordering::Relaxed),
                     unchanged_file_counter_clone.load(Ordering::Relaxed),
                     bytesize::ByteSize::b(total_bytes),
                     mbps
@@ -566,8 +550,9 @@ fn process_remove_dir(
                 ) {
                     Ok(Some(node)) => {
                         if let EMerkleTreeNode::File(file_node) = &node.node.node {
+                            println!("Found file_node");
                             byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
-                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                            removed_file_counter_clone.fetch_add(1, Ordering::Relaxed);
                             cumulative_stats.total_bytes += file_node.num_bytes;
                             cumulative_stats
                                 .data_type_counts
