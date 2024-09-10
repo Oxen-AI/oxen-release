@@ -61,14 +61,11 @@ pub async fn rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts)
     // TODO: Accurately calculate stats for remove_staged
     if opts.staged {
 
-        remove_staged(repo, &paths);
-        println!("🐂 oxen removed {} staged files", paths.len());
+        return remove_staged(repo, &paths);
         
     }
 
     remove(paths, repo, opts);
-
-    Ok(())
 }
 
 fn remove(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
