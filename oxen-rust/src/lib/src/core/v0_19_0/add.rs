@@ -117,8 +117,9 @@ fn add_files(
     for path in paths {
         println!("path is {path:?} in container {paths:?}");
         if path.is_dir() {
-            total += add_dir(repo, &maybe_head_commit, path.clone())?;
+            total += process_dir(repo, &maybe_head_commit, path.clone())?;
          
+        // TODO: Revert this to check .is_file, add third case for removed files from the merkle tree
         } else {
          
             println!("found is_file()");
@@ -142,12 +143,13 @@ fn add_files(
     Ok(total)
 }
 
-pub fn add_dir(    
+fn process_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
-
+    
+    let start = std::time::Instant::now();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -155,19 +157,6 @@ pub fn add_dir(
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
-}
-
-
-fn process_add_dir(
-    repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
-    versions_path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-    path: PathBuf,
-) -> Result<CumulativeStats, OxenError> {
-    let start = std::time::Instant::now();
 
     let progress_1 = Arc::new(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
@@ -200,6 +189,8 @@ fn process_add_dir(
         let entry = entry.unwrap();
         let dir = entry.path();
 
+        println!("Entry is: {entry:?}");
+
 
         let byte_counter_clone = Arc::clone(&byte_counter);
         let added_file_counter_clone = Arc::clone(&added_file_counter);
@@ -214,6 +205,7 @@ fn process_add_dir(
         // Curious why this is only < 300% CPU usage
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
             if let Ok(dir_entry) = dir_entry_result {
+                println!("Dir Entry is: {dir_entry:?}");
                 let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                 let path = dir_entry.path();
                 let duration = start.elapsed().as_secs_f32();
@@ -356,43 +348,6 @@ fn process_add_file(
     println!("Check if file");
     if !full_path.is_file() {
 
-        // Handle removed files
-        if !full_path.exists() {
-            println!("Added file did not exist. Staging removed entry");
-
-            // Find node to remove
-            let file_path = relative_path.file_name().unwrap();
-
-            // TODO: This might be buggy. What if we add a dir but also a file within the dir? will this throw an error then?
-            let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
-                MerkleTreeNode::from_file(file_node)
-            } else {
-                let error = format!("File {relative_path:?} must be committed to use `oxen rm`");
-                return Err(OxenError::basic_str(error));
-            };
-            
-            let entry = StagedMerkleTreeNode {
-                status: StagedEntryStatus::Removed,
-                node: node.clone(),
-            };
-   
-            // Remove the file from the versions db
-            // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-            let dir_prefix_len = 2;
-            let dir_name = node.hash.to_string();
-            let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-            let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-            let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
-
-            let dst = dst_dir.join("data");
-            util::fs::remove_dir_all(&dst);
-
-            // Write removed node to staged db
-            log::debug!("writing file to staged db: {}", entry);
-            write_file_with_parents(entry.clone(), &relative_path, repo_path, staged_db, seen_dirs);
-            return Ok(Some(entry));
-        }
-
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
         return Ok(Some(StagedMerkleTreeNode {
@@ -518,17 +473,7 @@ fn process_add_file(
 
 
     log::debug!("writing file to staged db: {}", entry);
-    write_file_with_parents(entry.clone(), &relative_path, repo_path, staged_db, seen_dirs);
    
-    Ok(Some(entry))
-}
-
-fn write_file_with_parents(entry: StagedMerkleTreeNode,
-    relative_path: &Path,
-    repo_path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
-) -> () {
     let mut buf = Vec::new();
     entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
 
@@ -551,7 +496,6 @@ fn write_file_with_parents(entry: StagedMerkleTreeNode,
             continue;
         }
 
-
         let dir_entry = StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir_from_path(&relative_path),
@@ -568,7 +512,10 @@ fn write_file_with_parents(entry: StagedMerkleTreeNode,
             break;
         }
     }
+
+    Ok(Some(entry))
 }
+
 
 pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {
     node.last_modified_nanoseconds != time.nanoseconds()

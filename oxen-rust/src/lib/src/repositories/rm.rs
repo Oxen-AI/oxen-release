@@ -24,7 +24,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     let path: &Path = opts.path.as_ref();
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
 
-    p_rm(&paths, repo, opts);
+    p_rm(&paths, repo, opts).await?;
     
     Ok(())
 }
