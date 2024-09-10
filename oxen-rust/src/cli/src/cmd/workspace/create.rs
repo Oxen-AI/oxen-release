@@ -5,7 +5,6 @@ use liboxen::api;
 use liboxen::constants::DEFAULT_BRANCH_NAME;
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use liboxen::repositories;
 
 use crate::cmd::RunCmd;
 pub const NAME: &str = "create";
