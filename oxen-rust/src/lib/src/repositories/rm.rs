@@ -4,7 +4,6 @@
 //!
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 
 use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core;
@@ -13,6 +12,7 @@ use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
 use crate::repositories;
+use std::path::{Path, PathBuf};
 
 use glob::glob;
 
@@ -22,31 +22,38 @@ use crate::util;
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
 
     let path: &Path = opts.path.as_ref();
-    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts);
+    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
 
+    p_rm(&paths, repo, opts);
     
     Ok(())
 }
 
-async fn p_rm(paths: &HashSet<PathBuf>, &repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+async fn p_rm(paths: &HashSet<PathBuf>, repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+    println!("Hi: {}",repo.min_version());
     match repo.min_version() {
         MinOxenVersion::V0_10_0 =>  {
             for path in paths {
                 let opts = RmOpts::from_path_opts(path, opts);
-                core::v0_10_0::index::rm(repo, opts).await;
+                core::v0_10_0::index::rm(&repo, &opts).await?;
             }
         }
-        MinOxenVersion::V0_19_0 => core::v0_19_0::rm(paths, repo, opts).await,
+        MinOxenVersion::V0_19_0 => {
+            println!("v19");
+            core::v0_19_0::rm(paths, &repo, &opts).await?;
+        }
     }
+    Ok(())
 }
 
+// TODO: Should removing dirs from staged require -r?
 // Collect paths for removal. Returns error if dir found and -r not set
 fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result<HashSet<PathBuf>, OxenError> {
     
     let mut paths: HashSet<PathBuf> = HashSet::new();
     println!("Parse glob path");
 
-    if opts.recursive {
+    if opts.recursive | opts.staged {
         if let Some(path_str) = path.to_str() {
             if util::fs::is_glob_path(path_str) {
                 // Match against any untracked entries in the current dir
@@ -66,12 +73,13 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result
             if util::fs::is_glob_path(path_str) {
                 for entry in glob(path_str)? {
 
-                    if entry.is_dir() {
+                    let full_path = repo.path.join(entry?);
+
+                    if full_path.is_dir() {
                         let error = format!("`oxen rm` on directory {path:?} requires -r");
                         return Err(OxenError::basic_str(error));
                     }
 
-                    let full_path = repo.path.join(entry?);
                     paths.insert(full_path);
                 }
             } else {
@@ -88,6 +96,7 @@ fn parse_glob_path(path: &Path, repo: &LocalRepository, opts: &RmOpts) -> Result
         }
     }
 
+    println!("Got: {paths:?}");
     Ok(paths)
 }
 

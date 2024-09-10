@@ -30,9 +30,9 @@ use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode}
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
-    total_files: usize,
-    total_bytes: u64,
-    data_type_counts: HashMap<EntryDataType, usize>,
+    pub total_files: usize,
+    pub total_bytes: u64,
+    pub data_type_counts: HashMap<EntryDataType, usize>,
 }
 
 
@@ -156,13 +156,14 @@ pub fn add_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    process_add_dir(repo, maybe_head_commit, staged_db, path)
+    process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
 }
 
 
 fn process_add_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
+    versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
