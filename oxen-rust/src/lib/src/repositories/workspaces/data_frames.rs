@@ -2,12 +2,14 @@ use polars::frame::DataFrame;
 
 use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR, TABLE_NAME};
 use crate::core;
+use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::{repositories, util};
+use sql_query_builder::{Delete, Select};
 
 use std::path::{Path, PathBuf};
 
@@ -67,11 +69,26 @@ pub fn index(
 }
 
 pub fn unindex(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
-    todo!()
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let conn = df_db::get_connection(db_path)?;
+    df_db::drop_table(&conn, TABLE_NAME)?;
+
+    Ok(())
 }
 
-pub fn restore(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
-    todo!()
+pub fn restore(
+    repo: &LocalRepository,
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    // Unstage and then restage the df
+    unindex(workspace, &path)?;
+
+    // TODO: we could do this more granularly without a full reset
+    index(repo, workspace, path.as_ref())?;
+
+    Ok(())
 }
 
 pub fn count(workspace: &Workspace, path: impl AsRef<Path>) -> Result<usize, OxenError> {
@@ -87,7 +104,25 @@ pub fn query(
     path: impl AsRef<Path>,
     opts: &DFOpts,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    log::debug!("query_staged_df() got db_path: {:?}", db_path);
+
+    let conn = df_db::get_connection(db_path)?;
+
+    // Get the schema of this commit entry
+    let schema = df_db::get_schema(&conn, TABLE_NAME)?;
+
+    // Enrich w/ oxen cols
+    let full_schema = workspace_df_db::enhance_schema_with_oxen_cols(&schema)?;
+
+    let col_names = select_cols_from_schema(&schema)?;
+
+    let select = Select::new().select(&col_names).from(TABLE_NAME);
+
+    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
+
+    Ok(df)
 }
 
 pub fn diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DataFrame, OxenError> {

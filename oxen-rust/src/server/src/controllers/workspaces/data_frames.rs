@@ -244,7 +244,7 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = repositories::workspaces::get(&repo, workspace_id)?;
 
-    repositories::workspaces::data_frames::restore(&workspace, file_path)?;
+    repositories::workspaces::data_frames::restore(&repo, &workspace, file_path)?;
 
     Ok(HttpResponse::Ok().json(StatusMessage::resource_deleted()))
 }
