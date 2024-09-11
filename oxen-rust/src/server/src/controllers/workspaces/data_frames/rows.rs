@@ -50,7 +50,8 @@ pub async fn create(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let row_df = repositories::workspaces::data_frames::rows::add(&workspace, &file_path, data)?;
+    let row_df =
+        repositories::workspaces::data_frames::rows::add(&repo, &workspace, &file_path, data)?;
     let row_id: Option<String> = repositories::workspaces::data_frames::rows::get_row_id(&row_df)?;
     let row_index: Option<usize> =
         repositories::workspaces::data_frames::rows::get_row_idx(&row_df)?;
