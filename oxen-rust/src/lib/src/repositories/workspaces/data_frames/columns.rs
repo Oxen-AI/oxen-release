@@ -41,11 +41,23 @@ pub fn add(
 }
 
 pub fn update(
+    repo: &LocalRepository,
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
     column_to_update: &ColumnToUpdate,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::update(
+            workspace,
+            file_path.as_ref(),
+            column_to_update,
+        ),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::update(
+            workspace,
+            file_path.as_ref(),
+            column_to_update,
+        ),
+    }
 }
 
 pub fn delete(

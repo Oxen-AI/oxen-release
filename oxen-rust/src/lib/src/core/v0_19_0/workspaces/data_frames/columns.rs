@@ -89,3 +89,53 @@ pub fn delete(
 
     Ok(result)
 }
+
+pub fn update(
+    workspace: &Workspace,
+    file_path: impl AsRef<Path>,
+    column_to_update: &ColumnToUpdate,
+) -> Result<DataFrame, OxenError> {
+    let file_path = file_path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, file_path);
+    log::debug!("update_column() got db_path: {:?}", db_path);
+    let conn = df_db::get_connection(&db_path)?;
+
+    let table_schema = schema_without_oxen_cols(&conn, TABLE_NAME)?;
+
+    let result = columns::update_column(&conn, column_to_update, &table_schema)?;
+
+    let column_data_type = table_schema.get_field(&column_to_update.name).unwrap();
+
+    let column_after_name = column_to_update
+        .new_name
+        .clone()
+        .unwrap_or(column_to_update.name.clone());
+
+    let column_after_data_type = column_to_update
+        .new_data_type
+        .clone()
+        .unwrap_or(column_data_type.dtype.clone());
+
+    let column_before = ColumnChange {
+        column_name: column_to_update.name.clone(),
+        column_data_type: Some(column_data_type.dtype.clone()),
+    };
+
+    let column_after = ColumnChange {
+        column_name: column_after_name,
+        column_data_type: Some(column_after_data_type),
+    };
+
+    columns::record_column_change(
+        &column_changes_path,
+        "modified".to_string(),
+        Some(column_before),
+        Some(column_after),
+    )?;
+
+    workspaces::files::add(workspace, file_path)?;
+
+    Ok(result)
+}

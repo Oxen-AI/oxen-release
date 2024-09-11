@@ -227,6 +227,7 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     }
 
     let column_df = repositories::workspaces::data_frames::columns::update(
+        &repo,
         &workspace,
         &file_path,
         &column_to_update,
