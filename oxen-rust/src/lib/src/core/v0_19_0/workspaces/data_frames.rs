@@ -24,6 +24,9 @@ use crate::repositories;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};
 
+pub mod columns;
+pub mod rows;
+
 pub fn is_queryable_data_frame_indexed(
     repo: &LocalRepository,
     commit: &Commit,
