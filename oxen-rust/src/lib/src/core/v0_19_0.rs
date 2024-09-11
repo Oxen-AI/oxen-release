@@ -7,6 +7,7 @@ pub mod clone;
 pub mod commits;
 pub mod data_frames;
 pub mod entries;
+pub mod fetch;
 pub mod index;
 pub mod init;
 pub mod metadata;

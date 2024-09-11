@@ -29,7 +29,7 @@ impl RunCmd for FetchCmd {
 
         check_repo_migration_needed(&repository)?;
         check_remote_version_blocking(host.clone()).await?;
-        repositories::fetch(&repository).await?;
+        repositories::fetch(&repository, false).await?;
         Ok(())
     }
 }

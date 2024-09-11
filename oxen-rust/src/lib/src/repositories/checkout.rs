@@ -146,7 +146,6 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::repositories;
@@ -727,7 +726,7 @@ mod tests {
                 )
                 .await?;
 
-                repositories::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo, false).await?;
 
                 // Checkout the new branch
                 repositories::checkout(&cloned_repo, branch_name).await?;

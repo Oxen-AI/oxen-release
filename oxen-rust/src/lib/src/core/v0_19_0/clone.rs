@@ -1,8 +1,10 @@
 use crate::config::RepositoryConfig;
-use crate::constants::{DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, REPO_CONFIG_FILENAME};
+use crate::constants::{
+    DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME, DEFAULT_VNODE_SIZE, REPO_CONFIG_FILENAME,
+};
 use crate::error::OxenError;
 use crate::model::{LocalRepository, RemoteRepository};
-use crate::opts::{CloneOpts, PullOpts};
+use crate::opts::CloneOpts;
 use crate::util;
 use crate::{api, repositories};
 
@@ -46,11 +48,13 @@ pub async fn clone_repo(
     let toml = toml::to_string(&remote_cfg)?;
     util::fs::write_to_path(&repo_config_file, &toml)?;
 
-    let pull_opts = PullOpts {
-        should_pull_all: opts.all,
-        should_update_head: true,
-    };
-    repositories::pull::pull_remote_repo(&local_repo, &remote_repo, &pull_opts).await?;
+    repositories::pull::pull_remote_branch(
+        &local_repo,
+        DEFAULT_REMOTE_NAME,
+        DEFAULT_BRANCH_NAME,
+        opts.all,
+    )
+    .await?;
 
     Ok(local_repo)
 }
