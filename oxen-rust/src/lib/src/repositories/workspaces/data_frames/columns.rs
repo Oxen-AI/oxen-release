@@ -81,11 +81,23 @@ pub fn delete(
 }
 
 pub fn restore(
+    repo: &LocalRepository,
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
     column_to_restore: &ColumnToRestore,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::restore(
+            workspace,
+            file_path.as_ref(),
+            column_to_restore,
+        ),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::restore(
+            workspace,
+            file_path.as_ref(),
+            column_to_restore,
+        ),
+    }
 }
 
 pub fn get_column_diff(

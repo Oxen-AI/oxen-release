@@ -287,11 +287,18 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let restored_column = repositories::workspaces::data_frames::columns::restore(
+    let restored_column = match repositories::workspaces::data_frames::columns::restore(
+        &repo,
         &workspace,
         &file_path,
         &column_to_restore,
-    )?;
+    ) {
+        Ok(df) => df,
+        Err(e) => {
+            log::error!("Error restoring column: {:?}", e);
+            return Err(OxenHttpError::BasicError(StringError::from(e.to_string())));
+        }
+    };
 
     let diff =
         repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
