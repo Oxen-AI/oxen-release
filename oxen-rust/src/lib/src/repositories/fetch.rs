@@ -7,14 +7,13 @@ use crate::api;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{Branch, LocalRepository, RemoteBranch};
-use crate::opts::PullOpts;
+use crate::model::{Branch, LocalRepository, RemoteBranch, RemoteRepository};
 use crate::repositories;
 
 /// # Fetch the remote branches and objects
-pub async fn fetch(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
+pub async fn fetch(repo: &LocalRepository, all: bool) -> Result<Vec<Branch>, OxenError> {
     for remote in repo.remotes().iter() {
-        fetch_remote(repo, &remote.name).await?;
+        fetch_remote(repo, &remote.name, all).await?;
     }
 
     Ok(vec![])
@@ -23,6 +22,7 @@ pub async fn fetch(repo: &LocalRepository) -> Result<Vec<Branch>, OxenError> {
 pub async fn fetch_remote(
     repo: &LocalRepository,
     remote_name: &str,
+    all: bool,
 ) -> Result<Vec<Branch>, OxenError> {
     let remote = repo
         .get_remote(remote_name)
@@ -45,33 +45,41 @@ pub async fn fetch_remote(
         }
     }
 
-    // Pull the new branches
+    // TODO: handle branches_to_fetch?
+    // Fetch the new branches
     for branch in branches_to_create {
-        println!("Fetch remote branch: {}/{}", remote_name, branch.name);
-
         let rb = RemoteBranch {
             remote: remote.name.to_owned(),
             branch: branch.name.to_owned(),
         };
 
-        match repo.min_version() {
-            MinOxenVersion::V0_10_0 => {
-                let indexer = core::v0_10_0::index::EntryIndexer::new(repo)?;
-                indexer
-                    .pull_most_recent_commit_object(&remote_repo, &rb, false)
-                    .await?;
-            }
-            MinOxenVersion::V0_19_0 => {
-                let opts = &PullOpts {
-                    should_pull_all: false,
-                    should_update_head: false,
-                };
-                core::v0_19_0::pull::pull_remote_repo(&repo, &remote_repo, &rb, opts).await?;
-            }
-        }
+        fetch_remote_branch(repo, &remote_repo, &rb, all).await?;
     }
 
     Ok(vec![])
+}
+
+pub async fn fetch_remote_branch(
+    repo: &LocalRepository,
+    remote_repo: &RemoteRepository,
+    rb: &RemoteBranch,
+    all: bool,
+) -> Result<(), OxenError> {
+    println!("Fetch remote branch: {}/{}", remote_repo.name, rb.branch);
+
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            let indexer = core::v0_10_0::index::EntryIndexer::new(repo)?;
+            indexer
+                .pull_most_recent_commit_object(&remote_repo, &rb, false)
+                .await?;
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::fetch::fetch_remote_branch(&repo, &remote_repo, &rb, all).await?;
+        }
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -116,7 +124,7 @@ mod tests {
 
                 assert_eq!(1, branches.len());
 
-                repositories::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo, false).await?;
 
                 let branches = repositories::branches::list(&cloned_repo)?;
                 assert_eq!(3, branches.len());
