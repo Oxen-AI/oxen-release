@@ -59,8 +59,12 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df =
-        repositories::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
+    let column_df = repositories::workspaces::data_frames::columns::add(
+        &repo,
+        &workspace,
+        &file_path,
+        &new_column,
+    )?;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
