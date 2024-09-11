@@ -49,11 +49,23 @@ pub fn update(
 }
 
 pub fn delete(
+    repo: &LocalRepository,
     workspace: &Workspace,
     file_path: impl AsRef<Path>,
     column_to_delete: &ColumnToDelete,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::columns::delete(
+            workspace,
+            file_path.as_ref(),
+            column_to_delete,
+        ),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::columns::delete(
+            workspace,
+            file_path.as_ref(),
+            column_to_delete,
+        ),
+    }
 }
 
 pub fn restore(

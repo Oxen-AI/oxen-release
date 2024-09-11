@@ -5,6 +5,7 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{HttpRequest, HttpResponse};
+use liboxen::error::StringError;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::Schema;
 use liboxen::opts::DFOpts;
@@ -126,11 +127,18 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df = repositories::workspaces::data_frames::columns::delete(
+    let column_df = match repositories::workspaces::data_frames::columns::delete(
+        &repo,
         &workspace,
         &file_path,
         &column_to_delete,
-    )?;
+    ) {
+        Ok(df) => df,
+        Err(e) => {
+            log::error!("Error deleting column: {:?}", e);
+            return Err(OxenHttpError::BasicError(StringError::from(e.to_string())));
+        }
+    };
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
