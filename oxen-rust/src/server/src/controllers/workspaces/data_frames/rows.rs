@@ -156,8 +156,9 @@ pub async fn update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse, Oxen
         file_path
     );
 
-    let modified_row =
-        repositories::workspaces::data_frames::rows::update(&workspace, &file_path, &row_id, data)?;
+    let modified_row = repositories::workspaces::data_frames::rows::update(
+        &repo, &workspace, &file_path, &row_id, data,
+    )?;
 
     let row_index = repositories::workspaces::data_frames::rows::get_row_idx(&modified_row)?;
     let row_id = repositories::workspaces::data_frames::rows::get_row_id(&modified_row)?;
@@ -194,7 +195,9 @@ pub async fn delete(req: HttpRequest, _bytes: Bytes) -> Result<HttpResponse, Oxe
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = repositories::workspaces::get(&repo, workspace_id)?;
 
-    let df = repositories::workspaces::data_frames::rows::delete(&workspace, &file_path, &row_id)?;
+    let df = repositories::workspaces::data_frames::rows::delete(
+        &repo, &workspace, &file_path, &row_id,
+    )?;
     let diff = repositories::workspaces::data_frames::rows::get_row_diff(&workspace, &file_path)?;
 
     let schema = Schema::from_polars(&df.schema());
@@ -226,8 +229,9 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     let file_path = PathBuf::from(path_param(&req, "path")?);
     let workspace = repositories::workspaces::get(&repo, workspace_id)?;
 
-    let restored_row =
-        repositories::workspaces::data_frames::rows::restore(&workspace, &file_path, row_id)?;
+    let restored_row = repositories::workspaces::data_frames::rows::restore(
+        &repo, &workspace, &file_path, &row_id,
+    )?;
 
     let row_index = repositories::workspaces::data_frames::rows::get_row_idx(&restored_row)?;
     let row_id = repositories::workspaces::data_frames::rows::get_row_id(&restored_row)?;
@@ -283,8 +287,9 @@ pub async fn batch_update(req: HttpRequest, bytes: Bytes) -> Result<HttpResponse
         file_path
     );
 
-    let modified_rows =
-        repositories::workspaces::data_frames::rows::batch_update(&workspace, &file_path, data)?;
+    let modified_rows = repositories::workspaces::data_frames::rows::batch_update(
+        &repo, &workspace, &file_path, data,
+    )?;
 
     let mut responses = Vec::new();
 

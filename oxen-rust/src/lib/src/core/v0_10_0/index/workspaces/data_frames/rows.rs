@@ -19,10 +19,10 @@ use crate::model::data_frame::update_result::UpdateResult;
 use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{CommitEntry, LocalRepository, Workspace};
-use crate::repositories;
 use crate::util;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::view::JsonDataFrameView;
+use crate::{api, repositories};
 
 use std::path::Path;
 
@@ -113,12 +113,15 @@ pub fn add(
 }
 
 pub fn restore(
+    repo: &LocalRepository,
     workspace: &Workspace,
-    entry: &CommitEntry,
+    path: impl AsRef<Path>,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
+    let entry = repositories::entries::get_commit_entry(repo, &workspace.commit, path.as_ref())?
+        .ok_or_else(|| OxenError::entry_does_not_exist(path.as_ref().to_path_buf()))?;
     let row_id = row_id.as_ref();
-    let restored_row = restore_row_in_db(workspace, entry, row_id)?;
+    let restored_row = restore_row_in_db(workspace, &entry, row_id)?;
     let diff = workspaces::data_frames::diff(workspace, &entry.path)?;
 
     if let DiffResult::Tabular(diff) = diff {
@@ -204,7 +207,7 @@ pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
 /// TODO: we should really be storing the original row contents
 ///       so that we can both do row level diffs and restore
 ///       this is very inefficient to load the entire original data frame
-fn prepare_modified_or_removed_row(
+pub fn prepare_modified_or_removed_row(
     repo: &LocalRepository,
     entry: &CommitEntry,
     row_df: &DataFrame,
