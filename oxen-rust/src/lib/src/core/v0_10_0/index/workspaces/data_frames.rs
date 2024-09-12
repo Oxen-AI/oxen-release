@@ -1058,8 +1058,12 @@ mod tests {
             }
 
             // Now restore the row
-            let res =
-                workspaces::data_frames::rows::restore(&workspace, &commit_entry, &id_to_modify)?;
+            let res = workspaces::data_frames::rows::restore(
+                &repo,
+                &workspace,
+                &file_path,
+                &id_to_modify,
+            )?;
 
             log::debug!("res is... {:?}", res);
 
@@ -1128,7 +1132,7 @@ mod tests {
             }
 
             // Now restore the row
-            workspaces::data_frames::rows::restore(&workspace, &commit_entry, &id_to_delete)?;
+            workspaces::data_frames::rows::restore(&repo, &workspace, &file_path, &id_to_delete)?;
 
             let commit_entries = workspaces::stager::list_files(&workspace)?;
             assert_eq!(commit_entries.len(), 0);

@@ -2,8 +2,9 @@ use crate::core::db::data_frames::row_changes_db::get_all_data_frame_row_changes
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::update_result::UpdateResult;
-use crate::model::Workspace;
+use crate::model::{Commit, Workspace};
 use crate::repositories;
+use crate::repositories::workspaces::data_frames::is_indexed;
 use crate::view::data_frames::DataFrameRowChange;
 
 use polars::datatypes::AnyValue;
@@ -24,7 +25,6 @@ use crate::opts::DFOpts;
 use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
 use crate::core::df::tabular;
 use crate::core::v0_10_0::index::workspaces;
-use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{CommitEntry, LocalRepository};
 use crate::util;
@@ -64,36 +64,85 @@ pub fn get_row_diff(
 }
 
 pub fn update(
+    repo: &LocalRepository,
     workspace: &Workspace,
     path: impl AsRef<Path>,
     row_id: &str,
     data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::update(
+            workspace,
+            path.as_ref(),
+            row_id,
+            data,
+        ),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::rows::update(
+            workspace,
+            path.as_ref(),
+            row_id,
+            data,
+        ),
+    }
 }
 
 pub fn batch_update(
+    repo: &LocalRepository,
     workspace: &Workspace,
     path: impl AsRef<Path>,
     data: &serde_json::Value,
 ) -> Result<Vec<UpdateResult>, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::index::workspaces::data_frames::rows::batch_update(
+                workspace,
+                path.as_ref(),
+                data,
+            )
+        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::workspaces::data_frames::rows::batch_update(
+            workspace,
+            path.as_ref(),
+            data,
+        ),
+    }
 }
 
 pub fn delete(
+    repo: &LocalRepository,
     workspace: &Workspace,
     path: impl AsRef<Path>,
     row_id: &str,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::delete(
+            workspace,
+            path.as_ref(),
+            row_id,
+        ),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::rows::delete(workspace, path.as_ref(), row_id)
+        }
+    }
 }
 
 pub fn restore(
+    repo: &LocalRepository,
     workspace: &Workspace,
     path: impl AsRef<Path>,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
-    todo!()
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::index::workspaces::data_frames::rows::restore(
+            repo,
+            workspace,
+            path.as_ref(),
+            row_id,
+        ),
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::rows::restore(workspace, path.as_ref(), row_id)
+        }
+    }
 }
 
 pub fn get_by_id(
@@ -161,5 +210,81 @@ pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
         }
     } else {
         Ok(None)
+    }
+}
+
+pub fn restore_row_in_db(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    row_id: impl AsRef<str>,
+) -> Result<DataFrame, OxenError> {
+    let row_id = row_id.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path.as_ref());
+    let conn = df_db::get_connection(db_path)?;
+    let opts = db::key_val::opts::default();
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, &path.as_ref());
+    let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
+
+    // Get the row by id
+    let row = get_by_id(workspace, &path.as_ref(), row_id)?;
+
+    if row.height() == 0 {
+        return Err(OxenError::resource_not_found(row_id));
+    };
+
+    let row_status =
+        get_row_status(&row)?.ok_or_else(|| OxenError::basic_str("Row status not found"))?;
+
+    let result_row = match row_status {
+        StagedRowStatus::Added => {
+            // Row is added, just delete it
+            log::debug!("restore_row() row is added, deleting");
+            rows::revert_row_changes(&db, row_id.to_owned())?;
+            rows::delete_row(&conn, row_id)?
+        }
+        StagedRowStatus::Modified | StagedRowStatus::Removed => {
+            // Row is modified, just delete it
+            log::debug!("restore_row() row is modified, deleting");
+            let mut insert_row = prepare_modified_or_removed_row(
+                &workspace.base_repo,
+                &workspace.commit,
+                &path.as_ref(),
+                &row,
+            )?;
+            rows::revert_row_changes(&db, row_id.to_owned())?;
+            rows::modify_row(&conn, &mut insert_row, row_id)?
+        }
+        StagedRowStatus::Unchanged => {
+            // Row is unchanged, just return it
+            row
+        }
+    };
+
+    log::debug!("we're returning this row: {:?}", result_row);
+
+    Ok(result_row)
+}
+
+pub fn prepare_modified_or_removed_row(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+    row: &DataFrame,
+) -> Result<DataFrame, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::workspaces::data_frames::rows::prepare_modified_or_removed_row(
+                repo,
+                commit,
+                path.as_ref(),
+                row,
+            )
+        }
+        MinOxenVersion::V0_10_0 => {
+            return Err(OxenError::basic_str(
+                "This should be handled inside the v0_10_0 code",
+            ))
+        }
     }
 }

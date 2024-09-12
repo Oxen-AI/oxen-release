@@ -9,6 +9,7 @@ use sql_query_builder::Select;
 
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use crate::core::db;
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::opts::DFOpts;
 
 use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
@@ -18,7 +19,7 @@ use crate::error::OxenError;
 use crate::model::data_frame::update_result::UpdateResult;
 use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{CommitEntry, LocalRepository, Workspace};
+use crate::model::{Commit, CommitEntry, LocalRepository, Workspace};
 use crate::repositories;
 use crate::util;
 use crate::view::data_frames::DataFrameRowChange;
@@ -61,4 +62,179 @@ pub fn add(
     workspaces::files::add(workspace, file_path)?;
 
     Ok(result)
+}
+
+pub fn restore(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    row_id: impl AsRef<str>,
+) -> Result<DataFrame, OxenError> {
+    let row_id = row_id.as_ref();
+    let restored_row = repositories::workspaces::data_frames::rows::restore_row_in_db(
+        workspace,
+        path.as_ref(),
+        row_id,
+    )?;
+    let diff = repositories::workspaces::data_frames::full_diff(workspace, &path.as_ref())?;
+
+    if let DiffResult::Tabular(diff) = diff {
+        if !diff.has_changes() {
+            log::debug!("no changes, deleting file from staged db");
+            // Restored to original state == delete file from staged db
+            // TODO: Implement this
+            workspaces::files::delete(workspace, &path.as_ref())?;
+        }
+    }
+
+    Ok(restored_row)
+}
+
+pub fn delete(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    row_id: &str,
+) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let row_changes_path = repositories::workspaces::data_frames::row_changes_path(workspace, path);
+
+    let mut deleted_row = {
+        let conn = df_db::get_connection(db_path)?;
+        rows::delete_row(&conn, row_id)?
+    };
+
+    let row = JsonDataFrameView::json_from_df(&mut deleted_row);
+
+    rows::record_row_change(
+        &row_changes_path,
+        row_id.to_owned(),
+        "deleted".to_owned(),
+        row,
+        None,
+    )?;
+
+    // We track that the file has been modified
+    workspaces::files::add(workspace, path)?;
+
+    // TODO: Better way of tracking when a file is restored to its original state without diffing
+    //       this could be really slow
+    let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
+
+    if let DiffResult::Tabular(diff) = diff {
+        if !diff.has_changes() {
+            log::debug!("no changes, deleting file from staged db");
+            // Restored to original state == delete file from staged db
+            workspaces::files::delete(workspace, path)?;
+        }
+    }
+    Ok(deleted_row)
+}
+
+pub fn update(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    row_id: &str,
+    data: &serde_json::Value,
+) -> Result<DataFrame, OxenError> {
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let conn = df_db::get_connection(db_path)?;
+    let row_changes_path = repositories::workspaces::data_frames::row_changes_path(workspace, path);
+
+    let mut df = tabular::parse_json_to_df(data)?;
+
+    let mut row = repositories::workspaces::data_frames::rows::get_by_id(workspace, path, row_id)?;
+
+    let mut result = rows::modify_row(&conn, &mut df, row_id)?;
+
+    let row_before = JsonDataFrameView::json_from_df(&mut row);
+
+    let row_after = JsonDataFrameView::json_from_df(&mut result);
+
+    rows::record_row_change(
+        &row_changes_path,
+        row_id.to_owned(),
+        "updated".to_owned(),
+        row_before,
+        Some(row_after),
+    )?;
+
+    workspaces::files::add(workspace, path)?;
+
+    let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
+    if let DiffResult::Tabular(diff) = diff {
+        if !diff.has_changes() {
+            workspaces::files::delete(workspace, path)?;
+        }
+    }
+
+    Ok(result)
+}
+
+pub fn batch_update(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    data: &Value,
+) -> Result<Vec<UpdateResult>, OxenError> {
+    let path = path.as_ref();
+    if let Some(array) = data.as_array() {
+        let results: Result<Vec<UpdateResult>, OxenError> = array
+            .iter()
+            .map(|obj| {
+                let row_id = obj
+                    .get("row_id")
+                    .and_then(Value::as_str)
+                    .ok_or_else(|| OxenError::basic_str("Missing row_id"))?
+                    .to_owned();
+                let value = obj
+                    .get("value")
+                    .ok_or_else(|| OxenError::basic_str("Missing value"))?;
+
+                match update(workspace, path, &row_id, value) {
+                    Ok(data_frame) => Ok(UpdateResult::Success(row_id, data_frame)),
+                    Err(e) => Ok(UpdateResult::Error(row_id, e)),
+                }
+            })
+            .collect();
+
+        results
+    } else {
+        Err(OxenError::basic_str("Data is not an array"))
+    }
+}
+
+pub fn prepare_modified_or_removed_row(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+    row_df: &DataFrame,
+) -> Result<DataFrame, OxenError> {
+    let row_idx = repositories::workspaces::data_frames::rows::get_row_idx(row_df)?
+        .ok_or_else(|| OxenError::basic_str("Row index not found"))?;
+    let row_idx_og = (row_idx - 1) as i64;
+
+    let commit_merkle_tree = CommitMerkleTree::from_path(repo, commit, &path, true)?;
+
+    // let scan_rows = 10000 as usize;
+    let committed_df_path = util::fs::version_path_from_node(
+        repo,
+        &commit_merkle_tree.root.hash.to_string(),
+        path.as_ref(),
+    );
+
+    // TODONOW should not be using all rows - just need to parse delim
+    let lazy_df = tabular::read_df(committed_df_path, DFOpts::empty())?;
+
+    // Get the row by index
+    let mut row = lazy_df.slice(row_idx_og, 1_usize);
+
+    // Added rows will error here on out of index, but we caught them earlier..
+    // let mut row = row.collect()?;
+
+    row.with_column(Series::new(
+        DIFF_STATUS_COL,
+        vec![StagedRowStatus::Unchanged.to_string()],
+    ))?;
+
+    Ok(row)
 }
