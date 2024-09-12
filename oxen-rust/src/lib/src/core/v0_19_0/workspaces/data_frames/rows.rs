@@ -70,11 +70,7 @@ pub fn restore(
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     let row_id = row_id.as_ref();
-    let restored_row = repositories::workspaces::data_frames::rows::restore_row_in_db(
-        workspace,
-        path.as_ref(),
-        row_id,
-    )?;
+    let restored_row = restore_row_in_db(workspace, path.as_ref(), row_id)?;
     let diff = repositories::workspaces::data_frames::full_diff(workspace, &path.as_ref())?;
 
     if let DiffResult::Tabular(diff) = diff {
@@ -237,4 +233,58 @@ pub fn prepare_modified_or_removed_row(
     ))?;
 
     Ok(row)
+}
+
+pub fn restore_row_in_db(
+    workspace: &Workspace,
+    path: impl AsRef<Path>,
+    row_id: impl AsRef<str>,
+) -> Result<DataFrame, OxenError> {
+    let row_id = row_id.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path.as_ref());
+    let conn = df_db::get_connection(db_path)?;
+    let opts = db::key_val::opts::default();
+    let column_changes_path =
+        repositories::workspaces::data_frames::column_changes_path(workspace, &path.as_ref());
+    let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
+
+    // Get the row by id
+    let row =
+        repositories::workspaces::data_frames::rows::get_by_id(workspace, &path.as_ref(), row_id)?;
+
+    if row.height() == 0 {
+        return Err(OxenError::resource_not_found(row_id));
+    };
+
+    let row_status = repositories::workspaces::data_frames::rows::get_row_status(&row)?
+        .ok_or_else(|| OxenError::basic_str("Row status not found"))?;
+
+    let result_row = match row_status {
+        StagedRowStatus::Added => {
+            // Row is added, just delete it
+            log::debug!("restore_row() row is added, deleting");
+            rows::revert_row_changes(&db, row_id.to_owned())?;
+            rows::delete_row(&conn, row_id)?
+        }
+        StagedRowStatus::Modified | StagedRowStatus::Removed => {
+            // Row is modified, just delete it
+            log::debug!("restore_row() row is modified, deleting");
+            let mut insert_row = prepare_modified_or_removed_row(
+                &workspace.base_repo,
+                &workspace.commit,
+                &path.as_ref(),
+                &row,
+            )?;
+            rows::revert_row_changes(&db, row_id.to_owned())?;
+            rows::modify_row(&conn, &mut insert_row, row_id)?
+        }
+        StagedRowStatus::Unchanged => {
+            // Row is unchanged, just return it
+            row
+        }
+    };
+
+    log::debug!("we're returning this row: {:?}", result_row);
+
+    Ok(result_row)
 }
