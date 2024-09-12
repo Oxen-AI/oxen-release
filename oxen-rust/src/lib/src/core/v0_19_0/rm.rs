@@ -341,6 +341,7 @@ pub fn process_remove_file_and_parents(
     staged_db: &DBWithThreadMode<MultiThreaded>,
     maybe_dir_node: &Option<MerkleTreeNode>,
     path: &Path,
+    dir: &Path,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
@@ -386,6 +387,42 @@ pub fn process_remove_file_and_parents(
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
     let mut seen_dirs = seen_dirs.lock().unwrap();
+
+    // Stage parents as removed until we find the original dir
+    while let Some(parent) = parent_path.parent() {
+        let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
+
+        if parent_path == dir {
+            break;
+        }
+
+
+        parent_path = parent.to_path_buf();
+
+
+
+        let relative_path_str = relative_path.to_str().unwrap();
+        if !seen_dirs.insert(relative_path.to_owned()) {
+            // Don't write the same dir twice
+            continue;
+        }
+
+        let dir_entry = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Removed,
+            node: MerkleTreeNode::default_dir_from_path(&relative_path),
+        };
+
+        log::debug!("writing dir to staged db: {}", dir_entry);
+        let mut buf = Vec::new();
+        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        staged_db.put(relative_path_str, &buf).unwrap();
+
+        if relative_path == Path::new("") {
+            break;
+        }
+    }
+
+    // Stage the remaining parents as Added
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
         parent_path = parent.to_path_buf();
@@ -397,7 +434,7 @@ pub fn process_remove_file_and_parents(
         }
 
         let dir_entry = StagedMerkleTreeNode {
-            status: StagedEntryStatus::Removed,
+            status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir_from_path(&relative_path),
         };
 
@@ -501,6 +538,7 @@ fn process_remove_dir(
                     staged_db,
                     &dir_node,
                     &path,
+                    &dir_path,
                     &seen_dirs_clone,
                 ) {
                     Ok(Some(node)) => {
