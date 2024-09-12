@@ -6,9 +6,12 @@ use crate::params::{app_data, path_param, PageNumQuery};
 
 use actix_web::{web, HttpRequest, HttpResponse};
 
+use liboxen::core::cache::cacher_status::CacherStatusType;
+use liboxen::core::cache::commit_cacher;
 use liboxen::core::index::{Merger, SchemaReader};
 use liboxen::error::OxenError;
 use liboxen::util::{self, paginate};
+use liboxen::view::branch::BranchWithCacherStatusResponse;
 use liboxen::view::entry::ResourceVersion;
 use liboxen::view::{
     BranchLockResponse, BranchNewFromExisting, BranchRemoteMerge, BranchResponse, BranchUpdate,
@@ -42,9 +45,19 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
     let branch = api::local::branches::get_by_name(&repository, &branch_name)?
         .ok_or(OxenError::remote_branch_not_found(&branch_name))?;
 
-    let view = BranchResponse {
+    let commit = api::local::commits::get_by_id(&repository, &branch.commit_id)?
+        .ok_or(OxenError::resource_not_found(&branch.commit_id))?;
+
+    let cacher_statuses = commit_cacher::get_all_statuses(&repository, &commit)?;
+
+    let is_cacher_pending = cacher_statuses
+        .iter()
+        .any(|status| status.status == CacherStatusType::Pending);
+
+    let view = BranchWithCacherStatusResponse {
         status: StatusMessage::resource_created(),
         branch,
+        is_cacher_pending,
     };
 
     Ok(HttpResponse::Ok().json(view))
