@@ -21,9 +21,9 @@ use std::sync::Mutex;
 
 use crate::constants::STAGED_DIR;
 use crate::constants::VERSIONS_DIR;
+use crate::model::merkle_tree::node::DirNode;
 use crate::model::Commit;
 use crate::model::StagedEntryStatus;
-use crate::model::merkle_tree::node::DirNode;
 
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -123,17 +123,17 @@ fn remove(
             if let Some(ref head_commit) = maybe_head_commit {
                 let path = util::fs::path_relative_to_dir(path, &repo.path)?;
                 let parent_path = path.parent().unwrap_or(Path::new(""));
-                maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
+                maybe_dir_node =
+                    CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
             }
 
             if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, path) {
-                log::debug!("non-existant path {path:?} was dir. Calling remove_dir"); 
+                log::debug!("non-existant path {path:?} was dir. Calling remove_dir");
                 remove_dir(repo, &maybe_head_commit, path.to_path_buf());
-
-            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, &path) {
+            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, path) {
                 log::debug!("non-existant path {path:?} was file. Calling remove_file");
-                let opts = RmOpts::from_path(&path);
-                remove_file(repo, &maybe_head_commit, &path);
+                let opts = RmOpts::from_path(path);
+                remove_file(repo, &maybe_head_commit, path);
             }
         }
 
@@ -415,10 +415,7 @@ pub fn process_remove_file_and_parents(
             break;
         }
 
-
         parent_path = parent.to_path_buf();
-
-
 
         let relative_path_str = relative_path.to_str().unwrap();
         if !seen_dirs.insert(relative_path.to_owned()) {
