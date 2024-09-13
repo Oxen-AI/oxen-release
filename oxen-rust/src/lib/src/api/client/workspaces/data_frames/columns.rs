@@ -3,11 +3,7 @@ use std::path::Path;
 use polars::frame::DataFrame;
 
 use crate::api;
-<<<<<<< HEAD
-use crate::api::remote::client;
-=======
 use crate::api::client;
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
 use crate::error::OxenError;
 use crate::view::json_data_frame_view::JsonDataFrameColumnResponse;
 
@@ -39,11 +35,7 @@ pub async fn create(
         .await
     {
         Ok(res) => {
-<<<<<<< HEAD
-            let body = client::parse_json_body(&url, res).await?;
-=======
             let body: String = client::parse_json_body(&url, res).await?;
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
             let response: Result<JsonDataFrameColumnResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
@@ -83,11 +75,7 @@ pub async fn delete(
     let client = client::new_for_url(&url)?;
     match client.delete(&url).send().await {
         Ok(res) => {
-<<<<<<< HEAD
-            let body = client::parse_json_body(&url, res).await?;
-=======
             let body: String = client::parse_json_body(&url, res).await?;
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
             log::debug!("rm_df_mod got body: {}", body);
             let response: Result<JsonDataFrameColumnResponse, serde_json::Error> =
                 serde_json::from_str(&body);
@@ -135,11 +123,7 @@ pub async fn update(
         .await
     {
         Ok(res) => {
-<<<<<<< HEAD
-            let body = client::parse_json_body(&url, res).await?;
-=======
             let body: String = client::parse_json_body(&url, res).await?;
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
             let response: Result<JsonDataFrameColumnResponse, serde_json::Error> =
                 serde_json::from_str(&body);
             match response {
@@ -179,11 +163,7 @@ mod tests {
 
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
-<<<<<<< HEAD
-            let branch = api::remote::branches::create_from_or_get(
-=======
             let branch = api::client::branches::create_from_branch(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -192,11 +172,7 @@ mod tests {
             assert_eq!(branch.name, branch_name);
             let workspace_id = UserConfig::identifier()?;
             let workspace =
-<<<<<<< HEAD
-                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-=======
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
             assert_eq!(workspace.id, workspace_id);
 
             // train/dog_1.jpg,dog,101.5,32.0,385,330
@@ -206,13 +182,8 @@ mod tests {
             let column_name = "test";
             let data = format!(r#"{{"name":"{}", "data_type": "str"}}"#, column_name);
 
-<<<<<<< HEAD
-            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-            let result = api::remote::workspaces::data_frames::columns::create(
-=======
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
             let result = api::client::workspaces::data_frames::columns::create(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -220,11 +191,7 @@ mod tests {
             )
             .await;
 
-<<<<<<< HEAD
-            let df = api::remote::workspaces::data_frames::get(
-=======
             let df = api::client::workspaces::data_frames::get(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -260,11 +227,7 @@ mod tests {
 
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
-<<<<<<< HEAD
-            let branch = api::remote::branches::create_from_or_get(
-=======
             let branch = api::client::branches::create_from_branch(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -279,17 +242,10 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
 
-<<<<<<< HEAD
-            api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let df = api::remote::workspaces::data_frames::get(
-=======
             api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
 
             let df = api::client::workspaces::data_frames::get(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -300,11 +256,7 @@ mod tests {
             let binding = df.data_frame.unwrap();
             let column = binding.view.schema.fields.get(4).unwrap();
 
-<<<<<<< HEAD
-            api::remote::workspaces::data_frames::columns::delete(
-=======
             api::client::workspaces::data_frames::columns::delete(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -312,11 +264,7 @@ mod tests {
             )
             .await?;
 
-<<<<<<< HEAD
-            let df = api::remote::workspaces::data_frames::get(
-=======
             let df = api::client::workspaces::data_frames::get(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -357,11 +305,7 @@ mod tests {
 
         test::run_remote_repo_test_bounding_box_csv_pushed(|remote_repo| async move {
             let branch_name = "add-images";
-<<<<<<< HEAD
-            let branch = api::remote::branches::create_from_or_get(
-=======
             let branch = api::client::branches::create_from_branch(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 branch_name,
                 DEFAULT_BRANCH_NAME,
@@ -371,11 +315,7 @@ mod tests {
 
             let workspace_id = UserConfig::identifier()?;
             let workspace =
-<<<<<<< HEAD
-                api::remote::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
-=======
                 api::client::workspaces::create(&remote_repo, &branch_name, &workspace_id).await?;
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
             assert_eq!(workspace.id, workspace_id);
 
             // Path to the CSV file
@@ -383,15 +323,9 @@ mod tests {
                 .join("train")
                 .join("bounding_box.csv");
 
-<<<<<<< HEAD
-            api::remote::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
-
-            let df = api::remote::workspaces::data_frames::get(
-=======
             api::client::workspaces::data_frames::index(&remote_repo, &workspace_id, &path).await?;
 
             let df = api::client::workspaces::data_frames::get(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -405,11 +339,7 @@ mod tests {
 
             let data: &str = "{\"new_name\":\"files\"}";
 
-<<<<<<< HEAD
-            api::remote::workspaces::data_frames::columns::update(
-=======
             api::client::workspaces::data_frames::columns::update(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
@@ -418,11 +348,7 @@ mod tests {
             )
             .await?;
 
-<<<<<<< HEAD
-            let df = api::remote::workspaces::data_frames::get(
-=======
             let df = api::client::workspaces::data_frames::get(
->>>>>>> 4c21262a2e9d28d1e55e4aeabc878c751c583ae1
                 &remote_repo,
                 &workspace_id,
                 &path,
