@@ -9,8 +9,8 @@ use crate::core::db;
 
 use crate::core::v0_19_0::index::MerkleNodeDB;
 
-use crate::model::merkle_tree::node::EMerkleTreeNode;
-use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::MerkleTreeNode;
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode};
 
 use crate::error::OxenError;
 use crate::model::Commit;
@@ -538,7 +538,7 @@ impl CommitMerkleTree {
 
         for (_key, child) in children {
             let mut child = child.to_owned();
-            // log::debug!("read_children_from_node child: {} -> {}", key, child);
+            //log::debug!("read_children_from_node child: {} -> {}", key, child);
             match &child.node.dtype() {
                 // Directories, VNodes, and Files have children
                 MerkleTreeNodeType::Commit
