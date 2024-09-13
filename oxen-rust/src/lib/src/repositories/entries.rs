@@ -7,26 +7,23 @@ use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entry::commit_entry::{Entry, SchemaEntry};
 use crate::model::merkle_tree::node::{DirNode, FileNode};
-use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::opts::{DFOpts, PaginateOpts};
+use crate::repositories;
 use crate::view::DataTypeCount;
-use crate::{repositories, util};
-use os_path::OsPath;
 use rayon::prelude::*;
 
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
 use crate::core::v0_10_0::index;
+use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
-use crate::core::v0_10_0::index::{ObjectDBReader, SchemaReader};
 use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 
 /// Get a directory object for a commit
 pub fn get_directory(
@@ -105,7 +102,7 @@ pub fn get_meta_entry(
                 commit: Some(commit.clone()),
                 branch: None,
                 version: PathBuf::from(&commit.id),
-                resource: PathBuf::from(&commit.id).join(&path),
+                resource: PathBuf::from(&commit.id).join(path),
             };
             core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
         }
@@ -1198,7 +1195,7 @@ mod tests {
 
             // Now index df2
             let workspace_id = Uuid::new_v4().to_string();
-            let workspace = index::workspaces::create(&repo, &commit, workspace_id, false)?;
+            let workspace = repositories::workspaces::create(&repo, &commit, workspace_id, false)?;
             index::workspaces::data_frames::index(&workspace, &entry2.path)?;
 
             // Now get the metadata entries for the two dataframes

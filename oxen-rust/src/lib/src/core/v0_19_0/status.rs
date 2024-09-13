@@ -3,6 +3,9 @@ use crate::constants::STAGED_DIR;
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
+use crate::model::merkle_tree::node::FileNode;
+use crate::model::metadata::generic_metadata::GenericMetadata;
+use crate::model::StagedSchema;
 use crate::model::{
     LocalRepository, StagedData, StagedDirStats, StagedEntry, StagedEntryStatus,
     SummarizedStagedDirStats,
@@ -63,6 +66,14 @@ pub fn status_from_dir(
     let (dir_entries, _) = read_staged_entries_below_path(repo, &db, &dir, &read_progress)?;
     read_progress.finish_and_clear();
 
+    status_from_dir_entries(dir_entries)
+}
+
+pub fn status_from_dir_entries(
+    dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+) -> Result<StagedData, OxenError> {
+    let mut staged_data = StagedData::empty();
+
     let mut summarized_dir_stats = SummarizedStagedDirStats {
         num_files_staged: 0,
         total_files: 0,
@@ -98,6 +109,7 @@ pub fn status_from_dir(
                     staged_data
                         .staged_files
                         .insert(PathBuf::from(&node.name), staged_entry);
+                    maybe_add_schemas(&node, &mut staged_data)?;
                 }
                 _ => {
                     return Err(OxenError::basic_str(format!(
@@ -113,6 +125,23 @@ pub fn status_from_dir(
     staged_data.staged_dirs = summarized_dir_stats;
 
     Ok(staged_data)
+}
+
+fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
+    match &node.metadata {
+        Some(GenericMetadata::MetadataTabular(m)) => {
+            let schema = m.tabular.schema.clone();
+            let path = PathBuf::from(&node.name);
+            let staged_schema = StagedSchema {
+                schema: schema,
+                status: StagedEntryStatus::Added,
+            };
+            staged_data.staged_schemas.insert(path, staged_schema);
+        }
+        _ => {}
+    }
+
+    Ok(())
 }
 
 pub fn read_staged_entries(
@@ -150,7 +179,7 @@ pub fn read_staged_entries_below_path(
                         start_path
                     );
                     let relative_start_path =
-                        util::fs::path_relative_to_dir(&start_path, &repo.path)?;
+                        util::fs::path_relative_to_dir(start_path, &repo.path)?;
                     if relative_start_path == PathBuf::from("")
                         || parent.starts_with(&relative_start_path)
                     {
@@ -211,7 +240,7 @@ fn find_untracked_and_modified_paths(
     // Files in working directory as candidates
     let mut total_files = 0;
     for candidate_dir in &candidate_dirs {
-        let relative_dir = util::fs::path_relative_to_dir(&candidate_dir, &repo.path)?;
+        let relative_dir = util::fs::path_relative_to_dir(candidate_dir, &repo.path)?;
         log::debug!(
             "find_untracked_and_modified_paths finding untracked files in {:?} relative {:?}",
             candidate_dir,
@@ -267,7 +296,7 @@ fn find_untracked_and_modified_paths(
                 let file_name = path
                     .file_name()
                     .ok_or(OxenError::basic_str("path has no file name"))?;
-                if let Some(node) = maybe_get_child_node(&file_name, &dir_node)? {
+                if let Some(node) = maybe_get_child_node(file_name, &dir_node)? {
                     log::debug!(
                         "find_untracked_and_modified_paths checking if modified {:?}",
                         relative_path

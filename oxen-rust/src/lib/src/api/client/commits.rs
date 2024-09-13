@@ -11,7 +11,7 @@ use crate::core::v0_10_0::index::{
 use crate::error::OxenError;
 use crate::model::commit::CommitWithBranchName;
 use crate::model::entry::unsynced_commit_entry::UnsyncedCommitEntries;
-use crate::model::{Branch, Commit, LocalRepository, RemoteRepository};
+use crate::model::{Branch, Commit, LocalRepository, MerkleHash, RemoteRepository};
 use crate::opts::PaginateOpts;
 use crate::util::fs::oxen_hidden_dir;
 use crate::util::hasher::hash_buffer;
@@ -21,9 +21,11 @@ use crate::{api, constants, repositories};
 use crate::{current_function, util};
 // use crate::util::ReadProgress;
 use crate::view::{
-    CommitResponse, IsValidStatusMessage, ListCommitResponse, PaginatedCommits, StatusMessage,
+    CommitResponse, IsValidStatusMessage, ListCommitResponse, MerkleHashesResponse,
+    PaginatedCommits, StatusMessage,
 };
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 use std::sync::Arc;
@@ -136,6 +138,24 @@ pub async fn list_all(remote_repo: &RemoteRepository) -> Result<Vec<Commit>, Oxe
     bar.finish_and_clear();
 
     Ok(all_commits)
+}
+
+pub async fn list_missing_hashes(
+    remote_repo: &RemoteRepository,
+    commit_hashes: &HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let uri = format!("/commits/missing");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+    let client = client::new_for_url(&url)?;
+    let res = client.post(&url).json(&commit_hashes).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<MerkleHashesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(response) => Ok(response.hashes),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::tree::list_missing_hashes() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
 }
 
 pub async fn list_commit_history(

@@ -10,8 +10,8 @@ use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
 use crate::core::merge::merge_conflict_reader::MergeConflictReader;
+use crate::core::oxenignore;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_10_0::index::oxenignore;
 use crate::core::v0_10_0::index::ObjectDBReader;
 use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::{
@@ -46,7 +46,6 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::str;
 use std::sync::Arc;
 
 use super::StagedDirEntryReader;
@@ -1374,20 +1373,6 @@ impl Stager {
         Ok(())
     }
 
-    /// Update the name of a staged schema, assuming it exists
-    pub fn update_schema_names_for_hash(&self, hash: &str, name: &str) -> Result<(), OxenError> {
-        for (path, mut staged) in path_db::list_path_entries::<MultiThreaded, StagedSchema>(
-            &self.schemas_db,
-            Path::new(""),
-        )? {
-            if staged.schema.hash == hash {
-                staged.schema.name = Some(String::from(name));
-                path_db::put(&self.schemas_db, path, &staged)?;
-            }
-        }
-        Ok(())
-    }
-
     /// Update all the schema field tyfpe overrides on a staged schema
     pub fn update_schema_for_path(
         &self,
@@ -1469,7 +1454,10 @@ impl Stager {
         }
         log::debug!("couldn't find, calling get_by_path");
 
-        repositories::data_frames::schemas::get_by_path(&self.repository, path)
+        let Some(commit) = repositories::commits::head_commit_maybe(&self.repository)? else {
+            return Ok(None);
+        };
+        repositories::data_frames::schemas::get_by_path(&self.repository, &commit, path)
     }
 
     fn maybe_get_existing_schema_from_reader(
@@ -1649,9 +1637,9 @@ impl Stager {
 
 #[cfg(test)]
 mod tests {
+    use crate::core::oxenignore;
     use crate::core::v0_10_0::index::{
-        oxenignore, CommitDBReader, CommitEntryReader, CommitReader, CommitWriter, SchemaReader,
-        Stager,
+        CommitDBReader, CommitEntryReader, CommitReader, CommitWriter, SchemaReader, Stager,
     };
     use crate::error::OxenError;
     use crate::model::LocalRepository;
