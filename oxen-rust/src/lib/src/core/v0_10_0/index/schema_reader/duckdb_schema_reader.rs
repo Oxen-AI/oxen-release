@@ -1,9 +1,9 @@
 use crate::constants::TABLE_NAME;
 use crate::core::db::data_frames::df_db;
-use crate::core::v0_10_0::index::workspaces::data_frames::duckdb_path;
 use crate::core::v0_10_0::index::CommitReader;
 use crate::error::OxenError;
 use crate::model::{LocalRepository, Schema, Workspace};
+use crate::repositories::workspaces::data_frames::duckdb_path;
 use std::path::Path;
 use std::str;
 

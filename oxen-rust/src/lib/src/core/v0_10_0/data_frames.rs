@@ -23,19 +23,18 @@ pub fn get_slice(
     opts: &DFOpts,
 ) -> Result<DataFrameSlice, OxenError> {
     let path = path.as_ref();
-    let entry_reader = CommitEntryReader::new(&repo, &commit)?;
+    let entry_reader = CommitEntryReader::new(repo, commit)?;
     let entry = entry_reader
-        .get_entry(&path)?
-        .ok_or(OxenError::path_does_not_exist(&path))?;
+        .get_entry(path)?
+        .ok_or(OxenError::path_does_not_exist(path))?;
 
-    let version_path = util::fs::version_path_for_commit_id(&repo, &commit.id, &path)?;
+    let version_path = util::fs::version_path_for_commit_id(repo, &commit.id, path)?;
     log::debug!("view_from Reading version file {:?}", version_path);
 
-    let data_frame_size = cachers::df_size::get_cache_for_version(&repo, &commit, &version_path)?;
+    let data_frame_size = cachers::df_size::get_cache_for_version(repo, commit, &version_path)?;
     log::debug!("view_from got data frame size {:?}", data_frame_size);
 
-    let handle_sql_result =
-        handle_sql_querying(&repo, &commit, &path, &opts, &entry, &data_frame_size);
+    let handle_sql_result = handle_sql_querying(repo, commit, path, opts, &entry, &data_frame_size);
     if let Ok(response) = handle_sql_result {
         return Ok(response);
     }
@@ -52,11 +51,11 @@ pub fn get_slice(
 
     log::debug!("Scanning df with height: {}", height);
 
-    let mut df = tabular::scan_df(&version_path, &opts, height)?;
+    let mut df = tabular::scan_df(&version_path, opts, height)?;
 
     // Try to get the schema from the merkle tree
     let og_schema = if let Some(schema) =
-        repositories::data_frames::schemas::get_by_path_from_revision(&repo, &commit.id, &path)?
+        repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?
     {
         schema
     } else {
@@ -136,18 +135,15 @@ fn handle_sql_querying(
     }
 
     if let (Some(sql), Some(workspace)) = (opts.sql.clone(), workspace) {
-        let db_path = index::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
+        let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
         let mut conn = df_db::get_connection(db_path)?;
 
         let mut slice_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
         let df = sql::query_df(sql, &mut conn)?;
 
         let source_schema = if let Some(schema) =
-            repositories::data_frames::schemas::get_by_path_from_revision(
-                repo,
-                &workspace.commit.id,
-                &path,
-            )? {
+            repositories::data_frames::schemas::get_by_path(repo, &workspace.commit, &path)?
+        {
             schema
         } else {
             Schema::from_polars(&df.schema())

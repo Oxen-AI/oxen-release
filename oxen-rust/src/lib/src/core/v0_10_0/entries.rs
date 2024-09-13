@@ -19,7 +19,6 @@ use os_path::OsPath;
 
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
-use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::ObjectDBReader;
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{
@@ -77,8 +76,8 @@ pub fn get_file(
     let mut entry: Option<CommitEntry> = None;
     // Try to get the parent of the file path, if it exists to get the proper CommitDirEntryReader
     if let (Some(parent), Some(file_name)) = (path.parent(), path.file_name()) {
-        let object_reader = get_object_reader(&repo, &commit.id)?;
-        let cder = CommitDirEntryReader::new(&repo, &commit.id, parent, object_reader.clone())?;
+        let object_reader = get_object_reader(repo, &commit.id)?;
+        let cder = CommitDirEntryReader::new(repo, &commit.id, parent, object_reader.clone())?;
         entry = cder.get_entry(file_name)?;
     }
 
@@ -447,10 +446,10 @@ pub fn meta_entry_from_commit_entry(
 
     let is_indexed = if data_type == EntryDataType::Tabular {
         Some(
-            index::workspaces::data_frames::is_queryable_data_frame_indexed(
+            repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
                 repo,
-                &entry.path,
                 &latest_commit,
+                &entry.path,
             )?,
         )
     } else {

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::path::Path;
 
+use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
@@ -53,6 +54,16 @@ pub fn get_dir_without_children(
     CommitMerkleTree::dir_without_children(repo, commit, path)
 }
 
+pub fn get_node_data_by_id(
+    repo: &LocalRepository,
+    hash: &MerkleHash,
+) -> Result<Option<MerkleTreeNode>, OxenError> {
+    let Some(node) = CommitMerkleTree::read_node(repo, hash, false)? else {
+        return Ok(None);
+    };
+    Ok(Some(node))
+}
+
 pub fn list_missing_file_hashes(
     repo: &LocalRepository,
     hash: &MerkleHash,
@@ -61,6 +72,20 @@ pub fn list_missing_file_hashes(
         return Err(OxenError::basic_str(format!("Node {} not found", hash)));
     };
     node.list_missing_file_hashes(repo)
+}
+
+pub fn list_missing_node_hashes(
+    repo: &LocalRepository,
+    hashes: &HashSet<MerkleHash>,
+) -> Result<HashSet<MerkleHash>, OxenError> {
+    let mut results = HashSet::new();
+    for hash in hashes {
+        let dir_prefix = node_db_path(&repo, hash);
+        if dir_prefix.exists() {
+            results.insert(*hash);
+        }
+    }
+    Ok(results)
 }
 
 pub fn child_hashes(
