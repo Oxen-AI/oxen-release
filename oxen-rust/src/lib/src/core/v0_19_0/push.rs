@@ -78,6 +78,11 @@ async fn push_remote_repo(
     // Notify the server that we are starting a push
     api::client::repositories::pre_push(remote_repo, local_branch, &commit.id).await?;
 
+    // Figure out which nodes we need to push
+    let tree = CommitMerkleTree::from_commit(repo, &commit)?;
+    // There should always be a root dir, so unwrap is safe
+    let root_dir = tree.root.children.first().unwrap().dir()?;
+
     let progress = PushProgress::new();
 
     // Check if the remote branch exists, and either push to it or create a new one
