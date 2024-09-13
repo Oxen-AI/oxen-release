@@ -9,9 +9,13 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
+
+use crate::opts::RmOpts;
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
+use crate::core;
+use crate::model::merkle_tree::node::DirNode;
 
 use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
@@ -61,6 +65,7 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             paths.insert(path.to_owned());
         }
     }
+    println!("asdf");
 
     let stats = add_files(repo, &paths)?;
 
@@ -121,7 +126,29 @@ fn add_files(
                         .or_insert(1);
                 }
             }
-            // TODO: Handle adding removed files
+        } else {
+            // If the path doesn't exist, check if it's in the head commit
+            // If so, stage it for removal
+            // TODO: Should these removals contribute to the cumulative stats? 
+            let file_path = path.file_name().unwrap();
+            let mut maybe_dir_node = None;
+            log::debug!("Found non-existant path: {file_path:?}");
+            if let Some(ref head_commit) = maybe_head_commit {
+                let path = util::fs::path_relative_to_dir(path, &repo.path)?;
+                let parent_path = path.parent().unwrap_or(Path::new(""));
+                maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
+            }
+
+            if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, file_path) {
+                log::debug!("non-existant path {file_path:?} was dir. Calling remove_dir");
+                // This goes directly to remove_dir because we can't detect the type of a non-existant file 
+                core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone());
+
+            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, file_path) {
+                log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
+                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit, &path.clone());
+            }
+
         }
     }
 
@@ -269,6 +296,25 @@ fn get_file_node(
         if let Some(node) = node.get_by_path(path)? {
             if let EMerkleTreeNode::File(file_node) = &node.node {
                 Ok(Some(file_node.clone()))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+fn get_dir_node(
+    dir_node: &Option<MerkleTreeNode>,
+    path: impl AsRef<Path>,
+) -> Result<Option<DirNode>, OxenError> {
+    if let Some(node) = dir_node {
+        if let Some(node) = node.get_by_path(path)? {
+            if let EMerkleTreeNode::Directory(dir_node) = &node.node {
+                Ok(Some(dir_node.clone()))
             } else {
                 Ok(None)
             }

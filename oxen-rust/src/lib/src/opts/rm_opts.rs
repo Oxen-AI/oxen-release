@@ -30,6 +30,16 @@ impl RmOpts {
         }
     }
 
+     /// Sets `recursive = true` to remove dir 
+     pub fn from_path_recursive<P: AsRef<Path>>(path: P) -> RmOpts {
+        RmOpts {
+            path: path.as_ref().to_owned(),
+            staged: false,
+            recursive: true,
+            remote: false,
+        }
+    }
+
     /// Updates the `path` and copies values from `opts`
     pub fn from_path_opts<P: AsRef<Path>>(path: P, opts: &RmOpts) -> RmOpts {
         RmOpts {
