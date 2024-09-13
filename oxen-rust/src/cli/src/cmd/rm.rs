@@ -7,7 +7,6 @@ use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
 use liboxen::opts::RmOpts;
 use liboxen::repositories;
-use std::env;
 use std::path::PathBuf;
 
 use crate::cmd::RunCmd;
@@ -58,8 +57,7 @@ impl RunCmd for RmCmd {
             remote: false,
         };
 
-        let repo_dir = env::current_dir().unwrap();
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
         for path in paths {

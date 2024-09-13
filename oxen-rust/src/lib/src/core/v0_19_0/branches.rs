@@ -1,5 +1,5 @@
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
-use crate::core::v0_19_0::{commits, pull, restore};
+use crate::core::v0_19_0::{commits, fetch, restore};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
@@ -29,11 +29,12 @@ pub async fn checkout_commit_id(
     repo: &LocalRepository,
     commit_id: impl AsRef<str>,
 ) -> Result<(), OxenError> {
+    log::debug!("checkout_commit_id {}", commit_id.as_ref());
     let commit = repositories::commits::get_by_id(repo, &commit_id)?
         .ok_or(OxenError::commit_id_does_not_exist(&commit_id))?;
 
-    // Pull entries if needed
-    pull::maybe_pull_missing_entries(repo, &commit).await?;
+    // Fetch entries if needed
+    fetch::maybe_fetch_missing_entries(repo, &commit).await?;
 
     // Set working repo to commit
     set_working_repo_to_commit(repo, &commit).await?;
@@ -45,13 +46,15 @@ pub async fn set_working_repo_to_commit(
     repo: &LocalRepository,
     commit: &Commit,
 ) -> Result<(), OxenError> {
-    let head_commit = commits::head_commit(repo)?;
-    if head_commit.id == commit.id {
-        log::debug!(
-            "set_working_repo_to_commit, do nothing... head commit == commit_id {}",
-            commit.id
-        );
-        return Ok(());
+    log::debug!("set_working_repo_to_commit {}", commit.id);
+    if let Some(head_commit) = commits::head_commit_maybe(repo)? {
+        if head_commit.id == commit.id {
+            log::debug!(
+                "set_working_repo_to_commit, do nothing... head commit == commit_id {}",
+                commit.id
+            );
+            return Ok(());
+        }
     }
 
     let tree = CommitMerkleTree::from_commit(repo, commit)?;
@@ -69,13 +72,15 @@ fn cleanup_removed_files(
     // Get the head commit, and the merkle tree for that commit
     // Compare the nodes in the head tree to the nodes in the target tree
     // If the file node is in the head tree, but not in the target tree, remove it
-    let head_commit = commits::head_commit(repo)?;
-    log::debug!("head_commit {:?}", head_commit.id);
+    // If we don't have a head commit, there isn't anything to clean up (i.e., new clone)
+    if let Some(head_commit) = commits::head_commit_maybe(repo)? {
+        log::debug!("cleanup_removed_files head_commit {:?}", head_commit.id);
 
-    let head_tree = CommitMerkleTree::from_commit(repo, &head_commit)?;
-    let head_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&head_tree.root)?;
+        let head_tree = CommitMerkleTree::from_commit(repo, &head_commit)?;
+        let head_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&head_tree.root)?;
 
-    r_remove_if_not_in_target(repo, &head_root_dir_node, &target_tree, Path::new(""))?;
+        r_remove_if_not_in_target(repo, &head_root_dir_node, &target_tree, Path::new(""))?;
+    }
 
     Ok(())
 }

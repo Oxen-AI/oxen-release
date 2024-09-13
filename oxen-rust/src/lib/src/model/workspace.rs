@@ -1,13 +1,9 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
-use crate::constants;
-use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR, WORKSPACE_CONFIG};
-use crate::error::OxenError;
+use crate::constants::{OXEN_HIDDEN_DIR, WORKSPACES_DIR};
 use crate::model::{Commit, LocalRepository};
-use crate::repositories;
 use crate::util;
-use toml;
 
 // Define a struct for the workspace config to make it easier to serialize
 #[derive(Serialize, Deserialize)]
