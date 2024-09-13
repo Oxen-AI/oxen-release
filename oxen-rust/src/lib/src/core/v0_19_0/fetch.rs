@@ -90,6 +90,8 @@ pub async fn fetch_remote_branch(
     Ok(())
 }
 
+/// Fetch missing entries for a commit
+/// If there is no remote, or we can't find the remote, this will *not* error
 pub async fn maybe_fetch_missing_entries(
     repo: &LocalRepository,
     commit: &Commit,
@@ -106,8 +108,14 @@ pub async fn maybe_fetch_missing_entries(
 
     let remote_repo = match api::client::repositories::get_by_remote(&remote).await {
         Ok(Some(repo)) => repo,
-        Ok(None) => return Err(OxenError::remote_repo_not_found(&remote.url)),
-        Err(err) => return Err(err),
+        Ok(None) => {
+            log::warn!("Remote repo not found: {}", remote.url);
+            return Ok(());
+        }
+        Err(err) => {
+            log::warn!("Error getting remote repo: {}", err);
+            return Ok(());
+        }
     };
 
     // TODO: what should we print here? If there is nothing to pull, we
