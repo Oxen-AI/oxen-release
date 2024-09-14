@@ -411,9 +411,6 @@ pub fn process_remove_file_and_parents(
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
 
-        if parent_path == dir {
-            break;
-        }
 
         parent_path = parent.to_path_buf();
 
@@ -432,6 +429,11 @@ pub fn process_remove_file_and_parents(
         let mut buf = Vec::new();
         dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
         staged_db.put(relative_path_str, &buf).unwrap();
+
+        if parent_path == dir {
+            break;
+        }
+
 
         if relative_path == Path::new("") {
             break;
@@ -488,7 +490,7 @@ fn process_remove_dir(
     maybe_head_commit: &Option<Commit>,
     versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
-    path: PathBuf,
+    root_path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
 
@@ -496,7 +498,8 @@ fn process_remove_dir(
     progress_1.set_style(ProgressStyle::default_spinner());
     progress_1.enable_steady_tick(Duration::from_millis(100));
 
-    let path = path.clone();
+    // root_path is the directory rm was called on
+    let root_path = root_path.clone();
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
     let repo_path = repo.path.clone();
@@ -514,7 +517,7 @@ fn process_remove_dir(
         data_type_counts: HashMap::new(),
     };
 
-    let walker = WalkDir::new(&path).into_iter();
+    let walker = WalkDir::new(&root_path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
         let entry = entry.unwrap();
@@ -548,13 +551,15 @@ fn process_remove_dir(
                 ));
 
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
+                // Stage all files in this folder
+                // Everything folder within the root_path will be staged as Removed. All parents of the root_path will be staged as Added 
                 match process_remove_file_and_parents(
                     &repo_path,
                     versions_path,
                     staged_db,
                     &dir_node,
                     &path,
-                    &dir_path,
+                    &root_path,
                     &seen_dirs_clone,
                 ) {
                     Ok(Some(node)) => {
