@@ -52,7 +52,8 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
 
     let is_cacher_pending = cacher_statuses
         .iter()
-        .any(|status| status.status == CacherStatusType::Pending);
+        .any(|status| status.status == CacherStatusType::Pending)
+        || api::local::branches::is_locked(&repository, &branch_name)?;
 
     let view = BranchWithCacherStatusResponse {
         status: StatusMessage::resource_created(),
