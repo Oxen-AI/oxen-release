@@ -1,6 +1,6 @@
 use crate::api;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
+use crate::model::{LocalRepository, RemoteBranch};
 use crate::repositories;
 
 use crate::core::v0_19_0::fetch;

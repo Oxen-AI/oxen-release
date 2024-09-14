@@ -22,7 +22,7 @@ pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<Stag
     let (dir_entries, _) = core::v0_19_0::status::read_staged_entries_below_path(
         &workspace.workspace_repo,
         &db,
-        &dir,
+        dir,
         &read_progress,
     )?;
 

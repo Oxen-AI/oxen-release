@@ -11,7 +11,6 @@ use crate::model::entry::commit_entry::Entry;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry};
 use crate::model::{LocalRepository, MerkleHash, RemoteBranch, RemoteRepository};
-use crate::opts::PullOpts;
 use crate::repositories;
 
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
