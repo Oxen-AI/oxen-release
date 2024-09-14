@@ -38,7 +38,10 @@ use liboxen::view::http::MSG_RESOURCE_IS_PROCESSING;
 use liboxen::view::http::STATUS_ERROR;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, STATUS_SUCCESS};
 use liboxen::view::tree::merkle_hashes::MerkleHashes;
-use liboxen::view::{CommitResponse, IsValidStatusMessage, ListCommitResponse, StatusMessage};
+use liboxen::view::{
+    CommitResponse, IsValidStatusMessage, ListCommitResponse, PaginatedCommits, Pagination,
+    RootCommitResponse, StatusMessage,
+};
 use os_path::OsPath;
 
 use crate::app_data::OxenAppData;
@@ -96,6 +99,18 @@ pub async fn commit_history(
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
     let resource_param = path_param(&req, "resource")?;
 
+    let pagination = PaginateOpts {
+        page_num: query.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
+        page_size: query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
+    };
+
+    if repositories::is_empty(&repo)? {
+        return Ok(HttpResponse::Ok().json(PaginatedCommits::success(
+            vec![],
+            Pagination::empty(pagination),
+        )));
+    }
+
     // This checks if the parameter received from the client is two commits split by "..", in this case we don't parse the resource
     let (resource, revision, commit) = if resource_param.contains("..") {
         (None, Some(resource_param), None)
@@ -103,11 +118,6 @@ pub async fn commit_history(
         let resource = parse_resource(&req, &repo)?;
         let commit = resource.clone().commit.ok_or(OxenHttpError::NotFound)?;
         (Some(resource), None, Some(commit))
-    };
-
-    let pagination = PaginateOpts {
-        page_num: query.page.unwrap_or(constants::DEFAULT_PAGE_NUM),
-        page_size: query.page_size.unwrap_or(constants::DEFAULT_PAGE_SIZE),
     };
 
     match &resource {
@@ -938,9 +948,9 @@ pub async fn root_commit(req: HttpRequest) -> Result<HttpResponse, OxenHttpError
     let name = path_param(&req, "repo_name")?;
     let repo = get_repo(&app_data.path, namespace, name)?;
 
-    let root = repositories::commits::root_commit(&repo)?;
+    let root = repositories::commits::root_commit_maybe(&repo)?;
 
-    Ok(HttpResponse::Ok().json(CommitResponse {
+    Ok(HttpResponse::Ok().json(RootCommitResponse {
         status: StatusMessage::resource_found(),
         commit: root,
     }))

@@ -98,9 +98,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     Ok(commit.to_commit())
 }
 
-pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let commit_id = head_commit_id(repo)?;
-    root_commit_recursive(repo, commit_id)
+pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
+    if let Some(commit) = head_commit_maybe(repo)? {
+        let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
+        Ok(Some(root_commit))
+    } else {
+        Ok(None)
+    }
 }
 
 fn root_commit_recursive(
