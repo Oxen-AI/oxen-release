@@ -411,7 +411,6 @@ pub fn process_remove_file_and_parents(
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
 
-
         parent_path = parent.to_path_buf();
 
         let relative_path_str = relative_path.to_str().unwrap();
@@ -433,7 +432,6 @@ pub fn process_remove_file_and_parents(
         if parent_path == dir {
             break;
         }
-
 
         if relative_path == Path::new("") {
             break;
@@ -552,7 +550,7 @@ fn process_remove_dir(
 
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 // Stage all files in this folder
-                // Everything folder within the root_path will be staged as Removed. All parents of the root_path will be staged as Added 
+                // Everything folder within the root_path will be staged as Removed. All parents of the root_path will be staged as Added
                 match process_remove_file_and_parents(
                     &repo_path,
                     versions_path,

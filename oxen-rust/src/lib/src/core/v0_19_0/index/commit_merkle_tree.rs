@@ -13,7 +13,6 @@ use crate::model::merkle_tree::node::EMerkleTreeNode;
 
 use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 
-
 use crate::error::OxenError;
 use crate::model::Commit;
 use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};

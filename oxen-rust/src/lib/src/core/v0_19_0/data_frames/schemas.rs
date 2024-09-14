@@ -6,7 +6,6 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-
 use rmp_serde::Serializer;
 use rocksdb::DBWithThreadMode;
 use rocksdb::IteratorMode;
@@ -27,7 +26,6 @@ use crate::model::StagedEntryStatus;
 use crate::model::{Commit, LocalRepository, Schema};
 use crate::repositories;
 use crate::util;
-
 
 use std::path::Path;
 
@@ -57,10 +55,12 @@ fn r_list_schemas(
                 let child_path = current_path.as_ref().join(&dir_node.name);
                 r_list_schemas(repo, child, child_path, schemas)?;
             }
-            EMerkleTreeNode::File(file_node) => if let Some(GenericMetadata::MetadataTabular(metadata)) = &file_node.metadata {
-                let child_path = current_path.as_ref().join(&file_node.name);
-                schemas.insert(child_path, metadata.tabular.schema.clone());
-            },
+            EMerkleTreeNode::File(file_node) => {
+                if let Some(GenericMetadata::MetadataTabular(metadata)) = &file_node.metadata {
+                    let child_path = current_path.as_ref().join(&file_node.name);
+                    schemas.insert(child_path, metadata.tabular.schema.clone());
+                }
+            }
             _ => {}
         }
     }
