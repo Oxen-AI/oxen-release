@@ -61,12 +61,10 @@ pub fn show(
     let schema = if staged {
         get_staged(repo, path)?
     } else {
-
         match repositories::commits::head_commit_maybe(repo)? {
             Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, path)?,
             None => None,
         }
-
     };
 
     let Some(schema) = schema else {
@@ -120,7 +118,6 @@ pub fn add_schema_metadata(
 
     let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, path)?;
 
-
     let Some(mut schema) = schema else {
         return Err(OxenError::schema_does_not_exist(path));
     };
@@ -150,9 +147,7 @@ pub fn add_column_metadata(
     let head_commit = repositories::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
-
     let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, path)?;
-
 
     let mut all_schemas: HashMap<PathBuf, Schema> = HashMap::new();
     if let Some(schema) = schema {

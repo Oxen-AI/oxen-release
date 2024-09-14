@@ -356,7 +356,6 @@ pub fn add_file(
     )
 }
 
-
 pub fn process_add_file(
     repo_path: &Path,
     versions_path: &Path,
