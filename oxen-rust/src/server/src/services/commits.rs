@@ -23,6 +23,10 @@ pub fn commits() -> Scope {
         )
         .route("/all", web::get().to(controllers::commits::list_all))
         .route(
+            "/missing",
+            web::post().to(controllers::commits::list_missing),
+        )
+        .route(
             "/{commit_id}/latest_synced",
             web::get().to(controllers::commits::latest_synced),
         )

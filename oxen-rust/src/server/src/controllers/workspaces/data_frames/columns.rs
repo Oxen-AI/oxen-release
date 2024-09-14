@@ -5,11 +5,10 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
 use actix_web::{HttpRequest, HttpResponse};
-use liboxen::core::v0_10_0::index;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::Schema;
-
 use liboxen::opts::DFOpts;
+use liboxen::repositories;
 use liboxen::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
@@ -51,30 +50,31 @@ pub async fn create(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     log::debug!("create column with data {:?}", new_column);
 
     // Get the workspace
-    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
     // Make sure the data frame is indexed
-    let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
     let column_df =
-        index::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
+        repositories::workspaces::data_frames::columns::add(&workspace, &file_path, &new_column)?;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
     let column_df_source = DataFrameSchemaSize::from_df(&column_df, &column_schema);
     let column_df_view = JsonDataFrameView::from_df_opts(column_df, column_schema, &opts);
-    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+    let diff =
+        repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
     let mut df_views = JsonDataFrameViews {
         source: column_df_source,
         view: column_df_view,
     };
 
-    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+    repositories::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
         &workspace,
         &file_path,
         &mut df_views,
@@ -113,17 +113,20 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
     log::debug!("create column with data {:?}", column_to_delete);
 
     // Get the workspace
-    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
     // Make sure the data frame is indexed
-    let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df =
-        index::workspaces::data_frames::columns::delete(&workspace, &file_path, &column_to_delete)?;
+    let column_df = repositories::workspaces::data_frames::columns::delete(
+        &workspace,
+        &file_path,
+        &column_to_delete,
+    )?;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
@@ -135,9 +138,10 @@ pub async fn delete(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         view: column_df_view,
     };
 
-    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+    let diff =
+        repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
-    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+    repositories::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
         &workspace,
         &file_path,
         &mut df_views,
@@ -201,17 +205,20 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
     log::debug!("update column with data {:?}", column_to_update);
 
     // Get the workspace
-    let workspace = index::workspaces::get(&repo, &workspace_id)?;
+    let workspace = repositories::workspaces::get(&repo, &workspace_id)?;
 
     // Make sure the data frame is indexed
-    let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let column_df =
-        index::workspaces::data_frames::columns::update(&workspace, &file_path, &column_to_update)?;
+    let column_df = repositories::workspaces::data_frames::columns::update(
+        &workspace,
+        &file_path,
+        &column_to_update,
+    )?;
 
     let opts = DFOpts::empty();
     let column_schema = Schema::from_polars(&column_df.schema().clone());
@@ -223,13 +230,14 @@ pub async fn update(req: HttpRequest, body: String) -> Result<HttpResponse, Oxen
         view: column_df_view,
     };
 
-    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+    repositories::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
         &workspace,
         &file_path,
         &mut df_views,
     )?;
 
-    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+    let diff =
+        repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
     let response = JsonDataFrameColumnResponse {
         data_frame: df_views,
@@ -258,21 +266,22 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
 
     let repo = get_repo(&app_data.path, namespace, repo_name)?;
 
-    let workspace = index::workspaces::get(&repo, workspace_id)?;
+    let workspace = repositories::workspaces::get(&repo, workspace_id)?;
 
-    let is_editable = index::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
+    let is_editable = repositories::workspaces::data_frames::is_indexed(&workspace, &file_path)?;
 
     if !is_editable {
         return Err(OxenHttpError::DatasetNotIndexed(file_path.into()));
     }
 
-    let restored_column = index::workspaces::data_frames::columns::restore(
+    let restored_column = repositories::workspaces::data_frames::columns::restore(
         &workspace,
         &file_path,
         &column_to_restore,
     )?;
 
-    let diff = index::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
+    let diff =
+        repositories::workspaces::data_frames::columns::get_column_diff(&workspace, &file_path)?;
 
     let schema = Schema::from_polars(&restored_column.schema());
     log::debug!("Restored column in controller is {:?}", restored_column);
@@ -282,7 +291,7 @@ pub async fn restore(req: HttpRequest) -> Result<HttpResponse, OxenHttpError> {
         view: JsonDataFrameView::from_df_opts(restored_column, schema, &DFOpts::empty()),
     };
 
-    index::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
+    repositories::workspaces::data_frames::columns::decorate_fields_with_column_diffs(
         &workspace,
         &file_path,
         &mut df_views,

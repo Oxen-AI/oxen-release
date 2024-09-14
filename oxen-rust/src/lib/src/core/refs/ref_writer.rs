@@ -27,7 +27,8 @@ impl RefWriter {
         })
     }
 
-    pub fn set_head(&self, name: &str) {
+    pub fn set_head(&self, name: impl AsRef<str>) {
+        let name = name.as_ref();
         log::debug!(
             "RefWriter::set_head() name: {} head_file: {}",
             name,
@@ -36,7 +37,13 @@ impl RefWriter {
         util::fs::write_to_path(&self.head_file, name).expect("Could not write to head");
     }
 
-    pub fn create_branch(&self, name: &str, commit_id: &str) -> Result<Branch, OxenError> {
+    pub fn create_branch(
+        &self,
+        name: impl AsRef<str>,
+        commit_id: impl AsRef<str>,
+    ) -> Result<Branch, OxenError> {
+        let name = name.as_ref();
+        let commit_id = commit_id.as_ref();
         // Only create branch if it does not exist already
         log::debug!("create_branch {} -> {}", name, commit_id);
         if self.is_invalid_branch_name(name) {
@@ -109,7 +116,13 @@ impl RefWriter {
         Ok(branch)
     }
 
-    pub fn set_branch_commit_id(&self, name: &str, commit_id: &str) -> Result<(), OxenError> {
+    pub fn set_branch_commit_id(
+        &self,
+        name: impl AsRef<str>,
+        commit_id: impl AsRef<str>,
+    ) -> Result<(), OxenError> {
+        let name = name.as_ref();
+        let commit_id = commit_id.as_ref();
         log::debug!("self.refs_db.path {:?}", self.refs_db.path());
         log::debug!("self.refs_db.put {} -> {}", name, commit_id);
         self.refs_db.put(name, commit_id)?;

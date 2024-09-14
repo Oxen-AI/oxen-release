@@ -146,7 +146,6 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
 #[cfg(test)]
 mod tests {
     use crate::api;
-    use crate::command;
     use crate::constants::DEFAULT_BRANCH_NAME;
     use crate::error::OxenError;
     use crate::repositories;
@@ -273,9 +272,9 @@ mod tests {
             repositories::add(&repo, &world_file)?;
             repositories::commit(&repo, "Added world.txt")?;
 
-            // Make sure we have both commits after the initial
+            // Make sure we have both commits
             let commits = repositories::commits::list(&repo)?;
-            assert_eq!(commits.len(), 3);
+            assert_eq!(commits.len(), 2);
 
             let branches = repositories::branches::list(&repo)?;
             assert_eq!(branches.len(), 2);
@@ -331,9 +330,9 @@ mod tests {
             repositories::add(&repo, &world_file)?;
             repositories::commit(&repo, "Added world.txt")?;
 
-            // Make sure we have both commits after the initial
+            // Make sure we have both commits
             let commits = repositories::commits::list(&repo)?;
-            assert_eq!(commits.len(), 3);
+            assert_eq!(commits.len(), 2);
 
             let branches = repositories::branches::list(&repo)?;
             assert_eq!(branches.len(), 2);
@@ -408,13 +407,13 @@ mod tests {
     #[tokio::test]
     async fn test_command_checkout_modified_file_in_subdirectory() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Get the original branch name
-            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Track & commit the file
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
             repositories::add(&repo, &one_shot_path)?;
             repositories::commit(&repo, "Adding one shot")?;
+
+            // Get the original branch name
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Get OG file contents
             let og_content = util::fs::read_from_path(&one_shot_path)?;
@@ -451,13 +450,13 @@ mod tests {
     async fn test_command_checkout_modified_file_from_fully_committed_repo() -> Result<(), OxenError>
     {
         test::run_select_data_repo_test_no_commits_async("annotations", |repo| async move {
-            // Get the original branch name
-            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Track & commit all the data
             let one_shot_path = repo.path.join("annotations/train/one_shot.csv");
             repositories::add(&repo, &repo.path)?;
             repositories::commit(&repo, "Adding one shot")?;
+
+            // Get the original branch name
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Get OG file contents
             let og_content = util::fs::read_from_path(&one_shot_path)?;
@@ -496,9 +495,6 @@ mod tests {
     #[tokio::test]
     async fn test_command_remove_dir_then_revert() -> Result<(), OxenError> {
         test::run_select_data_repo_test_no_commits_async("train", |repo| async move {
-            // Get the original branch name
-            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // (dir already created in helper)
             let dir_to_remove = repo.path.join("train");
             let og_num_files = util::fs::rcount_files_in_dir(&dir_to_remove);
@@ -507,7 +503,10 @@ mod tests {
             repositories::add(&repo, &dir_to_remove)?;
             repositories::commit(&repo, "Adding train dir")?;
 
-            // Create a branch to make the changes
+            // Get the original branch name
+            let orig_branch = repositories::branches::current_branch(&repo)?.unwrap();
+
+            // Create a new branch to make the changes
             let branch_name = "feature/removing-train";
             repositories::branches::create_checkout(&repo, branch_name)?;
 
@@ -727,7 +726,7 @@ mod tests {
                 )
                 .await?;
 
-                command::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo, false).await?;
 
                 // Checkout the new branch
                 repositories::checkout(&cloned_repo, branch_name).await?;

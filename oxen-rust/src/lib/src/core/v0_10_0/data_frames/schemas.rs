@@ -10,68 +10,28 @@ use crate::core::v0_10_0::index::SchemaReader;
 use crate::core::v0_10_0::index::Stager;
 
 use crate::error::OxenError;
-use crate::model::{LocalRepository, Schema};
+use crate::model::{Commit, LocalRepository, Schema};
 use crate::repositories;
-use crate::util;
 
 use std::path::Path;
 
 pub fn list(
     repo: &LocalRepository,
-    commit_id: Option<&str>,
+    commit: &Commit,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
-    if let Some(commit_id) = commit_id {
-        if let Some(commit) = repositories::revisions::get(repo, commit_id)? {
-            let schema_reader = SchemaReader::new(repo, &commit.id)?;
-            schema_reader.list_schemas()
-        } else {
-            Err(OxenError::commit_id_does_not_exist(commit_id))
-        }
-    } else {
-        let head_commit = repositories::commits::head_commit(repo)?;
-        let schema_reader = SchemaReader::new(repo, &head_commit.id)?;
-        schema_reader.list_schemas()
-    }
-}
-
-pub fn get_by_path(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-) -> Result<Option<Schema>, OxenError> {
-    let path = path.as_ref();
-    log::debug!("here's our repo path: {:?}", repo.path);
-    let commit = repositories::commits::head_commit(repo)?;
     let schema_reader = SchemaReader::new(repo, &commit.id)?;
-    schema_reader.get_schema_for_file(path)
+    schema_reader.list_schemas()
 }
 
 /// Get a schema for a specific revision
-pub fn get_by_path_from_revision(
+pub fn get_by_path(
     repo: &LocalRepository,
-    revision: impl AsRef<str>,
+    commit: &Commit,
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
-    let revision = revision.as_ref();
     let path = path.as_ref();
-    log::debug!("Getting schema for {:?} at revision {}", path, revision);
-    if let Some(commit) = repositories::revisions::get(repo, revision)? {
-        log::debug!("Got commit {:?} at revision {}", commit.id, revision);
-        let schema_reader = SchemaReader::new(repo, &commit.id)?;
-        schema_reader.get_schema_for_file(path)
-    } else {
-        Err(OxenError::revision_not_found(revision.into()))
-    }
-}
-
-pub fn get_by_hash(repo: &LocalRepository, hash: String) -> Result<Option<Schema>, OxenError> {
-    let version_path = util::fs::version_path_from_schema_hash(repo.path.clone(), hash);
-    // Read schema from that path
-    if version_path.exists() {
-        let schema: Schema = serde_json::from_reader(std::fs::File::open(version_path)?)?;
-        Ok(Some(schema))
-    } else {
-        Ok(None)
-    }
+    let schema_reader = SchemaReader::new(repo, &commit.id)?;
+    schema_reader.get_schema_for_file(path)
 }
 
 /// Get a staged schema
@@ -90,16 +50,6 @@ pub fn list_staged(repo: &LocalRepository) -> Result<HashMap<PathBuf, Schema>, O
     stager.list_staged_schemas()
 }
 
-/// Get the current schema for a given schema ref
-pub fn get_from_head(
-    repo: &LocalRepository,
-    path: impl AsRef<Path>,
-) -> Result<Option<Schema>, OxenError> {
-    let path = path.as_ref();
-    let commit = repositories::commits::head_commit(repo)?;
-    repositories::data_frames::schemas::get_by_path_from_revision(repo, &commit.id, path)
-}
-
 /// Get a string representation of the schema given a schema ref
 pub fn show(
     repo: &LocalRepository,
@@ -111,8 +61,12 @@ pub fn show(
     let schema = if staged {
         get_staged(repo, path)?
     } else {
-        let commit = repositories::commits::head_commit(repo)?;
-        repositories::data_frames::schemas::get_by_path_from_revision(repo, &commit.id, path)?
+
+        match repositories::commits::head_commit_maybe(repo)? {
+            Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, &path)?,
+            None => None,
+        }
+
     };
 
     let Some(schema) = schema else {
@@ -139,13 +93,8 @@ pub fn show(
     Ok(results)
 }
 
-/// Set the name of a schema
-pub fn set_name(repo: &LocalRepository, hash: &str, val: &str) -> Result<(), OxenError> {
-    let stager = Stager::new(repo)?;
-    stager.update_schema_names_for_hash(hash, val)
-}
-
-/// Remove a schema override from the staging area, TODO: Currently undefined behavior for non-staged schemas
+/// Remove a schema override from the staging area
+/// TODO: Currently undefined behavior for non-staged schemas
 pub fn rm(repo: &LocalRepository, path: impl AsRef<Path>, staged: bool) -> Result<(), OxenError> {
     let path = path.as_ref();
     if !staged {
@@ -168,8 +117,9 @@ pub fn add_schema_metadata(
 
     let mut results = HashMap::new();
     let stager = Stager::new(repo)?;
-    let schema =
-        repositories::data_frames::schemas::get_by_path_from_revision(repo, &head_commit.id, path)?;
+
+    let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, &path)?;
+
 
     let Some(mut schema) = schema else {
         return Err(OxenError::schema_does_not_exist(path));
@@ -200,8 +150,9 @@ pub fn add_column_metadata(
     let head_commit = repositories::commits::head_commit(repo)?;
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
-    let schema =
-        repositories::data_frames::schemas::get_by_path_from_revision(repo, &head_commit.id, path)?;
+
+    let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, &path)?;
+
 
     let mut all_schemas: HashMap<PathBuf, Schema> = HashMap::new();
     if let Some(schema) = schema {

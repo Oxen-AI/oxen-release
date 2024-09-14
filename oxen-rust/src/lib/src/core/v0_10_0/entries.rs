@@ -19,7 +19,6 @@ use os_path::OsPath;
 
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
-use crate::core::v0_10_0::index;
 use crate::core::v0_10_0::index::ObjectDBReader;
 use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, CommitReader};
 use crate::model::{
@@ -447,10 +446,10 @@ pub fn meta_entry_from_commit_entry(
 
     let is_indexed = if data_type == EntryDataType::Tabular {
         Some(
-            index::workspaces::data_frames::is_queryable_data_frame_indexed(
+            repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
                 repo,
-                &entry.path,
                 &latest_commit,
+                &entry.path,
             )?,
         )
     } else {
