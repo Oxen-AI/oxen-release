@@ -158,6 +158,9 @@ pub const DIFF_HASH_COL: &str = "_oxen_diff_hash";
 pub const AVG_CHUNK_SIZE: u64 = 1024 * 1024 * 4;
 // Retry and back off of requests N times
 /// Retry and back off of requests N times
+#[cfg(test)]
+pub const NUM_HTTP_RETRIES: u64 = 1;
+#[cfg(not(test))]
 pub const NUM_HTTP_RETRIES: u64 = 10;
 /// Number of workers
 pub const DEFAULT_NUM_WORKERS: usize = 8;
