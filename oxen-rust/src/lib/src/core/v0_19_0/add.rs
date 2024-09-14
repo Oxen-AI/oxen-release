@@ -215,7 +215,7 @@ fn process_add_dir(
         let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-        // Curious why this is only < 300% CPU usage
+        // TODO: Parallelize this
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
             if let Ok(dir_entry) = dir_entry_result {
                 log::debug!("Dir Entry is: {dir_entry:?}");
@@ -356,8 +356,8 @@ pub fn add_file(
     )
 }
 
-// Need to ensure this function never gets called with a non-existant path unless that path has intentionally been removed
-fn process_add_file(
+
+pub fn process_add_file(
     repo_path: &Path,
     versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
@@ -387,22 +387,6 @@ fn process_add_file(
         // first check if the file timestamp is different
         let metadata = std::fs::metadata(path)?;
         let mtime = FileTime::from_last_modification_time(&metadata);
-        log::debug!("path: {:?}", path);
-        log::debug!(
-            "file_node.last_modified_seconds: {}",
-            file_node.last_modified_seconds
-        );
-        log::debug!(
-            "file_node.last_modified_nanoseconds: {}",
-            file_node.last_modified_nanoseconds
-        );
-        log::debug!("mtime.unix_seconds(): {}", mtime.unix_seconds());
-        log::debug!("mtime.nanoseconds(): {}", mtime.nanoseconds());
-        log::debug!(
-            "has_different_modification_time: {}",
-            has_different_modification_time(&file_node, &mtime)
-        );
-        log::debug!("-----------------------------------");
         if has_different_modification_time(&file_node, &mtime) {
             let hash = util::hasher::get_hash_given_metadata(&full_path, &metadata)?;
             if file_node.hash.to_u128() != hash {

@@ -7,14 +7,17 @@ pub mod clone;
 pub mod commits;
 pub mod data_frames;
 pub mod entries;
+pub mod fetch;
 pub mod index;
 pub mod init;
 pub mod metadata;
 pub mod pull;
 pub mod push;
+pub mod restore;
 pub mod rm;
 pub mod status;
 pub mod structs;
+pub mod workspaces;
 
 pub use add::add;
 pub use commits::commit;

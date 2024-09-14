@@ -355,11 +355,7 @@ impl StagedData {
         self.__collapse_outputs(
             &files_vec,
             |(path, staged_schema)| {
-                let schema_ref = if let Some(name) = &staged_schema.schema.name {
-                    name
-                } else {
-                    &staged_schema.schema.hash
-                };
+                let schema_ref = &staged_schema.schema.hash;
 
                 match staged_schema.status {
                     StagedEntryStatus::Removed => {

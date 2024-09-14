@@ -40,7 +40,10 @@ pub fn get_by_name_or_current(
     } else {
         match repositories::branches::current_branch(repo)? {
             Some(branch) => Ok(branch),
-            None => Err(OxenError::must_be_on_valid_branch()),
+            None => {
+                log::error!("get_by_name_or_current No current branch found");
+                Err(OxenError::must_be_on_valid_branch())
+            }
         }
     }
 }
@@ -241,7 +244,7 @@ pub fn is_locked(repo: &LocalRepository, name: &str) -> Result<bool, OxenError> 
         name,
         branch_lock_file.display()
     );
-    // Branch is locked if file eixsts
+    // Branch is locked if file exists
     Ok(branch_lock_file.exists())
 }
 
@@ -315,6 +318,7 @@ pub fn unlock(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
 
 /// Checkout a branch
 pub async fn checkout_branch(repo: &LocalRepository, name: &str) -> Result<(), OxenError> {
+    log::debug!("checkout_branch {}", name);
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::branches::checkout(repo, name).await,
         MinOxenVersion::V0_19_0 => core::v0_19_0::branches::checkout(repo, name).await,
@@ -337,6 +341,7 @@ pub async fn checkout_commit_id(
 }
 
 pub fn set_head(repo: &LocalRepository, value: &str) -> Result<(), OxenError> {
+    log::debug!("set_head {}", value);
     let ref_writer = RefWriter::new(repo)?;
     ref_writer.set_head(value);
     Ok(())
@@ -371,6 +376,7 @@ pub fn rename_current_branch(repo: &LocalRepository, new_name: &str) -> Result<(
         ref_writer.set_head(new_name);
         Ok(())
     } else {
+        log::error!("rename_current_branch No current branch found");
         Err(OxenError::must_be_on_valid_branch())
     }
 }

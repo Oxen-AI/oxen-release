@@ -55,7 +55,9 @@ pub fn get_slice(
 
     // Try to get the schema from the merkle tree
     let og_schema = if let Some(schema) =
-        repositories::data_frames::schemas::get_by_path_from_revision(repo, &commit.id, path)?
+
+        repositories::data_frames::schemas::get_by_path(&repo, &commit, &path)?
+
     {
         schema
     } else {
@@ -135,18 +137,16 @@ fn handle_sql_querying(
     }
 
     if let (Some(sql), Some(workspace)) = (opts.sql.clone(), workspace) {
-        let db_path = index::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
+        let db_path = repositories::workspaces::data_frames::duckdb_path(&workspace, &entry.path);
         let mut conn = df_db::get_connection(db_path)?;
 
         let mut slice_schema = df_db::get_schema(&conn, DUCKDB_DF_TABLE_NAME)?;
         let df = sql::query_df(sql, &mut conn)?;
 
         let source_schema = if let Some(schema) =
-            repositories::data_frames::schemas::get_by_path_from_revision(
-                repo,
-                &workspace.commit.id,
-                path,
-            )? {
+            repositories::data_frames::schemas::get_by_path(repo, &workspace.commit, &path)?
+        {
+
             schema
         } else {
             Schema::from_polars(&df.schema())

@@ -243,10 +243,7 @@ impl ObjectsSchemaReader {
         for (path, schema) in all_schemas.iter() {
             log::debug!("list_schemas_for_ref path {:?}", path);
             log::debug!("list_schemas_for_ref schema {:?}", schema);
-            if path.to_string_lossy() == schema_ref.as_ref()
-                || schema.hash == schema_ref.as_ref()
-                || schema.name == Some(schema_ref.as_ref().to_string())
-            {
+            if path.to_string_lossy() == schema_ref.as_ref() || schema.hash == schema_ref.as_ref() {
                 found_schemas.insert(path.clone(), schema.clone());
             }
         }

@@ -32,7 +32,7 @@ pub async fn get(
     let entry = repositories::entries::get_file(&repo, &commit, &path)?;
     let entry = entry.ok_or(OxenError::path_does_not_exist(path.clone()))?;
 
-    let version_path = util::fs::version_path_from_hash(&repo, &entry.hash);
+    let version_path = util::fs::version_path_from_hash(&repo, &entry.hash.to_string());
 
     log::debug!("version path {version_path:?}",);
 

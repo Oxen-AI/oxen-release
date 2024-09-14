@@ -10,10 +10,14 @@ use crate::core::db;
 use crate::core::v0_19_0::index::MerkleNodeDB;
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
-use crate::model::merkle_tree::node::MerkleTreeNode;
+
+use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
+
 
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, MerkleHash, MerkleTreeNodeType};
+use crate::model::Commit;
+use crate::model::{LocalRepository, MerkleHash, MerkleTreeNodeType};
+
 use crate::util;
 
 use std::str::FromStr;
@@ -104,7 +108,9 @@ impl CommitMerkleTree {
         let node_path = path.as_ref();
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        log::debug!("dir_without_children: dir_hashes: {:?}", dir_hashes);
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+        log::debug!("dir_without_children: node_hash: {:?}", node_hash);
         if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);
@@ -128,6 +134,25 @@ impl CommitMerkleTree {
             log::debug!("Look up dir 🗂️ {:?}", node_path);
             // Read the node at depth 2 to get VNodes and Sub-Files/Dirs
             CommitMerkleTree::read_depth(repo, &node_hash, 2)
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub fn dir_with_children_recursive(
+        repo: &LocalRepository,
+        commit: &Commit,
+        path: impl AsRef<Path>,
+    ) -> Result<Option<MerkleTreeNode>, OxenError> {
+        let node_path = path.as_ref();
+        log::debug!("Read path {:?} in commit {:?}", node_path, commit);
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+        if let Some(node_hash) = node_hash {
+            // We are reading a node with children
+            log::debug!("Look up dir 🗂️ {:?}", node_path);
+            // Read the node at depth 2 to get VNodes and Sub-Files/Dirs
+            CommitMerkleTree::read_node(repo, &node_hash, true)
         } else {
             Ok(None)
         }
@@ -172,6 +197,8 @@ impl CommitMerkleTree {
     }
 
     /// The dir hashes allow you to skip to a directory in the tree
+    ///
+    /// HERE HERE
     pub fn dir_hashes(
         repo: &LocalRepository,
         commit: &Commit,
@@ -211,10 +238,7 @@ impl CommitMerkleTree {
         for path in paths.iter() {
             // Skip to the nodes
             let Some(hash) = dir_hashes.get(path) else {
-                return Err(OxenError::basic_str(format!(
-                    "Dir hash not found for path: {:?}",
-                    path
-                )));
+                continue;
             };
             log::debug!("Loading node for path: {:?} hash: {}", path, hash);
             let Some(node) = CommitMerkleTree::read_depth(repo, hash, 2)? else {
@@ -287,8 +311,101 @@ impl CommitMerkleTree {
         Ok(children)
     }
 
+    /// Get the root directory node given a commit node
+    pub fn get_root_dir_from_commit(node: &MerkleTreeNode) -> Result<&MerkleTreeNode, OxenError> {
+        if node.node.dtype() != MerkleTreeNodeType::Commit {
+            return Err(OxenError::basic_str(format!(
+                "Expected a commit node, but got: '{:?}'",
+                node.node.dtype()
+            )));
+        }
+
+        // A commit node should have exactly one child, which is the root directory
+        if node.children.len() != 1 {
+            return Err(OxenError::basic_str(
+                "Commit node should have exactly one child (root directory)",
+            ));
+        }
+
+        let root_dir = &node.children[0];
+        if root_dir.node.dtype() != MerkleTreeNodeType::Dir {
+            return Err(OxenError::basic_str(format!(
+                "The child of a commit node should be a directory, but got: '{:?}'",
+                root_dir.node.dtype()
+            )));
+        }
+
+        Ok(root_dir)
+    }
+
     pub fn total_vnodes(&self) -> usize {
         self.root.total_vnodes()
+    }
+
+    pub fn dir_entries(node: &MerkleTreeNode) -> Result<Vec<FileNode>, OxenError> {
+        let mut file_entries = Vec::new();
+
+        match &node.node {
+            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                for child in &node.children {
+                    match &child.node {
+                        EMerkleTreeNode::File(file_node) => {
+                            file_entries.push(file_node.clone());
+                        }
+                        EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                            file_entries.extend(Self::dir_entries(child)?);
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(file_entries)
+            }
+            EMerkleTreeNode::File(file_node) => Ok(vec![file_node.clone()]),
+            _ => Err(OxenError::basic_str(format!(
+                "Unexpected node type: {:?}",
+                node.node.dtype()
+            ))),
+        }
+    }
+
+    pub fn dir_entries_with_paths(
+        node: &MerkleTreeNode,
+        base_path: &PathBuf,
+    ) -> Result<Vec<(FileNode, PathBuf)>, OxenError> {
+        let mut entries = Vec::new();
+
+        match &node.node {
+            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                for child in &node.children {
+                    match &child.node {
+                        EMerkleTreeNode::File(file_node) => {
+                            let file_path = base_path.join(&file_node.name);
+                            entries.push((file_node.clone(), file_path));
+                        }
+                        EMerkleTreeNode::Directory(dir_node) => {
+                            let new_base_path = base_path.join(&dir_node.name);
+                            entries.extend(Self::dir_entries_with_paths(child, &new_base_path)?);
+                        }
+                        EMerkleTreeNode::VNode(_vnode) => {
+                            entries.extend(Self::dir_entries_with_paths(child, base_path)?);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            EMerkleTreeNode::File(file_node) => {
+                let file_path = base_path.join(&file_node.name);
+                entries.push((file_node.clone(), file_path));
+            }
+            _ => {
+                return Err(OxenError::basic_str(format!(
+                    "Unexpected node type: {:?}",
+                    node.node.dtype()
+                )))
+            }
+        }
+
+        Ok(entries)
     }
 
     /// This uses the dir_hashes db to skip right to a file in the tree
@@ -330,7 +447,7 @@ impl CommitMerkleTree {
             dir_node.children.len()
         );
 
-        dir_node.get_by_path(path)
+        dir_node.get_by_path(file_name)
     }
 
     fn read_children_until_depth(
