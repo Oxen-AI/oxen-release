@@ -117,8 +117,8 @@ async fn push_to_new_branch(
 
     // Push each node, and all their file children
     for commit in commits {
-        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
-        r_push_node(repo, remote_repo, &commit, &tree.root, progress).await?;
+        let tree = CommitMerkleTree::from_commit(repo, commit)?;
+        r_push_node(repo, remote_repo, commit, &tree.root, progress).await?;
     }
 
     // TODO: Do we want a final API call to send the commit?

@@ -109,7 +109,7 @@ pub fn status_from_dir_entries(
                     staged_data
                         .staged_files
                         .insert(PathBuf::from(&node.name), staged_entry);
-                    maybe_add_schemas(&node, &mut staged_data)?;
+                    maybe_add_schemas(node, &mut staged_data)?;
                 }
                 _ => {
                     return Err(OxenError::basic_str(format!(
@@ -128,17 +128,14 @@ pub fn status_from_dir_entries(
 }
 
 fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
-    match &node.metadata {
-        Some(GenericMetadata::MetadataTabular(m)) => {
-            let schema = m.tabular.schema.clone();
-            let path = PathBuf::from(&node.name);
-            let staged_schema = StagedSchema {
-                schema: schema,
-                status: StagedEntryStatus::Added,
-            };
-            staged_data.staged_schemas.insert(path, staged_schema);
-        }
-        _ => {}
+    if let Some(GenericMetadata::MetadataTabular(m)) = &node.metadata {
+        let schema = m.tabular.schema.clone();
+        let path = PathBuf::from(&node.name);
+        let staged_schema = StagedSchema {
+            schema,
+            status: StagedEntryStatus::Added,
+        };
+        staged_data.staged_schemas.insert(path, staged_schema);
     }
 
     Ok(())

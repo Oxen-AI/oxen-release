@@ -68,7 +68,7 @@ pub fn commit(
     let commit = core::v0_19_0::index::commit_writer::commit_dir_entries(
         &workspace.base_repo,
         dir_entries,
-        &new_commit,
+        new_commit,
         &staged_db_path,
         &commit_progress_bar,
     )?;

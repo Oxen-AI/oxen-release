@@ -146,7 +146,7 @@ fn new_r_validate_complete_merkle_node(
 
             let maybe_schema = repositories::data_frames::schemas::get_by_path(
                 repository,
-                &commit,
+                commit,
                 schema_path.clone(),
             )?;
 
@@ -394,7 +394,7 @@ fn r_validate_changed_parts_of_merkle_node(
 
             let maybe_schema = repositories::data_frames::schemas::get_by_path(
                 repository,
-                &commit,
+                commit,
                 schema_path.clone(),
             )?;
 

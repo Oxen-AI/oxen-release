@@ -63,7 +63,7 @@ pub fn show(
     } else {
 
         match repositories::commits::head_commit_maybe(repo)? {
-            Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, &path)?,
+            Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, path)?,
             None => None,
         }
 
@@ -118,7 +118,7 @@ pub fn add_schema_metadata(
     let mut results = HashMap::new();
     let stager = Stager::new(repo)?;
 
-    let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, &path)?;
+    let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, path)?;
 
 
     let Some(mut schema) = schema else {
@@ -151,7 +151,7 @@ pub fn add_column_metadata(
     log::debug!("add_column_metadata head_commit: {}", head_commit);
 
 
-    let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, &path)?;
+    let schema = repositories::data_frames::schemas::get_by_path(repo, &head_commit, path)?;
 
 
     let mut all_schemas: HashMap<PathBuf, Schema> = HashMap::new();
