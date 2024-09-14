@@ -22,7 +22,7 @@ use crate::{current_function, util};
 // use crate::util::ReadProgress;
 use crate::view::{
     CommitResponse, IsValidStatusMessage, ListCommitResponse, MerkleHashesResponse,
-    PaginatedCommits, StatusMessage,
+    PaginatedCommits, RootCommitResponse, StatusMessage,
 };
 
 use std::collections::HashSet;
@@ -364,7 +364,9 @@ pub async fn download_commits_db_to_repo(
     Ok(writer.commits_db.path().to_path_buf())
 }
 
-pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenError> {
+pub async fn root_commit_maybe(
+    remote_repo: &RemoteRepository,
+) -> Result<Option<Commit>, OxenError> {
     let uri = "/commits/root".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     log::debug!("remote::commits::root_commit {}", url);
@@ -373,7 +375,7 @@ pub async fn root_commit(remote_repo: &RemoteRepository) -> Result<Commit, OxenE
     if let Ok(res) = client.get(&url).send().await {
         let body = client::parse_json_body(&url, res).await?;
         log::debug!("api::client::commits::root_commit Got response {}", body);
-        let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RootCommitResponse, serde_json::Error> = serde_json::from_str(&body);
         match response {
             Ok(j_res) => Ok(j_res.commit),
             Err(err) => Err(OxenError::basic_str(format!(
@@ -394,8 +396,15 @@ pub async fn can_push(
     // Before we do this, need to ensure that we are working in the same repo
     // If we don't, downloading the commits db in the next step
     // will mess up the local commit history by merging two different repos
-    let local_root = repositories::commits::root_commit(local_repo)?;
-    let remote_root = api::client::commits::root_commit(remote_repo).await?;
+
+    let Some(local_root) = repositories::commits::root_commit_maybe(local_repo)? else {
+        log::warn!("Local repository has no root commit, nothing to push");
+        return Ok(false);
+    };
+    let Some(remote_root) = api::client::commits::root_commit_maybe(remote_repo).await? else {
+        log::info!("Remote repository has no root commit, we can push");
+        return Ok(true);
+    };
 
     if local_root.id != remote_root.id {
         return Err(OxenError::basic_str(

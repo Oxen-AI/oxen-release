@@ -661,11 +661,11 @@ mod tests {
 
             // Branch name
 
-            // Nothing should be synced on remote and no commit objects created except root
+            // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
-            assert_eq!(history.len(), 1);
+            assert_eq!(history.len(), 0);
 
             // Push all to remote
             repositories::push(&local_repo).await?;
