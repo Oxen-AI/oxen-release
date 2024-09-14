@@ -112,9 +112,10 @@ fn root_commit_recursive(
             return Ok(commit);
         }
 
-        for parent_id in commit.parent_ids {
-            let parent_id = MerkleHash::from_str(&parent_id)?;
-            root_commit_recursive(repo, parent_id)?;
+        // Only need to check the first parent, as all paths lead to the root
+        if let Some(parent_id) = commit.parent_ids.first() {
+            let parent_id = MerkleHash::from_str(parent_id)?;
+            return root_commit_recursive(repo, parent_id);
         }
     }
     Err(OxenError::basic_str("No root commit found"))
