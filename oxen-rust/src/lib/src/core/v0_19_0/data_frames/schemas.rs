@@ -55,13 +55,12 @@ fn r_list_schemas(
                 let child_path = current_path.as_ref().join(&dir_node.name);
                 r_list_schemas(repo, child, child_path, schemas)?;
             }
-            EMerkleTreeNode::File(file_node) => match &file_node.metadata {
-                Some(GenericMetadata::MetadataTabular(metadata)) => {
+            EMerkleTreeNode::File(file_node) => {
+                if let Some(GenericMetadata::MetadataTabular(metadata)) = &file_node.metadata {
                     let child_path = current_path.as_ref().join(&file_node.name);
                     schemas.insert(child_path, metadata.tabular.schema.clone());
                 }
-                _ => {}
-            },
+            }
             _ => {}
         }
     }
@@ -74,13 +73,13 @@ pub fn get_by_path(
     path: impl AsRef<Path>,
 ) -> Result<Option<Schema>, OxenError> {
     let path = path.as_ref();
-    let node = repositories::tree::get_file_by_path(repo, commit, &path)?;
+    let node = repositories::tree::get_file_by_path(repo, commit, path)?;
     let Some(node) = node else {
-        return Err(OxenError::path_does_not_exist(&path));
+        return Err(OxenError::path_does_not_exist(path));
     };
 
     let Some(GenericMetadata::MetadataTabular(metadata)) = &node.metadata else {
-        return Err(OxenError::path_does_not_exist(&path));
+        return Err(OxenError::path_does_not_exist(path));
     };
 
     Ok(Some(metadata.tabular.schema.clone()))
@@ -99,7 +98,7 @@ pub fn get_staged(
     match db.get(bytes) {
         Ok(Some(value)) => {
             let schema = db_val_to_schema(&value)?;
-            return Ok(Some(schema));
+            Ok(Some(schema))
         }
         _ => {
             log::debug!("could not get staged schema");
@@ -165,7 +164,7 @@ pub fn rm(repo: &LocalRepository, path: impl AsRef<Path>, staged: bool) -> Resul
     let path = path.as_ref();
     let db = get_staged_db(repo)?;
     let key = path.to_string_lossy();
-    db.delete(&key.as_bytes())?;
+    db.delete(key.as_bytes())?;
 
     Ok(())
 }

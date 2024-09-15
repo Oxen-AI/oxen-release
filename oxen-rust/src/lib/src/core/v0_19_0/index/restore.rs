@@ -214,7 +214,7 @@ fn do_restore_file(
         + std::time::Duration::from_secs(
             last_modified_seconds
                 .try_into()
-                .map_err(|e: std::num::TryFromIntError| OxenError::basic_str(&e.to_string()))?,
+                .map_err(|e: std::num::TryFromIntError| OxenError::basic_str(e.to_string()))?,
         );
     filetime::set_file_mtime(
         &working_path,
