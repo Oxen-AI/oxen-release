@@ -80,7 +80,7 @@ pub fn list_missing_node_hashes(
 ) -> Result<HashSet<MerkleHash>, OxenError> {
     let mut results = HashSet::new();
     for hash in hashes {
-        let dir_prefix = node_db_path(&repo, hash);
+        let dir_prefix = node_db_path(repo, hash);
         if dir_prefix.exists() {
             results.insert(*hash);
         }
