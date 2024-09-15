@@ -46,7 +46,7 @@ pub fn select(
         .where_clause(&format!("directory = '{}'", directory.to_string_lossy()))
         .offset(&offset.to_string())
         .limit(&limit.to_string())
-        .from(&table_name);
+        .from(table_name);
 
     let df = df_db::select(&conn, &stmt, false, None, None)?;
     Ok(df)
@@ -72,7 +72,7 @@ pub fn full_size(
     for dir in dirs {
         num_rows += df_db::count_where(
             &conn,
-            &table_name,
+            table_name,
             format!("directory = '{}'", dir.to_string_lossy()),
         )?;
     }

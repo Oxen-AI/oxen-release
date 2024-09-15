@@ -144,7 +144,7 @@ pub async fn list_missing_hashes(
     remote_repo: &RemoteRepository,
     commit_hashes: &HashSet<MerkleHash>,
 ) -> Result<HashSet<MerkleHash>, OxenError> {
-    let uri = format!("/commits/missing");
+    let uri = "/commits/missing".to_string();
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
     let client = client::new_for_url(&url)?;
     let res = client.post(&url).json(&commit_hashes).send().await?;
