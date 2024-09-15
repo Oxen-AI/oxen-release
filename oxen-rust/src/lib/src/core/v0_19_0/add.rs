@@ -63,8 +63,6 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             paths.insert(path.to_owned());
         }
     }
-    println!("asdf");
-
     let stats = add_files(repo, &paths)?;
 
     // Stop the timer, and round the duration to the nearest second
