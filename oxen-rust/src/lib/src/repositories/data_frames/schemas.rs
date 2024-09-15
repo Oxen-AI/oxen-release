@@ -20,8 +20,8 @@ pub fn list(
     commit: &Commit,
 ) -> Result<HashMap<PathBuf, Schema>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::list(repo, &commit),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::list(repo, &commit),
+        MinOxenVersion::V0_10_0 => core::v0_10_0::data_frames::schemas::list(repo, commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::data_frames::schemas::list(repo, commit),
     }
 }
 
@@ -71,7 +71,7 @@ pub fn show(
         get_staged(repo, path)?
     } else {
         match repositories::commits::head_commit_maybe(repo)? {
-            Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, &path)?,
+            Some(commit) => repositories::data_frames::schemas::get_by_path(repo, &commit, path)?,
             None => None,
         }
     };

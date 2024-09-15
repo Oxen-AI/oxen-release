@@ -71,11 +71,11 @@ pub async fn fetch_remote_branch(
         MinOxenVersion::V0_10_0 => {
             let indexer = core::v0_10_0::index::EntryIndexer::new(repo)?;
             indexer
-                .pull_most_recent_commit_object(&remote_repo, &rb, false)
+                .pull_most_recent_commit_object(remote_repo, rb, false)
                 .await?;
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::fetch::fetch_remote_branch(&repo, &remote_repo, &rb, all).await?;
+            core::v0_19_0::fetch::fetch_remote_branch(repo, remote_repo, rb, all).await?;
         }
     }
 

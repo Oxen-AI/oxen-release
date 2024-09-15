@@ -4,15 +4,13 @@
 //!
 
 use std::collections::HashSet;
-use std::path::PathBuf;
 
-use crate::constants::OXEN_HIDDEN_DIR;
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::LocalRepository;
 use crate::opts::RmOpts;
-use crate::repositories;
+use std::path::{Path, PathBuf};
 
 use glob::glob;
 
@@ -20,39 +18,86 @@ use crate::util;
 
 /// Removes the path from the index
 pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
-    let commit = repositories::commits::head_commit(repo)?;
-    let path = &opts.path;
+    log::debug!("Rm with opts: {opts:?}");
+    let path: &Path = opts.path.as_ref();
+    let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
 
-    let mut paths: HashSet<PathBuf> = HashSet::new();
-    if let Some(path_str) = path.to_str() {
-        if util::fs::is_glob_path(path_str) {
-            // Match against any entries in the current dir, excluding .oxen
-            for entry in glob(path_str)? {
-                let entry = entry?;
-                if !entry.starts_with(OXEN_HIDDEN_DIR) {
-                    paths.insert(entry);
-                }
-            }
-            let pattern_entries = repositories::commits::search_entries(repo, &commit, path_str)?;
-            paths.extend(pattern_entries);
-        } else {
-            paths.insert(path.to_owned());
-        }
-    }
-
-    for path in paths {
-        let opts = RmOpts::from_path_opts(path, opts);
-        p_rm(repo, &opts).await?;
-    }
+    p_rm(&paths, repo, opts).await?;
 
     Ok(())
 }
 
-async fn p_rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> {
+async fn p_rm(
+    paths: &HashSet<PathBuf>,
+    repo: &LocalRepository,
+    opts: &RmOpts,
+) -> Result<(), OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::index::rm(repo, opts).await,
-        MinOxenVersion::V0_19_0 => core::v0_19_0::rm(repo, opts).await,
+        MinOxenVersion::V0_10_0 => {
+            for path in paths {
+                let opts = RmOpts::from_path_opts(path, opts);
+                core::v0_10_0::index::rm(repo, &opts).await?;
+            }
+        }
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::rm(paths, repo, opts).await?;
+        }
     }
+    Ok(())
+}
+
+// TODO: Should removing dirs from staged require -r?
+// Collect paths for removal. Returns error if dir found and -r not set
+fn parse_glob_path(
+    path: &Path,
+    repo: &LocalRepository,
+    opts: &RmOpts,
+) -> Result<HashSet<PathBuf>, OxenError> {
+    let mut paths: HashSet<PathBuf> = HashSet::new();
+    log::debug!("Parsing paths: {path:?}");
+
+    if opts.recursive | opts.staged {
+        if let Some(path_str) = path.to_str() {
+            if util::fs::is_glob_path(path_str) {
+                // Match against any untracked entries in the current dir
+
+                for entry in glob(path_str)? {
+                    let full_path = repo.path.join(entry?);
+                    paths.insert(full_path);
+                }
+            } else {
+                // Non-glob path
+                let full_path = repo.path.join(path);
+                paths.insert(path.to_owned());
+            }
+        }
+    } else if let Some(path_str) = path.to_str() {
+        if util::fs::is_glob_path(path_str) {
+            for entry in glob(path_str)? {
+                let full_path = repo.path.join(entry?);
+
+                if full_path.is_dir() {
+                    let error = format!("`oxen rm` on directory {path:?} requires -r");
+                    return Err(OxenError::basic_str(error));
+                }
+
+                paths.insert(full_path);
+            }
+        } else {
+            // Non-glob path
+
+            if path.is_dir() {
+                let error = format!("`oxen rm` on directory {path:?} requires -r");
+                return Err(OxenError::basic_str(error));
+            }
+
+            let full_path = repo.path.join(path);
+            paths.insert(full_path.to_owned());
+        }
+    }
+
+    log::debug!("parse_glob_paths: {paths:?}");
+    Ok(paths)
 }
 
 #[cfg(test)]
@@ -162,6 +207,150 @@ mod tests {
             for i in 1..=3 {
                 let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
                 assert!(!repo_filepath.exists())
+            }
+
+            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
+            assert_eq!(entries.len(), 0);
+
+            let dir_reader = CommitEntryReader::new(&repo, &commit)?;
+            let dirs = dir_reader.list_dirs()?;
+            for dir in dirs.iter() {
+                println!("dir: {:?}", dir);
+            }
+
+            // Should just be the root dir, we removed the images and images/cat dir
+            assert_eq!(dirs.len(), 1);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn test_rm_multi_level_directory() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|repo| async move {
+            // create the images directory
+            let images_dir = repo.path.join("images").join("cats");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // create several levels of subdirectories
+            for i in 1..=3 {
+                let sub_dir = repo
+                    .path
+                    .join("images")
+                    .join("cats")
+                    .join("subdir{i}_level_1");
+                util::fs::create_dir_all(&images_dir)?;
+            }
+
+            for i in 1..=2 {
+                let sub_dir = repo
+                    .path
+                    .join("images")
+                    .join("cats")
+                    .join("subdir{i}_level_1")
+                    .join("subdir{i}_level_2");
+                util::fs::create_dir_all(&images_dir)?;
+            }
+
+            for i in 1..=1 {
+                let sub_dir = repo
+                    .path
+                    .join("images")
+                    .join("cats")
+                    .join("subdir{i}_level_1")
+                    .join("subdir{i}_level_2")
+                    .join("subdir{i}_level_3");
+                util::fs::create_dir_all(&images_dir)?;
+            }
+
+            // Add and commit the cats to every subdirectory
+            for i in 1..=3 {
+                let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+                util::fs::copy(&test_file, &repo_filepath)?;
+            }
+
+            for j in 1..3 {
+                for i in 1..=3 {
+                    let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join(test_file.file_name().unwrap());
+                    util::fs::copy(&test_file, &repo_filepath)?;
+                }
+            }
+
+            for j in 1..2 {
+                for i in 1..=3 {
+                    let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join(test_file.file_name().unwrap());
+                    util::fs::copy(&test_file, &repo_filepath)?;
+                }
+            }
+
+            for j in 1..1 {
+                for i in 1..=3 {
+                    let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join("subdir{j}_level_3")
+                        .join(test_file.file_name().unwrap());
+                    util::fs::copy(&test_file, &repo_filepath)?;
+                }
+            }
+
+            repositories::add(&repo, &images_dir)?;
+            repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Create branch
+            let branch_name = "remove-data";
+            repositories::branches::create_checkout(&repo, branch_name)?;
+
+            // Remove all the cat images and subdirectories
+            let mut rm_opts = RmOpts::from_path(Path::new("images"));
+            rm_opts.recursive = true;
+            repositories::rm(&repo, &rm_opts).await?;
+            let commit = repositories::commit(&repo, "Removing cat images and sub_directories")?;
+
+            // None of these files should exist after rm -r
+            for i in 1..=3 {
+                let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
+                assert!(!repo_filepath.exists())
+            }
+
+            for j in 1..3 {
+                for i in 1..=3 {
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join(format!("cat_{i}.jpg"));
+                    assert!(!repo_filepath.exists())
+                }
+            }
+
+            for j in 1..2 {
+                for i in 1..=3 {
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join(format!("cat_{i}.jpg"));
+                    assert!(!repo_filepath.exists())
+                }
+            }
+
+            for j in 1..1 {
+                for i in 1..=3 {
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join("subdir{j}_level_3")
+                        .join(format!("cat_{i}.jpg"));
+                    assert!(!repo_filepath.exists())
+                }
             }
 
             let entries = repositories::entries::list_for_commit(&repo, &commit)?;
