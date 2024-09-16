@@ -63,8 +63,6 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             paths.insert(path.to_owned());
         }
     }
-    println!("asdf");
-
     let stats = add_files(repo, &paths)?;
 
     // Stop the timer, and round the duration to the nearest second
@@ -141,10 +139,10 @@ fn add_files(
             if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, file_path) {
                 log::debug!("non-existant path {file_path:?} was dir. Calling remove_dir");
                 // This goes directly to remove_dir because we can't detect the type of a non-existant file
-                core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone());
+                core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone())?;
             } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, file_path) {
                 log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
-                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit, &path.clone());
+                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit, &path.clone())?;
             }
         }
     }
@@ -214,6 +212,8 @@ pub fn process_add_dir(
         let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
         let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+
+        add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
 
         // TODO: Parallelize this
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
@@ -356,7 +356,6 @@ pub fn add_file(
     )
 }
 
-// Need to ensure this function never gets called with a non-existant path unless that path has intentionally been removed
 pub fn process_add_file(
     repo_path: &Path,
     versions_path: &Path,
@@ -480,26 +479,11 @@ pub fn process_add_file(
 
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
-    let mut seen_dirs = seen_dirs.lock().unwrap();
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
         parent_path = parent.to_path_buf();
 
-        let relative_path_str = relative_path.to_str().unwrap();
-        if !seen_dirs.insert(relative_path.to_owned()) {
-            // Don't write the same dir twice
-            continue;
-        }
-
-        let dir_entry = StagedMerkleTreeNode {
-            status: StagedEntryStatus::Added,
-            node: MerkleTreeNode::default_dir_from_path(&relative_path),
-        };
-
-        log::debug!("writing dir to staged db: {}", dir_entry);
-        let mut buf = Vec::new();
-        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        staged_db.put(relative_path_str, &buf).unwrap();
+        add_dir_to_staged_db(staged_db, &relative_path, seen_dirs)?;
 
         if relative_path == Path::new("") {
             break;
@@ -507,6 +491,30 @@ pub fn process_add_file(
     }
 
     Ok(Some(entry))
+}
+
+fn add_dir_to_staged_db(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    relative_path: impl AsRef<Path>,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<(), OxenError> {
+    let relative_path = relative_path.as_ref();
+    let relative_path_str = relative_path.to_str().unwrap();
+    let mut seen_dirs = seen_dirs.lock().unwrap();
+    if !seen_dirs.insert(relative_path.to_path_buf()) {
+        return Ok(());
+    }
+
+    let dir_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Added,
+        node: MerkleTreeNode::default_dir_from_path(&relative_path),
+    };
+
+    log::debug!("writing dir to staged db: {}", dir_entry);
+    let mut buf = Vec::new();
+    dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+    staged_db.put(relative_path_str, &buf).unwrap();
+    Ok(())
 }
 
 pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {

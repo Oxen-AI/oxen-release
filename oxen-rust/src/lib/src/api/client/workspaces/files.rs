@@ -48,7 +48,7 @@ pub async fn add(
         directory_name
     );
 
-    let result = post_file(&remote_repo, workspace_id, &directory_name, resolved_path).await?;
+    let result = post_file(remote_repo, workspace_id, &directory_name, resolved_path).await?;
 
     println!("{}", result.to_string_lossy());
 
@@ -115,7 +115,7 @@ pub async fn post_file(
         path
     );
 
-    let Ok(file) = std::fs::read(&path) else {
+    let Ok(file) = std::fs::read(path) else {
         let err = format!("Error reading file at path: {path:?}");
         return Err(OxenError::basic_str(err));
     };

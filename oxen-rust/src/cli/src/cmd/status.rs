@@ -1,12 +1,10 @@
 use async_trait::async_trait;
 use clap::{Arg, ArgMatches, Command};
 
-use liboxen::error;
 use liboxen::error::OxenError;
 use liboxen::model::staged_data::StagedDataOpts;
 use liboxen::model::LocalRepository;
 use liboxen::repositories;
-use liboxen::util;
 use std::path::PathBuf;
 
 use crate::helpers::check_repo_migration_needed;
@@ -72,10 +70,7 @@ impl RunCmd for StatusCmd {
             is_remote,
         };
 
-        let repo_dir = util::fs::get_repo_root_from_current_dir()
-            .ok_or(OxenError::basic_str(error::NO_REPO_FOUND))?;
-
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
         let directory = directory.unwrap_or(repository.path.clone());

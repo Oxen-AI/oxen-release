@@ -2,16 +2,14 @@ use crate::core::db::data_frames::row_changes_db::get_all_data_frame_row_changes
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::data_frame::update_result::UpdateResult;
-use crate::model::{Commit, Workspace};
-use crate::repositories;
-use crate::repositories::workspaces::data_frames::is_indexed;
+use crate::model::Workspace;
 use crate::view::data_frames::DataFrameRowChange;
 
 use polars::datatypes::AnyValue;
 
 use polars::frame::DataFrame;
 
-use crate::core;
+use crate::{core, repositories};
 use polars::prelude::NamedFrom;
 use polars::series::Series;
 use rocksdb::DB;

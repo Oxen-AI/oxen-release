@@ -15,7 +15,6 @@ use liboxen::view::{
     JsonDataFrameView, JsonDataFrameViewResponse, JsonDataFrameViews, Pagination, StatusMessage,
 };
 
-use liboxen::core::v0_10_0::index;
 use uuid::Uuid;
 
 pub async fn get(

@@ -5,7 +5,7 @@ use crate::helpers::get_repo;
 use crate::params::{app_data, parse_resource, path_param};
 
 use liboxen::repositories;
-use liboxen::view::schema::{SchemaResponse, SchemaWithPath};
+use liboxen::view::schema::SchemaWithPath;
 
 use actix_web::{HttpRequest, HttpResponse};
 use liboxen::error::OxenError;
@@ -31,7 +31,7 @@ pub async fn list_or_get(req: HttpRequest) -> actix_web::Result<HttpResponse, Ox
             );
 
             let schema =
-                repositories::data_frames::schemas::get_by_path(&repo, &commit, &resource.path)?;
+                repositories::data_frames::schemas::get_by_path(&repo, commit, &resource.path)?;
 
             let mut schema_w_paths: Vec<SchemaWithPath> = vec![];
             if let Some(schema) = schema {

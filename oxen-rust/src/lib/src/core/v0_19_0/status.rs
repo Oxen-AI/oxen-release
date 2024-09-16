@@ -87,7 +87,7 @@ pub fn status_from_dir_entries(
             dir,
             entries.len()
         );
-        let mut stats = StagedDirStats {
+        let stats = StagedDirStats {
             path: dir,
             num_files_staged: 0,
             total_files: 0,
@@ -96,12 +96,12 @@ pub fn status_from_dir_entries(
         for entry in entries {
             log::debug!("dir_entries entry: {}", entry);
             match &entry.node.node {
-                EMerkleTreeNode::Directory(_) => {
-                    stats.num_files_staged += 1;
+                EMerkleTreeNode::Directory(node) => {
+                    log::debug!("dir_entries dir_node: {}", node);
                 }
                 EMerkleTreeNode::File(node) => {
                     // TODO: It's not always added. It could be modified.
-                    log::debug!("dir_entries entry: {}", entry);
+                    log::debug!("dir_entries file_node: {}", entry);
                     let staged_entry = StagedEntry {
                         hash: node.hash.to_string(),
                         status: StagedEntryStatus::Added,
@@ -109,7 +109,7 @@ pub fn status_from_dir_entries(
                     staged_data
                         .staged_files
                         .insert(PathBuf::from(&node.name), staged_entry);
-                    maybe_add_schemas(&node, &mut staged_data)?;
+                    maybe_add_schemas(node, &mut staged_data)?;
                 }
                 _ => {
                     return Err(OxenError::basic_str(format!(
@@ -128,17 +128,14 @@ pub fn status_from_dir_entries(
 }
 
 fn maybe_add_schemas(node: &FileNode, staged_data: &mut StagedData) -> Result<(), OxenError> {
-    match &node.metadata {
-        Some(GenericMetadata::MetadataTabular(m)) => {
-            let schema = m.tabular.schema.clone();
-            let path = PathBuf::from(&node.name);
-            let staged_schema = StagedSchema {
-                schema: schema,
-                status: StagedEntryStatus::Added,
-            };
-            staged_data.staged_schemas.insert(path, staged_schema);
-        }
-        _ => {}
+    if let Some(GenericMetadata::MetadataTabular(m)) = &node.metadata {
+        let schema = m.tabular.schema.clone();
+        let path = PathBuf::from(&node.name);
+        let staged_schema = StagedSchema {
+            schema,
+            status: StagedEntryStatus::Added,
+        };
+        staged_data.staged_schemas.insert(path, staged_schema);
     }
 
     Ok(())
@@ -171,6 +168,8 @@ pub fn read_staged_entries_below_path(
                 let path = Path::new(key);
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
                 log::debug!("read_staged_entries key {} entry: {}", key, entry);
+                let key_path = PathBuf::from(key);
+                dir_entries.insert(key_path, vec![]);
 
                 if let Some(parent) = path.parent() {
                     log::debug!(
@@ -223,6 +222,25 @@ fn find_untracked_and_modified_paths(
     // that are descendants of the start path
     let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
     candidate_dirs.insert(start_path.as_ref().to_path_buf());
+
+    log::debug!("start_path: {:?}", start_path.as_ref());
+
+    // Add all the directories that are direct children of the start path
+    let repo_start_path = repo.path.join(start_path.as_ref());
+    log::debug!("repo_start_path: {:?}", repo_start_path);
+
+    if repo_start_path.exists() {
+        let dirs = std::fs::read_dir(repo_start_path)?;
+        for dir in dirs {
+            let dir = dir?.path();
+            if dir.is_dir() {
+                let dir = util::fs::path_relative_to_dir(&dir, &repo.path)?;
+                candidate_dirs.insert(dir);
+            }
+        }
+    }
+
+    // Add all the directories that are in the head commit
     let dir_hashes = if let Some(head_commit) = maybe_head_commit {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, &head_commit)?;
         for (dir, _) in &dir_hashes {
@@ -257,13 +275,25 @@ fn find_untracked_and_modified_paths(
             None
         };
 
-        let read_dir = std::fs::read_dir(candidate_dir);
+        let full_dir = repo.path.join(candidate_dir);
+        let read_dir = std::fs::read_dir(&full_dir);
         if read_dir.is_ok() {
+            log::debug!(
+                "find_untracked_and_modified_paths adding untracked candidate from dir {:?}",
+                candidate_dir
+            );
+
+            // Consider the current directory and all its children
+            let mut paths = vec![candidate_dir.to_path_buf()];
             for path in read_dir? {
+                let path = path?.path();
+                paths.push(path);
+            }
+
+            for path in paths {
                 total_files += 1;
                 progress.set_message(format!("Checking {} untracked files", total_files));
 
-                let path = path?.path();
                 let relative_path = util::fs::path_relative_to_dir(&path, &repo.path)?;
                 log::debug!(
                     "find_untracked_and_modified_paths checking relative path {:?} in {:?}",
@@ -317,6 +347,11 @@ fn find_untracked_and_modified_paths(
                     }
                 }
             }
+        } else {
+            log::error!(
+                "find_untracked_and_modified_paths error reading dir {:?}",
+                full_dir
+            );
         }
     }
 
