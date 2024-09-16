@@ -1,5 +1,5 @@
 use polars::frame::DataFrame;
-use rocksdb::{IteratorMode, DB};
+use rocksdb::DB;
 
 use crate::constants::TABLE_NAME;
 use crate::core::db;
@@ -7,19 +7,15 @@ use crate::core::db::data_frames::workspace_df_db::schema_without_oxen_cols;
 use crate::core::db::data_frames::{column_changes_db, columns, df_db};
 use crate::core::v0_19_0::workspaces;
 use crate::error::OxenError;
-use crate::model::data_frame::schema::field::{Changes, PreviousField};
-use crate::model::data_frame::schema::Field;
 use crate::model::Workspace;
 use crate::repositories;
 use crate::view::data_frames::columns::{
     ColumnToDelete, ColumnToRestore, ColumnToUpdate, NewColumn,
 };
-use crate::view::data_frames::{ColumnChange, DataFrameColumnChange};
-use crate::view::JsonDataFrameViews;
+use crate::view::data_frames::ColumnChange;
 
 use std::path::Path;
 
-use crate::core::db::data_frames::column_changes_db::get_all_data_frame_column_changes;
 
 pub fn add(
     workspace: &Workspace,

@@ -11,26 +11,18 @@ use polars::frame::DataFrame;
 
 use crate::{core, repositories};
 use polars::prelude::NamedFrom;
-use polars::series::Series;
 use rocksdb::DB;
-use serde_json::Value;
 use sql_query_builder::Select;
 
 use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
 use crate::core::db;
-use crate::opts::DFOpts;
 
-use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
-use crate::core::df::tabular;
-use crate::core::v0_10_0::index::workspaces;
+use crate::core::db::data_frames::{df_db, workspace_df_db};
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{CommitEntry, LocalRepository};
-use crate::util;
-use crate::view::JsonDataFrameView;
+use crate::model::LocalRepository;
 
 use std::path::Path;
 
-use crate::core::db::data_frames::row_changes_db;
 
 pub fn add(
     repo: &LocalRepository,

@@ -22,7 +22,7 @@ use crate::model::{CommitEntry, LocalRepository, Workspace};
 use crate::util;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::view::JsonDataFrameView;
-use crate::{api, repositories};
+use crate::repositories;
 
 use std::path::Path;
 
@@ -119,7 +119,7 @@ pub fn restore(
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     let entry = repositories::entries::get_commit_entry(repo, &workspace.commit, path.as_ref())?
-        .ok_or_else(|| OxenError::entry_does_not_exist(path.as_ref().to_path_buf()))?;
+        .ok_or_else(|| OxenError::entry_does_not_exist(path.as_ref()))?;
     let row_id = row_id.as_ref();
     let restored_row = restore_row_in_db(workspace, &entry, row_id)?;
     let diff = workspaces::data_frames::diff(workspace, &entry.path)?;

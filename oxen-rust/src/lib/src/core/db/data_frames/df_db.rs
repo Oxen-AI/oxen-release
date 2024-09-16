@@ -7,7 +7,6 @@ use crate::constants::{
 
 use crate::core::df::tabular;
 use crate::error::OxenError;
-use std::io::{BufReader, Read};
 
 use crate::model::data_frame::schema::Field;
 use crate::model::data_frame::schema::Schema;
@@ -18,7 +17,6 @@ use arrow_json::WriterBuilder;
 use duckdb::arrow::record_batch::RecordBatch;
 use duckdb::{params, ToSql};
 use polars::prelude::*;
-use std::fs::File;
 use std::io::Cursor;
 use std::path::Path;
 
