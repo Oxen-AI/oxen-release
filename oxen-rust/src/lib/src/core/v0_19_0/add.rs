@@ -9,6 +9,8 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
+use crate::core;
+use crate::model::merkle_tree::node::DirNode;
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
@@ -26,9 +28,9 @@ use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode}
 
 #[derive(Clone, Debug, Default)]
 pub struct CumulativeStats {
-    total_files: usize,
-    total_bytes: u64,
-    data_type_counts: HashMap<EntryDataType, usize>,
+    pub total_files: usize,
+    pub total_bytes: u64,
+    pub data_type_counts: HashMap<EntryDataType, usize>,
 }
 
 impl AddAssign<CumulativeStats> for CumulativeStats {
@@ -61,13 +63,13 @@ pub fn add(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenErr
             paths.insert(path.to_owned());
         }
     }
-
     let stats = add_files(repo, &paths)?;
 
     // Stop the timer, and round the duration to the nearest second
     let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
     log::debug!("---END--- oxen add: {:?} duration: {:?}", path, duration);
 
+    // oxen staged?
     println!(
         "🐂 oxen added {} files ({}) in {}",
         stats.total_files,
@@ -85,6 +87,8 @@ fn add_files(
     // To start, let's see how fast we can simply loop through all the paths
     // and and copy them into an index.
 
+    log::debug!("add files");
+
     // Create the versions dir if it doesn't exist
     let versions_path = util::fs::oxen_hidden_dir(&repo.path).join(VERSIONS_DIR);
     if !versions_path.exists() {
@@ -100,10 +104,11 @@ fn add_files(
         data_type_counts: HashMap::new(),
     };
     for path in paths {
+        log::debug!("path is {path:?}");
+
         if path.is_dir() {
-            total += process_dir(repo, &maybe_head_commit, path.clone())?;
+            total += add_dir(repo, &maybe_head_commit, path.clone())?;
         } else if path.is_file() {
-            // Process the file here
             let entry = add_file(repo, &maybe_head_commit, path)?;
             if let Some(entry) = entry {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
@@ -117,15 +122,55 @@ fn add_files(
                         .or_insert(1);
                 }
             }
+        } else {
+            // If the path doesn't exist, check if it's in the head commit
+            // If so, stage it for removal
+            // TODO: Should these removals contribute to the cumulative stats?
+            let file_path = path.file_name().unwrap();
+            let mut maybe_dir_node = None;
+            log::debug!("Found non-existant path: {file_path:?}");
+            if let Some(ref head_commit) = maybe_head_commit {
+                let path = util::fs::path_relative_to_dir(path, &repo.path)?;
+                let parent_path = path.parent().unwrap_or(Path::new(""));
+                maybe_dir_node =
+                    CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
+            }
+
+            if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, file_path) {
+                log::debug!("non-existant path {file_path:?} was dir. Calling remove_dir");
+                // This goes directly to remove_dir because we can't detect the type of a non-existant file
+                core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone())?;
+            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, file_path) {
+                log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
+                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit, &path.clone())?;
+            }
         }
     }
 
     Ok(total)
 }
 
-fn process_dir(
+pub fn add_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
+    path: PathBuf,
+) -> Result<CumulativeStats, OxenError> {
+    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
+        .join(VERSIONS_DIR)
+        .join(FILES_DIR);
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
+}
+
+fn process_add_dir(
+    repo: &LocalRepository,
+    maybe_head_commit: &Option<Commit>,
+    versions_path: &Path,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
     path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
@@ -138,13 +183,6 @@ fn process_dir(
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
     let repo_path = repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
-    let opts = db::key_val::opts::default();
-    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    let staged_db: DBWithThreadMode<MultiThreaded> =
-        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     use std::sync::atomic::{AtomicU64, Ordering};
     use std::sync::Arc;
@@ -165,6 +203,8 @@ fn process_dir(
         let entry = entry.unwrap();
         let dir = entry.path();
 
+        log::debug!("Entry is: {entry:?}");
+
         let byte_counter_clone = Arc::clone(&byte_counter);
         let added_file_counter_clone = Arc::clone(&added_file_counter);
         let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
@@ -173,9 +213,12 @@ fn process_dir(
         let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
+        add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
+
         // TODO: Parallelize this
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
             if let Ok(dir_entry) = dir_entry_result {
+                log::debug!("Dir Entry is: {dir_entry:?}");
                 let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
                 let path = dir_entry.path();
                 let duration = start.elapsed().as_secs_f32();
@@ -192,8 +235,8 @@ fn process_dir(
                 let seen_dirs_clone = Arc::clone(&seen_dirs);
                 match process_add_file(
                     &repo_path,
-                    &versions_path,
-                    &staged_db,
+                    versions_path,
+                    staged_db,
                     &dir_node,
                     &path,
                     &seen_dirs_clone,
@@ -261,11 +304,31 @@ fn get_file_node(
     }
 }
 
-fn add_file(
+fn get_dir_node(
+    dir_node: &Option<MerkleTreeNode>,
+    path: impl AsRef<Path>,
+) -> Result<Option<DirNode>, OxenError> {
+    if let Some(node) = dir_node {
+        if let Some(node) = node.get_by_path(path)? {
+            if let EMerkleTreeNode::Directory(dir_node) = &node.node {
+                Ok(Some(dir_node.clone()))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn add_file(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    log::debug!("add_file");
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -301,8 +364,10 @@ pub fn process_add_file(
     path: &Path,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    log::debug!("process_add_file");
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
+
     if !full_path.is_file() {
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
@@ -403,40 +468,53 @@ pub fn process_add_file(
             ..Default::default()
         }),
     };
+
     log::debug!("writing file to staged db: {}", entry);
 
     let mut buf = Vec::new();
     entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+
+    let relative_path_str = relative_path.to_str().unwrap();
     staged_db.put(relative_path_str, &buf).unwrap();
 
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
-    let mut seen_dirs = seen_dirs.lock().unwrap();
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
         parent_path = parent.to_path_buf();
 
-        let relative_path_str = relative_path.to_str().unwrap();
-        if !seen_dirs.insert(relative_path.to_owned()) {
-            // Don't write the same dir twice
-            continue;
-        }
-
-        let dir_entry = StagedMerkleTreeNode {
-            status: StagedEntryStatus::Added,
-            node: MerkleTreeNode::default_dir_from_path(&relative_path),
-        };
-
-        log::debug!("writing dir to staged db: {}", dir_entry);
-        let mut buf = Vec::new();
-        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
-        staged_db.put(relative_path_str, &buf).unwrap();
+        add_dir_to_staged_db(staged_db, &relative_path, seen_dirs)?;
 
         if relative_path == Path::new("") {
             break;
         }
     }
+
     Ok(Some(entry))
+}
+
+fn add_dir_to_staged_db(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    relative_path: impl AsRef<Path>,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<(), OxenError> {
+    let relative_path = relative_path.as_ref();
+    let relative_path_str = relative_path.to_str().unwrap();
+    let mut seen_dirs = seen_dirs.lock().unwrap();
+    if !seen_dirs.insert(relative_path.to_path_buf()) {
+        return Ok(());
+    }
+
+    let dir_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Added,
+        node: MerkleTreeNode::default_dir_from_path(&relative_path),
+    };
+
+    log::debug!("writing dir to staged db: {}", dir_entry);
+    let mut buf = Vec::new();
+    dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+    staged_db.put(relative_path_str, &buf).unwrap();
+    Ok(())
 }
 
 pub fn has_different_modification_time(node: &FileNode, time: &FileTime) -> bool {

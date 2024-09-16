@@ -1,5 +1,5 @@
 use crate::core::v0_19_0::index::commit_merkle_tree::CommitMerkleTree;
-use crate::core::v0_19_0::{commits, fetch, restore};
+use crate::core::v0_19_0::{commits, fetch};
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
 use crate::model::{Commit, CommitEntry, LocalRepository, MerkleTreeNodeType};
@@ -79,7 +79,7 @@ fn cleanup_removed_files(
         let head_tree = CommitMerkleTree::from_commit(repo, &head_commit)?;
         let head_root_dir_node = CommitMerkleTree::get_root_dir_from_commit(&head_tree.root)?;
 
-        r_remove_if_not_in_target(repo, &head_root_dir_node, &target_tree, Path::new(""))?;
+        r_remove_if_not_in_target(repo, head_root_dir_node, target_tree, Path::new(""))?;
     }
 
     Ok(())

@@ -128,7 +128,7 @@ pub fn commit(
 
     // Kick off post commit actions
     let force = false;
-    match commit_cacher::run_all(&repo, &commit, force) {
+    match commit_cacher::run_all(repo, &commit, force) {
         Ok(_) => {
             log::debug!(
                 "Success processing commit {:?} on repo {:?}",

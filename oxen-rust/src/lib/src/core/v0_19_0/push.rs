@@ -54,7 +54,7 @@ pub async fn push_remote_branch(
         Err(err) => return Err(err),
     };
 
-    push_remote_repo(repo, &remote_repo, &local_branch).await?;
+    push_local_branch_to_remote_repo(repo, &remote_repo, &local_branch).await?;
     let duration = std::time::Duration::from_millis(start.elapsed().as_millis() as u64);
     println!(
         "🐂 push complete 🎉 took {}",
@@ -63,7 +63,7 @@ pub async fn push_remote_branch(
     Ok(local_branch)
 }
 
-async fn push_remote_repo(
+async fn push_local_branch_to_remote_repo(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     local_branch: &Branch,
@@ -83,7 +83,7 @@ async fn push_remote_repo(
     // Check if the remote branch exists, and either push to it or create a new one
     match api::client::branches::get_by_name(remote_repo, &local_branch.name).await? {
         Some(remote_branch) => {
-            push_to_existing_branch(repo, remote_repo, local_branch, &remote_branch).await?
+            push_to_existing_branch(repo, &commit, remote_repo, &remote_branch).await?
         }
         None => push_to_new_branch(repo, remote_repo, local_branch, &commit, &progress).await?,
     }
@@ -117,8 +117,8 @@ async fn push_to_new_branch(
 
     // Push each node, and all their file children
     for commit in commits {
-        let tree = CommitMerkleTree::from_commit(repo, &commit)?;
-        r_push_node(repo, remote_repo, &commit, &tree.root, progress).await?;
+        let tree = CommitMerkleTree::from_commit(repo, commit)?;
+        r_push_node(repo, remote_repo, commit, &tree.root, progress).await?;
     }
 
     // TODO: Do we want a final API call to send the commit?
@@ -227,14 +227,12 @@ async fn push_files(
 
 async fn push_to_existing_branch(
     repo: &LocalRepository,
+    commit: &Commit,
     remote_repo: &RemoteRepository,
-    local_branch: &Branch,
     remote_branch: &Branch,
 ) -> Result<(), OxenError> {
     // Check if the latest commit on the remote is the same as the local branch
-    let head_commit = repositories::commits::head_commit(repo)?;
-
-    if remote_branch.commit_id == head_commit.id {
+    if remote_branch.commit_id == commit.id {
         println!("Everything is up to date");
         return Ok(());
     }
@@ -253,8 +251,7 @@ async fn push_to_existing_branch(
 
     // If we do have the commit locally, we are ahead
     // We need to find all the commits that need to be pushed
-    let mut commits =
-        repositories::commits::list_between(repo, &head_commit, &latest_remote_commit)?;
+    let mut commits = repositories::commits::list_between(repo, &commit, &latest_remote_commit)?;
     commits.reverse();
 
     let progress_bar = PushProgress::new();
@@ -267,7 +264,7 @@ async fn push_to_existing_branch(
     }
 
     // Update the remote branch to point to the latest commit
-    api::client::branches::update(remote_repo, &local_branch.name, &head_commit).await?;
+    api::client::branches::update(remote_repo, &remote_branch.name, &commit).await?;
 
     Ok(())
 }

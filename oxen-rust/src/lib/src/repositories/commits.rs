@@ -76,10 +76,13 @@ pub fn head_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenE
 }
 
 /// Get the root commit of a repository
-pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
+pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
     match repo.min_version() {
-        MinOxenVersion::V0_10_0 => core::v0_10_0::commits::root_commit(repo),
-        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::root_commit(repo),
+        MinOxenVersion::V0_10_0 => {
+            let root_commit = core::v0_10_0::commits::root_commit(repo)?;
+            Ok(Some(root_commit))
+        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::root_commit_maybe(repo),
     }
 }
 
@@ -144,6 +147,7 @@ pub fn list_all_paginated(
     repo: &LocalRepository,
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
+    log::info!("list_all_paginated: {:?} {:?}", repo.path, pagination);
     let commits = list_all(repo)?;
     let commits: Vec<Commit> = commits.into_iter().collect();
     let (commits, pagination) = util::paginate(commits, pagination.page_num, pagination.page_size);
@@ -248,6 +252,7 @@ pub fn list_by_path_from_paginated(
     path: &Path,
     pagination: PaginateOpts,
 ) -> Result<PaginatedCommits, OxenError> {
+    log::info!("list_by_path_from_paginated: {:?} {:?}", commit, path);
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)

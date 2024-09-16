@@ -256,8 +256,7 @@ pub async fn create_from_local(
 ) -> Result<RemoteRepository, OxenError> {
     let host = repo_new.host();
     let url = api::endpoint::url_from_host(&host, "");
-    let root_commit = repositories::commits::root_commit(repository)?;
-    repo_new.root_commit = Some(root_commit);
+    repo_new.root_commit = repositories::commits::root_commit_maybe(repository)?;
 
     // convert repo_new to json with serde
     // let params = serde_json::to_string(&repo_new)?;
