@@ -317,14 +317,6 @@ pub fn index_file(path: &Path, conn: &duckdb::Connection) -> Result<(), OxenErro
     log::debug!("df_db:index_file() at path {:?}", path);
     let extension: &str = &util::fs::extension_from_path(path);
     let path_str = path.to_string_lossy().to_string();
-    println!("extension {:?}", extension);
-    println!(
-        "
-
-
-
-    "
-    );
     match extension {
         "csv" => {
             let query = format!(
