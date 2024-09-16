@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use clap::{Arg, Command};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use std::env;
 
 use liboxen::repositories;
 
@@ -57,8 +56,7 @@ impl RunCmd for PullCmd {
         let all = args.get_flag("all");
 
         // Get the repo
-        let repo_dir = env::current_dir().unwrap();
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
 
         let host = get_host_from_repo(&repository)?;
         check_repo_migration_needed(&repository)?;

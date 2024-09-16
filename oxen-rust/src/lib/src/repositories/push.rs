@@ -105,12 +105,12 @@ mod tests {
             // Commit the train dir
             let commit = repositories::commit(&repo, "Adding training data")?;
 
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
             repositories::push(&repo).await?;
@@ -155,12 +155,12 @@ mod tests {
             // Commit the train dir
             let commit = repositories::commit(&repo, "Adding training data")?;
 
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
             repositories::push(&repo).await?;
@@ -195,12 +195,12 @@ mod tests {
             // Commit the train dir
             repositories::commit(&repo, "Adding training data")?;
 
+            // Create the repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it real good
             repositories::push(&repo).await?;
@@ -240,12 +240,12 @@ mod tests {
             // Commit the train dur
             repositories::commit(&repo, "Adding training data")?;
 
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
             repositories::push(&repo).await?;
@@ -301,12 +301,12 @@ mod tests {
             repositories::add(&repo, &test_dir)?;
             let commit = repositories::commit(&repo, "Adding test data")?;
 
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
             repositories::push(&repo).await?;
@@ -383,12 +383,12 @@ mod tests {
             repositories::add(&repo, &file_path)?;
             let last_commit = repositories::commit(&repo, "Modifying file again")?;
 
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
             repositories::push(&repo).await?;
@@ -462,12 +462,12 @@ mod tests {
             repositories::add(&repo, full_dir)?;
             let commit = repositories::commit(&repo, "Adding rest of data")?;
 
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push the files
             repositories::push(&repo).await?;
@@ -512,12 +512,12 @@ mod tests {
             repositories::add(&repo, &train_path)?;
             repositories::commit(&repo, "Adding train dir")?;
 
+            // Create Remote
+            let remote_repo = test::create_remote_repo(&repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
             command::config::set_remote(&mut repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create Remote
-            let remote_repo = test::create_remote_repo(&repo).await?;
 
             // Push it
             repositories::push(&repo).await?;
@@ -661,11 +661,11 @@ mod tests {
 
             // Branch name
 
-            // Nothing should be synced on remote and no commit objects created except root
+            // Nothing should be synced on remote and no commit objects created
             let history =
                 api::client::commits::list_commit_history(&remote_repo, DEFAULT_BRANCH_NAME)
                     .await?;
-            assert_eq!(history.len(), 1);
+            assert_eq!(history.len(), 0);
 
             // Push all to remote
             repositories::push(&local_repo).await?;
@@ -1082,12 +1082,12 @@ mod tests {
             repositories::add(&user_a_repo, &a_mod_file_path)?;
             repositories::commit(&user_a_repo, "User A adding the README.")?;
 
+            // Create the remote repo
+            let remote_repo = test::create_remote_repo(&user_a_repo).await?;
+
             // Set the proper remote
             let remote = test::repo_remote_url_from(&user_a_repo.dirname());
             command::config::set_remote(&mut user_a_repo, constants::DEFAULT_REMOTE_NAME, &remote)?;
-
-            // Create the remote repo
-            let remote_repo = test::create_remote_repo(&user_a_repo).await?;
 
             // Push data for User A
             println!("Pushing README.md for user A...");

@@ -3,12 +3,10 @@
 //! Pull data from a remote branch
 //!
 
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
-use crate::opts::PullOpts;
+use crate::model::LocalRepository;
 
 /// Pull a repository's data from default branches origin/main
 /// Defaults defined in
@@ -47,27 +45,6 @@ pub async fn pull_remote_branch(
         }
         MinOxenVersion::V0_19_0 => {
             core::v0_19_0::pull::pull_remote_branch(repo, remote, branch, all).await
-        }
-    }
-}
-
-/// Pull a remote repository, defaults to origin/main
-pub async fn pull_remote_repo(
-    repo: &LocalRepository,
-    remote_repo: &RemoteRepository,
-    opts: &PullOpts,
-) -> Result<(), OxenError> {
-    // If no remote branch is specified, use the default
-    let rb = RemoteBranch {
-        remote: DEFAULT_REMOTE_NAME.to_string(),
-        branch: DEFAULT_BRANCH_NAME.to_string(),
-    };
-    match repo.min_version() {
-        MinOxenVersion::V0_10_0 => {
-            core::v0_10_0::pull::pull_remote_repo(repo, remote_repo, &rb, opts).await
-        }
-        MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::pull::pull_remote_repo(repo, remote_repo, &rb, opts).await
         }
     }
 }
@@ -597,7 +574,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 5);
 
                 // Switch to main branch and pull
-                command::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo, false).await?;
                 repositories::checkout(&cloned_repo, "main").await?;
 
                 let cloned_num_files = util::fs::rcount_files_in_dir(&cloned_repo.path);
@@ -675,7 +652,7 @@ mod tests {
                 assert_eq!(cloned_num_files, 2);
 
                 // Switch to main branch and pull
-                command::fetch(&cloned_repo).await?;
+                repositories::fetch(&cloned_repo, false).await?;
 
                 repositories::checkout(&cloned_repo, branch_name).await?;
 

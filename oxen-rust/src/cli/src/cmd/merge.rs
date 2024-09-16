@@ -2,7 +2,6 @@ use async_trait::async_trait;
 use clap::{arg, Command};
 use liboxen::error::OxenError;
 use liboxen::model::LocalRepository;
-use std::env;
 
 use liboxen::command;
 
@@ -31,8 +30,7 @@ impl RunCmd for MergeCmd {
             .get_one::<String>("BRANCH")
             .expect("Must supply a branch");
 
-        let repo_dir = env::current_dir().unwrap();
-        let repository = LocalRepository::from_dir(&repo_dir)?;
+        let repository = LocalRepository::from_current_dir()?;
         check_repo_migration_needed(&repository)?;
 
         command::merge(&repository, branch)?;

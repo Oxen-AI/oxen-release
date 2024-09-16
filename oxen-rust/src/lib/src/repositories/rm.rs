@@ -227,6 +227,150 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_rm_multi_level_directory() -> Result<(), OxenError> {
+        test::run_empty_data_repo_test_no_commits_async(|repo| async move {
+            // create the images directory
+            let images_dir = repo.path.join("images").join("cats");
+            util::fs::create_dir_all(&images_dir)?;
+
+            // create several levels of subdirectories
+            for i in 1..=3 {
+                let sub_dir = repo
+                    .path
+                    .join("images")
+                    .join("cats")
+                    .join("subdir{i}_level_1");
+                util::fs::create_dir_all(&images_dir)?;
+            }
+
+            for i in 1..=2 {
+                let sub_dir = repo
+                    .path
+                    .join("images")
+                    .join("cats")
+                    .join("subdir{i}_level_1")
+                    .join("subdir{i}_level_2");
+                util::fs::create_dir_all(&images_dir)?;
+            }
+
+            for i in 1..=1 {
+                let sub_dir = repo
+                    .path
+                    .join("images")
+                    .join("cats")
+                    .join("subdir{i}_level_1")
+                    .join("subdir{i}_level_2")
+                    .join("subdir{i}_level_3");
+                util::fs::create_dir_all(&images_dir)?;
+            }
+
+            // Add and commit the cats to every subdirectory
+            for i in 1..=3 {
+                let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                let repo_filepath = images_dir.join(test_file.file_name().unwrap());
+                util::fs::copy(&test_file, &repo_filepath)?;
+            }
+
+            for j in 1..3 {
+                for i in 1..=3 {
+                    let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join(test_file.file_name().unwrap());
+                    util::fs::copy(&test_file, &repo_filepath)?;
+                }
+            }
+
+            for j in 1..2 {
+                for i in 1..=3 {
+                    let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join(test_file.file_name().unwrap());
+                    util::fs::copy(&test_file, &repo_filepath)?;
+                }
+            }
+
+            for j in 1..1 {
+                for i in 1..=3 {
+                    let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join("subdir{j}_level_3")
+                        .join(test_file.file_name().unwrap());
+                    util::fs::copy(&test_file, &repo_filepath)?;
+                }
+            }
+
+            repositories::add(&repo, &images_dir)?;
+            repositories::commit(&repo, "Adding initial cat images")?;
+
+            // Create branch
+            let branch_name = "remove-data";
+            repositories::branches::create_checkout(&repo, branch_name)?;
+
+            // Remove all the cat images and subdirectories
+            let mut rm_opts = RmOpts::from_path(Path::new("images"));
+            rm_opts.recursive = true;
+            repositories::rm(&repo, &rm_opts).await?;
+            let commit = repositories::commit(&repo, "Removing cat images and sub_directories")?;
+
+            // None of these files should exist after rm -r
+            for i in 1..=3 {
+                let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
+                assert!(!repo_filepath.exists())
+            }
+
+            for j in 1..3 {
+                for i in 1..=3 {
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join(format!("cat_{i}.jpg"));
+                    assert!(!repo_filepath.exists())
+                }
+            }
+
+            for j in 1..2 {
+                for i in 1..=3 {
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join(format!("cat_{i}.jpg"));
+                    assert!(!repo_filepath.exists())
+                }
+            }
+
+            for j in 1..1 {
+                for i in 1..=3 {
+                    let repo_filepath = images_dir
+                        .join("subdir{j}_level_1")
+                        .join("subdir{j}_level_2")
+                        .join("subdir{j}_level_3")
+                        .join(format!("cat_{i}.jpg"));
+                    assert!(!repo_filepath.exists())
+                }
+            }
+
+            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
+            assert_eq!(entries.len(), 0);
+
+            let dir_reader = CommitEntryReader::new(&repo, &commit)?;
+            let dirs = dir_reader.list_dirs()?;
+            for dir in dirs.iter() {
+                println!("dir: {:?}", dir);
+            }
+
+            // Should just be the root dir, we removed the images and images/cat dir
+            assert_eq!(dirs.len(), 1);
+
+            Ok(())
+        })
+        .await
+    }
+
+    #[tokio::test]
     async fn test_rm_one_file_in_dir() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|repo| async move {
             // create the images directory
