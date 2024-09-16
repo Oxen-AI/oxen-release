@@ -1472,6 +1472,7 @@ impl CommitEntryWriter {
 
         Ok(affected_vnodes)
     }
+
     pub fn set_file_timestamps(
         repo: &LocalRepository,
         path: &Path,
@@ -1484,7 +1485,13 @@ impl CommitEntryWriter {
 
         // Update the local modified timestamps
         let working_path = repo.path.join(path);
-        let metadata = util::fs::metadata(working_path).unwrap();
+        let Ok(metadata) = util::fs::metadata(working_path) else {
+            log::error!(
+                "Could not find file for setting timestamps: {:?}",
+                path
+            );
+            return Ok(());
+        };
         let mtime = FileTime::from_last_modification_time(&metadata);
 
         match file_entry {
