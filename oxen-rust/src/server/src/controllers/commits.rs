@@ -19,6 +19,7 @@ use liboxen::core::v0_10_0::commits::list_with_missing_dbs;
 use liboxen::core::v0_10_0::commits::merge_objects_dbs;
 use liboxen::core::v0_10_0::index::CommitReader;
 use liboxen::core::v0_10_0::index::CommitWriter;
+use liboxen::core::versions::MinOxenVersion;
 
 use liboxen::core::refs::RefWriter;
 use liboxen::error::OxenError;
@@ -244,10 +245,19 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     let commit_id = path_param(&req, "commit_id")?;
 
     let commits = repositories::commits::list_from(&repository, &commit_id)?;
-
     log::debug!("latest_synced has commits {}", commits.len());
-    for commit in commits.iter() {
-        log::debug!("latest_synced has commit.... {}", commit);
+    // for commit in commits.iter() {
+    //     log::debug!("latest_synced has commit.... {}", commit);
+    // }
+
+    // If the repo is v0.19.0 we don't use this API anymore outside of tests,
+    // so we can just assume everything is synced
+    if repository.min_version() == MinOxenVersion::V0_19_0 {
+        return Ok(HttpResponse::Ok().json(CommitSyncStatusResponse {
+            status: StatusMessage::resource_found(),
+            latest_synced: commits.last().cloned(),
+            num_unsynced: 0,
+        }));
     }
 
     let mut latest_synced: Option<Commit> = None;
