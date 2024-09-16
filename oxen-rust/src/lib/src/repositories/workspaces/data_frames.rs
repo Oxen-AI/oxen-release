@@ -9,7 +9,7 @@ use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository, Workspace};
 use crate::opts::DFOpts;
 use crate::{repositories, util};
-use sql_query_builder::{Delete, Select};
+use sql_query_builder::Select;
 
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,

@@ -1,25 +1,13 @@
 use duckdb::Connection;
-use polars::frame::DataFrame;
 
-use sql_query_builder::{Delete, Select};
 
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
-use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
-use crate::core::db::data_frames::{df_db, workspace_df_db};
-use crate::core::df::tabular;
-use crate::core::v0_10_0::index::CommitEntryReader;
-use crate::core::v0_10_0::index::{self, workspaces};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, TABLE_NAME};
+use crate::core::db::data_frames::df_db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
-use crate::model::diff::tabular_diff::{
-    TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
-    TabularDiffSummary, TabularSchemaDiff,
-};
-use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, Workspace};
-use crate::opts::DFOpts;
+use crate::model::{Commit, EntryDataType, LocalRepository, Workspace};
 use crate::repositories;
 use crate::{error::OxenError, util};
 use std::path::{Path, PathBuf};

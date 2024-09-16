@@ -1,35 +1,31 @@
-use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
 
 use polars::prelude::NamedFrom;
 use polars::series::Series;
-use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
+use rocksdb::DB;
 use serde_json::Value;
-use sql_query_builder::Select;
 
-use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, STAGED_DIR, TABLE_NAME};
+use crate::constants::DIFF_STATUS_COL;
 use crate::core::db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::opts::DFOpts;
 
-use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
+use crate::core::db::data_frames::{df_db, rows};
 use crate::core::df::tabular;
 use crate::core::v0_19_0::{rm, workspaces};
 use crate::error::OxenError;
 use crate::model::data_frame::update_result::UpdateResult;
 use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
-use crate::model::{Commit, CommitEntry, LocalRepository, Workspace};
+use crate::model::{Commit, LocalRepository, Workspace};
 use crate::repositories;
 use crate::util;
-use crate::view::data_frames::DataFrameRowChange;
 use crate::view::JsonDataFrameView;
 
 use std::collections::HashSet;
 use std::path::Path;
 
-use crate::core::db::data_frames::row_changes_db::get_all_data_frame_row_changes;
 
 pub fn add(
     workspace: &Workspace,
@@ -73,7 +69,7 @@ pub fn restore(
 ) -> Result<DataFrame, OxenError> {
     let row_id = row_id.as_ref();
     let restored_row = restore_row_in_db(workspace, path.as_ref(), row_id)?;
-    let diff = repositories::workspaces::data_frames::full_diff(workspace, &path.as_ref())?;
+    let diff = repositories::workspaces::data_frames::full_diff(workspace, path.as_ref())?;
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
@@ -260,16 +256,16 @@ pub fn restore_row_in_db(
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
     let row_id = row_id.as_ref();
-    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path.as_ref());
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path.as_ref());
     let conn = df_db::get_connection(db_path)?;
     let opts = db::key_val::opts::default();
     let column_changes_path =
-        repositories::workspaces::data_frames::column_changes_path(workspace, &path.as_ref());
+        repositories::workspaces::data_frames::column_changes_path(workspace, path.as_ref());
     let db = DB::open(&opts, dunce::simplified(&column_changes_path))?;
 
     // Get the row by id
     let row =
-        repositories::workspaces::data_frames::rows::get_by_id(workspace, &path.as_ref(), row_id)?;
+        repositories::workspaces::data_frames::rows::get_by_id(workspace, path.as_ref(), row_id)?;
 
     if row.height() == 0 {
         return Err(OxenError::resource_not_found(row_id));
@@ -290,7 +286,7 @@ pub fn restore_row_in_db(
             let mut insert_row = prepare_modified_or_removed_row(
                 &workspace.base_repo,
                 &workspace.commit,
-                &path.as_ref(),
+                path.as_ref(),
                 &row,
             )?;
             log::debug!("restore_row() insert_row: {:?}", insert_row);

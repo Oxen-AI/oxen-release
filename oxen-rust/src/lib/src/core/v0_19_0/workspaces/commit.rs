@@ -1,15 +1,13 @@
-use crate::constants;
 use crate::constants::STAGED_DIR;
 use crate::core;
 use crate::core::db;
 use crate::core::refs::RefWriter;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, NewCommitBody, Workspace};
+use crate::model::{Commit, NewCommitBody, Workspace};
 use crate::util;
 
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, SingleThreaded};
-use std::path::Path;
 
 pub fn commit(
     workspace: &Workspace,
@@ -38,7 +36,7 @@ pub fn commit(
     let commit = core::v0_19_0::index::commit_writer::commit_dir_entries(
         &workspace.base_repo,
         dir_entries,
-        &new_commit,
+        new_commit,
         &staged_db_path,
         &commit_progress_bar,
     )?;

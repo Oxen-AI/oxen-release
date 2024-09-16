@@ -251,7 +251,7 @@ async fn push_to_existing_branch(
 
     // If we do have the commit locally, we are ahead
     // We need to find all the commits that need to be pushed
-    let mut commits = repositories::commits::list_between(repo, &commit, &latest_remote_commit)?;
+    let mut commits = repositories::commits::list_between(repo, commit, &latest_remote_commit)?;
     commits.reverse();
 
     let progress_bar = PushProgress::new();
@@ -264,7 +264,7 @@ async fn push_to_existing_branch(
     }
 
     // Update the remote branch to point to the latest commit
-    api::client::branches::update(remote_repo, &remote_branch.name, &commit).await?;
+    api::client::branches::update(remote_repo, &remote_branch.name, commit).await?;
 
     Ok(())
 }
