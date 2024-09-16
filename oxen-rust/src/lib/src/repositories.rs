@@ -75,6 +75,14 @@ pub fn get_by_namespace_and_name(
     Ok(Some(repo))
 }
 
+pub fn is_empty(repo: &LocalRepository) -> Result<bool, OxenError> {
+    match commits::root_commit_maybe(repo) {
+        Ok(None) => Ok(true),
+        Ok(Some(_)) => Ok(false),
+        Err(err) => Err(err),
+    }
+}
+
 pub fn get_commit_stats_from_id(
     repo: &LocalRepository,
     commit_id: &str,

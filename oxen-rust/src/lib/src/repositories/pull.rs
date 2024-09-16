@@ -3,12 +3,10 @@
 //! Pull data from a remote branch
 //!
 
-use crate::constants::{DEFAULT_BRANCH_NAME, DEFAULT_REMOTE_NAME};
 use crate::core;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
-use crate::model::{LocalRepository, RemoteBranch, RemoteRepository};
-use crate::opts::PullOpts;
+use crate::model::LocalRepository;
 
 /// Pull a repository's data from default branches origin/main
 /// Defaults defined in

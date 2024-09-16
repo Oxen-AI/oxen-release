@@ -98,9 +98,13 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     Ok(commit.to_commit())
 }
 
-pub fn root_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
-    let commit_id = head_commit_id(repo)?;
-    root_commit_recursive(repo, commit_id)
+pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
+    if let Some(commit) = head_commit_maybe(repo)? {
+        let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
+        Ok(Some(root_commit))
+    } else {
+        Ok(None)
+    }
 }
 
 fn root_commit_recursive(
@@ -112,9 +116,10 @@ fn root_commit_recursive(
             return Ok(commit);
         }
 
-        for parent_id in commit.parent_ids {
-            let parent_id = MerkleHash::from_str(&parent_id)?;
-            root_commit_recursive(repo, parent_id)?;
+        // Only need to check the first parent, as all paths lead to the root
+        if let Some(parent_id) = commit.parent_ids.first() {
+            let parent_id = MerkleHash::from_str(parent_id)?;
+            return root_commit_recursive(repo, parent_id);
         }
     }
     Err(OxenError::basic_str("No root commit found"))

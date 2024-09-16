@@ -2,8 +2,6 @@ use crate::errors::OxenHttpError;
 use crate::helpers::get_repo;
 use crate::params::{app_data, path_param};
 
-use liboxen::core::v0_10_0::cache::commit_cacher;
-
 use liboxen::error::OxenError;
 use liboxen::model::NewCommitBody;
 use liboxen::repositories;
