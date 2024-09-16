@@ -230,14 +230,14 @@ fn remove_staged_dir(
                 // Errors encountered in remove_staged_file or remove_staged_dir won't end this loop
                 if path.is_dir() {
                     match remove_staged_dir(repo, &path, staged_db) {
-                        Ok(_) => {},
+                        Ok(_) => {}
                         Err(err) => {
                             log::debug!("Err: {err}");
                         }
                     }
                 }
                 match remove_staged_file(repo, &path, staged_db) {
-                    Ok(_) => {},
+                    Ok(_) => {}
                     Err(err) => {
                         log::debug!("Err: {err}");
                     }
