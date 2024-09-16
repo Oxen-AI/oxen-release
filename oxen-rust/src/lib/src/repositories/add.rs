@@ -344,8 +344,7 @@ mod tests {
             assert!(status
                 .untracked_dirs
                 .iter()
-                .find(|(path, _)| *path == PathBuf::from("empty_dir"))
-                .is_some());
+                .any(|(path, _)| *path == PathBuf::from("empty_dir")));
 
             // Add the empty dir
             repositories::add(&repo, &empty_dir)?;

@@ -507,7 +507,7 @@ fn add_dir_to_staged_db(
 
     let dir_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Added,
-        node: MerkleTreeNode::default_dir_from_path(&relative_path),
+        node: MerkleTreeNode::default_dir_from_path(relative_path),
     };
 
     log::debug!("writing dir to staged db: {}", dir_entry);
