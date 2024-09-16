@@ -3,18 +3,19 @@ use polars::frame::DataFrame;
 
 use polars::prelude::NamedFrom;
 use polars::series::Series;
-use rocksdb::DB;
+use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
 use serde_json::Value;
 use sql_query_builder::Select;
 
-use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, TABLE_NAME};
+use crate::constants::{DIFF_STATUS_COL, OXEN_ID_COL, OXEN_ROW_ID_COL, STAGED_DIR, TABLE_NAME};
 use crate::core::db;
 use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::opts::DFOpts;
 
 use crate::core::db::data_frames::{df_db, rows, workspace_df_db};
 use crate::core::df::tabular;
-use crate::core::v0_19_0::workspaces;
+use crate::core::v0_19_0::{rm, workspaces};
 use crate::error::OxenError;
 use crate::model::data_frame::update_result::UpdateResult;
 use crate::model::diff::DiffResult;
@@ -25,6 +26,7 @@ use crate::util;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::view::JsonDataFrameView;
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use crate::core::db::data_frames::row_changes_db::get_all_data_frame_row_changes;
@@ -72,13 +74,15 @@ pub fn restore(
     let row_id = row_id.as_ref();
     let restored_row = restore_row_in_db(workspace, path.as_ref(), row_id)?;
     let diff = repositories::workspaces::data_frames::full_diff(workspace, &path.as_ref())?;
-
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
             // TODO: Implement this
-            workspaces::files::delete(workspace, &path.as_ref())?;
+            rm::remove_staged(
+                &workspace.base_repo,
+                &HashSet::from([path.as_ref().to_path_buf()]),
+            )?;
         }
     }
 
@@ -120,7 +124,7 @@ pub fn delete(
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
-            workspaces::files::delete(workspace, path)?;
+            rm::remove_staged(&workspace.base_repo, &HashSet::from([path.to_path_buf()]))?;
         }
     }
     Ok(deleted_row)
@@ -160,7 +164,7 @@ pub fn update(
     let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            workspaces::files::delete(workspace, path)?;
+            rm::remove_staged(&workspace.base_repo, &HashSet::from([path.to_path_buf()]))?;
         }
     }
 
@@ -210,6 +214,15 @@ pub fn prepare_modified_or_removed_row(
     let row_idx_og = (row_idx - 1) as i64;
 
     let commit_merkle_tree = CommitMerkleTree::from_path(repo, commit, &path, true)?;
+    let file_node = match commit_merkle_tree.root.node {
+        EMerkleTreeNode::File(file_node) => file_node,
+        _ => return Err(OxenError::basic_str("File node not found")),
+    };
+
+    log::debug!(
+        "prepare_modified_or_removed_row() commit_merkle_tree: {:?}",
+        &commit_merkle_tree.root.hash.to_string()
+    );
 
     // let scan_rows = 10000 as usize;
     let committed_df_path = util::fs::version_path_from_node(
@@ -218,8 +231,14 @@ pub fn prepare_modified_or_removed_row(
         path.as_ref(),
     );
 
+    log::debug!(
+        "prepare_modified_or_removed_row() committed_df_path: {:?}",
+        committed_df_path
+    );
+
     // TODONOW should not be using all rows - just need to parse delim
-    let lazy_df = tabular::read_df(committed_df_path, DFOpts::empty())?;
+    let lazy_df =
+        tabular::read_df_with_extension(committed_df_path, file_node.extension, &DFOpts::empty())?;
 
     // Get the row by index
     let mut row = lazy_df.slice(row_idx_og, 1_usize);
@@ -258,7 +277,6 @@ pub fn restore_row_in_db(
 
     let row_status = repositories::workspaces::data_frames::rows::get_row_status(&row)?
         .ok_or_else(|| OxenError::basic_str("Row status not found"))?;
-
     let result_row = match row_status {
         StagedRowStatus::Added => {
             // Row is added, just delete it
@@ -275,7 +293,9 @@ pub fn restore_row_in_db(
                 &path.as_ref(),
                 &row,
             )?;
+            log::debug!("restore_row() insert_row: {:?}", insert_row);
             rows::revert_row_changes(&db, row_id.to_owned())?;
+            log::debug!("restore_row() after revert");
             rows::modify_row(&conn, &mut insert_row, row_id)?
         }
         StagedRowStatus::Unchanged => {

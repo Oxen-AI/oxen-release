@@ -146,14 +146,13 @@ pub fn full_diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffRe
     // Get commit for the branch head
     log::debug!("diff_workspace_df got repo at path {:?}", repo.path);
 
-    let entry = repositories::entries::get_commit_entry(repo, commit, path)?
-        .ok_or(OxenError::entry_does_not_exist(path))?;
+    repositories::CommitMerkleTree::from_path_recursive(repo, commit, path)?;
 
     if !is_indexed(workspace, path)? {
         return Err(OxenError::basic_str("Dataset is not indexed"));
     };
 
-    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, entry.path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
 
     let conn = df_db::get_connection(db_path)?;
 

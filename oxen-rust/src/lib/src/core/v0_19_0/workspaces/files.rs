@@ -10,6 +10,7 @@ use crate::core::db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::v0_19_0::add::process_add_file;
 use crate::core::v0_19_0::index::CommitMerkleTree;
+use crate::core::v0_19_0::rm;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::error::OxenError;
 use crate::model::workspace::Workspace;
