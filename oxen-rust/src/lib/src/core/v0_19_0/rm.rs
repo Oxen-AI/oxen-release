@@ -78,37 +78,23 @@ fn remove(
     for path in paths {
         // Remove dirs
         if path.is_dir() {
-            // Stage removed directory, searching all entries
-            match remove_dir(repo, &maybe_head_commit, path.clone()) {
-                Ok(dir_stats) => {
-                    total += dir_stats;
-                }
-                Err(err) => {
-                    log::debug!("Err: {err:?}");
-                    return Err(err);
-                }
-            }
 
-            // Remove files
+            let total = remove_dir(repo, &maybe_head_commit, path.clone())?;
+            total += dir_stats;
+
+        // Remove files
         } else if path.is_file() {
-            match remove_file(repo, &maybe_head_commit, path) {
-                Ok(entry) => {
-                    if let Some(entry) = entry {
-                        if let EMerkleTreeNode::File(file_node) = &entry.node.node {
-                            let data_type = file_node.data_type.clone();
-                            total.total_files += 1;
-                            total.total_bytes += file_node.num_bytes;
-                            total
-                                .data_type_counts
-                                .entry(data_type)
-                                .and_modify(|count| *count += 1)
-                                .or_insert(1);
-                        }
-                    }
-                }
-                Err(err) => {
-                    log::debug!("Err: {err:?}");
-                    return Err(err);
+
+            if let Some(entry) = remove_file(repo, &maybe_head_commit, path)? {
+                if let EMerkleTreeNode::File(file_node) = &entry.node.node {
+                    let data_type = file_node.data_type.clone();
+                    total.total_files += 1;
+                    total.total_bytes += file_node.num_bytes;
+                    total
+                        .data_type_counts
+                        .entry(data_type)
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
                 }
             }
 
@@ -117,6 +103,7 @@ fn remove(
             if full_path.exists() {
                 util::fs::remove_file(&full_path)?;
             }
+            
         } else {
             let mut maybe_dir_node = None;
             log::debug!("Found non-existant path: {path:?}");
@@ -317,8 +304,9 @@ pub fn process_remove_file(
     let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
     let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
-    let dst = dst_dir.join("data");
-    util::fs::remove_dir_all(&dst)?;
+    if dst_dir.exists() {
+        util::fs::remove_dir_all(&dst_dir)?;
+    }
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);
@@ -400,8 +388,10 @@ pub fn process_remove_file_and_parents(
     let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
     let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
-    let dst = dst_dir.join("data");
-    util::fs::remove_dir_all(&dst)?;
+    if dst_dir.exists() {
+        util::fs::remove_dir_all(&dst_dir)?;
+    }
+
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);
