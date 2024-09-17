@@ -26,7 +26,6 @@ use crate::view::JsonDataFrameView;
 use std::collections::HashSet;
 use std::path::Path;
 
-
 pub fn add(
     workspace: &Workspace,
     file_path: impl AsRef<Path>,

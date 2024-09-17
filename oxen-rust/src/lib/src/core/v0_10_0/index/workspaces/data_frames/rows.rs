@@ -19,10 +19,10 @@ use crate::model::data_frame::update_result::UpdateResult;
 use crate::model::diff::DiffResult;
 use crate::model::staged_row_status::StagedRowStatus;
 use crate::model::{CommitEntry, LocalRepository, Workspace};
+use crate::repositories;
 use crate::util;
 use crate::view::data_frames::DataFrameRowChange;
 use crate::view::JsonDataFrameView;
-use crate::repositories;
 
 use std::path::Path;
 

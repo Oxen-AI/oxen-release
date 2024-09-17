@@ -1,6 +1,5 @@
 use duckdb::Connection;
 
-
 use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, TABLE_NAME};
 use crate::core::db::data_frames::df_db;
 use crate::core::v0_19_0::index::CommitMerkleTree;

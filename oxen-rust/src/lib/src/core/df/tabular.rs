@@ -518,8 +518,7 @@ pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, Ox
     log::debug!("slice_df with opts: {:?}", opts);
     let df = df.lazy();
     let df = slice(df, &opts);
-    df
-        .collect()
+    df.collect()
         .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
 }
 
@@ -532,8 +531,7 @@ pub fn paginate_df(df: DataFrame, page_opts: &PaginateOpts) -> Result<DataFrame,
     ));
     let df = df.lazy();
     let df = slice(df, &opts);
-    df
-        .collect()
+    df.collect()
         .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
 }
 
@@ -552,14 +550,12 @@ fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 }
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
-    df
-        .with_row_index(constants::ROW_NUM_COL_NAME, Some(0))
+    df.with_row_index(constants::ROW_NUM_COL_NAME, Some(0))
         .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
 }
 
 pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame, OxenError> {
-    df
-        .with_row_index(constants::ROW_NUM_COL_NAME, Some(start))
+    df.with_row_index(constants::ROW_NUM_COL_NAME, Some(start))
         .map_err(|_| OxenError::basic_str(COLLECT_ERROR))
 }
 
