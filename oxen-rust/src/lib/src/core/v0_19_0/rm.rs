@@ -79,7 +79,7 @@ fn remove(
         // Remove dirs
         if path.is_dir() {
 
-            let total = remove_dir(repo, &maybe_head_commit, path.clone())?;
+            let dir_stats = remove_dir(repo, &maybe_head_commit, path.clone())?;
             total += dir_stats;
 
         // Remove files
@@ -103,7 +103,7 @@ fn remove(
             if full_path.exists() {
                 util::fs::remove_file(&full_path)?;
             }
-            
+
         } else {
             let mut maybe_dir_node = None;
             log::debug!("Found non-existant path: {path:?}");
