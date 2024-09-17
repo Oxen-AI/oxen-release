@@ -78,13 +78,11 @@ fn remove(
     for path in paths {
         // Remove dirs
         if path.is_dir() {
-
             let dir_stats = remove_dir(repo, &maybe_head_commit, path.clone())?;
             total += dir_stats;
 
         // Remove files
         } else if path.is_file() {
-
             if let Some(entry) = remove_file(repo, &maybe_head_commit, path)? {
                 if let EMerkleTreeNode::File(file_node) = &entry.node.node {
                     let data_type = file_node.data_type.clone();
@@ -103,7 +101,6 @@ fn remove(
             if full_path.exists() {
                 util::fs::remove_file(&full_path)?;
             }
-
         } else {
             let mut maybe_dir_node = None;
             log::debug!("Found non-existant path: {path:?}");
@@ -391,7 +388,6 @@ pub fn process_remove_file_and_parents(
     if dst_dir.exists() {
         util::fs::remove_dir_all(&dst_dir)?;
     }
-
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);

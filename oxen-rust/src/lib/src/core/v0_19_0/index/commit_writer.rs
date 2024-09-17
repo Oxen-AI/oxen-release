@@ -228,7 +228,7 @@ pub fn commit_dir_entries_new(
     commit_progress_bar.finish_and_clear();
 
     // Close the connection before removing the staged db
-    let staged_db_path = staged_db.path().to_owned(); 
+    let staged_db_path = staged_db.path().to_owned();
     drop(staged_db);
 
     // Clear the staged db
@@ -236,7 +236,6 @@ pub fn commit_dir_entries_new(
 
     Ok(node.to_commit())
 }
-
 
 pub fn commit_dir_entries(
     repo: &LocalRepository,
@@ -327,7 +326,7 @@ pub fn commit_dir_entries(
     commit_progress_bar.finish_and_clear();
 
     // Clear the staged db
-    util::fs::remove_dir_all(&staged_db_path)?;
+    util::fs::remove_dir_all(staged_db_path)?;
 
     Ok(node.to_commit())
 }
