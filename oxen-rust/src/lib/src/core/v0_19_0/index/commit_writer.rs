@@ -106,11 +106,11 @@ pub fn commit_with_cfg(
     };
     let branch = repositories::branches::current_branch(repo)?;
     let maybe_branch_name = branch.map(|b| b.name);
-    let commit = commit_dir_entries(
+    let commit = commit_dir_entries_new(
         repo,
         dir_entries,
         &new_commit,
-        &staged_db_path,
+        staged_db,
         &commit_progress_bar,
     )?;
 
@@ -139,11 +139,110 @@ pub fn commit_with_cfg(
     Ok(commit)
 }
 
+pub fn commit_dir_entries_new(
+    repo: &LocalRepository,
+    dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+    new_commit: &NewCommitBody,
+    staged_db: DBWithThreadMode<SingleThreaded>,
+    commit_progress_bar: &ProgressBar,
+) -> Result<Commit, OxenError> {
+    let message = &new_commit.message;
+    // if the HEAD file exists, we have parents
+    // otherwise this is the first commit
+    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
+
+    let maybe_head_commit = if head_path.exists() {
+        let commit = repositories::commits::head_commit(repo)?;
+        Some(commit)
+    } else {
+        None
+    };
+
+    let mut parent_ids = vec![];
+    if let Some(parent) = &maybe_head_commit {
+        parent_ids.push(parent.hash()?);
+    }
+
+    let directories = dir_entries
+        .keys()
+        .map(|path| path.to_path_buf())
+        .collect::<Vec<_>>();
+
+    let mut existing_nodes: HashMap<PathBuf, MerkleTreeNode> = HashMap::new();
+    if let Some(commit) = &maybe_head_commit {
+        existing_nodes = CommitMerkleTree::load_nodes(repo, commit, &directories)?;
+    }
+
+    // Sort children and split into VNodes
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
+
+    // Compute the commit hash
+    let timestamp = OffsetDateTime::now_utc();
+    let new_commit = NewCommit {
+        parent_ids: parent_ids.iter().map(|id| id.to_string()).collect(),
+        message: message.to_string(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
+        timestamp,
+    };
+    let commit_id = compute_commit_id(&new_commit)?;
+
+    let node = CommitNode {
+        hash: commit_id,
+        parent_ids,
+        message: message.to_string(),
+        author: new_commit.author.clone(),
+        email: new_commit.email.clone(),
+        timestamp,
+        ..Default::default()
+    };
+
+    let opts = db::key_val::opts::default();
+    let dir_hash_db_path = CommitMerkleTree::dir_hash_db_path_from_commit_id(repo, commit_id);
+    let dir_hash_db: DBWithThreadMode<SingleThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&dir_hash_db_path))?;
+
+    // Copy over the dir hashes from the previous commit
+    let mut parent_id: Option<MerkleHash> = None;
+    if let Some(commit) = &maybe_head_commit {
+        parent_id = Some(commit.hash()?);
+        let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        for (path, hash) in dir_hashes {
+            if let Some(path_str) = path.to_str() {
+                str_val_db::put(&dir_hash_db, path_str, &hash.to_string())?;
+            } else {
+                log::error!("Failed to convert path to string: {:?}", path);
+            }
+        }
+    }
+
+    let mut commit_db = MerkleNodeDB::open_read_write(repo, &node, parent_id)?;
+    write_commit_entries(
+        repo,
+        &maybe_head_commit,
+        commit_id,
+        &mut commit_db,
+        &dir_hash_db,
+        &vnode_entries,
+    )?;
+    commit_progress_bar.finish_and_clear();
+
+    // Close the connection before removing the staged db
+    let staged_db_path = staged_db.path().to_owned(); 
+    drop(staged_db);
+
+    // Clear the staged db
+    util::fs::remove_dir_all(staged_db_path)?;
+
+    Ok(node.to_commit())
+}
+
+
 pub fn commit_dir_entries(
     repo: &LocalRepository,
     dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
     new_commit: &NewCommitBody,
-    staged_db_path: impl AsRef<Path>,
+    staged_db_path: &Path,
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
     let message = &new_commit.message;
