@@ -372,7 +372,7 @@ mod tests {
                 let dir_path = data_dir.join(format!("{}", i));
                 util::fs::create_dir_all(&dir_path)?;
                 let file_path = dir_path.join("file.txt");
-                let file_path = test::write_txt_file_to_path(file_path, &format!("file -> {}", i))?;
+                let file_path = test::write_txt_file_to_path(file_path, format!("file -> {}", i))?;
                 repositories::add(&repo, &file_path)?;
                 repositories::commit(&repo, &format!("Adding file -> data/{}/file.txt", i))?;
             }

@@ -76,6 +76,7 @@ impl CommitMerkleTree {
         log::debug!("Read path {:?} in commit {:?}", node_path, commit);
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
         let node_hash: Option<MerkleHash> = dir_hashes.get(node_path).cloned();
+
         let root = if let Some(node_hash) = node_hash {
             // We are reading a node with children
             log::debug!("Look up dir 🗂️ {:?}", node_path);

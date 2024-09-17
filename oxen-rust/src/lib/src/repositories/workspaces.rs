@@ -220,7 +220,7 @@ pub fn commit(
 ) -> Result<Commit, OxenError> {
     match workspace.workspace_repo.min_version() {
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::workspaces::commit(workspace, new_commit, branch_name)
+            core::v0_19_0::workspaces::commit::commit(workspace, new_commit, branch_name)
         }
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::index::workspaces::commit(workspace, new_commit, branch_name)
