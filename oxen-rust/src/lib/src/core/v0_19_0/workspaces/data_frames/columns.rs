@@ -16,7 +16,6 @@ use crate::view::data_frames::ColumnChange;
 
 use std::path::Path;
 
-
 pub fn add(
     workspace: &Workspace,
     file_path: impl AsRef<Path>,

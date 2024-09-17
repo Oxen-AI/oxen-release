@@ -23,7 +23,6 @@ use crate::model::LocalRepository;
 
 use std::path::Path;
 
-
 pub fn add(
     repo: &LocalRepository,
     workspace: &Workspace,
