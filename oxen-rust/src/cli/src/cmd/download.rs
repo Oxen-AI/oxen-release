@@ -95,7 +95,7 @@ impl RunCmd for DownloadCmd {
             let remote_paths = paths[1..].to_vec();
             let commit_id = opts.remote_commit_id(&remote_repo).await?;
             for path in remote_paths {
-                command::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
+                repositories::download(&remote_repo, &path, &opts.dst, &commit_id).await?;
             }
         } else {
             eprintln!("Repository does not exist {}", name);
