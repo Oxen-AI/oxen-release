@@ -166,7 +166,7 @@ pub fn add_dir(
     process_add_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
 }
 
-fn process_add_dir(
+pub fn process_add_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
     versions_path: &Path,
@@ -507,7 +507,7 @@ fn add_dir_to_staged_db(
 
     let dir_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Added,
-        node: MerkleTreeNode::default_dir_from_path(&relative_path),
+        node: MerkleTreeNode::default_dir_from_path(relative_path),
     };
 
     log::debug!("writing dir to staged db: {}", dir_entry);

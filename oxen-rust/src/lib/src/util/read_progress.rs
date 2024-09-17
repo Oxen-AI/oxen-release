@@ -8,9 +8,8 @@ pub struct ReadProgress<R> {
 
 impl<R: std::io::Read> std::io::Read for ReadProgress<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let size = self.inner.read(buf).map(|n| {
+        let size = self.inner.read(buf).inspect(|&n| {
             self.progress_bar.inc(n as u64);
-            n
         });
         if self.progress_bar.elapsed() >= self.progress_bar.duration() {
             self.progress_bar.finish();
