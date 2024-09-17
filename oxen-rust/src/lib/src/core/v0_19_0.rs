@@ -10,6 +10,7 @@ pub mod entries;
 pub mod fetch;
 pub mod index;
 pub mod init;
+pub mod merge;
 pub mod metadata;
 pub mod pull;
 pub mod push;

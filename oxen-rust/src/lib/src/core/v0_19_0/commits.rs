@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::core::refs::RefReader;
@@ -213,6 +213,35 @@ pub fn list_from(
         list_recursive(repo, commit, &mut results, None)?;
     }
     Ok(results)
+}
+
+/// Get commit history given a revision (branch name or commit id)
+pub fn list_from_with_depth(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+) -> Result<HashMap<Commit, usize>, OxenError> {
+    let mut results = HashMap::new();
+    let commit = repositories::revisions::get(repo, revision)?;
+    if let Some(commit) = commit {
+        list_recursive_with_depth(repo, commit, &mut results, 0)?;
+    }
+    Ok(results)
+}
+
+fn list_recursive_with_depth(
+    repo: &LocalRepository,
+    commit: Commit,
+    results: &mut HashMap<Commit, usize>,
+    depth: usize,
+) -> Result<(), OxenError> {
+    results.insert(commit.clone(), depth);
+    for parent_id in commit.parent_ids {
+        let parent_id = MerkleHash::from_str(&parent_id)?;
+        if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
+            list_recursive_with_depth(repo, parent_commit, results, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 /// List the history between two commits
