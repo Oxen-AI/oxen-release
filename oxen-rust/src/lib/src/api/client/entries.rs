@@ -529,11 +529,13 @@ pub async fn try_download_data_from_version_paths(
 
     let dst = dst.as_ref();
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    for (content_id, _) in content_ids.iter() {
+    for (content_id, _path) in content_ids.iter() {
         let line = format!("{content_id}\n");
+        // log::debug!("download_data_from_version_paths encoding line: {} path: {:?}", line, path);
         encoder.write_all(line.as_bytes())?;
     }
     let body = encoder.finish()?;
+    log::debug!("download_data_from_version_paths body len: {}", body.len());
     let url = api::endpoint::url_from_repo(remote_repo, "/versions")?;
 
     let client = client::new_for_url(&url)?;
@@ -556,8 +558,8 @@ pub async fn try_download_data_from_version_paths(
         // Iterate over archive entries and unpack them to their entry paths
         let mut entries = archive.entries()?;
         while let Some(file) = entries.next().await {
-            let _version = &content_ids[idx];
             let entry_path = &content_ids[idx].1;
+            // let version = &content_ids[idx];
             // log::debug!(
             //     "download_data_from_version_paths Unpacking {:?} -> {:?}",
             //     version,
@@ -583,7 +585,7 @@ pub async fn try_download_data_from_version_paths(
             // log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
             match file.unpack(&full_path).await {
                 Ok(_) => {
-                    // log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
+                    log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
                 }
                 Err(err) => {
                     let err = format!("Could not unpack file {:?} -> {:?}", entry_path, err);

@@ -592,7 +592,7 @@ fn r_create_dir_node(
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
 
-    log::debug!("r_create_dir_node entries.keys() {:?}", entries.keys());
+    log::debug!("r_create_dir_node entries.len() {:?}", entries.len());
 
     let Some(vnodes) = entries.get(&path) else {
         let err_msg = format!(
