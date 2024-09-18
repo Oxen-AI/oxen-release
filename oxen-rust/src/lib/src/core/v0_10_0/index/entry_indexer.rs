@@ -814,7 +814,10 @@ impl EntryIndexer {
                     ) {
                         Ok(_) => {}
                         Err(err) => {
-                            log::error!("unpack_version_files_to_working_dir set_file_timestamps error: {}", err);
+                            log::error!(
+                                "unpack_version_files_to_working_dir set_file_timestamps error: {}",
+                                err
+                            );
                         }
                     }
                 }
