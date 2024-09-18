@@ -448,8 +448,8 @@ pub fn meta_entry_from_commit_entry(
         Some(
             repositories::workspaces::data_frames::is_queryable_data_frame_indexed(
                 repo,
-                &latest_commit,
                 &entry.path,
+                &latest_commit,
             )?,
         )
     } else {

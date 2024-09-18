@@ -52,11 +52,7 @@ pub fn df_to_pager(df: &DataFrame, opts: &DFOpts) -> Result<Pager, OxenError> {
     let max_rows = height + 10;
     env::set_var("POLARS_FMT_MAX_ROWS", max_rows.to_string());
 
-    let page_size: usize = if let Some(size) = opts.page_size {
-        size
-    } else {
-        10
-    };
+    let page_size: usize = opts.page_size.unwrap_or(10);
     let start: usize = if let Some(page) = opts.page {
         cmp::max(1, (page - 1) * page_size + 1)
     } else {
