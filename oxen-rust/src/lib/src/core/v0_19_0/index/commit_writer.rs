@@ -78,10 +78,7 @@ pub fn commit_with_cfg(
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let staged_db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    log::debug!(
-        "0.19.0::commit_writer::commit staged db path: {:?}",
-        staged_db_path
-    );
+    log::debug!("commit_with_cfg staged db path: {:?}", staged_db_path);
     let staged_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
 
@@ -147,16 +144,9 @@ pub fn commit_dir_entries_new(
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
     let message = &new_commit.message;
-    // if the HEAD file exists, we have parents
+    // if the HEAD commit exists, we have parents
     // otherwise this is the first commit
-    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
-
-    let maybe_head_commit = if head_path.exists() {
-        let commit = repositories::commits::head_commit(repo)?;
-        Some(commit)
-    } else {
-        None
-    };
+    let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
 
     let mut parent_ids = vec![];
     if let Some(parent) = &maybe_head_commit {
