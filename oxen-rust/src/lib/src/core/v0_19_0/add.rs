@@ -215,60 +215,50 @@ pub fn process_add_dir(
 
         add_dir_to_staged_db(staged_db, &dir_path, &seen_dirs)?;
 
-        // TODO: Parallelize this
-        std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
-            if let Ok(dir_entry) = dir_entry_result {
-                log::debug!("Dir Entry is: {dir_entry:?}");
-                let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-                let path = dir_entry.path();
-                let duration = start.elapsed().as_secs_f32();
-                let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
+        let entries: Vec<_> = std::fs::read_dir(dir)?.collect::<Result<_, _>>()?;
+        entries.par_iter().for_each(|dir_entry| {
+            log::debug!("Dir Entry is: {dir_entry:?}");
+            let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
+            let path = dir_entry.path();
+            let duration = start.elapsed().as_secs_f32();
+            let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
-                progress_1.set_message(format!(
-                    "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
-                    added_file_counter_clone.load(Ordering::Relaxed),
-                    unchanged_file_counter_clone.load(Ordering::Relaxed),
-                    bytesize::ByteSize::b(total_bytes),
-                    mbps
-                ));
+            progress_1.set_message(format!(
+                "🐂 add {} files, {} unchanged ({}) {:.2} MB/s",
+                added_file_counter_clone.load(Ordering::Relaxed),
+                unchanged_file_counter_clone.load(Ordering::Relaxed),
+                bytesize::ByteSize::b(total_bytes),
+                mbps
+            ));
 
-                let seen_dirs_clone = Arc::clone(&seen_dirs);
-                match process_add_file(
-                    &repo_path,
-                    versions_path,
-                    staged_db,
-                    &dir_node,
-                    &path,
-                    &seen_dirs_clone,
-                ) {
-                    Ok(Some(node)) => {
-                        if let EMerkleTreeNode::File(file_node) = &node.node.node {
-                            byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
-                            added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                            cumulative_stats.total_bytes += file_node.num_bytes;
-                            cumulative_stats
-                                .data_type_counts
-                                .entry(file_node.data_type.clone())
-                                .and_modify(|count| *count += 1)
-                                .or_insert(1);
-                            if node.status != StagedEntryStatus::Unmodified {
-                                cumulative_stats.total_files += 1;
-                            }
-                        }
+            let seen_dirs_clone = Arc::clone(&seen_dirs);
+            match process_add_file(
+                &repo_path,
+                versions_path,
+                staged_db,
+                &dir_node,
+                &path,
+                &seen_dirs_clone,
+            ) {
+                Ok(Some(node)) => {
+                    if let EMerkleTreeNode::File(file_node) = &node.node.node {
+                        byte_counter_clone.fetch_add(file_node.num_bytes, Ordering::Relaxed);
+                        added_file_counter_clone.fetch_add(1, Ordering::Relaxed);
                     }
-                    Ok(None) => {
-                        unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
-                    }
-                    Err(e) => {
-                        log::error!("Error adding file: {:?}", e);
-                    }
+                }
+                Ok(None) => {
+                    unchanged_file_counter_clone.fetch_add(1, Ordering::Relaxed);
+                }
+                Err(e) => {
+                    log::error!("Error adding file: {:?}", e);
                 }
             }
         });
     }
 
     progress_1_clone.finish_and_clear();
-
+    cumulative_stats.total_files = added_file_counter.load(Ordering::Relaxed) as usize;
+    cumulative_stats.total_bytes = byte_counter.load(Ordering::Relaxed);
     Ok(cumulative_stats)
 }
 
