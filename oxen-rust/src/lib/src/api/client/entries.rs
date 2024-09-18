@@ -529,9 +529,9 @@ pub async fn try_download_data_from_version_paths(
 
     let dst = dst.as_ref();
     let mut encoder = GzEncoder::new(Vec::new(), Compression::default());
-    for (content_id, path) in content_ids.iter() {
+    for (content_id, _path) in content_ids.iter() {
         let line = format!("{content_id}\n");
-        log::debug!("download_data_from_version_paths encoding line: {} path: {:?}", line, path);
+        // log::debug!("download_data_from_version_paths encoding line: {} path: {:?}", line, path);
         encoder.write_all(line.as_bytes())?;
     }
     let body = encoder.finish()?;
@@ -558,13 +558,13 @@ pub async fn try_download_data_from_version_paths(
         // Iterate over archive entries and unpack them to their entry paths
         let mut entries = archive.entries()?;
         while let Some(file) = entries.next().await {
-            let version = &content_ids[idx];
             let entry_path = &content_ids[idx].1;
-            log::debug!(
-                "download_data_from_version_paths Unpacking {:?} -> {:?}",
-                version,
-                entry_path
-            );
+            // let version = &content_ids[idx];
+            // log::debug!(
+            //     "download_data_from_version_paths Unpacking {:?} -> {:?}",
+            //     version,
+            //     entry_path
+            // );
 
             let full_path = dst.join(entry_path);
 
@@ -582,7 +582,7 @@ pub async fn try_download_data_from_version_paths(
                 }
             }
 
-            log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
+            // log::debug!("Unpacking {:?} into path {:?}", entry_path, full_path);
             match file.unpack(&full_path).await {
                 Ok(_) => {
                     log::debug!("Successfully unpacked {:?} into dst {:?}", entry_path, dst);
@@ -596,7 +596,7 @@ pub async fn try_download_data_from_version_paths(
             let metadata = util::fs::metadata(&full_path)?;
             size += metadata.len();
             idx += 1;
-            log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
+            // log::debug!("Unpacked {} bytes {:?}", metadata.len(), entry_path);
         }
 
         Ok(size)
