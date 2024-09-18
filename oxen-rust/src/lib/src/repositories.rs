@@ -347,7 +347,8 @@ pub fn create(root_dir: &Path, new_repo: RepoNew) -> Result<LocalRepository, Oxe
             add(&local_repo, &full_path)?;
         }
 
-        core::v0_19_0::commits::commit_with_user(&local_repo, "Initial commit", user)?;
+        let commit = core::v0_19_0::commits::commit_with_user(&local_repo, "Initial commit", user)?;
+        branches::create(&local_repo, constants::DEFAULT_BRANCH_NAME, &commit.id)?;
     }
 
     Ok(local_repo)
