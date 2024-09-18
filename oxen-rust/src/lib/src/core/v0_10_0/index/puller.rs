@@ -101,7 +101,11 @@ pub async fn pull_entries(
 
 // This one redundantly is just going to pass in two copies of
 // the version path so we don't have to change download_data_from_version_paths
-fn version_dir_paths_from_small_entries(remote_repo: &RemoteRepository, entries: &[Entry], dst: &Path) -> Vec<(String, PathBuf)> {
+fn version_dir_paths_from_small_entries(
+    remote_repo: &RemoteRepository,
+    entries: &[Entry],
+    dst: &Path,
+) -> Vec<(String, PathBuf)> {
     let mut content_ids: Vec<(String, PathBuf)> = vec![];
     for entry in entries.iter() {
         let version_path = util::fs::version_path_from_dst_generic(dst, entry);
@@ -127,10 +131,7 @@ fn version_dir_paths_from_small_entries(remote_repo: &RemoteRepository, entries:
 
         // Again...annoying that we need to pass in .oxen/versions/files/71/7783cda74ceeced8d45fae3155382c/data.jpg for now
         // instead of just "717783cda74ceeced8d45fae3155382c" but here we are.
-        content_ids.push((
-            content_id,
-            version_path.to_owned(),
-        ))
+        content_ids.push((content_id, version_path.to_owned()))
     }
     content_ids
 }

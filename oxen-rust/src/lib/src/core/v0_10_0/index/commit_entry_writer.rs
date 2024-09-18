@@ -1486,10 +1486,7 @@ impl CommitEntryWriter {
         // Update the local modified timestamps
         let working_path = repo.path.join(path);
         let Ok(metadata) = util::fs::metadata(working_path) else {
-            log::error!(
-                "Could not find file for setting timestamps: {:?}",
-                path
-            );
+            log::error!("Could not find file for setting timestamps: {:?}", path);
             return Ok(());
         };
         let mtime = FileTime::from_last_modification_time(&metadata);
