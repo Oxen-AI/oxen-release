@@ -78,37 +78,21 @@ fn remove(
     for path in paths {
         // Remove dirs
         if path.is_dir() {
-            // Stage removed directory, searching all entries
-            match remove_dir(repo, &maybe_head_commit, path.clone()) {
-                Ok(dir_stats) => {
-                    total += dir_stats;
-                }
-                Err(err) => {
-                    println!("Err: {err:?}");
-                    // TODO: Other error handling
-                }
-            }
+            let dir_stats = remove_dir(repo, &maybe_head_commit, path.clone())?;
+            total += dir_stats;
 
-            // Remove files
+        // Remove files
         } else if path.is_file() {
-            match remove_file(repo, &maybe_head_commit, path) {
-                Ok(entry) => {
-                    if let Some(entry) = entry {
-                        if let EMerkleTreeNode::File(file_node) = &entry.node.node {
-                            let data_type = file_node.data_type.clone();
-                            total.total_files += 1;
-                            total.total_bytes += file_node.num_bytes;
-                            total
-                                .data_type_counts
-                                .entry(data_type)
-                                .and_modify(|count| *count += 1)
-                                .or_insert(1);
-                        }
-                    }
-                }
-                Err(err) => {
-                    println!("Err: {err:?}");
-                    // TODO: Other error handling
+            if let Some(entry) = remove_file(repo, &maybe_head_commit, path)? {
+                if let EMerkleTreeNode::File(file_node) = &entry.node.node {
+                    let data_type = file_node.data_type.clone();
+                    total.total_files += 1;
+                    total.total_bytes += file_node.num_bytes;
+                    total
+                        .data_type_counts
+                        .entry(data_type)
+                        .and_modify(|count| *count += 1)
+                        .or_insert(1);
                 }
             }
 
@@ -129,11 +113,11 @@ fn remove(
 
             if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, path) {
                 log::debug!("non-existant path {path:?} was dir. Calling remove_dir");
-                remove_dir(repo, &maybe_head_commit, path.to_path_buf());
+                remove_dir(repo, &maybe_head_commit, path.to_path_buf())?;
             } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, path) {
                 log::debug!("non-existant path {path:?} was file. Calling remove_file");
                 let opts = RmOpts::from_path(path);
-                remove_file(repo, &maybe_head_commit, path);
+                remove_file(repo, &maybe_head_commit, path)?;
             }
         }
 
@@ -173,8 +157,7 @@ fn remove(
     Ok(())
 }
 
-fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<(), OxenError> {
-    let repo_path = repo.path.clone();
+pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<(), OxenError> {
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
@@ -227,10 +210,21 @@ fn remove_staged_dir(
             if let Ok(dir_entry) = dir_entry_result {
                 let path = dir_entry.path();
 
+                // Errors encountered in remove_staged_file or remove_staged_dir won't end this loop
                 if path.is_dir() {
-                    remove_staged_dir(repo, &path, staged_db);
+                    match remove_staged_dir(repo, &path, staged_db) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::debug!("Err: {err}");
+                        }
+                    }
                 }
-                remove_staged_file(repo, &path, staged_db);
+                match remove_staged_file(repo, &path, staged_db) {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::debug!("Err: {err}");
+                    }
+                }
             }
         });
         log::debug!("Deleting entry: {dir:?}");
@@ -245,7 +239,6 @@ pub fn remove_file(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    println!("Remove file");
     let repo_path = repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -307,8 +300,9 @@ pub fn process_remove_file(
     let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
     let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
-    let dst = dst_dir.join("data");
-    util::fs::remove_dir_all(&dst);
+    if dst_dir.exists() {
+        util::fs::remove_dir_all(&dst_dir)?;
+    }
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);
@@ -390,8 +384,9 @@ pub fn process_remove_file_and_parents(
     let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
     let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
-    let dst = dst_dir.join("data");
-    util::fs::remove_dir_all(&dst);
+    if dst_dir.exists() {
+        util::fs::remove_dir_all(&dst_dir)?;
+    }
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);
