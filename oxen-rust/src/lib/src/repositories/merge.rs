@@ -1,20 +1,14 @@
 use std::path::{Path, PathBuf};
 
-use rocksdb::DB;
 
 use crate::core;
-use crate::core::db;
-use crate::core::merge::db_path;
-use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
-use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::v0_10_0::index::CommitReader;
-use crate::core::v0_19_0::merge::EntryMergeConflictDBReader;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merge_conflict::MergeConflict;
 use crate::model::Commit;
 use crate::model::{
-    merge_conflict::NodeMergeConflict, Branch, EntryMergeConflict, LocalRepository,
+    Branch, LocalRepository,
 };
 
 pub struct MergeCommits {

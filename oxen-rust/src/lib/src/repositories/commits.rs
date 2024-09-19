@@ -171,7 +171,7 @@ pub fn list_from_with_depth(
 ) -> Result<HashMap<Commit, usize>, OxenError> {
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
-            return Err(OxenError::basic_str(
+            Err(OxenError::basic_str(
                 "list_from_with_depth not supported in v0.10.0",
             ))
         }

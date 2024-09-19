@@ -6,7 +6,6 @@ use crate::model::{merge_conflict::NodeMergeConflict, Commit, LocalRepository};
 use crate::util;
 
 use rocksdb::DB;
-use std::path::Path;
 
 /// Creates the DB object then calls write_conflicts_to_disk
 pub fn write_conflicts_to_db(
