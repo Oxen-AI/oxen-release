@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::path::Path;
 
 use crate::core::refs::RefReader;
+use crate::core::v0_10_0::cache::cacher_status::CacherStatusType;
 use crate::error::OxenError;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::{Commit, LocalRepository, MerkleHash, User};
@@ -264,4 +265,20 @@ pub fn list_by_path_from_paginated(
         commits,
         pagination,
     })
+}
+
+// TODO: Temporary function until after v0.19.0, see repositories::commits::get_commit_status_tmp
+pub fn get_commit_status_tmp(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Option<CacherStatusType>, OxenError> {
+    match get_by_id(repo, &commit.id)? {
+        Some(_commit) => Ok(Some(CacherStatusType::Success)),
+        None => Ok(None),
+    }
+}
+
+// TODO: Temporary function until after v0.19.0, see repositories::commits::is_commit_valid_tmp
+pub fn is_commit_valid_tmp(_repo: &LocalRepository, _commit: &Commit) -> Result<bool, OxenError> {
+    Ok(true)
 }
