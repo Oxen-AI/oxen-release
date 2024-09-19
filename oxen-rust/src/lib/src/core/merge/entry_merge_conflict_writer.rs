@@ -5,7 +5,7 @@ use crate::constants::{MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db;
 use crate::core::merge;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, MergeConflict};
+use crate::model::{Commit, EntryMergeConflict, LocalRepository};
 use crate::util;
 
 use rocksdb::DB;
@@ -15,7 +15,7 @@ pub fn write_conflicts_to_db(
     repo: &LocalRepository,
     merge_commit: &Commit,
     base_commit: &Commit,
-    conflicts: &[MergeConflict],
+    conflicts: &[EntryMergeConflict],
 ) -> Result<(), OxenError> {
     let db_path = merge::db_path(repo);
     let opts = db::key_val::opts::default();
@@ -30,7 +30,7 @@ pub fn write_conflicts_to_disk(
     db: &DB,
     merge_commit: &Commit,
     base_commit: &Commit,
-    conflicts: &[MergeConflict],
+    conflicts: &[EntryMergeConflict],
 ) -> Result<(), OxenError> {
     // Write two files which are the merge commit and head commit so that we can make these parents later
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);

@@ -9,7 +9,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::db::key_val::str_json_db;
 use crate::core::df::tabular;
-use crate::core::merge::merge_conflict_reader::MergeConflictReader;
+use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
 use crate::core::oxenignore;
 use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::ObjectDBReader;
@@ -30,7 +30,7 @@ use crate::opts::DFOpts;
 
 use crate::model::data_frame::schema;
 use crate::model::{
-    CommitEntry, LocalRepository, MergeConflict, StagedData, StagedDirStats, StagedEntry,
+    CommitEntry, EntryMergeConflict, LocalRepository, StagedData, StagedDirStats, StagedEntry,
     StagedEntryStatus,
 };
 use crate::util;
@@ -200,8 +200,8 @@ impl Stager {
         result
     }
 
-    fn list_merge_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
-        let merger = MergeConflictReader::new(&self.repository)?;
+    fn list_merge_conflicts(&self) -> Result<Vec<EntryMergeConflict>, OxenError> {
+        let merger = EntryMergeConflictReader::new(&self.repository)?;
         merger.list_conflicts()
     }
 

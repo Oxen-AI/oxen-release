@@ -1,15 +1,16 @@
 use crate::config::UserConfig;
 use crate::core::db;
 use crate::core::merge::db_path;
-pub use crate::core::merge::merge_conflict_db_reader::MergeConflictDBReader;
-use crate::core::merge::merge_conflict_writer;
+pub use crate::core::merge::entry_merge_conflict_db_reader::EntryMergeConflictDBReader;
+use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
+use crate::core::merge::entry_merge_conflict_writer;
 use crate::core::oxenignore;
 use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::index::{
     CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, SchemaReader, Stager,
 };
 use crate::error::OxenError;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
+use crate::model::{Branch, Commit, CommitEntry, EntryMergeConflict, LocalRepository};
 use crate::repositories;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
@@ -24,6 +25,11 @@ pub struct Merger {
     repository: LocalRepository,
     merge_db: DB,
     // files_db: DBWithThreadMode<MultiThreaded>,
+}
+
+pub fn list_conflicts(repo: &LocalRepository) -> Result<Vec<EntryMergeConflict>, OxenError> {
+    let reader = EntryMergeConflictReader::new(repo)?;
+    reader.list_conflicts()
 }
 
 impl Merger {
@@ -297,7 +303,7 @@ impl Merger {
                 let commit = self.create_merge_commit(merge_commits)?;
                 Ok(Some(commit))
             } else {
-                merge_conflict_writer::write_conflicts_to_disk(
+                entry_merge_conflict_writer::write_conflicts_to_disk(
                     &self.repository,
                     &self.merge_db,
                     &merge_commits.merge,
@@ -352,7 +358,7 @@ impl Merger {
                 let commit = self.create_merge_commit_on_branch(merge_commits, branch)?;
                 Ok(Some(commit))
             } else {
-                merge_conflict_writer::write_conflicts_to_disk(
+                entry_merge_conflict_writer::write_conflicts_to_disk(
                     &self.repository,
                     &self.merge_db,
                     &merge_commits.merge,
@@ -365,7 +371,7 @@ impl Merger {
     }
 
     pub fn has_file(&self, path: &Path) -> Result<bool, OxenError> {
-        MergeConflictDBReader::has_file(&self.merge_db, path)
+        EntryMergeConflictDBReader::has_file(&self.merge_db, path)
     }
 
     pub fn remove_conflict_path(&self, path: &Path) -> Result<(), OxenError> {
@@ -600,7 +606,7 @@ impl Merger {
         &self,
         merge_commits: &MergeCommits,
         write_to_disk: bool,
-    ) -> Result<Vec<MergeConflict>, OxenError> {
+    ) -> Result<Vec<EntryMergeConflict>, OxenError> {
         log::debug!("finding merge conflicts");
         /*
         https://en.wikipedia.org/wiki/Merge_(version_control)#Three-way_merge
@@ -626,7 +632,7 @@ impl Merger {
         */
 
         // We will return conflicts if there are any
-        let mut conflicts: Vec<MergeConflict> = vec![];
+        let mut conflicts: Vec<EntryMergeConflict> = vec![];
 
         // Read all the entries from each commit into sets we can compare to one another
         let lca_entry_reader = CommitEntryReader::new(&self.repository, &merge_commits.lca)?;
@@ -673,7 +679,7 @@ impl Merger {
                         && lca_entry.hash != merge_entry.hash
                         && base_entry.hash != merge_entry.hash
                     {
-                        conflicts.push(MergeConflict {
+                        conflicts.push(EntryMergeConflict {
                             lca_entry: lca_entry.to_owned(),
                             base_entry: base_entry.to_owned(),
                             merge_entry: merge_entry.to_owned(),
@@ -682,7 +688,7 @@ impl Merger {
                 } else {
                     // merge entry doesn't exist in LCA, so just check if it's different from base
                     if base_entry.hash != merge_entry.hash {
-                        conflicts.push(MergeConflict {
+                        conflicts.push(EntryMergeConflict {
                             lca_entry: base_entry.to_owned(),
                             base_entry: base_entry.to_owned(),
                             merge_entry: merge_entry.to_owned(),
@@ -718,7 +724,7 @@ impl Merger {
 
 #[cfg(test)]
 mod tests {
-    use crate::core::merge::merge_conflict_reader::MergeConflictReader;
+    use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
     use crate::core::v0_10_0::index::{CommitReader, Merger};
     use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository};
@@ -1060,7 +1066,7 @@ mod tests {
                 merger.merge(merge_branch_name)?;
             }
 
-            let conflict_reader = MergeConflictReader::new(&repo)?;
+            let conflict_reader = EntryMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
             let conflicts = conflict_reader.list_conflicts()?;
 
@@ -1119,7 +1125,7 @@ mod tests {
                 merger.merge(human_branch_name)?;
             }
 
-            let conflict_reader = MergeConflictReader::new(&repo)?;
+            let conflict_reader = EntryMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
             let conflicts = conflict_reader.list_conflicts()?;
 
