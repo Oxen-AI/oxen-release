@@ -11,6 +11,7 @@ use crate::core::v0_10_0::index::{
 use crate::error::OxenError;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 use crate::repositories;
+use crate::repositories::merge::MergeCommits;
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
@@ -18,19 +19,6 @@ use std::path::{Path, PathBuf};
 use std::str;
 
 use super::restore;
-
-// This is a struct to find the commits we want to merge
-pub struct MergeCommits {
-    lca: Commit,
-    base: Commit,
-    merge: Commit,
-}
-
-impl MergeCommits {
-    pub fn is_fast_forward_merge(&self) -> bool {
-        self.lca.id == self.base.id
-    }
-}
 
 pub struct Merger {
     repository: LocalRepository,
@@ -608,7 +596,7 @@ impl Merger {
     }
 
     /// Will try a three way merge and return conflicts if there are any to indicate that the merge was unsuccessful
-    fn find_merge_conflicts(
+    pub fn find_merge_conflicts(
         &self,
         merge_commits: &MergeCommits,
         write_to_disk: bool,
