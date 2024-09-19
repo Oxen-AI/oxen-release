@@ -1,13 +1,16 @@
 use crate::config::UserConfig;
 use crate::core::db;
-use crate::core::merge::db_path;
 pub use crate::core::merge::merge_conflict_db_reader::MergeConflictDBReader;
 use crate::core::merge::merge_conflict_writer;
+pub use crate::core::merge::node_merge_conflict_db_reader::NodeMergeConflictDBReader;
+use crate::core::merge::{db_path, node_merge_conflict_writer};
 use crate::core::oxenignore;
 use crate::core::refs::{RefReader, RefWriter};
 use crate::core::v0_10_0::index::{
     CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, SchemaReader, Stager,
 };
+use crate::core::v0_19_0::commits::{get_commit_or_head, head_commit, list_between};
+use crate::core::v0_19_0::{add, rm, status};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
@@ -16,6 +19,7 @@ use crate::repositories;
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -40,9 +44,9 @@ pub fn has_conflicts(
     merge_branch: &Branch,
 ) -> Result<bool, OxenError> {
     let base_commit =
-        repositories::commits::get_commit_or_head(&repo, Some(base_branch.commit_id))?;
+        repositories::commits::get_commit_or_head(&repo, Some(base_branch.commit_id.clone()))?;
     let merge_commit =
-        repositories::commits::get_commit_or_head(&repo, Some(merge_branch.commit_id))?;
+        repositories::commits::get_commit_or_head(&repo, Some(merge_branch.commit_id.clone()))?;
 
     Ok(can_merge_commits(&repo, &base_commit, &merge_commit)?)
 }
@@ -69,6 +73,464 @@ pub fn can_merge_commits(
     let write_to_disk = false;
     let conflicts = find_merge_conflicts(&repo, &merge_commits, write_to_disk)?;
     Ok(conflicts.is_empty())
+}
+
+pub fn list_conflicts_between_branches(
+    repo: &LocalRepository,
+    base_branch: &Branch,
+    merge_branch: &Branch,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let base_commit = get_commit_or_head(repo, Some(base_branch.commit_id.clone()))?;
+    let merge_commit = get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
+
+    list_conflicts_between_commits(repo, &base_commit, &merge_commit)
+}
+
+pub fn list_commits_between_branches(
+    repo: &LocalRepository,
+    base_branch: &Branch,
+    head_branch: &Branch,
+) -> Result<Vec<Commit>, OxenError> {
+    log::debug!(
+        "list_commits_between_branches() base: {:?} head: {:?}",
+        base_branch,
+        head_branch
+    );
+    let base_commit = get_commit_or_head(repo, Some(base_branch.commit_id.clone()))?;
+    let head_commit = get_commit_or_head(repo, Some(head_branch.commit_id.clone()))?;
+
+    let lca = lowest_common_ancestor_from_commits(repo, &base_commit, &head_commit)?;
+    list_between(repo, &lca, &head_commit)
+}
+
+pub fn list_commits_between_commits(
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    head_commit: &Commit,
+) -> Result<Vec<Commit>, OxenError> {
+    log::debug!(
+        "list_commits_between_commits() base: {:?} head: {:?}",
+        base_commit,
+        head_commit
+    );
+
+    let lca = lowest_common_ancestor_from_commits(repo, base_commit, head_commit)?;
+
+    log::debug!(
+        "For commits {:?} -> {:?} found lca {:?}",
+        base_commit,
+        head_commit,
+        lca
+    );
+
+    log::debug!("Reading history from lca to head");
+    list_between(repo, &lca, &head_commit)
+}
+
+pub fn list_conflicts_between_commits(
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    merge_commit: &Commit,
+) -> Result<Vec<PathBuf>, OxenError> {
+    let lca = lowest_common_ancestor_from_commits(repo, base_commit, merge_commit)?;
+    let merge_commits = MergeCommits {
+        lca,
+        base: base_commit.clone(),
+        merge: merge_commit.clone(),
+    };
+    let write_to_disk = false;
+    let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk)?;
+    Ok(conflicts
+        .iter()
+        .map(|c| {
+            let (_, path) = &c.base_entry;
+            path.to_owned()
+        })
+        .collect())
+}
+
+/// Merge a branch into a base branch, returns the merge commit if successful, and None if there is conflicts
+pub fn merge_into_base(
+    repo: &LocalRepository,
+    merge_branch: &Branch,
+    base_branch: &Branch,
+) -> Result<Option<Commit>, OxenError> {
+    println!(
+        "merge_into_base merge {} into {}",
+        merge_branch, base_branch
+    );
+
+    if merge_branch.commit_id == base_branch.commit_id {
+        // If the merge branch is the same as the base branch, there is nothing to merge
+        return Ok(None);
+    }
+
+    let base_commit = get_commit_or_head(repo, Some(base_branch.commit_id.clone()))?;
+    let merge_commit = get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
+
+    let lca = lowest_common_ancestor_from_commits(repo, &base_commit, &merge_commit)?;
+    let commits = MergeCommits {
+        lca,
+        base: base_commit,
+        merge: merge_commit,
+    };
+
+    merge_commits(repo, &commits)
+}
+
+/// Merge into the current branch, returns the merge commit if successful, and None if there is conflicts
+pub fn merge(
+    repo: &LocalRepository,
+    branch_name: impl AsRef<str>,
+) -> Result<Option<Commit>, OxenError> {
+    let branch_name = branch_name.as_ref();
+
+    let merge_branch = repositories::branches::get_by_name(&repo, branch_name)?
+        .ok_or(OxenError::local_branch_not_found(branch_name))?;
+
+    let base_commit = repositories::commits::head_commit(repo)?;
+
+    let merge_commit = get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
+
+    let lca = lowest_common_ancestor_from_commits(repo, &base_commit, &merge_commit)?;
+    let commits = MergeCommits {
+        lca,
+        base: base_commit,
+        merge: merge_commit,
+    };
+
+    merge_commits(repo, &commits)
+}
+
+pub fn merge_commit_into_base(
+    repo: &LocalRepository,
+    merge_commit: &Commit,
+    base_commit: &Commit,
+) -> Result<Option<Commit>, OxenError> {
+    let lca = lowest_common_ancestor_from_commits(repo, base_commit, merge_commit)?;
+    log::debug!(
+        "merge_commit_into_base has lca {:?} for merge commit {:?} and base {:?}",
+        lca,
+        merge_commit,
+        base_commit
+    );
+    let commits = MergeCommits {
+        lca,
+        base: base_commit.to_owned(),
+        merge: merge_commit.to_owned(),
+    };
+
+    merge_commits(repo, &commits)
+}
+
+pub fn merge_commit_into_base_on_branch(
+    repo: &LocalRepository,
+    merge_commit: &Commit,
+    base_commit: &Commit,
+    branch: &Branch,
+) -> Result<Option<Commit>, OxenError> {
+    let lca = lowest_common_ancestor_from_commits(repo, base_commit, merge_commit)?;
+
+    log::debug!(
+        "merge_commit_into_branch has lca {:?} for merge commit {:?} and base {:?}",
+        lca,
+        merge_commit,
+        base_commit
+    );
+
+    let merge_commits = MergeCommits {
+        lca,
+        base: base_commit.to_owned(),
+        merge: merge_commit.to_owned(),
+    };
+
+    merge_commits_on_branch(repo, &merge_commits, branch)
+}
+
+pub fn has_file(repo: &LocalRepository, path: &Path) -> Result<bool, OxenError> {
+    let db_path = db_path(repo);
+    log::debug!("Merger::new() DB {:?}", db_path);
+    let opts = db::key_val::opts::default();
+    let merge_db = DB::open(&opts, dunce::simplified(&db_path))?;
+
+    NodeMergeConflictDBReader::has_file(&merge_db, path)
+}
+
+pub fn remove_conflict_path(repo: &LocalRepository, path: &Path) -> Result<(), OxenError> {
+    let db_path = db_path(repo);
+    log::debug!("Merger::new() DB {:?}", db_path);
+    let opts = db::key_val::opts::default();
+    let merge_db = DB::open(&opts, dunce::simplified(&db_path))?;
+
+    let path_str = path.to_str().unwrap();
+    let key = path_str.as_bytes();
+    merge_db.delete(key)?;
+    Ok(())
+}
+
+pub fn find_merge_commits<S: AsRef<str>>(
+    repo: &LocalRepository,
+    branch_name: S,
+) -> Result<MergeCommits, OxenError> {
+    let branch_name = branch_name.as_ref();
+
+    let head_commit = repositories::commits::head_commit(repo)?;
+
+    let merge_commit = get_commit_or_head(repo, Some(branch_name.clone()))?;
+
+    let lca = lowest_common_ancestor_from_commits(repo, &head_commit, &merge_commit)?;
+
+    Ok(MergeCommits {
+        lca,
+        base: head_commit,
+        merge: merge_commit,
+    })
+}
+
+fn merge_commits_on_branch(
+    repo: &LocalRepository,
+    merge_commits: &MergeCommits,
+    branch: &Branch,
+) -> Result<Option<Commit>, OxenError> {
+    // User output
+    println!(
+        "Updating {} -> {}",
+        merge_commits.base.id, merge_commits.merge.id
+    );
+
+    log::debug!(
+        "FOUND MERGE COMMITS:\nLCA: {} -> {}\nBASE: {} -> {}\nMerge: {} -> {}",
+        merge_commits.lca.id,
+        merge_commits.lca.message,
+        merge_commits.base.id,
+        merge_commits.base.message,
+        merge_commits.merge.id,
+        merge_commits.merge.message,
+    );
+
+    // Check which type of merge we need to do
+    if merge_commits.is_fast_forward_merge() {
+        // User output
+        println!("Fast-forward");
+        let commit = fast_forward_merge(repo, &merge_commits.base, &merge_commits.merge)?;
+        Ok(Some(commit))
+    } else {
+        log::debug!(
+            "Three way merge! {} -> {}",
+            merge_commits.base.id,
+            merge_commits.merge.id
+        );
+
+        let write_to_disk = true;
+        let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk)?;
+        log::debug!("Got {} conflicts", conflicts.len());
+
+        if conflicts.is_empty() {
+            log::debug!("creating merge commit on branch {:?}", branch);
+            let commit = create_merge_commit_on_branch(repo, &merge_commits, branch)?;
+            Ok(Some(commit))
+        } else {
+            let db_path = db_path(repo);
+            log::debug!("Merger::new() DB {:?}", db_path);
+            let opts = db::key_val::opts::default();
+            let merge_db = DB::open(&opts, dunce::simplified(&db_path))?;
+
+            node_merge_conflict_writer::write_conflicts_to_disk(
+                repo,
+                &merge_db,
+                &merge_commits.merge,
+                &merge_commits.base,
+                &conflicts,
+            )?;
+            Ok(None)
+        }
+    }
+}
+
+fn fast_forward_merge(
+    repo: &LocalRepository,
+    base_commit: &Commit,
+    merge_commit: &Commit,
+) -> Result<Commit, OxenError> {
+    log::debug!("FF merge!");
+    let base_commit_node = CommitMerkleTree::from_commit(repo, &base_commit)?;
+    let merge_commit_node = CommitMerkleTree::from_commit(repo, &merge_commit)?;
+
+    let base_entries =
+        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from("/"))?;
+    let merge_entries =
+        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from("/"))?;
+
+    // Make sure files_db is dropped before the merge commit is written
+    {
+        // Can just copy over all new versions since it is fast forward
+        for merge_entry in merge_entries.iter() {
+            let (merge_file_node, merge_path) = merge_entry;
+            log::debug!("Merge entry: {:?}", merge_path);
+            // Only copy over if hash is different or it doesn't exist for performance
+            if let Some(base_entry) = base_entries.get(merge_entry) {
+                let (base_file_node, base_path) = base_entry;
+                if base_file_node.hash != merge_file_node.hash {
+                    log::debug!("Merge entry has changed, restore: {:?}", merge_path);
+                    update_entry(repo, merge_entry)?;
+                }
+            } else {
+                log::debug!("Merge entry is new, restore: {:?}", merge_path);
+                update_entry(repo, merge_entry)?;
+            }
+        }
+
+        // Remove all entries that are in HEAD but not in merge entries
+        for base_entry in base_entries.iter() {
+            let (base_file_node, base_path) = base_entry;
+            log::debug!("Base entry: {:?}", base_path);
+            if !merge_entries.contains(base_entry) {
+                log::debug!("Removing Base Entry: {:?}", base_path);
+
+                let path = repo.path.join(&base_path);
+                if path.exists() {
+                    util::fs::remove_file(path)?;
+                }
+            }
+        }
+    }
+
+    // Move the HEAD forward to this commit
+    let ref_writer = RefWriter::new(repo)?;
+    ref_writer.set_head_commit_id(&merge_commit.id)?;
+
+    Ok(merge_commit.clone())
+}
+
+fn merge_commits(
+    repo: &LocalRepository,
+    merge_commits: &MergeCommits,
+) -> Result<Option<Commit>, OxenError> {
+    // User output
+    println!(
+        "Updating {} -> {}",
+        merge_commits.base.id, merge_commits.merge.id
+    );
+
+    log::debug!(
+        "FOUND MERGE COMMITS:\nLCA: {} -> {}\nBASE: {} -> {}\nMerge: {} -> {}",
+        merge_commits.lca.id,
+        merge_commits.lca.message,
+        merge_commits.base.id,
+        merge_commits.base.message,
+        merge_commits.merge.id,
+        merge_commits.merge.message,
+    );
+
+    // Check which type of merge we need to do
+    if merge_commits.is_fast_forward_merge() {
+        // User output
+        println!("Fast-forward");
+        let commit = fast_forward_merge(repo, &merge_commits.base, &merge_commits.merge)?;
+        Ok(Some(commit))
+    } else {
+        log::debug!(
+            "Three way merge! {} -> {}",
+            merge_commits.base.id,
+            merge_commits.merge.id
+        );
+
+        let write_to_disk = true;
+        let conflicts = find_merge_conflicts(&repo, &merge_commits, write_to_disk)?;
+        log::debug!("Got {} conflicts", conflicts.len());
+
+        if conflicts.is_empty() {
+            let commit = create_merge_commit(repo, &merge_commits)?;
+            Ok(Some(commit))
+        } else {
+            let db_path = db_path(repo);
+            log::debug!("Merger::new() DB {:?}", db_path);
+            let opts = db::key_val::opts::default();
+            let merge_db = DB::open(&opts, dunce::simplified(&db_path))?;
+
+            node_merge_conflict_writer::write_conflicts_to_disk(
+                &repo,
+                &merge_db,
+                &merge_commits.merge,
+                &merge_commits.base,
+                &conflicts,
+            )?;
+            Ok(None)
+        }
+    }
+}
+
+fn create_merge_commit(
+    repo: &LocalRepository,
+    merge_commits: &MergeCommits,
+) -> Result<Commit, OxenError> {
+    // Stage changes
+    // let stager = Stager::new(repo)?;
+    // stager.add(&repo.path, &reader, &schema_reader, &ignore)?;
+    let head_commit = repositories::commits::head_commit(repo)?;
+    add::add_dir(repo, &Some(head_commit), repo.path.clone())?;
+
+    let commit_msg = format!(
+        "Merge commit {} into {}",
+        merge_commits.merge.id, merge_commits.base.id
+    );
+
+    log::debug!("create_merge_commit {}", commit_msg);
+
+    let status = status::status(repo)?;
+    let commit_writer = CommitWriter::new(repo)?;
+    let parent_ids: Vec<String> = vec![
+        merge_commits.base.id.to_owned(),
+        merge_commits.merge.id.to_owned(),
+    ];
+    let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
+    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+
+    Ok(commit)
+}
+
+fn create_merge_commit_on_branch(
+    repo: &LocalRepository,
+    merge_commits: &MergeCommits,
+    branch: &Branch,
+) -> Result<Commit, OxenError> {
+    // Stage changes
+    let head_commit = repositories::commits::head_commit(repo)?;
+    add::add_dir(repo, &Some(head_commit), repo.path.clone())?;
+
+    let commit_msg = format!(
+        "Merge commit {} into {} on branch {}",
+        merge_commits.merge.id, merge_commits.base.id, branch.name
+    );
+
+    log::debug!("create_merge_commit_on_branch {}", commit_msg);
+
+    // Create a commit with both parents
+    let status = status::status(repo)?;
+    let commit_writer = CommitWriter::new(repo)?;
+    let parent_ids: Vec<String> = vec![
+        merge_commits.base.id.to_owned(),
+        merge_commits.merge.id.to_owned(),
+    ];
+
+    // The author in this case is the pusher - the author of the merge commit
+
+    let cfg = UserConfig {
+        name: merge_commits.merge.author.clone(),
+        email: merge_commits.merge.email.clone(),
+    };
+
+    let commit = commit_writer.commit_with_parent_ids_on_branch(
+        &status,
+        parent_ids,
+        &commit_msg,
+        branch.clone(),
+        cfg,
+    )?;
+
+    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+
+    Ok(commit)
 }
 
 pub fn lowest_common_ancestor_from_commits(

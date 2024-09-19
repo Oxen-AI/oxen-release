@@ -4,6 +4,9 @@ use crate::{constants::MERGE_DIR, model::LocalRepository};
 pub mod merge_conflict_db_reader;
 pub mod merge_conflict_reader;
 pub mod merge_conflict_writer;
+pub mod node_merge_conflict_db_reader;
+pub mod node_merge_conflict_reader;
+pub mod node_merge_conflict_writer;
 
 use std::path::{Path, PathBuf};
 
