@@ -58,13 +58,7 @@ pub async fn commits(
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
-    // Check if mergeable
-    let merger = Merger::new(&repository)?;
-
-    // Get commits between base and head
-    let commit_reader = CommitReader::new(&repository)?;
-    let commits =
-        merger.list_commits_between_commits(&commit_reader, &base_commit, &head_commit)?;
+    let commits = repositories::commits::list_between(&repository, &base_commit, &head_commit)?;
     let (paginated, pagination) = util::paginate(commits, page, page_size);
 
     let compare = CompareCommits {
