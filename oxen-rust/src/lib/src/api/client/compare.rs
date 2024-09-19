@@ -1,8 +1,8 @@
 use crate::api;
 use crate::api::client;
 use crate::error::OxenError;
-use crate::model::RemoteRepository;
-use crate::view::compare::CompareTabularResponse;
+use crate::model::{Commit, MerkleHash, RemoteRepository};
+use crate::view::compare::{CompareCommitsResponse, CompareTabularResponse};
 use crate::view::compare::{
     TabularCompareBody, TabularCompareFieldBody, TabularCompareResourceBody,
     TabularCompareTargetBody,
@@ -121,20 +121,37 @@ pub async fn get_derived_compare_df(
 
     let client = client::new_for_url(&url)?;
 
-    if let Ok(res) = client.get(&url).send().await {
-        let body = client::parse_json_body(&url, res).await?;
-        let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
-            serde_json::from_str(&body);
-        match response {
-            Ok(df) => Ok(df.data_frame.view),
-            Err(err) => Err(OxenError::basic_str(format!(
-                "get_derived_compare_df() Could not deserialize response [{err}]\n{body}"
-            ))),
-        }
-    } else {
-        Err(OxenError::basic_str(
-            "get_derived_compare_df() Request failed",
-        ))
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<JsonDataFrameViewResponse, serde_json::Error> =
+        serde_json::from_str(&body);
+    match response {
+        Ok(df) => Ok(df.data_frame.view),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "get_derived_compare_df() Could not deserialize response [{err}]\n{body}"
+        ))),
+    }
+}
+
+pub async fn commits(
+    remote_repo: &RemoteRepository,
+    base_commit_id: &MerkleHash,
+    head_commit_id: &MerkleHash,
+) -> Result<Vec<Commit>, OxenError> {
+    let base_commit_id = base_commit_id.to_string();
+    let head_commit_id = head_commit_id.to_string();
+    let uri = format!("/compare/commits/{base_commit_id}..{head_commit_id}");
+    let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
+
+    let client = client::new_for_url(&url)?;
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    let response: Result<CompareCommitsResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(commits) => Ok(commits.compare.commits),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "commits() Could not deserialize response [{err}]\n{body}"
+        ))),
     }
 }
 
@@ -145,12 +162,57 @@ mod tests {
     use crate::constants;
     use crate::constants::DIFF_STATUS_COL;
     use crate::error::OxenError;
+    use crate::model::MerkleHash;
     use crate::repositories;
     use crate::test;
     use crate::view::compare::{TabularCompareFieldBody, TabularCompareTargetBody};
     use polars::lazy::dsl::col;
     use polars::lazy::dsl::lit;
     use polars::lazy::frame::IntoLazy;
+
+    use std::str::FromStr;
+
+    #[tokio::test]
+    async fn test_compare_commits() -> Result<(), OxenError> {
+        test::run_empty_remote_repo_test(|mut local_repo, remote_repo| async move {
+            // Keep track of the commit ids
+            let mut commit_ids = Vec::new();
+
+            // Create 5 commits
+            for i in 0..5 {
+                // Write a file
+                let file_path = format!("file_{i}.txt");
+                test::write_txt_file_to_path(
+                    local_repo.path.join(file_path),
+                    format!("File content {}", i),
+                )?;
+                repositories::add(&local_repo, &local_repo.path)?;
+
+                let commit_message = format!("Commit {}", i);
+                let commit = repositories::commit(&local_repo, &commit_message)?;
+                commit_ids.push(commit.id);
+            }
+
+            // Set remote
+            command::config::set_remote(
+                &mut local_repo,
+                constants::DEFAULT_REMOTE_NAME,
+                &remote_repo.remote.url,
+            )?;
+
+            // Push the commits to the remote
+            repositories::push(&local_repo).await?;
+
+            let base_commit_id = MerkleHash::from_str(&commit_ids[1])?;
+            let head_commit_id = MerkleHash::from_str(&commit_ids[3])?;
+            let commits =
+                api::client::compare::commits(&remote_repo, &base_commit_id, &head_commit_id)
+                    .await?;
+            assert_eq!(commits.len(), 2);
+            Ok(remote_repo)
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_remote_create_compare_get_derived() -> Result<(), OxenError> {
