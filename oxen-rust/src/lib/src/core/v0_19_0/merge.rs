@@ -16,6 +16,7 @@ use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
 use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
 use crate::repositories;
+use crate::repositories::merge::MergeCommits;
 use crate::util;
 
 use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
@@ -25,18 +26,6 @@ use std::str;
 
 use super::index::{self, CommitMerkleTree};
 use super::restore;
-
-pub struct MergeCommits {
-    lca: Commit,
-    base: Commit,
-    merge: Commit,
-}
-
-impl MergeCommits {
-    pub fn is_fast_forward_merge(&self) -> bool {
-        self.lca.id == self.base.id
-    }
-}
 
 pub fn has_conflicts(
     repo: &LocalRepository,
@@ -564,7 +553,7 @@ pub fn lowest_common_ancestor_from_commits(
 }
 
 /// Will try a three way merge and return conflicts if there are any to indicate that the merge was unsuccessful
-fn find_merge_conflicts(
+pub fn find_merge_conflicts(
     repo: &LocalRepository,
     merge_commits: &MergeCommits,
     write_to_disk: bool,
