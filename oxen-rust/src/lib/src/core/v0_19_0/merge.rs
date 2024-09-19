@@ -1,32 +1,27 @@
 use crate::config::UserConfig;
 use crate::core::db;
 pub use crate::core::merge::entry_merge_conflict_db_reader::EntryMergeConflictDBReader;
-use crate::core::merge::entry_merge_conflict_writer;
 pub use crate::core::merge::node_merge_conflict_db_reader::NodeMergeConflictDBReader;
 use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::merge::{db_path, node_merge_conflict_writer};
-use crate::core::oxenignore;
-use crate::core::refs::{RefReader, RefWriter};
-use crate::core::v0_10_0::index::{
-    CommitEntryReader, CommitEntryWriter, CommitReader, CommitWriter, SchemaReader, Stager,
-};
-use crate::core::v0_19_0::commits::{get_commit_or_head, head_commit, list_between};
+use crate::core::refs::RefWriter;
+use crate::core::v0_10_0::index::CommitWriter;
+use crate::core::v0_19_0::commits::{get_commit_or_head, list_between};
 use crate::core::v0_19_0::{add, rm, status};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
-use crate::model::{Branch, Commit, CommitEntry, EntryMergeConflict, LocalRepository};
+use crate::model::{Branch, Commit, LocalRepository};
 use crate::repositories;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
 
-use rocksdb::{DBWithThreadMode, MultiThreaded, DB};
+use rocksdb::DB;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
 use super::index::{self, CommitMerkleTree};
-use super::restore;
 
 pub fn has_conflicts(
     repo: &LocalRepository,
@@ -34,11 +29,11 @@ pub fn has_conflicts(
     merge_branch: &Branch,
 ) -> Result<bool, OxenError> {
     let base_commit =
-        repositories::commits::get_commit_or_head(&repo, Some(base_branch.commit_id.clone()))?;
+        repositories::commits::get_commit_or_head(repo, Some(base_branch.commit_id.clone()))?;
     let merge_commit =
-        repositories::commits::get_commit_or_head(&repo, Some(merge_branch.commit_id.clone()))?;
+        repositories::commits::get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
 
-    Ok(can_merge_commits(&repo, &base_commit, &merge_commit)?)
+    can_merge_commits(repo, &base_commit, &merge_commit)
 }
 
 pub fn list_conflicts(repo: &LocalRepository) -> Result<Vec<NodeMergeConflict>, OxenError> {
@@ -66,7 +61,7 @@ pub fn can_merge_commits(
     }
 
     let write_to_disk = false;
-    let conflicts = find_merge_conflicts(&repo, &merge_commits, write_to_disk)?;
+    let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk)?;
     Ok(conflicts.is_empty())
 }
 
@@ -119,7 +114,7 @@ pub fn list_commits_between_commits(
     );
 
     log::debug!("Reading history from lca to head");
-    list_between(repo, &lca, &head_commit)
+    list_between(repo, &lca, head_commit)
 }
 
 pub fn list_conflicts_between_commits(
@@ -180,7 +175,7 @@ pub fn merge(
 ) -> Result<Option<Commit>, OxenError> {
     let branch_name = branch_name.as_ref();
 
-    let merge_branch = repositories::branches::get_by_name(&repo, branch_name)?
+    let merge_branch = repositories::branches::get_by_name(repo, branch_name)?
         .ok_or(OxenError::local_branch_not_found(branch_name))?;
 
     let base_commit = repositories::commits::head_commit(repo)?;
@@ -271,7 +266,7 @@ pub fn find_merge_commits<S: AsRef<str>>(
 
     let head_commit = repositories::commits::head_commit(repo)?;
 
-    let merge_commit = get_commit_or_head(repo, Some(branch_name.clone()))?;
+    let merge_commit = get_commit_or_head(repo, Some(branch_name))?;
 
     let lca = lowest_common_ancestor_from_commits(repo, &head_commit, &merge_commit)?;
 
@@ -317,12 +312,12 @@ fn merge_commits_on_branch(
         );
 
         let write_to_disk = true;
-        let conflicts = find_merge_conflicts(repo, &merge_commits, write_to_disk)?;
+        let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
         log::debug!("Got {} conflicts", conflicts.len());
 
         if conflicts.is_empty() {
             log::debug!("creating merge commit on branch {:?}", branch);
-            let commit = create_merge_commit_on_branch(repo, &merge_commits, branch)?;
+            let commit = create_merge_commit_on_branch(repo, merge_commits, branch)?;
             Ok(Some(commit))
         } else {
             let db_path = db_path(repo);
@@ -348,8 +343,8 @@ fn fast_forward_merge(
     merge_commit: &Commit,
 ) -> Result<Commit, OxenError> {
     log::debug!("FF merge!");
-    let base_commit_node = CommitMerkleTree::from_commit(repo, &base_commit)?;
-    let merge_commit_node = CommitMerkleTree::from_commit(repo, &merge_commit)?;
+    let base_commit_node = CommitMerkleTree::from_commit(repo, base_commit)?;
+    let merge_commit_node = CommitMerkleTree::from_commit(repo, merge_commit)?;
 
     let base_entries =
         CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from("/"))?;
@@ -382,7 +377,7 @@ fn fast_forward_merge(
             if !merge_entries.contains(base_entry) {
                 log::debug!("Removing Base Entry: {:?}", base_path);
 
-                let path = repo.path.join(&base_path);
+                let path = repo.path.join(base_path);
                 if path.exists() {
                     util::fs::remove_file(path)?;
                 }
@@ -431,11 +426,11 @@ fn merge_commits(
         );
 
         let write_to_disk = true;
-        let conflicts = find_merge_conflicts(&repo, &merge_commits, write_to_disk)?;
+        let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
         log::debug!("Got {} conflicts", conflicts.len());
 
         if conflicts.is_empty() {
-            let commit = create_merge_commit(repo, &merge_commits)?;
+            let commit = create_merge_commit(repo, merge_commits)?;
             Ok(Some(commit))
         } else {
             let db_path = db_path(repo);
@@ -444,7 +439,7 @@ fn merge_commits(
             let merge_db = DB::open(&opts, dunce::simplified(&db_path))?;
 
             node_merge_conflict_writer::write_conflicts_to_disk(
-                &repo,
+                repo,
                 &merge_db,
                 &merge_commits.merge,
                 &merge_commits.base,
@@ -611,7 +606,7 @@ pub fn find_merge_conflicts(
     for merge_entry in merge_entries.iter() {
         // log::debug!("Considering entry {}", merge_entries.len());
         // Check if the entry exists in all 3 commits
-        if let Some(base_entry) = base_entries.get(&merge_entry) {
+        if let Some(base_entry) = base_entries.get(merge_entry) {
             if let Some(lca_entry) = lca_entries.get(merge_entry) {
                 // If Base and LCA are the same but Merge is different, take merge
                 // log::debug!(
