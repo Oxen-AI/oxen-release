@@ -337,6 +337,7 @@ pub async fn latest_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, 
     }))
 }
 
+// TODO: Deprecate this after v0.19.0
 pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpError> {
     let app_data = app_data(&req)?;
     let namespace = path_param(&req, "namespace")?;
@@ -348,9 +349,9 @@ pub async fn is_synced(req: HttpRequest) -> actix_web::Result<HttpResponse, Oxen
         OxenError::revision_not_found(commit_or_branch.clone().into()),
     )?;
 
-    let response = match commit_cacher::get_status(&repository, &commit) {
+    let response = match repositories::commits::get_commit_status_tmp(&repository, &commit) {
         Ok(Some(CacherStatusType::Success)) => {
-            match content_validator::is_valid(&repository, &commit) {
+            match repositories::commits::is_commit_valid_tmp(&repository, &commit) {
                 Ok(true) => HttpResponse::Ok().json(IsValidStatusMessage {
                     status: String::from(STATUS_SUCCESS),
                     status_message: String::from(MSG_RESOURCE_FOUND),
