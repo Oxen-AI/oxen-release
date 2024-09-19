@@ -88,9 +88,9 @@ impl MerkleTreeNodeIdType for FileNode {
 impl Hash for FileNode {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
-        self.size.hash(state);
-        self.modified.hash(state);
-        self.created.hash(state);
+        self.num_bytes.hash(state);
+        self.last_modified_seconds.hash(state);
+        self.last_modified_nanoseconds.hash(state);
         self.hash.hash(state);
     }
 }
