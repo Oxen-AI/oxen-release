@@ -75,7 +75,7 @@ pub async fn commits(
     Ok(HttpResponse::Ok().json(view))
 }
 
-// TODO: Deprecate
+// TODO: Depreciate
 pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
