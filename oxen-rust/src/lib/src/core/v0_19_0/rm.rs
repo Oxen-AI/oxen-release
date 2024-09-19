@@ -514,10 +514,9 @@ fn process_remove_dir(
     let walker = WalkDir::new(&root_path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
+        log::debug!("Entry is: {entry:?}");
         let entry = entry.unwrap();
         let dir = entry.path();
-
-        log::debug!("Entry is: {entry:?}");
 
         let byte_counter_clone = Arc::clone(&byte_counter);
         let removed_file_counter_clone = Arc::clone(&removed_file_counter);

@@ -136,7 +136,7 @@ pub async fn download_entry(
     }
 
     if entry.is_dir {
-        download_dir(remote_repo, &entry, local_path).await
+        repositories::download_dir(repo, remote_repo, &entry, local_path).await
     } else {
         download_file(remote_repo, &entry, remote_path, local_path, revision).await
     }
@@ -165,6 +165,8 @@ pub async fn download_dir(
         tmp_objects_dir,
         local_objects_dir
     );
+
+
     merge_objects_dbs(&local_objects_dir, &tmp_objects_dir)?;
 
     // Merge it in with the (probably not already extant) local objects db
