@@ -1,8 +1,9 @@
 use crate::config::UserConfig;
 use crate::core::db;
-pub use crate::core::merge::merge_conflict_db_reader::MergeConflictDBReader;
-use crate::core::merge::merge_conflict_writer;
+pub use crate::core::merge::entry_merge_conflict_db_reader::EntryMergeConflictDBReader;
+use crate::core::merge::entry_merge_conflict_writer;
 pub use crate::core::merge::node_merge_conflict_db_reader::NodeMergeConflictDBReader;
+use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::merge::{db_path, node_merge_conflict_writer};
 use crate::core::oxenignore;
 use crate::core::refs::{RefReader, RefWriter};
@@ -14,7 +15,7 @@ use crate::core::v0_19_0::{add, rm, status};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
-use crate::model::{Branch, Commit, CommitEntry, LocalRepository, MergeConflict};
+use crate::model::{Branch, Commit, CommitEntry, EntryMergeConflict, LocalRepository};
 use crate::repositories;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
@@ -38,6 +39,11 @@ pub fn has_conflicts(
         repositories::commits::get_commit_or_head(&repo, Some(merge_branch.commit_id.clone()))?;
 
     Ok(can_merge_commits(&repo, &base_commit, &merge_commit)?)
+}
+
+pub fn list_conflicts(repo: &LocalRepository) -> Result<Vec<NodeMergeConflict>, OxenError> {
+    let reader = NodeMergeConflictReader::new(repo)?;
+    reader.list_conflicts()
 }
 
 /// Check if there are conflicts between the merge commit and the base commit

@@ -1,22 +1,22 @@
 use crate::constants::{MERGE_DIR, MERGE_HEAD_FILE};
 use crate::core::db;
-use crate::core::merge::merge_conflict_db_reader::MergeConflictDBReader;
+use crate::core::merge::entry_merge_conflict_db_reader::EntryMergeConflictDBReader;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, MergeConflict};
+use crate::model::{Commit, EntryMergeConflict, LocalRepository};
 use crate::{repositories, util};
 
 use rocksdb::DB;
 use std::path::Path;
 
-pub struct MergeConflictReader {
+pub struct EntryMergeConflictReader {
     merge_db: DB,
     repository: LocalRepository,
 }
 
-impl MergeConflictReader {
-    pub fn new(repo: &LocalRepository) -> Result<MergeConflictReader, OxenError> {
+impl EntryMergeConflictReader {
+    pub fn new(repo: &LocalRepository) -> Result<EntryMergeConflictReader, OxenError> {
         let db_path = util::fs::oxen_hidden_dir(&repo.path).join(Path::new(MERGE_DIR));
-        log::debug!("MergeConflictReader::new() DB {:?}", db_path);
+        log::debug!("EntryMergeConflictReader::new() DB {:?}", db_path);
 
         let opts = db::key_val::opts::default();
         if !db_path.exists() {
@@ -25,7 +25,7 @@ impl MergeConflictReader {
             let _db = DB::open(&opts, dunce::simplified(&db_path))?;
         }
 
-        Ok(MergeConflictReader {
+        Ok(EntryMergeConflictReader {
             merge_db: DB::open_for_read_only(&opts, dunce::simplified(&db_path), false)?,
             repository: repo.clone(),
         })
@@ -39,14 +39,14 @@ impl MergeConflictReader {
     }
 
     pub fn has_conflicts(&self) -> Result<bool, OxenError> {
-        MergeConflictDBReader::has_conflicts(&self.merge_db)
+        EntryMergeConflictDBReader::has_conflicts(&self.merge_db)
     }
 
-    pub fn list_conflicts(&self) -> Result<Vec<MergeConflict>, OxenError> {
-        MergeConflictDBReader::list_conflicts(&self.merge_db)
+    pub fn list_conflicts(&self) -> Result<Vec<EntryMergeConflict>, OxenError> {
+        EntryMergeConflictDBReader::list_conflicts(&self.merge_db)
     }
 
     pub fn has_file(&self, path: &Path) -> Result<bool, OxenError> {
-        MergeConflictDBReader::has_file(&self.merge_db, path)
+        EntryMergeConflictDBReader::has_file(&self.merge_db, path)
     }
 }
