@@ -427,6 +427,7 @@ where
     // Push data
     repositories::push(&local_repo).await?;
 
+    log::debug!("run_training_data_fully_sync_remote run test");
     // Run test to see if it panic'd
     let result = match test(local_repo, remote_repo).await {
         Ok(_remote_repo) => true,

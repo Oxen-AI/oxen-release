@@ -239,8 +239,8 @@ mod tests {
                     .path
                     .join("images")
                     .join("cats")
-                    .join("subdir{i}_level_1");
-                util::fs::create_dir_all(&images_dir)?;
+                    .join(format!("subdir{i}_level_1"));
+                util::fs::create_dir_all(&sub_dir)?;
             }
 
             for i in 1..=2 {
@@ -248,9 +248,9 @@ mod tests {
                     .path
                     .join("images")
                     .join("cats")
-                    .join("subdir{i}_level_1")
-                    .join("subdir{i}_level_2");
-                util::fs::create_dir_all(&images_dir)?;
+                    .join(format!("subdir{i}_level_1"))
+                    .join(format!("subdir{i}_level_2"));
+                util::fs::create_dir_all(&sub_dir)?;
             }
 
             for i in 1..=1 {
@@ -258,10 +258,10 @@ mod tests {
                     .path
                     .join("images")
                     .join("cats")
-                    .join("subdir{i}_level_1")
-                    .join("subdir{i}_level_2")
-                    .join("subdir{i}_level_3");
-                util::fs::create_dir_all(&images_dir)?;
+                    .join(format!("subdir{i}_level_1"))
+                    .join(format!("subdir{i}_level_2"))
+                    .join(format!("subdir{i}_level_3"));
+                util::fs::create_dir_all(&sub_dir)?;
             }
 
             // Add and commit the cats to every subdirectory
@@ -275,7 +275,7 @@ mod tests {
                 for i in 1..=3 {
                     let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
                     let repo_filepath = images_dir
-                        .join("subdir{j}_level_1")
+                        .join(format!("subdir{j}_level_1"))
                         .join(test_file.file_name().unwrap());
                     util::fs::copy(&test_file, &repo_filepath)?;
                 }
@@ -285,8 +285,8 @@ mod tests {
                 for i in 1..=3 {
                     let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
                     let repo_filepath = images_dir
-                        .join("subdir{j}_level_1")
-                        .join("subdir{j}_level_2")
+                        .join(format!("subdir{j}_level_1"))
+                        .join(format!("subdir{j}_level_2"))
                         .join(test_file.file_name().unwrap());
                     util::fs::copy(&test_file, &repo_filepath)?;
                 }
@@ -296,9 +296,9 @@ mod tests {
                 for i in 1..=3 {
                     let test_file = test::test_img_file_with_name(&format!("cat_{i}.jpg"));
                     let repo_filepath = images_dir
-                        .join("subdir{j}_level_1")
-                        .join("subdir{j}_level_2")
-                        .join("subdir{j}_level_3")
+                        .join(format!("subdir{j}_level_1"))
+                        .join(format!("subdir{j}_level_2"))
+                        .join(format!("subdir{j}_level_3"))
                         .join(test_file.file_name().unwrap());
                     util::fs::copy(&test_file, &repo_filepath)?;
                 }
@@ -326,7 +326,7 @@ mod tests {
             for j in 1..3 {
                 for i in 1..=3 {
                     let repo_filepath = images_dir
-                        .join("subdir{j}_level_1")
+                        .join(format!("subdir{j}_level_1"))
                         .join(format!("cat_{i}.jpg"));
                     assert!(!repo_filepath.exists())
                 }
@@ -335,8 +335,8 @@ mod tests {
             for j in 1..2 {
                 for i in 1..=3 {
                     let repo_filepath = images_dir
-                        .join("subdir{j}_level_1")
-                        .join("subdir{j}_level_2")
+                        .join(format!("subdir{j}_level_1"))
+                        .join(format!("subdir{j}_level_2"))
                         .join(format!("cat_{i}.jpg"));
                     assert!(!repo_filepath.exists())
                 }
@@ -345,9 +345,9 @@ mod tests {
             for j in 1..1 {
                 for i in 1..=3 {
                     let repo_filepath = images_dir
-                        .join("subdir{j}_level_1")
-                        .join("subdir{j}_level_2")
-                        .join("subdir{j}_level_3")
+                        .join(format!("subdir{j}_level_1"))
+                        .join(format!("subdir{j}_level_2"))
+                        .join(format!("subdir{j}_level_3"))
                         .join(format!("cat_{i}.jpg"));
                     assert!(!repo_filepath.exists())
                 }

@@ -513,7 +513,9 @@ fn process_remove_dir(
     let walker = WalkDir::new(&root_path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
-        let entry = entry.unwrap();
+        let Ok(entry) = entry else {
+            continue;
+        };
         let dir = entry.path();
 
         log::debug!("Entry is: {entry:?}");
@@ -526,7 +528,7 @@ fn process_remove_dir(
         let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
         let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
-        // Curious why this is only < 300% CPU usage
+        // TODO: Parallelize this
         std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
             if let Ok(dir_entry) = dir_entry_result {
                 log::debug!("Dir Entry is: {dir_entry:?}");
