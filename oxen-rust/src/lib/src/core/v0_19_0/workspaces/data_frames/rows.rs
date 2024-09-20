@@ -1,6 +1,7 @@
 use polars::frame::DataFrame;
 
 use polars::prelude::NamedFrom;
+use polars::prelude::PlSmallStr;
 use polars::series::Series;
 use rocksdb::DB;
 use serde_json::Value;
@@ -242,7 +243,7 @@ pub fn prepare_modified_or_removed_row(
     // let mut row = row.collect()?;
 
     row.with_column(Series::new(
-        DIFF_STATUS_COL,
+        PlSmallStr::from_str(DIFF_STATUS_COL),
         vec![StagedRowStatus::Unchanged.to_string()],
     ))?;
 

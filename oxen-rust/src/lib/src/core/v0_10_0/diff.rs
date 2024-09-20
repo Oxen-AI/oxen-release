@@ -5,12 +5,85 @@ use crate::model::diff::diff_commit_entry::DiffCommitEntry;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::{Commit, CommitEntry, DiffEntry, LocalRepository};
+use crate::opts::DFOpts;
 use crate::util;
 
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+pub fn diff_entries(
+    repo: &LocalRepository,
+    base_entry: Option<FileNode>,
+    base_commit: &Commit,
+    head_entry: Option<FileNode>,
+    head_commit: &Commit,
+    df_opts: DFOpts,
+) -> Result<DiffEntry, OxenError> {
+    let commit_entry = if let Some(base_entry) = base_entry {
+        Some(CommitEntry::from_file_node(&base_entry))
+    } else {
+        None
+    };
+    let head_commit_entry = if let Some(head_entry) = head_entry {
+        Some(CommitEntry::from_file_node(&head_entry))
+    } else {
+        None
+    };
+    p_diff_entries(
+        repo,
+        commit_entry,
+        base_commit,
+        head_commit_entry,
+        head_commit,
+        df_opts,
+    )
+}
+
+pub fn p_diff_entries(
+    repo: &LocalRepository,
+    base_entry: Option<CommitEntry>,
+    base_commit: &Commit,
+    head_entry: Option<CommitEntry>,
+    head_commit: &Commit,
+    df_opts: DFOpts,
+) -> Result<DiffEntry, OxenError> {
+    if base_entry.is_none() && head_entry.is_none() {
+        return Err(OxenError::basic_str(
+            "diff_entries called with no base or head entry",
+        ));
+    }
+
+    // Assume both entries exist
+    let mut status = DiffEntryStatus::Modified;
+
+    // If base entry is none, then it was added
+    if base_entry.is_none() && head_entry.is_some() {
+        status = DiffEntryStatus::Added;
+    }
+
+    // If head entry is none, then it was removed
+    if head_entry.is_none() && base_entry.is_some() {
+        status = DiffEntryStatus::Removed;
+    }
+
+    let should_do_full_diff = true;
+
+    let entry = DiffEntry::from_commit_entry(
+        repo,
+        base_entry,
+        base_commit,
+        head_entry,
+        head_commit,
+        status,
+        should_do_full_diff,
+        Some(df_opts),
+    )?;
+
+    Ok(entry)
+}
 
 pub fn list_changed_dirs(
     repo: &LocalRepository,

@@ -9,6 +9,7 @@ use crate::core::v0_10_0::index::{CommitDirEntryReader, CommitEntryReader, Objec
 use crate::error::OxenError;
 use crate::model::diff::dir_diff_summary::DirDiffSummaryImpl;
 use crate::model::diff::AddRemoveModifyCounts;
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::{Commit, EntryDataType, MetadataEntry, ParsedResource};
 use crate::opts::DFOpts;
 use crate::view::TabularDiffView;
@@ -165,6 +166,100 @@ impl DiffEntry {
         })
     }
 
+    pub fn from_file_node(
+        repo: &LocalRepository,
+        base_entry: Option<FileNode>,
+        base_commit: &Commit, // pass in commit objects for speed so we don't have to lookup later
+        head_entry: Option<FileNode>,
+        head_commit: &Commit,
+        status: DiffEntryStatus,
+        should_do_full_diff: bool,
+        df_opts: Option<DFOpts>, // only for tabular
+    ) -> Result<DiffEntry, OxenError> {
+        // Need to check whether we have the head or base entry to check data about the file
+        let (current_entry, data_type) = if let Some(entry) = &head_entry {
+            (entry.clone(), entry.data_type.clone())
+        } else {
+            let base_entry = base_entry.clone().unwrap();
+            (base_entry.clone(), base_entry.data_type.clone())
+        };
+        let base_resource = DiffEntry::resource_from_node(base_entry.clone());
+        let head_resource = DiffEntry::resource_from_node(head_entry.clone());
+
+        let mut base_meta_entry =
+            MetadataEntry::from_file_node(repo, base_entry.clone(), base_commit);
+        let mut head_meta_entry =
+            MetadataEntry::from_file_node(repo, head_entry.clone(), head_commit);
+
+        if base_entry.is_some() {
+            base_meta_entry
+                .as_mut()
+                .unwrap()
+                .resource
+                .clone_from(&base_resource);
+        }
+
+        if head_entry.is_some() {
+            head_meta_entry
+                .as_mut()
+                .unwrap()
+                .resource
+                .clone_from(&head_resource);
+        }
+
+        // TODO: Clean this up, but want to get a prototype to work first
+        // if tabular, and should_do_full_diff
+        //     do full diff
+        // log::debug!(
+        //     "checking if should do full diff for tabular {},{},{}",
+        //     data_type,
+        //     should_do_full_diff,
+        //     pagination.is_some()
+        // );
+
+        if let Some(df_opts) = df_opts {
+            if data_type == EntryDataType::Tabular && should_do_full_diff {
+                log::debug!("doing full diff for tabular");
+                let diff =
+                    TabularDiffView::from_file_nodes(repo, &base_entry, &head_entry, df_opts);
+                return Ok(DiffEntry {
+                    status: status.to_string(),
+                    data_type: data_type.clone(),
+                    filename: current_entry.name.clone(),
+                    is_dir: false,
+                    size: current_entry.num_bytes,
+                    head_resource,
+                    base_resource,
+                    head_entry: head_meta_entry,
+                    base_entry: base_meta_entry,
+                    diff_summary: Some(GenericDiffSummary::TabularDiffWrapper(
+                        diff.clone().tabular.summary.to_wrapper(),
+                    )),
+                    diff: Some(GenericDiff::TabularDiff(diff)),
+                });
+            }
+        }
+
+        log::debug!("fall through .... not doing full diff for tabular");
+        Ok(DiffEntry {
+            status: status.to_string(),
+            data_type: data_type.clone(),
+            filename: current_entry.name.clone(),
+            is_dir: false,
+            size: current_entry.num_bytes,
+            head_resource,
+            base_resource,
+            head_entry: head_meta_entry,
+            base_entry: base_meta_entry,
+            diff_summary: DiffEntry::diff_summary_from_file_nodes(
+                data_type,
+                &base_entry,
+                &head_entry,
+            )?,
+            diff: None, // TODO: other full diffs...
+        })
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn from_commit_entry(
         repo: &LocalRepository,
@@ -254,7 +349,7 @@ impl DiffEntry {
             base_resource,
             head_entry: head_meta_entry,
             base_entry: base_meta_entry,
-            diff_summary: DiffEntry::diff_summary_from_file(
+            diff_summary: DiffEntry::diff_summary_from_commit_entries(
                 repo,
                 data_type,
                 &base_entry,
@@ -271,6 +366,16 @@ impl DiffEntry {
             version: PathBuf::from(entry.commit_id.to_string()),
             path: entry.path.clone(),
             resource: PathBuf::from(entry.commit_id.to_string()).join(entry.path.clone()),
+        })
+    }
+
+    fn resource_from_node(node: Option<FileNode>) -> Option<ParsedResource> {
+        node.map(|node| ParsedResource {
+            commit: None,
+            branch: None,
+            version: PathBuf::from(node.last_commit_id.to_string()),
+            path: PathBuf::from(node.name.clone()),
+            resource: PathBuf::from(node.last_commit_id.to_string()).join(node.name.clone()),
         })
     }
 
@@ -508,7 +613,7 @@ impl DiffEntry {
         })))
     }
 
-    fn diff_summary_from_file(
+    fn diff_summary_from_commit_entries(
         repo: &LocalRepository,
         data_type: EntryDataType,
         base_entry: &Option<CommitEntry>,
@@ -518,6 +623,20 @@ impl DiffEntry {
         match data_type {
             EntryDataType::Tabular => Ok(Some(GenericDiffSummary::TabularDiffWrapper(
                 TabularDiffWrapper::from_commit_entries(repo, base_entry, head_entry)?,
+            ))),
+            _ => Ok(None),
+        }
+    }
+
+    fn diff_summary_from_file_nodes(
+        data_type: EntryDataType,
+        base_entry: &Option<FileNode>,
+        head_entry: &Option<FileNode>,
+    ) -> Result<Option<GenericDiffSummary>, OxenError> {
+        // TODO match on type, and create the appropriate summary
+        match data_type {
+            EntryDataType::Tabular => Ok(Some(GenericDiffSummary::TabularDiffWrapper(
+                TabularDiffWrapper::from_file_nodes(base_entry, head_entry)?,
             ))),
             _ => Ok(None),
         }

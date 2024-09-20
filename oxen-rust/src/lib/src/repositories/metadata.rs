@@ -6,6 +6,7 @@ use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::entry::entry_data_type::EntryDataType;
 use crate::model::entry::metadata_entry::CLIMetadataEntry;
+use crate::model::merkle_tree::node::FileNode;
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::metadata::MetadataDir;
 use crate::model::{Commit, CommitEntry, LocalRepository, MetadataEntry};
@@ -94,6 +95,25 @@ pub fn from_commit_entry(
         mime_type,
         extension,
         metadata,
+        is_queryable: None,
+    })
+}
+
+pub fn from_file_node(
+    _repo: &LocalRepository,
+    node: &FileNode,
+    commit: &Commit,
+) -> Result<MetadataEntry, OxenError> {
+    Ok(MetadataEntry {
+        filename: node.name.clone(),
+        is_dir: false,
+        latest_commit: Some(commit.to_owned()),
+        resource: None,
+        size: node.num_bytes,
+        data_type: node.data_type.clone(),
+        mime_type: node.mime_type.clone(),
+        extension: node.extension.clone(),
+        metadata: node.metadata.clone(),
         is_queryable: None,
     })
 }

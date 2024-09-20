@@ -8,6 +8,7 @@ use crate::core::db;
 use crate::core::db::key_val::path_db;
 use crate::core::versions::MinOxenVersion;
 use crate::model::diff::generic_diff_summary::GenericDiffSummary;
+use crate::model::merkle_tree::node::FileNode;
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core;
@@ -513,45 +514,30 @@ pub fn compute_new_columns_from_dfs(
 
 pub fn diff_entries(
     repo: &LocalRepository,
-    base_entry: Option<CommitEntry>,
+    base_entry: Option<FileNode>,
     base_commit: &Commit,
-    head_entry: Option<CommitEntry>,
+    head_entry: Option<FileNode>,
     head_commit: &Commit,
     df_opts: DFOpts,
 ) -> Result<DiffEntry, OxenError> {
-    if base_entry.is_none() && head_entry.is_none() {
-        return Err(OxenError::basic_str(
-            "diff_entries called with no base or head entry",
-        ));
+    match repo.min_version() {
+        MinOxenVersion::V0_19_0 => core::v0_19_0::diff::diff_entries(
+            repo,
+            base_entry,
+            base_commit,
+            head_entry,
+            head_commit,
+            df_opts,
+        ),
+        MinOxenVersion::V0_10_0 => core::v0_10_0::diff::diff_entries(
+            repo,
+            base_entry,
+            base_commit,
+            head_entry,
+            head_commit,
+            df_opts,
+        ),
     }
-
-    // Assume both entries exist
-    let mut status = DiffEntryStatus::Modified;
-
-    // If base entry is none, then it was added
-    if base_entry.is_none() && head_entry.is_some() {
-        status = DiffEntryStatus::Added;
-    }
-
-    // If head entry is none, then it was removed
-    if head_entry.is_none() && base_entry.is_some() {
-        status = DiffEntryStatus::Removed;
-    }
-
-    let should_do_full_diff = true;
-
-    let entry = DiffEntry::from_commit_entry(
-        repo,
-        base_entry,
-        base_commit,
-        head_entry,
-        head_commit,
-        status,
-        should_do_full_diff,
-        Some(df_opts),
-    )?;
-
-    Ok(entry)
 }
 
 // Filters out the entries that are not direct children of the provided dir, but
