@@ -29,19 +29,23 @@ pub fn append_row(conn: &duckdb::Connection, df: &DataFrame) -> Result<DataFrame
     let table_schema = schema_without_oxen_cols(conn, TABLE_NAME)?;
     let df_schema = df.schema();
 
-    if !table_schema.has_field_names(&df_schema.get_names()) {
+    let df_names: Vec<String> = df_schema.iter_names().map(|s| s.to_string()).collect();
+    if !table_schema.has_field_names(&df_names) {
         return Err(OxenError::incompatible_schemas(table_schema.clone()));
     }
 
     let added_column = Series::new(
-        DIFF_STATUS_COL,
+        PlSmallStr::from_str(DIFF_STATUS_COL),
         vec![StagedRowStatus::Added.to_string(); df.height()],
     );
     let df = df.hstack(&[added_column])?;
 
     // Handle initialization for completely null {} create objects coming over from the hub
     let df = if df.height() == 0 {
-        let added_column = Series::new(DIFF_STATUS_COL, vec![StagedRowStatus::Added.to_string()]);
+        let added_column = Series::new(
+            PlSmallStr::from_str(DIFF_STATUS_COL),
+            vec![StagedRowStatus::Added.to_string()],
+        );
         DataFrame::new(vec![added_column])?
     } else {
         df
@@ -71,17 +75,14 @@ pub fn modify_row(
 
     // Filter it down to exclude any of the OXEN_COLS, we don't want to modify these but hub sends them over
     let schema = df.schema();
-    let df_cols = schema.get_names();
-    let df_cols: Vec<&str> = df_cols
-        .iter()
-        .filter(|col| !OXEN_COLS.contains(col))
-        .copied()
+    let df_col_names: Vec<String> = schema.iter_names().map(|s| s.to_string()).collect();
+    let df_cols: Vec<String> = df_col_names
+        .clone()
+        .into_iter()
+        .filter(|col| !OXEN_COLS.contains(&col.as_str()))
         .collect();
     let df = df.select(df_cols)?;
-
-    let df_schema = df.schema();
-
-    if !table_schema.has_field_names(&df_schema.get_names()) {
+    if !table_schema.has_field_names(&df_col_names) {
         return Err(OxenError::incompatible_schemas(table_schema));
     }
 
@@ -98,7 +99,10 @@ pub fn modify_row(
         // Replace that column in the existing df if it exists
         let col_name = col.name();
         let new_val = df.column(col_name)?.get(0)?;
-        new_row.with_column(Series::new(col_name, vec![new_val]))?;
+        new_row.with_column(Series::new(
+            PlSmallStr::from_str(col_name),
+            vec![new_val],
+        ))?;
     }
 
     // TODO could use a struct to return these more safely
@@ -107,8 +111,14 @@ pub fn modify_row(
 
     // Update with latest values pre insert
     // TODO: Find a better way to do this than overwriting the entire column here.
-    new_row.with_column(Series::new(DIFF_STATUS_COL, vec![updated_status]))?;
-    new_row.with_column(Series::new(DIFF_HASH_COL, vec![insert_hash]))?;
+    new_row.with_column(Series::new(
+        PlSmallStr::from_str(DIFF_STATUS_COL),
+        vec![updated_status],
+    ))?;
+    new_row.with_column(Series::new(
+        PlSmallStr::from_str(DIFF_HASH_COL),
+        vec![insert_hash],
+    ))?;
 
     let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row, &out_schema)?;
 

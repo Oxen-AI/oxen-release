@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
+use crate::model::schema::Field;
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
     TabularDiffSummary, TabularSchemaDiff,
 };
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
-use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::view::compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
@@ -18,7 +18,8 @@ use polars::datatypes::{AnyValue, StringChunked};
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
 use polars::lazy::frame::IntoLazy;
-use polars::prelude::ChunkCompare;
+use polars::prelude::SchemaExt;
+use polars::prelude::{ChunkCompare, PlSmallStr};
 use polars::prelude::{DataFrame, DataFrameJoinOps};
 use polars::series::IntoSeries;
 
@@ -287,13 +288,13 @@ fn join_hashed_dfs(
 
     for col in schema_diff.added_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df.rename(col, &format!("{}.right", col))?;
+            joined_df.rename(col, PlSmallStr::from_str(&format!("{}.right", col)))?;
         }
     }
 
     for col in schema_diff.removed_cols.iter() {
         if joined_df.schema().contains(col) {
-            joined_df.rename(col, &format!("{}.left", col))?;
+            joined_df.rename(col, PlSmallStr::from_str(&format!("{}.left", col)))?;
         }
     }
 
@@ -305,10 +306,10 @@ fn join_hashed_dfs(
         let right_after = format!("{}.right", target);
         // Rename conditionally for asymetric targets
         if joined_df.schema().contains(&left_before) {
-            joined_df.rename(&left_before, &left_after)?;
+            joined_df.rename(&left_before, PlSmallStr::from_str(&left_after))?;
         }
         if joined_df.schema().contains(&right_before) {
-            joined_df.rename(&right_before, &right_after)?;
+            joined_df.rename(&right_before, PlSmallStr::from_str(&right_after))?;
         }
     }
 
@@ -349,13 +350,14 @@ fn add_diff_status_column(
                 .apply(
                     move |s| {
                         let ca = s.struct_()?;
-                        let out: StringChunked = ca
-                            .into_iter()
+                        let s_a = &ca.fields_as_series();
+                        let out: StringChunked = s_a
+                            .iter()
                             .map(|row| {
-                                let key_left = row.first();
-                                let key_right = row.get(1);
-                                let target_hash_left = row.get(2);
-                                let target_hash_right = row.get(3);
+                                let key_left = row.get(0).ok();
+                                let key_right = row.get(1).ok();
+                                let target_hash_left = row.get(2).ok();
+                                let target_hash_right = row.get(3).ok();
 
                                 test_function(
                                     key_left,
@@ -403,10 +405,10 @@ fn calculate_compare_mods(joined_df: &DataFrame) -> Result<AddRemoveModifyCounts
 }
 
 fn test_function(
-    key_left: Option<&AnyValue>,
-    key_right: Option<&AnyValue>,
-    target_hash_left: Option<&AnyValue>,
-    target_hash_right: Option<&AnyValue>,
+    key_left: Option<AnyValue>,
+    key_right: Option<AnyValue>,
+    target_hash_left: Option<AnyValue>,
+    target_hash_right: Option<AnyValue>,
     has_targets: bool,
 ) -> String {
     // TODO better error handling
