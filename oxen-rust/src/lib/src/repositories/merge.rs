@@ -1,15 +1,12 @@
 use std::path::{Path, PathBuf};
 
-
 use crate::core;
 use crate::core::v0_10_0::index::CommitReader;
 use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::merge_conflict::MergeConflict;
 use crate::model::Commit;
-use crate::model::{
-    Branch, LocalRepository,
-};
+use crate::model::{Branch, LocalRepository};
 
 pub struct MergeCommits {
     pub lca: Commit,
@@ -350,9 +347,8 @@ mod tests {
             // Make sure world file doesn't exist until we merge it in
             assert!(!world_file.exists());
 
-            // Merge it
-            let merger = Merger::new(&repo)?;
-            let commit = merger.merge_into_base(&merge_branch, &og_branch)?.unwrap();
+            let commit =
+                repositories::merge::merge_into_base(&repo, &merge_branch, &og_branch)?.unwrap();
 
             // Now that we've merged in, world file should exist
             assert!(world_file.exists());
@@ -360,7 +356,6 @@ mod tests {
             // Check that HEAD has updated to the merge commit
             let head_commit = repositories::commits::head_commit(&repo)?;
             assert_eq!(head_commit.id, commit.id);
-
             Ok(())
         })
         .await
