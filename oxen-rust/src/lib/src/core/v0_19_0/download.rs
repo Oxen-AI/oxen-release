@@ -17,8 +17,9 @@ pub async fn download_dir(
         .await?;
 
     // Find dir node in remote repo
-    let dir_hash = // TODO: How do we get the dir hash? Is it in Entry?
+    let dir_hash = // TODO: How do we get the dir hash for download node?
 
+    // TODO: Does download_node actually download all its children recursively?
     // Download dir node onto local machine 
     let dir_node = api::client::tree::download_node(repo, remote_repo, dir_hash)?;
     
@@ -66,17 +67,12 @@ async fn r_download_entries(
     }
 
     if let EMerkleTreeNode::VNode(_) = &node.node {
-        // Figure out which entries need to be downloaded
-        let mut missing_entries: Vec<Entry> = vec![];
-        let missing_hashes = repositories::tree::list_missing_file_hashes(repo, &node.hash)?;
+        let mut entries: Vec<Entry> = vec![];
 
         for child in &node.children {
             if let EMerkleTreeNode::File(file_node) = &child.node {
-                if !missing_hashes.contains(&child.hash) {
-                    continue;
-                }
 
-                missing_entries.push(Entry::CommitEntry(CommitEntry {
+                entries.push(Entry::CommitEntry(CommitEntry {
                     commit_id: file_node.last_commit_id.to_string(),
                     path: directory.join(&file_node.name),
                     hash: child.hash.to_string(),
@@ -89,7 +85,7 @@ async fn r_download_entries(
 
         core::v0_10_0::index::puller::pull_entries_to_working_dir(
             remote_repo,
-            &missing_entries,
+            &entries,
             &repo.path,
             pull_progress,
         )
