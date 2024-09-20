@@ -42,7 +42,7 @@ pub async fn download_dir(
             core::v0_10_0::download::download_dir(remote_repo, entry, local_path);
         }
         MinOxenVersion::V0_19_0 => {
-            log::debug!("Calling v0_19_0 download_dir with remote_repo: {:?}, entry: {:?}, local_path: {:?} ", remote_repo, entry, local_path);
+            log::debug!("Calling v0_19_0 download_dir with repo: {:?}, remote_repo: {:?}, entry: {:?}, local_path: {:?} ", repo, remote_repo, entry, local_path);
             core::v0_19_0::download::download_dir(repo, remote_repo, entry, local_path);
         }   
     }
