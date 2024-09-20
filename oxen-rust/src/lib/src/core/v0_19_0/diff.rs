@@ -5,7 +5,7 @@ use crate::model::merkle_tree::node::FileNode;
 use crate::model::{Commit, DiffEntry, LocalRepository};
 use crate::opts::DFOpts;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub fn list_diff_entries_in_dir_top_level(
     repo: &LocalRepository,
@@ -39,6 +39,7 @@ pub fn list_changed_dirs(
 
 pub fn diff_entries(
     repo: &LocalRepository,
+    file_path: impl AsRef<Path>,
     base_entry: Option<FileNode>,
     base_commit: &Commit,
     head_entry: Option<FileNode>,
@@ -62,6 +63,7 @@ pub fn diff_entries(
 
     let entry = DiffEntry::from_file_node(
         repo,
+        file_path,
         base_entry,
         base_commit,
         head_entry,

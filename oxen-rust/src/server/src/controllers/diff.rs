@@ -253,6 +253,7 @@ pub async fn file(
 
     let diff = repositories::diffs::diff_entries(
         &repository,
+        resource,
         base_entry,
         &base_commit,
         head_entry,

@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
@@ -168,6 +168,7 @@ impl DiffEntry {
 
     pub fn from_file_node(
         repo: &LocalRepository,
+        file_path: impl AsRef<Path>,
         base_entry: Option<FileNode>,
         base_commit: &Commit, // pass in commit objects for speed so we don't have to lookup later
         head_entry: Option<FileNode>,
@@ -176,6 +177,7 @@ impl DiffEntry {
         should_do_full_diff: bool,
         df_opts: Option<DFOpts>, // only for tabular
     ) -> Result<DiffEntry, OxenError> {
+        let file_path = file_path.as_ref().to_path_buf();
         // Need to check whether we have the head or base entry to check data about the file
         let (current_entry, data_type) = if let Some(entry) = &head_entry {
             (entry.clone(), entry.data_type.clone())
@@ -183,8 +185,8 @@ impl DiffEntry {
             let base_entry = base_entry.clone().unwrap();
             (base_entry.clone(), base_entry.data_type.clone())
         };
-        let base_resource = DiffEntry::resource_from_node(base_entry.clone());
-        let head_resource = DiffEntry::resource_from_node(head_entry.clone());
+        let base_resource = DiffEntry::resource_from_node(base_entry.clone(), &file_path);
+        let head_resource = DiffEntry::resource_from_node(head_entry.clone(), &file_path);
 
         let mut base_meta_entry =
             MetadataEntry::from_file_node(repo, base_entry.clone(), base_commit);
@@ -369,13 +371,17 @@ impl DiffEntry {
         })
     }
 
-    fn resource_from_node(node: Option<FileNode>) -> Option<ParsedResource> {
+    fn resource_from_node(
+        node: Option<FileNode>,
+        file_path: impl AsRef<Path>,
+    ) -> Option<ParsedResource> {
+        let path = file_path.as_ref().to_path_buf();
         node.map(|node| ParsedResource {
             commit: None,
             branch: None,
             version: PathBuf::from(node.last_commit_id.to_string()),
-            path: PathBuf::from(node.name.clone()),
-            resource: PathBuf::from(node.last_commit_id.to_string()).join(node.name.clone()),
+            path: path.clone(),
+            resource: PathBuf::from(node.last_commit_id.to_string()).join(path),
         })
     }
 

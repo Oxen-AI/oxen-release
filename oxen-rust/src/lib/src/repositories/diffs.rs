@@ -514,6 +514,7 @@ pub fn compute_new_columns_from_dfs(
 
 pub fn diff_entries(
     repo: &LocalRepository,
+    file_path: impl AsRef<Path>,
     base_entry: Option<FileNode>,
     base_commit: &Commit,
     head_entry: Option<FileNode>,
@@ -523,6 +524,7 @@ pub fn diff_entries(
     match repo.min_version() {
         MinOxenVersion::V0_19_0 => core::v0_19_0::diff::diff_entries(
             repo,
+            file_path,
             base_entry,
             base_commit,
             head_entry,
