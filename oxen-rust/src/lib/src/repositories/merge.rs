@@ -320,7 +320,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_one_commit_add_fast_forward() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // Write and commit hello file to main branch
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
@@ -363,7 +363,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_one_commit_remove_fast_forward() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // Write and add hello file
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
@@ -412,7 +412,7 @@ mod tests {
     }
     #[tokio::test]
     async fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // Write and add hello file
             let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
             let hello_file = repo.path.join("hello.txt");
@@ -447,10 +447,10 @@ mod tests {
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, og_contents);
 
-            let merger = Merger::new(&repo)?;
-            merger.merge(branch_name)?.unwrap();
+            repositories::merge::merge(&repo, branch_name)?.unwrap();
 
             // Now that we've merged in, world file should be new content
+            assert!(world_file.exists(), "World file should exist after merge");
             let contents = util::fs::read_from_path(&world_file)?;
             assert_eq!(contents, new_contents);
 
@@ -458,7 +458,6 @@ mod tests {
         })
         .await
     }
-
     #[tokio::test]
     async fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {

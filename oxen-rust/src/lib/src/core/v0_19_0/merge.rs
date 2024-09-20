@@ -374,7 +374,7 @@ fn fast_forward_merge(
         for base_entry in base_entries.iter() {
             let (base_file_node, base_path) = base_entry;
             log::debug!("Base entry: {:?}", base_path);
-            if !merge_entries.contains(base_entry) {
+            if !merge_entries.iter().any(|entry| entry.1 == base_entry.1) {
                 log::debug!("Removing Base Entry: {:?}", base_path);
 
                 let path = repo.path.join(base_path);
