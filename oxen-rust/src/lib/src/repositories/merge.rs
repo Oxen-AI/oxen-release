@@ -394,19 +394,22 @@ mod tests {
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Make sure world file exists until we merge the removal in
-            assert!(world_file.exists());
+            assert!(world_file.exists(), "World file should exist before merge");
 
-            let merger = Merger::new(&repo)?;
-            merger.merge(&merge_branch.name)?.unwrap();
+            let merge_result = repositories::merge::merge(&repo, &merge_branch.name)?;
+
+            merge_result.unwrap();
 
             // Now that we've merged in, world file should not exist
-            assert!(!world_file.exists());
+            assert!(
+                !world_file.exists(),
+                "World file should not exist after merge"
+            );
 
             Ok(())
         })
         .await
     }
-
     #[tokio::test]
     async fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
         test::run_empty_local_repo_test_async(|repo| async move {
