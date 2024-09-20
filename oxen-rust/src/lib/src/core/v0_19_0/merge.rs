@@ -347,9 +347,9 @@ fn fast_forward_merge(
     let merge_commit_node = CommitMerkleTree::from_commit(repo, merge_commit)?;
 
     let base_entries =
-        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from("/"))?;
+        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from(""))?;
     let merge_entries =
-        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from("/"))?;
+        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from(""))?;
 
     // Make sure files_db is dropped before the merge commit is written
     {
@@ -660,6 +660,7 @@ fn update_entry(
     repo: &LocalRepository,
     merge_entry: &(FileNode, PathBuf),
 ) -> Result<(), OxenError> {
-    index::restore::restore_file(repo, &merge_entry.0, &merge_entry.1)?;
+    let (file_node, path) = merge_entry;
+    index::restore::restore_file(repo, file_node, path)?;
     Ok(())
 }
