@@ -9,6 +9,7 @@ pub use field::Field;
 
 use crate::util::hasher;
 use itertools::Itertools;
+use polars::prelude::SchemaExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fmt, path::PathBuf};
@@ -44,7 +45,7 @@ impl Schema {
     }
 
     pub fn to_polars(&self) -> polars::prelude::Schema {
-        let mut schema = polars::prelude::Schema::new();
+        let mut schema = polars::prelude::Schema::default();
         for field in self.fields.iter() {
             let data_type = DataType::from_string(&field.dtype);
             schema.with_column(
@@ -59,7 +60,7 @@ impl Schema {
     pub fn from_polars(schema: &polars::prelude::Schema) -> Schema {
         let mut fields: Vec<Field> = vec![];
         for field in schema.iter_fields() {
-            let f = Field::new(field.name(), field.data_type().to_string().as_str());
+            let f = Field::new(field.name(), field.dtype().to_string().as_str());
             fields.push(f);
         }
 

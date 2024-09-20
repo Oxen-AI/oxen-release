@@ -20,24 +20,15 @@ pub async fn list_diff_entries(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("list_page got body: {}", body);
-            let response: Result<CompareEntriesResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.compare),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "api::client::diff::list_diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-                ))),
-            }
-        }
-        Err(err) => {
-            let err =
-                format!("api::client::diff::list_diff_entries Err {err:?} request failed: {url}");
-            Err(OxenError::basic_str(err))
-        }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("list_page got body: {}", body);
+    let response: Result<CompareEntriesResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.compare),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::diff::list_diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
     }
 }
 
@@ -54,23 +45,15 @@ pub async fn diff_entries(
     let url = api::endpoint::url_from_repo(remote_repo, &uri)?;
 
     let client = client::new_for_url(&url)?;
-    match client.get(&url).send().await {
-        Ok(res) => {
-            let body = client::parse_json_body(&url, res).await?;
-            log::debug!("list_page got body: {}", body);
-            let response: Result<CompareEntryResponse, serde_json::Error> =
-                serde_json::from_str(&body);
-            match response {
-                Ok(val) => Ok(val.compare),
-                Err(err) => Err(OxenError::basic_str(format!(
-                    "api::client::diff::diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
-                ))),
-            }
-        }
-        Err(err) => {
-            let err = format!("api::client::diff::diff_entries Err {err:?} request failed: {url}");
-            Err(OxenError::basic_str(err))
-        }
+    let res = client.get(&url).send().await?;
+    let body = client::parse_json_body(&url, res).await?;
+    log::debug!("list_page got body: {}", body);
+    let response: Result<CompareEntryResponse, serde_json::Error> = serde_json::from_str(&body);
+    match response {
+        Ok(val) => Ok(val.compare),
+        Err(err) => Err(OxenError::basic_str(format!(
+            "api::client::diff::diff_entries error parsing response from {url}\n\nErr {err:?} \n\n{body}"
+        ))),
     }
 }
 
@@ -276,9 +259,6 @@ mod tests {
     #[tokio::test]
     async fn test_diff_entries_modify_add_rows_csv() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Add and commit the initial data
             let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
             let repo_filepath = repo.path.join(test_file.file_name().unwrap());
@@ -287,7 +267,8 @@ mod tests {
             repositories::add(&repo, &repo_filepath)?;
             repositories::commit(&repo, "Adding initial csv")?;
 
-
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());
