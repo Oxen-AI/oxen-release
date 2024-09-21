@@ -93,7 +93,7 @@ impl TabularDiffView {
                 let (added_rows_view, removed_rows_view) = if column_names.is_empty() {
                     (None, None)
                 } else {
-                    let cols = column_names.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+                    let cols = column_names.iter().map(col).collect::<Vec<Expr>>();
 
                     let common_base_df = base_df.clone().lazy().select(&cols).collect().unwrap();
                     let common_head_df = head_df.clone().lazy().select(&cols).collect().unwrap();

@@ -27,8 +27,8 @@ approx = "0.5.1"
 async-compression = { version = "0.4.0", features = ["futures-io", "gzip"] }
 async-recursion = "1.0.0"
 async-std = { version = "1.12.0", features = ["unstable"] }
-async-tar = "0.4.2"
-arrow-json = "52.2.0"
+async-tar = "0.5.0"
+arrow-json = "52.0.0"
 blocking = "1.6.1"
 bytecount = "0.6.3"
 bytes = "1.2.1"
@@ -39,7 +39,7 @@ clap = { version = "4.2.7", features = ["cargo"] }
 colored = "2.0.0"
 comfy-table = "7.1.1"
 deadqueue = "0.2.4"
-derive_more = "0.99.17"
+derive_more = "1.0.0"
 difference = "2.0.0"
 dirs = "5.0.1"
 dotenv = "0.15.0"
@@ -71,7 +71,7 @@ mp4 = "0.14.0"
 nom = "7.1.1"
 num_cpus = "1.13.1"
 pluralizer = "0.4.0"
-polars = { version = "0.41.3", features = [
+polars = { version = "0.43.1", features = [
     "lazy",
     "parquet",
     "json",
@@ -79,13 +79,13 @@ polars = { version = "0.41.3", features = [
     "ipc_streaming",
     "dtype-full",
 ] }
-polars-sql = "0.41.2"
+polars-sql = "0.43.1"
 os_path = "0.8.0"
 qsv-sniffer = "0.10.3"
 rand = "0.8.5"
 rayon = "1.7.0"
 r2d2 = "0.8.10"
-redis = { version = "0.26.1", features = ["r2d2"] }
+redis = { version = "0.27.2", features = ["r2d2"] }
 reqwest = { version = "0.12.3", features = [
     "multipart",
     "json",
@@ -95,7 +95,6 @@ reqwest = { version = "0.12.3", features = [
 rocksdb = { version = "0.22.0", default-features = false, features = [
     "lz4",
     "snappy",
-    "zstd",
     "zlib",
 ] }
 serde = { version = "1.0.136", features = ["derive"] }
