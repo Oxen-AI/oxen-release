@@ -81,8 +81,13 @@ pub fn modify_row(
         .into_iter()
         .filter(|col| !OXEN_COLS.contains(&col.as_str()))
         .collect();
-    let df = df.select(df_cols)?;
-    if !table_schema.has_field_names(&df_col_names) {
+    let df = df.select(&df_cols)?;
+    if !table_schema.has_field_names(&df_cols) {
+        log::error!(
+            "modify_row incompatible_schemas {:?}\n{:?}",
+            table_schema,
+            df_cols
+        );
         return Err(OxenError::incompatible_schemas(table_schema));
     }
 
@@ -91,7 +96,6 @@ pub fn modify_row(
         .select("*")
         .from(TABLE_NAME)
         .where_clause(&format!("\"{}\" = '{}'", OXEN_ID_COL, uuid));
-
     let maybe_db_data = df_db::select(conn, &select_hash, true, None, None)?;
 
     let mut new_row = maybe_db_data.clone().to_owned();
@@ -116,9 +120,7 @@ pub fn modify_row(
         PlSmallStr::from_str(DIFF_HASH_COL),
         vec![insert_hash],
     ))?;
-
     let result = df_db::modify_row_with_polars_df(conn, TABLE_NAME, uuid, &new_row, &out_schema)?;
-
     if result.height() == 0 {
         return Err(OxenError::resource_not_found(uuid));
     }
