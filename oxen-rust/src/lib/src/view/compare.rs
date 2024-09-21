@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 
 use polars::frame::DataFrame;
+use polars::prelude::SchemaExt;
 use serde::{Deserialize, Serialize};
 
 use crate::constants::DIFF_STATUS_COL;
@@ -449,7 +450,7 @@ impl CompareSchemaDiff {
                 Ok(CompareSchemaColumn {
                     name: field.name().to_owned().to_string(),
                     key: format!("{}.right", field.name()),
-                    dtype: format!("{:?}", field.data_type()),
+                    dtype: format!("{:?}", field.dtype()),
                 })
             })
             .collect::<Result<Vec<CompareSchemaColumn>, OxenError>>()?;
@@ -463,7 +464,7 @@ impl CompareSchemaDiff {
                 Ok(CompareSchemaColumn {
                     name: field.name().to_string(),
                     key: format!("{}.left", field.name()),
-                    dtype: format!("{:?}", field.data_type()),
+                    dtype: format!("{:?}", field.dtype()),
                 })
             })
             .collect::<Result<Vec<CompareSchemaColumn>, OxenError>>()?;

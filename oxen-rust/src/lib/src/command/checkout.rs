@@ -131,7 +131,8 @@ pub fn checkout_combine<P: AsRef<Path>>(repo: &LocalRepository, path: P) -> Resu
             match df_base.vstack(&df_merge) {
                 Ok(result) => {
                     log::debug!("GOT DF COMBINED {}", result);
-                    match result.unique(None, polars::frame::UniqueKeepStrategy::First, None) {
+                    match result.unique_stable(None, polars::frame::UniqueKeepStrategy::First, None)
+                    {
                         Ok(mut uniq) => {
                             log::debug!("GOT DF COMBINED UNIQUE {}", uniq);
                             let output_path = repo.path.join(&conflict.base_entry.path);
