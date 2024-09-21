@@ -1048,7 +1048,12 @@ where
     util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
-    assert!(result.is_ok());
+    match result {
+        Ok(_) => {}
+        Err(err) => {
+            panic!("Error running test. Err: {:?}", err);
+        }
+    }
     Ok(())
 }
 

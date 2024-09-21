@@ -95,7 +95,7 @@ qsv-sniffer = "0.10.3"
 r2d2 = "0.8.10"
 rand = "0.8.5"
 rayon = "1.7.0"
-redis = { version = "0.26.1", features = ["r2d2"] }
+redis = { version = "0.27.2", features = ["r2d2"] }
 reqwest = { version = "0.12.3", features = [
     "multipart",
     "json",
