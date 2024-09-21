@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 
 use crate::constants::DIFF_STATUS_COL;
 use crate::error::OxenError;
-use crate::model::schema::Field;
 use crate::model::diff::tabular_diff::{
     TabularDiffDupes, TabularDiffMods, TabularDiffParameters, TabularDiffSchemas,
     TabularDiffSummary, TabularSchemaDiff,
 };
 use crate::model::diff::{AddRemoveModifyCounts, DiffResult, TabularDiff};
+use crate::model::schema::Field;
 use crate::model::Schema;
 use crate::view::compare::{
     TabularCompareFieldBody, TabularCompareFields, TabularCompareTargetBody,
@@ -18,10 +18,12 @@ use polars::datatypes::{AnyValue, StringChunked};
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
 use polars::lazy::frame::IntoLazy;
+use polars::prelude::NamedFrom;
 use polars::prelude::SchemaExt;
 use polars::prelude::{ChunkCompare, PlSmallStr};
 use polars::prelude::{DataFrame, DataFrameJoinOps};
 use polars::series::IntoSeries;
+use polars::series::Series;
 
 use super::{tabular, SchemaDiff};
 
@@ -269,7 +271,11 @@ fn join_hashed_dfs(
     targets: Vec<&str>,
     schema_diff: SchemaDiff,
 ) -> Result<DataFrame, OxenError> {
+    log::debug!("left_df: {:?}", left_df);
+    log::debug!("right_df: {:?}", right_df);
+
     let mut joined_df = left_df.full_join(right_df, [KEYS_HASH_COL], [KEYS_HASH_COL])?;
+    log::debug!("joined_df: {:?}", joined_df);
 
     let mut cols_to_rename = targets.clone();
     for key in keys.iter() {
@@ -340,6 +346,8 @@ fn add_diff_status_column(
         }
     }
 
+    log::debug!("add_diff_status_column field_names: {:?}", field_names);
+
     // For pulling into the closure
     let has_targets = !targets.is_empty();
     let joined_df = joined_df
@@ -349,17 +357,21 @@ fn add_diff_status_column(
             as_struct(field_names)
                 .apply(
                     move |s| {
+                        log::debug!("s: {:?}", s);
+
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
-                        let out: StringChunked = s_a
+                        /*let out: StringChunked = s_a
                             .iter()
                             .map(|row| {
+                                log::debug!("row: {:?}", row);
+
                                 let key_left = row.get(0).ok();
                                 let key_right = row.get(1).ok();
                                 let target_hash_left = row.get(2).ok();
                                 let target_hash_right = row.get(3).ok();
 
-                                test_function(
+                                compute_diff_status(
                                     key_left,
                                     key_right,
                                     target_hash_left,
@@ -368,14 +380,43 @@ fn add_diff_status_column(
                                 )
                             })
                             .collect();
+                        log::debug!("out: {:?}", out);
 
-                        Ok(Some(out.into_series()))
+                        Ok(Some(out.into_series()))*/
+
+                        let num_rows = s_a[0].len();
+
+                        let mut results = vec![];
+                        for i in 0..num_rows {
+                            // log::debug!("row: {:?}", i);
+                            let mut row = vec![];
+                            for series in s_a.iter() {
+                                let elem = series.get(i).unwrap();
+                                // log::debug!("column elem: {:?}", elem);
+                                row.push(elem);
+                            }
+                            let key_left = Some(row[0].clone());
+                            let key_right = Some(row[1].clone());
+                            let target_hash_left = Some(row[2].clone());
+                            let target_hash_right = Some(row[3].clone());
+                            results.push(compute_diff_status(
+                                key_left,
+                                key_right,
+                                target_hash_left,
+                                target_hash_right,
+                                has_targets,
+                            ));
+                        }
+
+                        Ok(Some(Series::new(PlSmallStr::from_str(""), results)))
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
                 .alias(DIFF_STATUS_COL),
         ])
         .collect()?;
+
+    log::debug!("joined_df with diff_status: {:?}", joined_df);
 
     Ok(joined_df)
 }
@@ -404,13 +445,18 @@ fn calculate_compare_mods(joined_df: &DataFrame) -> Result<AddRemoveModifyCounts
     })
 }
 
-fn test_function(
+fn compute_diff_status(
     key_left: Option<AnyValue>,
     key_right: Option<AnyValue>,
     target_hash_left: Option<AnyValue>,
     target_hash_right: Option<AnyValue>,
     has_targets: bool,
 ) -> String {
+    // log::debug!("key_left: {:?}", key_left);
+    // log::debug!("key_right: {:?}", key_right);
+    // log::debug!("target_hash_left: {:?}", target_hash_left);
+    // log::debug!("target_hash_right: {:?}", target_hash_right);
+    // log::debug!("has_targets: {:?}", has_targets);
     // TODO better error handling
     if let Some(AnyValue::Null) = key_left {
         return DIFF_STATUS_ADDED.to_string();
