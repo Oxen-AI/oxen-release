@@ -99,10 +99,7 @@ pub fn modify_row(
         // Replace that column in the existing df if it exists
         let col_name = col.name();
         let new_val = df.column(col_name)?.get(0)?;
-        new_row.with_column(Series::new(
-            PlSmallStr::from_str(col_name),
-            vec![new_val],
-        ))?;
+        new_row.with_column(Series::new(PlSmallStr::from_str(col_name), vec![new_val]))?;
     }
 
     // TODO could use a struct to return these more safely

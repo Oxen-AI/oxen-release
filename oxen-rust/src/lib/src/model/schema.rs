@@ -9,10 +9,10 @@ pub use field::Field;
 
 use crate::util::hasher;
 use itertools::Itertools;
+use polars::prelude::SchemaExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{collections::HashMap, fmt, path::PathBuf};
-use polars::prelude::SchemaExt;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Schema {

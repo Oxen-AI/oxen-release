@@ -14,7 +14,7 @@ bincode = "1.3.3"
 bytesize = "1.1.0"
 chrono = "0.4.19"
 clap = { version = "4.2.7", features = ["cargo"] }
-derive_more = "0.99.17"
+derive_more = "1.0.0"
 dotenv = "0.15.0"
 dunce = "1"
 duckdb = { version = "1.0.0", features = ["bundled"] }
@@ -43,7 +43,6 @@ redis = { version = "0.26.1", features = ["r2d2"] }
 rocksdb = { version = "0.22.0", default-features = false, features = [
     "lz4",
     "snappy",
-    "zstd",
     "zlib",
 ] }
 sanitize-filename = "0.5.0"

@@ -50,7 +50,10 @@ pub fn read_df_csv(path: impl AsRef<Path>, delimiter: u8) -> Result<LazyFrame, O
 }
 
 pub fn read_df_jsonl(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
-    let path = path.as_ref().to_str().ok_or(OxenError::basic_str("Could not convert path to string"))?;
+    let path = path
+        .as_ref()
+        .to_str()
+        .ok_or(OxenError::basic_str("Could not convert path to string"))?;
     LazyJsonLineReader::new(path)
         .with_infer_schema_length(Some(NonZeroUsize::new(10000).unwrap()))
         .finish()
@@ -100,10 +103,14 @@ fn read_df_arrow(path: impl AsRef<Path>) -> Result<LazyFrame, OxenError> {
 
 pub fn take(df: LazyFrame, indices: Vec<u32>) -> Result<DataFrame, OxenError> {
     let idx = IdxCa::new(PlSmallStr::from_str("idx"), &indices);
-    let collected = df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let collected = df
+        .collect()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     // log::debug!("take indices {:?}", indices);
     // log::debug!("from df {:?}", collected);
-    collected.take(&idx).map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    collected
+        .take(&idx)
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 pub fn scan_df_csv(
@@ -119,7 +126,10 @@ pub fn scan_df_csv(
 }
 
 pub fn scan_df_jsonl(path: impl AsRef<Path>, total_rows: usize) -> Result<LazyFrame, OxenError> {
-    let path = path.as_ref().to_str().ok_or(OxenError::basic_str("Could not convert path to string"))?;
+    let path = path
+        .as_ref()
+        .to_str()
+        .ok_or(OxenError::basic_str("Could not convert path to string"))?;
     LazyJsonLineReader::new(path)
         .with_infer_schema_length(Some(NonZeroUsize::new(10000).unwrap()))
         .with_n_rows(Some(total_rows))
@@ -163,7 +173,9 @@ pub fn add_col_lazy(
     dtype: &str,
     at: Option<usize>,
 ) -> Result<LazyFrame, OxenError> {
-    let mut df = df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let mut df = df
+        .collect()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
 
     let dtype = DataType::from_string(dtype).to_polars();
 
@@ -172,9 +184,11 @@ pub fn add_col_lazy(
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     if let Some(at) = at {
-        df.insert_column(at, column).map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+        df.insert_column(at, column)
+            .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     } else {
-        df.with_column(column).map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+        df.with_column(column)
+            .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     }
     let df = df.lazy();
     Ok(df)
@@ -192,16 +206,22 @@ pub fn add_col(
     let column = column
         .extend_constant(val_from_str_and_dtype(val, &dtype), df.height())
         .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
-    df.with_column(column).map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    df.with_column(column)
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     Ok(df)
 }
 
 pub fn add_row(df: LazyFrame, data: String) -> Result<LazyFrame, OxenError> {
-    let df = df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let df = df
+        .collect()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     let new_row = row_from_str_and_schema(data, df.schema())?;
     log::debug!("add_row og df: {:?}", df);
     log::debug!("add_row new_row: {:?}", new_row);
-    let df = df.vstack(&new_row).map_err(|e| OxenError::basic_str(format!("{e:?}")))?.lazy();
+    let df = df
+        .vstack(&new_row)
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?
+        .lazy();
     Ok(df)
 }
 
@@ -495,7 +515,8 @@ pub fn slice_df(df: DataFrame, start: usize, end: usize) -> Result<DataFrame, Ox
     log::debug!("slice_df with opts: {:?}", opts);
     let df = df.lazy();
     let df = slice(df, &opts);
-    df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    df.collect()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 pub fn paginate_df(df: DataFrame, page_opts: &PaginateOpts) -> Result<DataFrame, OxenError> {
@@ -507,7 +528,8 @@ pub fn paginate_df(df: DataFrame, page_opts: &PaginateOpts) -> Result<DataFrame,
     ));
     let df = df.lazy();
     let df = slice(df, &opts);
-    df.collect().map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    df.collect()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
@@ -525,15 +547,16 @@ fn slice(df: LazyFrame, opts: &DFOpts) -> LazyFrame {
 }
 
 pub fn df_add_row_num(df: DataFrame) -> Result<DataFrame, OxenError> {
-    df
-        .with_row_index(PlSmallStr::from_str(constants::ROW_NUM_COL_NAME), Some(0))
+    df.with_row_index(PlSmallStr::from_str(constants::ROW_NUM_COL_NAME), Some(0))
         .map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 pub fn df_add_row_num_starting_at(df: DataFrame, start: u32) -> Result<DataFrame, OxenError> {
-    df
-        .with_row_index(PlSmallStr::from_str(constants::ROW_NUM_COL_NAME), Some(start))
-        .map_err(|e| OxenError::basic_str(format!("{e:?}")))
+    df.with_row_index(
+        PlSmallStr::from_str(constants::ROW_NUM_COL_NAME),
+        Some(start),
+    )
+    .map_err(|e| OxenError::basic_str(format!("{e:?}")))
 }
 
 pub fn any_val_to_bytes(value: &AnyValue) -> Vec<u8> {
@@ -824,7 +847,9 @@ pub fn get_size(path: impl AsRef<Path>) -> Result<DataFrameSize, OxenError> {
     // Don't need that many rows to get the width
     let num_scan_rows = constants::DEFAULT_PAGE_SIZE;
     let mut lazy_df = scan_df(&path, &DFOpts::empty(), num_scan_rows)?;
-    let schema = lazy_df.collect_schema().map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let schema = lazy_df
+        .collect_schema()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     let width = schema.len();
 
     let input_path = path.as_ref();
@@ -921,7 +946,9 @@ pub fn write_df_parquet<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result
     log::debug!("Writing file {:?}", output);
     match std::fs::File::create(output) {
         Ok(f) => {
-            ParquetWriter::new(f).finish(df).map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+            ParquetWriter::new(f)
+                .finish(df)
+                .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
             Ok(())
         }
         Err(err) => {
@@ -935,7 +962,9 @@ pub fn write_df_arrow<P: AsRef<Path>>(df: &mut DataFrame, output: P) -> Result<(
     let output = output.as_ref();
     log::debug!("Writing file {:?}", output);
     let f = std::fs::File::create(output).unwrap();
-    IpcWriter::new(f).finish(df).map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    IpcWriter::new(f)
+        .finish(df)
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
     Ok(())
 }
 
@@ -1016,7 +1045,9 @@ pub fn get_schema(input: impl AsRef<Path>) -> Result<crate::model::Schema, OxenE
     // don't need many rows to get schema
     let total_rows = constants::DEFAULT_PAGE_SIZE;
     let mut df = scan_df(input, &opts, total_rows)?;
-    let schema = df.collect_schema().map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let schema = df
+        .collect_schema()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
 
     Ok(crate::model::Schema::from_polars(&schema))
 }
@@ -1027,7 +1058,9 @@ pub fn schema_to_string<P: AsRef<Path>>(
     opts: &DFOpts,
 ) -> Result<String, OxenError> {
     let mut df = scan_df(input, opts, constants::DEFAULT_PAGE_SIZE)?;
-    let schema = df.collect_schema().map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
+    let schema = df
+        .collect_schema()
+        .map_err(|e| OxenError::basic_str(format!("{e:?}")))?;
 
     if flatten {
         let result = polars_schema_to_flat_str(&schema);
