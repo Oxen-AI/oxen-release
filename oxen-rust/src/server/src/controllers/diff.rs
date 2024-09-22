@@ -5,7 +5,6 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::core::v0_10_0::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;

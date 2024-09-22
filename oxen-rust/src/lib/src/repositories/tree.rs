@@ -7,6 +7,13 @@ use crate::error::OxenError;
 use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, LocalRepository, MerkleHash};
 
+pub fn get_by_commit(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<CommitMerkleTree, OxenError> {
+    CommitMerkleTree::from_commit(repo, commit)
+}
+
 pub fn get_node_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,

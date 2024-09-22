@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::model::merkle_tree::node::FileNode;
+use crate::model::merkle_tree::node::{DirNode, FileNode};
 use crate::model::metadata::generic_metadata::GenericMetadata;
 use crate::model::{Commit, CommitEntry, EntryDataType, LocalRepository, ParsedResource};
 use crate::repositories;
@@ -24,6 +24,7 @@ pub struct CLIMetadataEntry {
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct MetadataEntry {
     pub filename: String,
+    pub hash: String,
     pub is_dir: bool,
     pub latest_commit: Option<Commit>,
     pub resource: Option<ParsedResource>,
@@ -61,6 +62,18 @@ impl MetadataEntry {
     ) -> Option<MetadataEntry> {
         node.as_ref()?;
         match repositories::metadata::from_file_node(repo, &node.unwrap(), commit) {
+            Ok(metadata) => Some(metadata),
+            Err(_) => None,
+        }
+    }
+
+    pub fn from_dir_node(
+        repo: &LocalRepository,
+        node: Option<DirNode>,
+        commit: &Commit,
+    ) -> Option<MetadataEntry> {
+        node.as_ref()?;
+        match repositories::metadata::from_dir_node(repo, &node.unwrap(), commit) {
             Ok(metadata) => Some(metadata),
             Err(_) => None,
         }

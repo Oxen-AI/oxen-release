@@ -458,6 +458,7 @@ pub fn meta_entry_from_commit_entry(
 
     return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
+        hash: entry.hash.to_string(),
         is_dir: false,
         size,
         latest_commit: Some(latest_commit.clone()),
@@ -522,6 +523,7 @@ pub fn meta_entry_from_dir(
     let base_name = path.file_name().unwrap_or(std::ffi::OsStr::new(""));
     return Ok(MetadataEntry {
         filename: String::from(base_name.to_string_lossy()),
+        hash: commit.id.to_string(),
         is_dir: true,
         size: total_size,
         latest_commit,
