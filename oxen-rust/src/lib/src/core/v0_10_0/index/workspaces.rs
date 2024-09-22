@@ -18,6 +18,7 @@ use crate::util;
 use super::CommitWriter;
 
 pub mod data_frames;
+pub mod diff;
 pub mod files;
 pub mod stager;
 

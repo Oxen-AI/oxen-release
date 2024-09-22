@@ -354,13 +354,14 @@ pub fn process_add_file(
     path: &Path,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    log::debug!("process_add_file");
+    log::debug!("process_add_file {:?}", path);
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
     let full_path = repo_path.join(&relative_path);
 
     if !full_path.is_file() {
         // If it's not a file - no need to add it
         // We handle directories by traversing the parents of files below
+        log::debug!("file is not a file - skipping add on {:?}", full_path);
         return Ok(Some(StagedMerkleTreeNode {
             status: StagedEntryStatus::Added,
             node: MerkleTreeNode::default_dir(),
@@ -415,6 +416,7 @@ pub fn process_add_file(
 
     // Don't have to add the file to the staged db if it hasn't changed
     if status == StagedEntryStatus::Unmodified {
+        log::debug!("file has not changed - skipping add");
         return Ok(None);
     }
 
@@ -443,23 +445,46 @@ pub fn process_add_file(
         .unwrap_or_default()
         .to_string_lossy();
     let relative_path_str = relative_path.to_str().unwrap();
+    let file_node = FileNode {
+        hash,
+        name: relative_path_str.to_string(),
+        data_type,
+        num_bytes,
+        last_modified_seconds: mtime.unix_seconds(),
+        last_modified_nanoseconds: mtime.nanoseconds(),
+        metadata,
+        extension: file_extension.to_string(),
+        mime_type: mime_type.clone(),
+        ..Default::default()
+    };
+    p_add_file_node_to_staged_db(staged_db, relative_path_str, status, &file_node, seen_dirs)
+}
+
+/// Used to add a file node to the staged db in a workspace
+pub fn add_file_node_to_staged_db(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    relative_path: impl AsRef<Path>,
+    status: StagedEntryStatus,
+    file_node: &FileNode,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+    p_add_file_node_to_staged_db(staged_db, relative_path, status, file_node, &seen_dirs)
+}
+
+pub fn p_add_file_node_to_staged_db(
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+    relative_path: impl AsRef<Path>,
+    status: StagedEntryStatus,
+    file_node: &FileNode,
+    seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let relative_path = relative_path.as_ref();
+    log::debug!("writing to staged db: {:?}", staged_db.path());
+    log::debug!("writing file: {}", file_node);
     let entry = StagedMerkleTreeNode {
         status,
-        node: MerkleTreeNode::from_file(FileNode {
-            hash,
-            name: relative_path_str.to_string(),
-            data_type,
-            num_bytes,
-            last_modified_seconds: mtime.unix_seconds(),
-            last_modified_nanoseconds: mtime.nanoseconds(),
-            metadata,
-            extension: file_extension.to_string(),
-            mime_type: mime_type.clone(),
-            ..Default::default()
-        }),
+        node: MerkleTreeNode::from_file(file_node.clone()),
     };
-
-    log::debug!("writing file to staged db: {}", entry);
 
     let mut buf = Vec::new();
     entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
@@ -470,12 +495,11 @@ pub fn process_add_file(
     // Add all the parent dirs to the staged db
     let mut parent_path = relative_path.to_path_buf();
     while let Some(parent) = parent_path.parent() {
-        let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
         parent_path = parent.to_path_buf();
 
-        add_dir_to_staged_db(staged_db, &relative_path, seen_dirs)?;
+        add_dir_to_staged_db(staged_db, &parent_path, seen_dirs)?;
 
-        if relative_path == Path::new("") {
+        if parent_path == Path::new("") {
             break;
         }
     }

@@ -164,71 +164,8 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for path in paths {
-        log::debug!("path: {:?}", path);
-
-        if path.is_dir() {
-            remove_staged_dir(repo, path, &staged_db)?;
-        } else {
-            remove_staged_file(repo, path, &staged_db)?;
-        }
-    }
-
-    Ok(())
-}
-
-// TODO: should removing directories from the index require the recursive flag?
-
-fn remove_staged_file(
-    repo: &LocalRepository,
-    relative_path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<(), OxenError> {
-    log::debug!("Deleting entry: {relative_path:?}");
-    staged_db.delete(relative_path.to_str().unwrap())?;
-
-    Ok(())
-}
-
-fn remove_staged_dir(
-    repo: &LocalRepository,
-    path: &PathBuf,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<(), OxenError> {
-    log::debug!("remove staged dir: {path:?}");
-
-    let path = path.clone();
-
-    let walker = WalkDir::new(&path).into_iter();
-    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
-    {
-        log::debug!("entry: {entry:?}");
-        let entry = entry.unwrap();
-        let dir = entry.path();
-
-        std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
-            log::debug!("dir_entry_result: {dir_entry_result:?}");
-            if let Ok(dir_entry) = dir_entry_result {
-                let path = dir_entry.path();
-
-                // Errors encountered in remove_staged_file or remove_staged_dir won't end this loop
-                if path.is_dir() {
-                    match remove_staged_dir(repo, &path, staged_db) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::debug!("Err: {err}");
-                        }
-                    }
-                }
-                match remove_staged_file(repo, &path, staged_db) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::debug!("Err: {err}");
-                    }
-                }
-            }
-        });
-        log::debug!("Deleting entry: {dir:?}");
-        staged_db.delete(dir.to_str().unwrap())?;
+        log::debug!("remove_staged path: {:?}", path);
+        staged_db.delete(path.to_str().unwrap())?;
     }
 
     Ok(())

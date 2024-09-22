@@ -172,13 +172,15 @@ pub fn read_staged_entries_below_path(
                 dir_entries.insert(key_path, vec![]);
 
                 if let Some(parent) = path.parent() {
-                    log::debug!(
-                        "read_staged_entries parent {:?} start_path {:?}",
-                        parent,
-                        start_path
-                    );
                     let relative_start_path =
                         util::fs::path_relative_to_dir(start_path, &repo.path)?;
+                    log::debug!(
+                        "read_staged_entries parent {:?} start_path {:?} relative {:?}",
+                        parent,
+                        start_path,
+                        relative_start_path
+                    );
+
                     if relative_start_path == PathBuf::from("")
                         || parent.starts_with(&relative_start_path)
                     {
