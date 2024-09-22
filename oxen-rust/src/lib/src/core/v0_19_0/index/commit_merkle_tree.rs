@@ -197,8 +197,6 @@ impl CommitMerkleTree {
     }
 
     /// The dir hashes allow you to skip to a directory in the tree
-    ///
-    /// HERE HERE
     pub fn dir_hashes(
         repo: &LocalRepository,
         commit: &Commit,
@@ -512,6 +510,10 @@ impl CommitMerkleTree {
         }
 
         Ok(())
+    }
+
+    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
+        self.root.walk_tree(f);
     }
 
     fn read_children_from_node(

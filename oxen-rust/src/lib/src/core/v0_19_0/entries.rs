@@ -218,6 +218,7 @@ fn dir_node_to_metadata_entry(
 
     Ok(Some(MetadataEntry {
         filename: dir_node.name.clone(),
+        hash: dir_node.hash.to_string(),
         is_dir: true,
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
@@ -258,6 +259,7 @@ fn file_node_to_metadata_entry(
 
     Ok(Some(MetadataEntry {
         filename: file_node.name.clone(),
+        hash: file_node.hash.to_string(),
         is_dir: false,
         latest_commit: Some(commit.clone()),
         resource: Some(parsed_resource.clone()),
