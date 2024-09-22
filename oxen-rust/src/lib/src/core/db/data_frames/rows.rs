@@ -81,11 +81,8 @@ pub fn modify_row(
         .into_iter()
         .filter(|col| !OXEN_COLS.contains(&col.as_str()))
         .collect();
-    let df = df.select(df_cols)?;
-
-    let df_schema = df.schema();
-
-    if !table_schema.has_field_names(&df_col_names) {
+    let df = df.select(&df_cols)?;
+    if !table_schema.has_field_names(&df_cols) {
         return Err(OxenError::incompatible_schemas(table_schema));
     }
 

@@ -76,9 +76,19 @@ pub fn restore(
             // Restored to original state == delete file from staged db
             // TODO: Implement this
             rm::remove_staged(
-                &workspace.base_repo,
+                &workspace.workspace_repo,
                 &HashSet::from([path.as_ref().to_path_buf()]),
             )?;
+
+            // loop over parents and delete from staged db
+            let mut current_path = path.as_ref().to_path_buf();
+            while let Some(parent) = current_path.parent() {
+                rm::remove_staged(
+                    &workspace.workspace_repo,
+                    &HashSet::from([parent.to_path_buf()]),
+                )?;
+                current_path = parent.to_path_buf();
+            }
         }
     }
 
@@ -110,7 +120,8 @@ pub fn delete(
     )?;
 
     // We track that the file has been modified
-    workspaces::files::add(workspace, path)?;
+    log::debug!("rows::delete() tracking file to staged db: {:?}", path);
+    workspaces::files::track_modified_data_frame(workspace, path)?;
 
     // TODO: Better way of tracking when a file is restored to its original state without diffing
     //       this could be really slow
