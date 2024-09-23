@@ -413,7 +413,11 @@ mod tests {
 
             let rm_opts = RmOpts::from_path(repo_filepath);
             repositories::rm(&repo, &rm_opts).await?;
-            repositories::commit(&repo, "Removing dog")?;
+            let commit = repositories::commit(&repo, "Removing dog")?;
+
+            let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            println!("tree after rm dog");
+            tree.print();
 
             // Add dwight howard and vince carter
             let test_file = test::test_img_file_with_name("dwight_vince.jpeg");
@@ -424,6 +428,9 @@ mod tests {
 
             // Should have 3 cats, 3 dogs, and one dwight/vince
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;
+            println!("tree after add dwight/vince");
+            tree.print();
+
             let (files, dirs) = repositories::tree::list_files_and_dirs(&tree)?;
 
             for dir in dirs.iter() {

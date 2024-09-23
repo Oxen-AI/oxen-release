@@ -69,15 +69,24 @@ fn remove(
     let commit = repositories::commits::head_commit(repo)?;
     let tree = repositories::tree::get_by_commit(repo, &commit)?;
 
+    // Full Path "data/tests/repo_uuid/images/path.jpg"
+
+    // Repo Path "data/tests/repo_uuid/"
+
+    // Path to remove "images/path.jpg"
+
+    // FileNode "path.jpg"
+
     for path in paths {
-        let Some(node) = tree.get_by_path(path)? else {
+        let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+        let Some(node) = tree.get_by_path(&path)? else {
             log::error!("Path {} not found in tree", path.display());
             continue;
         };
 
         match &node.node {
             EMerkleTreeNode::File(file_node) => {
-                remove_file(repo, &commit, path, &file_node)?;
+                remove_file(repo, &path, &file_node)?;
             }
             EMerkleTreeNode::Directory(dir_node) => {
                 // remove_dir(repo, &commit, path.to_path_buf())?;
@@ -189,7 +198,7 @@ fn remove(
 
     Ok(())
 }
- */
+*/
 
 pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<(), OxenError> {
     let opts = db::key_val::opts::default();
@@ -207,23 +216,14 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
 
 pub fn remove_file(
     repo: &LocalRepository,
-    head_commit: &Commit,
     path: &Path,
     node: &FileNode,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let repo_path = repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    let staged_entry = StagedMerkleTreeNode {
-        status: StagedEntryStatus::Removed,
-        node: MerkleTreeNode::from_file(node.clone()),
-    };
 
     // Remove the file from the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
@@ -234,16 +234,58 @@ pub fn remove_file(
         util::fs::remove_dir_all(&dst_dir)?;
     }
 
+    let mut node = node.clone();
+    // Node must have full path for delete to work
+    node.name = path.to_string_lossy().to_string();
+    let staged_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Removed,
+        node: MerkleTreeNode::from_file(node),
+    };
+
     // Write removed node to staged db
-    log::debug!("writing removed file to staged db: {}", staged_entry);
     let mut buf = Vec::new();
     staged_entry
         .serialize(&mut Serializer::new(&mut buf))
         .unwrap();
-
     let relative_path = util::fs::path_relative_to_dir(path, &repo_path)?;
     let relative_path_str = relative_path.to_str().unwrap();
+    log::debug!(
+        "writing removed file to staged db: {} -> {}",
+        relative_path_str,
+        staged_entry
+    );
     staged_db.put(relative_path_str, &buf).unwrap();
+
+    // Remove the file from disk
+    let full_path = repo_path.join(&relative_path);
+    if full_path.exists() {
+        util::fs::remove_file(&full_path)?;
+    } else {
+        log::error!("file not found on disk: {}", full_path.display());
+    }
+
+    // Write all the parent dirs as removed
+    let mut parent_path = relative_path.to_path_buf();
+    while let Some(parent) = parent_path.parent() {
+        let relative_path = util::fs::path_relative_to_dir(parent, &repo_path).unwrap();
+        parent_path = parent.to_path_buf();
+
+        let relative_path_str = relative_path.to_str().unwrap();
+
+        let dir_entry = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Modified,
+            node: MerkleTreeNode::default_dir_from_path(&relative_path),
+        };
+
+        log::debug!("writing modified dir to staged db: {}", dir_entry);
+        let mut buf = Vec::new();
+        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        staged_db.put(relative_path_str, &buf).unwrap();
+
+        if relative_path == Path::new("") {
+            break;
+        }
+    }
 
     Ok(Some(staged_entry))
 }

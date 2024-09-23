@@ -231,6 +231,14 @@ impl CommitMerkleTree {
         paths: &[PathBuf],
     ) -> Result<HashMap<PathBuf, MerkleTreeNode>, OxenError> {
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, commit)?;
+        log::debug!(
+            "load_nodes dir_hashes from commit: {} count: {}",
+            commit,
+            dir_hashes.len()
+        );
+        for (path, hash) in &dir_hashes {
+            log::debug!("load_nodes dir_hashes path: {:?} hash: {:?}", path, hash);
+        }
 
         let mut nodes = HashMap::new();
         for path in paths.iter() {
