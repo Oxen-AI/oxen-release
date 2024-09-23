@@ -477,13 +477,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_get_lowest_common_ancestor() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             let merge_branch_name = "B"; // see populate function
             let lca = populate_threeway_merge_repo(&repo, merge_branch_name).await?;
 
             // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo)?;
-            let guess = merger.lowest_common_ancestor(merge_branch_name)?;
+            let guess =
+                repositories::merge::lowest_common_ancestor_from_commits(&repo, &lca, &lca)?;
             assert_eq!(lca.id, guess.id);
 
             Ok(())

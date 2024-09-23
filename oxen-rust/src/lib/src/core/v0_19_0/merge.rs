@@ -341,6 +341,22 @@ fn merge_commits_on_branch(
     }
 }
 
+/// Check if HEAD is in the direct parent chain of the merge commit. If it is a direct parent, we can just fast forward
+pub fn lowest_common_ancestor(
+    repo: &LocalRepository,
+    branch_name: impl AsRef<str>,
+) -> Result<Commit, OxenError> {
+    let branch_name = branch_name.as_ref();
+    let current_branch = repositories::branches::current_branch(repo)?
+        .ok_or(OxenError::basic_str("No current branch"))?;
+
+    let base_commit =
+        repositories::commits::get_commit_or_head(repo, Some(current_branch.name.clone()))?;
+    let merge_commit = repositories::commits::get_commit_or_head(repo, Some(branch_name.clone()))?;
+
+    lowest_common_ancestor_from_commits(&repo, &base_commit, &merge_commit)
+}
+
 fn fast_forward_merge(
     repo: &LocalRepository,
     base_commit: &Commit,
