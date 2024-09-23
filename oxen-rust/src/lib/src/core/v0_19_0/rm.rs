@@ -60,6 +60,7 @@ pub async fn rm(
     remove(paths, repo, opts)
 }
 
+// TODO: Check removing files after changing directories 
 fn remove(
     paths: &HashSet<PathBuf>,
     repo: &LocalRepository,
@@ -281,7 +282,10 @@ pub fn process_remove_file(
     // Find node to remove
     let file_path = relative_path.file_name().unwrap();
 
-    let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
+    log::debug!("file_path: {file_path:?}");
+
+    let node: MerkleTreeNode = if let Some(mut file_node) = get_file_node(maybe_dir_node, file_path)? {
+        file_node.name = relative_path.to_str().unwrap().to_string();
         MerkleTreeNode::from_file(file_node)
     } else {
         let error = format!("File {relative_path:?} must be committed to use `oxen rm`");
@@ -293,6 +297,8 @@ pub fn process_remove_file(
         node: node.clone(),
     };
 
+    log::debug!("Node is: {node:?}");
+
     // Remove the file from the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
     let dir_prefix_len = 2;
@@ -301,9 +307,11 @@ pub fn process_remove_file(
     let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
     let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
 
+    // TODO: Delete outermost layer
     if dst_dir.exists() {
         util::fs::remove_dir_all(&dst_dir)?;
     }
+    
 
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);
@@ -363,14 +371,16 @@ pub fn process_remove_file_and_parents(
 
     // Find node to remove
     let file_path = relative_path.file_name().unwrap();
+    log::debug!("Node is: {node:?}");
 
-    // TODO: This might be buggy. What if we add a dir but also a file within the dir? will this throw an error then?
     let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
         MerkleTreeNode::from_file(file_node)
     } else {
         let error = format!("File {relative_path:?} must be committed to use `oxen rm`");
         return Err(OxenError::basic_str(error));
     };
+
+    log::debug!("Node is: {node:?}");
 
     let staged_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Removed,
@@ -479,6 +489,8 @@ pub fn remove_dir(
     process_remove_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
 }
 
+// Recursively stage dir for removal
+// TODO: It may not actually be necessary to stage the files as removed?
 fn process_remove_dir(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
@@ -511,6 +523,7 @@ fn process_remove_dir(
         data_type_counts: HashMap::new(),
     };
 
+    // TODO: Potentially low cache locality -- check into_iter implementation details
     let walker = WalkDir::new(&root_path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
