@@ -121,25 +121,7 @@ fn remove(
             }
         }
 
-        // TODO: Refactor remove_dir to check paths in the merkle tree
-        // That would allow this logic to safely happen within the loop above
-        for path in paths {
-            if path.is_dir() {
-                // Remove dir from working directory
-                let full_path = repo.path.join(path);
-                log::debug!("REMOVING DIR: {full_path:?}");
-                if full_path.exists() {
-                    // user might have removed file manually before using `oxen rm`
-                    util::fs::remove_dir_all(&full_path)?;
-                }
-            } else {
-                let full_path = repo.path.join(path);
-                log::debug!("REMOVING FILE: {full_path:?}");
-                if full_path.exists() {
-                    util::fs::remove_file(&full_path)?;
-                }
-            }
-        }
+
 
         // Stop the timer, and round the duration to the nearest second
         let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
@@ -152,6 +134,26 @@ fn remove(
             bytesize::ByteSize::b(total.total_bytes),
             humantime::format_duration(duration)
         );
+    }
+
+            // TODO: Refactor remove_dir to check paths in the merkle tree
+        // That would allow this logic to safely happen within the loop above
+    for path in paths {
+        if path.is_dir() {
+            // Remove dir from working directory
+            let full_path = repo.path.join(path);
+            log::debug!("REMOVING DIR: {full_path:?}");
+            if full_path.exists() {
+                // user might have removed file manually before using `oxen rm`
+                util::fs::remove_dir_all(&full_path)?;
+            }
+        } else {
+            let full_path = repo.path.join(path);
+            log::debug!("REMOVING FILE: {full_path:?}");
+            if full_path.exists() {
+                util::fs::remove_file(&full_path)?;
+            }
+        }
     }
 
     Ok(())
