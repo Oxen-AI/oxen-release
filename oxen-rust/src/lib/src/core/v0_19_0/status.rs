@@ -184,6 +184,11 @@ pub fn read_staged_entries_below_path(
                     if relative_start_path == PathBuf::from("")
                         || parent.starts_with(&relative_start_path)
                     {
+                        log::debug!(
+                            "read_staged_entries adding to parent {:?} entry {:?}",
+                            parent,
+                            entry
+                        );
                         dir_entries
                             .entry(parent.to_path_buf())
                             .or_default()
@@ -203,6 +208,20 @@ pub fn read_staged_entries_below_path(
             Err(err) => {
                 log::error!("Could not get staged entry: {}", err);
             }
+        }
+    }
+
+    // Filter out any dir entries with no children
+    dir_entries.retain(|_, entries| !entries.is_empty());
+
+    log::debug!(
+        "read_staged_entries dir_entries.len(): {:?}",
+        dir_entries.len()
+    );
+    for (dir, entries) in dir_entries.iter() {
+        log::debug!("commit dir_entries dir {:?}", dir);
+        for entry in entries.iter() {
+            log::debug!("\tcommit dir_entries entry {}", entry);
         }
     }
 
