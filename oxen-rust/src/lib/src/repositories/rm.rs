@@ -212,8 +212,7 @@ mod tests {
             let entries = repositories::entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
-            let dir_reader = CommitEntryReader::new(&repo, &commit)?;
-            let dirs = dir_reader.list_dirs()?;
+            let dirs = repositories::entries::list_dir_paths(&repo, &commit);
             for dir in dirs.iter() {
                 println!("dir: {:?}", dir);
             }
@@ -353,11 +352,10 @@ mod tests {
                 }
             }
 
-            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
+            let entries = core::v0_19_0::entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
-            let dir_reader = CommitEntryReader::new(&repo, &commit)?;
-            let dirs = dir_reader.list_dirs()?;
+            let dirs = repositories::entries::list_dir_paths(&repo, &commit);
             for dir in dirs.iter() {
                 println!("dir: {:?}", dir);
             }

@@ -11,7 +11,7 @@ use crate::core::v0_19_0::index::MerkleNodeDB;
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 
-use crate::model::merkle_tree::node::{FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{FileNode, DirNode, MerkleTreeNode};
 
 use crate::error::OxenError;
 use crate::model::Commit;
@@ -360,6 +360,44 @@ impl CommitMerkleTree {
                 Ok(file_entries)
             }
             EMerkleTreeNode::File(file_node) => Ok(vec![file_node.clone()]),
+            _ => Err(OxenError::basic_str(format!(
+                "Unexpected node type: {:?}",
+                node.node.dtype()
+            ))),
+        }
+    }
+
+    // Return all directories starting from a particular directory
+    pub fn dir_directories(node: &MerkleTreeNode) -> Result<Vec<DirNode>, OxenError> {
+        let mut dir_entries = Vec::new();
+
+        match &node.node {
+            EMerkleTreeNode::Directory(dir_node) => {
+                dir_entries.push(dir_node.clone());
+                for child in &node.children {
+                    log::debug!("Found node: {child}");
+                    match &child.node {
+                        EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                            dir_entries.extend(Self::dir_directories(child)?);
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(dir_entries)
+            }
+            EMerkleTreeNode::VNode(_) => {
+                for child in &node.children {
+                    log::debug!("Found node: {child}");
+                    match &child.node {
+                        EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+                            dir_entries.extend(Self::dir_directories(child)?);
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(dir_entries)
+            }
+            EMerkleTreeNode::File(_) => Ok(Vec::new()),
             _ => Err(OxenError::basic_str(format!(
                 "Unexpected node type: {:?}",
                 node.node.dtype()
