@@ -27,7 +27,7 @@ pub fn commit_with_user(
     super::index::commit_writer::commit_with_user(repo, message, user)
 }
 
-pub fn get_commit_or_head<S: AsRef<str>>(
+pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
@@ -36,9 +36,18 @@ pub fn get_commit_or_head<S: AsRef<str>>(
             "get_commit_or_head: commit_id_or_branch_name: {:?}",
             commit_id_or_branch_name.as_ref()
         );
-        let commit = get_by_id(repo, commit_id_or_branch_name)?;
+        let commit = get_by_id(repo, commit_id_or_branch_name.clone())?;
         if let Some(commit) = commit {
             return Ok(commit);
+        } else {
+            let branch =
+                repositories::branches::get_by_name(repo, commit_id_or_branch_name.as_ref())?
+                    .ok_or(OxenError::basic_str(format!(
+                        "Branch not found: {}",
+                        commit_id_or_branch_name.as_ref()
+                    )))?;
+            let commit = get_by_id(repo, branch.commit_id)?;
+            return commit.ok_or(OxenError::basic_str(format!("Commit not found")));
         }
     }
     log::debug!("get_commit_or_head: calling head_commit");

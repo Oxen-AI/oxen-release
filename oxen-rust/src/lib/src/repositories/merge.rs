@@ -8,6 +8,7 @@ use crate::model::merge_conflict::MergeConflict;
 use crate::model::Commit;
 use crate::model::{Branch, LocalRepository};
 
+#[derive(Debug)]
 pub struct MergeCommits {
     pub lca: Commit,
     pub base: Commit,
@@ -460,13 +461,12 @@ mod tests {
     }
     #[tokio::test]
     async fn test_merge_is_three_way_merge() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             let merge_branch_name = "B"; // see populate function
             populate_threeway_merge_repo(&repo, merge_branch_name).await?;
 
             // Make sure the merger can detect the three way merge
-            let merger = Merger::new(&repo)?;
-            let merge_commits = merger.find_merge_commits(merge_branch_name)?;
+            let merge_commits = repositories::merge::find_merge_commits(&repo, merge_branch_name)?;
             let is_fast_forward = merge_commits.is_fast_forward_merge();
             assert!(!is_fast_forward);
 
