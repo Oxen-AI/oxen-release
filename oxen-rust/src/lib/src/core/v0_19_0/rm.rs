@@ -297,8 +297,6 @@ pub fn process_remove_file(
         node: node.clone(),
     };
 
-    log::debug!("Node is: {node:?}");
-
     // Remove the file from the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
     let dir_prefix_len = 2;
@@ -371,7 +369,7 @@ pub fn process_remove_file_and_parents(
 
     // Find node to remove
     let file_path = relative_path.file_name().unwrap();
-    log::debug!("Node is: {node:?}");
+
 
     let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
         MerkleTreeNode::from_file(file_node)
