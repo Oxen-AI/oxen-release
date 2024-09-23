@@ -250,6 +250,11 @@ impl CommitMerkleTree {
         Ok(nodes)
     }
 
+    pub fn has_dir(&self, path: impl AsRef<Path>) -> bool {
+        let path = path.as_ref();
+        self.dir_hashes.contains_key(path)
+    }
+
     pub fn has_path(&self, path: impl AsRef<Path>) -> Result<bool, OxenError> {
         let path = path.as_ref();
         let node = self.root.get_by_path(path)?;

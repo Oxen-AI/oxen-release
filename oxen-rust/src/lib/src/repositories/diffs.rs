@@ -13,7 +13,7 @@ use rocksdb::{DBWithThreadMode, MultiThreaded};
 
 use crate::core;
 use crate::core::df::tabular;
-use crate::core::v0_10_0::index::object_db_reader::{get_object_reader, ObjectDBReader};
+use crate::core::v0_10_0::index::object_db_reader::ObjectDBReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::tabular_diff::{
@@ -25,7 +25,6 @@ use crate::model::{Commit, CommitEntry, DataFrameDiff, DiffEntry, LocalRepositor
 
 use crate::{constants, repositories, util};
 
-use crate::core::v0_10_0::index::CommitEntryReader;
 use polars::prelude::DataFrame;
 use polars::prelude::IntoLazy;
 

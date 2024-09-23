@@ -3,57 +3,14 @@ use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
 use crate::model::diff::diff_file_node::DiffFileNode;
 use crate::model::diff::AddRemoveModifyCounts;
-use crate::model::merkle_tree::node::{DirNode, EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{DirNodeWithPath, FileNode, FileNodeWithDir};
 use crate::model::{Commit, DiffEntry, LocalRepository};
 use crate::opts::DFOpts;
 use crate::repositories;
 use crate::util;
 
 use std::collections::HashSet;
-use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
-
-use super::index::CommitMerkleTree;
-
-#[derive(Debug, Clone)]
-struct FileNodeWithDir {
-    pub file_node: FileNode,
-    pub dir: PathBuf,
-}
-
-impl PartialEq for FileNodeWithDir {
-    fn eq(&self, other: &Self) -> bool {
-        self.dir.join(&self.file_node.name) == other.dir.join(&other.file_node.name)
-    }
-}
-
-impl Eq for FileNodeWithDir {}
-
-impl Hash for FileNodeWithDir {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.dir.join(&self.file_node.name).hash(state);
-    }
-}
-
-#[derive(Debug, Clone)]
-struct DirNodeWithPath {
-    pub dir_node: DirNode,
-    pub path: PathBuf,
-}
-
-impl PartialEq for DirNodeWithPath {
-    fn eq(&self, other: &Self) -> bool {
-        self.path == other.path
-    }
-}
-
-impl Eq for DirNodeWithPath {}
-
-impl Hash for DirNodeWithPath {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.path.hash(state);
-    }
-}
 
 pub fn list_diff_entries_in_dir_top_level(
     repo: &LocalRepository,
@@ -78,8 +35,8 @@ pub fn list_diff_entries(
     let base_tree = repositories::tree::get_by_commit(&repo, base_commit)?;
     let head_tree = repositories::tree::get_by_commit(&repo, head_commit)?;
 
-    let (head_files, head_dirs) = collect_entries(&head_tree)?;
-    let (base_files, base_dirs) = collect_entries(&base_tree)?;
+    let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+    let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
 
     log::debug!("Collected {} head_files", head_files.len());
     log::debug!("Collected {} head_dirs", head_dirs.len());
@@ -339,50 +296,6 @@ fn collect_modified_directories(
             if diff_entry.has_changes() {
                 diff_entries.push(diff_entry);
             }
-        }
-    }
-    Ok(())
-}
-
-// Collect MerkleTree into HashSet<CommitEntry>
-fn collect_entries(
-    tree: &CommitMerkleTree,
-) -> Result<(HashSet<FileNodeWithDir>, HashSet<DirNodeWithPath>), OxenError> {
-    let mut file_nodes = HashSet::new();
-    let mut dir_nodes = HashSet::new();
-    p_collect_entries(&tree.root, PathBuf::new(), &mut file_nodes, &mut dir_nodes)?;
-    Ok((file_nodes, dir_nodes))
-}
-
-fn p_collect_entries(
-    node: &MerkleTreeNode,
-    traversed_path: impl AsRef<Path>,
-    file_nodes: &mut HashSet<FileNodeWithDir>,
-    dir_nodes: &mut HashSet<DirNodeWithPath>,
-) -> Result<(), OxenError> {
-    let traversed_path = traversed_path.as_ref();
-    for child in &node.children {
-        match &child.node {
-            EMerkleTreeNode::File(file_node) => {
-                file_nodes.insert(FileNodeWithDir {
-                    file_node: file_node.to_owned(),
-                    dir: traversed_path.to_owned(),
-                });
-            }
-            EMerkleTreeNode::Directory(dir_node) => {
-                let new_path = traversed_path.join(&dir_node.name);
-                if new_path != PathBuf::from("") {
-                    dir_nodes.insert(DirNodeWithPath {
-                        dir_node: dir_node.to_owned(),
-                        path: new_path.to_owned(),
-                    });
-                }
-                p_collect_entries(child, new_path, file_nodes, dir_nodes)?;
-            }
-            EMerkleTreeNode::VNode(_) => {
-                p_collect_entries(child, traversed_path, file_nodes, dir_nodes)?;
-            }
-            _ => {}
         }
     }
     Ok(())
