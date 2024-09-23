@@ -129,20 +129,20 @@ fn add_files(
             let file_path = path.file_name().unwrap();
             let mut maybe_dir_node = None;
             log::debug!("Found non-existant path: {file_path:?}");
-            if let Some(ref head_commit) = maybe_head_commit {
+            if let Some(head_commit) = maybe_head_commit.clone() {
                 let path = util::fs::path_relative_to_dir(path, &repo.path)?;
                 let parent_path = path.parent().unwrap_or(Path::new(""));
                 maybe_dir_node =
-                    CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
+                    CommitMerkleTree::dir_with_children(repo, &head_commit, parent_path)?;
             }
 
             if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, file_path) {
                 log::debug!("non-existant path {file_path:?} was dir. Calling remove_dir");
                 // This goes directly to remove_dir because we can't detect the type of a non-existant file
                 core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone())?;
-            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, file_path) {
+            } else if let Ok(Some(file_node)) = get_file_node(&maybe_dir_node, file_path) {
                 log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
-                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit, &path.clone())?;
+                core::v0_19_0::rm::remove_file(repo, &maybe_head_commit.clone().unwrap(), &path.clone(), &file_node)?;
             }
         }
     }
