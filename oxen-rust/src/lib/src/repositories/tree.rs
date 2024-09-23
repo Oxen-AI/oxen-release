@@ -1,10 +1,12 @@
 use std::collections::HashSet;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{
+    DirNodeWithPath, EMerkleTreeNode, FileNode, FileNodeWithDir, MerkleTreeNode,
+};
 use crate::model::{Commit, LocalRepository, MerkleHash};
 
 pub fn get_by_commit(
@@ -107,4 +109,48 @@ pub fn child_hashes(
         children.push(child.hash);
     }
     Ok(children)
+}
+
+/// Collect MerkleTree into Directories and Files
+pub fn list_files_and_dirs(
+    tree: &CommitMerkleTree,
+) -> Result<(HashSet<FileNodeWithDir>, HashSet<DirNodeWithPath>), OxenError> {
+    let mut file_nodes = HashSet::new();
+    let mut dir_nodes = HashSet::new();
+    r_list_files_and_dirs(&tree.root, PathBuf::new(), &mut file_nodes, &mut dir_nodes)?;
+    Ok((file_nodes, dir_nodes))
+}
+
+fn r_list_files_and_dirs(
+    node: &MerkleTreeNode,
+    traversed_path: impl AsRef<Path>,
+    file_nodes: &mut HashSet<FileNodeWithDir>,
+    dir_nodes: &mut HashSet<DirNodeWithPath>,
+) -> Result<(), OxenError> {
+    let traversed_path = traversed_path.as_ref();
+    for child in &node.children {
+        match &child.node {
+            EMerkleTreeNode::File(file_node) => {
+                file_nodes.insert(FileNodeWithDir {
+                    file_node: file_node.to_owned(),
+                    dir: traversed_path.to_owned(),
+                });
+            }
+            EMerkleTreeNode::Directory(dir_node) => {
+                let new_path = traversed_path.join(&dir_node.name);
+                if new_path != PathBuf::from("") {
+                    dir_nodes.insert(DirNodeWithPath {
+                        dir_node: dir_node.to_owned(),
+                        path: new_path.to_owned(),
+                    });
+                }
+                r_list_files_and_dirs(child, new_path, file_nodes, dir_nodes)?;
+            }
+            EMerkleTreeNode::VNode(_) => {
+                r_list_files_and_dirs(child, traversed_path, file_nodes, dir_nodes)?;
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }

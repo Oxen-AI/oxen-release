@@ -75,7 +75,6 @@ mod tests {
     use crate::repositories;
     use crate::test;
     use crate::util;
-    use image::imageops;
 
     // Test diff add image
     #[tokio::test]
@@ -193,16 +192,8 @@ mod tests {
             // Modify and commit the first cat
             let repo_filepath = images_dir.join("cat_1.jpg");
 
-            // Open the image file.
-            let img = image::open(&repo_filepath).unwrap();
-            let img = img.to_rgb8();
-
-            // Resize the image to the specified dimensions.
-            let dims: u32 = 96;
-            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-            // Save the resized image.
-            new_img.save(repo_filepath).unwrap();
+            let dims = 96;
+            util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
 
             repositories::add(&repo, &images_dir)?;
             repositories::commit(&repo, "Modifying the cat")?;
@@ -678,16 +669,9 @@ who won the game?,The packers beat up on the bears,packers
             // Modify and commit the first cat
             let repo_filepath = images_dir.join("cat_1.jpg");
 
-            // Open the image file.
-            let img = image::open(&repo_filepath).unwrap();
-            let img = img.to_rgb8();
-
-            // Resize the image to the specified dimensions.
-            let dims: u32 = 96;
-            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-            // Save the resized image.
-            new_img.save(repo_filepath).unwrap();
+            // Resize the image
+            let dims = 96;
+            util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
 
             repositories::add(&repo, &images_dir)?;
             let new_commit = repositories::commit(&repo, "Modifying the cat")?;
@@ -994,16 +978,10 @@ who won the game?,The packers beat up on the bears,packers
             // Modify a cat
             let test_file = test::test_img_file_with_name("cat_1.jpg");
             let repo_filepath = cats_dir.join(test_file.file_name().unwrap());
-            // Open the image file.
-            let img = image::open(&repo_filepath).unwrap();
-            let img = img.to_rgb8();
 
-            // Resize the image to the specified dimensions.
+            // Resize the image
             let dims = 96;
-            let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-            // Save the resized image.
-            new_img.save(&repo_filepath).unwrap();
+            util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
 
             // Add the modification
             repositories::add(&repo, &repo_filepath)?;
@@ -1631,16 +1609,10 @@ who won the game?,The packers beat up on the bears,packers
             // Remove all the cat images
             for i in 1..=3 {
                 let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
-                // Open the image file.
-                let img = image::open(&repo_filepath).unwrap();
-                let img = img.to_rgb8();
 
-                // Resize the image to the specified dimensions.
+                // Resize the image
                 let dims = 96;
-                let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-                // Save the resized image.
-                new_img.save(repo_filepath).unwrap();
+                util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
             }
 
             // THIS IS THE CRUX of this test, do not modify images/cats, just modify images/
@@ -1850,15 +1822,9 @@ who won the game?,The packers beat up on the bears,packers
             for i in 1..=3 {
                 let repo_filepath = images_dir.join(format!("cat_{i}.jpg"));
 
-                // Open the image file.
-                let img = image::open(&repo_filepath).unwrap();
-                let img = img.to_rgb8();
-                // Resize the image to the specified dimensions.
+                // Resize the image
                 let dims = 96;
-                let new_img = imageops::resize(&img, dims, dims, imageops::Nearest);
-
-                // Save the resized image.
-                new_img.save(repo_filepath).unwrap();
+                util::image::resize_and_save(&repo_filepath, &repo_filepath, dims)?;
             }
 
             repositories::add(&repo, &images_dir)?;
