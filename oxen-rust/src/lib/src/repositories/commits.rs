@@ -131,7 +131,7 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
 }
 
 // Source
-pub fn get_commit_or_head<S: AsRef<str>>(
+pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {

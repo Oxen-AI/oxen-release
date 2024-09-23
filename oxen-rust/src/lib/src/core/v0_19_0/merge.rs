@@ -264,7 +264,11 @@ pub fn find_merge_commits<S: AsRef<str>>(
 ) -> Result<MergeCommits, OxenError> {
     let branch_name = branch_name.as_ref();
 
-    let head_commit = repositories::commits::head_commit(repo)?;
+    let current_branch = repositories::branches::current_branch(repo)?
+        .ok_or(OxenError::basic_str("No current branch"))?;
+
+    let head_commit =
+        repositories::commits::get_commit_or_head(repo, Some(current_branch.name.clone()))?;
 
     let merge_commit = get_commit_or_head(repo, Some(branch_name))?;
 
