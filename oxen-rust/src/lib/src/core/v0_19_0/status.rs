@@ -164,6 +164,7 @@ pub fn read_staged_entries_below_path(
             // key = file path
             // value = EntryMetaData
             Ok((key, value)) => {
+                log::debug!("Key is {key:?}, value is {value:?}");
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
