@@ -339,7 +339,7 @@ pub async fn download_large_entry(
                     log::debug!("Downloaded chunk {:?}", s);
                 }
                 Err(err) => {
-                    log::error!("Error uploading chunk: {:?}", err)
+                    log::error!("Error downloading chunk: {:?}", err)
                 }
             }
         })
