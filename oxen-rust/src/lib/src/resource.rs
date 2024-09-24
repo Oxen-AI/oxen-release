@@ -350,7 +350,7 @@ mod tests {
                 Ok(Some(resource)) => {
                     println!("Got branch: {branch:?} -> {path:?}");
                     assert_eq!(branch.commit_id, resource.commit.unwrap().id);
-                    assert_eq!(path, Path::new("annotations/train/one_shot.csv"));
+                    assert_eq!(resource.path, Path::new("annotations/train/one_shot.csv"));
                 }
                 _ => {
                     panic!("Should return a branch");
