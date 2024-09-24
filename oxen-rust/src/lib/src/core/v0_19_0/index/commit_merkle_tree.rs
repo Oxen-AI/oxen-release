@@ -367,44 +367,6 @@ impl CommitMerkleTree {
         }
     }
 
-    // Return all directories starting from a particular directory
-    pub fn dir_directories(node: &MerkleTreeNode) -> Result<Vec<DirNode>, OxenError> {
-        let mut dir_entries = Vec::new();
-
-        match &node.node {
-            EMerkleTreeNode::Directory(dir_node) => {
-                dir_entries.push(dir_node.clone());
-                for child in &node.children {
-                    log::debug!("Found node: {child}");
-                    match &child.node {
-                        EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
-                            dir_entries.extend(Self::dir_directories(child)?);
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(dir_entries)
-            }
-            EMerkleTreeNode::VNode(_) => {
-                for child in &node.children {
-                    log::debug!("Found node: {child}");
-                    match &child.node {
-                        EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
-                            dir_entries.extend(Self::dir_directories(child)?);
-                        }
-                        _ => {}
-                    }
-                }
-                Ok(dir_entries)
-            }
-            EMerkleTreeNode::File(_) => Ok(Vec::new()),
-            _ => Err(OxenError::basic_str(format!(
-                "Unexpected node type: {:?}",
-                node.node.dtype()
-            ))),
-        }
-    }
-
     pub fn dir_entries_with_paths(
         node: &MerkleTreeNode,
         base_path: &PathBuf,
