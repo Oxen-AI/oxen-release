@@ -1255,12 +1255,12 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // 1. Schmannotations dir added
             // 2. Train dir modified
 
-            assert_eq!(2, annotation_diff_entries.entries.len());
-
             log::debug!(
                 "Got annotation_diff_entries: {:?}",
                 annotation_diff_entries.entries
             );
+
+            assert_eq!(2, annotation_diff_entries.entries.len());
 
             assert_eq!(
                 annotation_diff_entries.entries[0].status,
