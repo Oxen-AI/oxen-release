@@ -4,7 +4,8 @@ use std::fmt;
 use std::path::PathBuf;
 
 use crate::model::{
-    MergeConflict, StagedEntry, StagedEntryStatus, StagedSchema, SummarizedStagedDirStats,
+    merge_conflict::EntryMergeConflict, StagedEntry, StagedEntryStatus, StagedSchema,
+    SummarizedStagedDirStats,
 };
 
 pub const MSG_CLEAN_REPO: &str = "nothing to commit, working tree clean\n";
@@ -65,7 +66,7 @@ pub struct StagedData {
     pub modified_files: Vec<PathBuf>,
     pub moved_files: Vec<(PathBuf, PathBuf, String)>,
     pub removed_files: Vec<PathBuf>,
-    pub merge_conflicts: Vec<MergeConflict>,
+    pub merge_conflicts: Vec<EntryMergeConflict>,
 }
 
 impl StagedData {

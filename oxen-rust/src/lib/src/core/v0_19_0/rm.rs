@@ -60,6 +60,21 @@ pub async fn rm(
     remove(paths, repo, opts)
 }
 
+pub fn remove_staged_recursively(repo: &LocalRepository, path: &PathBuf) -> Result<(), OxenError> {
+    let walker = WalkDir::new(path).into_iter();
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
+    {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        remove_staged_dir(repo, &path.to_path_buf(), &staged_db)?;
+    }
+    Ok(())
+}
+
 fn remove(
     paths: &HashSet<PathBuf>,
     repo: &LocalRepository,

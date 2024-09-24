@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str;
 
@@ -382,16 +382,18 @@ impl CommitMerkleTree {
     pub fn dir_entries_with_paths(
         node: &MerkleTreeNode,
         base_path: &PathBuf,
-    ) -> Result<Vec<(FileNode, PathBuf)>, OxenError> {
-        let mut entries = Vec::new();
+    ) -> Result<HashSet<(FileNode, PathBuf)>, OxenError> {
+        let mut entries = HashSet::new();
 
         match &node.node {
-            EMerkleTreeNode::Directory(_) | EMerkleTreeNode::VNode(_) => {
+            EMerkleTreeNode::Directory(_)
+            | EMerkleTreeNode::VNode(_)
+            | EMerkleTreeNode::Commit(_) => {
                 for child in &node.children {
                     match &child.node {
                         EMerkleTreeNode::File(file_node) => {
                             let file_path = base_path.join(&file_node.name);
-                            entries.push((file_node.clone(), file_path));
+                            entries.insert((file_node.clone(), file_path));
                         }
                         EMerkleTreeNode::Directory(dir_node) => {
                             let new_base_path = base_path.join(&dir_node.name);
@@ -406,7 +408,7 @@ impl CommitMerkleTree {
             }
             EMerkleTreeNode::File(file_node) => {
                 let file_path = base_path.join(&file_node.name);
-                entries.push((file_node.clone(), file_path));
+                entries.insert((file_node.clone(), file_path));
             }
             _ => {
                 return Err(OxenError::basic_str(format!(
