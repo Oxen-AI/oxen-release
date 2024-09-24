@@ -134,6 +134,14 @@ impl MerkleTreeNode {
         )))
     }
 
+    /// Walk the tree
+    pub fn walk_tree(&self, f: impl Fn(&MerkleTreeNode)) {
+        f(self);
+        for child in &self.children {
+            child.walk_tree(&f);
+        }
+    }
+
     /// List all the directories in the tree
     pub fn list_dir_paths(&self) -> Result<Vec<PathBuf>, OxenError> {
         let mut dirs = Vec::new();

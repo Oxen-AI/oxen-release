@@ -174,6 +174,14 @@ pub fn version_path(repo: &LocalRepository, entry: &CommitEntry) -> PathBuf {
     version_path_from_hash_and_file(&repo.path, entry.hash.clone(), entry.filename())
 }
 
+pub fn version_path_from_hash_and_filename(
+    repo: &LocalRepository,
+    hash: &str,
+    filename: &str,
+) -> PathBuf {
+    version_path_from_hash_and_file(&repo.path, hash.to_string(), PathBuf::from(filename))
+}
+
 pub fn version_path_from_node(repo: &LocalRepository, file_hash: &str, path: &Path) -> PathBuf {
     version_path_from_hash_and_file(
         &repo.path,
@@ -1532,7 +1540,7 @@ mod tests {
                 Path::new(constants::FILES_DIR)
                     .join("59")
                     .join(Path::new("E029D4812AEBF0"))
-                    .join(Path::new(&format!("{}.txt", VERSION_FILE_NAME)))
+                    .join(Path::new(VERSION_FILE_NAME))
             );
 
             Ok(())

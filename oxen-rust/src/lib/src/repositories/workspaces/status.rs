@@ -11,7 +11,14 @@ use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{StagedData, Workspace};
 
-pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<StagedData, OxenError> {
+pub fn status(workspace: &Workspace) -> Result<StagedData, OxenError> {
+    status_from_dir(workspace, Path::new(""))
+}
+
+pub fn status_from_dir(
+    workspace: &Workspace,
+    directory: impl AsRef<Path>,
+) -> Result<StagedData, OxenError> {
     match workspace.base_repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             core::v0_10_0::index::workspaces::stager::status(workspace, directory)
