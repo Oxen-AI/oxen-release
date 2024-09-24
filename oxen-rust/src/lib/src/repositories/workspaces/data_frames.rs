@@ -811,6 +811,7 @@ mod tests {
 
             // List the files that are changed
             let status = workspaces::status::status(&workspace)?;
+            println!("status: {:?}", status);
             assert_eq!(status.staged_files.len(), 1);
 
             let diff = workspaces::diff(&repo, &workspace, &file_path)?;
