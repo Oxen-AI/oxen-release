@@ -727,6 +727,11 @@ pub async fn upload_chunk(
                     // Successfully wrote chunk
                     log::debug!("upload_chunk successfully wrote chunk {:?}", chunk_file);
 
+                    // TODO: there is a race condition here when multiple chunks
+                    // are uploaded in parallel Currently doesn't hurt anything,
+                    // but we should find a more elegant solution because we're
+                    // doing a lot of extra work unpacking tarballs multiple
+                    // times.
                     check_if_upload_complete_and_unpack(
                         hidden_dir,
                         tmp_dir,
