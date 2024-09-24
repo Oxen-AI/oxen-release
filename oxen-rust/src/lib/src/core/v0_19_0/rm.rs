@@ -69,7 +69,14 @@ fn remove(
     let start = std::time::Instant::now();
     log::debug!("paths: {:?}", paths);
 
-    let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
+    // Head commit should always exist here, because we're removing committed files
+
+    let head_commit = repositories::commits::head_commit_maybe(repo)?.unwrap_or_else({
+        let error = format!("Error: head commit not found");
+        return Err(OxenError::basic_str(error));
+    });
+    
+
     let mut total = CumulativeStats {
         total_files: 0,
         total_bytes: 0,
@@ -77,82 +84,68 @@ fn remove(
     };
 
     for path in paths {
-        // Remove dirs
-        if path.is_dir() {
-            let dir_stats = remove_dir(repo, &maybe_head_commit, path.clone())?;
-            total += dir_stats;
 
-        // Remove files
-        } else if path.is_file() {
-            if let Some(entry) = remove_file(repo, &maybe_head_commit, path)? {
-                if let EMerkleTreeNode::File(file_node) = &entry.node.node {
-                    let data_type = file_node.data_type.clone();
-                    total.total_files += 1;
-                    total.total_bytes += file_node.num_bytes;
-                    total
-                        .data_type_counts
-                        .entry(data_type)
-                        .and_modify(|count| *count += 1)
-                        .or_insert(1);
-                }
+        // Get parent node
+        let path = util::fs::path_relative_to_dir(path, &repo.path)?;
+        let parent_path = path.parent().unwrap_or(Path::new(""));
+        let parent_node = if let Some(dir_node) = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?; {
+            dir_node
+        } else {
+            let error = format!("Error: parent dir not found in tree for {path:?}");
+            return Err(OxenError::basic_str(error)); 
+        }
+
+        // 
+        if let Some(node) = parent_node.get_by_path(path)? {
+            if let EMerkleTreeNode::Directory(dir_node) = &node.node {
+                remove_dir(&repo, &path, &dir_node);
+            } else if let EMerkleTreeNode::File(file_node) = &node.node { 
+                remove_file(&repo, &path, &file_node);
+            } else {
+                let error = format!("Error: Unexpected file type");
+                return Err(OxenError::basic_str(error));
             }
+        } else { 
+            let error = format!("Error: {path:?} must be committed in order to use `oxen rm`");
+            return Err(OxenError::basic_str(error));
+        }
+      
+    }
+    
 
+    // Stop the timer, and round the duration to the nearest second
+    let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
+    log::debug!("---END--- oxen rm: {:?} duration: {:?}", paths, duration);
+
+    // TODO: Add function to CumulativeStats to output that print statement
+    /*
+    println!(
+        "🐂 oxen removed {} files ({}) in {}",
+        total.total_files,
+        bytesize::ByteSize::b(total.total_bytes),
+        humantime::format_duration(duration)
+    );
+    */
+
+
+
+    // TODO: Put in above loop
+    for path in paths {
+        if path.is_dir() {
+            // Remove dir from working directory
+            let full_path = repo.path.join(path);
+            log::debug!("REMOVING DIR: {full_path:?}");
+            if full_path.exists() {
+                // user might have removed file manually before using `oxen rm`
+                util::fs::remove_dir_all(&full_path)?;
+            }
+        } else {
             let full_path = repo.path.join(path);
             log::debug!("REMOVING FILE: {full_path:?}");
             if full_path.exists() {
                 util::fs::remove_file(&full_path)?;
             }
-        } else {
-            let mut maybe_dir_node = None;
-            log::debug!("Found non-existant path: {path:?}");
-            if let Some(ref head_commit) = maybe_head_commit {
-                let path = util::fs::path_relative_to_dir(path, &repo.path)?;
-                let parent_path = path.parent().unwrap_or(Path::new(""));
-                maybe_dir_node =
-                    CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
-            }
-
-            if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, path) {
-                log::debug!("non-existant path {path:?} was dir. Calling remove_dir");
-                remove_dir(repo, &maybe_head_commit, path.to_path_buf())?;
-            } else if let Ok(Some(_file_node)) = get_file_node(&maybe_dir_node, path) {
-                log::debug!("non-existant path {path:?} was file. Calling remove_file");
-                let opts = RmOpts::from_path(path);
-                remove_file(repo, &maybe_head_commit, path)?;
-            }
         }
-
-        // TODO: Refactor remove_dir to check paths in the merkle tree
-        // That would allow this logic to safely happen within the loop above
-        for path in paths {
-            if path.is_dir() {
-                // Remove dir from working directory
-                let full_path = repo.path.join(path);
-                log::debug!("REMOVING DIR: {full_path:?}");
-                if full_path.exists() {
-                    // user might have removed file manually before using `oxen rm`
-                    util::fs::remove_dir_all(&full_path)?;
-                }
-            } else {
-                let full_path = repo.path.join(path);
-                log::debug!("REMOVING FILE: {full_path:?}");
-                if full_path.exists() {
-                    util::fs::remove_file(&full_path)?;
-                }
-            }
-        }
-
-        // Stop the timer, and round the duration to the nearest second
-        let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
-        log::debug!("---END--- oxen rm: {:?} duration: {:?}", paths, duration);
-
-        // TODO: Add function to CumulativeStats to output that print statement
-        println!(
-            "🐂 oxen removed {} files ({}) in {}",
-            total.total_files,
-            bytesize::ByteSize::b(total.total_bytes),
-            humantime::format_duration(duration)
-        );
     }
 
     Ok(())
@@ -238,77 +231,39 @@ fn remove_staged_dir(
 
 pub fn remove_file(
     repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
     path: &Path,
+    file_node: &FileNode 
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let repo_path = repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    let mut maybe_dir_node = None;
-    if let Some(head_commit) = maybe_head_commit {
-        let path = util::fs::path_relative_to_dir(path, &repo_path)?;
-        let parent_path = path.parent().unwrap_or(Path::new(""));
-        maybe_dir_node = CommitMerkleTree::dir_with_children(repo, head_commit, parent_path)?;
-    }
-
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_remove_file(
         &repo_path,
-        &versions_path,
         &staged_db,
-        &maybe_dir_node,
-        path,
+        &file_node,
         &seen_dirs,
     )
 }
 
+// TODO: Bring out path getter a level up
 pub fn process_remove_file(
     repo_path: &Path,
-    versions_path: &Path,
     staged_db: &DBWithThreadMode<MultiThreaded>,
-    maybe_dir_node: &Option<MerkleTreeNode>,
-    path: &Path,
+    file_node: &MerkleTreeNode,
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
-
-    // Find node to remove
-    let file_path = relative_path.file_name().unwrap();
-
-    log::debug!("file_path: {file_path:?}");
-
-    let node: MerkleTreeNode = if let Some(mut file_node) = get_file_node(maybe_dir_node, file_path)? {
-        file_node.name = relative_path.to_str().unwrap().to_string();
-        MerkleTreeNode::from_file(file_node)
-    } else {
-        let error = format!("File {relative_path:?} must be committed to use `oxen rm`");
-        return Err(OxenError::basic_str(error));
-    };
+    
+    let mut node = file_node.clone();
+    node.name = path.to_string_lossy().to_string();
 
     let staged_entry = StagedMerkleTreeNode {
         status: StagedEntryStatus::Removed,
-        node: node.clone(),
+        node,
     };
-
-    // Remove the file from the versions db
-    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-    let dir_prefix_len = 2;
-    let dir_name = node.hash.to_string();
-    let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-    let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-    let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
-
-    // TODO: Delete outermost layer
-    if dst_dir.exists() {
-        util::fs::remove_dir_all(&dst_dir)?;
-    }
     
 
     // Write removed node to staged db
@@ -318,11 +273,11 @@ pub fn process_remove_file(
         .serialize(&mut Serializer::new(&mut buf))
         .unwrap();
 
-    let relative_path_str = relative_path.to_str().unwrap();
-    staged_db.put(relative_path_str, &buf).unwrap();
+    let node_path = path.to_str().unwrap();
+    staged_db.put(node_path, &buf).unwrap();
 
     // Add all the parent dirs to the staged db
-    let mut parent_path = relative_path.to_path_buf();
+    let mut parent_path = node_path.to_path_buf();
     let mut seen_dirs = seen_dirs.lock().unwrap();
     while let Some(parent) = parent_path.parent() {
         let relative_path = util::fs::path_relative_to_dir(parent, repo_path).unwrap();
@@ -473,8 +428,9 @@ pub fn process_remove_file_and_parents(
 
 pub fn remove_dir(
     repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
-    path: PathBuf,
+    path: &Path,
+    maybe_head_commit: &Commit,
+    dir_node: &DirNode,
 ) -> Result<CumulativeStats, OxenError> {
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
@@ -484,15 +440,16 @@ pub fn remove_dir(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    process_remove_dir(repo, maybe_head_commit, &versions_path, &staged_db, path)
+    process_remove_dir(repo, path, maybe_head_commit, dir_node &staged_db, path)
 }
 
 // Recursively stage dir for removal
 // TODO: It may not actually be necessary to stage the files as removed?
 fn process_remove_dir(
     repo: &LocalRepository,
-    maybe_head_commit: &Option<Commit>,
-    versions_path: &Path,
+    path: &Path,
+    maybe_head_commit: &Commit,
+    dir_node: &DirNode
     staged_db: &DBWithThreadMode<MultiThreaded>,
     root_path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
@@ -503,7 +460,7 @@ fn process_remove_dir(
     progress_1.enable_steady_tick(Duration::from_millis(100));
 
     // root_path is the directory rm was called on
-    let root_path = root_path.clone();
+    let root_path = path.clone();
     let repo = repo.clone();
     let maybe_head_commit = maybe_head_commit.clone();
     let repo_path = repo.path.clone();
@@ -529,6 +486,7 @@ fn process_remove_dir(
         let dir = entry.path();
 
         log::debug!("Entry is: {entry:?}");
+        log::debug!("Dir is: {dir:?}");
 
         let byte_counter_clone = Arc::clone(&byte_counter);
         let removed_file_counter_clone = Arc::clone(&removed_file_counter);
