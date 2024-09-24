@@ -166,7 +166,7 @@ pub fn update(
         Some(row_after),
     )?;
 
-    workspaces::files::add(workspace, path)?;
+    workspaces::files::track_modified_data_frame(workspace, path)?;
 
     let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
     if let DiffResult::Tabular(diff) = diff {
