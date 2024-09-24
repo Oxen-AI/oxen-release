@@ -1050,7 +1050,7 @@ async fn upload_large_file_chunks(
                         Ok(chunk_size)
                     }
                     Err(err) => {
-                        log::error!("Error uploading chunk: {:?}", err);
+                        log::error!("Error uploading chunk: {err}");
                         Err(err)
                     }
                 }
@@ -1065,7 +1065,7 @@ async fn upload_large_file_chunks(
                         progress.add_bytes(chunk_size);
                     }
                     Err(err) => {
-                        log::error!("Error uploading chunk: {:?}", err)
+                        log::error!("Error uploading chunk: {err}")
                     }
                 }
             })
@@ -1125,6 +1125,8 @@ async fn bundle_and_send_small_entries(
         finished_queue.try_push(false).unwrap();
     }
 
+    // TODO: this needs some more robust error handling. What should we do if a single item fails?
+    // Currently no way to bubble up that error.
     for worker in 0..worker_count {
         let queue = queue.clone();
         let finished_queue = finished_queue.clone();
@@ -1146,11 +1148,21 @@ async fn bundle_and_send_small_entries(
                 };
 
                 for entry in &chunk {
+                    log::trace!(
+                        "bundle_and_send_small_entries adding entry to tarball: {:?}",
+                        entry
+                    );
                     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
                     let version_path = util::fs::version_path_for_entry(&repo, entry);
                     let name = util::fs::path_relative_to_dir(&version_path, &hidden_dir).unwrap();
 
-                    tar.append_path_with_name(version_path, name).unwrap();
+                    match tar.append_path_with_name(version_path, name) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            log::error!("Failed to add file to archive: {}", e);
+                            continue; // TODO: error handling, same as above
+                        }
+                    };
                 }
 
                 let buffer = match tar.into_inner() {
