@@ -1,4 +1,4 @@
-use crate::core::v0_10_0::index::object_db_reader::{get_object_reader, ObjectDBReader};
+use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
 use crate::core::v0_10_0::index::CommitEntryReader;
 use crate::error::OxenError;
 use crate::model::diff::diff_commit_entry::DiffCommitEntry;

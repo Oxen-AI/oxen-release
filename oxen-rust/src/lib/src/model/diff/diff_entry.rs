@@ -270,7 +270,7 @@ impl DiffEntry {
                 return Ok(DiffEntry {
                     status: status.to_string(),
                     data_type: data_type.clone(),
-                    filename: current_entry.name.clone(),
+                    filename: file_path.as_os_str().to_str().unwrap().to_string(),
                     is_dir: false,
                     size: current_entry.num_bytes,
                     head_resource,
@@ -289,7 +289,7 @@ impl DiffEntry {
         Ok(DiffEntry {
             status: status.to_string(),
             data_type: data_type.clone(),
-            filename: current_entry.name.clone(),
+            filename: file_path.as_os_str().to_str().unwrap().to_string(),
             is_dir: false,
             size: current_entry.num_bytes,
             head_resource,

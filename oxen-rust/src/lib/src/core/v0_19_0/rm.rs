@@ -261,7 +261,7 @@ pub fn remove_file(
     if full_path.exists() {
         util::fs::remove_file(&full_path)?;
     } else {
-        log::error!("file not found on disk: {}", full_path.display());
+        log::debug!("file not found on disk: {}", full_path.display());
     }
 
     // Write all the parent dirs as removed
@@ -412,7 +412,6 @@ pub fn process_remove_file_and_parents(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
 
     // Find node to remove
     let file_path = relative_path.file_name().unwrap();

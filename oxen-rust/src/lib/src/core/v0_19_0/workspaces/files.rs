@@ -95,10 +95,6 @@ fn p_modify_file(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let repo_path = workspace_repo.path.clone();
-    let versions_path = util::fs::oxen_hidden_dir(&base_repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
     log::debug!("p_modify_file staged db_path: {:?}", db_path);
