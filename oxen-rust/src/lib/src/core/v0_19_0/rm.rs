@@ -201,6 +201,7 @@ fn remove_staged_dir(
 
     let path = path.clone();
 
+    // TODO: Join path to repo path, get the correct relative path 
     let walker = WalkDir::new(&path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
@@ -516,12 +517,20 @@ fn process_remove_dir(
 
     let dir_nodes = repositories::tree::get_directories(&repo, &head_commit, &root_path)?;
     log::debug!("Found dir_nodes: {dir_nodes:?} ");
+
+    // TODO: elminate need for mutex by doing DFS and staging directories as added or removed after reaching them in DFS, not when removing files
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
 
+    // recursive helper function
     for node in dir_nodes
     {
     
+
         let dir_node = MerkleTreeNode::from_dir(node);
+        // change dir node name with info from root path
+        // update the root path with current directory 
+
+        // Dir path needs to be a relative path to the repo
         let dir_path = dir_node.maybe_path()?;
 
         log::debug!("dir is: {dir_node:?}");
@@ -582,6 +591,23 @@ fn process_remove_dir(
             
         };
     }
+
+    /* 
+
+root of repo: 
+    dir
+        dir
+            file
+            file
+        file
+        file
+        file
+        dir
+            file
+            dir
+                file
+
+    */
 
     progress_1_clone.finish_and_clear();
     Ok(cumulative_stats)
