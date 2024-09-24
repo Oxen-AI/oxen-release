@@ -77,21 +77,6 @@ pub fn get_entries(
 
 }
 
-
-pub fn get_directories(
-    repo: &LocalRepository,
-    commit: &Commit,
-    path: impl AsRef<Path>,
-) -> Result<Vec<DirNode>, OxenError> {
-    if let Some(dir_node) = CommitMerkleTree::dir_with_children_recursive(repo, commit, path)? {
-        log::debug!("get_directories found dir node: {dir_node:?}");
-        CommitMerkleTree::dir_directories(&dir_node)
-    } else {
-        return Err(OxenError::basic_str(format!("Error: path not found in tree")));
-    }
-}
-
-
 pub fn get_node_data_by_id(
     repo: &LocalRepository,
     hash: &MerkleHash,
