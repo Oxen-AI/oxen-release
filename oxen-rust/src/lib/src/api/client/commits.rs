@@ -977,6 +977,7 @@ pub async fn post_data_to_server(
     bar: Arc<ProgressBar>,
 ) -> Result<(), OxenError> {
     let chunk_size: usize = constants::AVG_CHUNK_SIZE as usize;
+
     if buffer.len() > chunk_size {
         upload_data_to_server_in_chunks(
             remote_repo,
@@ -1144,11 +1145,11 @@ pub async fn upload_data_chunk_to_server_with_retry(
                 // Exponentially back off
                 let sleep_time = total_tries * total_tries;
                 log::debug!(
-                    "upload_data_chunk_to_server_with_retry upload failed sleeping {}: {:?}",
+                    "upload_data_chunk_to_server_with_retry upload failed sleeping {}: {}",
                     sleep_time,
                     err
                 );
-                last_error = format!("{:?}", err);
+                last_error = format!("{}", err);
                 std::thread::sleep(std::time::Duration::from_secs(sleep_time));
             }
         }
@@ -1168,7 +1169,7 @@ async fn upload_data_chunk_to_server(
     params: &ChunkParams,
     is_compressed: bool,
     filename: &Option<String>,
-) -> Result<CommitResponse, OxenError> {
+) -> Result<StatusMessage, OxenError> {
     let maybe_filename = if !is_compressed {
         format!(
             "&filename={}",
@@ -1202,11 +1203,11 @@ async fn upload_data_chunk_to_server(
             let body = client::parse_json_body(&url, res).await?;
 
             log::debug!("upload_data_chunk_to_server got response {}", body);
-            let response: Result<CommitResponse, serde_json::Error> = serde_json::from_str(&body);
+            let response: Result<StatusMessage, serde_json::Error> = serde_json::from_str(&body);
             match response {
                 Ok(response) => Ok(response),
-                Err(_) => Err(OxenError::basic_str(format!(
-                    "upload_data_chunk_to_server Err deserializing\n\n{body}"
+                Err(err) => Err(OxenError::basic_str(format!(
+                    "upload_data_chunk_to_server Err deserializing: {err}"
                 ))),
             }
         }
