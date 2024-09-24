@@ -48,11 +48,11 @@ pub fn track_modified_data_frame(
     Ok(relative_path)
 }
 
-pub fn delete(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub fn delete(_workspace: &Workspace, _path: impl AsRef<Path>) -> Result<(), OxenError> {
     todo!()
 }
 
-pub fn exists(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
+pub fn exists(_workspace: &Workspace, _path: impl AsRef<Path>) -> Result<bool, OxenError> {
     todo!()
 }
 

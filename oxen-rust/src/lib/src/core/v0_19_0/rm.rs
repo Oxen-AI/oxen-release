@@ -701,25 +701,6 @@ fn get_file_node(
     }
 }
 
-fn get_dir_node(
-    dir_node: &Option<MerkleTreeNode>,
-    path: impl AsRef<Path>,
-) -> Result<Option<DirNode>, OxenError> {
-    if let Some(node) = dir_node {
-        if let Some(node) = node.get_by_path(path)? {
-            if let EMerkleTreeNode::Directory(dir_node) = &node.node {
-                Ok(Some(dir_node.clone()))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    } else {
-        Ok(None)
-    }
-}
-
 fn maybe_load_directory(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,

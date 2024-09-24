@@ -769,7 +769,7 @@ mod tests {
         })
     }
     #[test]
-    fn test_restore_row() -> Result<(), OxenError> {
+    fn test_restore_row_after_modification() -> Result<(), OxenError> {
         if std::env::consts::OS == "windows" {
             return Ok(());
         }
