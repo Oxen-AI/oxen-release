@@ -146,6 +146,40 @@ fn remove(
                 util::fs::remove_file(&full_path)?;
             }
         }
+
+
+
+        // Stop the timer, and round the duration to the nearest second
+        let duration = Duration::from_millis(start.elapsed().as_millis() as u64);
+        log::debug!("---END--- oxen rm: {:?} duration: {:?}", paths, duration);
+
+        // TODO: Add function to CumulativeStats to output that print statement
+        println!(
+            "🐂 oxen removed {} files ({}) in {}",
+            total.total_files,
+            bytesize::ByteSize::b(total.total_bytes),
+            humantime::format_duration(duration)
+        );
+    }
+
+            // TODO: Refactor remove_dir to check paths in the merkle tree
+        // That would allow this logic to safely happen within the loop above
+    for path in paths {
+        if path.is_dir() {
+            // Remove dir from working directory
+            let full_path = repo.path.join(path);
+            log::debug!("REMOVING DIR: {full_path:?}");
+            if full_path.exists() {
+                // user might have removed file manually before using `oxen rm`
+                util::fs::remove_dir_all(&full_path)?;
+            }
+        } else {
+            let full_path = repo.path.join(path);
+            log::debug!("REMOVING FILE: {full_path:?}");
+            if full_path.exists() {
+                util::fs::remove_file(&full_path)?;
+            }
+        }
     }
 
     Ok(())
@@ -193,6 +227,7 @@ fn remove_staged_dir(
 
     let path = path.clone();
 
+    // TODO: Join path to repo path, get the correct relative path 
     let walker = WalkDir::new(&path).into_iter();
     for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
     {
@@ -325,7 +360,6 @@ pub fn process_remove_file_and_parents(
     // Find node to remove
     let file_path = relative_path.file_name().unwrap();
 
-
     let node: MerkleTreeNode = if let Some(file_node) = get_file_node(maybe_dir_node, file_path)? {
         MerkleTreeNode::from_file(file_node)
     } else {
@@ -432,6 +466,7 @@ pub fn remove_dir(
     maybe_head_commit: &Commit,
     dir_node: &DirNode,
 ) -> Result<CumulativeStats, OxenError> {
+    log::debug!("remove_dir called");
     let versions_path = util::fs::oxen_hidden_dir(&repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -454,6 +489,7 @@ fn process_remove_dir(
     root_path: PathBuf,
 ) -> Result<CumulativeStats, OxenError> {
     let start = std::time::Instant::now();
+    log::debug!("Process Remove Dir");
 
     let progress_1 = Arc::new(ProgressBar::new_spinner());
     progress_1.set_style(ProgressStyle::default_spinner());
@@ -462,7 +498,7 @@ fn process_remove_dir(
     // root_path is the directory rm was called on
     let root_path = path.clone();
     let repo = repo.clone();
-    let maybe_head_commit = maybe_head_commit.clone();
+    let head_commit = maybe_head_commit.clone().unwrap();
     let repo_path = repo.path.clone();
 
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -478,30 +514,36 @@ fn process_remove_dir(
         data_type_counts: HashMap::new(),
     };
 
-    // TODO: Potentially low cache locality -- check into_iter implementation details
-    let walker = WalkDir::new(&root_path).into_iter();
-    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
-    {
-        let entry = entry.unwrap();
-        let dir = entry.path();
+    let dir_nodes = repositories::tree::get_directories(&repo, &head_commit, &root_path)?;
+    log::debug!("Found dir_nodes: {dir_nodes:?} ");
 
-        log::debug!("Entry is: {entry:?}");
-        log::debug!("Dir is: {dir:?}");
+    // TODO: elminate need for mutex by doing DFS and staging directories as added or removed after reaching them in DFS, not when removing files
+    let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
+
+    // recursive helper function
+    for node in dir_nodes
+    {
+    
+
+        let dir_node = MerkleTreeNode::from_dir(node);
+        // change dir node name with info from root path
+        // update the root path with current directory 
+
+        // Dir path needs to be a relative path to the repo
+        let dir_path = dir_node.maybe_path()?;
+
+        log::debug!("dir is: {dir_node:?}");
 
         let byte_counter_clone = Arc::clone(&byte_counter);
         let removed_file_counter_clone = Arc::clone(&removed_file_counter);
         let unchanged_file_counter_clone = Arc::clone(&unchanged_file_counter);
+        let maybe_dir_node = &Some(dir_node);
 
-        let dir_path = util::fs::path_relative_to_dir(dir, &repo_path).unwrap();
-        let dir_node = maybe_load_directory(&repo, &maybe_head_commit, &dir_path).unwrap();
-        let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
-
-        // Curious why this is only < 300% CPU usage
-        std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
-            if let Ok(dir_entry) = dir_entry_result {
-                log::debug!("Dir Entry is: {dir_entry:?}");
+        for entry in repositories::tree::get_entries(&repo, &head_commit, dir_path.clone())? {
+  
+                log::debug!("entry is: {entry:?}");
                 let total_bytes = byte_counter_clone.load(Ordering::Relaxed);
-                let path = dir_entry.path();
+                let path = MerkleTreeNode::from_file(entry).maybe_path()?;
                 let duration = start.elapsed().as_secs_f32();
                 let mbps = (total_bytes as f32 / duration) / 1_000_000.0;
 
@@ -520,7 +562,7 @@ fn process_remove_dir(
                     &repo_path,
                     versions_path,
                     staged_db,
-                    &dir_node,
+                    maybe_dir_node,
                     &path,
                     &root_path,
                     &seen_dirs_clone,
@@ -542,12 +584,29 @@ fn process_remove_dir(
                         log::error!("Error adding file: {:?}", e);
                     }
                     _ => {
-                        log::error!("Error adding file: file {dir_entry:?} not found in {dir:?}");
+                        log::error!("Error adding file: file {path:?} not found in {dir_path:?}");
                     }
                 }
-            }
-        });
+            
+        };
     }
+
+    /* 
+
+root of repo: 
+    dir
+        dir
+            file
+            file
+        file
+        file
+        file
+        dir
+            file
+            dir
+                file
+
+    */
 
     progress_1_clone.finish_and_clear();
     Ok(cumulative_stats)

@@ -22,8 +22,10 @@ use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
+use crate::constants::ROOT_PATH;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+
 
 /// Get a directory object for a commit
 pub fn get_directory(
@@ -48,6 +50,16 @@ pub fn get_file(
         MinOxenVersion::V0_19_0 => core::v0_19_0::entries::get_file(repo, commit, path),
     }
 }
+
+/// List all the entries within a commit
+pub fn list_commit_entries(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+    paginate_opts: &PaginateOpts,
+) -> Result<PaginatedDirEntries, OxenError> {
+    list_directory_w_version(repo, ROOT_PATH, revision, paginate_opts, repo.min_version())
+}
+
 
 /// List all the entries within a directory given a specific commit
 pub fn list_directory(
@@ -106,6 +118,23 @@ pub fn get_meta_entry(
             };
             core::v0_19_0::entries::get_meta_entry(repo, &parsed_resource, path)
         }
+    }
+}
+
+/// List the paths of all the directories in a given commit 
+pub fn list_dir_paths(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Vec<PathBuf>, OxenError> {
+    match repo.min_version() { 
+        MinOxenVersion::V0_10_0 => {
+            let dir_reader = CommitEntryReader::new(&repo, &commit)?;
+            dir_reader.list_dirs()
+        },
+        MinOxenVersion::V0_19_0 => {
+            let tree = core::v0_19_0::index::CommitMerkleTree::from_commit(&repo, &commit)?;
+            tree.list_dir_paths()
+        }, 
     }
 }
 

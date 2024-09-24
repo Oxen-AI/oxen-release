@@ -4,8 +4,9 @@ use std::path::Path;
 use crate::core::v0_19_0::index::merkle_node_db::node_db_path;
 use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
-use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, DirNode, FileNode, MerkleTreeNode};
 use crate::model::{Commit, LocalRepository, MerkleHash};
+
 
 pub fn get_node_by_id(
     repo: &LocalRepository,
@@ -53,6 +54,43 @@ pub fn get_dir_without_children(
 ) -> Result<Option<MerkleTreeNode>, OxenError> {
     CommitMerkleTree::dir_without_children(repo, commit, path)
 }
+
+pub fn get_dir_with_children_recursive(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Option<MerkleTreeNode>, OxenError> {
+    CommitMerkleTree::dir_with_children_recursive(repo, commit, path)
+}
+
+pub fn get_entries(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Vec<FileNode>, OxenError> {
+    if let Some(dir_node) = CommitMerkleTree::dir_with_children(repo, commit, path)? {
+        log::debug!("get_entries found dir node: {dir_node:?}");
+        CommitMerkleTree::dir_entries(&dir_node)
+    } else {
+        return Err(OxenError::basic_str(format!("Error: path not found in tree")));
+    }
+
+}
+
+
+pub fn get_directories(
+    repo: &LocalRepository,
+    commit: &Commit,
+    path: impl AsRef<Path>,
+) -> Result<Vec<DirNode>, OxenError> {
+    if let Some(dir_node) = CommitMerkleTree::dir_with_children_recursive(repo, commit, path)? {
+        log::debug!("get_directories found dir node: {dir_node:?}");
+        CommitMerkleTree::dir_directories(&dir_node)
+    } else {
+        return Err(OxenError::basic_str(format!("Error: path not found in tree")));
+    }
+}
+
 
 pub fn get_node_data_by_id(
     repo: &LocalRepository,
