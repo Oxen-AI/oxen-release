@@ -264,6 +264,37 @@ where
     Ok(())
 }
 
+pub async fn run_one_commit_local_repo_test_async<T, Fut>(test: T) -> Result<(), OxenError>
+where
+    T: FnOnce(LocalRepository) -> Fut,
+    Fut: Future<Output = Result<(), OxenError>>,
+{
+    init_test_env();
+    log::debug!("run_empty_local_repo_test_async start");
+    let repo_dir = create_repo_dir(test_run_dir())?;
+    let repo = repositories::init(&repo_dir)?;
+
+    let txt = generate_random_string(20);
+    let file_path = add_txt_file_to_dir(&repo_dir, &txt)?;
+    repositories::add(&repo, &file_path)?;
+    repositories::commit(&repo, &format!("Init commit"))?;
+
+    let result = match test(repo).await {
+        Ok(_) => true,
+        Err(err) => {
+            eprintln!("Error running test. Err: {err}");
+            false
+        }
+    };
+
+    // Remove repo dir
+    // util::fs::remove_dir_all(&repo_dir)?;
+
+    // Assert everything okay after we cleanup the repo dir
+    assert!(result);
+    Ok(())
+}
+
 /// Test syncing between local and remote, where both exist, and both are empty
 pub async fn run_empty_sync_repo_test<T, Fut>(test: T) -> Result<(), OxenError>
 where
@@ -1088,7 +1119,7 @@ where
     });
 
     // Remove repo dir
-    util::fs::remove_dir_all(&repo_dir)?;
+    // util::fs::remove_dir_all(&repo_dir)?;
 
     // Assert everything okay after we cleanup the repo dir
     assert!(result.is_ok());

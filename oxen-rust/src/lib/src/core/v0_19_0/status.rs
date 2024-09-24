@@ -172,16 +172,23 @@ pub fn read_staged_entries_below_path(
                 dir_entries.insert(key_path, vec![]);
 
                 if let Some(parent) = path.parent() {
-                    log::debug!(
-                        "read_staged_entries parent {:?} start_path {:?}",
-                        parent,
-                        start_path
-                    );
                     let relative_start_path =
                         util::fs::path_relative_to_dir(start_path, &repo.path)?;
+                    log::debug!(
+                        "read_staged_entries parent {:?} start_path {:?} relative {:?}",
+                        parent,
+                        start_path,
+                        relative_start_path
+                    );
+
                     if relative_start_path == PathBuf::from("")
                         || parent.starts_with(&relative_start_path)
                     {
+                        log::debug!(
+                            "read_staged_entries adding to parent {:?} entry {:?}",
+                            parent,
+                            entry
+                        );
                         dir_entries
                             .entry(parent.to_path_buf())
                             .or_default()
@@ -204,6 +211,20 @@ pub fn read_staged_entries_below_path(
         }
     }
 
+    // Filter out any dir entries with no children
+    dir_entries.retain(|_, entries| !entries.is_empty());
+
+    log::debug!(
+        "read_staged_entries dir_entries.len(): {:?}",
+        dir_entries.len()
+    );
+    for (dir, entries) in dir_entries.iter() {
+        log::debug!("commit dir_entries dir {:?}", dir);
+        for entry in entries.iter() {
+            log::debug!("\tcommit dir_entries entry {}", entry);
+        }
+    }
+
     Ok((dir_entries, total_entries))
 }
 
@@ -223,18 +244,25 @@ fn find_untracked_and_modified_paths(
     let mut candidate_dirs: HashSet<PathBuf> = HashSet::new();
     candidate_dirs.insert(start_path.as_ref().to_path_buf());
 
-    log::debug!("start_path: {:?}", start_path.as_ref());
+    log::debug!(
+        "find_untracked_and_modified_paths start_path: {:?}",
+        start_path.as_ref()
+    );
 
     // Add all the directories that are direct children of the start path
-    let repo_start_path = repo.path.join(start_path.as_ref());
-    log::debug!("repo_start_path: {:?}", repo_start_path);
+    let relative_start_path = util::fs::path_relative_to_dir(start_path.as_ref(), &repo.path)?;
+    let repo_start_path = repo.path.join(relative_start_path);
 
     if repo_start_path.exists() {
-        let dirs = std::fs::read_dir(repo_start_path)?;
+        let dirs = std::fs::read_dir(&repo_start_path)?;
         for dir in dirs {
             let dir = dir?.path();
             if dir.is_dir() {
                 let dir = util::fs::path_relative_to_dir(&dir, &repo.path)?;
+                // Skip hidden .oxen files
+                if dir.starts_with(OXEN_HIDDEN_DIR) {
+                    continue;
+                }
                 candidate_dirs.insert(dir);
             }
         }
@@ -245,7 +273,7 @@ fn find_untracked_and_modified_paths(
         let dir_hashes = CommitMerkleTree::dir_hashes(repo, &head_commit)?;
         for (dir, _) in &dir_hashes {
             let dir = repo.path.join(dir);
-            if dir.starts_with(start_path.as_ref()) {
+            if dir.starts_with(&repo_start_path) && dir != repo_start_path {
                 candidate_dirs.insert(dir);
             }
         }
@@ -275,7 +303,7 @@ fn find_untracked_and_modified_paths(
             None
         };
 
-        let full_dir = repo.path.join(candidate_dir);
+        let full_dir = repo.path.join(&relative_dir);
         let read_dir = std::fs::read_dir(&full_dir);
         if read_dir.is_ok() {
             log::debug!(

@@ -5,7 +5,6 @@ use crate::errors::OxenHttpError;
 
 use actix_web::{web, HttpRequest, HttpResponse};
 use liboxen::core::df::tabular;
-use liboxen::core::v0_10_0::index::{CommitEntryReader, CommitReader, Merger};
 use liboxen::error::OxenError;
 use liboxen::model::data_frame::DataFrameSchemaSize;
 use liboxen::model::diff::diff_entry_status::DiffEntryStatus;
@@ -58,13 +57,7 @@ pub async fn commits(
     let base_commit = base_commit.ok_or(OxenError::revision_not_found(base.into()))?;
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
 
-    // Check if mergeable
-    let merger = Merger::new(&repository)?;
-
-    // Get commits between base and head
-    let commit_reader = CommitReader::new(&repository)?;
-    let commits =
-        merger.list_commits_between_commits(&commit_reader, &base_commit, &head_commit)?;
+    let commits = repositories::commits::list_between(&repository, &base_commit, &head_commit)?;
     let (paginated, pagination) = util::paginate(commits, page, page_size);
 
     let compare = CompareCommits {
@@ -81,7 +74,7 @@ pub async fn commits(
     Ok(HttpResponse::Ok().json(view))
 }
 
-// TODO: Deprecate
+// TODO: Depreciate
 pub async fn entries(
     req: HttpRequest,
     query: web::Query<PageNumQuery>,
@@ -186,11 +179,12 @@ pub async fn dir_entries(
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let dir = PathBuf::from(dir);
 
-    let entries_diff = repositories::diffs::list_diff_entries_in_dir_top_level(
+    let entries_diff = repositories::diffs::list_diff_entries(
+        // let entries_diff = repositories::diffs::list_diff_entries_in_dir_top_level(
         &repository,
-        dir.clone(),
         &base_commit,
         &head_commit,
+        dir.clone(),
         page,
         page_size,
     )?;
@@ -244,18 +238,8 @@ pub async fn file(
     //   main..feature/add-data/path/to/file.txt
     let (base_commit, head_commit, resource) = parse_base_head_resource(&repository, &base_head)?;
 
-    // Make sure we're not comparing dirs - not yet supported
-    let base_entry_reader = CommitEntryReader::new(&repository, &base_commit)?;
-    let head_entry_reader = CommitEntryReader::new(&repository, &head_commit)?;
-
-    if base_entry_reader.has_dir(&resource) || head_entry_reader.has_dir(&resource) {
-        return Err(OxenHttpError::BadRequest(
-            "Directory compare not supported here.".to_string().into(),
-        ));
-    }
-
-    let base_entry = base_entry_reader.get_entry(&resource)?;
-    let head_entry = head_entry_reader.get_entry(&resource)?;
+    let base_entry = repositories::entries::get_file(&repository, &base_commit, &resource)?;
+    let head_entry = repositories::entries::get_file(&repository, &head_commit, &resource)?;
 
     let mut opts = DFOpts::empty();
     opts = df_opts_query::parse_opts(&query, &mut opts);
@@ -269,6 +253,7 @@ pub async fn file(
 
     let diff = repositories::diffs::diff_entries(
         &repository,
+        resource,
         base_entry,
         &base_commit,
         head_entry,

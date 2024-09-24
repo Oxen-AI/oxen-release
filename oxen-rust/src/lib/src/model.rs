@@ -54,7 +54,8 @@ pub use crate::model::entry::staged_entry::{StagedEntry, StagedEntryStatus};
 pub use crate::model::entry::ContentHashable;
 
 // Merge
-pub use crate::model::merge_conflict::MergeConflict;
+pub use crate::model::merge_conflict::EntryMergeConflict;
+pub use crate::model::merge_conflict::NodeMergeConflict;
 
 // Metadata
 pub use crate::model::metadata::dir_metadata_item::DirMetadataItem;

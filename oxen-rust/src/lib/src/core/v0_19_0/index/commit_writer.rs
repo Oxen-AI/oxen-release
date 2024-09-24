@@ -164,7 +164,7 @@ pub fn commit_dir_entries_new(
     }
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
 
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
@@ -262,7 +262,7 @@ pub fn commit_dir_entries(
     }
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
 
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
@@ -368,9 +368,11 @@ fn split_into_vnodes(
     repo: &LocalRepository,
     entries: &HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
     existing_nodes: &HashMap<PathBuf, MerkleTreeNode>,
+    new_commit: &NewCommitBody,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
+    log::debug!("split_into_vnodes new_commit: {:?}", new_commit.message);
     log::debug!("split_into_vnodes entries keys: {:?}", entries.keys());
     log::debug!(
         "split_into_vnodes existing_nodes keys: {:?}",
@@ -397,8 +399,6 @@ fn split_into_vnodes(
         log::debug!("new_children {}", new_children.len());
 
         // Update the children with the new entries from status
-        // TODO: Handle updates and deletes, this is pure addition right now
-        // TODO: Re-implement rm commits
         for child in new_children.iter() {
             log::debug!(
                 "new_child {:?} {:?}",
@@ -412,7 +412,13 @@ fn split_into_vnodes(
                 if path != PathBuf::from("") {
                     match child.status {
                         StagedEntryStatus::Removed => {
-                            log::debug!("removing child {:?} {:?}", child, path);
+                            log::debug!(
+                                "removing child {:?} {:?} with {:?} {:?}",
+                                child.node.node.dtype(),
+                                path,
+                                child.node.node.dtype(),
+                                child.node.maybe_path().unwrap()
+                            );
                             children.remove(child);
                         }
                         _ => {
@@ -505,7 +511,11 @@ fn split_into_vnodes(
     // Make sure to update all the vnode ids based on all their children
 
     // TODO: We have to start from the bottom vnodes in the tree and update all the vnode ids above it
-    log::debug!("split_into_vnodes results: {:?}", results.len());
+    log::debug!(
+        "split_into_vnodes results: {:?} for commit {}",
+        results.len(),
+        new_commit.message
+    );
     for (dir, vnodes) in results.iter_mut() {
         log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
         for vnode in vnodes.iter_mut() {
@@ -585,11 +595,11 @@ fn r_create_dir_node(
     log::debug!("r_create_dir_node entries.len() {:?}", entries.len());
 
     let Some(vnodes) = entries.get(&path) else {
-        let err_msg = format!(
+        log::debug!(
             "r_create_dir_node No entries found for directory {:?}",
             path
         );
-        return Err(OxenError::basic_str(err_msg));
+        return Ok(());
     };
 
     log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());

@@ -9,6 +9,7 @@ use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::model::merkle_tree::node::FileNode;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use rocksdb::IteratorMode;
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
@@ -31,6 +32,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::str;
 
 use crate::constants::FILES_DIR;
 use crate::constants::OXEN_HIDDEN_DIR;
@@ -60,6 +62,82 @@ pub async fn rm(
     remove(paths, repo, opts)
 }
 
+pub fn remove_staged_recursively(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
+    let path = path.as_ref();
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+    // Iterate over staged_db and check if the path starts with the given path
+    let iter = staged_db.iterator(IteratorMode::Start);
+    for item in iter {
+        match item {
+            Ok((key, _)) => match str::from_utf8(&key) {
+                Ok(key) => {
+                    let db_path = PathBuf::from(key);
+                    if db_path.starts_with(path) {
+                        remove_staged_entry(&db_path, &staged_db)?;
+                    }
+                }
+                _ => {
+                    return Err(OxenError::basic_str("Could not read utf8 val..."));
+                }
+            },
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn remove(
+    paths: &HashSet<PathBuf>,
+    repo: &LocalRepository,
+    opts: &RmOpts,
+) -> Result<(), OxenError> {
+    // Should always be a head commit if we are calling rm
+    let commit = repositories::commits::head_commit(repo)?;
+    let tree = repositories::tree::get_by_commit(repo, &commit)?;
+
+    // Full Path "data/tests/repo_uuid/images/path.jpg"
+
+    // Repo Path "data/tests/repo_uuid/"
+
+    // Path to remove "images/path.jpg"
+
+    // FileNode "path.jpg"
+
+    for path in paths {
+        let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+        let Some(node) = tree.get_by_path(&path)? else {
+            log::error!("Path {} not found in tree", path.display());
+            continue;
+        };
+
+        match &node.node {
+            EMerkleTreeNode::File(file_node) => {
+                remove_file(repo, &path, &file_node)?;
+            }
+            EMerkleTreeNode::Directory(dir_node) => {
+                // remove_dir(repo, &commit, path.to_path_buf())?;
+                todo!()
+            }
+            _ => {
+                log::error!("Unsupported node type: {:?}", node.node);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+/*
 fn remove(
     paths: &HashSet<PathBuf>,
     repo: &LocalRepository,
@@ -156,6 +234,7 @@ fn remove(
 
     Ok(())
 }
+*/
 
 pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result<(), OxenError> {
     let opts = db::key_val::opts::default();
@@ -164,76 +243,98 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for path in paths {
-        log::debug!("path: {:?}", path);
-
-        if path.is_dir() {
-            remove_staged_dir(repo, path, &staged_db)?;
-        } else {
-            remove_staged_file(repo, path, &staged_db)?;
-        }
+        remove_staged_entry(&path, &staged_db)?;
     }
 
     Ok(())
 }
 
-// TODO: should removing directories from the index require the recursive flag?
-
-fn remove_staged_file(
-    repo: &LocalRepository,
-    relative_path: &Path,
-    staged_db: &DBWithThreadMode<MultiThreaded>,
-) -> Result<(), OxenError> {
-    log::debug!("Deleting entry: {relative_path:?}");
-    staged_db.delete(relative_path.to_str().unwrap())?;
-
-    Ok(())
-}
-
-fn remove_staged_dir(
-    repo: &LocalRepository,
+fn remove_staged_entry(
     path: &PathBuf,
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
-    log::debug!("remove staged dir: {path:?}");
-
-    let path = path.clone();
-
-    let walker = WalkDir::new(&path).into_iter();
-    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
-    {
-        log::debug!("entry: {entry:?}");
-        let entry = entry.unwrap();
-        let dir = entry.path();
-
-        std::fs::read_dir(dir)?.for_each(|dir_entry_result| {
-            log::debug!("dir_entry_result: {dir_entry_result:?}");
-            if let Ok(dir_entry) = dir_entry_result {
-                let path = dir_entry.path();
-
-                // Errors encountered in remove_staged_file or remove_staged_dir won't end this loop
-                if path.is_dir() {
-                    match remove_staged_dir(repo, &path, staged_db) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::debug!("Err: {err}");
-                        }
-                    }
-                }
-                match remove_staged_file(repo, &path, staged_db) {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::debug!("Err: {err}");
-                    }
-                }
-            }
-        });
-        log::debug!("Deleting entry: {dir:?}");
-        staged_db.delete(dir.to_str().unwrap())?;
-    }
-
+    log::debug!("remove_staged path: {:?}", path);
+    staged_db.delete(path.to_str().unwrap())?;
     Ok(())
 }
 
+pub fn remove_file(
+    repo: &LocalRepository,
+    path: &Path,
+    node: &FileNode,
+) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
+    let repo_path = repo.path.clone();
+    let opts = db::key_val::opts::default();
+    let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
+    let staged_db: DBWithThreadMode<MultiThreaded> =
+        DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
+
+    // Remove the file from the versions db
+    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
+    let dst_dir = util::fs::version_dir_from_hash(&repo_path, node.hash.to_string());
+
+    if dst_dir.exists() {
+        // Remove the file from the versions db
+        util::fs::remove_dir_all(&dst_dir)?;
+    }
+
+    let mut node = node.clone();
+    // Node must have full path for delete to work
+    node.name = path.to_string_lossy().to_string();
+    let staged_entry = StagedMerkleTreeNode {
+        status: StagedEntryStatus::Removed,
+        node: MerkleTreeNode::from_file(node),
+    };
+
+    // Write removed node to staged db
+    let mut buf = Vec::new();
+    staged_entry
+        .serialize(&mut Serializer::new(&mut buf))
+        .unwrap();
+    let relative_path = util::fs::path_relative_to_dir(path, &repo_path)?;
+    let relative_path_str = relative_path.to_str().unwrap();
+    log::debug!(
+        "writing removed file to staged db: {} -> {}",
+        relative_path_str,
+        staged_entry
+    );
+    staged_db.put(relative_path_str, &buf).unwrap();
+
+    // Remove the file from disk
+    let full_path = repo_path.join(&relative_path);
+    if full_path.exists() {
+        util::fs::remove_file(&full_path)?;
+    } else {
+        log::debug!("file not found on disk: {}", full_path.display());
+    }
+
+    // Write all the parent dirs as removed
+    let mut parent_path = relative_path.to_path_buf();
+    while let Some(parent) = parent_path.parent() {
+        let relative_path = util::fs::path_relative_to_dir(parent, &repo_path).unwrap();
+        parent_path = parent.to_path_buf();
+
+        let relative_path_str = relative_path.to_str().unwrap();
+
+        let dir_entry = StagedMerkleTreeNode {
+            status: StagedEntryStatus::Modified,
+            node: MerkleTreeNode::default_dir_from_path(&relative_path),
+        };
+
+        log::debug!("writing modified dir to staged db: {}", dir_entry);
+        let mut buf = Vec::new();
+        dir_entry.serialize(&mut Serializer::new(&mut buf)).unwrap();
+        staged_db.put(relative_path_str, &buf).unwrap();
+
+        if relative_path == Path::new("") {
+            break;
+        }
+    }
+
+    Ok(Some(staged_entry))
+}
+
+/*
 pub fn remove_file(
     repo: &LocalRepository,
     maybe_head_commit: &Option<Commit>,
@@ -294,11 +395,7 @@ pub fn process_remove_file(
 
     // Remove the file from the versions db
     // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-    let dir_prefix_len = 2;
-    let dir_name = node.hash.to_string();
-    let dir_prefix = dir_name.chars().take(dir_prefix_len).collect::<String>();
-    let dir_suffix = dir_name.chars().skip(dir_prefix_len).collect::<String>();
-    let dst_dir = versions_path.join(dir_prefix).join(dir_suffix);
+    let dst_dir = util::fs::version_dir_from_hash(&repo_path, &node.hash.to_string());
 
     if dst_dir.exists() {
         util::fs::remove_dir_all(&dst_dir)?;
@@ -347,6 +444,7 @@ pub fn process_remove_file(
 
     Ok(Some(staged_entry))
 }
+*/
 
 pub fn process_remove_file_and_parents(
     repo_path: &Path,
@@ -358,7 +456,6 @@ pub fn process_remove_file_and_parents(
     seen_dirs: &Arc<Mutex<HashSet<PathBuf>>>,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
     let relative_path = util::fs::path_relative_to_dir(path, repo_path)?;
-    let full_path = repo_path.join(&relative_path);
 
     // Find node to remove
     let file_path = relative_path.file_name().unwrap();
