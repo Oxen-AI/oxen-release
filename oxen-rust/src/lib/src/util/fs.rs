@@ -1540,7 +1540,7 @@ mod tests {
                 Path::new(constants::FILES_DIR)
                     .join("59")
                     .join(Path::new("E029D4812AEBF0"))
-                    .join(Path::new(&format!("{}.txt", VERSION_FILE_NAME)))
+                    .join(Path::new(VERSION_FILE_NAME))
             );
 
             Ok(())

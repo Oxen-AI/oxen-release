@@ -9,6 +9,7 @@ use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::model::merkle_tree::node::FileNode;
 use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
+use rocksdb::IteratorMode;
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
@@ -31,6 +32,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::str;
 
 use crate::constants::FILES_DIR;
 use crate::constants::OXEN_HIDDEN_DIR;
@@ -60,17 +62,33 @@ pub async fn rm(
     remove(paths, repo, opts)
 }
 
-pub fn remove_staged_recursively(repo: &LocalRepository, path: &PathBuf) -> Result<(), OxenError> {
-    let walker = WalkDir::new(path).into_iter();
+pub fn remove_staged_recursively(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
+    let path = path.as_ref();
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-    for entry in walker.filter_entry(|e| e.file_type().is_dir() && e.file_name() != OXEN_HIDDEN_DIR)
-    {
-        let entry = entry.unwrap();
-        let path = entry.path();
-        remove_staged_dir(repo, &path.to_path_buf(), &staged_db)?;
+    // Iterate over staged_db and check if the path starts with the given path
+    let iter = staged_db.iterator(IteratorMode::Start);
+    for item in iter {
+        match item {
+            Ok((key, _)) => match str::from_utf8(&key) {
+                Ok(key) => {
+                    let db_path = PathBuf::from(key);
+                    if db_path.starts_with(path) {
+                        remove_staged_entry(&db_path, &staged_db)?;
+                    }
+                }
+                _ => {
+                    return Err(OxenError::basic_str("Could not read utf8 val..."));
+                }
+            },
+            _ => {
+                return Err(OxenError::basic_str(
+                    "Could not read iterate over db values",
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -222,10 +240,15 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for path in paths {
-        log::debug!("remove_staged path: {:?}", path);
-        staged_db.delete(path.to_str().unwrap())?;
+        remove_staged_entry(&path, &staged_db)?;
     }
 
+    Ok(())
+}
+
+fn remove_staged_entry(path: &PathBuf, staged_db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+    log::debug!("remove_staged path: {:?}", path);
+    staged_db.delete(path.to_str().unwrap())?;
     Ok(())
 }
 
