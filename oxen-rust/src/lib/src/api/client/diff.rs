@@ -503,9 +503,6 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
     #[tokio::test]
     async fn test_diff_entries_modify_remove_columns_csv() -> Result<(), OxenError> {
         test::run_empty_data_repo_test_no_commits_async(|mut repo| async move {
-            // Get the current branch
-            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-
             // Add and commit the initial data
             let test_file = test::test_csv_file_with_name("llm_fine_tune.csv");
             let repo_filepath = repo.path.join(test_file.file_name().unwrap());
@@ -513,6 +510,9 @@ define the word,what does the word 'the' mean?,it is a stopword.,language
 
             repositories::add(&repo, &repo_filepath)?;
             repositories::commit(&repo, "Adding initial csv")?;
+
+            // Get the current branch
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
 
             // Set the proper remote
             let remote = test::repo_remote_url_from(&repo.dirname());

@@ -1075,6 +1075,9 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
             // Recursively marks parent dirs as modified
             assert_eq!(3, entries.len());
             for entry in entries.iter() {
+                println!("==================");
+                println!("entry {:?}", entry);
+                println!("==================");
                 assert_eq!(DiffEntryStatus::Modified.to_string(), entry.status);
             }
 
@@ -1083,7 +1086,7 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
     }
 
     #[tokio::test]
-    async fn test_diff_entries_remove_one_tabular() -> Result<(), OxenError> {
+    async fn test_diff_entries_remove_one_tabular_file() -> Result<(), OxenError> {
         test::run_bounding_box_csv_repo_test_fully_committed_async(|repo| async move {
             let bbox_filename = Path::new("annotations")
                 .join("train")
@@ -1113,14 +1116,36 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 println!("entry {}: {:?}", entry.0, entry.1);
             }
 
-            // it currently shows all the parent dirs as being
-            // CHANGE: through the merkle logic, this is now removing these directories...
-            // do we want this?
+            // There should be 2 modifications (directories) and 1 removal (file)
             assert_eq!(3, entries.len());
 
-            assert_eq!(entries[0].status, DiffEntryStatus::Removed.to_string());
-            assert_eq!(entries[1].status, DiffEntryStatus::Removed.to_string());
-            assert_eq!(entries[2].status, DiffEntryStatus::Removed.to_string());
+            // Find the entry named "annotations" and check that it's modified
+            let annotations_entry = entries.iter().find(|entry| entry.filename == "annotations");
+            assert!(annotations_entry.is_some());
+            assert_eq!(
+                annotations_entry.unwrap().status,
+                DiffEntryStatus::Modified.to_string()
+            );
+
+            // Check that "annotations/train" is modified
+            let annotations_train_entry = entries
+                .iter()
+                .find(|entry| entry.filename == "annotations/train");
+            assert!(annotations_train_entry.is_some());
+            assert_eq!(
+                annotations_train_entry.unwrap().status,
+                DiffEntryStatus::Modified.to_string()
+            );
+
+            // Check that "annotations/train/bounding_box.csv" is removed
+            let bounding_box_entry = entries
+                .iter()
+                .find(|entry| entry.filename == "annotations/train/bounding_box.csv");
+            assert!(bounding_box_entry.is_some());
+            assert_eq!(
+                bounding_box_entry.unwrap().status,
+                DiffEntryStatus::Removed.to_string()
+            );
 
             Ok(())
         })
@@ -1302,15 +1327,23 @@ train/cat_2.jpg,cat,30.5,44.0,333,396
                 10,
             )?;
 
+            println!("counts: {:?}", entries.counts);
+
+            // Make sure there is one removed file in the counts
+            assert_eq!(0, entries.counts.added);
+            assert_eq!(1, entries.counts.removed);
+            assert_eq!(0, entries.counts.modified);
+
             let entries = entries.entries;
             for entry in entries.iter().enumerate() {
                 println!("entry {}: {:?}", entry.0, entry.1);
             }
 
+            // We are just listing top level entries, so only one directory
             assert_eq!(1, entries.len());
 
-            // Dir is removed because all its children were removed
-            assert_eq!(entries[0].status, DiffEntryStatus::Removed.to_string());
+            // Dir is modified because a child was removed
+            assert_eq!(entries[0].status, DiffEntryStatus::Modified.to_string());
 
             Ok(())
         })
