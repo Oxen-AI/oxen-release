@@ -1,3 +1,4 @@
+use crate::core::v0_19_0::index::CommitMerkleTree;
 use crate::error::OxenError;
 use crate::model::diff::diff_entries_counts::DiffEntriesCounts;
 use crate::model::diff::diff_entry_status::DiffEntryStatus;
@@ -11,7 +12,12 @@ use crate::util;
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
+// Filters out the entries that are not direct children of the provided dir, but
+// still provides accurate recursive counts -
+// TODO: can de-dup this with list_diff_entries somewhat
+//       don't love that this is pretty specific to our UI...but will leave for now
 pub fn list_diff_entries_in_dir_top_level(
     repo: &LocalRepository,
     dir: PathBuf,
@@ -20,7 +26,121 @@ pub fn list_diff_entries_in_dir_top_level(
     page: usize,
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
-    todo!()
+    log::debug!(
+        "list_top_level_diff_entries base_commit: '{}', head_commit: '{}'",
+        base_commit,
+        head_commit
+    );
+
+    // Load the trees into memory starting at the given dir
+    let load_recursive = true;
+    let base_tree = CommitMerkleTree::from_path(repo, base_commit, &dir, load_recursive)?;
+    let head_tree = CommitMerkleTree::from_path(repo, head_commit, &dir, load_recursive)?;
+
+    let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
+    let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
+
+    log::debug!("Collected {} head_files", head_files.len());
+    log::debug!("Collected {} head_dirs", head_dirs.len());
+    log::debug!("Collected {} base_files", base_files.len());
+    log::debug!("Collected {} base_dirs", base_dirs.len());
+
+    // TODO TBD: If the logic is an exact match, this can be deduped with list_diff_entries
+    let mut dir_entries: Vec<DiffEntry> = vec![];
+    collect_added_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut dir_entries,
+        &dir,
+    )?;
+
+    collect_removed_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut dir_entries,
+        &dir,
+    )?;
+
+    collect_modified_directories(
+        repo,
+        &base_dirs,
+        base_commit,
+        &head_dirs,
+        head_commit,
+        &mut dir_entries,
+        &dir,
+    )?;
+
+    log::debug!("Collected {} dir_entries", dir_entries.len());
+    dir_entries = subset_dir_diffs_to_direct_children(dir_entries, dir.clone())?;
+    log::debug!("Filtered to {} dir_entries", dir_entries.len());
+
+    dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
+
+    let mut added_commit_entries: Vec<DiffFileNode> = vec![];
+    collect_added_entries(&base_files, &head_files, &mut added_commit_entries, &dir)?;
+
+    let mut removed_commit_entries: Vec<DiffFileNode> = vec![];
+    collect_removed_entries(&base_files, &head_files, &mut removed_commit_entries, &dir)?;
+
+    let mut modified_commit_entries: Vec<DiffFileNode> = vec![];
+    collect_modified_entries(&base_files, &head_files, &mut modified_commit_entries, &dir)?;
+
+    let counts = AddRemoveModifyCounts {
+        added: added_commit_entries.len(),
+        removed: removed_commit_entries.len(),
+        modified: modified_commit_entries.len(),
+    };
+
+    let mut combined: Vec<_> = added_commit_entries
+        .into_iter()
+        .chain(removed_commit_entries)
+        .chain(modified_commit_entries)
+        .collect();
+
+    // Filter out the entries that are not direct children of the provided dir
+    log::debug!("Combined {} combined", combined.len());
+    combined = subset_file_diffs_to_direct_children(combined, dir)?;
+    log::debug!("Filtered to {} combined", combined.len());
+
+    combined.sort_by(|a, b| a.path.cmp(&b.path));
+
+    let (files, pagination) =
+        util::paginate::paginate_files_assuming_dirs(&combined, dir_entries.len(), page, page_size);
+
+    let diff_entries: Vec<DiffEntry> = files
+        .into_iter()
+        .map(|entry| {
+            DiffEntry::from_file_nodes(
+                repo,
+                entry.path,
+                entry.base_entry,
+                base_commit,
+                entry.head_entry,
+                head_commit,
+                entry.status,
+                false,
+                None,
+            )
+        })
+        .collect::<Result<Vec<DiffEntry>, OxenError>>()?;
+
+    let (dirs, _) =
+        util::paginate::paginate_dirs_assuming_files(&dir_entries, combined.len(), page, page_size);
+
+    let all = dirs.into_iter().chain(diff_entries).collect();
+
+    Ok(DiffEntriesCounts {
+        entries: all,
+        counts,
+        pagination,
+    })
 }
 
 pub fn list_diff_entries(
@@ -31,9 +151,10 @@ pub fn list_diff_entries(
     page: usize,
     page_size: usize,
 ) -> Result<DiffEntriesCounts, OxenError> {
-    // Load the trees into memory
-    let base_tree = repositories::tree::get_by_commit(&repo, base_commit)?;
-    let head_tree = repositories::tree::get_by_commit(&repo, head_commit)?;
+    // Load the trees into memory starting at the given dir
+    let load_recursive = true;
+    let base_tree = CommitMerkleTree::from_path(repo, base_commit, &dir, load_recursive)?;
+    let head_tree = CommitMerkleTree::from_path(repo, head_commit, &dir, load_recursive)?;
 
     let (head_files, head_dirs) = repositories::tree::list_files_and_dirs(&head_tree)?;
     let (base_files, base_dirs) = repositories::tree::list_files_and_dirs(&base_tree)?;
@@ -51,6 +172,7 @@ pub fn list_diff_entries(
         &head_dirs,
         head_commit,
         &mut dir_entries,
+        &dir,
     )?;
     log::debug!("Collected {} added_dirs dir_entries", dir_entries.len());
     collect_removed_directories(
@@ -60,6 +182,7 @@ pub fn list_diff_entries(
         &head_dirs,
         head_commit,
         &mut dir_entries,
+        &dir,
     )?;
     log::debug!("Collected {} removed_dirs dir_entries", dir_entries.len());
     collect_modified_directories(
@@ -69,6 +192,7 @@ pub fn list_diff_entries(
         &head_dirs,
         head_commit,
         &mut dir_entries,
+        &dir,
     )?;
     dir_entries.sort_by(|a, b| a.filename.cmp(&b.filename));
     log::debug!("Collected {} modified_dirs dir_entries", dir_entries.len());
@@ -76,21 +200,21 @@ pub fn list_diff_entries(
     // the DiffEntry takes a little bit of time to compute, so want to just find the commit entries
     // then filter them down to the ones we need
     let mut added_commit_entries: Vec<DiffFileNode> = vec![];
-    collect_added_entries(&base_files, &head_files, &mut added_commit_entries)?;
+    collect_added_entries(&base_files, &head_files, &mut added_commit_entries, &dir)?;
     log::debug!(
         "Collected {} collect_added_entries",
         added_commit_entries.len()
     );
 
     let mut removed_commit_entries: Vec<DiffFileNode> = vec![];
-    collect_removed_entries(&base_files, &head_files, &mut removed_commit_entries)?;
+    collect_removed_entries(&base_files, &head_files, &mut removed_commit_entries, &dir)?;
     log::debug!(
         "Collected {} collect_removed_entries",
         removed_commit_entries.len()
     );
 
     let mut modified_commit_entries: Vec<DiffFileNode> = vec![];
-    collect_modified_entries(&base_files, &head_files, &mut modified_commit_entries)?;
+    collect_modified_entries(&base_files, &head_files, &mut modified_commit_entries, &dir)?;
     log::debug!(
         "Collected {} collect_modified_entries",
         modified_commit_entries.len()
@@ -114,7 +238,7 @@ pub fn list_diff_entries(
     log::debug!("Got {} initial dirs", dir_entries.len());
     log::debug!("Got {} files", files.len());
 
-    let diff_entries: Vec<DiffEntry> = files
+    let file_entries: Vec<DiffEntry> = files
         .into_iter()
         .map(|entry| {
             DiffEntry::from_file_nodes(
@@ -136,7 +260,7 @@ pub fn list_diff_entries(
     log::debug!("Got {} filtered dirs", dirs.len());
     log::debug!("Page num {} Page size {}", page, page_size);
 
-    let all = dirs.into_iter().chain(diff_entries).collect();
+    let all = dirs.into_iter().chain(file_entries).collect();
 
     Ok(DiffEntriesCounts {
         entries: all,
@@ -200,6 +324,7 @@ fn collect_added_directories(
     head_dirs: &HashSet<DirNodeWithPath>,
     head_commit: &Commit,
     diff_entries: &mut Vec<DiffEntry>,
+    base_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // DEBUG
     // for base_dir in base_dirs.iter() {
@@ -209,14 +334,14 @@ fn collect_added_directories(
     // for head_dir in head_dirs.iter() {
     //     log::debug!("collect_added_directories HEAD dir {:?}", head_dir);
     // }
-
+    let base_path = base_path.as_ref();
     for head_dir in head_dirs {
         // HEAD entry is *not* in BASE
         if !base_dirs.contains(head_dir) {
             log::debug!("collect_added_directories adding dir {:?}", head_dir);
             diff_entries.push(DiffEntry::from_dir_nodes(
                 repo,
-                &head_dir.path,
+                base_path.join(&head_dir.path),
                 None,
                 base_commit,
                 Some(head_dir.dir_node.clone()),
@@ -236,6 +361,7 @@ fn collect_removed_directories(
     head_dirs: &HashSet<DirNodeWithPath>,
     head_commit: &Commit,
     diff_entries: &mut Vec<DiffEntry>,
+    base_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // DEBUG
     // for base_dir in base_dirs.iter() {
@@ -251,14 +377,14 @@ fn collect_removed_directories(
     //         head_dir.display()
     //     );
     // }
-
+    let base_path = base_path.as_ref();
     for base_dir in base_dirs {
         // HEAD entry is *not* in BASE
         if !head_dirs.contains(base_dir) {
             log::debug!("collect_removed_directories adding dir {:?}", base_dir);
             diff_entries.push(DiffEntry::from_dir_nodes(
                 repo,
-                &base_dir.path,
+                base_path.join(&base_dir.path),
                 Some(base_dir.dir_node.clone()),
                 base_commit,
                 None,
@@ -278,14 +404,16 @@ fn collect_modified_directories(
     head_dirs: &HashSet<DirNodeWithPath>,
     head_commit: &Commit,
     diff_entries: &mut Vec<DiffEntry>,
+    base_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
+    let base_path = base_path.as_ref();
     for head_dir in head_dirs {
         // HEAD entry is in BASE
         if let Some(base_dir) = base_dirs.get(head_dir) {
             log::debug!("collect_modified_directories adding dir {:?}", head_dir);
             let diff_entry = DiffEntry::from_dir_nodes(
                 repo,
-                &head_dir.path,
+                base_path.join(&head_dir.path),
                 Some(base_dir.dir_node.clone()),
                 base_commit,
                 Some(head_dir.dir_node.clone()),
@@ -306,6 +434,7 @@ fn collect_added_entries(
     base_entries: &HashSet<FileNodeWithDir>,
     head_entries: &HashSet<FileNodeWithDir>,
     diff_entries: &mut Vec<DiffFileNode>,
+    base_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
     // log::debug!(
     //     "collect_added_entries Computing difference for add entries head {} base {}",
@@ -320,12 +449,12 @@ fn collect_added_entries(
     // for head in head_entries.iter() {
     //     log::debug!("collect_added_entries HEAD {:?}", head);
     // }
-
+    let base_path = base_path.as_ref();
     let diff = head_entries.difference(base_entries);
     for head_entry in diff {
         // HEAD entry is *not* in BASE
         diff_entries.push(DiffFileNode {
-            path: head_entry.dir.join(&head_entry.file_node.name),
+            path: base_path.join(head_entry.dir.join(&head_entry.file_node.name)),
             base_entry: None,
             head_entry: Some(head_entry.file_node.to_owned()),
             status: DiffEntryStatus::Added,
@@ -339,12 +468,14 @@ fn collect_removed_entries(
     base_entries: &HashSet<FileNodeWithDir>,
     head_entries: &HashSet<FileNodeWithDir>,
     diff_entries: &mut Vec<DiffFileNode>,
+    base_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
+    let base_path = base_path.as_ref();
     for base_entry in base_entries {
         // BASE entry is *not* in HEAD
         if !head_entries.contains(base_entry) {
             diff_entries.push(DiffFileNode {
-                path: base_entry.dir.join(&base_entry.file_node.name),
+                path: base_path.join(base_entry.dir.join(&base_entry.file_node.name)),
                 base_entry: Some(base_entry.file_node.to_owned()),
                 head_entry: None,
                 status: DiffEntryStatus::Removed,
@@ -359,7 +490,9 @@ fn collect_modified_entries(
     base_entries: &HashSet<FileNodeWithDir>,
     head_entries: &HashSet<FileNodeWithDir>,
     diff_entries: &mut Vec<DiffFileNode>,
+    base_path: impl AsRef<Path>,
 ) -> Result<(), OxenError> {
+    let base_path = base_path.as_ref();
     log::debug!(
         "collect_modified_entries modified entries base.len() {} head.len() {}",
         base_entries.len(),
@@ -376,7 +509,7 @@ fn collect_modified_entries(
             // HEAD entry has a different hash than BASE entry
             if head_entry.file_node.hash != base_entry.file_node.hash {
                 diff_entries.push(DiffFileNode {
-                    path: base_entry.dir.join(&base_entry.file_node.name),
+                    path: base_path.join(base_entry.dir.join(&base_entry.file_node.name)),
                     base_entry: Some(base_entry.file_node.to_owned()),
                     head_entry: Some(head_entry.file_node.to_owned()),
                     status: DiffEntryStatus::Modified,
@@ -385,4 +518,69 @@ fn collect_modified_entries(
         }
     }
     Ok(())
+}
+
+fn subset_dir_diffs_to_direct_children(
+    entries: Vec<DiffEntry>,
+    dir: PathBuf,
+) -> Result<Vec<DiffEntry>, OxenError> {
+    let mut filtered_entries: Vec<DiffEntry> = vec![];
+
+    for entry in entries {
+        log::debug!(
+            "subset_dir_diffs_to_direct_children entry.filename {:?} dir {:?}",
+            entry.filename,
+            dir
+        );
+
+        let status = DiffEntryStatus::from_str(&entry.status)?;
+        let relevant_entry = match status {
+            DiffEntryStatus::Added | DiffEntryStatus::Modified => entry.head_entry.as_ref(),
+            DiffEntryStatus::Removed => entry.base_entry.as_ref(),
+        };
+
+        if let Some(meta_entry) = relevant_entry {
+            if let Some(resource) = &meta_entry.resource {
+                let path = PathBuf::from(&resource.path);
+                log::debug!(
+                    "subset_dir_diffs_to_direct_children path {:?} dir {:?}",
+                    path,
+                    dir
+                );
+                if path.parent() == Some(dir.as_path()) {
+                    filtered_entries.push(entry);
+                }
+            }
+        }
+    }
+
+    Ok(filtered_entries)
+}
+
+fn subset_file_diffs_to_direct_children(
+    entries: Vec<DiffFileNode>,
+    dir: PathBuf,
+) -> Result<Vec<DiffFileNode>, OxenError> {
+    let mut filtered_entries: Vec<DiffFileNode> = vec![];
+
+    for entry in entries {
+        let relevant_entry = match entry.status {
+            DiffEntryStatus::Added | DiffEntryStatus::Modified => entry.head_entry.as_ref(),
+            DiffEntryStatus::Removed => entry.base_entry.as_ref(),
+        };
+
+        log::debug!(
+            "subset_file_diffs_to_direct_children entry.path {:?} dir {:?}",
+            entry.path,
+            dir
+        );
+
+        if relevant_entry.is_some() {
+            if entry.path.parent() == Some(dir.as_path()) {
+                filtered_entries.push(entry);
+            }
+        }
+    }
+
+    Ok(filtered_entries)
 }

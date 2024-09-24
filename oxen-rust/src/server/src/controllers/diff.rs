@@ -179,11 +179,12 @@ pub async fn dir_entries(
     let head_commit = head_commit.ok_or(OxenError::revision_not_found(head.into()))?;
     let dir = PathBuf::from(dir);
 
-    let entries_diff = repositories::diffs::list_diff_entries_in_dir_top_level(
+    let entries_diff = repositories::diffs::list_diff_entries(
+        // let entries_diff = repositories::diffs::list_diff_entries_in_dir_top_level(
         &repository,
-        dir.clone(),
         &base_commit,
         &head_commit,
+        dir.clone(),
         page,
         page_size,
     )?;
