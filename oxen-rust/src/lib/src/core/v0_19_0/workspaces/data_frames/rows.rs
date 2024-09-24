@@ -169,9 +169,13 @@ pub fn update(
     workspaces::files::track_modified_data_frame(workspace, path)?;
 
     let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
+    log::debug!("update() diff: {:?}", diff);
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            rm::remove_staged(&workspace.base_repo, &HashSet::from([path.to_path_buf()]))?;
+            rm::remove_staged(
+                &workspace.workspace_repo,
+                &HashSet::from([path.to_path_buf()]),
+            )?;
         }
     }
 
