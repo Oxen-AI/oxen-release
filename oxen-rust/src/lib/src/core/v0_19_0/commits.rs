@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use crate::core::refs::RefReader;
@@ -28,22 +28,36 @@ pub fn commit_with_user(
     super::index::commit_writer::commit_with_user(repo, message, user)
 }
 
-pub fn get_commit_or_head<S: AsRef<str>>(
+pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
-    if let Some(commit_id_or_branch_name) = commit_id_or_branch_name {
-        log::debug!(
-            "get_commit_or_head: commit_id_or_branch_name: {:?}",
-            commit_id_or_branch_name.as_ref()
-        );
-        let commit = get_by_id(repo, commit_id_or_branch_name)?;
-        if let Some(commit) = commit {
-            return Ok(commit);
+    match commit_id_or_branch_name {
+        Some(ref_name) => {
+            log::debug!("get_commit_or_head: ref_name: {:?}", ref_name.as_ref());
+            get_commit_by_ref(repo, ref_name)
+        }
+        None => {
+            log::debug!("get_commit_or_head: calling head_commit");
+            head_commit(repo)
         }
     }
-    log::debug!("get_commit_or_head: calling head_commit");
-    head_commit(repo)
+}
+
+fn get_commit_by_ref<S: AsRef<str> + Clone>(
+    repo: &LocalRepository,
+    ref_name: S,
+) -> Result<Commit, OxenError> {
+    get_by_id(repo, ref_name.clone())?
+        .or_else(|| get_commit_by_branch(repo, ref_name.as_ref()))
+        .ok_or_else(|| OxenError::basic_str("Commit not found"))
+}
+
+fn get_commit_by_branch(repo: &LocalRepository, branch_name: &str) -> Option<Commit> {
+    repositories::branches::get_by_name(repo, branch_name)
+        .ok()
+        .flatten()
+        .and_then(|branch| get_by_id(repo, branch.commit_id).ok().flatten())
 }
 
 pub fn latest_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
@@ -214,6 +228,35 @@ pub fn list_from(
         list_recursive(repo, commit, &mut results, None)?;
     }
     Ok(results)
+}
+
+/// Get commit history given a revision (branch name or commit id)
+pub fn list_from_with_depth(
+    repo: &LocalRepository,
+    revision: impl AsRef<str>,
+) -> Result<HashMap<Commit, usize>, OxenError> {
+    let mut results = HashMap::new();
+    let commit = repositories::revisions::get(repo, revision)?;
+    if let Some(commit) = commit {
+        list_recursive_with_depth(repo, commit, &mut results, 0)?;
+    }
+    Ok(results)
+}
+
+fn list_recursive_with_depth(
+    repo: &LocalRepository,
+    commit: Commit,
+    results: &mut HashMap<Commit, usize>,
+    depth: usize,
+) -> Result<(), OxenError> {
+    results.insert(commit.clone(), depth);
+    for parent_id in commit.parent_ids {
+        let parent_id = MerkleHash::from_str(&parent_id)?;
+        if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
+            list_recursive_with_depth(repo, parent_commit, results, depth + 1)?;
+        }
+    }
+    Ok(())
 }
 
 /// List the history between two commits

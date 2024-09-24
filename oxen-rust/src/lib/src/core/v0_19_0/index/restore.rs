@@ -178,17 +178,6 @@ pub fn restore_file(
     file_node: &FileNode,
     path: &PathBuf,
 ) -> Result<(), OxenError> {
-    log::debug!("restore::restore_file: start for {:?}", file_node.name);
-    do_restore_file(repo, file_node, path)?;
-    log::debug!("restore::restore_file: end");
-    Ok(())
-}
-
-fn do_restore_file(
-    repo: &LocalRepository,
-    file_node: &FileNode,
-    path: &PathBuf,
-) -> Result<(), OxenError> {
     log::debug!("restore::restore_regular: start for {:?}", file_node.name);
     log::debug!("restore::restore_regular: got entry resource");
 

@@ -1,11 +1,8 @@
-//! Writes merge conflicts to database
-//!
-
 use crate::constants::{MERGE_HEAD_FILE, ORIG_HEAD_FILE};
 use crate::core::db;
 use crate::core::merge;
 use crate::error::OxenError;
-use crate::model::{Commit, LocalRepository, MergeConflict};
+use crate::model::{merge_conflict::NodeMergeConflict, Commit, LocalRepository};
 use crate::util;
 
 use rocksdb::DB;
@@ -15,7 +12,7 @@ pub fn write_conflicts_to_db(
     repo: &LocalRepository,
     merge_commit: &Commit,
     base_commit: &Commit,
-    conflicts: &[MergeConflict],
+    conflicts: &[NodeMergeConflict],
 ) -> Result<(), OxenError> {
     let db_path = merge::db_path(repo);
     let opts = db::key_val::opts::default();
@@ -30,7 +27,7 @@ pub fn write_conflicts_to_disk(
     db: &DB,
     merge_commit: &Commit,
     base_commit: &Commit,
-    conflicts: &[MergeConflict],
+    conflicts: &[NodeMergeConflict],
 ) -> Result<(), OxenError> {
     // Write two files which are the merge commit and head commit so that we can make these parents later
     let hidden_dir = util::fs::oxen_hidden_dir(&repo.path);
@@ -40,7 +37,8 @@ pub fn write_conflicts_to_disk(
     util::fs::write_to_path(orig_head_path, &base_commit.id)?;
 
     for conflict in conflicts.iter() {
-        let key = conflict.base_entry.path.to_str().unwrap();
+        let (_, base_path) = &conflict.base_entry;
+        let key = base_path.to_str().unwrap();
         let key_bytes = key.as_bytes();
         let val_json = serde_json::to_string(&conflict)?;
 
