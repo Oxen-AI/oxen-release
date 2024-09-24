@@ -62,7 +62,10 @@ pub async fn rm(
     remove(paths, repo, opts)
 }
 
-pub fn remove_staged_recursively(repo: &LocalRepository, path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub fn remove_staged_recursively(
+    repo: &LocalRepository,
+    path: impl AsRef<Path>,
+) -> Result<(), OxenError> {
     let path = path.as_ref();
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
@@ -246,7 +249,10 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
     Ok(())
 }
 
-fn remove_staged_entry(path: &PathBuf, staged_db: &DBWithThreadMode<MultiThreaded>) -> Result<(), OxenError> {
+fn remove_staged_entry(
+    path: &PathBuf,
+    staged_db: &DBWithThreadMode<MultiThreaded>,
+) -> Result<(), OxenError> {
     log::debug!("remove_staged path: {:?}", path);
     staged_db.delete(path.to_str().unwrap())?;
     Ok(())
