@@ -73,27 +73,18 @@ fn parse_glob_path(
         }
     } else if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
+            // Match against any untracked entries in the current dir
+
             for entry in glob(path_str)? {
                 let full_path = repo.path.join(entry?);
-
-                if full_path.is_dir() {
-                    let error = format!("`oxen rm` on directory {path:?} requires -r");
-                    return Err(OxenError::basic_str(error));
-                }
-
                 paths.insert(full_path);
             }
         } else {
             // Non-glob path
-
-            if path.is_dir() {
-                let error = format!("`oxen rm` on directory {path:?} requires -r");
-                return Err(OxenError::basic_str(error));
-            }
-
             let full_path = repo.path.join(path);
-            paths.insert(full_path.to_owned());
+            paths.insert(path.to_owned());
         }
+
     }
 
     log::debug!("parse_glob_paths: {paths:?}");
@@ -104,7 +95,7 @@ fn parse_glob_path(
 mod tests {
     use std::path::Path;
     use std::path::PathBuf;
-
+    use crate::repositories::entries;
     use crate::command;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
@@ -349,7 +340,7 @@ mod tests {
                 }
             }
 
-            let entries = repositories::entries::list_for_commit(&repo, &commit)?;
+            let entries = entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;

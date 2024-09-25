@@ -21,6 +21,7 @@ use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
+use crate::opts::RmOpts;
 use std::ops::AddAssign;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
@@ -123,27 +124,24 @@ fn add_files(
                 }
             }
         } else {
-            // If the path doesn't exist, check if it's in the head commit
-            // If so, stage it for removal
-            // TODO: Should these removals contribute to the cumulative stats?
-            let file_path = path.file_name().unwrap();
-            let mut maybe_dir_node = None;
-            log::debug!("Found non-existant path: {file_path:?}");
-            if let Some(head_commit) = maybe_head_commit.clone() {
-                let path = util::fs::path_relative_to_dir(path, &repo.path)?;
-                let parent_path = path.parent().unwrap_or(Path::new(""));
-                maybe_dir_node =
-                    CommitMerkleTree::dir_with_children(repo, &head_commit, parent_path)?;
-            }
+            // TODO: Should there be a way to add non-existant dirs? I think it's safer to just require rm for those?
+            log::debug!("Found nonexistant path {path:?}. Staging for removal. Recursive flag not set");
+            let opts = RmOpts::from_path(path);
 
-            if let Ok(Some(_dir_node)) = get_dir_node(&maybe_dir_node, file_path) {
-                log::debug!("non-existant path {file_path:?} was dir. Calling remove_dir");
-                // This goes directly to remove_dir because we can't detect the type of a non-existant file
-                core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone())?;
-            } else if let Ok(Some(file_node)) = get_file_node(&maybe_dir_node, file_path) {
-                log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
-                // core::v0_19_0::rm::remove_file(repo, &maybe_head_commit.clone().unwrap(), &path.clone(), &file_node)?;
+            // TODO: Currently, this function's error isn't handled. But, handling it would require making add_files async
+            repositories::rm(repo, &opts);
+
+            /*
+            match repositories::rm(repo, &opts) {
+                Ok(()) => {
+                    log::debug!("Sucessfully removed non-existant path {path:?}");
+                }
+                Err(err) => {
+                    log::debug!("Err removing non-existant path {path:?}: {err:?}");
+                    return Err(OxenError::basic_str(err));
+                }
             }
+            */
         }
     }
 
