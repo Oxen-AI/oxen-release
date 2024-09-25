@@ -13,6 +13,7 @@ use crate::repositories;
 use crate::view::DataTypeCount;
 use rayon::prelude::*;
 
+use crate::constants::ROOT_PATH;
 use crate::core::df;
 use crate::core::v0_10_0::cache::cachers;
 use crate::core::v0_10_0::index;
@@ -22,10 +23,8 @@ use crate::model::{
     Commit, CommitEntry, EntryDataType, LocalRepository, MetadataEntry, ParsedResource,
 };
 use crate::view::PaginatedDirEntries;
-use crate::constants::ROOT_PATH;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-
 
 /// Get a directory object for a commit
 pub fn get_directory(
@@ -59,7 +58,6 @@ pub fn list_commit_entries(
 ) -> Result<PaginatedDirEntries, OxenError> {
     list_directory_w_version(repo, ROOT_PATH, revision, paginate_opts, repo.min_version())
 }
-
 
 /// List all the entries within a directory given a specific commit
 pub fn list_directory(
@@ -121,20 +119,17 @@ pub fn get_meta_entry(
     }
 }
 
-/// List the paths of all the directories in a given commit 
-pub fn list_dir_paths(
-    repo: &LocalRepository,
-    commit: &Commit,
-) -> Result<Vec<PathBuf>, OxenError> {
-    match repo.min_version() { 
+/// List the paths of all the directories in a given commit
+pub fn list_dir_paths(repo: &LocalRepository, commit: &Commit) -> Result<Vec<PathBuf>, OxenError> {
+    match repo.min_version() {
         MinOxenVersion::V0_10_0 => {
             let dir_reader = CommitEntryReader::new(&repo, &commit)?;
             dir_reader.list_dirs()
-        },
+        }
         MinOxenVersion::V0_19_0 => {
             let tree = core::v0_19_0::index::CommitMerkleTree::from_commit(&repo, &commit)?;
             tree.list_dir_paths()
-        }, 
+        }
     }
 }
 
