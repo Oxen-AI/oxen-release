@@ -218,10 +218,8 @@ pub fn query(
     let col_names = select_cols_from_schema(&schema)?;
 
     let select = Select::new().select(&col_names).from(TABLE_NAME);
-    log::debug!("query(): {}", select);
-    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
 
-    log::debug!("df: {:?}", df);
+    let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
 
     Ok(df)
 }
