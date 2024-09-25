@@ -164,11 +164,11 @@ pub fn read_staged_entries_below_path(
             // key = file path
             // value = EntryMetaData
             Ok((key, value)) => {
-                log::debug!("Key is {key:?}, value is {value:?}");
+                // log::debug!("Key is {key:?}, value is {value:?}");
                 let key = str::from_utf8(&key)?;
                 let path = Path::new(key);
                 let entry: StagedMerkleTreeNode = rmp_serde::from_slice(&value).unwrap();
-                log::debug!("read_staged_entries key {} entry: {}", key, entry);
+                // log::debug!("read_staged_entries key {} entry: {}", key, entry);
                 let key_path = PathBuf::from(key);
                 dir_entries.insert(key_path, vec![]);
 
@@ -389,12 +389,21 @@ fn find_untracked_and_modified_paths(
             let full_dir = repo.path.join(&relative_dir);
             let files = CommitMerkleTree::node_files_and_folders(&dir_node)?;
             for child in files {
-                log::debug!("find_untracked_and_modified_paths checking if child {} is removed", child);
+                log::debug!(
+                    "find_untracked_and_modified_paths checking if child {} is removed",
+                    child
+                );
                 match &child.node {
                     EMerkleTreeNode::File(file) => {
                         if is_removed(file, &full_dir) {
-                            log::debug!("find_untracked_and_modified_paths is removed! dir {:?} child {}", full_dir, child);
-                            staged_data.removed_files.push(relative_dir.join(&file.name));
+                            log::debug!(
+                                "find_untracked_and_modified_paths is removed! dir {:?} child {}",
+                                full_dir,
+                                child
+                            );
+                            staged_data
+                                .removed_files
+                                .push(relative_dir.join(&file.name));
                         }
                     }
                     _ => {}

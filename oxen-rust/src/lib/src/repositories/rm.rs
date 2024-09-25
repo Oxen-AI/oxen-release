@@ -84,7 +84,6 @@ fn parse_glob_path(
             let full_path = repo.path.join(path);
             paths.insert(path.to_owned());
         }
-
     }
 
     log::debug!("parse_glob_paths: {paths:?}");
@@ -93,17 +92,17 @@ fn parse_glob_path(
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-    use std::path::PathBuf;
-    use crate::repositories::entries;
     use crate::command;
     use crate::error::OxenError;
     use crate::model::StagedEntryStatus;
     use crate::opts::RestoreOpts;
     use crate::opts::RmOpts;
     use crate::repositories;
+    use crate::repositories::entries;
     use crate::test;
     use crate::util;
+    use std::path::Path;
+    use std::path::PathBuf;
 
     /// Should be able to use `oxen rm -r` then restore to get files back
     ///
@@ -774,8 +773,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_rm_dir() -> Result<(), OxenError> {
+    async fn test_rm_train_dir() -> Result<(), OxenError> {
         test::run_select_data_repo_test_committed_async("train", |repo| async move {
+            let head_commit = repositories::commits::head_commit(&repo)?;
+            let og_tree = repositories::tree::get_by_commit(&repo, &head_commit)?;
+            println!("og tree");
+            og_tree.print();
+
             // Remove the train dir
             let path = Path::new("train");
 
@@ -802,7 +806,11 @@ mod tests {
 
             // make sure the train dir is deleted from the commits db
             let tree = repositories::tree::get_by_commit(&repo, &commit)?;
-            assert!(!tree.has_dir(path));
+            println!("tree after rm train dir");
+            tree.print();
+            let has_dir = tree.has_dir(path);
+            println!("has_dir: {:?}", has_dir);
+            assert!(!has_dir);
 
             Ok(())
         })

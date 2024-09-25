@@ -217,6 +217,9 @@ pub fn commit_dir_entries_new(
     )?;
     commit_progress_bar.finish_and_clear();
 
+    // Remove all the directories that are staged for removal
+    cleanup_rm_dirs(&dir_hash_db, &dir_entries)?;
+
     // Close the connection before removing the staged db
     let staged_db_path = staged_db.path().to_owned();
     drop(staged_db);
@@ -315,10 +318,34 @@ pub fn commit_dir_entries(
     )?;
     commit_progress_bar.finish_and_clear();
 
+    // Remove all the directories that are staged for removal
+    cleanup_rm_dirs(&dir_hash_db, &dir_entries)?;
+
     // Clear the staged db
     util::fs::remove_dir_all(staged_db_path)?;
 
     Ok(node.to_commit())
+}
+
+fn cleanup_rm_dirs(
+    dir_hash_db: &DBWithThreadMode<SingleThreaded>,
+    dir_entries: &HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+) -> Result<(), OxenError> {
+    for (path, entries) in dir_entries.iter() {
+        for entry in entries.iter() {
+            match &entry.node.node {
+                EMerkleTreeNode::Directory(dir_node) => {
+                    if entry.status == StagedEntryStatus::Removed {
+                        let dir_path = path.join(&dir_node.name);
+                        let key = dir_path.to_str().unwrap();
+                        dir_hash_db.delete(key)?;
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(())
 }
 
 fn node_data_to_staged_node(
@@ -692,12 +719,21 @@ fn r_create_dir_node(
                         dir_node
                     };
 
-                    // Always write the dir hash to the dir_hashes db
+                    // Write the dir hash to the dir_hashes db or delete it if it has children
+                    log::debug!(
+                        "dir entry has {} children {:?} ",
+                        entry.node.children.len(),
+                        dir_path
+                    );
+                    // if entry.node.children.is_empty() {
+                    //     str_val_db::delete(dir_hash_db, dir_path.to_str().unwrap())?;
+                    // } else {
                     str_val_db::put(
                         dir_hash_db,
                         dir_path.to_str().unwrap(),
                         &dir_node.hash.to_string(),
                     )?;
+                    // }
                 }
                 EMerkleTreeNode::File(file_node) => {
                     let mut file_node = file_node.clone();

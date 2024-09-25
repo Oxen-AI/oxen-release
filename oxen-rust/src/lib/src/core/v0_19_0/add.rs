@@ -19,9 +19,9 @@ use crate::constants::{FILES_DIR, OXEN_HIDDEN_DIR, STAGED_DIR, VERSIONS_DIR};
 use crate::core::db;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::model::{Commit, EntryDataType, MerkleHash, StagedEntryStatus};
+use crate::opts::RmOpts;
 use crate::{error::OxenError, model::LocalRepository};
 use crate::{repositories, util};
-use crate::opts::RmOpts;
 use std::ops::AddAssign;
 
 use crate::core::v0_19_0::index::CommitMerkleTree;
@@ -125,7 +125,9 @@ fn add_files(
             }
         } else {
             // TODO: Should there be a way to add non-existant dirs? I think it's safer to just require rm for those?
-            log::debug!("Found nonexistant path {path:?}. Staging for removal. Recursive flag not set");
+            log::debug!(
+                "Found nonexistant path {path:?}. Staging for removal. Recursive flag not set"
+            );
             let opts = RmOpts::from_path(path);
 
             // TODO: Currently, this function's error isn't handled. But, handling it would require making add_files async

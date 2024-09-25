@@ -11,7 +11,7 @@ use crate::core::v0_19_0::index::MerkleNodeDB;
 
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 
-use crate::model::merkle_tree::node::{FileNode, DirNode, MerkleTreeNode};
+use crate::model::merkle_tree::node::{DirNode, FileNode, MerkleTreeNode};
 
 use crate::error::OxenError;
 use crate::model::Commit;
@@ -259,6 +259,8 @@ impl CommitMerkleTree {
     }
 
     pub fn has_dir(&self, path: impl AsRef<Path>) -> bool {
+        log::debug!("has_dir path: {:?}", path.as_ref());
+        log::debug!("has_dir dir_hashes: {:?}", self.dir_hashes);
         let path = path.as_ref();
         self.dir_hashes.contains_key(path)
     }
