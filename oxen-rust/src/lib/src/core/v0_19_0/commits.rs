@@ -113,13 +113,19 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     Ok(commit.to_commit())
 }
 
+/// Get the root commit of the repository or None
 pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
-    if let Some(commit) = head_commit_maybe(repo)? {
-        let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
-        Ok(Some(root_commit))
-    } else {
-        Ok(None)
+    // Try to get a branch ref and follow it to the root
+    // We only need to look at one ref as all branches will have the same root
+    let ref_reader = RefReader::new(repo)?;
+    if let Some(branch) = ref_reader.list_branches()?.first() {
+        if let Some(commit) = get_by_id(repo, &branch.commit_id)? {
+            let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
+            return Ok(Some(root_commit));
+        }
     }
+    log::debug!("root_commit_maybe: no root commit found");
+    Ok(None)
 }
 
 fn root_commit_recursive(
