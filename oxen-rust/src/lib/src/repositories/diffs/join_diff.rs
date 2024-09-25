@@ -14,14 +14,15 @@ use crate::view::compare::{
 };
 
 use polars::chunked_array::ops::SortMultipleOptions;
-use polars::datatypes::{AnyValue, StringChunked};
+use polars::datatypes::AnyValue;
 use polars::lazy::dsl::coalesce;
 use polars::lazy::dsl::{all, as_struct, col, GetOutput};
 use polars::lazy::frame::IntoLazy;
+use polars::prelude::NamedFrom;
 use polars::prelude::SchemaExt;
 use polars::prelude::{ChunkCompare, PlSmallStr};
 use polars::prelude::{DataFrame, DataFrameJoinOps};
-use polars::series::IntoSeries;
+use polars::series::Series;
 
 use super::{tabular, SchemaDiff};
 
@@ -351,13 +352,42 @@ fn add_diff_status_column(
                     move |s| {
                         let ca = s.struct_()?;
                         let s_a = &ca.fields_as_series();
-                        let out: StringChunked = s_a
+
+                        let num_rows = s_a[0].len();
+                        let num_columns = s_a.len();
+                        let mut results = vec![];
+                        for i in 0..num_rows {
+                            // log::debug!("row: {:?}", i);
+                            let mut row = vec![];
+                            for j in 0..num_columns {
+                                let elem = s_a[j].get(i).unwrap();
+                                // log::debug!("column: {:?} elem: {:?}", j, elem);
+                                row.push(elem);
+                            }
+                            let key_left = row.get(0);
+                            let key_right = row.get(1);
+                            let target_hash_left = row.get(2);
+                            let target_hash_right = row.get(3);
+
+                            results.push(test_function(
+                                key_left,
+                                key_right,
+                                target_hash_left,
+                                target_hash_right,
+                                has_targets,
+                            ));
+                        }
+                        Ok(Some(Series::new(PlSmallStr::from_str(""), results)))
+
+                        /*let out: StringChunked = s_a
                             .iter()
                             .map(|row| {
                                 let key_left = row.get(0).ok();
                                 let key_right = row.get(1).ok();
                                 let target_hash_left = row.get(2).ok();
                                 let target_hash_right = row.get(3).ok();
+
+
 
                                 test_function(
                                     key_left,
@@ -370,6 +400,7 @@ fn add_diff_status_column(
                             .collect();
 
                         Ok(Some(out.into_series()))
+                        */
                     },
                     GetOutput::from_type(polars::prelude::DataType::String),
                 )
@@ -405,10 +436,10 @@ fn calculate_compare_mods(joined_df: &DataFrame) -> Result<AddRemoveModifyCounts
 }
 
 fn test_function(
-    key_left: Option<AnyValue>,
-    key_right: Option<AnyValue>,
-    target_hash_left: Option<AnyValue>,
-    target_hash_right: Option<AnyValue>,
+    key_left: Option<&AnyValue>,
+    key_right: Option<&AnyValue>,
+    target_hash_left: Option<&AnyValue>,
+    target_hash_right: Option<&AnyValue>,
     has_targets: bool,
 ) -> String {
     // TODO better error handling

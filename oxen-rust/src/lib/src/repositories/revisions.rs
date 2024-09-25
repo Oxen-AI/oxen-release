@@ -2,12 +2,11 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::v0_10_0::index::object_db_reader::get_object_reader;
-use crate::core::v0_10_0::index::CommitDirEntryReader;
+use crate::core;
+use crate::core::versions::MinOxenVersion;
 use crate::error::OxenError;
 use crate::model::{Commit, LocalRepository};
 use crate::repositories;
-use crate::util;
 
 /// Get a commit object from a commit id or branch name
 /// Returns Ok(None) if the revision does not exist
@@ -44,28 +43,12 @@ pub fn get_version_file_from_commit_id(
     commit_id: impl AsRef<str>,
     path: impl AsRef<Path>,
 ) -> Result<PathBuf, OxenError> {
-    let commit_id = commit_id.as_ref();
-    let path = path.as_ref();
-    let parent = match path.parent() {
-        Some(parent) => parent,
-        None => return Err(OxenError::file_has_no_parent(path)),
-    };
-
-    let object_reader = get_object_reader(repo, commit_id)?;
-
-    // Instantiate CommitDirEntryReader to fetch entry
-    let relative_parent = util::fs::path_relative_to_dir(parent, &repo.path)?;
-    let commit_entry_reader =
-        CommitDirEntryReader::new(repo, commit_id, &relative_parent, object_reader)?;
-    let file_name = match path.file_name() {
-        Some(file_name) => file_name,
-        None => return Err(OxenError::file_has_no_name(path)),
-    };
-
-    let entry = match commit_entry_reader.get_entry(file_name) {
-        Ok(Some(entry)) => entry,
-        _ => return Err(OxenError::entry_does_not_exist_in_commit(path, commit_id)),
-    };
-
-    Ok(util::fs::version_path(repo, &entry))
+    match repo.min_version() {
+        MinOxenVersion::V0_19_0 => {
+            core::v0_19_0::revisions::get_version_file_from_commit_id(repo, commit_id, path)
+        }
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::revisions::get_version_file_from_commit_id(repo, commit_id, path)
+        }
+    }
 }

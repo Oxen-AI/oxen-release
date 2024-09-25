@@ -246,9 +246,9 @@ mod tests {
     use crate::model::diff::DiffResult;
     use crate::model::NewCommitBody;
     use crate::opts::DFOpts;
-    use crate::repositories;
     use crate::repositories::workspaces;
     use crate::test;
+    use crate::{repositories, util};
 
     #[test]
     fn test_add_row() -> Result<(), OxenError> {
@@ -522,16 +522,23 @@ mod tests {
             let file_1 = repositories::revisions::get_version_file_from_commit_id(
                 &repo, &commit.id, &file_path,
             )?;
+            // copy the file to the same path but with .csv as the extension
+            let file_1_csv = file_1.with_extension("csv");
+            util::fs::copy(&file_1, &file_1_csv)?;
+            log::debug!("copied file 1 to {:?}", file_1_csv);
 
             let file_2 = repositories::revisions::get_version_file_from_commit_id(
                 &repo,
                 commit_2.id,
                 &file_path,
             )?;
-
+            let file_2_csv = file_2.with_extension("csv");
+            util::fs::copy(&file_2, &file_2_csv)?;
+            log::debug!("copied file 2 to {:?}", file_2_csv);
             let diff_result =
-                repositories::diffs::diff_files(file_1, file_2, vec![], vec![], vec![])?;
+                repositories::diffs::diff_files(file_1_csv, file_2_csv, vec![], vec![], vec![])?;
 
+            log::debug!("diff result is {:?}", diff_result);
             match diff_result {
                 DiffResult::Tabular(tabular_diff) => {
                     let removed_rows = tabular_diff.summary.modifications.row_counts.removed;

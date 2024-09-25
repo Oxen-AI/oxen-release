@@ -22,7 +22,6 @@ use std::sync::Mutex;
 
 use crate::constants::STAGED_DIR;
 use crate::constants::VERSIONS_DIR;
-use crate::model::merkle_tree::node::DirNode;
 use crate::model::Commit;
 use crate::model::StagedEntryStatus;
 

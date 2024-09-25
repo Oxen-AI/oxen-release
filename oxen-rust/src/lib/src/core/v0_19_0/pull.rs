@@ -10,11 +10,11 @@ pub async fn pull(repo: &LocalRepository) -> Result<(), OxenError> {
     pull_remote_branch(repo, &rb.remote, &rb.branch, false).await
 }
 
-pub async fn pull_shallow(repo: &LocalRepository) -> Result<(), OxenError> {
+pub async fn pull_shallow(_repo: &LocalRepository) -> Result<(), OxenError> {
     todo!()
 }
 
-pub async fn pull_all(repo: &LocalRepository) -> Result<(), OxenError> {
+pub async fn pull_all(_repo: &LocalRepository) -> Result<(), OxenError> {
     todo!()
 }
 
