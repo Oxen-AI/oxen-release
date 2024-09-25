@@ -4,7 +4,7 @@ use polars::frame::DataFrame;
 use sql_query_builder::{Delete, Select};
 
 use crate::api;
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, OXEN_COLS, TABLE_NAME};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, TABLE_NAME, EXCLUDE_OXEN_COLS};
 use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
@@ -218,8 +218,10 @@ pub fn query(
     let col_names = select_cols_from_schema(&schema)?;
 
     let select = Select::new().select(&col_names).from(TABLE_NAME);
-
+    log::debug!("query(): {}", select);
     let df = df_db::select(&conn, &select, true, Some(&full_schema), Some(opts))?;
+
+    log::debug!("df: {:?}", df);
 
     Ok(df)
 }
@@ -439,7 +441,7 @@ pub fn restore(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), Oxen
 
 fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_rest()");
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
@@ -461,7 +463,7 @@ fn export_rest(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_csv()");
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
@@ -485,7 +487,7 @@ fn export_csv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_tsv()");
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
@@ -503,7 +505,7 @@ fn export_tsv(path: &Path, conn: &Connection) -> Result<(), OxenError> {
 
 fn export_parquet(path: &Path, conn: &Connection) -> Result<(), OxenError> {
     log::debug!("export_parquet()");
-    let excluded_cols = OXEN_COLS
+    let excluded_cols = EXCLUDE_OXEN_COLS
         .iter()
         .map(|col| format!("\"{}\"", col))
         .collect::<Vec<String>>()
