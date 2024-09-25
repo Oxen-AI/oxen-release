@@ -142,7 +142,7 @@ fn add_files(
                 core::v0_19_0::rm::remove_dir(repo, &maybe_head_commit, path.clone())?;
             } else if let Ok(Some(file_node)) = get_file_node(&maybe_dir_node, file_path) {
                 log::debug!("non-existant path {file_path:?} was file. Calling remove_file");
-                core::v0_19_0::rm::remove_file(repo, &path.clone(), &file_node)?;
+                // core::v0_19_0::rm::remove_file(repo, &maybe_head_commit.clone().unwrap(), &path.clone(), &file_node)?;
             }
         }
     }
