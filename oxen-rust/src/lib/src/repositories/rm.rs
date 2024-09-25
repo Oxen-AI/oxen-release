@@ -577,6 +577,7 @@ mod tests {
             repositories::rm(&repo, &opts).await?;
 
             let status = repositories::status(&repo)?;
+            log::debug!("status: {:?}", status);
             assert_eq!(status.staged_files.len(), 0);
 
             Ok(())
