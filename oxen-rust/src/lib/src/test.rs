@@ -17,7 +17,6 @@ use crate::opts::RmOpts;
 use crate::repositories;
 use crate::util;
 
-use env_logger::Env;
 use rand::distributions::Alphanumeric;
 use rand::Rng;
 use std::fs::File;
@@ -57,10 +56,8 @@ pub fn repo_remote_url_from(name: &str) -> String {
 }
 
 pub fn init_test_env() {
-    let env = Env::default();
-    if env_logger::try_init_from_env(env).is_ok() {
-        log::debug!("Logger initialized");
-    }
+    // check if logger is already initialized
+    util::logging::init_logging();
 
     unsafe {
         std::env::set_var("TEST", "true");

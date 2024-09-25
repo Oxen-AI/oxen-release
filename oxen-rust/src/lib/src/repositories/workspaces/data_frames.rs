@@ -344,6 +344,7 @@ mod tests {
 
             // List the files that are changed
             let status = workspaces::status::status(&workspace)?;
+            log::debug!("status is {:?}", status);
             assert_eq!(status.staged_files.len(), 1);
 
             // List the staged mods
@@ -625,7 +626,7 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_added_row() -> Result<(), OxenError> {
+    fn test_delete_added_single_row() -> Result<(), OxenError> {
         // Skip duckdb if on windows
         if std::env::consts::OS == "windows" {
             return Ok(());
