@@ -242,7 +242,8 @@ pub fn remove_staged(repo: &LocalRepository, paths: &HashSet<PathBuf>) -> Result
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
     for path in paths {
-        remove_staged_entry(&path, &staged_db)?;
+        let relative_path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+        remove_staged_entry(&relative_path, &staged_db)?;
     }
 
     Ok(())
