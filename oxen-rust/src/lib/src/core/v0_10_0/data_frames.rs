@@ -59,7 +59,7 @@ pub fn get_slice(
     {
         schema
     } else {
-        match df.schema() {
+        match df.collect_schema() {
             Ok(schema) => Ok(Schema::from_polars(&schema.to_owned())),
             Err(e) => {
                 log::error!("Error reading df: {}", e);

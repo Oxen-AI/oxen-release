@@ -4,14 +4,14 @@ use crate::{
     constants::{LAST_MIGRATION_FILE, OXEN_HIDDEN_DIR},
     error::OxenError,
     namespaces, repositories,
-    view::RepositoryView,
+    view::repository::RepositoryListView,
 };
 
 pub fn list_unmigrated(
     data_dir: &Path,
     migration_tstamp: String,
-) -> Result<Vec<RepositoryView>, OxenError> {
-    let mut result: Vec<RepositoryView> = vec![];
+) -> Result<Vec<RepositoryListView>, OxenError> {
+    let mut result: Vec<RepositoryListView> = vec![];
 
     let global_last_migration = data_dir.join(crate::constants::LAST_MIGRATION_FILE);
 
@@ -47,7 +47,7 @@ pub fn list_unmigrated(
                     repo_name,
                     repo_last_migration.to_string_lossy()
                 );
-                result.push(RepositoryView {
+                result.push(RepositoryListView {
                     namespace: namespace.clone(),
                     name: repo_name.to_string(),
                     min_version: None,
@@ -55,7 +55,7 @@ pub fn list_unmigrated(
             } else if let Ok(repo_last_migration) = std::fs::read_to_string(&repo_last_migration) {
                 if repo_last_migration <= migration_tstamp {
                     log::debug!("Repo migration file found for {} is out of date", repo_name);
-                    result.push(RepositoryView {
+                    result.push(RepositoryListView {
                         namespace: namespace.clone(),
                         name: repo_name.to_string(),
                         min_version: None,

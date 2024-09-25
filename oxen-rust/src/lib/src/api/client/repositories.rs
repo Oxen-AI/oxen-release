@@ -4,7 +4,9 @@ use crate::constants::{DEFAULT_HOST, DEFAULT_REMOTE_NAME};
 use crate::error::OxenError;
 use crate::model::{Branch, LocalRepository, Remote, RemoteRepository, RepoNew};
 use crate::repositories;
-use crate::view::repository::{RepositoryDataTypesResponse, RepositoryDataTypesView};
+use crate::view::repository::{
+    RepositoryCreationResponse, RepositoryDataTypesResponse, RepositoryDataTypesView,
+};
 use crate::view::{NamespaceView, RepositoryResponse, StatusMessage};
 use serde_json::json;
 use serde_json::value;
@@ -69,11 +71,7 @@ pub async fn get_by_name_host_and_remote(
 ) -> Result<Option<RemoteRepository>, OxenError> {
     let name = name.as_ref();
     let url = api::endpoint::remote_url_from_name(host.as_ref(), name);
-    log::debug!(
-        "api::client::repositories::get_by_name_host_and_remote({}) remote url: {}",
-        name,
-        url
-    );
+    log::debug!("get_by_name_host_and_remote({}) remote url: {}", name, url);
     let remote = Remote {
         name: String::from(remote.as_ref()),
         url,
@@ -87,9 +85,8 @@ pub async fn exists(repo: &RemoteRepository) -> Result<bool, OxenError> {
 }
 
 pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, OxenError> {
-    log::debug!("api::client::repositories::get_by_remote({:?})", remote);
     let url = api::endpoint::url_from_remote(remote, "")?;
-    log::debug!("api::client::repositories::get_by_remote url: {}", url);
+    log::debug!("get_by_remote url: {}", url);
 
     let client = client::new_for_url(&url)?;
     match client.get(&url).send().await {
@@ -108,7 +105,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
                 Err(err) => {
                     log::debug!("Err: {}", err);
                     Err(OxenError::basic_str(format!(
-                        "api::repositories::get_by_remote() Could not deserialize repository [{url}]"
+                        "get_by_remote Could not deserialize repository [{url}]"
                     )))
                 }
             }
@@ -116,7 +113,7 @@ pub async fn get_by_remote(remote: &Remote) -> Result<Option<RemoteRepository>, 
         Err(err) => {
             log::error!("Failed to get remote url {url}\n{err:?}");
             Err(OxenError::basic_str(format!(
-                "api::repositories::get_by_remote() Request failed at url {url}"
+                "get_by_remote Request failed at url {url}"
             )))
         }
     }
@@ -189,8 +186,8 @@ pub async fn create_empty(repo: RepoNew) -> Result<RemoteRepository, OxenError> 
             let body = client::parse_json_body(&url, res).await?;
 
             log::debug!("repositories::create response {}", body);
-            let response: RepositoryResponse = serde_json::from_str(&body)?;
-            Ok(RemoteRepository::from_view(
+            let response: RepositoryCreationResponse = serde_json::from_str(&body)?;
+            Ok(RemoteRepository::from_creation_view(
                 &response.repository,
                 &Remote {
                     url: api::endpoint::remote_url_from_namespace_name_scheme(
@@ -222,9 +219,10 @@ pub async fn create(repo_new: RepoNew) -> Result<RemoteRepository, OxenError> {
         let body = client::parse_json_body(&url, res).await?;
 
         log::debug!("repositories::create response {}", body);
-        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RepositoryCreationResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
-            Ok(response) => Ok(RemoteRepository::from_view(
+            Ok(response) => Ok(RemoteRepository::from_creation_view(
                 &response.repository,
                 &Remote {
                     url: api::endpoint::remote_url_from_namespace_name_scheme(
@@ -267,9 +265,10 @@ pub async fn create_from_local(
         let body = client::parse_json_body(&url, res).await?;
 
         log::debug!("repositories::create_from_local response {}", body);
-        let response: Result<RepositoryResponse, serde_json::Error> = serde_json::from_str(&body);
+        let response: Result<RepositoryCreationResponse, serde_json::Error> =
+            serde_json::from_str(&body);
         match response {
-            Ok(response) => Ok(RemoteRepository::from_view(
+            Ok(response) => Ok(RemoteRepository::from_creation_view(
                 &response.repository,
                 &Remote {
                     url: api::endpoint::remote_url_from_namespace_name(

@@ -78,10 +78,7 @@ pub fn commit_with_cfg(
     // Read the staged files from the staged db
     let opts = db::key_val::opts::default();
     let staged_db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
-    log::debug!(
-        "0.19.0::commit_writer::commit staged db path: {:?}",
-        staged_db_path
-    );
+    log::debug!("commit_with_cfg staged db path: {:?}", staged_db_path);
     let staged_db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&staged_db_path))?;
 
@@ -147,16 +144,9 @@ pub fn commit_dir_entries_new(
     commit_progress_bar: &ProgressBar,
 ) -> Result<Commit, OxenError> {
     let message = &new_commit.message;
-    // if the HEAD file exists, we have parents
+    // if the HEAD commit exists, we have parents
     // otherwise this is the first commit
-    let head_path = util::fs::oxen_hidden_dir(&repo.path).join(HEAD_FILE);
-
-    let maybe_head_commit = if head_path.exists() {
-        let commit = repositories::commits::head_commit(repo)?;
-        Some(commit)
-    } else {
-        None
-    };
+    let maybe_head_commit = repositories::commits::head_commit_maybe(repo)?;
 
     let mut parent_ids = vec![];
     if let Some(parent) = &maybe_head_commit {
@@ -174,7 +164,7 @@ pub fn commit_dir_entries_new(
     }
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
 
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
@@ -272,7 +262,7 @@ pub fn commit_dir_entries(
     }
 
     // Sort children and split into VNodes
-    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes)?;
+    let vnode_entries = split_into_vnodes(repo, &dir_entries, &existing_nodes, new_commit)?;
 
     // Compute the commit hash
     let timestamp = OffsetDateTime::now_utc();
@@ -378,9 +368,11 @@ fn split_into_vnodes(
     repo: &LocalRepository,
     entries: &HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
     existing_nodes: &HashMap<PathBuf, MerkleTreeNode>,
+    new_commit: &NewCommitBody,
 ) -> Result<HashMap<PathBuf, Vec<EntryVNode>>, OxenError> {
     let mut results: HashMap<PathBuf, Vec<EntryVNode>> = HashMap::new();
 
+    log::debug!("split_into_vnodes new_commit: {:?}", new_commit.message);
     log::debug!("split_into_vnodes entries keys: {:?}", entries.keys());
     log::debug!(
         "split_into_vnodes existing_nodes keys: {:?}",
@@ -407,8 +399,6 @@ fn split_into_vnodes(
         log::debug!("new_children {}", new_children.len());
 
         // Update the children with the new entries from status
-        // TODO: Handle updates and deletes, this is pure addition right now
-        // TODO: Re-implement rm commits
         for child in new_children.iter() {
             log::debug!(
                 "new_child {:?} {:?}",
@@ -422,7 +412,13 @@ fn split_into_vnodes(
                 if path != PathBuf::from("") {
                     match child.status {
                         StagedEntryStatus::Removed => {
-                            log::debug!("removing child {:?} {:?}", child, path);
+                            log::debug!(
+                                "removing child {:?} {:?} with {:?} {:?}",
+                                child.node.node.dtype(),
+                                path,
+                                child.node.node.dtype(),
+                                child.node.maybe_path().unwrap()
+                            );
                             children.remove(child);
                         }
                         _ => {
@@ -515,7 +511,11 @@ fn split_into_vnodes(
     // Make sure to update all the vnode ids based on all their children
 
     // TODO: We have to start from the bottom vnodes in the tree and update all the vnode ids above it
-    log::debug!("split_into_vnodes results: {:?}", results.len());
+    log::debug!(
+        "split_into_vnodes results: {:?} for commit {}",
+        results.len(),
+        new_commit.message
+    );
     for (dir, vnodes) in results.iter_mut() {
         log::debug!("dir {:?} has {} vnodes", dir, vnodes.len());
         for vnode in vnodes.iter_mut() {
@@ -592,14 +592,14 @@ fn r_create_dir_node(
 ) -> Result<(), OxenError> {
     let path = path.as_ref().to_path_buf();
 
-    log::debug!("r_create_dir_node entries.keys() {:?}", entries.keys());
+    log::debug!("r_create_dir_node entries.len() {:?}", entries.len());
 
     let Some(vnodes) = entries.get(&path) else {
-        let err_msg = format!(
+        log::debug!(
             "r_create_dir_node No entries found for directory {:?}",
             path
         );
-        return Err(OxenError::basic_str(err_msg));
+        return Ok(());
     };
 
     log::debug!("Processing dir {:?} with {} vnodes", path, vnodes.len());

@@ -23,7 +23,7 @@ pub async fn has_node(
 ) -> Result<bool, OxenError> {
     let uri = format!("/tree/nodes/{node_id}");
     let url = api::endpoint::url_from_repo(repository, &uri)?;
-    log::debug!("api::client::tree::get_by_id {}", url);
+    log::debug!("api::client::tree::has_node {}", url);
 
     let client = client::new_for_url(&url)?;
     let res = client.get(&url).send().await?;

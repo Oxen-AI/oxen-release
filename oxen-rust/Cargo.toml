@@ -33,7 +33,7 @@ approx = "0.5.1"
 async-compression = { version = "0.4.2", features = ["futures-io", "gzip"] }
 async-recursion = "1.0.5"
 async-std = { version = "1.12.0", features = ["unstable"] }
-async-tar = "0.4.2"
+async-tar = "0.5.0"
 async-trait = "0.1.80"
 arrow-json = "52.2.0"
 bincode = "1.3.3"
@@ -83,7 +83,7 @@ minus = { version = "5.4.0", features = ["static_output", "search"] }
 nom = "7.1.3"
 num_cpus = "1.16.0"
 pluralizer = "0.4.0"
-polars = { version = "0.42.0", features = [
+polars = { version = "0.43.1", features = [
     "lazy",
     "parquet",
     "json",
@@ -91,14 +91,14 @@ polars = { version = "0.42.0", features = [
     "ipc_streaming",
     "dtype-full",
 ] }
-polars-sql = "0.42.0"
+polars-sql = "0.43.1"
 os_path = "0.8.0"
 qsv-sniffer = "0.10.3"
 r2d2 = "0.8.10"
 rand = "0.8.5"
 rayon = "1.7.0"
 rmp-serde = "1.3.0"
-redis = { version = "0.26.1", features = ["r2d2"] }
+redis = { version = "0.27.2", features = ["r2d2"] }
 reqwest = { version = "0.12.5", features = [
     "multipart",
     "json",
