@@ -80,7 +80,7 @@ fn parse_glob_path(
 mod tests {
     use std::path::Path;
     use std::path::PathBuf;
-
+    use crate::repositories::entries;
     use crate::command;
     use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
@@ -188,7 +188,7 @@ mod tests {
             let entries = repositories::entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
-            let dirs = repositories::entries::list_dir_paths(&repo, &commit);
+            let dirs = repositories::entries::list_dir_paths(&repo, &commit)?;
             for dir in dirs.iter() {
                 println!("dir: {:?}", dir);
             }
@@ -328,10 +328,10 @@ mod tests {
                 }
             }
 
-            let entries = core::v0_19_0::entries::list_for_commit(&repo, &commit)?;
+            let entries = entries::list_for_commit(&repo, &commit)?;
             assert_eq!(entries.len(), 0);
 
-            let dirs = repositories::entries::list_dir_paths(&repo, &commit);
+            let dirs = repositories::entries::list_dir_paths(&repo, &commit)?;
             for dir in dirs.iter() {
                 println!("dir: {:?}", dir);
             }
