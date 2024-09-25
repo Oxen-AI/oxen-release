@@ -4,7 +4,7 @@ use polars::frame::DataFrame;
 use sql_query_builder::{Delete, Select};
 
 use crate::api;
-use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, TABLE_NAME, EXCLUDE_OXEN_COLS};
+use crate::constants::{DIFF_HASH_COL, DIFF_STATUS_COL, EXCLUDE_OXEN_COLS, TABLE_NAME};
 use crate::constants::{MODS_DIR, OXEN_HIDDEN_DIR};
 use crate::core::db::data_frames::workspace_df_db::select_cols_from_schema;
 use crate::core::db::data_frames::{df_db, workspace_df_db};
