@@ -33,7 +33,8 @@ pub fn has_conflicts(
     let merge_commit =
         repositories::commits::get_commit_or_head(repo, Some(merge_branch.commit_id.clone()))?;
 
-    can_merge_commits(repo, &base_commit, &merge_commit)
+    let res = can_merge_commits(repo, &base_commit, &merge_commit)?;
+    Ok(!res)
 }
 
 pub fn list_conflicts(repo: &LocalRepository) -> Result<Vec<NodeMergeConflict>, OxenError> {
@@ -496,7 +497,7 @@ fn create_merge_commit(
 
     let commit = commit_writer::commit_with_parent_ids(repo, &commit_msg, parent_ids)?;
 
-    rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
+    // rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
 
     Ok(commit)
 }
@@ -616,8 +617,12 @@ pub fn find_merge_conflicts(
     for merge_entry in merge_entries.iter() {
         // log::debug!("Considering entry {}", merge_entries.len());
         // Check if the entry exists in all 3 commits
-        if let Some(base_entry) = base_entries.get(merge_entry) {
-            if let Some(lca_entry) = lca_entries.get(merge_entry) {
+        if let Some(base_entry) = base_entries.iter().find(|(_, path)| path == &merge_entry.1) {
+            let (base_file_node, _base_path) = base_entry;
+
+            if let Some(lca_entry) = lca_entries.iter().find(|(_, path)| path == &merge_entry.1) {
+                let (lca_file_node, _lca_path) = lca_entry;
+
                 // If Base and LCA are the same but Merge is different, take merge
                 // log::debug!(
                 //     "Comparing hashes merge_entry {:?} BASE {} LCA {} MERGE {}",
@@ -626,8 +631,8 @@ pub fn find_merge_conflicts(
                 //     lca_entry.hash,
                 //     merge_entry.hash
                 // );
-                if base_entry.0.hash == lca_entry.0.hash
-                    && base_entry.0.hash != merge_entry.0.hash
+                if base_file_node.hash == lca_file_node.hash
+                    && base_file_node.hash != merge_entry.0.hash
                     && write_to_disk
                 {
                     log::debug!("top update entry");
@@ -635,9 +640,9 @@ pub fn find_merge_conflicts(
                 }
 
                 // If all three are different, mark as conflict
-                if base_entry.0.hash != lca_entry.0.hash
-                    && lca_entry.0.hash != merge_entry.0.hash
-                    && base_entry.0.hash != merge_entry.0.hash
+                if base_file_node.hash != lca_file_node.hash
+                    && lca_file_node.hash != merge_entry.0.hash
+                    && base_file_node.hash != merge_entry.0.hash
                 {
                     conflicts.push(NodeMergeConflict {
                         lca_entry: lca_entry.to_owned(),
@@ -647,7 +652,7 @@ pub fn find_merge_conflicts(
                 }
             } else {
                 // merge entry doesn't exist in LCA, so just check if it's different from base
-                if base_entry.0.hash != merge_entry.0.hash {
+                if base_file_node.hash != merge_entry.0.hash {
                     conflicts.push(NodeMergeConflict {
                         lca_entry: base_entry.to_owned(),
                         base_entry: base_entry.to_owned(),
