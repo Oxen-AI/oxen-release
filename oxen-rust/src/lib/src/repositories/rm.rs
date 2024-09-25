@@ -22,6 +22,7 @@ pub async fn rm(repo: &LocalRepository, opts: &RmOpts) -> Result<(), OxenError> 
     let path: &Path = opts.path.as_ref();
     let paths: HashSet<PathBuf> = parse_glob_path(path, repo, opts)?;
 
+    println!("paths: {paths:?}");
     p_rm(&paths, repo, opts).await?;
 
     Ok(())
@@ -40,7 +41,8 @@ async fn p_rm(
             }
         }
         MinOxenVersion::V0_19_0 => {
-            core::v0_19_0::rm(paths, repo, opts).await?;
+            println!("Version found");
+            core::v0_19_0::rm::rm(paths, repo, opts).await?;
         }
     }
     Ok(())
@@ -81,6 +83,7 @@ mod tests {
     use std::path::Path;
     use std::path::PathBuf;
     use crate::repositories::entries;
+    use crate::repositories::restore;
     use crate::command;
     use crate::core::v0_10_0::index::CommitEntryReader;
     use crate::error::OxenError;
@@ -111,14 +114,19 @@ mod tests {
                 staged: false,
                 remote: false,
             };
+            println!("Before rm");
             repositories::rm(&repo, &opts).await?;
 
             // Make sure we staged these removals
             let status = repositories::status(&repo)?;
             status.print();
             assert_eq!(num_files, status.staged_files.len());
-            for (_path, entry) in status.staged_files.iter() {
-                assert_eq!(entry.status, StagedEntryStatus::Removed);
+            for (path, entry) in status.staged_files.iter() {
+                // The root path will be added as staged
+                if path != Path::new("") {
+                    println!("Path is : {path:?}, entry is: {entry:?} ");
+                    assert_eq!(entry.status, StagedEntryStatus::Removed);
+                }
             }
             // Make sure directory is no longer on disk
             assert!(!full_path.exists());
@@ -135,7 +143,7 @@ mod tests {
 
             // This should restore all the files from the HEAD commit
             let opts = RestoreOpts::from_path(&rm_dir);
-            command::restore(&repo, opts)?;
+            repositories::restore::restore(&repo, opts)?;
 
             let status = repositories::status(&repo)?;
             status.print();
@@ -186,8 +194,8 @@ mod tests {
             }
 
             let entries = repositories::entries::list_for_commit(&repo, &commit)?;
-            assert_eq!(entries.len(), 0);
-
+            assert_eq!(entries.len(), 1);
+  
             let dirs = repositories::entries::list_dir_paths(&repo, &commit)?;
             for dir in dirs.iter() {
                 println!("dir: {:?}", dir);

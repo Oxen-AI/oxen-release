@@ -82,7 +82,7 @@ pub fn status_from_dir_entries(
 
     log::debug!("dir_entries.len(): {:?}", dir_entries.len());
     for (dir, entries) in dir_entries {
-        log::debug!(
+        println!(
             "dir_entries dir: {:?} entries.len(): {:?}",
             dir,
             entries.len()
