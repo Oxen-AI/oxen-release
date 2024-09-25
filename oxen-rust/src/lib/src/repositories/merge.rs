@@ -388,8 +388,8 @@ mod tests {
             // Remove the file
             let world_file = repo.path.join("world.txt");
             util::fs::remove_file(&world_file)?;
-
             // Commit the removal
+
             repositories::add(&repo, &world_file)?;
             repositories::commit(&repo, "Removing world file")?;
 
@@ -413,6 +413,7 @@ mod tests {
         })
         .await
     }
+
     #[tokio::test]
     async fn test_merge_one_commit_modified_fast_forward() -> Result<(), OxenError> {
         test::run_one_commit_local_repo_test_async(|repo| async move {
@@ -596,7 +597,7 @@ mod tests {
             // Checkout the OG branch again so that we can merge into it
             repositories::checkout(&repo, &a_branch.name).await?;
 
-            repositories::merge::merge(&repo, merge_branch_name)?.unwrap();
+            repositories::merge::merge(&repo, merge_branch_name)?;
 
             let conflict_reader = NodeMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
@@ -613,59 +614,59 @@ mod tests {
         .await
     }
 
-    // #[tokio::test]
-    // async fn test_merge_conflict_three_way_merge_post_merge_branch() -> Result<(), OxenError> {
-    //     test::run_one_commit_local_repo_test_async(|repo| async move {
-    //         // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
-    //         // should have a conflict from the LCA
+    #[tokio::test]
+    async fn test_merge_conflict_three_way_merge_post_merge_branch() -> Result<(), OxenError> {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
+            // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
+            // should have a conflict from the LCA
 
-    //         let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
-    //         let labels_path = repo.path.join("labels.txt");
-    //         util::fs::write_to_path(&labels_path, "cat\ndog")?;
-    //         repositories::add(&repo, &labels_path)?;
-    //         // Return the lowest common ancestor for the tests
-    //         repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
+            let og_branch = repositories::branches::current_branch(&repo)?.unwrap();
+            let labels_path = repo.path.join("labels.txt");
+            util::fs::write_to_path(&labels_path, "cat\ndog")?;
+            repositories::add(&repo, &labels_path)?;
+            // Return the lowest common ancestor for the tests
+            repositories::commit(&repo, "Add initial labels.txt file with cat and dog")?;
 
-    //         // Add a fish label to the file on a branch
-    //         let fish_branch_name = "add-fish-label";
-    //         repositories::branches::create_checkout(&repo, fish_branch_name)?;
-    //         let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
-    //         repositories::add(&repo, &labels_path)?;
-    //         repositories::commit(&repo, "Adding fish to labels.txt file")?;
+            // Add a fish label to the file on a branch
+            let fish_branch_name = "add-fish-label";
+            repositories::branches::create_checkout(&repo, fish_branch_name)?;
+            let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nfish")?;
+            repositories::add(&repo, &labels_path)?;
+            repositories::commit(&repo, "Adding fish to labels.txt file")?;
 
-    //         // Checkout main, and branch from it to another branch to add a human label
-    //         repositories::checkout(&repo, &og_branch.name).await?;
-    //         let human_branch_name = "add-human-label";
-    //         repositories::branches::create_checkout(&repo, human_branch_name)?;
-    //         let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
-    //         repositories::add(&repo, labels_path)?;
-    //         repositories::commit(&repo, "Adding human to labels.txt file")?;
+            // Checkout main, and branch from it to another branch to add a human label
+            repositories::checkout(&repo, &og_branch.name).await?;
+            let human_branch_name = "add-human-label";
+            repositories::branches::create_checkout(&repo, human_branch_name)?;
+            let labels_path = test::modify_txt_file(labels_path, "cat\ndog\nhuman")?;
+            repositories::add(&repo, labels_path)?;
+            repositories::commit(&repo, "Adding human to labels.txt file")?;
 
-    //         // Checkout main again
-    //         repositories::checkout(&repo, &og_branch.name).await?;
+            // Checkout main again
+            repositories::checkout(&repo, &og_branch.name).await?;
 
-    //         // Merge in a scope so that it closes the db
-    //         repositories::merge::merge(&repo, fish_branch_name)?.unwrap();
+            // Merge in a scope so that it closes the db
+            repositories::merge::merge(&repo, fish_branch_name)?;
 
-    //         // Checkout main again, merge again
-    //         repositories::checkout(&repo, &og_branch.name).await?;
-    //         repositories::merge::merge(&repo, human_branch_name)?.unwrap();
+            // Checkout main again, merge again
+            repositories::checkout(&repo, &og_branch.name).await?;
+            repositories::merge::merge(&repo, human_branch_name)?;
 
-    //         let conflict_reader = NodeMergeConflictReader::new(&repo)?;
-    //         let has_conflicts = conflict_reader.has_conflicts()?;
-    //         let conflicts = conflict_reader.list_conflicts()?;
+            let conflict_reader = NodeMergeConflictReader::new(&repo)?;
+            let has_conflicts = conflict_reader.has_conflicts()?;
+            let conflicts = conflict_reader.list_conflicts()?;
 
-    //         assert!(has_conflicts);
-    //         assert_eq!(conflicts.len(), 1);
+            assert!(has_conflicts);
+            assert_eq!(conflicts.len(), 1);
 
-    //         Ok(())
-    //     })
-    //     .await
-    // }
+            Ok(())
+        })
+        .await
+    }
 
     #[tokio::test]
     async fn test_merger_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
@@ -695,9 +696,8 @@ mod tests {
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
-            let merger = Merger::new(&repo)?;
-            // Should merge cleanly
-            let result = merger.merge(fish_branch_name)?;
+
+            let result = repositories::merge::merge(&repo, fish_branch_name)?;
             assert!(result.is_some());
 
             // But now there should be conflicts when trying to merge in the human branch
@@ -706,7 +706,8 @@ mod tests {
                 repositories::branches::get_by_name(&repo, human_branch_name)?.unwrap();
 
             // Check if there are conflicts
-            let has_conflicts = merger.has_conflicts(&base_branch, &merge_branch)?;
+            let has_conflicts =
+                repositories::merge::has_conflicts(&repo, &base_branch, &merge_branch)?;
             assert!(has_conflicts);
 
             Ok(())
@@ -716,7 +717,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_merge_conflicts_without_merging() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
@@ -746,16 +747,14 @@ mod tests {
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
-            let merger = Merger::new(&repo)?;
-            // Should merge cleanly
-            let result_commit = merger.merge(fish_branch_name)?;
+            let result_commit = repositories::merge::merge(&repo, fish_branch_name)?;
+
             assert!(result_commit.is_some());
 
             // There should be one file that is in conflict
-            let commit_reader = CommitReader::new(&repo)?;
             let base_commit = result_commit.unwrap();
-            let conflicts = merger.list_conflicts_between_commits(
-                &commit_reader,
+            let conflicts = repositories::merge::list_conflicts_between_commits(
+                &repo,
                 &base_commit,
                 &human_commit,
             )?;
