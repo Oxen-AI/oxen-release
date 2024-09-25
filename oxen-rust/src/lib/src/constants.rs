@@ -64,7 +64,15 @@ pub const TABLE_NAME: &str = "df";
 /// Oxen's internal row id column in duckdb remote staging tables
 pub const OXEN_COLS: [&str; 4] = [OXEN_ID_COL, DIFF_STATUS_COL, OXEN_ROW_ID_COL, DIFF_HASH_COL];
 /// Oxen's internal row id column to exclude from dfs
-pub const EXCLUDE_OXEN_COLS: [&str; 7] = [OXEN_ID_COL, DIFF_STATUS_COL, OXEN_ROW_ID_COL, DIFF_HASH_COL, EVAL_STATUS_COL, EVAL_ERROR_COL, EVAL_DURATION_COL];
+pub const EXCLUDE_OXEN_COLS: [&str; 7] = [
+    OXEN_ID_COL,
+    DIFF_STATUS_COL,
+    OXEN_ROW_ID_COL,
+    DIFF_HASH_COL,
+    EVAL_STATUS_COL,
+    EVAL_ERROR_COL,
+    EVAL_DURATION_COL,
+];
 pub const OXEN_ROW_ID_COL: &str = "_oxen_row_id";
 /// Oxen's internal id column in duckdb remote staging tables
 pub const OXEN_ID_COL: &str = "_oxen_id";
