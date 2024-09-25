@@ -5,13 +5,13 @@ pub use crate::core::merge::node_merge_conflict_db_reader::NodeMergeConflictDBRe
 use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
 use crate::core::merge::{db_path, node_merge_conflict_writer};
 use crate::core::refs::RefWriter;
-use crate::core::v0_10_0::index::CommitWriter;
 use crate::core::v0_19_0::commits::{get_commit_or_head, list_between};
+use crate::core::v0_19_0::index::commit_writer;
 use crate::core::v0_19_0::{add, rm, status};
 use crate::error::OxenError;
 use crate::model::merge_conflict::NodeMergeConflict;
 use crate::model::merkle_tree::node::FileNode;
-use crate::model::{Branch, Commit, LocalRepository};
+use crate::model::{Branch, Commit, LocalRepository, StagedData};
 use crate::repositories;
 use crate::repositories::merge::MergeCommits;
 use crate::util;
@@ -446,7 +446,9 @@ fn merge_commits(
         );
 
         let write_to_disk = true;
+
         let conflicts = find_merge_conflicts(repo, merge_commits, write_to_disk)?;
+
         log::debug!("Got {} conflicts", conflicts.len());
 
         if conflicts.is_empty() {
@@ -487,13 +489,13 @@ fn create_merge_commit(
 
     log::debug!("create_merge_commit {}", commit_msg);
 
-    let status = status::status(repo)?;
-    let commit_writer = CommitWriter::new(repo)?;
     let parent_ids: Vec<String> = vec![
         merge_commits.base.id.to_owned(),
         merge_commits.merge.id.to_owned(),
     ];
-    let commit = commit_writer.commit_with_parent_ids(&status, parent_ids, &commit_msg)?;
+
+    let commit = commit_writer::commit_with_parent_ids(repo, &commit_msg, parent_ids)?;
+
     rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
 
     Ok(commit)
@@ -516,8 +518,7 @@ fn create_merge_commit_on_branch(
     log::debug!("create_merge_commit_on_branch {}", commit_msg);
 
     // Create a commit with both parents
-    let status = status::status(repo)?;
-    let commit_writer = CommitWriter::new(repo)?;
+    // let commit_writer = CommitWriter::new(repo)?;
     let parent_ids: Vec<String> = vec![
         merge_commits.base.id.to_owned(),
         merge_commits.merge.id.to_owned(),
@@ -525,18 +526,7 @@ fn create_merge_commit_on_branch(
 
     // The author in this case is the pusher - the author of the merge commit
 
-    let cfg = UserConfig {
-        name: merge_commits.merge.author.clone(),
-        email: merge_commits.merge.email.clone(),
-    };
-
-    let commit = commit_writer.commit_with_parent_ids_on_branch(
-        &status,
-        parent_ids,
-        &commit_msg,
-        branch.clone(),
-        cfg,
-    )?;
+    let commit = commit_writer::commit_with_parent_ids(repo, &commit_msg, parent_ids)?;
 
     rm::remove_staged(repo, &HashSet::from([PathBuf::from("/")]))?;
 
@@ -612,11 +602,11 @@ pub fn find_merge_conflicts(
     let merge_commit_node = CommitMerkleTree::from_commit(repo, &merge_commits.merge)?;
 
     let lca_entries =
-        CommitMerkleTree::dir_entries_with_paths(&lca_commit_node.root, &PathBuf::from("/"))?;
+        CommitMerkleTree::dir_entries_with_paths(&lca_commit_node.root, &PathBuf::from(""))?;
     let base_entries =
-        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from("/"))?;
+        CommitMerkleTree::dir_entries_with_paths(&base_commit_node.root, &PathBuf::from(""))?;
     let merge_entries =
-        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from("/"))?;
+        CommitMerkleTree::dir_entries_with_paths(&merge_commit_node.root, &PathBuf::from(""))?;
 
     log::debug!("lca_entries.len() {}", lca_entries.len());
     log::debug!("base_entries.len() {}", base_entries.len());
