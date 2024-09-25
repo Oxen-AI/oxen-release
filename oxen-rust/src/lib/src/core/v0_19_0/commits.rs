@@ -272,9 +272,9 @@ pub fn list_between(
 
 /// Retrieve entries with filepaths matching a provided glob pattern
 pub fn search_entries(
-    repo: &LocalRepository,
-    commit: &Commit,
-    pattern: impl AsRef<str>,
+    _repo: &LocalRepository,
+    _commit: &Commit,
+    _pattern: impl AsRef<str>,
 ) -> Result<HashSet<PathBuf>, OxenError> {
     todo!()
 }

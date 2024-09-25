@@ -14,25 +14,29 @@ macro_rules! current_function {
 }
 
 pub fn init_logging() {
-    env_logger::Builder::from_env(Env::default())
+    match env_logger::Builder::from_env(Env::default())
         .format(|buf, record| {
-            fn truncate_from_left(s: &str, max_chars: usize) -> String {
-                s.chars()
-                    .skip(s.chars().count().saturating_sub(max_chars))
-                    .collect()
+            // Split string on a character and take the last part
+            fn take_last(s: &str, c: char) -> &str {
+                s.split(c).last().unwrap_or("")
             }
 
             writeln!(
                 buf,
-                "{} {} {}:{} [{}] - {}: {}",
-                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
-                record.module_path().unwrap_or(""),
-                truncate_from_left(record.file().unwrap_or("unknown"), 40),
-                record.line().unwrap_or(0),
+                "[{}] {} - {} {}:{} {}",
                 record.level(),
+                chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%.3f"),
                 record.target(),
+                take_last(record.file().unwrap_or("unknown"), '/'),
+                record.line().unwrap_or(0),
                 record.args()
             )
         })
-        .init();
+        .try_init()
+    {
+        Ok(_) => (),
+        Err(_) => {
+            // We already initialized the logger in tests
+        }
+    }
 }

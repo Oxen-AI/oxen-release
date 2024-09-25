@@ -29,13 +29,12 @@ use std::path::Path;
 
 pub fn add(
     workspace: &Workspace,
-    file_path: impl AsRef<Path>,
+    path: impl AsRef<Path>,
     data: &serde_json::Value,
 ) -> Result<DataFrame, OxenError> {
-    let file_path = file_path.as_ref();
-    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, file_path);
-    let row_changes_path =
-        repositories::workspaces::data_frames::row_changes_path(workspace, file_path);
+    let path = path.as_ref();
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
+    let row_changes_path = repositories::workspaces::data_frames::row_changes_path(workspace, path);
 
     log::debug!("add_row() got db_path: {:?}", db_path);
     let conn = df_db::get_connection(db_path)?;
@@ -57,7 +56,7 @@ pub fn add(
 
     rows::record_row_change(&row_changes_path, row_id, "added".to_owned(), row, None)?;
 
-    workspaces::files::add(workspace, file_path)?;
+    workspaces::files::track_modified_data_frame(workspace, path)?;
 
     Ok(result)
 }
@@ -131,7 +130,10 @@ pub fn delete(
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
-            rm::remove_staged(&workspace.base_repo, &HashSet::from([path.to_path_buf()]))?;
+            rm::remove_staged(
+                &workspace.workspace_repo,
+                &HashSet::from([path.to_path_buf()]),
+            )?;
         }
     }
     Ok(deleted_row)

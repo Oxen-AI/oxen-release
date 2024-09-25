@@ -252,7 +252,11 @@ fn remove_staged_entry(
     path: &PathBuf,
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<(), OxenError> {
-    log::debug!("remove_staged path: {:?}", path);
+    log::debug!(
+        "remove_staged path: {:?} from staged db {:?}",
+        path,
+        staged_db
+    );
     staged_db.delete(path.to_str().unwrap())?;
     Ok(())
 }
