@@ -11,16 +11,13 @@ use indicatif::ProgressBar;
 use indicatif::ProgressStyle;
 use rocksdb::IteratorMode;
 use tokio::time::Duration;
-use walkdir::WalkDir;
 
 use crate::core::v0_19_0::add::CumulativeStats;
 use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
 use crate::model::merkle_tree::node::EMerkleTreeNode;
 use crate::model::merkle_tree::node::MerkleTreeNode;
-use std::sync::Mutex;
 
 use crate::constants::STAGED_DIR;
-use crate::constants::VERSIONS_DIR;
 use crate::model::Commit;
 use crate::model::StagedEntryStatus;
 
@@ -32,12 +29,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::str;
 
-use crate::constants::FILES_DIR;
-use crate::constants::OXEN_HIDDEN_DIR;
-
 use rocksdb::{DBWithThreadMode, MultiThreaded};
 
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 pub async fn rm(
@@ -270,15 +263,6 @@ pub fn remove_file(
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
 
-    // Remove the file from the versions db
-    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-    let dst_dir = util::fs::version_dir_from_hash(&repo_path, node.hash.to_string());
-
-    if dst_dir.exists() {
-        // Remove the file from the versions db
-        util::fs::remove_dir_all(&dst_dir)?;
-    }
-
     let mut node = node.clone();
     // Node must have full path for delete to work
     node.name = path.to_string_lossy().to_string();
@@ -404,14 +388,6 @@ fn process_remove_file_and_parents(
         node,
     };
 
-    // Remove the file from the versions db
-    // Take first 2 chars of hash as dir prefix and last N chars as the dir suffix
-    let dst_dir = util::fs::version_dir_from_hash(&repo_path, &node.hash.to_string());
-
-    if dst_dir.exists() {
-        util::fs::remove_dir_all(&dst_dir)?;
-    }
-
     // Write removed node to staged db
     log::debug!("writing removed file to staged db: {}", staged_entry);
     let mut buf = Vec::new();
@@ -490,15 +466,10 @@ pub fn remove_dir(
     path: &Path,
 ) -> Result<CumulativeStats, OxenError> {
     log::debug!("remove_dir called");
-    let versions_path = util::fs::oxen_hidden_dir(&repo.path)
-        .join(VERSIONS_DIR)
-        .join(FILES_DIR);
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&repo.path).join(STAGED_DIR);
     let staged_db: DBWithThreadMode<MultiThreaded> =
         DBWithThreadMode::open(&opts, dunce::simplified(&db_path))?;
-
-    let relative_path = util::fs::path_relative_to_dir(path, &repo.path)?;
 
     let dir_node = match CommitMerkleTree::dir_with_children_recursive(&repo, &commit, &path)? {
         Some(node) => node,
@@ -518,7 +489,7 @@ fn process_remove_dir(
     dir_node: &MerkleTreeNode,
     staged_db: &DBWithThreadMode<MultiThreaded>,
 ) -> Result<CumulativeStats, OxenError> {
-    let start = std::time::Instant::now();
+    // let start = std::time::Instant::now();
     log::debug!("Process Remove Dir");
 
     let progress_1 = Arc::new(ProgressBar::new_spinner());
@@ -526,7 +497,6 @@ fn process_remove_dir(
     progress_1.enable_steady_tick(Duration::from_millis(100));
 
     // root_path is the path of the directory rm was called on
-    let root_path = path;
     let repo = repo.clone();
     let repo_path = repo.path.clone();
 

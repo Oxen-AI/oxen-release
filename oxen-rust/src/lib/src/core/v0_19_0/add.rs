@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
-use crate::core;
 use crate::model::merkle_tree::node::DirNode;
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
@@ -283,25 +282,6 @@ fn get_file_node(
         if let Some(node) = node.get_by_path(path)? {
             if let EMerkleTreeNode::File(file_node) = &node.node {
                 Ok(Some(file_node.clone()))
-            } else {
-                Ok(None)
-            }
-        } else {
-            Ok(None)
-        }
-    } else {
-        Ok(None)
-    }
-}
-
-fn get_dir_node(
-    dir_node: &Option<MerkleTreeNode>,
-    path: impl AsRef<Path>,
-) -> Result<Option<DirNode>, OxenError> {
-    if let Some(node) = dir_node {
-        if let Some(node) = node.get_by_path(path)? {
-            if let EMerkleTreeNode::Directory(dir_node) = &node.node {
-                Ok(Some(dir_node.clone()))
             } else {
                 Ok(None)
             }
