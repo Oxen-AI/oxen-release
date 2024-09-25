@@ -82,7 +82,7 @@ fn parse_glob_path(
         } else {
             // Non-glob path
             let full_path = repo.path.join(path);
-            paths.insert(path.to_owned());
+            paths.insert(full_path);
         }
     }
 
