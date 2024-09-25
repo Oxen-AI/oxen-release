@@ -56,45 +56,21 @@ fn parse_glob_path(
     let mut paths: HashSet<PathBuf> = HashSet::new();
     log::debug!("Parsing paths: {path:?}");
 
-    if opts.recursive | opts.staged {
-        if let Some(path_str) = path.to_str() {
-            if util::fs::is_glob_path(path_str) {
-                // Match against any untracked entries in the current dir
-
-                for entry in glob(path_str)? {
-                    let full_path = repo.path.join(entry?);
-                    paths.insert(full_path);
-                }
-            } else {
-                // Non-glob path
-                let full_path = repo.path.join(path);
-                paths.insert(path.to_owned());
-            }
-        }
-    } else if let Some(path_str) = path.to_str() {
+    if let Some(path_str) = path.to_str() {
         if util::fs::is_glob_path(path_str) {
+            // Match against any untracked entries in the current dir
+
             for entry in glob(path_str)? {
                 let full_path = repo.path.join(entry?);
-
-                if full_path.is_dir() {
-                    let error = format!("`oxen rm` on directory {path:?} requires -r");
-                    return Err(OxenError::basic_str(error));
-                }
-
                 paths.insert(full_path);
             }
         } else {
             // Non-glob path
-
-            if path.is_dir() {
-                let error = format!("`oxen rm` on directory {path:?} requires -r");
-                return Err(OxenError::basic_str(error));
-            }
-
             let full_path = repo.path.join(path);
-            paths.insert(full_path.to_owned());
+            paths.insert(path.to_owned());
         }
-    }
+    
+    } 
 
     log::debug!("parse_glob_paths: {paths:?}");
     Ok(paths)
