@@ -9,7 +9,7 @@ use liboxen::util;
 use liboxen::view::http::{MSG_RESOURCE_FOUND, MSG_RESOURCE_UPDATED, STATUS_SUCCESS};
 use liboxen::view::repository::{
     DataTypeView, RepositoryCreationResponse, RepositoryCreationView, RepositoryDataTypesResponse,
-    RepositoryDataTypesView, RepositoryStatsResponse, RepositoryStatsView,
+    RepositoryDataTypesView, RepositoryListView, RepositoryStatsResponse, RepositoryStatsView,
 };
 use liboxen::view::{
     DataTypeCount, ListRepositoryResponse, NamespaceView, RepositoryResponse, RepositoryView,
@@ -28,9 +28,9 @@ pub async fn index(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttp
 
     let namespace_path = &app_data.path.join(&namespace);
 
-    let repos: Vec<RepositoryView> = repositories::list_repos_in_namespace(namespace_path)
+    let repos: Vec<RepositoryListView> = repositories::list_repos_in_namespace(namespace_path)
         .iter()
-        .map(|repo| RepositoryView {
+        .map(|repo| RepositoryListView {
             name: repo.dirname(),
             namespace: namespace.to_string(),
             min_version: Some(repo.min_version().to_string()),
@@ -80,6 +80,7 @@ pub async fn show(req: HttpRequest) -> actix_web::Result<HttpResponse, OxenHttpE
             size,
             data_types,
             min_version: Some(repository.min_version().to_string()),
+            is_empty: repositories::is_empty(&repository)?,
         },
     }))
 }
@@ -146,6 +147,7 @@ pub async fn create(
                         namespace: data.namespace.clone(),
                         latest_commit: Some(latest_commit.clone()),
                         name: data.name.clone(),
+                        min_version: Some(repo.min_version().to_string()),
                     },
                 })),
                 Err(OxenError::NoCommitsFound(_)) => {
@@ -156,6 +158,7 @@ pub async fn create(
                             namespace: data.namespace.clone(),
                             latest_commit: None,
                             name: data.name.clone(),
+                            min_version: Some(repo.min_version().to_string()),
                         },
                     }))
                 }
@@ -222,6 +225,7 @@ pub async fn transfer_namespace(
             namespace: to_namespace,
             name,
             min_version: Some(repo.min_version().to_string()),
+            is_empty: repositories::is_empty(&repo)?,
         },
     }))
 }

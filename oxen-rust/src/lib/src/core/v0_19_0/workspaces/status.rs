@@ -15,6 +15,7 @@ pub fn status(workspace: &Workspace, directory: impl AsRef<Path>) -> Result<Stag
     let workspace_repo = &workspace.workspace_repo;
     let opts = db::key_val::opts::default();
     let db_path = util::fs::oxen_hidden_dir(&workspace_repo.path).join(STAGED_DIR);
+    log::debug!("status db_path: {:?}", db_path);
     let db: DBWithThreadMode<SingleThreaded> =
         DBWithThreadMode::open_for_read_only(&opts, dunce::simplified(&db_path), true)?;
 

@@ -48,6 +48,11 @@ pub async fn clone_repo(
     let toml = toml::to_string(&remote_cfg)?;
     util::fs::write_to_path(&repo_config_file, &toml)?;
 
+    if remote_repo.is_empty {
+        println!("The remote repository is empty. Oxen has configured the local repository, but there are no files yet.");
+        return Ok(local_repo);
+    }
+
     repositories::pull::pull_remote_branch(
         &local_repo,
         DEFAULT_REMOTE_NAME,

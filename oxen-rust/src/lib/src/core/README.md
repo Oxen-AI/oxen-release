@@ -1,13 +1,16 @@
-oxen init
+# Oxen Core Commands
 
-oxen init -v 0.10.0
+## Initialization
+- `oxen init`: Initialize a new Oxen repository
+- `oxen init -v 0.10.0`: Initialize with a specific version
 
-.oxen/config.toml then well get the min version attribute which indicated the logic version that the repo is on.
+## Configuration
+- `.oxen/config.toml`: Contains the `min_version` attribute, indicating the logic version of the repo
 
-oxen tree to display tree
+## Repository Management
+- `oxen tree`: Display the repository tree structure
+- `oxen node hash`: Display the hash of a specific node
+- `oxen rm -r .oxen`: Remove Oxen metadata and restore the repo to its original state
 
-oxen node hash diplays the node
-
-oxen rm -r .oxen to restore the repo
-
-/history/commit_hash/dir_hashes this one helps us find the node hash for the path in question.
+## Commit History
+- `/history/commit_hash/dir_hashes`: Helps locate the node hash for a specific path in a commit

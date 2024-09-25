@@ -11,7 +11,7 @@ use crate::util;
 use crate::view::{PaginatedCommits, StatusMessage};
 use crate::{core, resource};
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 
 /// # Commit the staged files in the repo
@@ -131,7 +131,7 @@ pub fn list_all(repo: &LocalRepository) -> Result<HashSet<Commit>, OxenError> {
 }
 
 // Source
-pub fn get_commit_or_head<S: AsRef<str>>(
+pub fn get_commit_or_head<S: AsRef<str> + Clone>(
     repo: &LocalRepository,
     commit_id_or_branch_name: Option<S>,
 ) -> Result<Commit, OxenError> {
@@ -163,6 +163,17 @@ pub fn list_from(repo: &LocalRepository, revision: &str) -> Result<Vec<Commit>, 
     match repo.min_version() {
         MinOxenVersion::V0_10_0 => core::v0_10_0::commits::list_from(repo, revision),
         MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from(repo, revision),
+    }
+}
+pub fn list_from_with_depth(
+    repo: &LocalRepository,
+    revision: &str,
+) -> Result<HashMap<Commit, usize>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => Err(OxenError::basic_str(
+            "list_from_with_depth not supported in v0.10.0",
+        )),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::list_from_with_depth(repo, revision),
     }
 }
 
@@ -260,6 +271,29 @@ pub fn list_by_path_from_paginated(
         MinOxenVersion::V0_19_0 => {
             core::v0_19_0::commits::list_by_path_from_paginated(repo, commit, path, pagination)
         }
+    }
+}
+
+// TODO: Temporary function until after v0.19.0, we shouldn't need this check
+// once everything is working off the Merkle tree
+pub fn get_commit_status_tmp(
+    repo: &LocalRepository,
+    commit: &Commit,
+) -> Result<Option<core::v0_10_0::cache::cacher_status::CacherStatusType>, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => core::v0_10_0::cache::commit_cacher::get_status(&repo, &commit),
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::get_commit_status_tmp(repo, commit),
+    }
+}
+
+// TODO: Temporary function until after v0.19.0, we shouldn't need this check
+// once everything is working off the Merkle tree
+pub fn is_commit_valid_tmp(repo: &LocalRepository, commit: &Commit) -> Result<bool, OxenError> {
+    match repo.min_version() {
+        MinOxenVersion::V0_10_0 => {
+            core::v0_10_0::cache::cachers::content_validator::is_valid(&repo, &commit)
+        }
+        MinOxenVersion::V0_19_0 => core::v0_19_0::commits::is_commit_valid_tmp(repo, commit),
     }
 }
 

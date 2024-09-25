@@ -1,7 +1,7 @@
 use polars::datatypes::AnyValue;
 use polars::frame::DataFrame;
-
 use polars::prelude::NamedFrom;
+use polars::prelude::PlSmallStr;
 use polars::series::Series;
 use rocksdb::DB;
 use serde_json::Value;
@@ -52,7 +52,8 @@ pub fn get_by_id(
 }
 
 pub fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ID_COL) {
+    let id_col = PlSmallStr::from_str(OXEN_ID_COL);
+    if row_df.height() == 1 && row_df.get_column_names().contains(&&id_col) {
         Ok(row_df
             .column(OXEN_ID_COL)
             .unwrap()
@@ -65,7 +66,8 @@ pub fn get_row_id(row_df: &DataFrame) -> Result<Option<String>, OxenError> {
 }
 
 pub fn get_row_status(row_df: &DataFrame) -> Result<Option<StagedRowStatus>, OxenError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&DIFF_STATUS_COL) {
+    let diff_status_col = PlSmallStr::from_str(DIFF_STATUS_COL);
+    if row_df.height() == 1 && row_df.get_column_names().contains(&&diff_status_col) {
         let anyval_status = row_df.column(DIFF_STATUS_COL).unwrap().get(0)?;
         let str_status = anyval_status
             .get_str()
@@ -113,12 +115,15 @@ pub fn add(
 }
 
 pub fn restore(
+    repo: &LocalRepository,
     workspace: &Workspace,
-    entry: &CommitEntry,
+    path: impl AsRef<Path>,
     row_id: impl AsRef<str>,
 ) -> Result<DataFrame, OxenError> {
+    let entry = repositories::entries::get_commit_entry(repo, &workspace.commit, path.as_ref())?
+        .ok_or_else(|| OxenError::entry_does_not_exist(path.as_ref()))?;
     let row_id = row_id.as_ref();
-    let restored_row = restore_row_in_db(workspace, entry, row_id)?;
+    let restored_row = restore_row_in_db(workspace, &entry, row_id)?;
     let diff = workspaces::data_frames::diff(workspace, &entry.path)?;
 
     if let DiffResult::Tabular(diff) = diff {
@@ -182,7 +187,8 @@ pub fn restore_row_in_db(
 }
 
 pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
-    if row_df.height() == 1 && row_df.get_column_names().contains(&OXEN_ROW_ID_COL) {
+    let oxen_row_id_col = PlSmallStr::from_str(OXEN_ROW_ID_COL);
+    if row_df.height() == 1 && row_df.get_column_names().contains(&&oxen_row_id_col) {
         let row_df_anyval = row_df.column(OXEN_ROW_ID_COL).unwrap().get(0)?;
         match row_df_anyval {
             AnyValue::UInt16(val) => Ok(Some(val as usize)),
@@ -204,7 +210,7 @@ pub fn get_row_idx(row_df: &DataFrame) -> Result<Option<usize>, OxenError> {
 /// TODO: we should really be storing the original row contents
 ///       so that we can both do row level diffs and restore
 ///       this is very inefficient to load the entire original data frame
-fn prepare_modified_or_removed_row(
+pub fn prepare_modified_or_removed_row(
     repo: &LocalRepository,
     entry: &CommitEntry,
     row_df: &DataFrame,
@@ -226,7 +232,7 @@ fn prepare_modified_or_removed_row(
     // let mut row = row.collect()?;
 
     row.with_column(Series::new(
-        DIFF_STATUS_COL,
+        PlSmallStr::from_str(DIFF_STATUS_COL),
         vec![StagedRowStatus::Unchanged.to_string()],
     ))?;
 

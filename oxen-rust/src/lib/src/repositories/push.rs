@@ -372,7 +372,7 @@ mod tests {
                 let dir_path = data_dir.join(format!("{}", i));
                 util::fs::create_dir_all(&dir_path)?;
                 let file_path = dir_path.join("file.txt");
-                let file_path = test::write_txt_file_to_path(file_path, &format!("file -> {}", i))?;
+                let file_path = test::write_txt_file_to_path(file_path, format!("file -> {}", i))?;
                 repositories::add(&repo, &file_path)?;
                 repositories::commit(&repo, &format!("Adding file -> data/{}/file.txt", i))?;
             }
@@ -543,6 +543,7 @@ mod tests {
         .await
     }
 
+    // TODO: Invalid for v0_19_0?
     #[tokio::test]
     async fn test_cannot_push_two_separate_empty_roots() -> Result<(), OxenError> {
         test::run_no_commit_remote_repo_test(|remote_repo| async move {
@@ -550,6 +551,7 @@ mod tests {
 
             // Clone the first repo
             test::run_empty_dir_test_async(|first_repo_dir| async move {
+                println!("test_cannot_push_two_separate_empty_roots clone first repo");
                 let first_cloned_repo = repositories::clone_url(
                     &remote_repo.remote.url,
                     &first_repo_dir.join("first_repo"),
@@ -558,6 +560,7 @@ mod tests {
 
                 // Clone the second repo
                 test::run_empty_dir_test_async(|second_repo_dir| async move {
+                    println!("test_cannot_push_two_separate_empty_roots clone second repo");
                     let second_cloned_repo = repositories::clone_url(
                         &remote_repo.remote.url,
                         &second_repo_dir.join("second_repo"),
@@ -749,6 +752,7 @@ mod tests {
         .await
     }
 
+    // TODO: Invalid for v0_19_0?
     #[tokio::test]
     async fn test_cannot_push_while_another_user_is_pushing() -> Result<(), OxenError> {
         test::run_no_commit_remote_repo_test(|remote_repo| async move {

@@ -29,7 +29,7 @@ liboxen = { path = "../lib" }
 log = "0.4.17"
 lru = "0.12.0"
 os_path = "0.8.0"
-polars = { version = "0.42.0", features = [
+polars = { version = "0.43.1", features = [
     "lazy",
     "parquet",
     "json",
@@ -39,7 +39,7 @@ polars = { version = "0.42.0", features = [
 ] }
 r2d2 = "0.8.10"
 rand = "0.8.0"
-redis = { version = "0.26.1", features = ["r2d2"] }
+redis = { version = "0.27.2", features = ["r2d2"] }
 rocksdb = { version = "0.22.0", default-features = false, features = [
     "lz4",
     "snappy",

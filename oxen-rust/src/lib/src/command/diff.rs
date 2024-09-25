@@ -10,7 +10,7 @@
 
 use std::path::{Path, PathBuf};
 
-use crate::core::merge::merge_conflict_reader::MergeConflictReader;
+use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
 use crate::error::OxenError;
 use crate::model::diff::DiffResult;
 use crate::model::entry::commit_entry::CommitPath;
@@ -132,7 +132,7 @@ pub fn diff_commits(
 
     if let Some(mut commit_2) = cpath_2.commit {
         // if there are merge conflicts, compare against the conflict commit instead
-        let merger = MergeConflictReader::new(repo)?;
+        let merger = EntryMergeConflictReader::new(repo)?;
 
         if merger.has_conflicts()? {
             commit_2 = merger.get_conflict_commit()?.unwrap();
