@@ -278,7 +278,7 @@ where
     let txt = generate_random_string(20);
     let file_path = add_txt_file_to_dir(&repo_dir, &txt)?;
     repositories::add(&repo, &file_path)?;
-    repositories::commit(&repo, &format!("Init commit"))?;
+    repositories::commit(&repo, "Init commit")?;
 
     let result = match test(repo).await {
         Ok(_) => true,
