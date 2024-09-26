@@ -80,9 +80,8 @@ pub fn get_entries(
         log::debug!("get_entries found dir node: {dir_node:?}");
         CommitMerkleTree::dir_entries(&dir_node)
     } else {
-        return Err(OxenError::basic_str(format!("Error: path not found in tree")));
+        Err(OxenError::basic_str("Error: path not found in tree"))
     }
-
 }
 
 pub fn get_node_data_by_id(
@@ -151,7 +150,7 @@ fn r_list_files_and_dirs(
 ) -> Result<(), OxenError> {
     let traversed_path = traversed_path.as_ref();
     for child in &node.children {
-        log::debug!("Version found: V0_19_0");!("Found child: {child:?}");
+        log::debug!("Found child: {child:?}");
         match &child.node {
             EMerkleTreeNode::File(file_node) => {
                 file_nodes.insert(FileNodeWithDir {

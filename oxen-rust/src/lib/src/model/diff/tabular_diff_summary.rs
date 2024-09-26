@@ -52,7 +52,7 @@ impl TabularDiffWrapper {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
                     },
-                    _ => return Err(OxenError::basic_str("Invalid metadata type".to_string())),
+                    _ => return Err(OxenError::basic_str("Invalid metadata type")),
                 };
 
                 let head_size = match &head_entry.metadata {
@@ -60,7 +60,7 @@ impl TabularDiffWrapper {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
                     },
-                    _ => return Err(OxenError::basic_str("Invalid metadata type".to_string())),
+                    _ => return Err(OxenError::basic_str("Invalid metadata type")),
                 };
 
                 // TODO - this can be made less naive
@@ -106,7 +106,7 @@ impl TabularDiffWrapper {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
                     },
-                    _ => return Err(OxenError::basic_str("Invalid metadata type".to_string())),
+                    _ => return Err(OxenError::basic_str("Invalid metadata type")),
                 };
 
                 Ok(TabularDiffWrapper {
@@ -126,7 +126,7 @@ impl TabularDiffWrapper {
                         height: df_meta.tabular.height,
                         width: df_meta.tabular.width,
                     },
-                    _ => return Err(OxenError::basic_str("Invalid metadata type".to_string())),
+                    _ => return Err(OxenError::basic_str("Invalid metadata type")),
                 };
 
                 Ok(TabularDiffWrapper {

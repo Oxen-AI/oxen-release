@@ -458,7 +458,7 @@ pub fn transform_lazy(mut df: LazyFrame, opts: DFOpts) -> Result<LazyFrame, Oxen
 
     if let Some(columns) = opts.columns_names() {
         if !columns.is_empty() {
-            let cols = columns.iter().map(|c| col(c)).collect::<Vec<Expr>>();
+            let cols = columns.iter().map(col).collect::<Vec<Expr>>();
             df = df.select(&cols);
         }
     }

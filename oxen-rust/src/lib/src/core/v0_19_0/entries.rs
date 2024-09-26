@@ -64,7 +64,6 @@ pub fn get_file_merkle_tree_node(
     Ok(file_node)
 }
 
-
 pub fn list_directory(
     repo: &LocalRepository,
     directory: impl AsRef<Path>,

@@ -78,7 +78,7 @@ pub fn restore(
             rm::remove_staged(
                 &workspace.workspace_repo,
                 &HashSet::from([path.as_ref().to_path_buf()]),
-                true
+                true,
             )?;
 
             // loop over parents and delete from staged db
@@ -87,7 +87,7 @@ pub fn restore(
                 rm::remove_staged(
                     &workspace.workspace_repo,
                     &HashSet::from([parent.to_path_buf()]),
-                    true
+                    true,
                 )?;
                 current_path = parent.to_path_buf();
             }
@@ -133,7 +133,11 @@ pub fn delete(
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
-            rm::remove_staged(&workspace.base_repo, &HashSet::from([path.to_path_buf()]), true)?;
+            rm::remove_staged(
+                &workspace.base_repo,
+                &HashSet::from([path.to_path_buf()]),
+                true,
+            )?;
         }
     }
     Ok(deleted_row)
@@ -173,7 +177,11 @@ pub fn update(
     let diff = repositories::workspaces::data_frames::full_diff(workspace, path)?;
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            rm::remove_staged(&workspace.base_repo, &HashSet::from([path.to_path_buf()]), true)?;
+            rm::remove_staged(
+                &workspace.base_repo,
+                &HashSet::from([path.to_path_buf()]),
+                true,
+            )?;
         }
     }
 

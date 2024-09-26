@@ -22,16 +22,8 @@ pub fn diff_entries(
     head_commit: &Commit,
     df_opts: DFOpts,
 ) -> Result<DiffEntry, OxenError> {
-    let commit_entry = if let Some(base_entry) = base_entry {
-        Some(CommitEntry::from_file_node(&base_entry))
-    } else {
-        None
-    };
-    let head_commit_entry = if let Some(head_entry) = head_entry {
-        Some(CommitEntry::from_file_node(&head_entry))
-    } else {
-        None
-    };
+    let commit_entry = base_entry.map(|base_entry| CommitEntry::from_file_node(&base_entry));
+    let head_commit_entry = head_entry.map(|head_entry| CommitEntry::from_file_node(&head_entry));
     p_diff_entries(
         repo,
         commit_entry,
