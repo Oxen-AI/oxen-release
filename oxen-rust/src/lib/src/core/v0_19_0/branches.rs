@@ -9,9 +9,9 @@ use crate::util;
 use std::path::Path;
 
 pub fn list_entry_versions_for_commit(
-    local_repo: &LocalRepository,
-    commit_id: &str,
-    path: &Path,
+    _local_repo: &LocalRepository,
+    _commit_id: &str,
+    _path: &Path,
 ) -> Result<Vec<(Commit, CommitEntry)>, OxenError> {
     todo!()
 }

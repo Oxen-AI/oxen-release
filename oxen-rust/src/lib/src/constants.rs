@@ -17,6 +17,8 @@ pub const TMP_DIR: &str = ".cache";
 pub const CONFIG_DIR: &str = ".config";
 /// .oxenignore is the name of the file that contains the ignore patterns
 pub const OXEN_IGNORE_FILE: &str = ".oxenignore";
+/// Root path for repositories
+pub const ROOT_PATH: &str = "/";
 /// Config file for the repository
 pub const REPO_CONFIG_FILENAME: &str = "config.toml";
 /// HEAD file holds onto where the head commit is (commit_id or branch name)

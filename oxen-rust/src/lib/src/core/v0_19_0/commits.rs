@@ -113,13 +113,19 @@ pub fn head_commit(repo: &LocalRepository) -> Result<Commit, OxenError> {
     Ok(commit.to_commit())
 }
 
+/// Get the root commit of the repository or None
 pub fn root_commit_maybe(repo: &LocalRepository) -> Result<Option<Commit>, OxenError> {
-    if let Some(commit) = head_commit_maybe(repo)? {
-        let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
-        Ok(Some(root_commit))
-    } else {
-        Ok(None)
+    // Try to get a branch ref and follow it to the root
+    // We only need to look at one ref as all branches will have the same root
+    let ref_reader = RefReader::new(repo)?;
+    if let Some(branch) = ref_reader.list_branches()?.first() {
+        if let Some(commit) = get_by_id(repo, &branch.commit_id)? {
+            let root_commit = root_commit_recursive(repo, MerkleHash::from_str(&commit.id)?)?;
+            return Ok(Some(root_commit));
+        }
     }
+    log::debug!("root_commit_maybe: no root commit found");
+    Ok(None)
 }
 
 fn root_commit_recursive(
@@ -162,27 +168,34 @@ pub fn get_by_hash(repo: &LocalRepository, hash: &MerkleHash) -> Result<Option<C
 /// List commits on the current branch from HEAD
 pub fn list(repo: &LocalRepository) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
+    let mut visited = HashSet::new();
     let commit = head_commit(repo)?;
-    list_recursive(repo, commit, &mut results, None)?;
+    list_recursive(repo, commit, &mut results, None, &mut visited)?;
     Ok(results)
 }
 
-/// List commits recursively from a given commit
-/// if stop_at is provided, stop at that commit
 fn list_recursive(
     repo: &LocalRepository,
     commit: Commit,
     results: &mut Vec<Commit>,
-    stop_at: Option<Commit>,
+    stop_at: Option<&Commit>,
+    visited: &mut HashSet<String>,
 ) -> Result<(), OxenError> {
-    if stop_at.is_some() && commit == *stop_at.as_ref().unwrap() {
+    if stop_at.is_some() && &commit == stop_at.unwrap() {
         return Ok(());
     }
+
+    // Check if we've already visited this commit
+    if !visited.insert(commit.id.clone()) {
+        return Ok(());
+    }
+
     results.push(commit.clone());
+
     for parent_id in commit.parent_ids {
         let parent_id = MerkleHash::from_str(&parent_id)?;
         if let Some(parent_commit) = get_by_hash(repo, &parent_id)? {
-            list_recursive(repo, parent_commit, results, stop_at.clone())?;
+            list_recursive(repo, parent_commit, results, stop_at, visited)?;
         }
     }
     Ok(())
@@ -225,7 +238,7 @@ pub fn list_from(
     let mut results = vec![];
     let commit = repositories::revisions::get(repo, revision)?;
     if let Some(commit) = commit {
-        list_recursive(repo, commit, &mut results, None)?;
+        list_recursive(repo, commit, &mut results, None, &mut HashSet::new())?;
     }
     Ok(results)
 }
@@ -266,15 +279,21 @@ pub fn list_between(
     head: &Commit,
 ) -> Result<Vec<Commit>, OxenError> {
     let mut results = vec![];
-    list_recursive(repo, base.clone(), &mut results, Some(head.clone()))?;
+    list_recursive(
+        repo,
+        base.clone(),
+        &mut results,
+        Some(head),
+        &mut HashSet::new(),
+    )?;
     Ok(results)
 }
 
 /// Retrieve entries with filepaths matching a provided glob pattern
 pub fn search_entries(
-    repo: &LocalRepository,
-    commit: &Commit,
-    pattern: impl AsRef<str>,
+    _repo: &LocalRepository,
+    _commit: &Commit,
+    _pattern: impl AsRef<str>,
 ) -> Result<HashSet<PathBuf>, OxenError> {
     todo!()
 }

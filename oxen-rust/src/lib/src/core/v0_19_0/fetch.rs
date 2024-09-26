@@ -21,7 +21,7 @@ pub async fn fetch_remote_branch(
     repo: &LocalRepository,
     remote_repo: &RemoteRepository,
     remote_branch: &RemoteBranch,
-    all: bool,
+    _all: bool,
 ) -> Result<(), OxenError> {
     // Start the timer
     let start = std::time::Instant::now();

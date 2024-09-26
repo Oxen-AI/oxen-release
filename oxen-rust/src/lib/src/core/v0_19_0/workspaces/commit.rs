@@ -1,11 +1,21 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+
 use crate::constants::STAGED_DIR;
 use crate::core;
 use crate::core::db;
 use crate::core::refs::RefWriter;
+use crate::core::v0_19_0::structs::StagedMerkleTreeNode;
+use crate::core::v0_19_0::workspaces;
 use crate::error::OxenError;
-use crate::model::{Commit, NewCommitBody, Workspace};
+use crate::model::merkle_tree::node::{EMerkleTreeNode, FileNode, MerkleTreeNode};
+use crate::model::{
+    Commit, EntryDataType, MerkleHash, NewCommitBody, StagedEntryStatus, Workspace,
+};
+use crate::repositories;
 use crate::util;
 
+use filetime::FileTime;
 use indicatif::ProgressBar;
 use rocksdb::{DBWithThreadMode, SingleThreaded};
 
@@ -33,6 +43,8 @@ pub fn commit(
         &commit_progress_bar,
     )?;
 
+    let dir_entries = export_tabular_data_frames(workspace, dir_entries)?;
+
     let commit = core::v0_19_0::index::commit_writer::commit_dir_entries(
         &workspace.base_repo,
         dir_entries,
@@ -47,4 +59,103 @@ pub fn commit(
     ref_writer.set_branch_commit_id(branch_name, &commit_id)?;
 
     Ok(commit)
+}
+
+fn export_tabular_data_frames(
+    workspace: &Workspace,
+    dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>>,
+) -> Result<HashMap<PathBuf, Vec<StagedMerkleTreeNode>>, OxenError> {
+    // Export all the workspace data frames and add them to the commit
+    let mut new_dir_entries: HashMap<PathBuf, Vec<StagedMerkleTreeNode>> = HashMap::new();
+    for (path, entries) in dir_entries {
+        for dir_entry in entries {
+            log::debug!(
+                "workspace commit checking if we want to export: {:?} -> {:?}",
+                path,
+                dir_entry.node.node
+            );
+            match &dir_entry.node.node {
+                EMerkleTreeNode::File(file_node) => {
+                    match file_node.data_type {
+                        EntryDataType::Tabular => {
+                            log::debug!(
+                                "Exporting tabular data frame: {:?} -> {:?}",
+                                path,
+                                file_node.name
+                            );
+                            let exported_path =
+                                workspaces::data_frames::extract_file_node_to_working_dir(
+                                    workspace, &path, &file_node,
+                                )?;
+
+                            // Update the metadata in the new staged merkle tree node
+                            let new_staged_merkle_tree_node =
+                                compute_staged_merkle_tree_node(workspace, &exported_path)?;
+                            new_dir_entries
+                                .entry(path.to_path_buf())
+                                .or_default()
+                                .push(new_staged_merkle_tree_node);
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {
+                    new_dir_entries
+                        .entry(path.to_path_buf())
+                        .or_default()
+                        .push(dir_entry);
+                }
+            }
+        }
+    }
+    Ok(new_dir_entries)
+}
+
+fn compute_staged_merkle_tree_node(
+    workspace: &Workspace,
+    path: &PathBuf,
+) -> Result<StagedMerkleTreeNode, OxenError> {
+    // This logic is copied from add.rs but add has some optimizations that make it hard to be reused here
+    let metadata = std::fs::metadata(path)?;
+    let mtime = FileTime::from_last_modification_time(&metadata);
+    let hash = util::hasher::get_hash_given_metadata(&path, &metadata)?;
+    let num_bytes = metadata.len();
+    let hash = MerkleHash::new(hash);
+
+    // Get the data type of the file
+    let mime_type = util::fs::file_mime_type(path);
+    let data_type = util::fs::datatype_from_mimetype(path, &mime_type);
+    let metadata = repositories::metadata::get_file_metadata(&path, &data_type)?;
+
+    // Copy the file to the versioned directory
+    let dst_dir = util::fs::version_dir_from_hash(&workspace.base_repo.path, hash.to_string());
+    if !dst_dir.exists() {
+        util::fs::create_dir_all(&dst_dir).unwrap();
+    }
+
+    let relative_path = util::fs::path_relative_to_dir(path, &workspace.workspace_repo.path)?;
+    let dst = dst_dir.join("data");
+
+    log::debug!("Copying file to {:?}", dst);
+
+    util::fs::copy(&path, &dst).unwrap();
+    let file_extension = path.extension().unwrap_or_default().to_string_lossy();
+    let relative_path_str = relative_path.to_str().unwrap();
+    let file_node = FileNode {
+        hash,
+        name: relative_path_str.to_string(),
+        data_type,
+        num_bytes,
+        last_modified_seconds: mtime.unix_seconds(),
+        last_modified_nanoseconds: mtime.nanoseconds(),
+        metadata,
+        extension: file_extension.to_string(),
+        mime_type: mime_type.clone(),
+        ..Default::default()
+    };
+
+    Ok(StagedMerkleTreeNode {
+        status: StagedEntryStatus::Modified,
+        node: MerkleTreeNode::from_file(file_node),
+    })
 }

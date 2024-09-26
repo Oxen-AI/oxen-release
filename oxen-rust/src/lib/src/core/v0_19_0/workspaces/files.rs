@@ -48,11 +48,11 @@ pub fn track_modified_data_frame(
     Ok(relative_path)
 }
 
-pub fn delete(workspace: &Workspace, path: impl AsRef<Path>) -> Result<(), OxenError> {
+pub fn delete(_workspace: &Workspace, _path: impl AsRef<Path>) -> Result<(), OxenError> {
     todo!()
 }
 
-pub fn exists(workspace: &Workspace, path: impl AsRef<Path>) -> Result<bool, OxenError> {
+pub fn exists(_workspace: &Workspace, _path: impl AsRef<Path>) -> Result<bool, OxenError> {
     todo!()
 }
 
@@ -62,7 +62,6 @@ fn p_add_file(
     maybe_head_commit: &Option<Commit>,
     path: &Path,
 ) -> Result<Option<StagedMerkleTreeNode>, OxenError> {
-    let repo_path = workspace_repo.path.clone();
     let versions_path = util::fs::oxen_hidden_dir(&base_repo.path)
         .join(VERSIONS_DIR)
         .join(FILES_DIR);
@@ -80,7 +79,7 @@ fn p_add_file(
 
     let seen_dirs = Arc::new(Mutex::new(HashSet::new()));
     process_add_file(
-        &repo_path,
+        &workspace_repo.path,
         &versions_path,
         &staged_db,
         &maybe_dir_node,
