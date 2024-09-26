@@ -116,7 +116,7 @@ fn remove(
     // FileNode "path.jpg"
 
     for path in paths {
-        let path = util::fs::path_relative_to_dir(&path, &repo.path)?;
+        let path = util::fs::path_relative_to_dir(path, &repo.path)?;
         let Some(node) = tree.get_by_path(&path)? else {
             log::error!("Path {} not found in tree", path.display());
             continue;
@@ -124,7 +124,7 @@ fn remove(
 
         match &node.node {
             EMerkleTreeNode::File(file_node) => {
-                remove_file(repo, &path, &file_node)?;
+                remove_file(repo, &path, file_node)?;
             }
             EMerkleTreeNode::Directory(dir_node) => {
                 // remove_dir(repo, &commit, path.to_path_buf())?;

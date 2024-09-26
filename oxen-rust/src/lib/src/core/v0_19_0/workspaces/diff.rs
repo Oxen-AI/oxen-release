@@ -26,7 +26,7 @@ pub fn diff(workspace: &Workspace, path: impl AsRef<Path>) -> Result<DiffResult,
         return Err(OxenError::basic_str("Dataset is not indexed"));
     };
 
-    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, &path);
+    let db_path = repositories::workspaces::data_frames::duckdb_path(workspace, path);
 
     let conn = df_db::get_connection(db_path)?;
 

@@ -261,8 +261,9 @@ pub fn lowest_common_ancestor_from_commits(
 
 #[cfg(test)]
 mod tests {
-    use crate::core::merge::entry_merge_conflict_reader::EntryMergeConflictReader;
-    use crate::core::v0_10_0::index::{CommitReader, Merger};
+    
+    use crate::core::merge::node_merge_conflict_reader::NodeMergeConflictReader;
+    
     use crate::error::OxenError;
     use crate::model::{Commit, LocalRepository};
     use crate::repositories;
@@ -308,6 +309,7 @@ mod tests {
 
         // Checkout merge branch (B) to make another change
         repositories::checkout(repo, merge_branch_name).await?;
+
         let e_path = repo.path.join("e.txt");
         util::fs::write_to_path(&e_path, "e")?;
         repositories::add(repo, e_path)?;
@@ -493,15 +495,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_no_conflict_three_way_merge() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             let merge_branch_name = "B";
             // this will checkout main again so we can try to merge
+
             populate_threeway_merge_repo(&repo, merge_branch_name).await?;
 
             {
                 // Make sure the merger can detect the three way merge
-                let merger = Merger::new(&repo)?;
-                let merge_commit = merger.merge(merge_branch_name)?.unwrap();
+                let merge_commit = repositories::merge::merge(&repo, merge_branch_name)?.unwrap();
 
                 // Two way merge should have two parent IDs so we know where the merge came from
                 assert_eq!(merge_commit.parent_ids.len(), 2);
@@ -518,12 +520,10 @@ mod tests {
                 }
             }
 
-            // Make sure we added the merge commit
-            let commit_reader = CommitReader::new(&repo)?;
-            let post_merge_history = commit_reader.history_from_head()?;
+            let commit_history = repositories::commits::list(&repo)?;
 
             // We should have the merge commit + the branch commits here
-            assert_eq!(7, post_merge_history.len());
+            assert_eq!(7, commit_history.len());
 
             Ok(())
         })
@@ -532,7 +532,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_conflict_three_way_merge() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // This test has a conflict where user on the main line, and user on the branch, both modify a.txt
 
             // Ex) We want to merge E into D to create F
@@ -596,13 +596,9 @@ mod tests {
             // Checkout the OG branch again so that we can merge into it
             repositories::checkout(&repo, &a_branch.name).await?;
 
-            // Make sure the merger can detect the three way merge
-            {
-                let merger = Merger::new(&repo)?;
-                merger.merge(merge_branch_name)?;
-            }
+            repositories::merge::merge(&repo, merge_branch_name)?;
 
-            let conflict_reader = EntryMergeConflictReader::new(&repo)?;
+            let conflict_reader = NodeMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
             let conflicts = conflict_reader.list_conflicts()?;
 
@@ -610,7 +606,7 @@ mod tests {
             assert_eq!(conflicts.len(), 1);
 
             let local_a_path = util::fs::path_relative_to_dir(&a_path, &repo.path)?;
-            assert_eq!(conflicts[0].base_entry.path, local_a_path);
+            assert_eq!(conflicts[0].base_entry.1, local_a_path);
 
             Ok(())
         })
@@ -619,7 +615,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merge_conflict_three_way_merge_post_merge_branch() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
@@ -649,19 +645,13 @@ mod tests {
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge in a scope so that it closes the db
-            {
-                let merger = Merger::new(&repo)?;
-                merger.merge(fish_branch_name)?;
-            }
+            repositories::merge::merge(&repo, fish_branch_name)?;
 
             // Checkout main again, merge again
             repositories::checkout(&repo, &og_branch.name).await?;
-            {
-                let merger = Merger::new(&repo)?;
-                merger.merge(human_branch_name)?;
-            }
+            repositories::merge::merge(&repo, human_branch_name)?;
 
-            let conflict_reader = EntryMergeConflictReader::new(&repo)?;
+            let conflict_reader = NodeMergeConflictReader::new(&repo)?;
             let has_conflicts = conflict_reader.has_conflicts()?;
             let conflicts = conflict_reader.list_conflicts()?;
 
@@ -675,7 +665,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_merger_has_merge_conflicts_without_merging() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
@@ -705,9 +695,8 @@ mod tests {
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
-            let merger = Merger::new(&repo)?;
-            // Should merge cleanly
-            let result = merger.merge(fish_branch_name)?;
+
+            let result = repositories::merge::merge(&repo, fish_branch_name)?;
             assert!(result.is_some());
 
             // But now there should be conflicts when trying to merge in the human branch
@@ -716,7 +705,8 @@ mod tests {
                 repositories::branches::get_by_name(&repo, human_branch_name)?.unwrap();
 
             // Check if there are conflicts
-            let has_conflicts = merger.has_conflicts(&base_branch, &merge_branch)?;
+            let has_conflicts =
+                repositories::merge::has_conflicts(&repo, &base_branch, &merge_branch)?;
             assert!(has_conflicts);
 
             Ok(())
@@ -726,7 +716,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_merge_conflicts_without_merging() -> Result<(), OxenError> {
-        test::run_empty_local_repo_test_async(|repo| async move {
+        test::run_one_commit_local_repo_test_async(|repo| async move {
             // This case for a three way merge was failing, if one branch gets fast forwarded, then the next
             // should have a conflict from the LCA
 
@@ -756,16 +746,14 @@ mod tests {
             repositories::checkout(&repo, &og_branch.name).await?;
 
             // Merge the fish branch in, and then the human branch should have conflicts
-            let merger = Merger::new(&repo)?;
-            // Should merge cleanly
-            let result_commit = merger.merge(fish_branch_name)?;
+            let result_commit = repositories::merge::merge(&repo, fish_branch_name)?;
+
             assert!(result_commit.is_some());
 
             // There should be one file that is in conflict
-            let commit_reader = CommitReader::new(&repo)?;
             let base_commit = result_commit.unwrap();
-            let conflicts = merger.list_conflicts_between_commits(
-                &commit_reader,
+            let conflicts = repositories::merge::list_conflicts_between_commits(
+                &repo,
                 &base_commit,
                 &human_commit,
             )?;
