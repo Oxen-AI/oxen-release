@@ -74,7 +74,7 @@ pub fn restore(
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
             // TODO: Implement this
-            rm::remove_staged(
+            rm::remove_staged_recursively(
                 &workspace.workspace_repo,
                 &HashSet::from([path.as_ref().to_path_buf()]),
             )?;
@@ -82,7 +82,7 @@ pub fn restore(
             // loop over parents and delete from staged db
             let mut current_path = path.as_ref().to_path_buf();
             while let Some(parent) = current_path.parent() {
-                rm::remove_staged(
+                rm::remove_staged_recursively(
                     &workspace.workspace_repo,
                     &HashSet::from([parent.to_path_buf()]),
                 )?;
@@ -130,8 +130,8 @@ pub fn delete(
         if !diff.has_changes() {
             log::debug!("no changes, deleting file from staged db");
             // Restored to original state == delete file from staged db
-            rm::remove_staged(
-                &workspace.workspace_repo,
+            rm::remove_staged_recursively(
+                &workspace.base_repo,
                 &HashSet::from([path.to_path_buf()]),
             )?;
         }
@@ -174,8 +174,8 @@ pub fn update(
     log::debug!("update() diff: {:?}", diff);
     if let DiffResult::Tabular(diff) = diff {
         if !diff.has_changes() {
-            rm::remove_staged(
-                &workspace.workspace_repo,
+            rm::remove_staged_recursively(
+                &workspace.base_repo,
                 &HashSet::from([path.to_path_buf()]),
             )?;
         }

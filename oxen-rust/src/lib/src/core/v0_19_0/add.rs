@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 use tokio::time::Duration;
 use walkdir::WalkDir;
 
-use crate::model::merkle_tree::node::DirNode;
 use indicatif::{ProgressBar, ProgressStyle};
 use rmp_serde::Serializer;
 use serde::Serialize;
